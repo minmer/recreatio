@@ -1,0 +1,51 @@
+{
+  "why": {
+    "thread": "chosen for this conversation",
+    "group": "group „{group}”",
+    "last": "the last message came from here",
+    "default": "default SMS number"
+  },
+  "own": {
+    "removed": "Number removed.",
+    "saved": "Number saved.",
+    "saveFailed": "Could not save the number.",
+    "title": "Your numbers",
+    "note": "The archive records for each message which number it went from; a reply from the browser is sent by the phone that has the conversation's number.",
+    "default": "(default for SMS)",
+    "numberPh": "This card's number, e.g. +48 600 100 200",
+    "numberOf": "Number: {name}"
+  },
+  "title": "Numbers and groups",
+  "loadFailed": "Could not load the contacts.",
+  "loading": "Loading contacts…",
+  "groups": {
+    "title": "Groups with their own number",
+    "note": "People in a group always get SMS from the chosen number — in the conversation, in a new message and in a reply from a notification. In a conversation you can change it in its header (it then applies only to that conversation).",
+    "oneSim": "This phone has one number — choosing a number for groups appears with two SIM cards.",
+    "empty": "No groups yet. Create the first one — or enter a group on a contact (Contacts → person → Groups).",
+    "numberFor": "Number for the group {group}",
+    "people": "People…",
+    "new": "New group"
+  },
+  "persons": {
+    "one": "{count} person",
+    "other": "{count} people"
+  },
+  "defaultNumber": "Default number",
+  "edit": {
+    "nameIt": "Name the group.",
+    "noComma": "A group name cannot contain a comma.",
+    "savingN": "Saving… {done}/{total}",
+    "saved": "Group „{group}”: {persons}.",
+    "savedNumber": "Group „{group}”: {persons}, number {number}.",
+    "saveFailed": "Could not save the group.",
+    "title": "Group „{group}”",
+    "name": "Group name",
+    "namePh": "e.g. Work, Confirmation 2026",
+    "sendFrom": "Send SMS to these people from the number",
+    "people": "People ({count})",
+    "searchPh": "Search: name, number…",
+    "contacts": "Contacts",
+    "save": "Save group"
+  }
+}

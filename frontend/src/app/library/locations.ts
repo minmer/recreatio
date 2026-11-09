@@ -33,6 +33,7 @@
  * ihrer Serie, wie sie gedruckt sind — für jedes Buch und jedes Zeichen, unten bei `readPage`.
  */
 
+import { t } from '../core/i18n';
 import { bibleBooks, bookById, formatBible, parseBible, type BibleSpan } from './bible';
 
 export type SchemeId = 'pages' | 'bible' | 'numbered' | 'aquinas' | 'decimal' | 'sections' | 'outline' | 'time';
@@ -45,15 +46,22 @@ export interface SchemeDef {
   readonly examples: readonly string[];
 }
 
+/** 2026-11-09 — Name und Satz einer Regel in der Sprache der App (`librarySource.scheme.<id>`); die Beispiele sind Schreibweise. */
+const scheme = (id: SchemeId, examples: readonly string[]): SchemeDef => ({
+  id, examples,
+  get label() { return t(`librarySource.scheme.${id}.label`); },
+  get says() { return t(`librarySource.scheme.${id}.says`); }
+});
+
 export const SCHEMES: readonly SchemeDef[] = [
-  { id: 'pages', label: 'Strony wydania', says: 'Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy książka numeruje swoje części osobno (wstęp „xii” albo „12*”, dodatek „3\'”, wkładki „(7)”, „A12”), strona niesie znaki swojej serii tak, jak są wydrukowane — dowolne — a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce.', examples: ['s. 23', 's. 23–25', 's. 23, 27', 's. xii', 's. 12*', "s. 45'–47'", 's. (7)', 's. A12'] },
-  { id: 'bible', label: 'Pismo Święte', says: 'Księga, rozdział, werset — wspólne dla wszystkich przekładów (numeracja psalmów: hebrajska, grecka w nawiasie).', examples: ['J 21,15-17', 'Ps 51(50),3', 'Łk 1,26–2,5', 'Mt 5,3-12; 6,1'] },
-  { id: 'numbered', label: 'Numery (dokumenty)', says: 'Numerowane punkty dokumentów Kościoła, katechizmu, kodeksów; paragraf w numerze po „§".', examples: ['nr 24', 'nn. 24–26', 'KKK 1234', 'kan. 915 § 1'] },
-  { id: 'aquinas', label: 'Tomasz z Akwinu', says: 'Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad).', examples: ['I, q. 2, a. 3', 'I-II, q. 90, a. 1, ad 2', 'II-II q. 23 a. 1 arg. 1', 'III q. 75 a. 1 co.'] },
-  { id: 'decimal', label: 'Numeracja dziesiętna', says: 'Twierdzenia numerowane dziesiętnie, jak w Traktacie logiczno-filozoficznym: każda cyfra po kropce to poziom niżej.', examples: ['2.0121', '4.1–4.116', 'TLP 6.54'] },
-  { id: 'sections', label: 'Paragrafy dzieła', says: 'Paragrafy (uwagi) numerowane w całym dziele, z częściami, jak w Dociekaniach filozoficznych.', examples: ['§ 43', '§§ 1–5', 'cz. II, xi'] },
-  { id: 'outline', label: 'Podział dzieła', says: 'Tom, część, księga, rozdział, paragraf, akapit — tyle poziomów, ile ma dzieło.', examples: ['t. 2, cz. 1, rozdz. 3', 'ks. II, rozdz. 4, § 2', 'rozdz. 3, ak. 5'] },
-  { id: 'time', label: 'Czas nagrania', says: 'Minuty i sekundy nagrania — jak strony wydania należą do tego jednego wykonania, nie do utworu.', examples: ['1:23', '1:23–1:45', '0:45; 2:10–2:30', '1:02:03'] }
+  scheme('pages', ['s. 23', 's. 23–25', 's. 23, 27', 's. xii', 's. 12*', "s. 45'–47'", 's. (7)', 's. A12']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('bible', ['J 21,15-17', 'Ps 51(50),3', 'Łk 1,26–2,5', 'Mt 5,3-12; 6,1']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('numbered', ['nr 24', 'nn. 24–26', 'KKK 1234', 'kan. 915 § 1']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('aquinas', ['I, q. 2, a. 3', 'I-II, q. 90, a. 1, ad 2', 'II-II q. 23 a. 1 arg. 1', 'III q. 75 a. 1 co.']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('decimal', ['2.0121', '4.1–4.116', 'TLP 6.54']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('sections', ['§ 43', '§§ 1–5', 'cz. II, xi']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('outline', ['t. 2, cz. 1, rozdz. 3', 'ks. II, rozdz. 4, § 2', 'rozdz. 3, ak. 5']), // i18n-ignore — Beispiele: Schreibweise der Stellen
+  scheme('time', ['1:23', '1:23–1:45', '0:45; 2:10–2:30', '1:02:03']) // i18n-ignore — Beispiele: Schreibweise der Stellen
 ];
 
 /** 2026-10-26 — die Regeln für Texte (Quellentexte, die Wahl am Werk); `time` gehört den Nagrania. */

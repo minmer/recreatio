@@ -22,6 +22,7 @@ import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { keysFor } from '../core/ringOf';
 import { repeatOf } from './rounds';
 import { WorkspaceError, type Who } from '../core/session';
+import { useT } from '../core/i18n';
 import type { ExtensionInfo } from '../steps/steps';
 
 interface Loaded {
@@ -40,10 +41,11 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const load = useCallback(async (): Promise<Loaded> => {
     const { ring } = await keysFor(who);
-    if (ring === null) throw new WorkspaceError('Bez hasła w tej karcie nie da się otworzyć listy.');
+    if (ring === null) throw new WorkspaceError(t('formsData.list.noPassword'));
 
     const base = await readForm(formId, ring);
     const exts = new Map<string, ReadForm>();
@@ -75,7 +77,7 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
     };
 
     return { ctx, base, exts };
-  }, [who, formId, formName, extensions]);
+  }, [who, formId, formName, extensions, t]);
 
   const open = async () => {
     setLoading(true);
@@ -83,7 +85,7 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
     try {
       setLoaded(await load());
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć listy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('formsData.list.openFailed'));
     } finally {
       setLoading(false);
     }
@@ -93,7 +95,7 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
     return (
       <div className="wk-actions">
         <button type="button" className="wk-link-btn" disabled={loading} onClick={() => void open()}>
-          {loading ? 'Otwieranie listy…' : 'JSON listy — eksport i import'}
+          {loading ? t('formsData.list.opening') : t('formsData.list.summary')}
         </button>
         {failed !== null && <span className="wk-error">{failed}</span>}
       </div>
@@ -115,12 +117,12 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
     const made = new Map<number, string>();
 
     for (const [i, one] of plan.add.entries()) {
-      stage(`Dopisywanie osób: ${i + 1} z ${plan.add.length}…`);
+      stage(t('formsData.list.adding', { at: i + 1, of: plan.add.length }));
       made.set(one.ref, (await addOfficeEntry(formId, null, one.answers, baseKeys)).registrationId);
     }
 
     for (const [i, one] of plan.change.entries()) {
-      stage(`Zmienianie danych: ${i + 1} z ${plan.change.length}…`);
+      stage(t('formsData.list.changing', { at: i + 1, of: plan.change.length }));
       await reviseAcrossAsOffice(one.registrationId, one.answers, baseKeys);
     }
 
@@ -130,14 +132,14 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
     };
 
     for (const [i, one] of plan.recordsNew.entries()) {
-      stage(`Wpisy w rozszerzeniach: ${i + 1} z ${plan.recordsNew.length}…`);
+      stage(t('formsData.list.records', { at: i + 1, of: plan.recordsNew.length }));
       const baseId = 'ref' in one.base ? made.get(one.base.ref) : one.base.registrationId;
       if (baseId === undefined) continue;
       await addOfficeEntry(one.extensionId, baseId, one.answers, extKeys(one.extensionId), one.round);
     }
 
     for (const [i, one] of plan.recordsChange.entries()) {
-      stage(`Zmienianie wpisów: ${i + 1} z ${plan.recordsChange.length}…`);
+      stage(t('formsData.list.recordsChanging', { at: i + 1, of: plan.recordsChange.length }));
       await reviseAcrossAsOffice(one.registrationId, one.answers, extKeys(one.extensionId));
     }
 
@@ -148,13 +150,13 @@ export function ListJsonPanel({ who, formId, formName, extensions, onDone }: {
 
   return (
     <JsonPanel
-      summary="JSON listy — eksport i import"
-      lead={<>Osoby z tej listy i wpisy z rozszerzeń jako JSON („{ENTRIES_FORMAT}”). Import dopisuje i zmienia — nie usuwa. Listę z kartki albo arkusza zamień na ten format (opis obok możesz skopiować do swojego czatu z AI) i wklej tutaj.</>}
+      summary={t('formsData.list.summary')}
+      lead={t('formsData.list.lead', { format: ENTRIES_FORMAT })}
       fileName={`lista-${formId.slice(0, 8)}.json`}
       exportDoc={async () => exportEntries((await load()).ctx)}
       description={() => entriesDescription(loaded.ctx)}
       preview={preview}
-      importLabel="Importuj i zapisz"
+      importLabel={t('formsData.list.importLabel')}
       onImport={run}
     />
   );

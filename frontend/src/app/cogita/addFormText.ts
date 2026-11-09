@@ -12,6 +12,7 @@ import {
 } from './addForm';
 import type { GraphNode } from './graph';
 import type { Lookup } from './schema';
+import { t } from '../core/i18n';
 
 /* -- Eine eingefügte Liste ------------------------------------------------------------------ */
 
@@ -83,44 +84,44 @@ export function parsePaste(text: string, groups: readonly FormGroup[], rule: Pas
 export function formProblems(form: AddForm, look: Pick<Lookup, 'kind'>): string[] {
   const out: string[] = [];
   const entries = form.graph.nodes.filter((n) => n.type === 'entry');
-  if (entries.length === 0) out.push('Dodaj co najmniej jeden wpis „w każdym wierszu".');
+  if (entries.length === 0) out.push(t('cogitaEditForm.problem.noEntry'));
   const byId = new Map(form.graph.nodes.map((n) => [n.id, n]));
   let typed = 0;
   for (const node of entries) {
     const c = entryConfig(node.config);
     const kind = look.kind(c.kind);
-    if (kind === undefined) { out.push(`„${nodeLabel(node, look, form.graph)}": wybierz rodzaj.`); continue; }
+    if (kind === undefined) { out.push(t('cogitaEditForm.problem.chooseKind', { node: nodeLabel(node, look, form.graph) })); continue; }
     typed += typedFields(kind, c).length;
     const incoming = form.graph.edges.filter((e) => e.to === node.id);
     if (typedFields(kind, c).length === 0 && !incoming.some((e) => byId.get(e.from)?.type === 'entry')) {
-      out.push(`„${nodeLabel(node, look, form.graph)}" nie bierze niczego z wiersza — powstałby jeden taki sam wpis dla każdego wiersza.`);
+      out.push(t('cogitaEditForm.problem.takesNothing', { node: nodeLabel(node, look, form.graph) }));
     }
     for (const e of incoming) {
       const field = kind.fields.find((f) => f.key === e.in);
       const from = byId.get(e.from);
-      if (field === undefined || field.type !== 'ref' || from === undefined) { out.push(`„${nodeLabel(node, look, form.graph)}": połączenie prowadzi do pola, którego już nie ma.`); continue; }
+      if (field === undefined || field.type !== 'ref' || from === undefined) { out.push(t('cogitaEditForm.problem.goneField', { node: nodeLabel(node, look, form.graph) })); continue; }
       const sourceKinds = from.type === 'pick' ? pickConfig(from.config).kinds : [entryConfig(from.config).kind];
       const to = field.to ?? [];
       if (to.length > 0 && sourceKinds.length > 0 && !sourceKinds.some((k) => to.includes(k))) {
-        out.push(`„${nodeLabel(from, look, form.graph)}" nie pasuje do pola „${field.label}" (przyjmuje: ${to.map((k) => look.kind(k)?.name ?? k).join(', ')}).`);
+        out.push(t('cogitaEditForm.problem.mismatch', { node: nodeLabel(from, look, form.graph), field: field.label, kinds: to.map((k) => look.kind(k)?.name ?? k).join(', ') }));
       }
       if (!field.multi && from.type === 'pick' && pickConfig(from.config).many) {
-        out.push(`„${nodeLabel(from, look, form.graph)}" może mieć kilka wpisów, a pole „${field.label}" przyjmuje jeden — powstanie osobny wpis dla każdego.`);
+        out.push(t('cogitaEditForm.problem.manyToOne', { node: nodeLabel(from, look, form.graph), field: field.label }));
       }
     }
     for (const [key, source] of Object.entries(c.fields)) {
       const field = kind.fields.find((f) => f.key === key);
-      if (field !== undefined && !isTypeable(field) && field.type !== 'ref') out.push(`„${nodeLabel(node, look, form.graph)}": pola „${field.label}" nie da się ${source.from === 'type' ? 'wpisywać' : 'ustawić'} w formularzu.`);
+      if (field !== undefined && !isTypeable(field) && field.type !== 'ref') out.push((source.from === 'type' ? t('cogitaEditForm.problem.cantType', { node: nodeLabel(node, look, form.graph), field: field.label }) : t('cogitaEditForm.problem.cantSet', { node: nodeLabel(node, look, form.graph), field: field.label })));
     }
   }
-  if (entries.length > 0 && typed === 0) out.push('Żadne pole nie jest wpisywane w wierszu — nie byłoby czego dodawać.');
-  if (order(form.graph) === null) out.push('Formularz ma koło.');
+  if (entries.length > 0 && typed === 0) out.push(t('cogitaEditForm.problem.nothingTyped'));
+  if (order(form.graph) === null) out.push(t('cogitaEditForm.problem.cycle'));
   return out;
 }
 
 /* -- Was das Formular tut, in Worten ------------------------------------------------------------ */
 
-const quote = (text: string) => `„${text}"`;
+const quote = (text: string) => t('cogitaEditForm.describe.quote', { text });
 
 /**
  * DIE BESCHREIBUNG — im Editor unter dem Graphen, beim Ausfüllen unter
@@ -131,19 +132,19 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
   const out: string[] = [];
   const byId = new Map(form.graph.nodes.map((n) => [n.id, n]));
   const top = topOf(form, look);
-  const picks = top.filter((t): t is Extract<TopItem, { type: 'pick' }> => t.type === 'pick');
-  const asks = top.filter((t): t is Extract<TopItem, { type: 'ask' }> => t.type === 'ask');
+  const picks = top.filter((x): x is Extract<TopItem, { type: 'pick' }> => x.type === 'pick');
+  const asks = top.filter((x): x is Extract<TopItem, { type: 'ask' }> => x.type === 'ask');
   if (picks.length > 0) {
-    out.push(`Na początek wybierasz: ${picks.map((p) => {
+    out.push(t('cogitaEditForm.describe.picks', { list: picks.map((p) => {
       const kinds = p.config.kinds.map((k) => look.kind(k)?.name ?? k).join(' / ');
-      const more = [kinds, p.config.many ? 'kilka' : '', p.config.optional ? 'można pominąć' : ''].filter(Boolean).join('; ');
+      const more = [kinds, p.config.many ? t('cogitaEditForm.describe.several') : '', p.config.optional ? t('cogitaEditForm.describe.skippable') : ''].filter(Boolean).join('; ');
       return `${quote(p.label)}${more === '' ? '' : ` (${more})`}`;
-    }).join(', ')}. Wybór zostaje dla wszystkich wierszy, dopóki go nie zmienisz.`);
+    }).join(', ') }));
   }
-  if (asks.length > 0) out.push(`Na początek ustawiasz: ${asks.map((a) => `${a.label}${a.value === '' ? '' : ` (domyślnie: ${a.value})`}`).join(', ')}.`);
+  if (asks.length > 0) out.push(t('cogitaEditForm.describe.asks', { list: asks.map((a) => `${a.label}${a.value === '' ? '' : t('cogitaEditForm.describe.default', { value: a.value })}`).join(', ') }));
   const groups = groupsOf(form, look, true);
   if (groups.length > 0) {
-    out.push(`W każdym wierszu wpisujesz: ${groups.map((g) => `${quote(g.label)} — ${g.fields.map((f) => f.label).join(', ')}${g.many ? ' (kilka)' : ''}`).join('; ')}.`);
+    out.push(t('cogitaEditForm.describe.rows', { list: groups.map((g) => `${quote(g.label)} — ${g.fields.map((f) => f.label).join(', ')}${g.many ? t('cogitaEditForm.describe.severalMark') : ''}`).join('; ') }));
   }
   const sequence = order(form.graph) ?? form.graph.nodes.map((n) => n.id);
   for (const id of sequence) {
@@ -157,31 +158,31 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
       const source = c.fields[f.key];
       if (f.type === 'ref') {
         const from = form.graph.edges.filter((e) => e.to === id && e.in === f.key).map((e) => byId.get(e.from)).filter((n): n is GraphNode => n !== undefined);
-        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look, form.graph))).join(' + ')}${f.locator === true && source?.from === 'type' ? ', z miejscem wpisanym w wierszu' : ''}`);
+        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look, form.graph))).join(' + ')}${f.locator === true && source?.from === 'type' ? t('cogitaEditForm.describe.withPlace') : ''}`);
       } else if (source !== undefined && isTypeable(f)) {
-        parts.push(source.from === 'type' ? `${f.label} — wpisane` : source.from === 'ask' ? `${f.label} — z początku` : `${f.label} = ${source.value ?? ''}`);
+        parts.push(source.from === 'type' ? t('cogitaEditForm.describe.typed', { field: f.label }) : source.from === 'ask' ? t('cogitaEditForm.describe.fromStart', { field: f.label }) : `${f.label} = ${source.value ?? ''}`);
       }
     }
     const pairs = refFields(kind).filter((f) => !f.multi && form.graph.edges.some((e) => e.to === id && e.in === f.key && entryConfig(byId.get(e.from)?.config).many && byId.get(e.from)?.type === 'entry'));
     const needs = [...new Set(form.graph.edges.filter((e) => e.to === id && byId.get(e.from)?.type === 'entry' && entryConfig(byId.get(e.from)!.config).optional !== true).map((e) => quote(nodeLabel(byId.get(e.from)!, look, form.graph))))];
     const identity = c.reuse === 'never' ? [] : identityOf(form, node, kind);
     const sentence = [
-      `${quote(nodeLabel(node, look, form.graph))} (${kind.name}): ${parts.join('; ') || 'bez pól'}.`,
-      c.many ? 'Kilka w jednym wierszu.' : '',
-      c.optional === true ? 'Może zostać puste.' : '',
-      choicesOf(c, look).length > 1 ? `Przy każdej wartości wybiera się rodzaj: ${choicesOf(c, look).map((ch) => `${ch.kind.name} (${ch.field.label})`).join(' albo ')}; na liście — przedrostek, np. „${choicesOf(c, look)[1].kind.name}: …”.` : '',
-      pairs.length > 0 ? `Po jednym dla każdej pary (${pairs.map((f) => f.label).join(', ')} przyjmuje jeden wpis).` : '',
-      needs.length > 0 ? `Powstaje tylko, gdy w wierszu jest ${needs.join(' i ')}.` : '',
-      identity.length > 0 ? `Jeśli taki już jest (to samo: ${identity.map((f) => f.label).join(', ')}), zostaje użyty, a brakujące wartości są dopisane.` : 'Zawsze powstaje nowy.'
+      t('cogitaEditForm.describe.node', { node: quote(nodeLabel(node, look, form.graph)), kind: kind.name, parts: parts.join('; ') || t('cogitaEditForm.describe.noFields') }),
+      c.many ? t('cogitaEditForm.describe.many') : '',
+      c.optional === true ? t('cogitaEditForm.describe.optional') : '',
+      choicesOf(c, look).length > 1 ? t('cogitaEditForm.describe.choices', { list: choicesOf(c, look).map((ch) => `${ch.kind.name} (${ch.field.label})`).join(t('cogitaEditForm.describe.or')), example: choicesOf(c, look)[1].kind.name }) : '',
+      pairs.length > 0 ? t('cogitaEditForm.describe.pairs', { fields: pairs.map((f) => f.label).join(', ') }) : '',
+      needs.length > 0 ? t('cogitaEditForm.describe.needs', { list: needs.join(t('cogitaEditForm.describe.and')) }) : '',
+      identity.length > 0 ? t('cogitaEditForm.describe.reuse', { fields: identity.map((f) => f.label).join(', ') }) : t('cogitaEditForm.describe.alwaysNew')
     ].filter(Boolean).join(' ');
     out.push(sentence);
   }
-  out.push(`Klawisze: ${KEY_NAMES.map(([key, name]) => `${name} — ${KEY_ACTION_LABEL[keyActionIn(form.keys[key], groups)]}`).join('; ')}.`);
+  out.push(t('cogitaEditForm.describe.keys', { list: KEY_NAMES.map(([key, name]) => `${name} — ${KEY_ACTION_LABEL[keyActionIn(form.keys[key], groups)]}`).join('; ') }));
   const columns = groups.flatMap((g) => g.fields.map((f) => (g.fields.length > 1 ? `${g.label}: ${f.label}` : g.label)));
   if (columns.length > 0) {
-    const sep = columns.length > 1 ? ` — kolumny: ${columns.join(' | ')}, oddzielone: ${COLUMN_SEPARATOR_LABEL[form.paste.columns]}` : '';
-    const many = groups.some((g) => g.many) ? `; kilka wartości w komórce oddziel znakiem ${quote(form.paste.values)}` : '';
-    out.push(`Wklejanie listy: jedna linia to jeden wiersz${sep}${many}.`);
+    const sep = columns.length > 1 ? t('cogitaEditForm.describe.columns', { columns: columns.join(' | '), sep: COLUMN_SEPARATOR_LABEL[form.paste.columns] }) : '';
+    const many = groups.some((g) => g.many) ? t('cogitaEditForm.describe.values', { sep: quote(form.paste.values) }) : '';
+    out.push(t('cogitaEditForm.describe.paste', { sep, many }));
   }
   return out;
 }

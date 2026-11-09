@@ -6,6 +6,8 @@
  * schmal eine Liste; breit ein Raster von Karten.
  */
 
+import { t, useT } from '../../core/i18n';
+import { lazyPart } from './partTexts';
 import { AreaRow, asOptionalText, asRecord, asText, defineEventPart, ImageRow, ListEditor, mapEntries, TextRow } from '../event/kit';
 import { imageUrl } from '../slides/slideLook';
 import { FadeImg } from '../../ui/fadeImage';
@@ -25,28 +27,29 @@ function hrefOf(person: Person): string | null {
   return null;
 }
 
-export const peoplePart = defineEventPart<PeopleConfig>({
+/* Die Texte der Beschreibung je Sprache (`lazyPart`): `defineEventPart` liest sie beim Anlegen. */
+export const peoplePart = lazyPart(() => defineEventPart<PeopleConfig>({
   kind: 'people',
-  label: 'Osoby',
-  use: 'Karty osób z funkcją, zdjęciem i kontaktem.',
+  label: t('moduleData.people.label'),
+  use: t('moduleData.people.use'),
   box: { colSpan: 6, rowSpan: 3 },
 
   blank: () => ({ people: [], note: null }),
   example: () => ({
-    people: [{ name: 'Jan Kowalski', role: 'Odpowiedzialny za trasę', detail: 'Prowadzi grupę i pilnuje tempa.', photoUrl: null, contact: '+48 000 000 000', contactHref: null }],
+    people: [{ name: t('moduleData.people.ex.name'), role: t('moduleData.people.ex.role'), detail: t('moduleData.people.ex.detail'), photoUrl: null, contact: '+48 000 000 000', contactHref: null }],
     note: null
   }),
 
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
-    people: 'Osoby — lista',
-    'people[].name': 'Imię i nazwisko',
-    'people[].role': 'Funkcja (albo null)',
-    'people[].detail': 'Krótki opis (albo null)',
-    'people[].photoUrl': 'Zdjęcie: adres https://… albo plik strony "page-image:<id>" (albo null)',
-    'people[].contact': 'Kontakt — telefon albo e-mail; sam zamienia się w link (albo null)',
-    'people[].contactHref': 'Własny link kontaktu, np. "https://…" (albo null — z pola contact)',
-    note: 'Uwaga pod listą (albo null)'
+    people: t('moduleData.people.k.people'),
+    'people[].name': t('moduleData.people.k.name'),
+    'people[].role': t('moduleData.people.k.role'),
+    'people[].detail': t('moduleData.people.k.detail'),
+    'people[].photoUrl': t('moduleData.people.k.photo'),
+    'people[].contact': t('moduleData.people.k.contact'),
+    'people[].contactHref': t('moduleData.people.k.contactHref'),
+    note: t('moduleData.people.k.note')
   },
 
   parse: (raw) => {
@@ -67,9 +70,9 @@ export const peoplePart = defineEventPart<PeopleConfig>({
 
   hasContent: (c) => c.people.some((p) => p.name !== ''),
 
-  shows: (_c, size) => size.height === 'strip' ? 'Zdjęcia z imionami w jednym rzędzie.'
-    : size.width === 'narrow' ? 'Lista osób z funkcją i kontaktem.'
-    : 'Karty osób: zdjęcie, funkcja, opis, kontakt.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleData.people.showsStrip')
+    : size.width === 'narrow' ? t('moduleData.people.showsNarrow')
+    : t('moduleData.people.showsBlock'),
 
   Body: ({ config, ctx }) => {
     /* Eine Karte ohne Namen stellt niemanden vor. */
@@ -102,28 +105,31 @@ export const peoplePart = defineEventPart<PeopleConfig>({
     );
   },
 
-  Edit: ({ config, onChange, ctx, busy }) => (
+  Edit: function PeopleEdit({ config, onChange, ctx, busy }) {
+    const t = useT();
+    return (
     <>
       <ListEditor<Person>
-        legend="Osoby"
+        legend={t('moduleData.people.label')}
         items={config.people}
-        addLabel="Dodaj osobę"
+        addLabel={t('moduleData.people.add')}
         blank={() => ({ name: '', role: null, detail: null, photoUrl: null, contact: null, contactHref: null })}
-        titleOf={(item, index) => item.name || `Osoba ${index + 1}`}
+        titleOf={(item, index) => item.name || t('moduleData.people.personN', { n: index + 1 })}
         onChange={(people) => onChange({ ...config, people })}
         renderItem={(item, update) => (
           <>
-            <TextRow label="Imię i nazwisko" value={item.name} onChange={(name) => update({ ...item, name })} />
-            <TextRow label="Funkcja" value={item.role ?? ''} hint="Np. „Odpowiedzialny za trasę”." onChange={(role) => update({ ...item, role: role || null })} />
-            <TextRow label="Opis" value={item.detail ?? ''} onChange={(detail) => update({ ...item, detail: detail || null })} />
-            <ImageRow label="Zdjęcie" value={item.photoUrl ?? ''} ctx={ctx} busy={busy} hint="Zostaw puste, żeby pokazać inicjały."
+            <TextRow label={t('moduleData.people.name')} value={item.name} onChange={(name) => update({ ...item, name })} />
+            <TextRow label={t('moduleData.people.role')} value={item.role ?? ''} hint={t('moduleData.people.roleHint')} onChange={(role) => update({ ...item, role: role || null })} />
+            <TextRow label={t('common.description')} value={item.detail ?? ''} onChange={(detail) => update({ ...item, detail: detail || null })} />
+            <ImageRow label={t('moduleData.people.photo')} value={item.photoUrl ?? ''} ctx={ctx} busy={busy} hint={t('moduleData.people.photoHint')}
               onChange={(photoUrl) => update({ ...item, photoUrl: photoUrl || null })} />
-            <TextRow label="Kontakt" value={item.contact ?? ''} hint="Telefon albo e-mail — link powstanie sam." onChange={(contact) => update({ ...item, contact: contact || null })} />
-            <TextRow label="Odnośnik kontaktu" value={item.contactHref ?? ''} hint="Tylko jeśli ma prowadzić gdzie indziej, np. https://…" onChange={(contactHref) => update({ ...item, contactHref: contactHref || null })} />
+            <TextRow label={t('moduleData.people.contact')} value={item.contact ?? ''} hint={t('moduleData.people.contactHint')} onChange={(contact) => update({ ...item, contact: contact || null })} />
+            <TextRow label={t('moduleData.people.contactHref')} value={item.contactHref ?? ''} hint={t('moduleData.people.contactHrefHint')} onChange={(contactHref) => update({ ...item, contactHref: contactHref || null })} />
           </>
         )}
       />
-      <AreaRow label="Uwaga" rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
+      <AreaRow label={t('moduleData.plan.note')} rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
     </>
-  )
-});
+    );
+  }
+}));

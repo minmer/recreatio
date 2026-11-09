@@ -30,12 +30,13 @@
  */
 
 import { readGraph, type Graph } from './graph';
+import { t, texts } from '../core/i18n';
 import { itemDue, itemKnowness, type Gauge } from './knowing';
 import { KNOWN, shareOf } from './knowness';
 import { levelLabel } from './prerequisites';
 import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import {
-  axisMembers, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource, wasTopicGrouping, RETIRED_STEP, RETIRED_TOPIC,
+  axisMembers, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource, wasTopicGrouping, RETIRED_STEP, retiredTopic,
   type Group, type Grouping, type RuleGroup, type SelectContext, type Step
 } from './selection';
 import { childrenOf, orderByPlace, parentsOf, placeOf } from './structure';
@@ -48,11 +49,12 @@ import { childrenOf, orderByPlace, parentsOf, placeOf } from './structure';
 export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline' | 'quilt' | 'landscape';
 
 /** 2026-11-01 — die Gestalten in Worten (Wpisy, der Baustein „Widok", die Beschreibung des JSON). */
-export const LIST_MODE_LABEL: Readonly<Record<ListMode, string>> = {
-  table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno', matrix: 'Macierz', map: 'Mapa', outline: 'Struktura', quilt: 'Mapa postępów',
+export const LIST_MODE_LABEL: Readonly<Record<ListMode, string>> = texts({
+  table: 'cogitaData.listMode.table', tree: 'cogitaData.listMode.tree', canvas: 'cogitaData.listMode.canvas', matrix: 'cogitaData.listMode.matrix',
+  map: 'cogitaData.listMode.map', outline: 'cogitaData.listMode.outline', quilt: 'cogitaData.listMode.quilt',
   /* 2026-11-03 — der Krajobraz (`landscape.ts`, `LandscapeView.tsx`): Tal, Ring, Berge — die eigene Landschaft des Wissens. */
-  landscape: 'Krajobraz'
-};
+  landscape: 'cogitaData.listMode.landscape'
+});
 
 /** Zeilen und Spalten einer Macierz. */
 export interface MatrixDef {
@@ -188,12 +190,12 @@ export function readView(raw: unknown): ViewDoc {
   if (steps.length === 0 || !isSource(steps[0].type)) steps = [{ type: 'source.all', config: {} }, ...steps];
   const matrixRaw = isObject(d.matrix) ? d.matrix : {};
   const retired = [
-    ...(steps.some((st) => st.config[RETIRED_STEP] === 'source.topic') ? [RETIRED_TOPIC] : []),
-    ...(wasTopicGrouping(d.group) ? ['Drzewo grupowało według tematów — tematów już nie ma. Wybierz oś (rodzaj) albo pole.'] : []),
-    ...(wasTopicGrouping(matrixRaw.rows) || wasTopicGrouping(matrixRaw.cols) ? ['Macierz miała osie z tematów — tematów już nie ma. Wybierz osie: rodzaje (np. Tajemnica × Obszar).'] : [])
+    ...(steps.some((st) => st.config[RETIRED_STEP] === 'source.topic') ? [retiredTopic()] : []),
+    ...(wasTopicGrouping(d.group) ? [t('cogitaData.view.treeTopics')] : []),
+    ...(wasTopicGrouping(matrixRaw.rows) || wasTopicGrouping(matrixRaw.cols) ? [t('cogitaData.view.matrixTopics')] : [])
   ];
   return {
-    name: typeof d.name === 'string' ? d.name : 'Widok',
+    name: typeof d.name === 'string' ? d.name : t('cogitaData.docKind.view'),
     mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' || d.mode === 'quilt' || d.mode === 'landscape' ? d.mode : 'table',
     steps,
     query: typeof d.query === 'string' ? d.query : '',
@@ -298,9 +300,9 @@ export function withKnowing(lib: ViewLib, knowing: Gauge | null): ViewLib {
 
 /** 2026-10-30 — Spalten und Reihenfolgen aus der Kenntnis: wie gut, wann wieder dran, auf welcher Ebene des Lernens. */
 export const KNOWING_COLUMNS: readonly { readonly key: string; readonly label: string }[] = [
-  { key: '#knowness', label: 'Znajomość' },
-  { key: '#due', label: 'Kiedy powtórzyć' },
-  { key: '#level', label: 'Poziom nauki' }
+  { key: '#knowness', get label() { return t('cogitaData.view.colKnowness'); } },
+  { key: '#due', get label() { return t('cogitaData.view.colDue'); } },
+  { key: '#level', get label() { return t('cogitaData.view.colLevel'); } }
 ];
 
 /** Braucht dieser Widok die Kenntnis (ein Filtr znajomości, eine Spalte oder Reihenfolge daraus)? */
@@ -479,7 +481,7 @@ export function viewToRevision(view: ViewDoc): Record<string, unknown> {
   }
   nodes.push({ id: 'plan', type: 'strategy', x: 560 + (view.steps.length - at) * 260, y: 40, config: { mode: 'temporal', stackSize: 20 } });
   link(last, 'plan');
-  return { name: `Powtórka: ${view.name}`, graph: { nodes, edges } };
+  return { name: t('cogitaData.view.revisionOf', { name: view.name }), graph: { nodes, edges } };
 }
 
 /**

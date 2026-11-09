@@ -25,6 +25,17 @@
 
 import type { DateRule, FeastRow, FlowDoc, FlowEdge, FlowNode, FlowNodeType, FlowOut, SlotRow, Test } from '../flow/flowModel';
 import type { PlanDef } from '../scheme';
+import { t } from '../../core/i18n';
+
+/*
+ * Name und Beschreibung einer Vorlage beim Lesen übersetzt (`calendarApp.tpl.plan.<id>.name|says`).
+ * Was der Ablauf anlegt — Feste, Titel der Messen —, ist polnischer Inhalt dieser Vorlage
+ * („parafia (Polska)") und bleibt, wie es ist.
+ */
+const named = (id: string, def: Omit<PlanDef, 'name' | 'says'>): PlanDef => Object.defineProperties({ ...def }, {
+  name: { get: () => t(`calendarApp.tpl.plan.${id}.name`), enumerable: true, configurable: true },
+  says: { get: () => t(`calendarApp.tpl.plan.${id}.says`), enumerable: true, configurable: true }
+}) as PlanDef;
 
 const node = (id: string, type: FlowNodeType, x: number, y: number, data: Record<string, unknown> = {}): FlowNode => ({ id, type, x, y, data });
 const edge = (from: string, to: string, out: FlowOut = 'out'): FlowEdge => ({ id: `${from}-${out}-${to}`, from, to, ...(out === 'out' ? {} : { out }) });
@@ -33,7 +44,7 @@ const when = (test: Test) => ({ test });
 const fixed = (month: number, day: number): DateRule => ({ r: 'fixed', month, day });
 const easter = (offset: number): DateRule => ({ r: 'easter', offset });
 
-const B = 'biały';
+const B = 'biały'; // i18n-ignore
 const R = 'czerwony';
 const V = 'fioletowy';
 
@@ -46,158 +57,158 @@ type Row = [name: string, when: DateRule, rank: number, colour: string, extra?: 
  */
 const ROWS: readonly Row[] = [
   /* -- Fastenzeit, Triduum, Osterzeit ------------------------------------------------- */
-  ['Środa Popielcowa', easter(-46), 2, V],
-  ['Wielki Czwartek', easter(-3), 1, B, { title: 'Msza Wieczerzy Pańskiej' }],
-  ['Wielki Piątek Męki Pańskiej', easter(-2), 1, R],
-  ['Wielka Sobota', easter(-1), 1, B, { title: 'Wigilia Paschalna w Wielką Noc' }],
-  ['Niedziela Zmartwychwstania Pańskiego', easter(0), 1, B, { festive: true }],
-  ['Poniedziałek w oktawie Wielkanocy', easter(1), 2, B, { festive: true }],
-  ['Wniebowstąpienie Pańskie', easter(42), 2, B, { festive: true }],
-  ['Zesłanie Ducha Świętego', easter(49), 2, R, { festive: true }],
-  ['Najświętszej Maryi Panny, Matki Kościoła', easter(50), 8, B],
-  ['Jezusa Chrystusa, Najwyższego i Wiecznego Kapłana', easter(53), 8, B],
-  ['Najświętszej Trójcy', easter(56), 3, B],
-  ['Najświętszego Ciała i Krwi Chrystusa (Boże Ciało)', easter(60), 3, B, { festive: true }],
-  ['Najświętszego Serca Pana Jezusa', easter(68), 3, B],
-  ['Niepokalanego Serca Najświętszej Maryi Panny', easter(69), 10, B],
+  ['Środa Popielcowa', easter(-46), 2, V], // i18n-ignore
+  ['Wielki Czwartek', easter(-3), 1, B, { title: 'Msza Wieczerzy Pańskiej' }], // i18n-ignore
+  ['Wielki Piątek Męki Pańskiej', easter(-2), 1, R], // i18n-ignore
+  ['Wielka Sobota', easter(-1), 1, B, { title: 'Wigilia Paschalna w Wielką Noc' }], // i18n-ignore
+  ['Niedziela Zmartwychwstania Pańskiego', easter(0), 1, B, { festive: true }], // i18n-ignore
+  ['Poniedziałek w oktawie Wielkanocy', easter(1), 2, B, { festive: true }], // i18n-ignore
+  ['Wniebowstąpienie Pańskie', easter(42), 2, B, { festive: true }], // i18n-ignore
+  ['Zesłanie Ducha Świętego', easter(49), 2, R, { festive: true }], // i18n-ignore
+  ['Najświętszej Maryi Panny, Matki Kościoła', easter(50), 8, B], // i18n-ignore
+  ['Jezusa Chrystusa, Najwyższego i Wiecznego Kapłana', easter(53), 8, B], // i18n-ignore
+  ['Najświętszej Trójcy', easter(56), 3, B], // i18n-ignore
+  ['Najświętszego Ciała i Krwi Chrystusa (Boże Ciało)', easter(60), 3, B, { festive: true }], // i18n-ignore
+  ['Najświętszego Serca Pana Jezusa', easter(68), 3, B], // i18n-ignore
+  ['Niepokalanego Serca Najświętszej Maryi Panny', easter(69), 10, B], // i18n-ignore
 
   /* -- Advent, Weihnachten ------------------------------------------------------------- */
-  ['Jezusa Chrystusa, Króla Wszechświata', { r: 'advent', offset: -7 }, 3, B],
-  ['Świętej Rodziny: Jezusa, Maryi i Józefa', { r: 'christmas-sunday' }, 5, B],
-  ['Chrzest Pański', { r: 'baptism' }, 5, B],
+  ['Jezusa Chrystusa, Króla Wszechświata', { r: 'advent', offset: -7 }, 3, B], // i18n-ignore
+  ['Świętej Rodziny: Jezusa, Maryi i Józefa', { r: 'christmas-sunday' }, 5, B], // i18n-ignore
+  ['Chrzest Pański', { r: 'baptism' }, 5, B], // i18n-ignore
 
   /* -- Styczeń -------------------------------------------------------------------------- */
-  ['Świętej Bożej Rodzicielki Maryi', fixed(1, 1), 3, B, { festive: true }],
-  ['Świętych Bazylego Wielkiego i Grzegorza z Nazjanzu', fixed(1, 2), 10, B],
-  ['Objawienie Pańskie', fixed(1, 6), 2, B, { festive: true }],
-  ['Świętego Antoniego, opata', fixed(1, 17), 10, B],
-  ['Świętej Agnieszki, dziewicy i męczennicy', fixed(1, 21), 10, R],
-  ['Świętego Franciszka Salezego', fixed(1, 24), 10, B],
-  ['Nawrócenie świętego Pawła Apostoła', fixed(1, 25), 7, B],
-  ['Świętych Tymoteusza i Tytusa', fixed(1, 26), 10, B],
-  ['Świętego Tomasza z Akwinu', fixed(1, 28), 10, B],
-  ['Świętego Jana Bosko', fixed(1, 31), 10, B],
+  ['Świętej Bożej Rodzicielki Maryi', fixed(1, 1), 3, B, { festive: true }], // i18n-ignore
+  ['Świętych Bazylego Wielkiego i Grzegorza z Nazjanzu', fixed(1, 2), 10, B], // i18n-ignore
+  ['Objawienie Pańskie', fixed(1, 6), 2, B, { festive: true }], // i18n-ignore
+  ['Świętego Antoniego, opata', fixed(1, 17), 10, B], // i18n-ignore
+  ['Świętej Agnieszki, dziewicy i męczennicy', fixed(1, 21), 10, R], // i18n-ignore
+  ['Świętego Franciszka Salezego', fixed(1, 24), 10, B], // i18n-ignore
+  ['Nawrócenie świętego Pawła Apostoła', fixed(1, 25), 7, B], // i18n-ignore
+  ['Świętych Tymoteusza i Tytusa', fixed(1, 26), 10, B], // i18n-ignore
+  ['Świętego Tomasza z Akwinu', fixed(1, 28), 10, B], // i18n-ignore
+  ['Świętego Jana Bosko', fixed(1, 31), 10, B], // i18n-ignore
 
   /* -- Luty ------------------------------------------------------------------------------ */
-  ['Ofiarowanie Pańskie', fixed(2, 2), 5, B],
-  ['Świętej Agaty, dziewicy i męczennicy', fixed(2, 5), 10, R],
-  ['Świętych męczenników Pawła Miki i Towarzyszy', fixed(2, 6), 10, R],
-  ['Świętej Scholastyki', fixed(2, 10), 10, B],
-  ['Świętych Cyryla i Metodego, patronów Europy', fixed(2, 14), 7, B],
-  ['Katedry świętego Piotra Apostoła', fixed(2, 22), 7, B],
+  ['Ofiarowanie Pańskie', fixed(2, 2), 5, B], // i18n-ignore
+  ['Świętej Agaty, dziewicy i męczennicy', fixed(2, 5), 10, R], // i18n-ignore
+  ['Świętych męczenników Pawła Miki i Towarzyszy', fixed(2, 6), 10, R], // i18n-ignore
+  ['Świętej Scholastyki', fixed(2, 10), 10, B], // i18n-ignore
+  ['Świętych Cyryla i Metodego, patronów Europy', fixed(2, 14), 7, B], // i18n-ignore
+  ['Katedry świętego Piotra Apostoła', fixed(2, 22), 7, B], // i18n-ignore
 
   /* -- Marzec ---------------------------------------------------------------------------- */
-  ['Świętego Kazimierza', fixed(3, 4), 8, B],
-  ['Świętych Perpetuy i Felicyty', fixed(3, 7), 10, R],
-  ['Świętego Józefa, Oblubieńca Najświętszej Maryi Panny', fixed(3, 19), 3, B, { moveIfImpeded: true }],
-  ['Zwiastowanie Pańskie', fixed(3, 25), 3, B, { moveIfImpeded: true }],
+  ['Świętego Kazimierza', fixed(3, 4), 8, B], // i18n-ignore
+  ['Świętych Perpetuy i Felicyty', fixed(3, 7), 10, R], // i18n-ignore
+  ['Świętego Józefa, Oblubieńca Najświętszej Maryi Panny', fixed(3, 19), 3, B, { moveIfImpeded: true }], // i18n-ignore
+  ['Zwiastowanie Pańskie', fixed(3, 25), 3, B, { moveIfImpeded: true }], // i18n-ignore
 
   /* -- Kwiecień ------------------------------------------------------------------------- */
-  ['Świętego Wojciecha, biskupa i męczennika, głównego patrona Polski', fixed(4, 23), 4, R, { moveIfImpeded: true }],
-  ['Świętego Marka Ewangelisty', fixed(4, 25), 7, R],
-  ['Świętej Katarzyny Sieneńskiej, patronki Europy', fixed(4, 29), 7, B],
+  ['Świętego Wojciecha, biskupa i męczennika, głównego patrona Polski', fixed(4, 23), 4, R, { moveIfImpeded: true }], // i18n-ignore
+  ['Świętego Marka Ewangelisty', fixed(4, 25), 7, R], // i18n-ignore
+  ['Świętej Katarzyny Sieneńskiej, patronki Europy', fixed(4, 29), 7, B], // i18n-ignore
 
   /* -- Maj -------------------------------------------------------------------------------- */
-  ['Świętego Atanazego', fixed(5, 2), 10, B],
-  ['Najświętszej Maryi Panny, Królowej Polski', fixed(5, 3), 4, B, { festive: true, moveIfImpeded: true }],
-  ['Świętych Apostołów Filipa i Jakuba', fixed(5, 6), 7, R],
-  ['Świętego Stanisława, biskupa i męczennika, głównego patrona Polski', fixed(5, 8), 4, R, { moveIfImpeded: true }],
-  ['Świętego Macieja Apostoła', fixed(5, 14), 7, R],
-  ['Świętego Andrzeja Boboli, prezbitera i męczennika, patrona Polski', fixed(5, 16), 8, R],
-  ['Świętego Filipa Nereusza', fixed(5, 26), 10, B],
-  ['Nawiedzenie Najświętszej Maryi Panny', fixed(5, 31), 7, B],
+  ['Świętego Atanazego', fixed(5, 2), 10, B], // i18n-ignore
+  ['Najświętszej Maryi Panny, Królowej Polski', fixed(5, 3), 4, B, { festive: true, moveIfImpeded: true }], // i18n-ignore
+  ['Świętych Apostołów Filipa i Jakuba', fixed(5, 6), 7, R], // i18n-ignore
+  ['Świętego Stanisława, biskupa i męczennika, głównego patrona Polski', fixed(5, 8), 4, R, { moveIfImpeded: true }], // i18n-ignore
+  ['Świętego Macieja Apostoła', fixed(5, 14), 7, R], // i18n-ignore
+  ['Świętego Andrzeja Boboli, prezbitera i męczennika, patrona Polski', fixed(5, 16), 8, R], // i18n-ignore
+  ['Świętego Filipa Nereusza', fixed(5, 26), 10, B], // i18n-ignore
+  ['Nawiedzenie Najświętszej Maryi Panny', fixed(5, 31), 7, B], // i18n-ignore
 
   /* -- Czerwiec ------------------------------------------------------------------------- */
-  ['Świętego Justyna, męczennika', fixed(6, 1), 10, R],
-  ['Świętych męczenników Karola Lwangi i Towarzyszy', fixed(6, 3), 10, R],
-  ['Świętego Bonifacego, biskupa i męczennika', fixed(6, 5), 10, R],
-  ['Świętej Jadwigi Królowej', fixed(6, 8), 11, B],
-  ['Świętego Barnaby Apostoła', fixed(6, 11), 10, R],
-  ['Świętego Antoniego z Padwy', fixed(6, 13), 10, B],
-  ['Świętego Alojzego Gonzagi', fixed(6, 21), 10, B],
-  ['Narodzenie świętego Jana Chrzciciela', fixed(6, 24), 3, B, { moveIfImpeded: true }],
-  ['Świętego Ireneusza, biskupa i męczennika', fixed(6, 28), 10, R],
-  ['Świętych Apostołów Piotra i Pawła', fixed(6, 29), 3, R, { moveIfImpeded: true }],
+  ['Świętego Justyna, męczennika', fixed(6, 1), 10, R], // i18n-ignore
+  ['Świętych męczenników Karola Lwangi i Towarzyszy', fixed(6, 3), 10, R], // i18n-ignore
+  ['Świętego Bonifacego, biskupa i męczennika', fixed(6, 5), 10, R], // i18n-ignore
+  ['Świętej Jadwigi Królowej', fixed(6, 8), 11, B], // i18n-ignore
+  ['Świętego Barnaby Apostoła', fixed(6, 11), 10, R], // i18n-ignore
+  ['Świętego Antoniego z Padwy', fixed(6, 13), 10, B], // i18n-ignore
+  ['Świętego Alojzego Gonzagi', fixed(6, 21), 10, B], // i18n-ignore
+  ['Narodzenie świętego Jana Chrzciciela', fixed(6, 24), 3, B, { moveIfImpeded: true }], // i18n-ignore
+  ['Świętego Ireneusza, biskupa i męczennika', fixed(6, 28), 10, R], // i18n-ignore
+  ['Świętych Apostołów Piotra i Pawła', fixed(6, 29), 3, R, { moveIfImpeded: true }], // i18n-ignore
 
   /* -- Lipiec ----------------------------------------------------------------------------- */
-  ['Świętego Tomasza Apostoła', fixed(7, 3), 7, R],
-  ['Świętego Benedykta, opata, patrona Europy', fixed(7, 11), 7, B],
-  ['Świętego Bonawentury', fixed(7, 15), 10, B],
-  ['Świętej Marii Magdaleny', fixed(7, 22), 7, B],
-  ['Świętej Brygidy, patronki Europy', fixed(7, 23), 7, B],
-  ['Świętego Jakuba Apostoła', fixed(7, 25), 7, R],
-  ['Świętych Joachima i Anny, rodziców Najświętszej Maryi Panny', fixed(7, 26), 10, B],
-  ['Świętych Marty, Marii i Łazarza', fixed(7, 29), 10, B],
-  ['Świętego Ignacego z Loyoli', fixed(7, 31), 10, B],
+  ['Świętego Tomasza Apostoła', fixed(7, 3), 7, R], // i18n-ignore
+  ['Świętego Benedykta, opata, patrona Europy', fixed(7, 11), 7, B], // i18n-ignore
+  ['Świętego Bonawentury', fixed(7, 15), 10, B], // i18n-ignore
+  ['Świętej Marii Magdaleny', fixed(7, 22), 7, B], // i18n-ignore
+  ['Świętej Brygidy, patronki Europy', fixed(7, 23), 7, B], // i18n-ignore
+  ['Świętego Jakuba Apostoła', fixed(7, 25), 7, R], // i18n-ignore
+  ['Świętych Joachima i Anny, rodziców Najświętszej Maryi Panny', fixed(7, 26), 10, B], // i18n-ignore
+  ['Świętych Marty, Marii i Łazarza', fixed(7, 29), 10, B], // i18n-ignore
+  ['Świętego Ignacego z Loyoli', fixed(7, 31), 10, B], // i18n-ignore
 
   /* -- Sierpień --------------------------------------------------------------------------- */
-  ['Świętego Alfonsa Marii Liguoriego', fixed(8, 1), 10, B],
-  ['Przemienienie Pańskie', fixed(8, 6), 5, B],
-  ['Świętego Dominika', fixed(8, 8), 10, B],
-  ['Świętej Teresy Benedykty od Krzyża, patronki Europy', fixed(8, 9), 7, R],
-  ['Świętego Wawrzyńca, diakona i męczennika', fixed(8, 10), 7, R],
-  ['Świętej Klary', fixed(8, 11), 10, B],
-  ['Świętego Maksymiliana Marii Kolbego', fixed(8, 14), 10, R],
-  ['Wniebowzięcie Najświętszej Maryi Panny', fixed(8, 15), 3, B, { festive: true }],
-  ['Świętego Bernarda', fixed(8, 20), 10, B],
-  ['Świętego Piusa X', fixed(8, 21), 10, B],
-  ['Najświętszej Maryi Panny Królowej', fixed(8, 22), 10, B],
-  ['Świętego Bartłomieja Apostoła', fixed(8, 24), 7, R],
-  ['Najświętszej Maryi Panny Częstochowskiej', fixed(8, 26), 4, B, { moveIfImpeded: true }],
-  ['Świętej Moniki', fixed(8, 27), 10, B],
-  ['Świętego Augustyna', fixed(8, 28), 10, B],
-  ['Męczeństwo świętego Jana Chrzciciela', fixed(8, 29), 10, R],
+  ['Świętego Alfonsa Marii Liguoriego', fixed(8, 1), 10, B], // i18n-ignore
+  ['Przemienienie Pańskie', fixed(8, 6), 5, B], // i18n-ignore
+  ['Świętego Dominika', fixed(8, 8), 10, B], // i18n-ignore
+  ['Świętej Teresy Benedykty od Krzyża, patronki Europy', fixed(8, 9), 7, R], // i18n-ignore
+  ['Świętego Wawrzyńca, diakona i męczennika', fixed(8, 10), 7, R], // i18n-ignore
+  ['Świętej Klary', fixed(8, 11), 10, B], // i18n-ignore
+  ['Świętego Maksymiliana Marii Kolbego', fixed(8, 14), 10, R], // i18n-ignore
+  ['Wniebowzięcie Najświętszej Maryi Panny', fixed(8, 15), 3, B, { festive: true }], // i18n-ignore
+  ['Świętego Bernarda', fixed(8, 20), 10, B], // i18n-ignore
+  ['Świętego Piusa X', fixed(8, 21), 10, B], // i18n-ignore
+  ['Najświętszej Maryi Panny Królowej', fixed(8, 22), 10, B], // i18n-ignore
+  ['Świętego Bartłomieja Apostoła', fixed(8, 24), 7, R], // i18n-ignore
+  ['Najświętszej Maryi Panny Częstochowskiej', fixed(8, 26), 4, B, { moveIfImpeded: true }], // i18n-ignore
+  ['Świętej Moniki', fixed(8, 27), 10, B], // i18n-ignore
+  ['Świętego Augustyna', fixed(8, 28), 10, B], // i18n-ignore
+  ['Męczeństwo świętego Jana Chrzciciela', fixed(8, 29), 10, R], // i18n-ignore
 
   /* -- Wrzesień --------------------------------------------------------------------------- */
-  ['Świętego Grzegorza Wielkiego', fixed(9, 3), 10, B],
-  ['Narodzenie Najświętszej Maryi Panny', fixed(9, 8), 7, B],
-  ['Świętego Jana Chryzostoma', fixed(9, 13), 10, B],
-  ['Podwyższenie Krzyża Świętego', fixed(9, 14), 5, R],
-  ['Najświętszej Maryi Panny Bolesnej', fixed(9, 15), 10, B],
-  ['Świętych męczenników Korneliusza i Cypriana', fixed(9, 16), 10, R],
-  ['Świętego Stanisława Kostki, patrona Polski', fixed(9, 18), 8, B],
-  ['Świętych męczenników Andrzeja Kim Taegon, Pawła Chong Hasang i Towarzyszy', fixed(9, 20), 10, R],
-  ['Świętego Mateusza, Apostoła i Ewangelisty', fixed(9, 21), 7, R],
-  ['Świętego Pio z Pietrelciny', fixed(9, 23), 10, B],
-  ['Świętego Wincentego a Paulo', fixed(9, 27), 10, B],
-  ['Świętych Archaniołów Michała, Gabriela i Rafała', fixed(9, 29), 7, B],
-  ['Świętego Hieronima', fixed(9, 30), 10, B],
+  ['Świętego Grzegorza Wielkiego', fixed(9, 3), 10, B], // i18n-ignore
+  ['Narodzenie Najświętszej Maryi Panny', fixed(9, 8), 7, B], // i18n-ignore
+  ['Świętego Jana Chryzostoma', fixed(9, 13), 10, B], // i18n-ignore
+  ['Podwyższenie Krzyża Świętego', fixed(9, 14), 5, R], // i18n-ignore
+  ['Najświętszej Maryi Panny Bolesnej', fixed(9, 15), 10, B], // i18n-ignore
+  ['Świętych męczenników Korneliusza i Cypriana', fixed(9, 16), 10, R], // i18n-ignore
+  ['Świętego Stanisława Kostki, patrona Polski', fixed(9, 18), 8, B], // i18n-ignore
+  ['Świętych męczenników Andrzeja Kim Taegon, Pawła Chong Hasang i Towarzyszy', fixed(9, 20), 10, R], // i18n-ignore
+  ['Świętego Mateusza, Apostoła i Ewangelisty', fixed(9, 21), 7, R], // i18n-ignore
+  ['Świętego Pio z Pietrelciny', fixed(9, 23), 10, B], // i18n-ignore
+  ['Świętego Wincentego a Paulo', fixed(9, 27), 10, B], // i18n-ignore
+  ['Świętych Archaniołów Michała, Gabriela i Rafała', fixed(9, 29), 7, B], // i18n-ignore
+  ['Świętego Hieronima', fixed(9, 30), 10, B], // i18n-ignore
 
   /* -- Październik ------------------------------------------------------------------------ */
-  ['Świętej Teresy od Dzieciątka Jezus', fixed(10, 1), 10, B],
-  ['Świętych Aniołów Stróżów', fixed(10, 2), 10, B],
-  ['Świętego Franciszka z Asyżu', fixed(10, 4), 10, B],
-  ['Świętej Faustyny Kowalskiej', fixed(10, 5), 11, B],
-  ['Najświętszej Maryi Panny Różańcowej', fixed(10, 7), 10, B],
-  ['Świętej Teresy od Jezusa', fixed(10, 15), 10, B],
-  ['Świętej Jadwigi Śląskiej', fixed(10, 16), 11, B],
-  ['Świętego Ignacego Antiocheńskiego, biskupa i męczennika', fixed(10, 17), 10, R],
-  ['Świętego Łukasza Ewangelisty', fixed(10, 18), 7, R],
-  ['Świętego Jana Pawła II', fixed(10, 22), 11, B],
-  ['Świętych Apostołów Szymona i Judy Tadeusza', fixed(10, 28), 7, R],
+  ['Świętej Teresy od Dzieciątka Jezus', fixed(10, 1), 10, B], // i18n-ignore
+  ['Świętych Aniołów Stróżów', fixed(10, 2), 10, B], // i18n-ignore
+  ['Świętego Franciszka z Asyżu', fixed(10, 4), 10, B], // i18n-ignore
+  ['Świętej Faustyny Kowalskiej', fixed(10, 5), 11, B], // i18n-ignore
+  ['Najświętszej Maryi Panny Różańcowej', fixed(10, 7), 10, B], // i18n-ignore
+  ['Świętej Teresy od Jezusa', fixed(10, 15), 10, B], // i18n-ignore
+  ['Świętej Jadwigi Śląskiej', fixed(10, 16), 11, B], // i18n-ignore
+  ['Świętego Ignacego Antiocheńskiego, biskupa i męczennika', fixed(10, 17), 10, R], // i18n-ignore
+  ['Świętego Łukasza Ewangelisty', fixed(10, 18), 7, R], // i18n-ignore
+  ['Świętego Jana Pawła II', fixed(10, 22), 11, B], // i18n-ignore
+  ['Świętych Apostołów Szymona i Judy Tadeusza', fixed(10, 28), 7, R], // i18n-ignore
 
   /* -- Listopad --------------------------------------------------------------------------- */
-  ['Wszystkich Świętych', fixed(11, 1), 3, B, { festive: true }],
-  ['Wspomnienie wszystkich wiernych zmarłych', fixed(11, 2), 3, V],
-  ['Świętego Karola Boromeusza', fixed(11, 4), 10, B],
-  ['Rocznica poświęcenia Bazyliki Laterańskiej', fixed(11, 9), 5, B],
-  ['Świętego Leona Wielkiego', fixed(11, 10), 10, B],
-  ['Świętego Marcina z Tours', fixed(11, 11), 10, B],
-  ['Świętego Jozafata, biskupa i męczennika', fixed(11, 12), 10, R],
-  ['Ofiarowanie Najświętszej Maryi Panny', fixed(11, 21), 10, B],
-  ['Świętej Cecylii, dziewicy i męczennicy', fixed(11, 22), 10, R],
-  ['Świętego Andrzeja Apostoła', fixed(11, 30), 7, R],
+  ['Wszystkich Świętych', fixed(11, 1), 3, B, { festive: true }], // i18n-ignore
+  ['Wspomnienie wszystkich wiernych zmarłych', fixed(11, 2), 3, V], // i18n-ignore
+  ['Świętego Karola Boromeusza', fixed(11, 4), 10, B], // i18n-ignore
+  ['Rocznica poświęcenia Bazyliki Laterańskiej', fixed(11, 9), 5, B], // i18n-ignore
+  ['Świętego Leona Wielkiego', fixed(11, 10), 10, B], // i18n-ignore
+  ['Świętego Marcina z Tours', fixed(11, 11), 10, B], // i18n-ignore
+  ['Świętego Jozafata, biskupa i męczennika', fixed(11, 12), 10, R], // i18n-ignore
+  ['Ofiarowanie Najświętszej Maryi Panny', fixed(11, 21), 10, B], // i18n-ignore
+  ['Świętej Cecylii, dziewicy i męczennicy', fixed(11, 22), 10, R], // i18n-ignore
+  ['Świętego Andrzeja Apostoła', fixed(11, 30), 7, R], // i18n-ignore
 
   /* -- Grudzień ---------------------------------------------------------------------------- */
-  ['Świętego Franciszka Ksawerego', fixed(12, 3), 10, B],
-  ['Świętego Ambrożego', fixed(12, 7), 10, B],
-  ['Niepokalane Poczęcie Najświętszej Maryi Panny', fixed(12, 8), 3, B, { moveIfImpeded: true }],
-  ['Świętej Łucji, dziewicy i męczennicy', fixed(12, 13), 10, R],
-  ['Świętego Jana od Krzyża', fixed(12, 14), 10, B],
-  ['Narodzenie Pańskie', fixed(12, 25), 2, B, { festive: true }],
-  ['Świętego Szczepana, pierwszego męczennika', fixed(12, 26), 7, R, { festive: true }],
-  ['Świętego Jana Apostoła i Ewangelisty', fixed(12, 27), 7, B],
-  ['Świętych Młodzianków, męczenników', fixed(12, 28), 7, R]
+  ['Świętego Franciszka Ksawerego', fixed(12, 3), 10, B], // i18n-ignore
+  ['Świętego Ambrożego', fixed(12, 7), 10, B], // i18n-ignore
+  ['Niepokalane Poczęcie Najświętszej Maryi Panny', fixed(12, 8), 3, B, { moveIfImpeded: true }], // i18n-ignore
+  ['Świętej Łucji, dziewicy i męczennicy', fixed(12, 13), 10, R], // i18n-ignore
+  ['Świętego Jana od Krzyża', fixed(12, 14), 10, B], // i18n-ignore
+  ['Narodzenie Pańskie', fixed(12, 25), 2, B, { festive: true }], // i18n-ignore
+  ['Świętego Szczepana, pierwszego męczennika', fixed(12, 26), 7, R, { festive: true }], // i18n-ignore
+  ['Świętego Jana Apostoła i Ewangelisty', fixed(12, 27), 7, B], // i18n-ignore
+  ['Świętych Młodzianków, męczenników', fixed(12, 28), 7, R] // i18n-ignore
 ];
 
 export const POLISH_CALENDAR: readonly FeastRow[] = ROWS.map(([name, rule, rank, colour, extra]) => ({ name, when: rule, rank, colour, ...extra }));
@@ -219,7 +230,7 @@ const WEEKDAY_SLOTS: readonly SlotRow[] = [
 
 const SEASON_COLOURS = {
   colours: { adwent: V, narodzenie: B, zwykly: 'zielony', post: V, triduum: B, wielkanoc: B },
-  special: { gaudete: 'różowy', laetare: 'różowy', palm: R, goodFriday: R, pentecost: R }
+  special: { gaudete: 'różowy', laetare: 'różowy', palm: R, goodFriday: R, pentecost: R } // i18n-ignore
 };
 
 /*
@@ -237,11 +248,11 @@ const LITURGICAL_YEAR: FlowDoc = {
     node('d_skip', 'skip', 780, 160),
     node('d_ht', 'if', 1040, 0, when({ t: 'date', rule: easter(-3) })),
     node('d_slots_ht', 'slots', 1040, 160, {
-      festive: [], weekdays: [{ key: 'wcz1800', label: 'Msza Wieczerzy Pańskiej', time: '18:00', minutes: 90, days: [4] }]
+      festive: [], weekdays: [{ key: 'wcz1800', label: 'Msza Wieczerzy Pańskiej', time: '18:00', minutes: 90, days: [4] }] // i18n-ignore
     }),
     node('d_hs', 'if', 1300, 0, when({ t: 'date', rule: easter(-1) })),
     node('d_slots_hs', 'slots', 1300, 160, {
-      festive: [], weekdays: [{ key: 'wig2000', label: 'Wigilia Paschalna', time: '20:00', minutes: 150, days: [6] }]
+      festive: [], weekdays: [{ key: 'wig2000', label: 'Wigilia Paschalna', time: '20:00', minutes: 150, days: [6] }] // i18n-ignore
     }),
     node('d_bn', 'if', 1560, 0, when({ t: 'date', rule: fixed(12, 25) })),
     node('d_slots_bn', 'slots', 1560, 160, {
@@ -260,8 +271,8 @@ const LITURGICAL_YEAR: FlowDoc = {
     node('m_wed', 'if', 780, 420, when({ t: 'weekday', days: [3] })),
     node('m_wed18', 'if', 1040, 420, when({ t: 'slot', keys: ['p1800'] })),
     node('m_rank', 'if', 1300, 420, when({ t: 'rank', op: '>=', n: 12 })),
-    node('m_mbnp_t', 'set', 1300, 580, { target: 'title', value: 'Msza wotywna o Matce Bożej Nieustającej Pomocy' }),
-    node('m_mbnp_o', 'set', 1300, 740, { target: 'field', key: 'obchod', value: 'Najświętsza Maryja Panna Nieustającej Pomocy' }),
+    node('m_mbnp_t', 'set', 1300, 580, { target: 'title', value: 'Msza wotywna o Matce Bożej Nieustającej Pomocy' }), // i18n-ignore
+    node('m_mbnp_o', 'set', 1300, 740, { target: 'field', key: 'obchod', value: 'Najświętsza Maryja Panna Nieustającej Pomocy' }), // i18n-ignore
     node('m_mbnp_c', 'set', 1300, 900, { target: 'var', key: 'colour', value: B }),
     node('m_sun', 'if', 1560, 420, when({ t: 'sunday' })),
     node('m_sun_t', 'set', 1560, 580, { target: 'title', value: '{sundayName}' }),
@@ -270,7 +281,7 @@ const LITURGICAL_YEAR: FlowDoc = {
     node('m_wd_o', 'set', 1820, 580, { target: 'field', key: 'obchod', value: '{dayName}' }),
     node('m_kolor', 'set', 2080, 740, { target: 'field', key: 'kolor', value: '{colour}' }),
     node('m_1213', 'if', 2340, 740, when({ t: 'slot', keys: ['n1213'] })),
-    node('m_rec', 'record', 2340, 900, { list: 'intencje', mode: 'single', text: 'Za parafian' }),
+    node('m_rec', 'record', 2340, 900, { list: 'intencje', mode: 'single', text: 'Za parafian' }), // i18n-ignore
     node('m_end', 'end', 2600, 740)
   ],
   edges: [
@@ -324,7 +335,7 @@ const FIXED_HOURS: FlowDoc = {
     node('d_day', 'day', 0, 0),
     node('d_slots', 'slots', 260, 0, { festive: SUNDAY_SLOTS, weekdays: WEEKDAY_SLOTS }),
     node('m_mass', 'mass', 0, 200),
-    node('m_title', 'set', 260, 200, { target: 'title', value: 'Msza święta' }),
+    node('m_title', 'set', 260, 200, { target: 'title', get value() { return t('calendarApp.tpl.plan.fixed.massTitle'); } }),
     node('m_end', 'end', 520, 200)
   ],
   edges: [
@@ -338,27 +349,21 @@ export const PLAN_TEMPLATES: readonly { readonly id: string; readonly def: PlanD
   {
     id: 'rok-liturgiczny-pl',
     needs: 'msza',
-    def: {
-      name: 'Rok liturgiczny — parafia (Polska)',
+    def: named('year', {
       schemeId: null,
       kind: 'mass',
       weeks: 8,
-      flow: LITURGICAL_YEAR,
-      says: 'Msze na kolejne tygodnie według roku liturgicznego: kalendarz świąt w Polsce, godziny niedzielne i powszednie, '
-        + 'Triduum, Pasterka, obchód i kolor każdej mszy, w środę wieczorem msza wotywna o MB Nieustającej Pomocy, '
-        + 'w niedzielę o 12:13 intencja „Za parafian”.'
-    }
+      flow: LITURGICAL_YEAR
+    })
   },
   {
     id: 'stale-godziny',
-    def: {
-      name: 'Stałe godziny mszy',
+    def: named('fixed', {
       schemeId: null,
       kind: 'mass',
       weeks: 4,
-      flow: FIXED_HOURS,
-      says: 'Tylko godziny: niedziele i święta 7:30, 9:00, 10:30, 12:13, 18:00; dni powszednie 7:00 i 18:00 — bez kalendarza świąt.'
-    }
+      flow: FIXED_HOURS
+    })
   }
 ];
 

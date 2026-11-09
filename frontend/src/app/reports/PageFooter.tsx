@@ -9,6 +9,7 @@
 import { clauseLines, type ClauseController } from '../areas/clause';
 import { foreignHost, PRIMARY_HOST } from '../routes';
 import { reportPath } from './reportPath';
+import { useT } from '../core/i18n';
 
 export function PageFooter({ pageId, responsible, restricted }: {
   /** Die Kennung der Seite (bei einem Alias: die ihres Ziels) — `undefined`: ein Dienst von vorher. */
@@ -18,6 +19,7 @@ export function PageFooter({ pageId, responsible, restricted }: {
   /** Nur mit Zugang: wer fehlt, steht in den Bereichen der Seite, nicht hier. */
   restricted: boolean;
 }) {
+  const t = useT();
   const away = foreignHost() !== null;
   const href = pageId === undefined ? null
     : away ? `https://${PRIMARY_HOST}/${reportPath('page', pageId)}`
@@ -25,7 +27,7 @@ export function PageFooter({ pageId, responsible, restricted }: {
 
   const controller = responsible?.controller ?? null;
   const known = responsible !== undefined && (controller !== null || !restricted);
-  const l = clauseLines(controller, 'page');
+  const l = clauseLines(controller, 'page', t.lang);
 
   return (
     <footer className="wk-clause is-footer wk-page-footer" data-clause={controller === null ? 'nobody' : 'named'} data-page-footer="">
@@ -34,7 +36,7 @@ export function PageFooter({ pageId, responsible, restricted }: {
       <p className="wk-clause-operator">
         {l.operator}
         {href !== null && (
-          <> <a className="wk-link" href={href} data-report="page" {...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>Zgłoś treść</a></>
+          <> <a className="wk-link" href={href} data-report="page" {...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t('reports.reportContent')}</a></>
         )}
       </p>
     </footer>

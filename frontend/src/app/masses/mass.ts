@@ -29,7 +29,7 @@
  * ausgehängte.
  */
 
-import { fmtDate, isLang, t, texts, tIn, type Lang } from '../core/i18n';
+import { appLang, fmtDate, isLang, t, texts, tIn, type Lang } from '../core/i18n';
 import { call } from '../core/session';
 import type { SealedField } from '../calendar/calendar';
 
@@ -53,13 +53,6 @@ const DEVOTION_KEYS = [
 
 export const devotionNames = (): readonly string[] => DEVOTION_KEYS.map((k) => t(`masses.devotionNames.${k}`));
 
-/** Dieselben Vorschläge als Liste wie früher — beim Lesen in der Sprache der App neu gefüllt. */
-export const DEVOTION_NAMES: readonly string[] = new Proxy([] as string[], {
-  get: (target, prop, receiver) => {
-    if (prop === 'length' || typeof prop === 'string') target.splice(0, target.length, ...devotionNames());
-    return Reflect.get(target, prop, receiver);
-  }
-});
 
 /**
  * Zwei Arten von Intentionen — und das ist keine Beschriftung.
@@ -337,7 +330,8 @@ export function dayLabel(iso: string, today: Date = new Date(), lang?: Lang): st
 export function shortDayLabel(iso: string, today: Date = new Date(), lang?: Lang): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime()) || nearDay(iso, today) !== null) return dayLabel(iso, today, lang);
-  return `${fmtDate(at, { weekday: 'short' }, lang)} ${fmtDate(at, { day: 'numeric', month: 'numeric' }, lang)}`;
+  const params = { weekday: tIn(lang ?? appLang(), `masses.day.weekdayShort.${at.getDay()}`), day: at.getDate(), month: at.getMonth() + 1 };
+  return tIn(lang ?? appLang(), 'masses.day.short', params);
 }
 
 /**
@@ -349,7 +343,8 @@ export function fullDayLabel(iso: string, today: Date = new Date(), lang?: Lang)
   const at = new Date(iso);
   const near = Number.isNaN(at.getTime()) ? null : nearDay(iso, today);
   if (near === null) return dayLabel(iso, today, lang);
-  const params = { date: longDay(at, lang) };
+  /* „dziś, wtorek 29 września" — ohne Komma zwischen Wochentag und Tag, wie bisher. */
+  const params = { date: `${fmtDate(at, { weekday: 'long' }, lang)} ${fmtDate(at, { day: 'numeric', month: 'long' }, lang)}` };
   return lang === undefined ? t(`masses.day.${near}Full`, params) : tIn(lang, `masses.day.${near}Full`, params);
 }
 

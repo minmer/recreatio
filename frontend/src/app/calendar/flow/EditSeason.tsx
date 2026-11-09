@@ -11,8 +11,9 @@
 import { useId } from 'react';
 
 import { colourClass, LITURGICAL_COLOURS } from '../scheme';
-import { SEASON_LABEL, SEASONS, type Season, type SeasonData } from './flowModel';
+import { SEASONS, type Season, type SeasonData } from './flowModel';
 import { SPECIAL_LABEL } from './FlowNodes';
+import { useT } from '../../core/i18n';
 
 /** Ein Plättchen in der Farbe des Wortes — fremde Wörter ohne Farbe. */
 export function ColourSwatch({ word }: { word: string }) {
@@ -23,11 +24,12 @@ export function ColourSwatch({ word }: { word: string }) {
 export function ColourInput({ value, onChange, disabled = false, label }: {
   value: string; onChange: (word: string) => void; disabled?: boolean; label: string;
 }) {
+  const t = useT();
   const list = useId();
   return (
     <span className="wk-flow-colour">
       <ColourSwatch word={value} />
-      <input value={value} disabled={disabled} aria-label={label} list={list} placeholder="kolor"
+      <input value={value} disabled={disabled} aria-label={label} list={list} placeholder={t('calendarApp.flowUi.placeholder.colour')}
         onChange={(e) => onChange(e.target.value)} />
       <datalist id={list}>{LITURGICAL_COLOURS.map((c) => <option key={c.value} value={c.value} />)}</datalist>
     </span>
@@ -40,6 +42,7 @@ const SPECIALS: readonly Special[] = ['gaudete', 'laetare', 'palm', 'goodFriday'
 export function EditSeason({ data, onChange, disabled = false }: {
   data: SeasonData; onChange: (data: SeasonData) => void; disabled?: boolean;
 }) {
+  const t = useT();
   const colours = data.colours ?? {};
   const special = data.special ?? {};
   const setColour = (season: Season, word: string) => onChange({ ...data, colours: { ...colours, [season]: word } });
@@ -48,28 +51,27 @@ export function EditSeason({ data, onChange, disabled = false }: {
   return (
     <div className="wk-flow-stack">
       <p className="wk-flow-note">
-        Węzeł liczy okres, tydzień i rangę dnia (np. niedziela Adwentu) — co roku od nowa, z datą Wielkanocy i Adwentu.
-        Kolory wpisujesz Ty.
+        {t('calendarApp.season.note')}
       </p>
       <table className="wk-flow-table">
-        <thead><tr><th scope="col">Okres</th><th scope="col">Kolor</th></tr></thead>
+        <thead><tr><th scope="col">{t('calendarApp.season.season')}</th><th scope="col">{t('calendarApp.season.colour')}</th></tr></thead>
         <tbody>
           {SEASONS.map((season) => (
             <tr key={season}>
-              <th scope="row">{SEASON_LABEL[season]}</th>
-              <td><ColourInput label={`Kolor: ${SEASON_LABEL[season]}`} value={colours[season] ?? ''} disabled={disabled}
+              <th scope="row">{t(`calendarApp.flow.season.${season}`)}</th>
+              <td><ColourInput label={t('calendarApp.season.colourOf', { name: t(`calendarApp.flow.season.${season}`) })} value={colours[season] ?? ''} disabled={disabled}
                 onChange={(word) => setColour(season, word)} /></td>
             </tr>
           ))}
         </tbody>
       </table>
       <table className="wk-flow-table">
-        <thead><tr><th scope="col">Dzień szczególny</th><th scope="col">Kolor</th></tr></thead>
+        <thead><tr><th scope="col">{t('calendarApp.season.special')}</th><th scope="col">{t('calendarApp.season.colour')}</th></tr></thead>
         <tbody>
           {SPECIALS.map((day) => (
             <tr key={day}>
               <th scope="row">{SPECIAL_LABEL[day]}</th>
-              <td><ColourInput label={`Kolor: ${SPECIAL_LABEL[day]}`} value={special[day] ?? ''} disabled={disabled}
+              <td><ColourInput label={t('calendarApp.season.colourOf', { name: SPECIAL_LABEL[day] })} value={special[day] ?? ''} disabled={disabled}
                 onChange={(word) => setSpecial(day, word)} /></td>
             </tr>
           ))}

@@ -17,6 +17,7 @@
 import { areaKeys, newestKey } from '../chat/chat';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
+import { t } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import type { EntryData } from './libraryKinds';
 import { call, WorkspaceError } from '../core/session';
@@ -107,7 +108,7 @@ export async function openLibraries(ring: Ring, rows: readonly LibraryRow[]): Pr
 
 async function newest(ring: Ring, areaId: string): Promise<{ epoch: number; key: Uint8Array }> {
   const found = newestKey(await areaKeys(ring, areaId, true));
-  if (found === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+  if (found === null) throw new WorkspaceError(t('libraryData.store.noKey'));
   return found;
 }
 

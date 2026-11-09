@@ -26,6 +26,7 @@ import type { SeatView } from './seatContext';
 import { openSteps, type SeatForm } from '../steps/steps';
 import { rememberSeatAreaKeys } from '../roles/roleBundle';
 import { recall, remember } from './seatKeep';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 
 interface Shared {
@@ -176,9 +177,9 @@ export function useSeat(token: string, keyText: string | null): Opened {
       for (const form of found.forms ?? []) {
         /* 0097 — die Namen seiner Uzupełnienia liegen unter dem Schlüssel ihrer Fragen. */
         const extensions = await Promise.all(form.extensions.map(async (x) => {
-          if (x.nameSealed == null || x.nameEpoch == null || x.areaId == null) return { ...x, name: 'Uzupełnienie' };
+          if (x.nameSealed == null || x.nameEpoch == null || x.areaId == null) return { ...x, name: t('seats.extension') };
           const nameKey = await reader.key(x.areaId, x.nameEpoch);
-          return { ...x, name: (nameKey === undefined ? null : await openWith(nameKey, moduleNameAad(x.moduleId), x.nameSealed)) ?? 'Uzupełnienie' };
+          return { ...x, name: (nameKey === undefined ? null : await openWith(nameKey, moduleNameAad(x.moduleId), x.nameSealed)) ?? t('seats.extension') };
         }));
         opened.push({
           ...form,
@@ -258,7 +259,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
     } catch (e) {
       setChallenge(null);
       setPortal(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('seats.openFailed'));
     }
   }, [token, keyText]);
 

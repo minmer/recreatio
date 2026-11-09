@@ -23,20 +23,22 @@ import {
 import type { DeskRow } from '../forms/entryDesk';
 import { WorkspaceError } from '../core/session';
 import { answerPresenceAsOffice, type OpenStep, type PresenceAnswer, type PresenceChange } from './steps';
+import { useT } from '../core/i18n';
 
 export function TaskSheets({ steps, rows, onChanged }: {
   steps: readonly OpenStep[];
   rows: readonly DeskRow[];
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const sheets = steps.filter((s) => s.kind === 'task' && s.task?.schedule === 'item');
   if (sheets.length === 0) return null;
 
   return (
     <section className="wk-panel wk-sheets" data-task-sheets="">
-      <h3 className="wk-h2">Lista obecności</h3>
+      <h3 className="wk-h2">{t('steps.sheet.title')}</h3>
       <p className="wk-hint">
-        Zadania z terminami z kalendarza: kto będzie, kto jeszcze nie wie, kto nie będzie — i po terminie, kto był.
+        {t('steps.sheet.hint')}
       </p>
       {sheets.map((step) => <TaskSheet key={step.stepId} step={step} rows={rows} onChanged={onChanged} />)}
     </section>
@@ -44,6 +46,7 @@ export function TaskSheets({ steps, rows, onChanged }: {
 }
 
 function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly DeskRow[]; onChanged: () => Promise<void> }) {
+  const t = useT();
   const plan = step.task!;
   const dates = datesOf(plan);
   const today = isoDay(new Date());
@@ -54,14 +57,14 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
   const asked = plan.presence === true;
 
   const people = useMemo(() => rows.filter((r) => r.s.withdrawnAt === null && !r.s.hidden), [rows]);
-  const stateOf = (r: DeskRow) => r.s.tasks?.find((t) => t.stepId === step.stepId);
+  const stateOf = (r: DeskRow) => r.s.tasks?.find((x) => x.stepId === step.stepId);
   const date = dates.find((d) => d.day === day) ?? null;
 
   if (dates.length === 0) {
     return (
       <article className="wk-sheet" data-task-sheet={step.stepId}>
-        <h4 className="wk-h3">{step.label ?? 'Zadanie'}</h4>
-        <p className="wk-hint">W okresie zadania nie ma terminów — termin zmieniony albo usunięty z kalendarza.</p>
+        <h4 className="wk-h3">{step.label ?? t('steps.task')}</h4>
+        <p className="wk-hint">{t('steps.sheet.noDates')}</p>
       </article>
     );
   }
@@ -74,7 +77,7 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
       await answerPresenceAsOffice(r.s.registrationId, step.stepId, { day, ...what });
       await onChanged();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? `${r.name}: ${e.message}` : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? `${r.name}: ${e.message}` : t('steps.saveFailed'));
     } finally {
       setBusy(null);
     }
@@ -89,10 +92,10 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
 
   return (
     <article className="wk-sheet" data-task-sheet={step.stepId}>
-      <h4 className="wk-h3">{step.label ?? 'Zadanie'}</h4>
+      <h4 className="wk-h3">{step.label ?? t('steps.task')}</h4>
       <p className="wk-hint">{planText(plan)}</p>
 
-      <div className="wk-task-chips" role="group" aria-label="Termin">
+      <div className="wk-task-chips" role="group" aria-label={t('steps.sheet.date')}>
         {dates.map((d) => (
           <button key={d.day} type="button" className={d.day === day ? 'wk-task-day is-on' : 'wk-task-day'} aria-pressed={d.day === day}
             data-sheet-day={d.day} onClick={() => setDay(d.day)}>
@@ -105,8 +108,8 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
         <>
           <p className="wk-sheet-sum" data-sheet-sum="">
             <strong>{chipText(date.day)} · {hoursOf(date)}</strong>
-            {asked && ` · ${PRESENCE_THEY.yes} ${count('yes')} · ${PRESENCE_THEY.maybe} ${count('maybe')} · ${PRESENCE_THEY.no} ${count('no')} · bez odpowiedzi ${silent}`}
-            {after && ` · obecność ${was('present')} · nieobecność ${was('absent')} · usprawiedliwiona ${was('excused')}`}
+            {asked && ` · ${PRESENCE_THEY.yes} ${count('yes')} · ${PRESENCE_THEY.maybe} ${count('maybe')} · ${PRESENCE_THEY.no} ${count('no')} · ${t('steps.sheet.noAnswer', { count: silent })}`}
+            {after && ` · ${t('steps.sheet.attendance', { present: was('present'), absent: was('absent'), excused: was('excused') })}`}
           </p>
 
           {duties.length > 0 && (
@@ -115,7 +118,7 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
                 const takers = people.filter((r) => said(r)?.answer === 'yes' && said(r)?.dutyId === d.dutyId);
                 return (
                   <li key={d.dutyId}>
-                    <strong>{d.label ?? 'funkcja'}</strong>{' '}
+                    <strong>{d.label ?? t('steps.duty')}</strong>{' '}
                     <span className="wk-hint">{takers.length}{d.capacity === null ? '' : `/${d.capacity}`}</span>
                     {takers.length > 0 && `: ${takers.map((r) => r.name).join(', ')}`}
                   </li>
@@ -134,39 +137,39 @@ function TaskSheet({ step, rows, onChanged }: { step: OpenStep; rows: readonly D
                 <li key={r.s.registrationId} className="wk-sheet-row" data-sheet-row={r.s.registrationId}>
                   <span className="wk-sheet-name">{r.name}</span>
                   {asked && (
-                    <span className="wk-seg" role="group" aria-label={`${r.name}: odpowiedź`}>
+                    <span className="wk-seg" role="group" aria-label={t('steps.sheet.answerOf', { name: r.name })}>
                       {(['yes', 'maybe', 'no'] as const).map((a) => (
                         <button key={a} type="button" className={answer === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={answer === a}
                           disabled={busy !== null} data-sheet-answer={a} onClick={() => void change(r, { answer: answer === a ? 'none' : a })}>
-                          {a === 'yes' ? 'Będzie' : a === 'maybe' ? 'Nie wie' : 'Nie będzie'}
+                          {a === 'yes' ? t('steps.sheet.yes') : a === 'maybe' ? t('steps.sheet.maybe') : t('steps.sheet.no')}
                         </button>
                       ))}
                     </span>
                   )}
                   {asked && duties.length > 0 && answer === 'yes' && (
-                    <select value={p?.dutyId ?? ''} disabled={busy !== null} aria-label={`${r.name}: funkcja`} data-sheet-duty=""
+                    <select value={p?.dutyId ?? ''} disabled={busy !== null} aria-label={t('steps.sheet.dutyOf', { name: r.name })} data-sheet-duty=""
                       onChange={(e) => void change(r, { dutyId: e.target.value })}>
-                      <option value="">bez funkcji</option>
-                      {duties.map((d) => <option key={d.dutyId} value={d.dutyId}>{d.label ?? 'funkcja'}</option>)}
+                      <option value="">{t('steps.noDuty')}</option>
+                      {duties.map((d) => <option key={d.dutyId} value={d.dutyId}>{d.label ?? t('steps.duty')}</option>)}
                     </select>
                   )}
                   {after && (
-                    <span className="wk-seg" role="group" aria-label={`${r.name}: obecność`}>
+                    <span className="wk-seg" role="group" aria-label={t('steps.sheet.attendanceOf', { name: r.name })}>
                       {(['present', 'absent', 'excused'] as const).map((a) => (
                         <button key={a} type="button" className={attendance === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={attendance === a}
                           disabled={busy !== null} data-sheet-attendance={a}
                           onClick={() => void change(r, { attendance: attendance === a ? 'none' : a })}>
-                          {a === 'present' ? '✓ Obecność' : a === 'absent' ? 'Nieobecność' : 'Usprawiedliwiona'}
+                          {a === 'present' ? t('steps.sheet.present') : a === 'absent' ? t('steps.sheet.absent') : t('steps.sheet.excused')}
                         </button>
                       ))}
                     </span>
                   )}
-                  {working && <span className="wk-hint">Zapisywanie…</span>}
+                  {working && <span className="wk-hint">{t('common.saving')}</span>}
                 </li>
               );
             })}
           </ul>
-          {people.length === 0 && <p className="wk-empty">Nikt jeszcze się nie zgłosił.</p>}
+          {people.length === 0 && <p className="wk-empty">{t('steps.sheet.nobody')}</p>}
         </>
       )}
 

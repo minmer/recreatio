@@ -17,6 +17,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 import { texPieces } from '../core/tex';
+import { useT } from '../core/i18n';
 import { Tex, TexText } from '../ui/tex/Tex';
 import type { Card } from './cardBasics';
 import type { Outcome } from './check';
@@ -51,11 +52,12 @@ export function previewTex(tiles: readonly string[], preview: 'math' | 'text', j
   return tiles.map(tileTex).join(glue);
 }
 
-export function BuildPreview({ tiles, preview, join, empty = 'Tu pojawi się Twoja odpowiedź.' }: { tiles: readonly string[]; preview: 'math' | 'text'; join: string; empty?: string }) {
+export function BuildPreview({ tiles, preview, join, empty }: { tiles: readonly string[]; preview: 'math' | 'text'; join: string; empty?: string }) {
+  const t = useT();
   const shown = previewTex(tiles, preview, join);
   return (
-    <div className="cg-build-preview" data-build-preview={shown} aria-label="Podgląd odpowiedzi">
-      {tiles.length === 0 ? <span className="cg-muted">{empty}</span>
+    <div className="cg-build-preview" data-build-preview={shown} aria-label={t('cogitaLearnRun.build.preview')}>
+      {tiles.length === 0 ? <span className="cg-muted">{empty ?? t('cogitaLearnRun.build.empty')}</span>
         : preview === 'math' ? <Tex tex={shown} display /> : <TexText text={shown} />}
     </div>
   );
@@ -120,6 +122,7 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
   const [picked, setPicked] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [said, setSaid] = useState('');
+  const t = useT();
   const [solution, setSolution] = useState(false);
   const lineEl = useRef<HTMLOListElement | null>(null);
   const bankEl = useRef<HTMLDivElement | null>(null);
@@ -143,14 +146,14 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
   const add = (tile: Tile) => {
     if (locked || used.has(tile.id)) return;
     put([...line, tile]);
-    setSaid(`Dodano: ${tile.text}, pozycja ${n + 1}.`);
+    setSaid(t('cogitaLearnRun.build.added', { text: tile.text, at: n + 1 }));
   };
   const remove = (id: number) => {
     if (locked) return;
     const at = line.findIndex((t) => t.id === id);
     if (at < 0) return;
     put(line.filter((t) => t.id !== id));
-    setSaid(`Zabrano: ${line[at]!.text}.`);
+    setSaid(t('cogitaLearnRun.build.removed', { text: line[at]!.text }));
     /* Der Fokus bleibt in der Zeile (die Nachbarin) — sonst fiele er auf die Seite. */
     window.requestAnimationFrame(() => {
       const els = lineEl.current?.querySelectorAll<HTMLElement>('[data-tile-id]');
@@ -195,7 +198,7 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
       d.active = true;
       setDragging(d.id);
       const at = line.findIndex((t) => t.id === d.id);
-      setSaid(`Podniesiono: ${line[at]?.text ?? ''}, pozycja ${at + 1} z ${n}.`);
+      setSaid(t('cogitaLearnRun.build.lifted', { text: line[at]?.text ?? '', at: at + 1, n }));
     }
     e.preventDefault();
     /* Wohin sie fiele: hinter jede andere Kachel, die in Lesefolge vor dem Zeiger steht (Zeile über Zeile, dann links). */
@@ -220,7 +223,7 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
     const el = lineEl.current?.querySelector<HTMLElement>(`[data-tile-id="${d.id}"]`);
     if (el !== null && el !== undefined) el.style.transform = '';
     const at = line.findIndex((t) => t.id === d.id);
-    setSaid(`Upuszczono na pozycji ${at + 1} z ${n}.`);
+    setSaid(t('cogitaLearnRun.build.dropped', { at: at + 1, n }));
   };
 
   /* -- Tastatur ---------------------------------------------------------------------------------------------------- */
@@ -232,11 +235,11 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
       if (picked === null) {
         keyStart.current = line;
         setPicked(id);
-        setSaid(`Podniesiono: ${line[at]!.text}, pozycja ${at + 1} z ${n}. Strzałki przesuwają, spacja upuszcza, Escape anuluje, Delete zabiera.`);
+        setSaid(t('cogitaLearnRun.build.liftedKeys', { text: line[at]!.text, at: at + 1, n }));
       } else {
         setPicked(null);
         keyStart.current = null;
-        setSaid(`Upuszczono na pozycji ${at + 1} z ${n}.`);
+        setSaid(t('cogitaLearnRun.build.dropped', { at: at + 1, n }));
       }
       return;
     }
@@ -245,7 +248,7 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
       if (keyStart.current !== null) put(keyStart.current);
       keyStart.current = null;
       setPicked(null);
-      setSaid('Anulowano — kafelek wrócił na swoje miejsce.');
+      setSaid(t('cogitaLearnRun.build.cancelled'));
       focusTile(id);
       return;
     }
@@ -257,7 +260,7 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
         const to = at + step;
         if (to < 0 || to >= n) return;
         put(moveTo(at, to));
-        setSaid(`Przeniesiono na pozycję ${to + 1} z ${n}.`);
+        setSaid(t('cogitaLearnRun.build.moved', { at: to + 1, n }));
         focusTile(id);
       } else {
         const next = line[at + step];
@@ -299,19 +302,19 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
   return (
     <div className={`cg-build${checked ? ' is-checked' : ''}${dragging !== null ? ' is-dragging' : ''}`} data-build="">
       <BuildPreview tiles={shown.map((t) => t.text)} preview={spec.preview} join={spec.join} />
-      <ol ref={lineEl} className="cg-build-line" aria-label={`Twoja odpowiedź — ${n === 0 ? 'pusta' : `${n} kafelków`}`} data-build-line="">
-        {shown.length === 0 && <li className="cg-build-empty" aria-hidden>Wybieraj kafelki poniżej…</li>}
-        {shown.map((t, at) => {
+      <ol ref={lineEl} className="cg-build-line" aria-label={n === 0 ? t('cogitaLearnRun.build.lineEmpty') : t('cogitaLearnRun.build.line', { count: n })} data-build-line="">
+        {shown.length === 0 && <li className="cg-build-empty" aria-hidden>{t('cogitaLearnRun.build.pick')}</li>}
+        {shown.map((x, at) => {
           const m = marks === null || solution ? null : marks[at] ?? false;
           return (
-            <li key={tileKey(t)} data-tile-key={tileKey(t)} data-tile-id={t.id} data-tile-text={t.text}
-              className={`cg-tile${m === null ? '' : m ? ' is-right' : ' is-wrong'}${dragging === t.id ? ' is-lifted' : ''}${picked === t.id ? ' is-picked' : ''}`}
-              tabIndex={locked ? -1 : 0} aria-roledescription="kafelek do przeciągnięcia"
-              aria-label={`${t.text}, pozycja ${at + 1} z ${shown.length}${m === null ? '' : m ? ', dobrze' : ', źle'}`}
-              onPointerDown={(e) => onPointerDown(e, t.id)} onPointerMove={onPointerMove}
+            <li key={tileKey(x)} data-tile-key={tileKey(x)} data-tile-id={x.id} data-tile-text={x.text}
+              className={`cg-tile${m === null ? '' : m ? ' is-right' : ' is-wrong'}${dragging === x.id ? ' is-lifted' : ''}${picked === x.id ? ' is-picked' : ''}`}
+              tabIndex={locked ? -1 : 0} aria-roledescription={t('cogitaLearnRun.build.tileRole')}
+              aria-label={t(m === null ? 'cogitaLearnRun.build.tile' : m ? 'cogitaLearnRun.build.tileRight' : 'cogitaLearnRun.build.tileWrong', { text: x.text, at: at + 1, n: shown.length })}
+              onPointerDown={(e) => onPointerDown(e, x.id)} onPointerMove={onPointerMove}
               onPointerUp={(e) => onPointerUp(e)} onPointerCancel={(e) => onPointerUp(e, true)}
-              onKeyDown={(e) => onKey(e, at, t.id)}>
-              <TexText text={t.text} />
+              onKeyDown={(e) => onKey(e, at, x.id)}>
+              <TexText text={x.text} />
               {m !== null && <span className="cg-tile-mark" aria-hidden>{m ? '✓' : '✗'}</span>}
             </li>
           );
@@ -319,28 +322,28 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
       </ol>
       <span className="cg-sr" aria-live="assertive" data-build-said="">{said}</span>
       {!checked && (
-        <div ref={bankEl} className="cg-build-bank" aria-label="Kafelki do wyboru" data-build-bank="">
-          {bank.map((t) => (
-            <button key={t.id} type="button" className={`cg-tile${used.has(t.id) ? ' is-used' : ''}`} disabled={locked || used.has(t.id)} data-bank-text={t.text}
-              aria-label={`Dodaj: ${t.text}`} onClick={() => add(t)}>
-              <TexText text={t.text} />
+        <div ref={bankEl} className="cg-build-bank" aria-label={t('cogitaLearnRun.build.bank')} data-build-bank="">
+          {bank.map((x) => (
+            <button key={x.id} type="button" className={`cg-tile${used.has(x.id) ? ' is-used' : ''}`} disabled={locked || used.has(x.id)} data-bank-text={x.text}
+              aria-label={t('cogitaLearnRun.build.add', { text: x.text })} onClick={() => add(x)}>
+              <TexText text={x.text} />
             </button>
           ))}
         </div>
       )}
       {action ?? (!checked && (
         <div className="cg-answer-actions">
-          {n > 0 && <button type="button" className="wk-link-btn" disabled={locked} onClick={() => { put([]); setSaid('Wyczyszczono odpowiedź.'); }}>Wyczyść</button>}
-          <button key="check" type="button" className="wk-btn" disabled={locked || n === 0} onClick={() => onSubmit(line.map((t) => t.text))}>Sprawdź</button>
+          {n > 0 && <button type="button" className="wk-link-btn" disabled={locked} onClick={() => { put([]); setSaid(t('cogitaLearnRun.build.cleared')); }}>{t('cogitaLearnRun.build.clear')}</button>}
+          <button key="check" type="button" className="wk-btn" disabled={locked || n === 0} onClick={() => onSubmit(line.map((x) => x.text))}>{t('cogitaLearnRun.card.check')}</button>
         </div>
       ))}
       {marks !== null && (
         <div className="cg-order-result">
-          <span className="cg-order-count" data-build-count={right}>{right} z {target.length} na swoim miejscu</span>
+          <span className="cg-order-count" data-build-count={right}>{t('cogitaLearnRun.build.inPlace', { right, n: target.length })}</span>
           {outcome?.correct !== true && (
             <button type="button" className="wk-link-btn" aria-pressed={solution} data-build-toggle=""
               onClick={() => { remember(); setSolution((x) => !x); }}>
-              {solution ? 'Pokaż moją odpowiedź' : 'Pokaż rozwiązanie'}
+              {solution ? t('cogitaLearnRun.build.showMine') : t('cogitaLearnRun.build.showSolution')}
             </button>
           )}
         </div>

@@ -5,6 +5,7 @@
  * auf dem Ring).
  */
 
+import { t } from '../core/i18n';
 import { fieldDependencies, prerequisiteGraph } from './prerequisites';
 import { labelOf, type Entity, type KindDef, type Lookup } from './schema';
 import { readView } from './views';
@@ -21,7 +22,10 @@ interface BaseLike {
   entities(): readonly Entity[];
 }
 
-const listed = (names: readonly string[]): string => `${names.slice(0, 5).map((n) => `„${n.slice(0, 60)}”`).join(', ')}${names.length > 5 ? ` i ${names.length - 5} innych` : ''}`;
+const listed = (names: readonly string[]): string => {
+  const list = names.slice(0, 5).map((n) => t('cogitaData.import.quoted', { name: n.slice(0, 60) })).join(', ');
+  return names.length > 5 ? t('cogitaData.import.listedMore', { list, count: names.length - 5 }) : list;
+};
 
 export function landscapeImportWarnings(lib: BaseLike, plan: Planned): string[] {
   const out: string[] = [];
@@ -37,14 +41,14 @@ export function landscapeImportWarnings(lib: BaseLike, plan: Planned): string[] 
     const touched = graph.circles.filter((d) => planned.has(d.parent) || planned.has(d.child));
     if (touched.length > 0) {
       const names = [...new Set(touched.flatMap((d) => [d.parent, d.child]))].map((id) => { const e = look.entity(id); return e === undefined ? id : labelOf(e, look); });
-      out.push(`Kolejność nauki („Najpierw trzeba znać”) zamyka koło: ${listed(names)} — w krajobrazie koło liczy się jako jeden krok, a ścieżka i poziomy pomijają jedno połączenie. Popraw je.`);
+      out.push(t('cogitaData.landscape.circle', { list: listed(names) }));
     }
   }
   for (const v of views) {
     if (v.group?.by === 'axis' && look.kind(v.group.kind) === undefined) {
-      out.push(`Krajobraz „${v.name}”: nie ma rodzaju-osi „${v.group.kind}” — kierunek przyjdzie z sąsiedztwa w kolejności nauki.`);
+      out.push(t('cogitaData.landscape.noAxis', { name: v.name, kind: v.group.kind }));
     }
-    if (deps.length === 0) out.push(`Krajobraz „${v.name}”: baza nie ma jeszcze kolejności nauki (pól „Najpierw trzeba znać”) — wszystko, czego się nie umie, leży na pierścieniu, bez gór.`);
+    if (deps.length === 0) out.push(t('cogitaData.landscape.noOrder', { name: v.name }));
   }
   return out;
 }

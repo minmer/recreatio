@@ -14,6 +14,8 @@
  * das Ende) — jeder höchstens `SPAN_CAP`: wer zwischendurch eine Stunde weg war, hat nicht eine Stunde gelernt.
  */
 
+import { t } from '../core/i18n';
+
 /* -- Die nächste Lektion ------------------------------------------------------------------------------------------- */
 
 export interface DocLike {
@@ -36,7 +38,7 @@ export function nextLesson(docs: readonly DocLike[], fromId: string): { readonly
   const hit = docs.find((d) => d.id === raw || d.id === want)
     ?? docs.find((d) => typeof d.data._ref === 'string' && bare(d.data._ref) === want);
   if (hit === undefined || hit.id === fromId) return null;
-  const name = typeof hit.data.name === 'string' && hit.data.name.trim() !== '' ? hit.data.name.trim() : 'Powtórka';
+  const name = typeof hit.data.name === 'string' && hit.data.name.trim() !== '' ? hit.data.name.trim() : t('cogitaLearnRun.run.revision');
   return { id: hit.id, name };
 }
 

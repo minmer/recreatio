@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { rich, t, tFor, useT } from '../core/i18n';
 
 import { checkCard } from './cards';
 import { HINT_COST, shuffleAway, type Card, type PromptPart } from './cardBasics';
@@ -72,13 +73,13 @@ export function answerText(card: Card): string {
     case 'date': { const d = readDate(a.values[0]); return d === null ? a.values[0] ?? '' : dateText(d); }
     case 'one': return a.options[a.correct] ?? '';
     case 'many': return a.correct.map((i) => a.options[i]).join(', ');
-    case 'truefalse': return a.value ? 'prawda' : 'fałsz';
+    case 'truefalse': return a.value ? t('cogitaLearnRun.card.true') : t('cogitaLearnRun.card.false');
     case 'order': return a.items.join(' → ');
     case 'match': return a.pairs.map(([l, r]) => `${a.left[l]} — ${a.right[r]}`).join('; ');
     case 'flash': return a.back.join(' · ');
-    case 'code': return 'kod, który przechodzi wszystkie przypadki';
-    case 'point': return 'lat' in a.target ? `${a.target.lat.toFixed(4)}, ${a.target.lon.toFixed(4)}` : 'zaznaczony punkt';
-    case 'interactive': return solutionText(a) ?? 'cel rysunku osiągnięty';
+    case 'code': return t('cogitaLearnRun.card.codeAnswer');
+    case 'point': return 'lat' in a.target ? `${a.target.lat.toFixed(4)}, ${a.target.lon.toFixed(4)}` : t('cogitaLearnRun.card.pointAnswer');
+    case 'interactive': return solutionText(a) ?? t('cogitaLearnRun.card.drawingAnswer');
     case 'build': return a.items.join(a.join);
   }
 }
@@ -107,7 +108,7 @@ export function givenText(card: Card, given: unknown): string {
   if (a.form === 'one' && typeof given === 'number') return a.options[given] ?? '';
   /* 2026-11-01 — gespeichert wird der Text der Wahl (`storedGiven`); alte Antworten tragen noch die Stelle. */
   if (a.form === 'many' && Array.isArray(given)) return given.map((i) => (typeof i === 'number' ? a.options[i] ?? '' : String(i))).join(', ');
-  if (a.form === 'truefalse') return given === true ? 'prawda' : given === false ? 'fałsz' : '';
+  if (a.form === 'truefalse') return given === true ? t('cogitaLearnRun.card.true') : given === false ? t('cogitaLearnRun.card.false') : '';
   if (a.form === 'order' && Array.isArray(given)) return given.join(' → ');
   if (a.form === 'match' && Array.isArray(given)) return given.map((p) => (!Array.isArray(p) ? '' : typeof p[0] === 'number' ? `${a.left[p[0]]}—${a.right[p[1]]}` : `${String(p[0])}—${String(p[1])}`)).join('; ');
   if (a.form === 'code' && typeof given === 'object' && given !== null) return `${(given as { passed?: number }).passed ?? 0}/${(given as { total?: number }).total ?? 0}`;
@@ -156,19 +157,20 @@ const glyph = (right: boolean, chosen: boolean): string => (right ? '✓' : chos
 
 /** Was der Lernende bei einer Datumsfrage eintippt — zur verlangten Genauigkeit. */
 const DATE_HINT: Readonly<Record<'year' | 'month' | 'day', string>> = {
-  year: 'rok, np. 1410',
-  month: 'np. 7.1410 albo lipiec 1410',
-  day: 'np. 15.07.1410 albo 15 lipca 1410'
+  year: 'cogitaLearnRun.card.dateHint.year',
+  month: 'cogitaLearnRun.card.dateHint.month',
+  day: 'cogitaLearnRun.card.dateHint.day'
 };
 
 /** 2026-11-01 — so nennt die Karte die Teile eines Datums. */
-const PART_NAME: Readonly<Record<'year' | 'month' | 'day', string>> = { year: 'rok', month: 'miesiąc', day: 'dzień' };
+const PART_NAME: Readonly<Record<'year' | 'month' | 'day', string>> = { year: 'cogitaLearnRun.card.datePart.year', month: 'cogitaLearnRun.card.datePart.month', day: 'cogitaLearnRun.card.datePart.day' };
 
 /**
  * 2026-11-01 — DAS DATUM TEIL FÜR TEIL nach der Prüfung: je Tag, Monat, Jahr, was gegeben war und ob es stimmt (✓),
  * nah ist (≈, um eins daneben) oder nicht (✗) — mit dem richtigen Wert daneben. Die Farbe ist nie das einzige Zeichen.
  */
 function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
+  const t = useT();
   return (
     <ul className="cg-date-parts" data-date-parts="">
       {parts.map((p) => {
@@ -176,9 +178,9 @@ function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
         return (
           <li key={p.part} className={level} data-date-part={p.part} data-score={p.score}>
             <span className="cg-option-mark" aria-hidden>{p.score === 1 ? '✓' : p.score > 0 ? '≈' : '✗'}</span>
-            <span className="cg-date-part-name">{PART_NAME[p.part]}</span>
-            {p.given === null ? <em className="cg-muted">brak</em> : <strong className={p.score === 1 ? undefined : 'cg-struck'}>{datePartText(p.part, p.given)}</strong>}
-            {p.score < 1 && <span className="cg-date-part-fix">{p.score > 0 ? 'blisko · ' : ''}dobrze: <strong>{datePartText(p.part, p.expected)}</strong></span>}
+            <span className="cg-date-part-name">{t(PART_NAME[p.part])}</span>
+            {p.given === null ? <em className="cg-muted">{t('cogitaLearnRun.card.none')}</em> : <strong className={p.score === 1 ? undefined : 'cg-struck'}>{datePartText(p.part, p.given)}</strong>}
+            {p.score < 1 && <span className="cg-date-part-fix">{p.score > 0 ? t('cogitaLearnRun.card.near') : ''}{t('cogitaLearnRun.card.rightIs')}<strong>{datePartText(p.part, p.expected)}</strong></span>}
           </li>
         );
       })}
@@ -186,7 +188,7 @@ function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
   );
 }
 
-export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel = 'Dalej', lang = 'pl' }: {
+export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel, lang: asked0 }: {
   card: Card;
   /** 2026-11-04 (Prompt 15) — die Sprache der Baza, für die Worte am Ergebnis einer Wahl (`choiceMarks.ts`). */
   lang?: Lang;
@@ -199,6 +201,9 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   onNext?: () => void;
   nextLabel?: string;
 }) {
+  const tScope = useT();
+  const t = asked0 === undefined ? tScope : tFor(asked0);
+  const lang = t.lang;
   const a = card.answer;
   const shut = disabled === true || reveal !== undefined;
   /*
@@ -263,7 +268,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   /* Nach der Prüfung: „Dalej” an der Stelle von „Sprawdź” (oder dort, wo es stünde), gleich im Fokus. */
   const next = reveal !== undefined && onNext !== undefined
     /* Ein eigener Schlüssel: React baut den Knopf neu, statt „Sprawdź” umzubeschriften — nur so greift `autoFocus`. */
-    ? <button key="next" type="button" className="wk-btn cg-next" autoFocus data-card-next="" onClick={onNext}>{nextLabel}</button>
+    ? <button key="next" type="button" className="wk-btn cg-next" autoFocus data-card-next="" onClick={onNext}>{nextLabel ?? t('common.next')}</button>
     : null;
   const nextRow = next === null ? null : <div className="cg-answer-actions">{next}</div>;
 
@@ -295,11 +300,11 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           {asked !== null && <p className="cg-precision" data-precision={asked}>{PRECISION_ASK[asked]}</p>}
           <div className="cg-row">
             <input ref={field} type="text" className={reveal === undefined ? undefined : reveal.outcome.correct ? 'is-right' : reveal.outcome.near === true || reveal.outcome.correctness > 0.5 ? 'is-near' : 'is-wrong'} inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={shut}
-              placeholder={asked !== null ? DATE_HINT[asked] : a.form === 'number' ? (a.quantity === undefined ? 'liczba' : 'liczba, może z jednostką') : 'odpowiedź'}
-              aria-label={asked !== null ? `Odpowiedź — ${PRECISION_ASK[asked].toLowerCase()}` : 'Odpowiedź'} aria-invalid={unread || undefined}
+              placeholder={asked !== null ? t(DATE_HINT[asked]) : a.form === 'number' ? (a.quantity === undefined ? t('cogitaLearnRun.card.number') : t('cogitaLearnRun.card.numberUnit')) : t('cogitaLearnRun.card.answerPlaceholder')}
+              aria-label={asked !== null ? t('cogitaLearnRun.card.answerHow', { how: PRECISION_ASK[asked].toLowerCase() }) : t('cogitaLearnRun.card.answer')} aria-invalid={unread || undefined}
               onChange={(e) => { setText(e.target.value); setUnread(false); }} autoComplete="off" autoCapitalize="off" spellCheck={false} />
             {a.form === 'number' && a.unit !== '' && <span>{a.unit}</span>}
-            {next ?? <button key="check" type="submit" className="wk-btn" disabled={shut}>Sprawdź</button>}
+            {next ?? <button key="check" type="submit" className="wk-btn" disabled={shut}>{t('cogitaLearnRun.card.check')}</button>}
           </div>
           {/* Wie das Datum gelesen wird — nur, wenn es anders aussieht als getippt („1829 11" → listopad 1829). */}
           {a.form === 'date' && reveal === undefined && readText !== '' && readText !== text.trim() && <p className="cg-date-read" data-date-read="">= {readText}</p>}
@@ -349,7 +354,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
               return note === null ? button : <div key={i} className="cg-option-cell">{button}{note}</div>;
             })}
           </div>
-          {next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit([...many].sort((x, y) => x - y))}>Sprawdź</button>}
+          {next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit([...many].sort((x, y) => x - y))}>{t('cogitaLearnRun.card.check')}</button>}
         </div>
       );
     case 'truefalse': {
@@ -363,7 +368,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       };
       return (
         <div className={`cg-answer${revealed}`}>
-          <div className="cg-options cg-options-two">{tf(true, 'Prawda')}{tf(false, 'Fałsz')}</div>
+          <div className="cg-options cg-options-two">{tf(true, t('cogitaLearnRun.card.trueLabel'))}{tf(false, t('cogitaLearnRun.card.falseLabel'))}</div>
           {nextRow}
         </div>
       );
@@ -375,7 +380,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           <OrderAnswer key={`${card.key}:${card.fingerprint}`} start={view.start} correct={a.items} locked={shut}
             {...(a.preview === undefined ? {} : { preview: a.preview, join: a.join ?? ' ' })}
             {...(reveal === undefined ? {} : { given: Array.isArray(reveal.given) ? reveal.given.map(String) : [] })} onOrder={setOrder}
-            action={next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit(order)}>Sprawdź</button>} />
+            action={next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit(order)}>{t('cogitaLearnRun.card.check')}</button>} />
         </div>
       );
     case 'match': {
@@ -389,21 +394,21 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         const n = paired === undefined ? 0 : lefts.indexOf(paired) + 1;
         return (
           <button key={at} type="button" className={`cg-option${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`} aria-pressed={on} disabled={shut}
-            aria-label={n > 0 ? `${label} — para ${n}` : label} onClick={() => tap(side, at)}>
+            aria-label={n > 0 ? t('cogitaLearnRun.card.pairOf', { label, n }) : label} onClick={() => tap(side, at)}>
             {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}<span className="cg-option-text"><TexText text={label} /></span>
           </button>
         );
       };
       return (
         <div className={`cg-answer${revealed}`}>
-          <p className="cg-muted">Wybierz pozycję z jednej strony, potem jej parę z drugiej. Ponowne wybranie rozłącza parę.</p>
+          <p className="cg-muted">{t('cogitaLearnRun.card.matchHint')}</p>
           <div className="cg-match">
             {/* 2026-10-27 — was die Spalten sind („Rok” — „Wydarzenie”). 2026-10-31 — beide Spalten gemischt, jede für sich. */}
             <div className="cg-match-side" data-match-side="left">{a.heads !== undefined && a.heads[0] !== '' && <span className="cg-match-head">{a.heads[0]}</span>}{view.left.map((i) => item('l', i, a.left[i]!, pairs[i] === undefined ? undefined : i))}</div>
             <div className="cg-match-side" data-match-side="right">{a.heads !== undefined && a.heads[1] !== '' && <span className="cg-match-head">{a.heads[1]}</span>}{view.right.map((j) => item('r', j, a.right[j]!, leftOf(j)))}</div>
           </div>
           <button type="button" className="wk-btn" disabled={shut || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
-            Sprawdź{lefts.length > 0 && lefts.length < a.left.length ? ` (${lefts.length} z ${a.left.length})` : ''}
+            {lefts.length > 0 && lefts.length < a.left.length ? t('cogitaLearnRun.card.checkSome', { k: lefts.length, n: a.left.length }) : t('cogitaLearnRun.card.check')}
           </button>
         </div>
       );
@@ -415,14 +420,14 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           <div className="cg-flash-back">{a.back.map((b, i) => <div key={i}><Markup text={b} /></div>)}</div>
           <div className="cg-row">
             {/* 2026-11-05 (Prompt 17) — die eigene Einschätzung zeigt sich wie eine Antwort: grün, rot mit kleinem Schütteln, teilweise. */}
-            <button type="button" className={`cg-option${reveal?.given === 'knew' ? ' is-right is-hit' : ''}`} disabled={shut} onClick={() => submit('knew')}>Umiałem</button>
-            <button type="button" className={`cg-option${reveal?.given === 'partly' ? ' is-on is-hit' : ''}`} disabled={shut} onClick={() => submit('partly')}>Częściowo</button>
-            <button type="button" className={`cg-option${reveal?.given === 'not' ? ' is-wrong is-hit' : ''}`} disabled={shut} onClick={() => submit('not')}>Nie umiałem</button>
+            <button type="button" className={`cg-option${reveal?.given === 'knew' ? ' is-right is-hit' : ''}`} disabled={shut} onClick={() => submit('knew')}>{t('cogitaLearnRun.card.knew')}</button>
+            <button type="button" className={`cg-option${reveal?.given === 'partly' ? ' is-on is-hit' : ''}`} disabled={shut} onClick={() => submit('partly')}>{t('cogitaLearnRun.card.partly')}</button>
+            <button type="button" className={`cg-option${reveal?.given === 'not' ? ' is-wrong is-hit' : ''}`} disabled={shut} onClick={() => submit('not')}>{t('cogitaLearnRun.card.notKnew')}</button>
           </div>
           {nextRow}
         </div>
       ) : (
-        <button type="button" className="wk-btn" disabled={shut} onClick={() => setFlipped(true)}>Pokaż odpowiedź</button>
+        <button type="button" className="wk-btn" disabled={shut} onClick={() => setFlipped(true)}>{t('cogitaLearnRun.card.showAnswer')}</button>
       );
     case 'code':
       /* 2026-11-01 — eigene Datei: Beispiele vorher, die Fälle danach als Tabelle (`CodeAnswer.tsx`). */
@@ -441,8 +446,8 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         <div className={`cg-answer${revealed}`}>
           {a.on === 'map' ? (
             <GeoMap zoom={6} center={{ lat: 51.9, lon: 19.1 }} marks={point === null ? [] : [{ ...point, kind: 'pin' }]} onPick={shut ? undefined : setPoint} />
-          ) : <p className="cg-muted">Wskaż punkt na obrazie pytania.</p>}
-          {next ?? <button key="check" type="button" className="wk-btn" disabled={shut || point === null} onClick={() => submit(point)}>Sprawdź</button>}
+          ) : <p className="cg-muted">{t('cogitaLearnRun.card.pointHint')}</p>}
+          {next ?? <button key="check" type="button" className="wk-btn" disabled={shut || point === null} onClick={() => submit(point)}>{t('cogitaLearnRun.card.check')}</button>}
         </div>
       );
     case 'interactive':
@@ -455,6 +460,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
  * ein falsches (oder fehlendes) Paar nennt sein richtiges Gegenstück. Darüber, wie viele Paare stimmen.
  */
 function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unknown; leftOrder: readonly number[]; next: ReactNode }) {
+  const t = useT();
   const a = card.answer;
   if (a.form !== 'match') return null;
   const mine = new Map<number, number>();
@@ -463,7 +469,7 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
   const right = a.pairs.filter(([l, r]) => mine.get(l) === r).length;
   return (
     <div className="cg-answer is-revealed">
-      <p className="cg-order-count" data-match-count={right}>{right} z {a.pairs.length} {a.pairs.length === 1 ? 'pary' : 'par'} dobrze</p>
+      <p className="cg-order-count" data-match-count={right}>{t('cogitaLearnRun.card.pairsRight', { right, count: a.pairs.length })}</p>
       {a.heads !== undefined && (a.heads[0] !== '' || a.heads[1] !== '') && <div className="cg-match-row is-head" aria-hidden><span /><span>{a.heads[0]}</span><span>{a.heads[1]}</span></div>}
       <ul className="cg-match-result" data-match-result="">
         {leftOrder.map((l) => {
@@ -472,11 +478,11 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
           const ok = chosen !== undefined && chosen === want;
           return (
             <li key={l} className={`cg-match-row ${ok ? 'is-right' : 'is-wrong'}`} data-match-pair={ok ? 'right' : chosen === undefined ? 'missing' : 'wrong'}>
-              <span className="cg-option-mark" aria-label={ok ? 'dobrze' : 'źle'}>{ok ? '✓' : '✗'}</span>
+              <span className="cg-option-mark" aria-label={ok ? t('cogitaLearnRun.card.right') : t('cogitaLearnRun.card.wrong')}>{ok ? '✓' : '✗'}</span>
               <span className="cg-match-left"><TexText text={a.left[l] ?? ''} /></span>
               <span className="cg-match-right">
-                {chosen === undefined ? <em className="cg-muted">bez pary</em> : <span className={ok ? undefined : 'cg-struck'}><TexText text={a.right[chosen] ?? ''} /></span>}
-                {!ok && want !== undefined && <span className="cg-match-fix">dobrze: <strong><TexText text={a.right[want] ?? ''} /></strong></span>}
+                {chosen === undefined ? <em className="cg-muted">{t('cogitaLearnRun.card.noPair')}</em> : <span className={ok ? undefined : 'cg-struck'}><TexText text={a.right[chosen] ?? ''} /></span>}
+                {!ok && want !== undefined && <span className="cg-match-fix">{t('cogitaLearnRun.card.rightIs')}<strong><TexText text={a.right[want] ?? ''} /></strong></span>}
               </span>
             </li>
           );
@@ -526,6 +532,7 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   onEntity?: (id: string) => void;
   extra?: ReactNode;
 }) {
+  const t = useT();
   /* 2026-11-01 — „nah" auch, wo die Prüfung es sagt (ein Datum, jeder Teil höchstens um eins daneben). */
   const close = outcome.near === true || outcome.correctness > 0.5;
   const level = outcome.correct ? 'is-right' : close ? 'is-near' : 'is-wrong';
@@ -547,20 +554,20 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   const share = <CountPercent value={outcome.correctness} delay={Math.min(700, parts * 90)} />;
   const box = (
     <div className={`cg-verdict ${hinted ? 'is-near' : level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'} data-hints={outcome.hints}>
-      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? <>Dobrze — z podpowiedzią ({share})</> : outcome.correct ? 'Dobrze!' : close ? <>Prawie ({share})</> : outcome.answered ? (outcome.correctness > 0 ? <>Niestety nie ({share}).</> : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
+      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? rich(t('cogitaLearnRun.card.rightHinted'), { s: () => share }) : outcome.correct ? t('cogitaLearnRun.card.verdictRight') : close ? rich(t('cogitaLearnRun.card.almost'), { s: () => share }) : outcome.answered ? (outcome.correctness > 0 ? rich(t('cogitaLearnRun.card.wrongShare'), { s: () => share }) : t('cogitaLearnRun.card.verdictWrong')) : t('cogitaLearnRun.card.noAnswer')}</strong>
       {/* 2026-11-01 — ein Datum Teil für Teil: was stimmt, was nah ist, was nicht. */}
       {outcome.dateParts !== undefined && !outcome.correct && <DateParts parts={outcome.dateParts} />}
       {/* Die richtige Antwort steht da, grün — auch nach einem Treffer, samt der anderen, die auch gelten; bei markierten Antworten auf ihnen selbst. */}
       {!onAnswer && (
-        <span>Poprawnie: <strong className="cg-expected"><TexText text={written} /></strong>
-          {others.length > 0 && <> · także: <span className="cg-expected"><TexText text={others.join(', ')} /></span></>}
-          {showGiven && !outcome.correct && givenText(card, given) !== '' ? <> · Twoja odpowiedź: {givenText(card, given)}</> : null}
+        <span>{t('cogitaLearnRun.card.correctIs')}<strong className="cg-expected"><TexText text={written} /></strong>
+          {others.length > 0 && <>{t('cogitaLearnRun.card.also')}<span className="cg-expected"><TexText text={others.join(', ')} /></span></>}
+          {showGiven && !outcome.correct && givenText(card, given) !== '' ? <>{t('cogitaLearnRun.card.yours')}{givenText(card, given)}</> : null}
         </span>
       )}
       {/* 2026-10-23 (Schritt 13) — z jakiego powodu, gdy nie chodzi o liczbę (jednostka innej wielkości). */}
       {outcome.note !== undefined && <span className="cg-verdict-note">{outcome.note}</span>}
       {outcome.mask !== undefined && !outcome.correct && (
-        <span className="cg-diff" aria-label="Porównanie znak po znaku">
+        <span className="cg-diff" aria-label={t('cogitaLearnRun.card.diff')}>
           {spansOf(expected, outcome.mask).map((s, i) => <span key={i} className={`is-${s.level}`}>{s.text}</span>)}
         </span>
       )}
@@ -571,7 +578,7 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   );
   /* 2026-11-01 — das Wyjaśnienie der Frage zuerst, aufgeklappt; dann die Einträge (zugeklappt). */
   const explanation = card.explanation === undefined || card.explanation.trim() === '' ? null : (
-    <section className="cg-explanation" data-explanation="" aria-label="Wyjaśnienie">
+    <section className="cg-explanation" data-explanation="" aria-label={t('cogitaLearnRun.card.explanation')}>
       <Markup text={card.explanation} lib={lib} onEntity={onEntity} />
     </section>
   );
@@ -600,7 +607,7 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
 
 /* -- Frage, Antwort, Urteil ------------------------------------------------------------------- */
 
-export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dalej', head, foot, onEntity, autoFocus = true, lang }: {
+export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head, foot, onEntity, autoFocus = true, lang }: {
   card: Card;
   /** 2026-11-04 (Prompt 15) — die Sprache der Baza; fehlt sie, aus `lib` (`baseLang`), sonst polnisch. */
   lang?: Lang;
@@ -634,7 +641,10 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
     const t = window.setTimeout(() => setBurst(null), 1700);
     return () => window.clearTimeout(t);
   }, [burst]);
-  const MW = motionWords(lang ?? (lib === undefined ? 'pl' : baseLang(lib)));
+  const tScope = useT();
+  const L = lang ?? (lib === undefined ? tScope.lang : baseLang(lib));
+  const t = tFor(L);
+  const MW = motionWords(L);
 
   return (
     <section className="cg-face" aria-live="polite" data-card={card.key} data-form={card.answer.form}
@@ -652,20 +662,20 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
         <div className="cg-hints" data-hints={hints.length} data-hints-shown={hinted}>
           {hints.slice(0, hinted).map((h, i) => (
             <div key={i} className="cg-hint" data-hint={i + 1}>
-              <span className="cg-hint-n">Podpowiedź {i + 1}</span>
+              <span className="cg-hint-n">{t('cogitaLearnRun.card.hintN', { n: i + 1 })}</span>
               <Markup text={h} lib={lib} />
             </div>
           ))}
           {done === null && hinted < hints.length && (
-            <button type="button" className="wk-link-btn cg-hint-btn" data-hint-next="" title={`Każda podpowiedź obniża wynik tej odpowiedzi o ${Math.round(HINT_COST * 100)}%.`}
+            <button type="button" className="wk-link-btn cg-hint-btn" data-hint-next="" title={t('cogitaLearnRun.card.hintCost', { pct: Math.round(HINT_COST * 100) })}
               onClick={() => setHinted((n) => Math.min(hints.length, n + 1))}>
-              Podpowiedź {hinted + 1}/{hints.length}
+              {t('cogitaLearnRun.card.hintOf', { n: hinted + 1, all: hints.length })}
             </button>
           )}
         </div>
       )}
       {/* Die Antwort bleibt, wo sie war — gesperrt, mit ihren Marken; „Sprawdź” wird an seiner Stelle „Dalej” (2026-10-31). */}
-      <AnswerInput card={card} autoFocus={autoFocus} lang={lang ?? (lib === undefined ? 'pl' : baseLang(lib))} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
+      <AnswerInput card={card} autoFocus={autoFocus} lang={L} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
         noteAnswerSource(pressed.current?.isConnected === true ? pressed.current : document.activeElement, card.key);
         const outcome = withHints(checkCard(card, given, rule), hinted, HINT_COST);
         setDone({ outcome, given });

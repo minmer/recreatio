@@ -47,24 +47,25 @@ import {
   type Entity, type FieldDef, type KindDef, type Lookup
 } from './schema';
 import { parseQuantity } from '../core/quantities';
+import { t, texts } from '../core/i18n';
 
 /* -- Wörterbücher ------------------------------------------------------------------- */
 
 export const KEY_ACTIONS = ['next', 'more', 'save', 'newline', 'none'] as const;
 export type KeyAction = (typeof KEY_ACTIONS)[number];
 
-export const KEY_ACTION_LABEL: Record<KeyAction, string> = {
-  next: 'następne pole (w ostatnim — zapisz wiersz)',
-  more: 'kolejna wartość w tym samym miejscu',
-  save: 'zapisz wiersz i zacznij następny',
-  newline: 'nowa linia (w dłuższym tekście)',
-  none: 'nic'
-};
+export const KEY_ACTION_LABEL: Record<KeyAction, string> = texts({
+  next: 'cogitaEditForm.keyAction.next',
+  more: 'cogitaEditForm.keyAction.more',
+  save: 'cogitaEditForm.keyAction.save',
+  newline: 'cogitaEditForm.keyAction.newline',
+  none: 'cogitaEditForm.keyAction.none'
+});
 
 /** Kurz, für die Zeile unter dem Formular. */
-export const KEY_ACTION_SHORT: Record<KeyAction, string> = {
-  next: 'dalej', more: 'kolejna wartość tutaj', save: 'zapisz wiersz', newline: 'nowa linia', none: '—'
-};
+export const KEY_ACTION_SHORT: Record<KeyAction, string> = texts({
+  next: 'cogitaEditForm.keyShort.next', more: 'cogitaEditForm.keyShort.more', save: 'cogitaEditForm.keyShort.save', newline: 'cogitaEditForm.keyShort.newline', none: 'cogitaEditForm.keyShort.none'
+});
 
 export interface KeyMap {
   readonly enter: KeyAction;
@@ -84,15 +85,16 @@ export const DEFAULT_KEYS: KeyMap = { enter: 'next', ctrlEnter: 'more', shiftEnt
 export const COLUMN_SEPARATORS = ['auto', 'tab', ';', '=', ' - ', '|', ','] as const;
 export type ColumnSeparator = (typeof COLUMN_SEPARATORS)[number];
 
-export const COLUMN_SEPARATOR_LABEL: Record<ColumnSeparator, string> = {
-  auto: 'rozpoznaj samo', tab: 'tabulator (z arkusza)', ';': 'średnik ;', '=': 'znak =', ' - ': 'myślnik –', '|': 'kreska |', ',': 'przecinek ,'
-};
+export const COLUMN_SEPARATOR_LABEL: Record<ColumnSeparator, string> = texts({
+  auto: 'cogitaEditForm.sep.auto', tab: 'cogitaEditForm.sep.tab', ';': 'cogitaEditForm.sep.semicolon', '=': 'cogitaEditForm.sep.equals',
+  ' - ': 'cogitaEditForm.sep.dash', '|': 'cogitaEditForm.sep.bar', ',': 'cogitaEditForm.sep.comma'
+});
 
 /** Woran mehrere Werte in einer Zelle getrennt sind („car, automobile"). */
 export const VALUE_SEPARATORS = [',', ';', '/', '|'] as const;
 export type ValueSeparator = (typeof VALUE_SEPARATORS)[number];
 
-export const VALUE_SEPARATOR_LABEL: Record<ValueSeparator, string> = { ',': 'przecinek ,', ';': 'średnik ;', '/': 'ukośnik /', '|': 'kreska |' };
+export const VALUE_SEPARATOR_LABEL: Record<ValueSeparator, string> = texts({ ',': 'cogitaEditForm.sep.comma', ';': 'cogitaEditForm.sep.semicolon', '/': 'cogitaEditForm.sep.slash', '|': 'cogitaEditForm.sep.bar' });
 
 export interface PasteRule {
   readonly columns: ColumnSeparator;
@@ -105,11 +107,11 @@ export const DEFAULT_PASTE: PasteRule = { columns: 'auto', values: ',', header: 
 
 export type SourceMode = 'type' | 'ask' | 'fixed';
 
-export const SOURCE_LABEL: Record<SourceMode, string> = {
-  type: 'wpisywane w każdym wierszu',
-  ask: 'ustawiane na początek',
-  fixed: 'stała wartość'
-};
+export const SOURCE_LABEL: Record<SourceMode, string> = texts({
+  type: 'cogitaEditForm.source.type',
+  ask: 'cogitaEditForm.source.ask',
+  fixed: 'cogitaEditForm.source.fixed'
+});
 
 export interface FieldSource {
   readonly from: SourceMode;
@@ -324,13 +326,13 @@ export function nodeLabel(node: GraphNode, look: Pick<Lookup, 'kind'>, graph?: G
   if (node.type === 'pick') {
     const c = pickConfig(node.config);
     if (c.label !== undefined) return c.label;
-    const kinds = c.kinds.map((k) => look.kind(k)?.name ?? k).join(' / ') || 'Wybór';
+    const kinds = c.kinds.map((k) => look.kind(k)?.name ?? k).join(' / ') || t('cogitaEditForm.node.choice');
     const fed = [...new Set((graph?.edges ?? []).filter((e) => e.from === node.id).map((e) => e.to))];
     const target = fed.length === 1 ? graph!.nodes.find((n) => n.id === fed[0]) : undefined;
     return target === undefined || target.type !== 'entry' ? kinds : `${kinds} — ${nodeLabel(target, look)}`;
   }
   const c = entryConfig(node.config);
-  return c.label ?? look.kind(c.kind)?.name ?? 'Wpis';
+  return c.label ?? look.kind(c.kind)?.name ?? t('cogitaEditForm.node.entryFallback');
 }
 
 /**
@@ -344,19 +346,19 @@ export function formPalette(look: Pick<Lookup, 'kind'>): Palette<null> {
     const kind = look.kind(c.kind);
     return {
       inputs: refFields(kind).map((f) => ({ id: f.key, label: f.label, type: portType(f.to), many: f.multi })),
-      outputs: [{ id: 'out', label: c.label ?? kind?.name ?? 'Wpis', type: portType(c.kind === '' ? undefined : [c.kind]) }]
+      outputs: [{ id: 'out', label: c.label ?? kind?.name ?? t('cogitaEditForm.node.entryFallback'), type: portType(c.kind === '' ? undefined : [c.kind]) }]
     };
   };
   return paletteOf<null>('addform', [
     {
-      type: 'pick', label: 'Na początek', group: 'Na początek',
-      says: 'Istniejący wpis (język, temat) wybrany raz u góry — zostaje dla wszystkich wierszy, dopóki go nie zmienisz.',
-      ports: (config) => ({ inputs: [], outputs: [{ id: 'out', label: pickConfig(config).label ?? 'Wybór', type: portType(pickConfig(config).kinds) }] }),
+      type: 'pick', get label() { return t('cogitaEditForm.node.pick'); }, get group() { return t('cogitaEditForm.node.pick'); },
+      get says() { return t('cogitaEditForm.node.pickSays'); },
+      ports: (config) => ({ inputs: [], outputs: [{ id: 'out', label: pickConfig(config).label ?? t('cogitaEditForm.node.choice'), type: portType(pickConfig(config).kinds) }] }),
       run: () => ({})
     },
     {
-      type: 'entry', label: 'W każdym wierszu', group: 'W każdym wierszu',
-      says: 'Wpis, który powstaje z każdego wiersza (albo zostaje użyty, jeśli taki już jest).',
+      type: 'entry', get label() { return t('cogitaEditForm.node.entry'); }, get group() { return t('cogitaEditForm.node.entry'); },
+      get says() { return t('cogitaEditForm.node.entrySays'); },
       ports: entryPorts,
       run: () => ({})
     }
@@ -380,7 +382,7 @@ export const LOCATOR = '@loc:';
 
 export function locatorFields(kind: KindDef | undefined, c: EntryConfig): FieldDef[] {
   return (kind?.fields ?? []).filter((f) => f.type === 'ref' && f.locator === true && c.fields[f.key]?.from === 'type')
-    .map((f): FieldDef => ({ key: `${LOCATOR}${f.key}`, label: `${f.label} — miejsce`, type: 'line', multi: false, uncertain: false, says: 'Miejsce, np. „Łk 1,35", „s. 23", „nr 24"' }));
+    .map((f): FieldDef => ({ key: `${LOCATOR}${f.key}`, label: t('cogitaEditForm.locator.label', { field: f.label }), type: 'line', multi: false, uncertain: false, says: t('cogitaEditForm.locator.says') }));
 }
 
 /**
@@ -438,7 +440,7 @@ export function topOf(form: AddForm, look: Pick<Lookup, 'kind'>): TopItem[] {
     const c = entryConfig(n.config);
     for (const f of look.kind(c.kind)?.fields ?? []) {
       const source = c.fields[f.key];
-      if (source?.from === 'ask' && isTypeable(f)) asks.push({ type: 'ask', key: `${n.id}.${f.key}`, node: n.id, label: `${nodeLabel(n, look, form.graph)}: ${f.label}`, field: f, value: source.value ?? '' });
+      if (source?.from === 'ask' && isTypeable(f)) asks.push({ type: 'ask', key: `${n.id}.${f.key}`, node: n.id, label: t('cogitaEditForm.askLabel', { node: nodeLabel(n, look, form.graph), field: f.label }), field: f, value: source.value ?? '' });
     }
   }
   return [...picks, ...asks];
@@ -473,44 +475,44 @@ const one = (field: FieldDef, text: string): { value: unknown } | { error: strin
       /* 2026-10-23 (Schritt 13) — ein Grössenfeld: „1,5 kN" mit seiner Einheit und SI. */
       if (fieldKind(field) !== undefined) {
         const read = parseQuantity(text);
-        if (read === null) return { error: `„${text}" to nie liczba` };
-        if (read.unitText !== '' && read.unit === undefined) return { error: `„${text}": nie znam jednostki „${read.unitText}"` };
+        if (read === null) return { error: t('cogitaEditForm.parse.notNumber', { text }) };
+        if (read.unitText !== '' && read.unit === undefined) return { error: t('cogitaEditForm.parse.unknownUnit', { text, unit: read.unitText }) };
         const made = quantityEnvelope(field, read.value, read.unit);
         return 'error' in made ? { error: `„${text}": ${made.error}` } : { value: made };
       }
       const n = readNumber(text);
-      return n === null ? { error: `„${text}" to nie liczba` } : { value: n };
+      return n === null ? { error: t('cogitaEditForm.parse.notNumber', { text }) } : { value: n };
     }
     case 'date': {
       const d = readDate(text);
-      return d === null ? { error: `„${text}" to nie data (rok, 1999-05 albo 1999-05-03)` } : { value: dateKey(d) };
+      return d === null ? { error: t('cogitaEditForm.parse.notDate', { text }) } : { value: dateKey(d) };
     }
     case 'bool': {
       const b = readTyped(field, text);
-      return b === undefined ? { error: `„${text}": wpisz tak, nie albo nie wiadomo` } : { value: b };
+      return b === undefined ? { error: t('cogitaEditForm.parse.bool', { text }) } : { value: b };
     }
     case 'choice': {
       const c = readTyped(field, text);
-      return c === undefined ? { error: `„${text}": do wyboru jest ${(field.options ?? []).map((o) => o.label).join(', ')}` } : { value: c };
+      return c === undefined ? { error: t('cogitaEditForm.parse.choice', { text, options: (field.options ?? []).map((o) => o.label).join(', ') }) } : { value: c };
     }
     case 'list':
       return { value: text.split(/\s*[;\n]\s*/).map((x) => x.trim()).filter(Boolean) };
     case 'blocks': {
       const paragraphs = text.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
-      return paragraphs.length === 0 ? { error: 'pusty tekst' } : { value: paragraphs.map((x) => ({ type: 'paragraph', text: x })) };
+      return paragraphs.length === 0 ? { error: t('cogitaEditForm.parse.empty') } : { value: paragraphs.map((x) => ({ type: 'paragraph', text: x })) };
     }
     case 'geo': {
       const m = /^(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)$/.exec(text);
       const lat = m === null ? null : Number(m[1].replace(',', '.'));
       const lon = m === null ? null : Number(m[2].replace(',', '.'));
-      return lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180 ? { error: `„${text}": wpisz szerokość i długość, np. 50.06, 19.94` } : { value: { lat, lon } };
+      return lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180 ? { error: t('cogitaEditForm.parse.geo', { text }) } : { value: { lat, lon } };
     }
     case 'range': {
       const r = parseRange(text, field.rangeOf ?? 'number');
-      return r === null ? { error: `„${text}": zakres jak 992–1000, 1002–1025` } : { value: r };
+      return r === null ? { error: t('cogitaEditForm.parse.range', { text }) } : { value: r };
     }
     default:
-      return { error: 'tego pola nie da się wpisać' };
+      return { error: t('cogitaEditForm.parse.untypeable') };
   }
 };
 
@@ -656,7 +658,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
   const problems: string[] = [];
   const byId = new Map(form.graph.nodes.map((n) => [n.id, n]));
   const sequence = order(form.graph);
-  if (sequence === null) return { saves: [], rows: rows.map(() => ({ made: [], skipped: [], problems: [], empty: true })), problems: ['Formularz ma koło — popraw go w Schematach (Sposoby dodawania).'] };
+  if (sequence === null) return { saves: [], rows: rows.map(() => ({ made: [], skipped: [], problems: [], empty: true })), problems: [t('cogitaEditForm.plan.cycle')] };
   const depth = depths(form.graph, sequence);
   const position = new Map(form.graph.nodes.map((n, i) => [n.id, { x: n.x, y: n.y, i }]));
 
@@ -671,13 +673,13 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
     if (chosen.length === 0 && !c.optional) unpicked.push(nodeLabel(node, look, form.graph));
     picked.set(node.id, chosen);
   }
-  if (unpicked.length > 0) problems.push(`Wybierz na początek: ${unpicked.join(', ')}.`);
+  if (unpicked.length > 0) problems.push(t('cogitaEditForm.plan.unpicked', { list: unpicked.join(', ') }));
   const constant = new Map<string, Record<string, unknown>>();
   for (const node of form.graph.nodes) {
     if (node.type !== 'entry') continue;
     const c = entryConfig(node.config);
     const kind = look.kind(c.kind);
-    if (kind === undefined) { problems.push(`„${nodeLabel(node, look, form.graph)}": nie ma już takiego rodzaju.`); continue; }
+    if (kind === undefined) { problems.push(t('cogitaEditForm.plan.noKind', { node: nodeLabel(node, look, form.graph) })); continue; }
     const values: Record<string, unknown> = {};
     for (const f of kind.fields) {
       const source = c.fields[f.key];
@@ -842,8 +844,8 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       }
       /* Die Stellen stehen in ihren Verweisen; als eigene Felder gibt es sie nicht. */
       combos = combos.map((data) => Object.fromEntries(Object.entries(data).filter(([key]) => !key.startsWith(LOCATOR))));
-      if (missing !== null) { skipped.push({ node: id, why: `brak: ${missing}` }); outputs.set(id, []); continue; }
-      if (combos.length > MAX_PER_NODE) { rowProblems.push(`${label}: wyszłoby ${combos.length} wpisów z jednego wiersza — sprawdź „kilka w wierszu".`); outputs.set(id, []); continue; }
+      if (missing !== null) { skipped.push({ node: id, why: t('cogitaEditForm.plan.missing', { what: missing }) }); outputs.set(id, []); continue; }
+      if (combos.length > MAX_PER_NODE) { rowProblems.push(t('cogitaEditForm.plan.tooMany', { label, n: combos.length })); outputs.set(id, []); continue; }
 
       /* Jeden je Kombination: vorhanden, schon geplant, oder neu. */
       const identity = c.reuse === 'never' ? [] : identityOf(form, node, kind);

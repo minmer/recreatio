@@ -74,7 +74,7 @@ def _load(create_src, reference_src, learner_src):
     global _SESSION
     _SESSION = None
     if not re.search(r"^\s*def\s+transform\s*\(", learner_src, flags=re.MULTILINE):
-        return _out(status="invalid", error="Trzeba zdefiniować funkcję: def transform(x):")
+        return _out(status="invalid", error="cogitaLearnLogic.python.needTransform")
     scope = {"__name__": "__kod__"}
     printed = io.StringIO()
     try:
@@ -85,7 +85,7 @@ def _load(create_src, reference_src, learner_src):
         return _out(status="invalid", error=_err(ex))
     transform = scope.get("transform")
     if not callable(transform):
-        return _out(status="invalid", error="Brakuje funkcji transform(x).")
+        return _out(status="invalid", error="cogitaLearnLogic.python.noTransform")
     question = {"__name__": "__pytanie__"}
     broken = None
     if create_src.strip() != "" and reference_src.strip() != "":
@@ -114,16 +114,16 @@ def _call(x, want, from_json):
 
 def _example(input_json, expected_json):
     if _SESSION is None:
-        return _out(ok=False, error="Kod nie jest wczytany.")
+        return _out(ok=False, error="cogitaLearnLogic.python.notLoaded")
     return _call(json.loads(input_json), json.loads(expected_json), True)
 
 def _make(seed):
     if _SESSION is None:
-        return _out(ok=False, error="Kod nie jest wczytany.")
+        return _out(ok=False, error="cogitaLearnLogic.python.notLoaded")
     question = _SESSION["question"]
     _SESSION["case"] = None
     if not callable(question.get("create_input")) or not callable(question.get("reference")):
-        return _out(ok=False, error="Brakuje create_input(seed) albo reference(x).")
+        return _out(ok=False, error="cogitaLearnLogic.python.noCreate")
     try:
         x = question["create_input"](seed)
         want = question["reference"](copy.deepcopy(x))
@@ -134,7 +134,7 @@ def _make(seed):
 
 def _hidden():
     if _SESSION is None or _SESSION.get("case") is None:
-        return _out(ok=False, error="Nie ma przygotowanego przypadku.")
+        return _out(ok=False, error="cogitaLearnLogic.python.noCase")
     x, want = _SESSION["case"]
     _SESSION["case"] = None
     return _call(x, want, False)
@@ -148,7 +148,7 @@ def _run_template(code, args_json):
     exec(code, scope, scope)
     run = scope.get("run")
     if not callable(run):
-        raise ValueError("Kod musi zdefiniować funkcję run(*wejścia).")
+        raise ValueError("cogitaLearnLogic.python.needRun")
     result = run(*json.loads(args_json))
     return json.dumps(result, ensure_ascii=False, default=str)
 `;

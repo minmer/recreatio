@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 
 import { CHAT_SEEN } from '../chat/chatFeatures';
 import { loadSeatChats, type SeatChatRow } from './seatChat';
+import { t } from '../core/i18n';
 
 interface Entry {
   rows: readonly SeatChatRow[] | undefined;
@@ -84,9 +85,5 @@ export function useSeatChatRows(tokens: readonly string[]): readonly SeatChatRow
 
 /** „1 nowa wiadomość", „3 nowe wiadomości", „5 nowych wiadomości". */
 export function newMessages(n: number): string {
-  const tens = n % 100;
-  const ones = n % 10;
-  if (n === 1) return '1 nowa wiadomość';
-  if (ones >= 2 && ones <= 4 && (tens < 12 || tens > 14)) return `${n} nowe wiadomości`;
-  return `${n} nowych wiadomości`;
+  return t('seats.newMessages', { count: n });
 }

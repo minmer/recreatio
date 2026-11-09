@@ -26,6 +26,7 @@
 
 import { saveEvent } from '../calendar/agenda';
 import { createCalendar, loadCalendars, loadItems, type CalendarRow, type Occurrence } from '../calendar/calendar';
+import { appLang, fmtDate, t } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import { createLibrary, libraryKindOf, loadLibraries, type LibraryRow } from '../library/library';
@@ -63,7 +64,7 @@ export function lessonsOf(program: LibEntry, look: Lookup): Lesson[] {
     if ('heading' in item) { heading = item.heading.trim() === '' ? null : item.heading.trim(); continue; }
     const text = look.get(item.text);
     if (text === undefined || text.kind !== 'text') continue;
-    out.push({ textId: text.id, title: str(text.data, 'title').trim() || 'Bez tytułu', heading, number: out.length + 1 });
+    out.push({ textId: text.id, title: str(text.data, 'title').trim() || t('areasSchool.untitled'), heading, number: out.length + 1 });
   }
   return out;
 }
@@ -184,8 +185,12 @@ export function progressOf(lessons: readonly Lesson[], realizations: readonly Re
 }
 
 export const progressLine = (p: Progress): string =>
-  p.total === 0 ? 'Program nie ma jeszcze lekcji.'
-    : `Zrealizowane ${p.done} z ${p.total}${p.partial > 0 ? `, częściowo ${p.partial}` : ''}${p.planned > 0 ? `, zaplanowane ${p.planned}` : ''}.`;
+  p.total === 0 ? t('areasSchool.progress.empty')
+    : t('areasSchool.progress.line', { parts: [
+      t('areasSchool.progress.done', { done: p.done, total: p.total }),
+      ...(p.partial > 0 ? [t('areasSchool.progress.partial', { count: p.partial })] : []),
+      ...(p.planned > 0 ? [t('areasSchool.progress.planned', { count: p.planned })] : [])
+    ].join(', ') });
 
 /* == Rein: Stundenplan und Dziennik ============================================================ */
 
@@ -270,7 +275,11 @@ export function schoolYear(today: Date): { from: string; until: string } {
 /** pn=1 … nd=64, wie der Kalender. 1 = poniedziałek … 7 = niedziela. */
 export const weekdayBit = (weekday: number): number => 1 << (Math.min(7, Math.max(1, weekday)) - 1);
 
-export const WEEKDAYS = ['poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela'] as const;
+export const WEEKDAYS = ['poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela'] as const; // i18n-ignore — gespeichert (refText), nicht gezeigt
+
+/** Der Name eines Wochentags (1 = Montag) in der Sprache — aus `Intl`. */
+export const weekdayName = (weekday: number, lang = appLang()): string =>
+  fmtDate(new Date(2024, 0, Math.min(7, Math.max(1, weekday)), 12), { weekday: 'long' }, lang);
 
 /** Der erste Tag ab `from` (RRRR-MM-DD), der dieser Wochentag ist (1 = poniedziałek). */
 export function firstWeekday(from: string, weekday: number): string {
@@ -306,15 +315,15 @@ export async function programHome(areas: readonly AreaRow[], areaId: string): Pr
 export async function ensureScriptorium(ring: Ring, schoolAreaId: string, name: string): Promise<LibraryRow> {
   const had = await scriptoriumOf(schoolAreaId);
   if (had !== null) return had;
-  await createLibrary(ring, schoolAreaId, `Programy — ${name}`.slice(0, 200), 'writing');
+  await createLibrary(ring, schoolAreaId, t('areasSchool.scriptoriumName', { name }).slice(0, 200), 'writing');
   const made = await scriptoriumOf(schoolAreaId);
-  if (made === null) throw new WorkspaceError('Skryptorium szkoły nie powstało.');
+  if (made === null) throw new WorkspaceError(t('areasSchool.noScriptorium'));
   return made;
 }
 
 /** Den Speicher eines Skryptorium öffnen und lesen. */
 export async function openStore(ring: Ring | null, library: Pick<LibraryRow, 'libraryId' | 'areaId'>): Promise<LibraryStore> {
-  if (ring === null) throw new WorkspaceError('Najpierw podaj hasło — programy są zapieczętowane.');
+  if (ring === null) throw new WorkspaceError(t('areasSchool.passwordFirst'));
   const store = storeOf(ring, library);
   await store.sync();
   return store;
@@ -326,7 +335,7 @@ export const programsIn = (store: LibraryStore): Entry[] =>
 
 /** Ein neues Programm — leer, mit den Klassen, die es verwirklichen. */
 export const createProgram = (store: LibraryStore, title: string, classes: readonly string[] = []): Promise<Entry> =>
-  store.save({ kind: 'project', data: withClasses({ projectType: PROGRAM_TYPE, title: title.trim() || 'Program', outline: [], status: 'writing' }, classes) });
+  store.save({ kind: 'project', data: withClasses({ projectType: PROGRAM_TYPE, title: title.trim() || t('areasSchool.program'), outline: [], status: 'writing' }, classes) });
 
 /** Die Klassen eines Programms setzen. */
 export const setProgramClasses = (store: LibraryStore, program: Entry, classes: readonly string[]): Promise<Entry> =>
@@ -397,10 +406,10 @@ export async function addLessonSeries(ring: Ring, input: {
   readonly from: string;
   readonly until: string;
 }): Promise<string> {
-  if (!/^\d{2}:\d{2}$/.test(input.time)) throw new WorkspaceError('Podaj godzinę lekcji (GG:MM).');
+  if (!/^\d{2}:\d{2}$/.test(input.time)) throw new WorkspaceError(t('areasSchool.needTime'));
   const calendar = await classCalendar(input.classAreaId, input.className);
   const itemId = await saveEvent(ring, {
-    title: input.title.trim() || `Lekcja — ${input.className}`, location: '', notes: '',
+    title: input.title.trim() || t('areasSchool.lessonTitle', { name: input.className }), location: '', notes: '',
     areaId: input.classAreaId, ownerRoleId: input.ownerRoleId, calendarId: calendar.calendarId,
     date: firstWeekday(input.from, input.weekday), time: input.time, minutes: Math.max(5, Math.min(600, input.minutes)), allDay: false,
     repeat: 'weekly', every: 1, weekdays: weekdayBit(input.weekday), until: input.until, count: null
@@ -434,11 +443,11 @@ export async function postToClass(ring: Ring, input: { readonly classAreaId: str
   const { chats } = await loadChats();
   const here = chats.filter((c) => c.areaId.toLowerCase() === input.classAreaId.toLowerCase());
   const chat = here.find((c) => c.kind === 'channel') ?? here.find((c) => c.kind === 'area');
-  if (chat === undefined) throw new WorkspaceError('Klasa nie ma jeszcze kanału ani rozmowy — załóż je w karcie klasy.');
+  if (chat === undefined) throw new WorkspaceError(t('areasSchool.noChat'));
   const { members } = await loadMembers(input.classAreaId);
   const mine = members.filter((m) => ring.has(m.roleId));
   const writer = mine.find((m) => m.capabilities.includes('admin')) ?? mine.find((m) => m.capabilities.includes('write'));
-  if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tej klasie.');
+  if (writer === undefined) throw new WorkspaceError(t('areasSchool.noWriter'));
   const keys = await chatKeysOf(chat.chatId, await areaKeys(ring, input.classAreaId, true));
   await sendMessage(ring, chat.chatId, keys, writer.roleId, input.text, null, writer.roleId === input.personId ? {} : { personId: input.personId });
   return { chatId: chat.chatId };
@@ -446,12 +455,12 @@ export async function postToClass(ring: Ring, input: { readonly classAreaId: str
 
 /** Was die Klasse über eine Lekcja liest: Tag, Thema, was war, Zadanie. */
 export function lessonMessage(input: { readonly date: string; readonly title: string | null; readonly summary?: string; readonly homework?: string }): string {
-  const day = new Date(`${input.date}T12:00:00`).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const day = fmtDate(new Date(`${input.date}T12:00:00`), { weekday: 'long', day: 'numeric', month: 'long' });
   const summary = (input.summary ?? '').trim();
   const homework = (input.homework ?? '').trim();
   return [
-    `Lekcja, ${day}${input.title === null || input.title.trim() === '' ? '' : `: ${input.title.trim()}`}`,
+    input.title === null || input.title.trim() === '' ? t('areasSchool.message.head', { day }) : t('areasSchool.message.headTitle', { day, title: input.title.trim() }),
     ...(summary === '' ? [] : [summary]),
-    ...(homework === '' ? [] : [`Zadanie: ${homework}`])
+    ...(homework === '' ? [] : [t('areasSchool.message.homework', { homework })])
   ].join('\n');
 }

@@ -1,0 +1,126 @@
+{
+  "checking": "Sprawdzanie…",
+  "first": {
+    "fallback": {
+      "phone": "Numer telefonu ze zgłoszenia",
+      "email": "Adres e-mail ze zgłoszenia",
+      "date": "Data ze zgłoszenia"
+    },
+    "fallbackAny": "Odpowiedź ze zgłoszenia",
+    "noKey": "W tej przeglądarce nie ma klucza z linku. Otwórz pełny link, który dostałeś, jeszcze raz.",
+    "checkFailed": "Nie udało się sprawdzić.",
+    "blocked": "Ten link jest zablokowany",
+    "blockedText": "Było za dużo nieudanych prób potwierdzenia. Jeśli to Twój link, poproś kancelarię o nowy — ten już się nie otworzy.",
+    "title": "Potwierdź, że to Ty",
+    "titleWho": "Potwierdź, że to Ty — {who}",
+    "lead": "Ten link otwierasz po raz pierwszy. Żeby nikt przypadkowy — na przykład ktoś, do kogo SMS trafił pomyłkowo — nie zobaczył Twoich danych, podaj:",
+    "hint": "Tak, jak w zgłoszeniu — wielkość liter i polskie znaki nie mają znaczenia. Wystarczy raz: potem ten link nie będzie już pytał.",
+    "confirm": "Potwierdź",
+    "left": "Zostało prób: {count}"
+  },
+  "at": {
+    "long": "Dopisek jest za długi (najwyżej 300 znaków).",
+    "start": "Dopisek zaczyna się od „?” albo „#”.",
+    "spaces": "Dopisek bez spacji i cudzysłowów.",
+    "oneAnchor": "Tylko jedna kotwica „#”.",
+    "key": "Klucz osoby link dopisze sam — usuń „miejsce=…”.",
+    "empty": "Po „?” albo „#” coś musi stać."
+  },
+  "portal": {
+    "seedTitle": "Twoje zgłoszenie",
+    "saveFailed": "Nie udało się zapisać.",
+    "makeFailed": "Nie udało się założyć portalu.",
+    "enterAddress": "Wpisz adres strony.",
+    "unknownAddress": "Nie rozpoznaję adresu strony — wklej go tak, jak stoi w pasku adresu.",
+    "notAllowed": "recreatio.pl/{path} nie może być stroną po wysłaniu tego formularza — wybierz stronę z listy wyżej.",
+    "saveAddressFailed": "Nie udało się zapisać adresu.",
+    "shape": "Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.",
+    "taken": "Taka strona już jest — wybierz ją wyżej.",
+    "noRole": "Nie znaleziono Twojej roli.",
+    "title": "Po wysłaniu",
+    "nowhere": "Ten formularz nie stoi jeszcze na żadnej stronie. Portal możesz przygotować już teraz — pamiętaj tylko, że po postawieniu formularza portal musi być tą samą stroną, stroną nad nią lub pod nią albo inną publiczną stroną tego samego właściciela.",
+    "standsOn": "Formularz stoi na: {pages}. Portalem może być każda publiczna strona tego samego właściciela.",
+    "opens": "Link otwiera <code>recreatio.pl/{path}</code>",
+    "opensDerived": "Link otwiera <code>recreatio.pl/{path}</code> — tak wychodzi z ustawień, nikt tego nie wybrał.",
+    "how": "Osoba dostaje link do tej strony z własnym kluczem. Bloki „Zgłoszenie osoby\" i „Wiadomość dla osoby\" na tej stronie pokażą jej dane; jeśli ich tam nie ma, jej zgłoszenie pojawi się pod treścią strony. Klucz zostaje w jej przeglądarce i działa też na innych stronach tej organizacji.",
+    "astray": "Ta strona nie pasuje już do stron, na których stoi formularz — wybierz inną, inaczej zgłoszenie się nie powiedzie.",
+    "openPage": "Otwórz tę stronę",
+    "ownSummary": "Własny adres — z „#” albo parametrami",
+    "ownLabel": "Adres strony po wysłaniu",
+    "ownPlaceholder": "np. recreatio.pl/#/events/rocket2026#twoje-zgloszenie",
+    "ownHint": "Wklej adres strony (z listy wyżej) i dopisz za nim: „#nazwa-slajdu” — link otworzy ten slajd (nazwa jak w menu slajdów, np. „#twoje-zgloszenie”), „?s=3” — trzeci slajd, „?part=…” — konkretny moduł. Sam dopisek („#…” albo „?…”) dotyczy strony wybranej wyżej. Klucz osoby link doda sam.",
+    "personLink": "Link osoby:",
+    "saveAddress": "Zapisz adres",
+    "noSuffix": "Bez dopisku",
+    "newSummary": "Albo załóż nową stronę",
+    "address": "Adres",
+    "newPlaceholder": "np. parish/grzegorzki/confirmation/candidate",
+    "newHint": "Powstanie ze zgłoszeniem tej osoby, które <b>może poprawić</b>, i miejscem na wiadomość od kancelarii.",
+    "making": "Zakładanie…",
+    "make": "Załóż i otwórz",
+    "pageAfter": "Strona po wysłaniu",
+    "serviceChooses": "— niech usługa wybierze —",
+    "notFitting": "recreatio.pl/{path} (nie pasuje)"
+  },
+  "bar": {
+    "keyless": "W tym linku brakuje klucza — widać stronę, ale nie Twoje dane. Otwórz pełny link, który dostałeś.",
+    "gone": "Twojego miejsca nie ma — link mógł zostać wycofany, zastąpiony nowym albo stracić ważność. Jeśli dostałeś nowy link (np. SMS-em), otwórz go.",
+    "locked": "Klucz z linku nie pasuje do tego miejsca. Sprawdź, czy link nie urwał się przy kopiowaniu.",
+    "replaced": "<b>Zapisano. Twój link jest teraz nowy</b> — poprzedni przestał działać, na wypadek gdyby trafił pod zły numer. Na tym urządzeniu nic nie musisz robić; na innych otwórz nowy link.",
+    "worksUntil": "Link działa do {date}."
+  },
+  "zone": {
+    "submissionWho": "Widzisz to Ty i kancelaria, która prowadzi zapisy.",
+    "noKey": "Bez klucza z adresu nie da się tego otworzyć.",
+    "steps": "Twoje kroki",
+    "stepsWho": "Widzisz to Ty i kancelaria.",
+    "shared": "Wspólne dla grupy",
+    "sharedWho": "Widzą to wszyscy: {names}.",
+    "sealed": "zapieczętowane"
+  },
+  "link": {
+    "title": "Twój link",
+    "hint": "Tym adresem wracasz tutaj — także na innym urządzeniu. Kto go ma, widzi Twoje dane, więc nie przekazuj go dalej."
+  },
+  "bind": {
+    "failed": "Nie udało się przypisać.",
+    "done": "Gotowe. To miejsce jest teraz przypisane do Ciebie — znajdziesz je w swoim koncie, także bez tego linku.",
+    "haveAccount": "Masz konto? Po zalogowaniu możesz przypisać to miejsce do siebie — wtedy dotrzesz do niego bez linku.",
+    "needPerson": "Żeby przypisać to miejsce do siebie, potrzebujesz <b>osoby</b> — konto to pęk kluczy, nie człowiek. Załóż ją w zakładce „Role\".",
+    "label": "Przypisz do siebie — kogo dotyczy to miejsce",
+    "person": "Osoba · {id}",
+    "hint": "Klucz miejsca zostanie zapakowany kluczem tej osoby. Usługa nie uczestniczy w tym — dostaje gotową kopertę.",
+    "binding": "Przypisywanie…",
+    "bind": "Przypisz"
+  },
+  "page": {
+    "opening": "Otwieranie…",
+    "noPlace": "Tego miejsca nie ma",
+    "noPlaceText": "Link mógł zostać wycofany albo stracić ważność.",
+    "yourPlace": "Twoje miejsce",
+    "isKey": "Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę. Nie przekazuj go dalej.",
+    "noKey": "W adresie brakuje klucza — widać, że miejsce istnieje, ale nie jego treść. Otwórz pełny link, ten z drugą częścią po ukośniku.",
+    "yourPage": "<b>To jest Twoja strona.</b> Z czasem wszystko będzie się działo tutaj: terminy i spotkania, wiadomości od kancelarii, zgoda na to, co udostępniasz. Wracaj pod ten sam adres — on się nie zmieni."
+  },
+  "verify": {
+    "noToken": "W adresie brakuje części po ukośniku.",
+    "dead": "Ten link już nie działa",
+    "deadHint": "Napisz do kancelarii — wyśle nowy. Nic się nie stało: ten link tylko potwierdzał numer i nic poza tym nie otwierał.",
+    "done": "Numer potwierdzony",
+    "again": "Ten numer był już potwierdzony — wszystko jest w porządku.",
+    "thanks": "Dziękujemy. Kancelaria widzi teraz, że ten numer działa.",
+    "only": "Ten link potwierdzał wyłącznie numer telefonu. Nie otwiera Twoich danych, niczego nie zmienia i po użyciu nie działa dla nikogo innego."
+  },
+  "chat": {
+    "giveName": "Podaj imię i nazwisko."
+  },
+  "entryN": "Zgłoszenie {n}",
+  "extension": "Uzupełnienie",
+  "openFailed": "Nie udało się otworzyć.",
+  "newMessages": {
+    "one": "{count} nowa wiadomość",
+    "few": "{count} nowe wiadomości",
+    "many": "{count} nowych wiadomości",
+    "other": "{count} nowych wiadomości"
+  }
+}

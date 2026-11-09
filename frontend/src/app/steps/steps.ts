@@ -27,6 +27,7 @@ import type { StepMark } from '../forms/submissions';
 import { openFormNames, type FormNameIn } from '../core/names';
 import { repeatOf, roundLabel, roundOf, type Repeat } from '../forms/rounds';
 import { call } from '../core/session';
+import { fmtDate, t } from '../core/i18n';
 
 export type DoneBy = 'office' | 'person';
 
@@ -62,13 +63,8 @@ export interface ChatTarget {
 
 /** „…w kanale „Bierzmowanie"" — wo die Wiadomości liegen, für den Menschen und die Kanzlei. */
 export function chatTargetText(target: ChatTarget): string {
-  const at = target.areaName === null ? null : `„${target.areaName}"`;
-  switch (target.kind) {
-    case 'seat': return at === null ? 'w rozmowach z prowadzącymi' : `w rozmowie z prowadzącymi ${at}`;
-    case 'area': return at === null ? 'w rozmowach grup' : `w rozmowie grupy ${at}`;
-    case 'channel': return at === null ? 'w kanałach' : `w kanale ${at}`;
-    default: return at === null ? 'we wszystkich rozmowach' : `we wszystkich rozmowach ${at}`;
-  }
+  const kind = target.kind === 'seat' || target.kind === 'area' || target.kind === 'channel' ? target.kind : 'all';
+  return target.areaName === null ? t(`steps.chatTarget.${kind}`) : t(`steps.chatTarget.${kind}Named`, { name: target.areaName });
 }
 
 /** Ob eine Rozmowa seines Platzes zu dem gehört, was der Schritt meint. */
@@ -609,8 +605,8 @@ export function stepsFor(input: {
   if (input.hasSeat) {
     out.push({
       key: 'confirm',
-      label: 'Sprawdzenie i potwierdzenie danych',
-      help: 'Po otwarciu linku osoba przegląda swoje dane — zwłaszcza kontakty — i potwierdza je jednym przyciskiem.',
+      label: t('steps.auto.confirm'),
+      help: t('steps.auto.confirmHelp'),
       source: 'auto', doneBy: 'person', visibleToPerson: true,
       status: state(input.confirmedAt, null), doneAt: input.confirmedAt, dueAt: null,
       extensionId: null, stepId: null
@@ -631,8 +627,8 @@ export function stepsFor(input: {
 
     out.push({
       key: `ext:${ext.moduleId}`,
-      label: person ? `Uzupełnij: ${name}` : name,
-      help: person ? null : 'Wypełnia koordynator — osoba tego nie widzi.',
+      label: person ? t('steps.auto.fill', { name }) : name,
+      help: person ? null : t('steps.auto.officeFills'),
       source: 'auto', doneBy: person ? 'person' : 'office', visibleToPerson: person,
       status: state(at, null), doneAt: at, dueAt: null,
       extensionId: ext.moduleId, stepId: null
@@ -650,7 +646,7 @@ export function stepsFor(input: {
       const plan = one.task;
       const phase = phaseOf(plan, today);
       if (input.forPerson === true && phase === 'hidden') continue;
-      const said = input.tasks?.find((t) => t.stepId === one.stepId);
+      const said = input.tasks?.find((x) => x.stepId === one.stepId);
       const progress = taskProgressOf(plan, said);
       const ended = phase === 'reporting' || phase === 'over';
       const last = said?.days.length ? said.days[said.days.length - 1] : null;
@@ -659,7 +655,7 @@ export function stepsFor(input: {
 
       out.push({
         key: `task:${one.stepId}`,
-        label: one.label ?? 'Zadanie (zapieczętowane)',
+        label: one.label ?? t('steps.sealed.task'),
         help: one.help,
         source: 'hand', doneBy: one.doneBy, visibleToPerson: true,
         status: progress.fulfilled ? 'done'
@@ -678,7 +674,7 @@ export function stepsFor(input: {
     if (one.kind === 'booking') {
       out.push({
         key: `step:${one.stepId}`,
-        label: one.label ?? 'Wybór terminu (zapieczętowany)',
+        label: one.label ?? t('steps.sealed.booking'),
         help: one.help,
         source: 'auto', doneBy: 'person', visibleToPerson: true,
         status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
@@ -696,7 +692,7 @@ export function stepsFor(input: {
     if (one.kind === 'chat') {
       out.push({
         key: `step:${one.stepId}`,
-        label: one.label ?? 'Przeczytaj wiadomości (zapieczętowane)',
+        label: one.label ?? t('steps.sealed.chat'),
         help: one.help,
         source: 'auto', doneBy: 'person', visibleToPerson: true,
         status: mark !== null ? 'done' : 'todo', doneAt: mark?.doneAt ?? null, dueAt: null,
@@ -713,7 +709,7 @@ export function stepsFor(input: {
     if (one.kind === 'learn') {
       out.push({
         key: `step:${one.stepId}`,
-        label: one.label ?? 'Naucz się (zapieczętowane)',
+        label: one.label ?? t('steps.sealed.learn'),
         help: one.help,
         source: 'auto', doneBy: 'person', visibleToPerson: true,
         status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
@@ -725,7 +721,7 @@ export function stepsFor(input: {
 
     out.push({
       key: `step:${one.stepId}`,
-      label: one.label ?? 'Krok (zapieczętowany)',
+      label: one.label ?? t('steps.sealed.step'),
       help: one.help,
       source: 'hand', doneBy: one.doneBy, visibleToPerson: one.visibleToPerson,
       status: state(mark?.doneAt ?? null, one.dueAt), doneAt: mark?.doneAt ?? null, dueAt: one.dueAt,
@@ -761,7 +757,7 @@ export interface BookingTag {
 
 /** Ein Termin kurz: „12.11, 18:00" — mit Jahr, wenn es nicht dieses ist. */
 export function whenShort(at: Date, now = new Date()): string {
-  return at.toLocaleString('pl-PL', {
+  return fmtDate(at, {
     day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit',
     ...(at.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {})
   });
@@ -775,15 +771,15 @@ export function bookingTags(states: readonly StepState[], now = new Date()): rea
     const chosen = st.booking!.chosen;
     const head = named ? `${st.label}: ` : '';
     if (chosen === null) {
-      return { key: st.key, state: 'none', text: `${head}bez terminu`, title: `${st.label} — osoba nie wybrała jeszcze terminu` };
+      return { key: st.key, state: 'none', text: `${head}${t('steps.booking.none')}`, title: t('steps.booking.noneTitle', { label: st.label }) };
     }
     const at = new Date(chosen.startsAt);
-    const full = at.toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const full = fmtDate(at, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const state = chosen.status === 'pending' ? 'wait' : new Date(chosen.endsAt) < now ? 'past' : 'next';
     return {
       key: st.key, state,
-      text: `${head}${state === 'past' ? 'termin był ' : 'termin '}${whenShort(at, now)}${state === 'wait' ? ' · czeka' : ''}`,
-      title: `${st.label} — ${full}${state === 'wait' ? ' (czeka na potwierdzenie)' : state === 'past' ? ' (już był)' : ''}`
+      text: `${head}${t(state === 'past' ? 'steps.booking.was' : 'steps.booking.at', { when: whenShort(at, now) })}${state === 'wait' ? ` · ${t('steps.booking.waits')}` : ''}`,
+      title: `${st.label} — ${full}${state === 'wait' ? ` ${t('steps.booking.waitsLong')}` : state === 'past' ? ` ${t('steps.booking.wasLong')}` : ''}`
     };
   });
 }
@@ -794,4 +790,4 @@ export const bookingTagClass = (tag: BookingTag): string =>
 
 /** Eine Frist, lesbar. */
 export const dueText = (dueAt: string): string =>
-  new Date(dueAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+  fmtDate(new Date(dueAt), { day: 'numeric', month: 'long', year: 'numeric' });

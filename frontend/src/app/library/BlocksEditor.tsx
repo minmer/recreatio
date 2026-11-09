@@ -13,6 +13,7 @@
 import { useState, type ReactNode } from 'react';
 
 import { BLOCK_TYPES, type Cell, type CommentBlock, type Run } from './blocks';
+import { useT } from '../core/i18n';
 
 type BlockType = CommentBlock['type'];
 
@@ -32,7 +33,7 @@ function convert(block: CommentBlock, to: BlockType): CommentBlock {
     return { type: 'paragraph', text: cells.map((cell) => cell.map((run) => ('text' in run ? run.text : '')).join('')).filter(Boolean).join('\n\n') };
   }
   if (to === 'table') return { type: 'table', columns: block.type === 'table' ? block.columns : ['', ''], rows: cells.map((cell) => [cell, []]) };
-  return { type: to, items: cells.length > 0 ? cells : [[{ text: '' }]] };
+  return { type: to, items: cells.length > 0 ? cells : [[{ text: '' }]] }; // i18n-ignore
 }
 
 const fresh = (type: BlockType): CommentBlock => (type === 'paragraph' ? { type, text: '' }
@@ -46,6 +47,7 @@ export function BlocksEditor({ blocks, readOnly, onChange, shown, Picker }: {
   shown: RefShown;
   Picker: RefPickerSlot;
 }) {
+  const t = useT();
   const swap = (from: number, to: number) => {
     if (to < 0 || to >= blocks.length) return;
     const next = [...blocks];
@@ -57,14 +59,14 @@ export function BlocksEditor({ blocks, readOnly, onChange, shown, Picker }: {
       {blocks.map((block, i) => (
         <div key={i} className="lib-cm-block">
           <div className="lib-cm-block-bar">
-            <select value={block.type} disabled={readOnly} aria-label="Forma bloku" onChange={(e) => onChange(blocks.map((b, j) => (j === i ? convert(b, e.target.value as BlockType) : b)))}>
-              {BLOCK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            <select value={block.type} disabled={readOnly} aria-label={t('library.blocks.form')} onChange={(e) => onChange(blocks.map((b, j) => (j === i ? convert(b, e.target.value as BlockType) : b)))}>
+              {BLOCK_TYPES.map((bt) => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
             </select>
             {!readOnly && (
               <span className="lib-cm-tools">
-                <button type="button" className="wk-link-btn" aria-label="W górę" disabled={i === 0} onClick={() => swap(i, i - 1)}>↑</button>
-                <button type="button" className="wk-link-btn" aria-label="W dół" disabled={i === blocks.length - 1} onClick={() => swap(i, i + 1)}>↓</button>
-                <button type="button" className="wk-link-btn" aria-label="Usuń blok" onClick={() => onChange(blocks.filter((_, j) => j !== i))}>×</button>
+                <button type="button" className="wk-link-btn" aria-label={t('library.blocks.up')} disabled={i === 0} onClick={() => swap(i, i - 1)}>↑</button>
+                <button type="button" className="wk-link-btn" aria-label={t('library.blocks.down')} disabled={i === blocks.length - 1} onClick={() => swap(i, i + 1)}>↓</button>
+                <button type="button" className="wk-link-btn" aria-label={t('library.blocks.remove')} onClick={() => onChange(blocks.filter((_, j) => j !== i))}>×</button>
               </span>
             )}
           </div>
@@ -73,10 +75,10 @@ export function BlocksEditor({ blocks, readOnly, onChange, shown, Picker }: {
       ))}
       {!readOnly && (
         <div className="wk-actions">
-          {BLOCK_TYPES.map((t) => <button key={t.value} type="button" className="wk-btn wk-btn-line" onClick={() => onChange([...blocks, fresh(t.value)])}>+ {t.label}</button>)}
+          {BLOCK_TYPES.map((bt) => <button key={bt.value} type="button" className="wk-btn wk-btn-line" onClick={() => onChange([...blocks, fresh(bt.value)])}>+ {bt.label}</button>)}
         </div>
       )}
-      <p className="lib-cm-lede">Forma coś znaczy: lista numerowana — kolejność (tok myśli), lista punktów — rzeczy równorzędne, tabela — porównanie (każdy wiersz porównuje to samo).</p>
+      <p className="lib-cm-lede">{t('library.blocks.lede')}</p>
     </div>
   );
 }
@@ -84,10 +86,11 @@ export function BlocksEditor({ blocks, readOnly, onChange, shown, Picker }: {
 function BlockEditor({ block, readOnly, onChange, shown, Picker }: {
   block: CommentBlock; readOnly: boolean; onChange: (next: CommentBlock) => void; shown: RefShown; Picker: RefPickerSlot;
 }) {
+  const t = useT();
   if (block.type === 'paragraph') {
     return (
       <textarea className="lib-cm-paragraph" rows={4} value={block.text} disabled={readOnly} lang="pl" spellCheck
-        placeholder="Proza — **pogrubienie**, *kursywa*, przypis [@klucz, s. 3], wypowiedź osadzona: ![@kennung]"
+        placeholder={t('library.blocks.prose')}
         onChange={(e) => onChange({ ...block, text: e.target.value })} />
     );
   }
@@ -103,15 +106,15 @@ function BlockEditor({ block, readOnly, onChange, shown, Picker }: {
             <tr>
               {block.columns.map((c, k) => (
                 <th key={k} scope="col">
-                  <input value={c} disabled={readOnly} placeholder={`Kolumna ${k + 1}`} aria-label={`Nazwa kolumny ${k + 1}`}
+                  <input value={c} disabled={readOnly} placeholder={t('library.blocks.column', { n: k + 1 })} aria-label={t('library.blocks.columnName', { n: k + 1 })}
                     onChange={(e) => put(block.columns.map((one, j) => (j === k ? e.target.value : one)), rows)} />
                   {!readOnly && block.columns.length > 1 && (
-                    <button type="button" className="wk-link-btn" aria-label={`Usuń kolumnę ${k + 1}`}
+                    <button type="button" className="wk-link-btn" aria-label={t('library.blocks.removeColumn', { n: k + 1 })}
                       onClick={() => put(block.columns.filter((_, j) => j !== k), rows.map((row) => row.filter((_, j) => j !== k)))}>×</button>
                   )}
                 </th>
               ))}
-              {!readOnly && <th><button type="button" className="wk-link-btn" onClick={() => put([...block.columns, ''], rows.map((row) => [...row, []]))}>+ kolumna</button></th>}
+              {!readOnly && <th><button type="button" className="wk-link-btn" onClick={() => put([...block.columns, ''], rows.map((row) => [...row, []]))}>{t('library.blocks.addColumn')}</button></th>}
             </tr>
           </thead>
           <tbody>
@@ -120,12 +123,12 @@ function BlockEditor({ block, readOnly, onChange, shown, Picker }: {
                 {row.map((cell, k) => (
                   <td key={k}><CellEditor cell={cell} readOnly={readOnly} shown={shown} Picker={Picker} onChange={(next) => put(block.columns, rows.map((r, a) => (a === j ? r.map((one, b) => (b === k ? next : one)) : r)))} /></td>
                 ))}
-                {!readOnly && <td><button type="button" className="wk-link-btn" aria-label={`Usuń wiersz ${j + 1}`} onClick={() => put(block.columns, rows.filter((_, a) => a !== j))}>×</button></td>}
+                {!readOnly && <td><button type="button" className="wk-link-btn" aria-label={t('library.blocks.removeRow', { n: j + 1 })} onClick={() => put(block.columns, rows.filter((_, a) => a !== j))}>×</button></td>}
               </tr>
             ))}
           </tbody>
         </table>
-        {!readOnly && <button type="button" className="wk-link-btn" onClick={() => put(block.columns, [...rows, Array.from({ length: width }, () => [])])}>+ wiersz</button>}
+        {!readOnly && <button type="button" className="wk-link-btn" onClick={() => put(block.columns, [...rows, Array.from({ length: width }, () => [])])}>{t('library.blocks.addRow')}</button>}
       </div>
     );
   }
@@ -137,10 +140,10 @@ function BlockEditor({ block, readOnly, onChange, shown, Picker }: {
       {items.map((cell, j) => (
         <li key={j}>
           <CellEditor cell={cell} readOnly={readOnly} shown={shown} Picker={Picker} onChange={(next) => onChange({ ...block, items: items.map((one, a) => (a === j ? next : one)) })} />
-          {!readOnly && <button type="button" className="wk-link-btn" aria-label={`Usuń punkt ${j + 1}`} onClick={() => onChange({ ...block, items: items.filter((_, a) => a !== j) })}>×</button>}
+          {!readOnly && <button type="button" className="wk-link-btn" aria-label={t('library.blocks.removeItem', { n: j + 1 })} onClick={() => onChange({ ...block, items: items.filter((_, a) => a !== j) })}>×</button>}
         </li>
       ))}
-      {!readOnly && <li className="lib-cm-more"><button type="button" className="wk-link-btn" onClick={() => onChange({ ...block, items: [...items, [{ text: '' }]] })}>+ punkt</button></li>}
+      {!readOnly && <li className="lib-cm-more"><button type="button" className="wk-link-btn" onClick={() => onChange({ ...block, items: [...items, [{ text: '' }]] })}>{t('library.blocks.addItem')}</button></li>}
     </List>
   );
 }
@@ -148,13 +151,14 @@ function BlockEditor({ block, readOnly, onChange, shown, Picker }: {
 /** Eine Zelle: Text und echte Verweise, in ihrer Reihenfolge. */
 function CellEditor({ cell, readOnly, onChange, shown, Picker }: { cell: Cell; readOnly: boolean; onChange: (next: Cell) => void; shown: RefShown; Picker: RefPickerSlot }) {
   const [picking, setPicking] = useState(false);
+  const t = useT();
   const put = (at: number, run: Run | null) => onChange(run === null ? cell.filter((_, i) => i !== at) : cell.map((one, i) => (i === at ? run : one)));
   return (
     <span className="lib-cm-cell">
       {cell.map((run, i) => {
         if (!('ref' in run)) {
           return (
-            <input key={i} className="lib-cm-text" value={run.text} disabled={readOnly} placeholder="tekst" aria-label="Tekst"
+            <input key={i} className="lib-cm-text" value={run.text} disabled={readOnly} placeholder={t('library.blocks.textPlaceholder')} aria-label={t('library.blocks.text')}
               onChange={(e) => put(i, { text: e.target.value })}
               onBlur={() => { if (run.text === '' && cell.length > 1) put(i, null); }} />
           );
@@ -163,15 +167,15 @@ function CellEditor({ cell, readOnly, onChange, shown, Picker }: { cell: Cell; r
         return (
           <span key={i} className="lib-cm-ref">
             <span className={label.readable ? 'lib-ref' : 'lib-ref is-unreadable'}>{label.text}</span>
-            <input value={run.locator ?? ''} disabled={readOnly} placeholder="miejsce" aria-label="Miejsce odwołania" onChange={(e) => put(i, { ref: run.ref, locator: e.target.value })} />
-            {!readOnly && <button type="button" className="lib-chip-x" aria-label="Usuń odwołanie" onClick={() => put(i, null)}>×</button>}
+            <input value={run.locator ?? ''} disabled={readOnly} placeholder={t('librarySource.reader.goPlace')} aria-label={t('library.blocks.refPlace')} onChange={(e) => put(i, { ref: run.ref, locator: e.target.value })} />
+            {!readOnly && <button type="button" className="lib-chip-x" aria-label={t('library.blocks.removeRef')} onClick={() => put(i, null)}>×</button>}
           </span>
         );
       })}
       {!readOnly && !picking && (
         <span className="lib-cm-cell-add">
-          {(cell.length === 0 || 'ref' in cell[cell.length - 1]) && <button type="button" className="wk-link-btn" onClick={() => onChange([...cell, { text: '' }])}>+ tekst</button>}
-          <button type="button" className="wk-link-btn" onClick={() => setPicking(true)}>+ odwołanie</button>
+          {(cell.length === 0 || 'ref' in cell[cell.length - 1]) && <button type="button" className="wk-link-btn" onClick={() => onChange([...cell, { text: '' }])}>{t('library.blocks.addText')}</button>}
+          <button type="button" className="wk-link-btn" onClick={() => setPicking(true)}>{t('library.blocks.addRef')}</button>
         </span>
       )}
       {picking && (
@@ -180,7 +184,7 @@ function CellEditor({ cell, readOnly, onChange, shown, Picker }: { cell: Cell; r
             onPick: (id) => { onChange([...cell.filter((r) => !('text' in r) || r.text !== ''), { ref: id }]); setPicking(false); },
             onCancel: () => setPicking(false)
           })}
-          <button type="button" className="wk-link-btn" onClick={() => setPicking(false)}>Anuluj</button>
+          <button type="button" className="wk-link-btn" onClick={() => setPicking(false)}>{t('common.cancel')}</button>
         </span>
       )}
     </span>

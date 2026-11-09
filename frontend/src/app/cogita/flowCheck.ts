@@ -13,6 +13,7 @@
  * Ein Ablauf, dessen Graph eine Präsentation trägt ("presentation"), wird hier nicht geprüft (die Seite trägt ihn).
  */
 
+import { t } from '../core/i18n';
 import { exitsOf, follow, type Flow } from './flow';
 import { optionalExit, stepName } from './storyPath';
 
@@ -38,16 +39,16 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
   const out: FlowProblem[] = [];
   const nodes = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
   if (flow.graph.nodes.length === 0) {
-    if (flow.presentation === undefined) out.push({ level: 'error', text: 'Przebieg nie ma żadnego kroku — nie ma początku ani końca.' });
+    if (flow.presentation === undefined) out.push({ level: 'error', text: t('cogitaData.flowCheck.empty') });
     return out;
   }
-  const name = (id: string) => { const n = nodes.get(id); return n === undefined ? id : `„${stepName(n, label)}”`; };
+  const name = (id: string) => { const n = nodes.get(id); return n === undefined ? id : t('cogitaData.import.quoted', { name: stepName(n, label) }); };
   const given = raw === undefined ? (flow.start ?? '') : typeof raw.start === 'string' ? raw.start.trim() : '';
   let start: string | null = nodes.has(given) ? given : null;
   if (start === null) {
     start = entryStep(flow.graph);
-    if (start === null) { out.push({ level: 'error', text: 'Nie ma początku: pole "start" nie wskazuje kroku, a kroków, do których nic nie prowadzi, jest więcej niż jeden albo nie ma żadnego — wpisz "start".' }); return out; }
-    out.push({ level: 'warning', text: `Pole "start" nie wskazuje kroku — początkiem jest ${name(start)} (jedyny, do którego nic nie prowadzi).`, step: start });
+    if (start === null) { out.push({ level: 'error', text: t('cogitaData.flowCheck.noStart') }); return out; }
+    out.push({ level: 'warning', text: t('cogitaData.flowCheck.startGuessed', { step: name(start) }), step: start });
   }
 
   /* Kapitel: ein „Koniec rozdziału" geht zurück zur Auswahl; die geht nach allen weiter („done"). */
@@ -73,7 +74,7 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
   const ways = (id: string): { exit: string; label: string; to: string | null }[] => {
     const n = nodes.get(id);
     if (n === undefined || STOPS.has(n.type)) return [];
-    if (n.type === 'chapterEnd') { const hub = hubOf.get(id); return hub === undefined ? [{ exit: 'next', label: 'dalej', to: follow(flow, id, 'next') }] : [{ exit: 'next', label: 'do rozdziałów', to: hub }]; }
+    if (n.type === 'chapterEnd') { const hub = hubOf.get(id); return hub === undefined ? [{ exit: 'next', label: t('cogitaData.flowCheck.next'), to: follow(flow, id, 'next') }] : [{ exit: 'next', label: t('cogitaData.flowCheck.toChapters'), to: hub }]; }
     if (n.type === 'restart') return [];
     const ports = exitsOf(n.type, n.config);
     const list = flow.graph.edges.filter((e) => e.from === id).map((e) => ({ exit: e.out, label: ports.find((p) => p.id === e.out)?.label ?? e.out, to: nodes.has(e.to) ? e.to : null }));
@@ -85,14 +86,14 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
   const stack = [start];
   while (stack.length > 0) { const id = stack.pop()!; if (reach.has(id)) continue; reach.add(id); for (const w of ways(id)) if (w.to !== null) stack.push(w.to); }
   const ends = [...reach].filter((id) => STOPS.has(nodes.get(id)!.type));
-  if (ends.length === 0) out.push({ level: 'error', text: 'Nie ma końca: z początku nie da się dojść do kroku „Koniec” (ani „Powrót”, „Przekazanie”) — dodaj go i połącz z ostatnim krokiem.' });
+  if (ends.length === 0) out.push({ level: 'error', text: t('cogitaData.flowCheck.noEnd') });
 
   /* Ein zweiter Anfang und was der Anfang nicht erreicht. */
   const reachedBy = new Set(flow.graph.edges.filter((e) => e.from !== e.to).map((e) => e.to));
   for (const n of flow.graph.nodes) {
     if (reach.has(n.id)) continue;
-    if (!reachedBy.has(n.id)) out.push({ level: 'warning', text: `Drugi początek: do kroku ${name(n.id)} nic nie prowadzi — połącz go z resztą albo usuń.`, step: n.id });
-    else out.push({ level: 'warning', text: `Krok ${name(n.id)} jest nieosiągalny — od początku nie prowadzi do niego żadna droga.`, step: n.id });
+    if (!reachedBy.has(n.id)) out.push({ level: 'warning', text: t('cogitaData.flowCheck.secondStart', { step: name(n.id) }), step: n.id });
+    else out.push({ level: 'warning', text: t('cogitaData.flowCheck.unreachable', { step: name(n.id) }), step: n.id });
   }
 
   /* Ausgänge ohne Weg: dort endet der Ablauf, ohne „Koniec". */
@@ -101,7 +102,9 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
     const missing = ways(id).filter((w) => w.to === null);
     if (missing.length === 0) continue;
     open.add(id);
-    out.push({ level: 'warning', text: `Ślepy zaułek: z kroku ${name(id)} ${missing.length === 1 ? `wyjście „${missing[0].label}” nie prowadzi` : `wyjścia ${missing.map((w) => `„${w.label}”`).join(', ')} nie prowadzą`} nigdzie — przebieg skończy się tam bez kroku „Koniec”.`, step: id });
+    out.push({ level: 'warning', text: missing.length === 1
+      ? t('cogitaData.flowCheck.deadEndOne', { step: name(id), exit: missing[0]!.label })
+      : t('cogitaData.flowCheck.deadEndMany', { step: name(id), exits: missing.map((w) => t('cogitaData.import.quoted', { name: w.label })).join(', ') }), step: id });
   }
   /* Von wo aus kein Ende erreichbar ist (rückwärts von den Enden). */
   if (ends.length > 0) {
@@ -110,16 +113,16 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
     const ok = new Set<string>();
     const back = [...ends, ...open];
     while (back.length > 0) { const id = back.pop()!; if (ok.has(id)) continue; ok.add(id); for (const p of into.get(id) ?? []) back.push(p); }
-    for (const id of reach) if (!ok.has(id)) out.push({ level: 'warning', text: `Ślepy zaułek: z kroku ${name(id)} nie da się dojść do końca (pętla bez wyjścia).`, step: id });
+    for (const id of reach) if (!ok.has(id)) out.push({ level: 'warning', text: t('cogitaData.flowCheck.loop', { step: name(id) }), step: id });
   }
   /* 2026-11-05 (Prompt 23, D4) — ein Przegląd in einem Schritt prüft die Fragen der Erzählung: ohne Fragen prüft er nichts. */
   const asks = flow.graph.nodes.some((n) => n.type === 'question');
   for (const n of flow.graph.nodes) {
     if (n.type !== 'review') continue;
     const of = typeof n.config.of === 'string' ? n.config.of.trim() : '';
-    if ((of === '' || of === 'story') && !asks) out.push({ level: 'warning', text: `Przegląd ${name(n.id)} nie ma czego sprawdzać: w tym przebiegu nie ma kroków „Pytanie”.`, step: n.id });
-    const t = n.config.threshold;
-    if (t !== undefined && (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > 100)) out.push({ level: 'warning', text: `Przegląd ${name(n.id)}: "threshold" to liczba od 0 do 1 (np. 0.9) — przyjęto 0.9.`, step: n.id });
+    if ((of === '' || of === 'story') && !asks) out.push({ level: 'warning', text: t('cogitaData.flowCheck.reviewEmpty', { step: name(n.id) }), step: n.id });
+    const thr = n.config.threshold;
+    if (thr !== undefined && (typeof thr !== 'number' || !Number.isFinite(thr) || thr < 0 || thr > 100)) out.push({ level: 'warning', text: t('cogitaData.flowCheck.threshold', { step: name(n.id) }), step: n.id });
   }
   return out;
 }

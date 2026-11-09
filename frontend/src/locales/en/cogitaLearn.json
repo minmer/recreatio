@@ -919,5 +919,25 @@
   "landscapeClient": {
     "failed": "Landscape: calculation error.",
     "workerDied": "Landscape: the worker stopped working."
+  },
+  "choice": {
+    "hit": "correctly chosen",
+    "missed": "missed — this is also true",
+    "wrong": "wrongly chosen",
+    "left": "correctly left out",
+    "right": "right answer",
+    "wrongAnswer": "wrong answer"
+  },
+  "home": {
+    "title": "Your home",
+    "fullTitle": "Your learning — all statistics and awards",
+    "numbers": "{land} of {topics} topics known · {won} of {regions} regions won · {ready} ready · {due} cards to review",
+    "review": "Review ({n})",
+    "stackLine": "{n} cards at a time",
+    "all": "All statistics and awards",
+    "hint": "Double-click the house to open everything at once.",
+    "close": "Close",
+    "settings": "How you learn",
+    "noLearner": "Statistics and awards appear once you start learning."
   }
 }

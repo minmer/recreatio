@@ -22,6 +22,8 @@
  * Woche eines Abschnitts (`liturgy.ts`).
  */
 
+import { t, texts } from '../../core/i18n';
+
 /** Wochentag: 1 = Montag … 7 = Sonntag (wie überall im Kalender). */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -29,14 +31,14 @@ export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export const SEASONS = ['adwent', 'narodzenie', 'zwykly', 'post', 'triduum', 'wielkanoc'] as const;
 export type Season = (typeof SEASONS)[number];
 
-export const SEASON_LABEL: Record<Season, string> = {
-  adwent: 'Adwent',
-  narodzenie: 'Okres Narodzenia Pańskiego',
-  zwykly: 'Okres zwykły',
-  post: 'Wielki Post',
-  triduum: 'Triduum Paschalne',
-  wielkanoc: 'Okres wielkanocny'
-};
+export const SEASON_LABEL: Record<Season, string> = texts({
+  adwent: 'calendarApp.flow.season.adwent',
+  narodzenie: 'calendarApp.flow.season.narodzenie',
+  zwykly: 'calendarApp.flow.season.zwykly',
+  post: 'calendarApp.flow.season.post',
+  triduum: 'calendarApp.flow.season.triduum',
+  wielkanoc: 'calendarApp.flow.season.wielkanoc'
+});
 
 /**
  * WANN — eine Regel für ein Datum, das sich (vielleicht) jedes Jahr verschiebt.
@@ -181,22 +183,32 @@ export interface FlowDoc {
 
 export const EMPTY_FLOW: FlowDoc = { v: 1, nodes: [], edges: [] };
 
+type NodeInfo = { readonly label: string; readonly outs: readonly FlowOut[]; readonly entry?: boolean; readonly says: string };
+
+/* Name und Satz eines Knotens beim Lesen übersetzt: `calendarApp.flow.node.<typ>.label|says`. */
+const info = (type: FlowNodeType, outs: readonly FlowOut[], entry = false): NodeInfo => ({
+  outs,
+  ...(entry ? { entry: true } : {}),
+  get label() { return t(`calendarApp.flow.node.${type}.label`); },
+  get says() { return t(`calendarApp.flow.node.${type}.says`); }
+});
+
 /** Wie ein Knoten heisst, welche Ausgänge er hat, und ob er ein Ende ist. */
-export const NODE_INFO: Record<FlowNodeType, { readonly label: string; readonly outs: readonly FlowOut[]; readonly entry?: boolean; readonly says: string }> = {
-  day: { label: 'Dzień', outs: ['out'], entry: true, says: 'Początek dla każdego dnia zakresu.' },
-  mass: { label: 'Msza', outs: ['out'], entry: true, says: 'Początek dla każdej mszy dnia (z węzła „Godziny”).' },
-  season: { label: 'Okres liturgiczny', outs: ['out'], says: 'Liczy okres, tydzień, rangę dnia i kolor okresu.' },
-  feasts: { label: 'Kalendarz świąt', outs: ['out'], says: 'Wybiera obchód dnia z tabeli (najwyższa ranga wygrywa).' },
-  if: { label: 'Warunek', outs: ['yes', 'no'], says: 'Sprawdza dzień, mszę albo wpis — dalej „tak” albo „nie”.' },
-  set: { label: 'Ustaw', outs: ['out'], says: 'Ustawia tytuł, pole schematu albo zmienną.' },
-  slots: { label: 'Godziny mszy', outs: [], says: 'Mówi, jakie msze są tego dnia (niedziele i święta / dni powszednie).' },
-  record: { label: 'Dodaj wpis', outs: ['out'], says: 'Dodaje do mszy stały wpis, np. intencję „Za parafian”.' },
-  skip: { label: 'Bez mszy', outs: [], says: 'Tego dnia (tej godziny) nie ma mszy.' },
-  end: { label: 'Utwórz', outs: [], says: 'Mszę tworzy się z tym, co ustawiono po drodze.' },
-  'record-start': { label: 'Nowy wpis', outs: ['out'], entry: true, says: 'Początek: ktoś dodaje albo przyjmuje wpis.' },
-  allow: { label: 'Przyjmij', outs: [], says: 'Wpis zostaje przyjęty.' },
-  wait: { label: 'Czeka', outs: [], says: 'Wpis czeka, aż przyjmie go kancelaria.' },
-  refuse: { label: 'Odmów', outs: [], says: 'Wpisu nie da się dodać — z tym komunikatem.' }
+export const NODE_INFO: Record<FlowNodeType, NodeInfo> = {
+  day: info('day', ['out'], true),
+  mass: info('mass', ['out'], true),
+  season: info('season', ['out']),
+  feasts: info('feasts', ['out']),
+  if: info('if', ['yes', 'no']),
+  set: info('set', ['out']),
+  slots: info('slots', []),
+  record: info('record', ['out']),
+  skip: info('skip', []),
+  end: info('end', []),
+  'record-start': info('record-start', ['out'], true),
+  allow: info('allow', []),
+  wait: info('wait', []),
+  refuse: info('refuse', [])
 };
 
 /** Die Tage eines geplanten Zeitraums und die Messen, wie der Plan sie anlegen würde. */

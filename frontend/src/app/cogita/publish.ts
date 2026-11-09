@@ -20,6 +20,7 @@ import { call } from '../core/session';
 import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type MediaRef } from './schema';
 import { blocksMarkup, blocksOf } from '../library/blocks';
 import type { CogitaLibrary } from './store';
+import { t } from '../core/i18n';
 
 /* -- Die Adresse ------------------------------------------------------------------------------ */
 
@@ -52,7 +53,7 @@ export interface PublishedPart {
  */
 export async function publishModule(input: { readonly roleId: string; readonly title: string; readonly lead?: string | null; readonly parts: readonly PublishedPart[] }): Promise<string> {
   const { path } = await newAddress(input.roleId);
-  await savePage(path, { title: input.title.trim() || 'Bez tytułu', lead: input.lead?.trim() || null });
+  await savePage(path, { title: input.title.trim() || t('common.untitled'), lead: input.lead?.trim() || null });
   let row = 1;
   const drafts: DraftPart[] = input.parts.map((part) => {
     const span = Math.max(1, Math.min(5, part.rowSpan ?? 5));

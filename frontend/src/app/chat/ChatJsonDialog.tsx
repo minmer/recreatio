@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadTasks, openTasks } from '../calendar/tasks';
 import type { Ring } from '../core/keys';
-import { plural } from '../core/plural';
+import { rich, t as tApp, useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { call, WorkspaceError } from '../core/session';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
@@ -39,20 +39,20 @@ const CONTEXT_DAYS = 30;
 
 type Range = '7' | '30' | '90' | '365' | 'all';
 const RANGES: readonly { value: Range; label: string }[] = [
-  { value: '7', label: '7 dni' },
-  { value: '30', label: '30 dni' },
-  { value: '90', label: '90 dni' },
-  { value: '365', label: 'Rok' },
-  { value: 'all', label: 'Całość' }
+  { value: '7', label: 'chatJson.dialog.range7' },
+  { value: '30', label: 'chatJson.dialog.range30' },
+  { value: '90', label: 'chatJson.dialog.range90' },
+  { value: '365', label: 'chatJson.dialog.range365' },
+  { value: 'all', label: 'chatJson.dialog.rangeAll' }
 ];
 
 const startOf = (range: Range, now: number): number | null => (range === 'all' ? null : now - Number(range) * DAY);
 
-const said = (e: unknown, fallback = 'nie udało się.'): string => (e instanceof Error && e.message !== '' ? e.message : fallback);
+const said = (e: unknown, fallback?: string): string => (e instanceof Error && e.message !== '' ? e.message : fallback ?? tApp('chatJson.run.failed'));
 
 /** Ein Dateiname aus dem Namen der Rozmowa. */
 const fileSlug = (text: string): string => text.toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'rozmowa';
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'rozmowa'; // i18n-ignore
 
 /* -- Laden ------------------------------------------------------------------------------------------- */
 
@@ -113,7 +113,7 @@ async function linkedOf(ring: Ring, chatId: string, from: Date | null, now: Date
   try {
     const { items } = await loadLinked(chatId);
     for (const i of await openLinked(ring, items)) {
-      out.push({ kind: 'appointment', title: i.title, topicId: i.topicId, messageId: null, at: i.startsAt, end: i.endsAt, state: i.status === 'cancelled' ? 'odwołany' : 'zaplanowany' });
+      out.push({ kind: 'appointment', title: i.title, topicId: i.topicId, messageId: null, at: i.startsAt, end: i.endsAt, state: tApp(i.status === 'cancelled' ? 'chatJson.state.cancelled' : 'chatJson.state.planned') });
     }
   } catch {
     // Ohne Termine.
@@ -153,6 +153,7 @@ export interface ChatJsonDialogProps {
 }
 
 export function ChatJsonDialog(props: ChatJsonDialogProps) {
+  const t = useT();
   const { chat, ring, talk } = props;
   const endpoint = chatEndpoint(chat.chatId);
   const canImport = props.writes || props.moderates;
@@ -176,9 +177,9 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
     setFailed(null);
     void loadBack(chat.chatId, talk, until)
       .then((got) => { if (alive) setLoaded(got); })
-      .catch((e: unknown) => { if (alive) setFailed(said(e, 'Nie udało się pobrać wiadomości tej rozmowy.')); });
+      .catch((e: unknown) => { if (alive) setFailed(said(e, t('chatJson.dialog.loadFailed'))); });
     return () => { alive = false; };
-  }, [canImport, chat.chatId, talk, need, round]);
+  }, [canImport, chat.chatId, talk, need, round, t]);
 
   const context = useMemo(() => {
     if (loaded === null) return null;
@@ -205,7 +206,7 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     if (!canImport) return { error: readOnlyImport() };
     if (failed !== null) return { error: failed };
-    if (loaded === null || context === null) return { error: 'Pobieram wiadomości tej rozmowy — chwilę…' };
+    if (loaded === null || context === null) return { error: t('chatJson.dialog.loading') };
     const needed = neededFrom(doc, chat.chatId);
     if (!covers(loaded, needed)) {
       /* Das Dokument reicht weiter zurück: nachladen (nach dem Zeichnen), dann plant das Fach von selbst neu. */
@@ -213,7 +214,7 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
         asked.current = needed;
         window.setTimeout(() => setNeed(needed), 0);
       }
-      return { error: 'Pobieram starsze wiadomości, których dotyczy dokument — chwilę…' };
+      return { error: t('chatJson.dialog.loadingOlder') };
     }
     const plan = planChatImport(doc, { ...context, now: new Date() });
     return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
@@ -255,33 +256,32 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
     const moved = new Map<string, string | null>();
     const created = new Map<string, string>();
     const topicOf = (to: TopicTarget): string | null | undefined => (to.kind === 'none' ? null : to.kind === 'topic' ? to.topicId : created.get(to.ref));
-    const words = (n: number) => `${n} ${plural(n, 'wiadomość', 'wiadomości', 'wiadomości')}`;
 
-    for (const [i, t] of plan.newTopics.entries()) {
-      stage(`Zakładanie tematów… ${i + 1}/${plan.newTopics.length}`);
+    for (const [i, tp] of plan.newTopics.entries()) {
+      stage(t('chatJson.run.creatingTopics', { n: i + 1, count: plan.newTopics.length }));
       try {
-        const id = await createTopic(endpoint, talk, t.title, p.speaker?.roleId ?? null);
-        created.set(t.ref, id);
-        if (t.closed) await closeTopic(id, true);
-        lines.push(`Nowy temat: „${t.title}”${t.closed ? ' (zamknięty)' : ''}`);
+        const id = await createTopic(endpoint, talk, tp.title, p.speaker?.roleId ?? null);
+        created.set(tp.ref, id);
+        if (tp.closed) await closeTopic(id, true);
+        lines.push(t(tp.closed ? 'chatJson.run.newTopicClosed' : 'chatJson.run.newTopic', { title: tp.title }));
       } catch (e) {
-        warnings.push(`Temat „${t.title}” nie powstał: ${said(e)}`);
+        warnings.push(t('chatJson.run.topicFailed', { title: tp.title, error: said(e) }));
       }
     }
 
     for (const c of plan.topicChanges) {
-      stage('Zmiany tematów…');
+      stage(t('chatJson.run.changingTopics'));
       try {
         if (c.title !== undefined) {
           await renameTopic(talk, c.topicId, c.title);
-          lines.push(`Zmiana nazwy tematu: „${c.was}” → „${c.title}”`);
+          lines.push(t('chatJson.plan.line.rename', { was: c.was, title: c.title }));
         }
         if (c.closed !== undefined) {
           await closeTopic(c.topicId, c.closed);
-          lines.push(`${c.closed ? 'Zamknięto' : 'Otwarto ponownie'} temat „${c.title ?? c.was}”`);
+          lines.push(t(c.closed ? 'chatJson.run.closed' : 'chatJson.run.reopened', { title: c.title ?? c.was }));
         }
       } catch (e) {
-        warnings.push(`Temat „${c.was}”: ${said(e)}`);
+        warnings.push(t('chatJson.run.topicError', { title: c.was, error: said(e) }));
       }
     }
 
@@ -295,46 +295,46 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
       group.ids.push(m.messageId);
       groups.set(to ?? '', group);
     }
-    if (lost > 0) warnings.push(`${words(lost)} nie przeniesiono — ich temat nie powstał.`);
+    if (lost > 0) warnings.push(t('chatJson.run.lost', { count: lost }));
     let notYours = 0;
     for (const group of groups.values()) {
-      stage('Porządkowanie wiadomości w tematy…');
+      stage(t('chatJson.run.sorting'));
       for (let at = 0; at < group.ids.length; at += 500) {
         try {
           const done = await collectToTopic(chat.chatId, group.ids.slice(at, at + 500), group.to);
           for (const id of done.moved) moved.set(id, group.to);
           notYours += done.notYours;
         } catch (e) {
-          warnings.push(`Przenoszenie do tematu: ${said(e)}`);
+          warnings.push(t('chatJson.run.moveError', { error: said(e) }));
         }
       }
     }
-    if (moved.size > 0) lines.push(`Przeniesiono między tematami: ${words(moved.size)}`);
-    if (notYours > 0) warnings.push(`${words(notYours)} innych osób przenosi prowadzący — zostały, gdzie były.`);
+    if (moved.size > 0) lines.push(t('chatJson.run.moved', { count: moved.size }));
+    if (notYours > 0) warnings.push(t('chatJson.run.notYours', { count: notYours }));
 
     let marked = 0;
     for (const mark of plan.marks) {
-      stage('Przypinanie i zapisywanie…');
+      stage(t('chatJson.run.marking'));
       try {
         await call(`${endpoint}/marks`, { method: 'POST', body: JSON.stringify({ messageId: mark.messageId, kind: mark.kind, value: mark.on ? '1' : null }) });
         marked += 1;
       } catch (e) {
-        warnings.push(`${mark.kind === 'pin' ? 'Przypięcie' : 'Zapisanie'}: ${said(e)}`);
+        warnings.push(t(mark.kind === 'pin' ? 'chatJson.run.pinError' : 'chatJson.run.starError', { error: said(e) }));
       }
     }
-    if (marked > 0) lines.push(`Przypięte, odpięte albo zapisane: ${words(marked)}`);
+    if (marked > 0) lines.push(t('chatJson.run.marked', { count: marked }));
 
     /* Neue Nachrichten zuletzt — der Reihe nach; scheitert eine, gehen die danach nicht (die Reihenfolge bliebe nicht). */
     const speaker = p.speaker;
     let sent = 0;
     let planned = 0;
     if (speaker === null) {
-      if (plan.posts.length > 0) warnings.push('Nowe wiadomości nie wyszły — w tej rozmowie nie piszesz.');
+      if (plan.posts.length > 0) warnings.push(t('chatJson.run.notWriting'));
     } else {
       for (const [i, post] of plan.posts.entries()) {
-        stage(`Wysyłanie wiadomości… ${i + 1}/${plan.posts.length}`);
+        stage(t('chatJson.run.sending', { n: i + 1, count: plan.posts.length }));
         const to = topicOf(post.to);
-        if (to === undefined) warnings.push(`Wiadomość ${i + 1} z ${plan.posts.length} poszła bez tematu — temat nie powstał.`);
+        if (to === undefined) warnings.push(t('chatJson.run.noTopic', { n: i + 1, count: plan.posts.length }));
         try {
           await sendMessage(ring, chat.chatId, talk, speaker.roleId, post.text, p.personName, {
             imported: true,
@@ -348,21 +348,21 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
           if (post.sendAt === null) sent += 1; else planned += 1;
         } catch (e) {
           const left = plan.posts.length - i - 1;
-          warnings.push(`Wiadomość ${i + 1} z ${plan.posts.length} nie wyszła: ${said(e)}${left > 0 ? ` Pozostałe (${left}) też nie — żeby nie zmienić kolejności.` : ''}`);
+          warnings.push(t('chatJson.run.sendFailed', { n: i + 1, count: plan.posts.length, error: said(e) }) + (left > 0 ? ` ${t('chatJson.run.rest', { left })}` : ''));
           break;
         }
       }
     }
-    if (sent > 0) lines.push(`Wysłano ${words(sent)} jako ${p.speakerName ?? 'Ty'}, oznaczone „Z importu”`);
-    if (planned > 0) lines.push(`Zaplanowano ${words(planned)} — czekają w „Zaplanowanych” (menu ⋮)`);
-    if (lines.length === 0) lines.push('Nic nie zmieniono.');
+    if (sent > 0) lines.push(t('chatJson.run.sent', { count: sent, name: p.speakerName ?? t('chat.you') }));
+    if (planned > 0) lines.push(t('chatJson.run.planned', { count: planned }));
+    if (lines.length === 0) lines.push(t('chatJson.run.nothing'));
     return { lines, warnings, moved };
   };
 
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
     if (!canImport) throw new WorkspaceError(readOnlyImport());
-    if (loaded === null || context === null) throw new WorkspaceError('Wiadomości tej rozmowy jeszcze się pobierają — spróbuj za chwilę.');
-    if (!covers(loaded, neededFrom(doc, chat.chatId))) throw new WorkspaceError('Starsze wiadomości jeszcze się pobierają — spróbuj za chwilę.');
+    if (loaded === null || context === null) throw new WorkspaceError(t('chatJson.dialog.stillLoading'));
+    if (!covers(loaded, neededFrom(doc, chat.chatId))) throw new WorkspaceError(t('chatJson.dialog.olderLoading'));
     const plan = planChatImport(doc, { ...context, now: new Date() });
     if ('error' in plan) throw new WorkspaceError(plan.error);
     const done = await run(plan, stage);
@@ -372,38 +372,36 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
   };
 
   return (
-    <Modal title="Rozmowa jako JSON" wide onClose={props.onClose}>
+    <Modal title={t('chat.room.json')} wide onClose={props.onClose}>
       <div className="ch-json-range" data-chat-json="">
         <fieldset className="wk-field">
-          <legend>Eksport — okres</legend>
-          <Segment now={range} options={RANGES} busy={false} onPick={(value) => setPicked(value)} />
+          <legend>{t('chatJson.dialog.period')}</legend>
+          <Segment now={range} options={RANGES.map((r) => ({ value: r.value, label: t(r.label) }))} busy={false} onPick={(value) => setPicked(value)} />
         </fieldset>
         {props.topics.length > 0 && (
           <label className="wk-field">
-            <span>Eksport — temat</span>
+            <span>{t('chatJson.dialog.topic')}</span>
             <select value={topicId} onChange={(e) => setTopicId(e.target.value)}>
-              <option value="">Wszystkie wiadomości</option>
-              {props.topics.map((t) => (
-                <option key={t.topicId} value={t.topicId}>{`# ${t.title}${t.closedAt !== null ? ' (zamknięty)' : ''}`}</option>
+              <option value="">{t('chatJson.dialog.allMessages')}</option>
+              {props.topics.map((tp) => (
+                <option key={tp.topicId} value={tp.topicId}>{`# ${tp.title}${tp.closedAt !== null ? ` ${t('chatJson.dialog.closed')}` : ''}`}</option>
               ))}
             </select>
           </label>
         )}
       </div>
-      {canImport && loaded === null && failed === null && <Loading label="Pobieranie wiadomości rozmowy…" lines={1} />}
+      {canImport && loaded === null && failed === null && <Loading label={t('chatJson.dialog.fetching')} lines={1} />}
       <JsonPanel
-        summary="Rozmowa jako JSON"
-        lead={canImport
-          ? <>Wiadomości z wybranego okresu (albo tematu), tematy, zadania i terminy — do archiwum albo dla asystenta AI. Import porządkuje tematy i przypięcia i dodaje Twoje nowe wiadomości, oznaczone „Z importu”; nigdy nie pisze w czyimś imieniu ani wstecz i niczego nie usuwa.</>
-          : <>Wiadomości z wybranego okresu (albo tematu), tematy, zadania i terminy — do archiwum albo dla asystenta AI. W tej rozmowie tylko czytasz, więc jest tu sam eksport.</>}
+        summary={t('chat.room.json')}
+        lead={canImport ? t('chatJson.dialog.leadImport') : t('chatJson.dialog.leadRead')}
         fileName={`rozmowa-${fileSlug(props.title)}-${new Date().toISOString().slice(0, 10)}.json`}
         exportDoc={exportDoc}
         format={CHAT_JSON}
         open
         preview={preview}
-        importLabel="Importuj do rozmowy"
+        importLabel={t('chatJson.dialog.importLabel')}
         onImport={onImport}
-        note={canImport && props.speakerName !== null ? <>Nowe wiadomości pójdą jako <strong>{props.speakerName}</strong>, oznaczone „Z importu”.</> : undefined}
+        note={canImport && props.speakerName !== null ? <>{rich(t('chatJson.dialog.note', { name: props.speakerName }), { b: (s, k) => <strong key={k}>{s}</strong> })}</> : undefined}
       />
     </Modal>
   );

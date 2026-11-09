@@ -87,7 +87,7 @@ export const QUESTION_KEYS: Readonly<Record<string, string>> = (() => {
   return out;
 })();
 
-const X = 'formsFormat.example.';
+const X = 'formsFormat.qExample.';
 
 /** Ein ausgefülltes Beispiel — dieselben Schlüssel wie oben. */
 export const QUESTION_EXAMPLE = {
@@ -384,7 +384,7 @@ export async function writeFormContent(
       || (f.personOnly === true) !== q.personOnly;
     if (!differs) { unchanged += 1; continue; }
 
-    options.onStage?.(`Pieczętowanie pytania „${q.label}”…`);
+    options.onStage?.(t('formsFormat.msg.sealing', { label: q.label }));
     const { key, epoch } = await sealingKey(keys, questionsArea ?? f.areaId);
     await editField(f.fieldId, {
       key,
@@ -417,7 +417,7 @@ export async function writeFormContent(
       intakes.add(target);
     }
 
-    options.onStage?.(`Pieczętowanie pytania „${q.label}”…`);
+    options.onStage?.(t('formsFormat.msg.sealing', { label: q.label }));
     const answers = await sealingKey(keys, target);
     const labelArea = questionsArea === null ? undefined : { areaId: questionsArea, ...(await sealingKey(keys, questionsArea)) };
     const done = await addField(form.moduleId, {

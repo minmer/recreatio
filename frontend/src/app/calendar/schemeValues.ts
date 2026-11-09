@@ -93,7 +93,7 @@ export async function openValues(
     try {
       if (row.areaId === null || row.epoch === null || row.sealed === null) throw new Error('leer');
       const key = (await areaKeys(ring, row.areaId)).get(row.epoch);
-      if (key === undefined) throw new Error('kein Schlüssel');
+      if (key === undefined) throw new Error('kein Schlüssel'); // i18n-ignore (intern, nie gezeigt)
       into.set(row.field, {
         text: await openText(key, valueAad(itemId, row.occurrenceAt, row.field), fromBase64Url(row.sealed)),
         label: row.label, public: false

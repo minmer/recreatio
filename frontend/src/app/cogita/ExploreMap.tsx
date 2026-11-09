@@ -24,6 +24,7 @@ import { fieldsOf, valuesOf } from './schema';
 import { useCtx } from './ui';
 import { cardsAbout } from './prerequisites';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 
 export function ExploreMap({ learner, cards }: { learner: Learner | null; cards: readonly Card[] }) {
   const { lib } = useCtx();
@@ -33,6 +34,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   const [chosen, setChosen] = useState<string | null>(null);
   const [learning, setLearning] = useState<string | null>(null);
   const [kindId, setKindId] = useState('');
+  const t = useT();
   const kinds = lib.kinds.filter((k) => k.id !== 'question' && lib.ofKind(k.id).length > 0);
 
   const { nodes, edges, place } = useMemo(() => {
@@ -76,7 +78,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
     if (learning === null) return null;
     const of = cardsAbout(cards, learning);
     const e = lib.entity(learning);
-    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, title: e === undefined ? 'Powtórka' : lib.label(e) };
+    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, title: e === undefined ? t('cogitaLearnRun.run.revision') : lib.label(e) };
   }, [learning, cards, lib]);
 
   if (source !== null) {
@@ -86,11 +88,11 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   const entity = chosen === null ? undefined : lib.entity(chosen);
   return (
     <div className="cg">
-      <p className="wk-hint">Jasne — umiesz; bladnie — zaciera się; przerywana obwódka — granica, którą możesz przekroczyć; mgła — jeszcze nieodkryte.</p>
+      <p className="wk-hint">{t('cogitaLearnPath.explore.legend')}</p>
       {kinds.length > 1 && (
-        <label className="wk-field"><span>Na mapie</span>
+        <label className="wk-field"><span>{t('cogitaLearnPath.explore.onMap')}</span>
           <select value={kindId} onChange={(e) => { setKindId(e.target.value); setChosen(null); }}>
-            <option value="">wszystkie rodzaje</option>
+            <option value="">{t('cogitaLearnPath.explore.allKinds')}</option>
             {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
           </select>
         </label>
@@ -109,7 +111,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
           const e = lib.entity(n.id)!;
           return (
             <button key={n.id} type="button" className={`cg-explore-node is-${state}`} style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
-              disabled={state === 'fog'} title={state === 'fog' ? 'Jeszcze w mgle' : `${lib.label(e)} · ${Math.round(shareOf(knowness(n.id)) * 100)}%`}
+              disabled={state === 'fog'} title={state === 'fog' ? t('cogitaLearnPath.explore.fog') : `${lib.label(e)} · ${Math.round(shareOf(knowness(n.id)) * 100)}%`}
               onClick={() => setChosen(n.id)}>
               {/* 2026-11-01 — der Name mit seinen Wzory; im Titel (Hinweis) bleibt er eine Zeile ohne LaTeX. */}
               <TexText text={lib.labelTex(e)} />
@@ -120,7 +122,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
       {entity !== undefined && (
         <div className="cg-card">
           <EntityGlance lib={lib} entity={entity} onEntity={setChosen} />
-          {cardsAbout(cards, entity.id).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(entity.id)}>Ucz się tego ({cardsAbout(cards, entity.id).length} kart)</button>}
+          {cardsAbout(cards, entity.id).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(entity.id)}>{t('cogitaLearnPath.explore.learn', { cards: t('cogitaLearn.count.cards', { count: cardsAbout(cards, entity.id).length }) })}</button>}
         </div>
       )}
     </div>

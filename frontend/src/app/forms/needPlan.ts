@@ -9,7 +9,7 @@
 import type { FormContent, QuestionJson } from './formJson';
 import { EMPTY_DESIGN, layoutWith, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode } from './formDesign';
 import { newId } from '../core/ids';
-import { choiceOf, isNeedSigner, needOf, type FormNeed, type NeedChoice, type NeedShape, type Q } from './needs';
+import { choiceOf, inAnyLang, isNeedSigner, needOf, type FormNeed, type NeedChoice, type NeedShape, type Q } from './needs';
 
 /* -- Was ein eingeschaltetes Wymaganie hält (config.needs) ----------------------------- */
 
@@ -118,7 +118,7 @@ export function keysOfOn(
     const all = [...content.questions, ...(content.removed ?? [])].filter((f) => on.fields.includes(f.id));
     for (const q of shape.questions) {
       const found = all.find((f) => ((q.identity ?? 'none') !== 'none' && f.identity === q.identity)
-        || (f.kind === q.kind && (f.label ?? '').trim() === q.label));
+        || sameWordsAnyLang(f, q));
       if (found !== undefined && !Object.values(out).includes(found.id)) out[q.id] = found.id;
     }
   }
@@ -229,6 +229,23 @@ export interface NeedPlan {
 
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
+/*
+ * DERSELBE WORTLAUT, GLEICH IN WELCHER SPRACHE: ein Formular behält die Sprache, in der
+ * ein Wymaganie es einst angelegt hat — wer es später in einer anderen Sprache umstellt,
+ * findet seine Fragen trotzdem wieder.
+ */
+const sameWordsAnyLang = (f: Pick<QuestionJson, 'kind' | 'label'>, q: Q): boolean =>
+  f.kind === q.kind && ((f.label ?? '').trim() === q.label || (q.labelKey !== undefined && inAnyLang(q.labelKey, f.label)));
+
+/** Die Möglichkeiten einer Wahl: was im Formular schon steht (in seiner Sprache), sonst der Wortlaut von heute. */
+const optionsIn = (q: Q, there: Pick<QuestionJson, 'options'> | undefined): readonly string[] | undefined => {
+  if (q.options === undefined) return undefined;
+  if (there === undefined) return q.options;
+  return q.options.map((o, i) => there.options.find((x) => x === o)
+    ?? (q.optionKeys?.[i] === undefined ? undefined : there.options.find((x) => inAnyLang(q.optionKeys![i], x)))
+    ?? o);
+};
+
 /**
  * WIE EIN WYMAGANIE IN DIESES FORMULAR KOMMT — eingeschaltet (`now: null`) oder
  * umgestellt (`now`: was es bisher hält). Ein Plan, noch ohne etwas zu ändern.
@@ -271,7 +288,9 @@ export function planNeed(input: {
   const taken = new Set<string>();
   let reused = 0;
 
-  const sameWords = (f: QuestionJson, q: Q) => f.kind === q.kind && (f.label ?? '').trim() === q.label;
+  const sameWords = (f: QuestionJson, q: Q) => sameWordsAnyLang(f, q);
+  /* Wortlaut von heute → Wortlaut im Formular — die Logik vergleicht Antworten mit genau diesem Text. */
+  const words = new Map<string, string>();
   const sameIdentity = (f: QuestionJson, q: Q) => (q.identity ?? 'none') !== 'none' && f.identity === q.identity;
 
   for (const q of shape.questions) {
@@ -305,7 +324,9 @@ export function planNeed(input: {
 
     /* Eine Wahl, an deren Wortlaut die Logik hängt: ihre Möglichkeiten sind die des Wymaganie. */
     const there = active.get(id) ?? gone.get(id);
-    if (q.options !== undefined && there !== undefined && !sameList(there.options, q.options)) edits.push({ ...there, options: [...q.options] });
+    const options = optionsIn(q, there);
+    if (options !== undefined && q.options !== undefined) q.options.forEach((o, i) => { if (options[i] !== o) words.set(o, options[i]); });
+    if (options !== undefined && there !== undefined && !sameList(there.options, options)) edits.push({ ...there, options: [...options] });
   }
 
   const held = new Set(shape.questions.map((q) => keys[q.id]));
@@ -361,7 +382,8 @@ export function planNeed(input: {
       ...n,
       id: keys[n.id],
       ...(n.fieldId === undefined ? {} : { fieldId: keys[n.fieldId] ?? n.fieldId }),
-      ...(n.target === undefined ? {} : { target: keys[n.target] ?? n.target })
+      ...(n.target === undefined ? {} : { target: keys[n.target] ?? n.target }),
+      ...(n.kind === 'const' && n.value !== undefined && words.has(n.value) ? { value: words.get(n.value) } : {})
     }))
   ];
   const edges: LogicEdge[] = [
@@ -451,7 +473,9 @@ export function paperAfter(need: FormNeed, shape: NeedShape, now: NeedOn | null,
   const rule = (config.paper ?? '').trim();
   if (shape.paper !== undefined) {
     if (rule === 'always') return { set: {}, paper: now?.paper === true };
-    return { set: { paper: shape.paper, ...(shape.signer === undefined ? {} : { paperSigner: shape.signer }) }, paper: true };
+    /* Ein vorgeschlagener Unterzeichner, der schon dasteht (in irgendeiner Sprache), bleibt. */
+    const signer = shape.signer === undefined ? undefined : isNeedSigner(config.paperSigner ?? '') ? config.paperSigner : shape.signer;
+    return { set: { paper: shape.paper, ...(signer === undefined ? {} : { paperSigner: signer }) }, paper: true };
   }
   if (now?.paper === true && need.papers.includes(rule)) {
     return { set: { paper: '', ...(isNeedSigner(config.paperSigner ?? '') ? { paperSigner: '' } : {}) }, paper: false };

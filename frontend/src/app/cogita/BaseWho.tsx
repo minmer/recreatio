@@ -33,7 +33,7 @@ import { cogitaPath } from './parts';
 import { hasOldCopies, hasOldPublications, oldCopiesLine, withdrawOldCopies } from './oldCopies';
 import { BASES_CHANGED, MAX_SOURCES } from './sources';
 import { useBusy, useCtx } from './ui';
-import { audience, isPublicBase, nameIn, needsOf, WHOLE_BASE } from './visibility';
+import { audience, isPublicBase, nameIn, needsOf, wholeBase } from './visibility';
 import { Loading } from '../ui/Loading';
 
 const TAB_OF: Record<string, string> = { entity: 'wpisy', revision: 'powtorki', flow: 'przebiegi', template: 'karty' };
@@ -98,7 +98,7 @@ export function WhoSees({ id, title }: { id: string; title?: string }) {
             <>
               <h4>{t('cogitaViews.who.whatChanges')}</h4>
               <p>{t('cogitaViews.who.afterMove', { audience: audience(chosen) })}</p>
-              {opens && <p className="wk-warn">{t('cogitaViews.who.opensWarn', { name: chosen.name, whole: WHOLE_BASE })}</p>}
+              {opens && <p className="wk-warn">{t('cogitaViews.who.opensWarn', { name: chosen.name, whole: wholeBase() })}</p>}
               {needs.length > 0 && (
                 <>
                   <p>{needs.length > 8 ? t('cogitaViews.who.needsMore', { count: needs.length, list: needs.slice(0, 8).map((n) => nameIn(lib, n)).join(', '), more: needs.length - 8 }) : t('cogitaViews.who.needs', { count: needs.length, list: needs.map((n) => nameIn(lib, n)).join(', ') })}</p>
@@ -165,11 +165,11 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
         : row.areaPublic !== true ? (
           <>
             <p>{t('cogitaViews.who.members', { area: areaName })}</p>
-            <p className="cg-muted">{t('cogitaViews.who.ifOpen', { whole: WHOLE_BASE })}</p>
+            <p className="cg-muted">{t('cogitaViews.who.ifOpen', { whole: wholeBase() })}</p>
           </>
         ) : row.areaRuleAt != null ? (
           <>
-            <p className="wk-warn">{t('cogitaViews.who.openArea', { area: areaName, whole: WHOLE_BASE, inside })}</p>
+            <p className="wk-warn">{t('cogitaViews.who.openArea', { area: areaName, whole: wholeBase(), inside })}</p>
             <p className="cg-muted">{t('cogitaViews.who.keepForSome')}</p>
           </>
         ) : (
@@ -178,7 +178,7 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
             {writes && (
               <>
                 <h4>{t('cogitaViews.who.whatChanges')}</h4>
-                <p className="wk-warn">{t('cogitaViews.who.afterOpen', { whole: WHOLE_BASE, inside })}</p>
+                <p className="wk-warn">{t('cogitaViews.who.afterOpen', { whole: wholeBase(), inside })}</p>
                 <p className="cg-muted">{t('cogitaViews.who.partOnly')}</p>
                 {copies && <p className="wk-warn">{t('cogitaViews.who.copiesFirst')}</p>}
                 <label className="wk-check">

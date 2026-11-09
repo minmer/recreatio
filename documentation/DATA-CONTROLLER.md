@@ -6,9 +6,12 @@
 ## The rule
 
 Nothing is collected in an area unless someone answers for its data. Without a data controller ("Administrator danych")
-the service refuses: form submissions, bookings, and new messages or new conversations in area, channel and seat chats
-(this includes "Napisz do nas"). A **public page** cannot be saved unless an area answers for it. Two-person, group and
+the service refuses: form submissions, bookings, and new messages or new conversations in area and channel chats
+(`ChatRules.RequiresController`). A **public page** cannot be saved unless an area answers for it. Two-person, group and
 own chats need nobody: the people in them answer for themselves; reports about them still go to the operator.
+Since 2026-11-08 the same holds for seat chats ("Napisz do nas", one person from a link or form with the area's
+answerers): they start and send without a controller. When one applies — the reply area's own, or inherited from the
+parent area chosen in the module's setup ("Odpowiedzialność za rozmowy", `chat/askParent.ts`) — its clause is shown.
 A link with access is never blocked — its page shows the clause of every area it leads into.
 
 The **operator** (whoever runs recreatio.pl) processes the data on the controllers' behalf. Name and contact are in
@@ -42,7 +45,7 @@ so.
 Admin is admin, however it was obtained (directly, through a held role, or a redeemed link): the check is the live
 `admin` certificate on the exact area.
 
-## Flows (area settings → "Administrator danych")
+## Flows (area settings → "Administrator danych"; for a "Napisz do nas" reply area also its module's setup)
 
 - **New record** — fields, "I may act for this organisation", accept the terms; it applies at once to its home area
   (the creator signs).

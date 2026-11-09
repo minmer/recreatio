@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import type { SeatView } from '../seats/seatContext';
 import { newMessages, useSeatChatRows } from '../seats/seatUnread';
 import { chatTargetText, unreadIn, type ChatTargetKind, type StepState } from './steps';
+import { useT } from '../core/i18n';
 
 /** Wo auf dieser Seite seine Rozmowy stehen — die passende Art zuerst. */
 function chatCard(kind: ChatTargetKind): HTMLElement | null {
@@ -40,6 +41,7 @@ export function chatStepStatus(step: StepState, rows: Parameters<typeof unreadIn
 }
 
 export function ChatStep({ seat, step }: { seat: SeatView; step: StepState }) {
+  const t = useT();
   const rows = useSeatChatRows([seat.token]);
   const target = step.chat ?? { kind: 'all' as const, areaId: null, areaName: null };
   const unread = rows === undefined ? null : unreadIn(target, rows);
@@ -61,14 +63,14 @@ export function ChatStep({ seat, step }: { seat: SeatView; step: StepState }) {
         </span>
         <span className="wk-ptask-name">
           <strong className="wk-ptask-title">{step.label}</strong>
-          <span className="wk-ptask-plan">{where.charAt(0).toUpperCase() + where.slice(1)}</span>
+          <span className="wk-ptask-plan">{where.charAt(0).toLocaleUpperCase(t.locale) + where.slice(1)}</span>
         </span>
         <span className={`wk-ptask-status is-${done ? 'fulfilled' : unread !== null && unread > 0 ? 'unread' : 'open'}`}>
-          {done ? '✓ na bieżąco' : unread === null || unread === 0 ? 'do przeczytania' : newMessages(unread)}
+          {done ? t('steps.chat.upToDate') : unread === null || unread === 0 ? t('steps.chat.toRead') : newMessages(unread)}
         </span>
         {here && !done && (
           <button type="button" className="wk-btn wk-btn-small" data-chat-step-open="" onClick={() => openChatCard(target.kind)}>
-            Czytaj
+            {t('steps.chat.read')}
           </button>
         )}
       </div>

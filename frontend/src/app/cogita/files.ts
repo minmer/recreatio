@@ -17,6 +17,7 @@ import { newId } from '../core/ids';
 import { heldProofs } from '../links/linkAccess';
 import { API, call, LINKS_HEADER, WorkspaceError } from '../core/session';
 import type { MediaRef, MediaType } from './schema';
+import { t } from '../core/i18n';
 
 const MAX = 50 * 1024 * 1024;
 
@@ -40,7 +41,7 @@ export const loadFiles = (libraryId: string): Promise<{ files: readonly FileRow[
 
 /** Eine Datei versiegeln und hinauf — gibt den Verweis zurück, der in ein Feld gehört. */
 export async function uploadFile(libraryId: string, newest: { epoch: number; key: Uint8Array }, file: File): Promise<MediaRef> {
-  if (file.size > MAX - 64) throw new WorkspaceError('Plik może mieć najwyżej 50 MB.');
+  if (file.size > MAX - 64) throw new WorkspaceError(t('cogitaData.files.tooBig', { mb: 50 }));
   const fileId = newId();
   const bytes = new Uint8Array(await file.arrayBuffer());
   const sealed = await seal(newest.key, fileAad(fileId), bytes);

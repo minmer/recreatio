@@ -17,6 +17,7 @@ import type { OpenField } from './form';
 import { GROUP_LABEL, type GroupItem, type GroupKind, type LayoutItem } from './formDesign';
 import { printedByDefault } from './SignSheet';
 import { newId } from '../core/ids';
+import { rich, useT } from '../core/i18n';
 
 /* -- Der Baum, als reine Umformungen ----------------------------------------------- */
 
@@ -108,6 +109,7 @@ export function FormLayout({ layout, fields, busy, onSave }: {
   onSave: (layout: readonly LayoutItem[]) => void;
 }) {
   const [draft, setDraft] = useState<Tree>(layout);
+  const t = useT();
   const key = useMemo(() => JSON.stringify(layout), [layout]);
 
   /*
@@ -126,9 +128,7 @@ export function FormLayout({ layout, fields, busy, onSave }: {
   return (
     <section className="wk-layout">
       <p className="wk-hint">
-        Grupa zbiera pytania pod jednym nagłówkiem. Kolejne <strong>strony</strong> wypełnia się po kolei —
-        następna otwiera się, gdy na poprzedniej są wszystkie wymagane odpowiedzi. Kolejne{' '}
-        <strong>zakładki</strong> są dostępne jednocześnie. Grupy można zagnieżdżać.
+        {rich(t('formsEdit.layout.hint'), { b: (s, k) => <strong key={k}>{s}</strong> })}
       </p>
 
       <Level
@@ -141,11 +141,11 @@ export function FormLayout({ layout, fields, busy, onSave }: {
 
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => onSave(draft)}>
-          Zapisz układ
+          {t('formsEdit.layout.save')}
         </button>
         {dirty && (
           <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setDraft(layout)}>
-            Cofnij zmiany
+            {t('formsEdit.logic.undo')}
           </button>
         )}
       </div>
@@ -171,6 +171,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
   onDraft: (next: (was: Tree) => Tree) => void;
   onAdd: (parent: string | null, item: LayoutItem) => void;
 }) {
+  const t = useT();
   return (
     <ul className={parent === null ? 'wk-layout-list' : 'wk-layout-list wk-layout-inner'}>
       {items.map((item, i) => (
@@ -178,14 +179,14 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
           <div className="wk-layout-head">
             {item.type === 'field' && (
               <span className="wk-layout-what wk-layout-field">
-                <strong>{fields.get(item.id)?.label ?? 'zapieczętowane pytanie'}</strong>
+                <strong>{fields.get(item.id)?.label ?? t('forms.ext.sealedQuestion')}</strong>
                 {/*
                   0087 — AUF DAS BLATT ZUM UNTERSCHREIBEN? Von selbst: Name, Eltern,
                   ihre Telefone, Zustimmungen und Erklärungen. Was gleich der Regel
                   ist, wird nicht gespeichert.
                 */}
                 {fields.get(item.id) !== undefined && (
-                  <label className="wk-check wk-layout-print" title="Czy odpowiedź trafia na wydruk do podpisu">
+                  <label className="wk-check wk-layout-print" title={t('formsEdit.layout.printTitle')}>
                     <input
                       type="checkbox"
                       checked={item.print ?? printedByDefault(fields.get(item.id)!)}
@@ -198,7 +199,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
                         }));
                       }}
                     />
-                    {' '}na wydruku
+                    {' '}{t('formsEdit.layout.print')}
                   </label>
                 )}
               </span>
@@ -209,7 +210,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
                 <textarea
                   rows={2}
                   value={item.text}
-                  placeholder="Tekst między pytaniami"
+                  placeholder={t('formsEdit.layout.textPlaceholder')}
                   onChange={(e) => {
                     const text = e.target.value;
                     onDraft((was) => change(was, item.id, (one) => ({ ...one, text } as LayoutItem)));
@@ -229,7 +230,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
                       }));
                     }}
                   />
-                  {' '}do podpisu na wydruku (zgoda, oświadczenie — bez pola do zaznaczenia)
+                  {' '}{t('formsEdit.layout.sign')}
                 </label>
               </span>
             )}
@@ -238,7 +239,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
               <span className="wk-layout-what wk-layout-group-head">
                 <select
                   value={item.kind}
-                  aria-label="Rodzaj grupy"
+                  aria-label={t('formsEdit.layout.groupKind')}
                   onChange={(e) => {
                     const kind = e.target.value as GroupKind;
                     onDraft((was) => change(was, item.id, (one) => ({ ...one, kind } as LayoutItem)));
@@ -248,7 +249,7 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
                 </select>
                 <input
                   value={item.title}
-                  placeholder="Tytuł"
+                  placeholder={t('common.title')}
                   onChange={(e) => {
                     const title = e.target.value;
                     onDraft((was) => change(was, item.id, (one) => ({ ...one, title } as LayoutItem)));
@@ -258,17 +259,17 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
             )}
 
             <span className="wk-layout-grips">
-              <button type="button" className="wk-grip" title="W górę" disabled={i === 0}
+              <button type="button" className="wk-grip" title={t('formsEdit.layout.up')} disabled={i === 0}
                 onClick={() => onDraft((was) => move(was, item.id, -1))}>↑</button>
-              <button type="button" className="wk-grip" title="W dół" disabled={i === items.length - 1}
+              <button type="button" className="wk-grip" title={t('formsEdit.layout.down')} disabled={i === items.length - 1}
                 onClick={() => onDraft((was) => move(was, item.id, 1))}>↓</button>
-              <button type="button" className="wk-grip" title="Do grupy powyżej"
+              <button type="button" className="wk-grip" title={t('formsEdit.layout.indent')}
                 disabled={i === 0 || items[i - 1].type !== 'group'}
                 onClick={() => onDraft((was) => indent(was, item.id))}>→</button>
-              <button type="button" className="wk-grip" title="Wyjmij z grupy" disabled={parent === null}
+              <button type="button" className="wk-grip" title={t('formsOffice.list.ungroup')} disabled={parent === null}
                 onClick={() => onDraft((was) => outdent(was, item.id))}>←</button>
               {item.type !== 'field' && (
-                <button type="button" className="wk-grip" title={item.type === 'group' ? 'Rozwiąż grupę (zawartość zostaje)' : 'Usuń tekst'}
+                <button type="button" className="wk-grip" title={item.type === 'group' ? t('formsEdit.layout.dissolve') : t('formsEdit.layout.removeText')}
                   onClick={() => onDraft((was) => item.type === 'group' ? dissolve(was, item.id) : take(was, item.id).rest)}>✕</button>
               )}
             </span>
@@ -282,10 +283,10 @@ function Level({ items, parent, fields, onDraft, onAdd }: {
 
       <li className="wk-layout-add">
         <button type="button" className="wk-link-btn"
-          onClick={() => onAdd(parent, { type: 'text', id: newId(), text: '' })}>+ Tekst</button>
+          onClick={() => onAdd(parent, { type: 'text', id: newId(), text: '' })}>{t('formsEdit.layout.addText')}</button>
         {' · '}
         <button type="button" className="wk-link-btn"
-          onClick={() => onAdd(parent, { type: 'group', id: newId(), kind: 'group', title: '', items: [] })}>+ Grupa</button>
+          onClick={() => onAdd(parent, { type: 'group', id: newId(), kind: 'group', title: '', items: [] })}>{t('formsEdit.layout.addGroup')}</button>
       </li>
     </ul>
   );

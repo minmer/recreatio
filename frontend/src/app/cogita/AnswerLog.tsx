@@ -13,6 +13,7 @@ import type { Card } from './cardBasics';
 import { givenText } from './CardFace';
 import { renamer, type AnswerRecord, type Progress } from './learn';
 import { spanText } from './measures';
+import { fmtDate, t, useT } from '../core/i18n';
 import { hasTex, plainWithTex } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
 import { plainOf } from './schema';
@@ -21,6 +22,7 @@ import { entityName, entityNameTex, useCtx } from './ui';
 
 /** Gespeichert ist, was die Karte bekam (bei einer Auswahl die Nummer) — hier steht es in Worten. Nur die Karten von `shown`. */
 export function AnswerLog({ progress, cards, shown }: { progress: Progress; cards: readonly Card[]; shown: readonly Card[] }) {
+  const t = useT();
   const { lib } = useCtx();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const byKey = useMemo(() => new Map(cards.map((c) => [c.key, c] as const)), [cards]);
@@ -30,32 +32,32 @@ export function AnswerLog({ progress, cards, shown }: { progress: Progress; card
     .map((a) => ({ a, card: byKey.get(rename === undefined ? a.key : rename(a.key)) }))
     .filter((x) => x.card === undefined || inScope.has(x.card.key))
     .sort((x, y) => y.a.at - x.a.at);
-  if (all.length === 0) return <span className="cg-muted">Brak odpowiedzi w tym zakresie.</span>;
+  if (all.length === 0) return <span className="cg-muted">{t('cogitaViewsStats.log.none')}</span>;
   const withHints = all.some(({ a }) => (a.hints ?? 0) > 0);
   return (
     <div className="cg-table-wrap">
       <table className="cg-table cg-stats-table" data-answer-log={all.length}>
-        <thead><tr><th>Kiedy</th><th>Pytanie</th><th>Odpowiedź</th><th>Wynik</th>{withHints && <th>Podpowiedzi</th>}<th>Czas</th></tr></thead>
+        <thead><tr><th>{t('cogitaViewsStats.log.when')}</th><th>{t('cogitaViewsStats.log.question')}</th><th>{t('cogitaViewsStats.log.answer')}</th><th>{t('cogitaViewsStats.log.result')}</th>{withHints && <th>{t('cogitaViewsStats.log.hints')}</th>}<th>{t('cogitaViewsStats.log.time')}</th></tr></thead>
         <tbody>
           {all.slice(0, 300).map(({ a, card }) => (
             <tr key={a.id} className={a.correctness >= 0.999 ? 'is-known' : a.correctness >= 0.5 ? 'is-learning' : 'is-unseen'}>
-              <td>{new Date(a.at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}</td>
+              <td>{fmtDate(new Date(a.at), { dateStyle: 'short', timeStyle: 'short' }, t.lang)}</td>
               <td className="cg-stats-q">
                 {card === undefined ? a.question.slice(0, 60) : <TexText text={cardLine(card, name, 140)} />}
                 {/* 2026-11-01 — eine Frage mit Parametern: welche Fassung gefragt wurde. */}
                 {a.params !== undefined && <div className="cg-muted" data-answer-params="">{paramsText(a.params, (id) => { const e = lib.entity(id); return e === undefined ? null : lib.label(e); })}</div>}
                 {/* 2026-11-03 — z którego losowania: ten sam numer daje dokładnie to samo zadanie. */}
-                {a.seed !== undefined && <div className="cg-muted" data-answer-seed={a.seed}>los: {a.seed}</div>}
+                {a.seed !== undefined && <div className="cg-muted" data-answer-seed={a.seed}>{t('cogitaViewsStats.log.seed', { seed: a.seed })}</div>}
               </td>
               <td className="cg-stats-q" data-answer-given="">{shownGiven(card, a.given)}</td>
-              <td>{a.correctness >= 0.999 ? '✓ dobrze' : a.correctness >= 0.5 ? '½ częściowo' : '✗ źle'}</td>
+              <td>{a.correctness >= 0.999 ? t('cogitaViewsStats.log.right') : a.correctness >= 0.5 ? t('cogitaViewsStats.log.partly') : t('cogitaViewsStats.log.wrong')}</td>
               {withHints && <td data-answer-hints={a.hints ?? 0}>{(a.hints ?? 0) > 0 ? `${a.hints}` : '—'}</td>}
               <td>{a.ms === undefined ? '—' : spanText(a.ms)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {all.length > 300 && <span className="cg-muted">Pokazano 300 najnowszych z {all.length}.</span>}
+      {all.length > 300 && <span className="cg-muted">{t('cogitaViewsStats.log.shown300', { count: all.length })}</span>}
     </div>
   );
 }
@@ -79,7 +81,7 @@ export function shownGiven(card: Card | undefined, raw: string | undefined): str
   if (card === undefined) return raw;
   const form = card.answer.form;
   if (form === 'text' || form === 'number' || form === 'date' || (form === 'gap' && card.answer.gaps === undefined)) return raw;
-  if (form === 'flash') return raw === 'knew' ? 'umiałem' : raw === 'partly' ? 'częściowo' : raw === 'not' ? 'nie umiałem' : raw;
+  if (form === 'flash') return raw === 'knew' ? t('cogitaViewsStats.log.knew') : raw === 'partly' ? t('cogitaViewsStats.log.partlyFlash') : raw === 'not' ? t('cogitaViewsStats.log.notKnew') : raw;
   try {
     const text = givenText(card, JSON.parse(raw) as unknown);
     return text === '' ? raw : text;

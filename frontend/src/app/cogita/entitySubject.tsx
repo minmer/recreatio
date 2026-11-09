@@ -21,6 +21,7 @@ import { readEntryQuery, withEntryQuery } from '../forms/entryDesk';
 import { PickLibrary } from '../library/LibraryPick';
 import type { SubjectDecl, SubjectKind } from '../pages/pageSubject';
 import { TexText } from '../ui/tex/Tex';
+import { t, useT } from '../core/i18n';
 
 const said = (decl: SubjectDecl, key: string): string => {
   const v = decl[key];
@@ -87,61 +88,63 @@ function EntityProvider({ decl, children }: { decl: SubjectDecl; path: string; c
 
 /** Oben auf der Seite: welcher Eintrag, ◀ ▶ durch die Liste, wievielter. */
 function EntityBar() {
+  const t = useT();
   const s = useEntitySubject();
   if (s === null) return null;
-  if (s.list === null) return <div className="wk-subject-bar is-waiting"><span className="wk-hint">Wczytywanie wpisów…</span></div>;
-  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">Brak wpisów do wyboru — baza jest pusta albo nie możesz jej czytać.</span></div>;
+  if (s.list === null) return <div className="wk-subject-bar is-waiting"><span className="wk-hint">{t('cogitaEdit.subject.loading')}</span></div>;
+  if (s.list.length === 0) return <div className="wk-subject-bar"><span className="wk-hint">{t('cogitaEdit.subject.none')}</span></div>;
   const at = s.list.findIndex((e) => e.id === s.chosen);
   const prev = at > 0 ? s.list[at - 1] : null;
   const next = at < 0 ? s.list[0] : at < s.list.length - 1 ? s.list[at + 1] : null;
   return (
     <div className="wk-subject">
-      <div className="wk-subject-bar" role="navigation" aria-label="Wybór wpisu">
+      <div className="wk-subject-bar" role="navigation" aria-label={t('cogitaEdit.subject.choice')}>
         <span className="wk-subject-nav">
-          <button type="button" className="wk-subject-step" disabled={prev === null} aria-label={prev === null ? 'Poprzedni wpis' : `Poprzedni: ${prev.label}`}
+          <button type="button" className="wk-subject-step" disabled={prev === null} aria-label={prev === null ? t('cogitaEdit.subject.prev') : t('cogitaEdit.subject.prevNamed', { name: prev.label })}
             title={prev?.label} onClick={() => prev !== null && s.choose(prev.id)}>◀</button>
           {s.list.length === 1 ? <strong className="wk-subject-name"><TexText text={s.list[0].label} /></strong> : (
-            <select className="wk-subject-pick" value={s.chosen ?? ''} aria-label="Wpis" onChange={(e) => s.choose(e.target.value === '' ? null : e.target.value)}>
-              <option value="">— wybierz wpis —</option>
+            <select className="wk-subject-pick" value={s.chosen ?? ''} aria-label={t('cogitaEdit.subject.entry')} onChange={(e) => s.choose(e.target.value === '' ? null : e.target.value)}>
+              <option value="">{t('cogitaEdit.subject.pick')}</option>
               {s.list.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
             </select>
           )}
-          <button type="button" className="wk-subject-step" disabled={next === null} aria-label={next === null ? 'Następny wpis' : `Następny: ${next.label}`}
+          <button type="button" className="wk-subject-step" disabled={next === null} aria-label={next === null ? t('cogitaEdit.subject.next') : t('cogitaEdit.subject.nextNamed', { name: next.label })}
             title={next?.label} onClick={() => next !== null && s.choose(next.id)}>▶</button>
         </span>
-        <span className="wk-subject-at">{at >= 0 ? `${at + 1} z ${s.list.length}` : `${s.list.length} wpisów`}</span>
+        <span className="wk-subject-at">{at >= 0 ? t('cogitaEdit.subject.at', { n: at + 1, of: s.list.length }) : t('cogitaEdit.subject.entries', { count: s.list.length })}</span>
       </div>
     </div>
   );
 }
 
 function EntitySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: boolean; onChange: (next: SubjectDecl) => void }) {
+  const t = useT();
   return (
     <>
       <div className="wk-field">
-        <span>Baza wiedzy</span>
+        <span>{t('cogitaEdit.subject.base')}</span>
         <PickLibrary kind="knowledge" value={said(decl, 'library')} busy={busy} onPick={(library) => onChange({ ...decl, library })} />
       </div>
       <label className="wk-field">
-        <span>Tylko rodzaj (nieobowiązkowo)</span>
-        <input value={typeof decl.of === 'string' ? decl.of : ''} disabled={busy} placeholder="np. Postać" onChange={(e) => onChange({ ...decl, of: e.target.value })} />
+        <span>{t('cogitaEdit.subject.onlyKind')}</span>
+        <input value={typeof decl.of === 'string' ? decl.of : ''} disabled={busy} placeholder={t('cogitaEdit.subject.onlyKindPh')} onChange={(e) => onChange({ ...decl, of: e.target.value })} />
       </label>
-      <span className="wk-hint">Do wyboru są wpisy tej bazy wiedzy. Widzi je ten, kto może czytać bazę: jeśli jej obszar jest publiczny (a baza otwarta), każdy — wtedy publiczna jest cała baza, także odpowiedzi pytań i szkice. Moduły „Karta wpisu” bez własnego wpisu pokażą wybrany.</span>
+      <span className="wk-hint">{t('cogitaEdit.subject.hint')}</span>
     </>
   );
 }
 
 export const entitySubjectKind: SubjectKind = {
   kind: 'entity',
-  label: 'Wpis z bazy wiedzy',
-  use: 'U góry strony wybór jednego wpisu bazy wiedzy (◀ ▶ po liście); moduły „Karta wpisu” bez własnego wpisu pokazują ten. Jedna strona dla wszystkich postaci, miejsc, pojęć. Wpisy widzi ten, kto może czytać bazę (publiczny obszar: każdy).',
+  get label() { return t('cogitaEdit.subject.label'); },
+  get use() { return t('cogitaEdit.subject.use'); },
   keys: {
     kind: '"entity"',
-    library: 'identyfikator bazy wiedzy — jej wpisy są do wyboru',
-    of: 'nieobowiązkowo: nazwa rodzaju (np. „Postać”) — tylko wpisy tego rodzaju'
+    get library() { return t('cogitaEdit.subject.keyLibrary'); },
+    get of() { return t('cogitaEdit.subject.keyOf'); }
   },
-  example: { kind: 'entity', library: '0190a0a0-0000-7000-8000-0000000000bb', of: 'Postać' },
-  missing: (decl) => (said(decl, 'library') === '' ? 'Wybierz bazę wiedzy.' : null),
+  example: { kind: 'entity', library: '0190a0a0-0000-7000-8000-0000000000bb', of: 'Postać' }, // i18n-ignore: ein Beispiel im JSON
+  missing: (decl) => (said(decl, 'library') === '' ? t('cogitaEdit.subject.missing') : null),
   uses: () => [],
   Provider: EntityProvider,
   Bar: EntityBar,

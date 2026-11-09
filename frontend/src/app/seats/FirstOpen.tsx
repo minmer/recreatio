@@ -19,13 +19,7 @@ import { openLabel } from '../forms/form';
 import { seatProof, verifySeat, type SeatChallenge } from './seatCheck';
 import { recall } from './seatKeep';
 import { WorkspaceError } from '../core/session';
-
-/** Was dasteht, wenn die Frage selbst nicht aufgeht — nach der Art der Antwort. */
-const FALLBACK: Record<string, string> = {
-  phone: 'Numer telefonu ze zgłoszenia',
-  email: 'Adres e-mail ze zgłoszenia',
-  date: 'Data ze zgłoszenia'
-};
+import { hasKey, useT } from '../core/i18n';
 
 export function FirstOpen({ token, challenge, who, onPassed }: {
   token: string;
@@ -42,6 +36,9 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [left, setLeft] = useState(challenge.verify.attemptsLeft);
+  const t = useT();
+  /* Was dasteht, wenn die Frage selbst nicht aufgeht — nach der Art der Antwort. */
+  const fallback = (kind: string) => (hasKey(`seats.first.fallback.${kind}`) ? t(`seats.first.fallback.${kind}`) : t('seats.first.fallbackAny'));
 
   /*
    * DIE FRAGEN LESBAR MACHEN — mit dem Schlüssel des Formulars: offengelegt,
@@ -69,7 +66,7 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
     const linkKey = recall(token);
 
     if (linkKey === null) {
-      setFailed('W tej przeglądarce nie ma klucza z linku. Otwórz pełny link, który dostałeś, jeszcze raz.');
+      setFailed(t('seats.first.noKey'));
       return;
     }
 
@@ -83,7 +80,7 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
       await verifySeat(token, proof);
       onPassed();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się sprawdzić.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('seats.first.checkFailed'));
       setLeft((n) => Math.max(0, n - 1));
     } finally {
       setBusy(false);
@@ -93,11 +90,8 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
   if (left <= 0) {
     return (
       <section className="wk-review">
-        <h2 className="wk-h2">Ten link jest zablokowany</h2>
-        <p className="wk-card-text">
-          Było za dużo nieudanych prób potwierdzenia. Jeśli to Twój link, poproś
-          kancelarię o nowy — ten już się nie otworzy.
-        </p>
+        <h2 className="wk-h2">{t('seats.first.blocked')}</h2>
+        <p className="wk-card-text">{t('seats.first.blockedText')}</p>
       </section>
     );
   }
@@ -107,18 +101,15 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
   return (
     <section className="wk-review" aria-labelledby={`check-${challenge.seatId}`}>
       <h2 className="wk-h2" id={`check-${challenge.seatId}`}>
-        Potwierdź, że to Ty{who === null || who === undefined ? '' : ` — ${who}`}
+        {who === null || who === undefined ? t('seats.first.title') : t('seats.first.titleWho', { who })}
       </h2>
 
-      <p className="wk-card-text">
-        Ten link otwierasz po raz pierwszy. Żeby nikt przypadkowy — na przykład
-        ktoś, do kogo SMS trafił pomyłkowo — nie zobaczył Twoich danych, podaj:
-      </p>
+      <p className="wk-card-text">{t('seats.first.lead')}</p>
 
       <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (ready) void send(); }}>
         {questions.map((q) => (
           <label className="wk-field" key={q.fieldId}>
-            <span>{labels.get(q.fieldId) ?? FALLBACK[q.kind] ?? 'Odpowiedź ze zgłoszenia'}</span>
+            <span>{labels.get(q.fieldId) ?? fallback(q.kind)}</span>
             <input
               type={q.kind === 'date' ? 'date' : q.kind === 'phone' ? 'tel' : q.kind === 'email' ? 'email' : 'text'}
               autoComplete="off"
@@ -129,18 +120,15 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
           </label>
         ))}
 
-        <p className="wk-hint">
-          Tak, jak w zgłoszeniu — wielkość liter i polskie znaki nie mają znaczenia.
-          Wystarczy raz: potem ten link nie będzie już pytał.
-        </p>
+        <p className="wk-hint">{t('seats.first.hint')}</p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy || !ready}>
-            {busy ? 'Sprawdzanie…' : 'Potwierdź'}
+            {busy ? t('seats.checking') : t('seats.first.confirm')}
           </button>
-          {left < 10 && <span className="wk-hint">Zostało prób: {left}</span>}
+          {left < 10 && <span className="wk-hint">{t('seats.first.left', { count: left })}</span>}
         </div>
       </form>
     </section>

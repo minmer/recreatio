@@ -1,0 +1,72 @@
+{
+  "head": {
+    "searchPh": "Im Gespräch suchen…",
+    "search": "Im Gespräch suchen",
+    "closeSearch": "Suche schließen",
+    "all": "Alle Nachrichten",
+    "mutedTitle": "Stumm — keine Benachrichtigungen",
+    "muted": "stumm",
+    "call": "Anrufen",
+    "moreOptions": "Weitere Optionen des Gesprächs",
+    "options": "Optionen des Gesprächs"
+  },
+  "line": {
+    "reset": "Wie bisher: nach Gruppe und letzter Nachricht",
+    "title": "Du sendest von: {line} — {why}",
+    "which": "Von welcher Nummer",
+    "head": "Von Nummer senden · {why}"
+  },
+  "arch": {
+    "onTitle": "Dieses Gespräch kommt ins Archiv",
+    "offTitle": "Dieses Gespräch wird nicht archiviert",
+    "on": "im Archiv",
+    "off": "nicht im Archiv"
+  },
+  "log": {
+    "you": "Du",
+    "copyText": "Nur Text",
+    "copyWho": "Mit Absender und Uhrzeit",
+    "unread": "Ungelesen",
+    "picked": "Ausgewählte Nachrichten",
+    "cancelPick": "Auswahl aufheben",
+    "pickedCount": "Ausgewählt:",
+    "show": "Anzeigen",
+    "copyWhoTitle": "Mit Absender und Uhrzeit kopieren",
+    "copyTextTitle": "Nur den Text kopieren",
+    "copyHow": "Wie kopieren",
+    "copyRemembered": "Kopieren — die Wahl wird gemerkt",
+    "earlier": "Frühere laden",
+    "loading": "Gespräch wird geladen…",
+    "empty": "Hier gibt es noch keine Nachrichten.",
+    "noMatch": "Nichts passt zu „{search}” in den geladenen Nachrichten.",
+    "newJump": "Neue Nachrichten: {count} — dorthin springen",
+    "toBottom": "Nach unten scrollen"
+  },
+  "row": {
+    "notSent": "nicht gesendet",
+    "sent": "Gesendet"
+  },
+  "mute": {
+    "title": "Gespräch stummschalten?",
+    "body": "Nachrichten kommen weiter an und stehen im Gespräch — das Telefon benachrichtigt nur nicht darüber.",
+    "hours8": "Für 8 Stunden",
+    "week": "Für eine Woche",
+    "forever": "Für immer"
+  },
+  "block": {
+    "title": "Blockieren: {title}?",
+    "body": "Das Telefon nimmt von diesem Absender keine SMS und MMS mehr an. Die Sperre gilt im ganzen Telefon — auch für Anrufe. Das Gespräch verschwindet vom Telefon. Entsperren kannst du unter SMS → ⋮ → Blockierte Nummern.",
+    "alsoArchive": "Auch aus dem Archiv löschen",
+    "confirm": "Blockieren und löschen"
+  },
+  "plan": {
+    "inHour": "In einer Stunde",
+    "today18": "Heute um 18:00",
+    "tomorrow9": "Morgen um 9:00",
+    "monday9": "Am Montag um 9:00",
+    "future": "Wähle einen künftigen Zeitpunkt.",
+    "year": "Höchstens in einem Jahr.",
+    "exact": "Genauer Zeitpunkt",
+    "plan": "Planen"
+  }
+}

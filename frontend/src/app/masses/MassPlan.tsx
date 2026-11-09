@@ -2,6 +2,7 @@
  * „Plan" — jedes Vorkommen der zwei Wochen, mit dem, was sich daran ändern lässt; wer feiert.
  */
 
+import { useT } from '../core/i18n';
 import { viewPath } from '../routes';
 import { CONFESSION, DEVOTION, MASS, type OfficeMass, SERVICE_LABEL, dayKey, dayLabel, hour, intentionsWord, isMass } from './mass';
 import { keyOf } from './officeDays';
@@ -21,8 +22,9 @@ export function Plan({ services, names, onIntentions, onEdit, onToggle }: {
   onEdit: (one: OfficeMass) => void;
   onToggle: (one: OfficeMass) => void;
 }) {
+  const t = useT();
   if (services.length === 0) {
-    return <p className="wk-empty">W tych dwóch tygodniach nie ma żadnej mszy, spowiedzi ani nabożeństwa. Załóż je w „Nowy wpis".</p>;
+    return <p className="wk-empty">{t('masses.plan.empty')}</p>;
   }
 
   const days = new Map<string, OfficeMass[]>();
@@ -35,7 +37,7 @@ export function Plan({ services, names, onIntentions, onEdit, onToggle }: {
     <div className="wk-mo-plan">
       {[...days.entries()].map(([key, list]) => (
         <section key={key} className="wk-mo-plan-day">
-          <h4 className="wk-mass-day-name">{dayLabel(list[0].startsAt)}</h4>
+          <h4 className="wk-mass-day-name">{dayLabel(list[0].startsAt, new Date(), t.lang)}</h4>
           <ul className="wk-list">
             {list.map((one) => {
               const live = one.intentions.filter((i) => i.status !== 'cancelled').length;
@@ -46,25 +48,25 @@ export function Plan({ services, names, onIntentions, onEdit, onToggle }: {
                     <strong>{hour(one.startsAt)}</strong>
                     <span className="wk-tag">{SERVICE_LABEL[one.kind] ?? one.kind}</span>
                     {(one.title ?? '') !== '' && <span>{one.title}</span>}
-                    {one.kind === CONFESSION && <span className="wk-row-side">do {hour(one.endsAt)}</span>}
-                    {off && <span className="wk-tag wk-tag-warn">{one.skipped === true ? 'odwołana (tylko ten termin)' : 'odwołana'}</span>}
-                    {one.moved === true && !off && <span className="wk-tag">przeniesiona</span>}
-                    {isMass(one) && <span className="wk-row-side">{live === 0 ? 'bez intencji' : intentionsWord(live)}</span>}
+                    {one.kind === CONFESSION && <span className="wk-row-side">{t('masses.row.until', { time: hour(one.endsAt) })}</span>}
+                    {off && <span className="wk-tag wk-tag-warn">{one.skipped === true ? t('masses.plan.cancelledOnce') : t('masses.row.cancelledMass')}</span>}
+                    {one.moved === true && !off && <span className="wk-tag">{t('masses.plan.moved')}</span>}
+                    {isMass(one) && <span className="wk-row-side">{live === 0 ? t('masses.plan.noIntentions') : intentionsWord(live, t.lang)}</span>}
                     <PeopleLine mass={one} names={names} />
                   </span>
                   <span className="wk-appt-actions">
                     {isMass(one) && !off && (
-                      <button type="button" className="wk-link-btn" onClick={() => onIntentions(one)}>Intencje</button>
+                      <button type="button" className="wk-link-btn" onClick={() => onIntentions(one)}>{t('masses.plan.intentions')}</button>
                     )}
                     {!(one.skipped === true) && (
-                      <button type="button" className="wk-link-btn" onClick={() => onEdit(one)}>Zmień</button>
+                      <button type="button" className="wk-link-btn" onClick={() => onEdit(one)}>{t('common.change')}</button>
                     )}
                     {(one.skipped === true || !off) && (
                       <button type="button" className={one.skipped === true ? 'wk-link-btn' : 'wk-link-btn wk-danger'} onClick={() => onToggle(one)}>
-                        {one.skipped === true ? 'Przywróć' : 'Odwołaj'}
+                        {one.skipped === true ? t('masses.plan.restore') : t('masses.plan.cancel')}
                       </button>
                     )}
-                    <a className="wk-link-btn" href={viewPath('calendar', dayKey(one.startsAt))}>W kalendarzu</a>
+                    <a className="wk-link-btn" href={viewPath('calendar', dayKey(one.startsAt))}>{t('masses.plan.inCalendar')}</a>
                   </span>
                 </li>
               );
@@ -80,13 +82,14 @@ export function Plan({ services, names, onIntentions, onEdit, onToggle }: {
 
 /** Wer feiert, leitet, Beichte hört — mit Namen, wo die Gruppe sie kennt. */
 export function PeopleLine({ mass, names }: { mass: OfficeMass; names: ReadonlyMap<string, string> }) {
+  const t = useT();
   const people = mass.people ?? [];
   if (people.length === 0) return null;
-  const word = mass.kind === MASS ? 'odprawia' : mass.kind === DEVOTION ? 'prowadzi' : mass.kind === CONFESSION ? 'spowiada' : 'obecni';
+  const word = mass.kind === MASS ? 'celebrates' : mass.kind === DEVOTION ? 'leads' : mass.kind === CONFESSION ? 'hears' : 'present';
 
   return (
     <span className="wk-row-side wk-mo-people">
-      {' · '}{word}: {people.map((p) => names.get(p.roleId) ?? 'osoba').join(', ')}
+      {' · '}{t(`masses.people.${word}`, { names: people.map((p) => names.get(p.roleId) ?? t('masses.people.person')).join(', ') })}
     </span>
   );
 }

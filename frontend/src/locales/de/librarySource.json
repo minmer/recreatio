@@ -161,5 +161,151 @@
     "use": "## Wie die App diese Daten verwendet\n- Das Werk und die Einträge aus \"entries\" kommen in die Bibliothek, in der das Dokument importiert wird; der Text — in die beim Import gewählte Bibliothek. Nach dem Speichern öffnet sich die Seite des Werks.\n- Werk, Autoren und Zeitschrift sind gewöhnliche Einträge der Bibliothek (wer ihren Bereich sieht, sieht sie): sie haben ihre Seiten und werden mit dem Schlüssel zitiert — [@kowalski2020, s. 47] in einem Text des Scriptoriums, in einem Eintrag einer Wissensbasis oder im Seitenmodul „Text“ wird zur Fußnote.",
     "prompt": "Wandle die beigefügte Quelle (PDF, Scan oder Datei mit einem Buch oder Artikel) in EIN JSON-Dokument für den Import in die Recreatio-Bibliothek um: die Beschreibung des Werks (bibliografische Angaben von der Titelseite oder aus dem Kopf des Artikels), seine Autoren und — wenn es ein Artikel oder Kapitel ist — die Zeitschrift oder das Buch, in dem er steht, sowie den ganzen Text, in Teile gegliedert.\n\nSchreibe den Text getreu ab — Wort für Wort, in der Reihenfolge des Originals, mit Absätzen, Überschriften, Listen, Tabellen und Fußnoten, mit Seitenwechseln genau dort, wo sie liegen (auch mitten im Absatz). Nicht korrigieren, nicht zusammenfassen, nichts hinzufügen, was nicht in der Quelle steht. Was unleserlich oder unsicher ist — markieren. Passt das Ganze nicht in eine Antwort, gib in der ersten \"work\", \"entries\" und die ersten Teile, in den folgenden — \"work\": \"@werk-schluessel\" und die nächsten Teile.",
     "head": "# Ein Werk mit vollem Text als JSON (\"{format}\", Version {version})\n\nEin Dokument legt in der Bibliothek den Eintrag eines Werks an (Buch, Artikel, Kapitel, Dokument…), die Einträge, auf die es zeigt (Autoren, Zeitschrift, Sammelband), und seinen vollen Text. Ein Werk mit einem Schlüssel, der schon in der Bibliothek ist, wird ergänzt (die angegebenen Felder), nicht verdoppelt; ebenso ein Autor oder eine Zeitschrift mit vorhandenem Schlüssel.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": { \"key\": \"nachname2020\", \"data\": { … Felder des Werks … } },   — oder der \"@schlüssel\" eines vorhandenen Werks\n  \"entries\": [ { \"kind\": \"person\", \"key\": \"…\", \"data\": { … } }, { \"kind\": \"work\", \"key\": \"…\", \"data\": { \"workType\": \"periodical\", … } } ],\n  \"scheme\": \"pages\",          — wie man Stellen in diesem Werk angibt (unten)\n  \"edition\": { … },           — optional: Verschiebung der PDF-Seiten, Sprache\n  \"portions\": [ { \"portion\": { \"key\", \"label\", \"order\" }, \"blocks\": [ … ] }, … ]\n}\n\n- Verweise in den Feldern des Werks (\"authors\", \"editors\", \"translators\", \"container\") sind Schlüssel mit \"@\": auf Einträge aus \"entries\" oder auf solche, die schon in der Bibliothek sind.\n- Die Beschreibung des Werks von der Titelseite, dem Impressum oder dem Kopf des Artikels nehmen; was dort nicht steht, nicht eintragen.\n\n## Felder des Werks und der Person"
+  },
+  "box": {
+    "title": "Quelltext",
+    "none": "Kein voller Text — das Werk funktioniert auch ohne. Kommt ein Text dazu, führen Zitate und Fußnoten mit Stelle von selbst dorthin.",
+    "read": "Lesen",
+    "parts": {
+      "one": "{count} Teil",
+      "other": "{count} Teile"
+    },
+    "inLibrary": "in der Bibliothek „{name}“",
+    "inLibraryApart": "in der Bibliothek „{name}“ (getrennt vom Werk)",
+    "add": "Text hinzufügen (JSON)",
+    "change": "Teile hinzufügen oder ändern (JSON)",
+    "modal": "Quelltext — JSON-Import",
+    "textLibrary": "Bibliothek des Textes",
+    "publicMark": " (öffentlich)",
+    "apart": "Der Text kommt in die Bibliothek „{target}“, das Werk ist in „{work}“. Wer nur „{work}“ liest, sieht Werk und Zitate, aber nicht den Text.",
+    "publicNote": "Die Bibliothek „{name}“ ist öffentlich — jeder liest den Text, auch ohne Konto.",
+    "publicAsk": "Text in einer öffentlichen Bibliothek?",
+    "publicBody": "Die Bibliothek „{name}“ liegt in einem öffentlichen Bereich — jeder liest den vollen Text, auch ohne Konto. Teile nur Texte, die veröffentlicht werden dürfen (Urheberrecht).",
+    "publicConfirm": "Ja, öffentlich speichern",
+    "otherWork": "Dieser Text gehört zu einem anderen Werk („{key}“) — importiere ihn in den Quellen als „Werk mit Text“ oder öffne das richtige Werk.",
+    "workSkipped": "Die Angaben zum Werk aus dem Dokument wurden übergangen — das Werk gibt es schon; seine Felder änderst du auf dieser Seite.",
+    "removeAsk": "Den Text dieses Werks löschen?",
+    "removeBody": "Löscht den vollen Text aus der Bibliothek „{name}“ ({parts}). Werk, Zitate und Fußnoten bleiben — sie führen nur nicht mehr zum Text.",
+    "removeConfirm": "Text löschen",
+    "summary": "Text: {title}",
+    "lead": "Ein Teil des Textes, mehrere oder der ganze Text („portions“) — z. B. von einer KI aus einer PDF abgeschrieben. Ein Teil mit demselben Schlüssel ersetzt den vorigen, andere bleiben; derselbe Teil ein zweites Mal ändert nichts. Daneben stehen die Beschreibung des Formats und ein Auftrag zum Kopieren.",
+    "fileName": "text",
+    "importText": "Text importieren",
+    "removeFrom": "Text aus „{name}“ löschen",
+    "withWorkButton": "Werk mit Text (JSON)",
+    "withWorkModal": "Werk mit vollem Text — JSON-Import",
+    "savingEntry": "Speichere Eintrag {n} von {total}…",
+    "workElsewhere": "Das Werk ist in einer anderen Bibliothek — den Text fügst du auf seiner Seite hinzu.",
+    "opening": "Die Seite des Werks wird geöffnet…",
+    "withWorkSummary": "Werk mit vollem Text",
+    "withWorkLead": "Ein Dokument: die Beschreibung des Werks (Buch, Artikel, Kapitel, Dokument), seine Autoren und — wenn nötig — die Zeitschrift oder das Buch, in dem es steht, sowie sein Text in Teilen. Das Werk kommt nach „{name}“; eines mit vorhandenem Schlüssel wird ergänzt, nicht verdoppelt. Daneben die Beschreibung des Formats und der Auftrag für die KI.",
+    "withWorkFile": "werk-mit-text",
+    "withWorkImport": "Werk mit Text importieren"
+  },
+  "reader": {
+    "noWork": "Dieses Werk gibt es nicht (oder du hast keinen Zugang).",
+    "backToLibrary": "Zurück zur Bibliothek",
+    "noText": "Dieses Werk hat noch keinen Text, den du lesen kannst. Du fügst ihn auf der Seite des Werks hinzu („Quelltext“).",
+    "text": "Text",
+    "textN": "Text {n} — {parts}",
+    "noParts": "Dieser Text hat noch keine Teile.",
+    "tocLabel": "Teile des Textes",
+    "toc": "Teile",
+    "goLabelled": "s. 45 · Satz 2.3",
+    "goPlace": "Stelle",
+    "goLabel": "Zur Stelle gehen",
+    "go": "Gehe zu",
+    "beside": "Daneben",
+    "otherEdition": "— andere Ausgabe —",
+    "opening": "Text wird geöffnet…",
+    "typesetting": "Formeln werden gesetzt…",
+    "partFailed": "Dieser Teil lässt sich gerade nicht öffnen.",
+    "texMissing": "Formeln als LaTeX-Code gezeigt — das Modul zum Setzen wurde nicht geladen (kein Netz?).",
+    "neighbours": "Benachbarte Teile",
+    "openingPart": "Teil {n} von {total} wird geöffnet…",
+    "searchPlaceholder": "Im Text suchen",
+    "searchLabel": "Im ganzen Text suchen",
+    "notFound": "Nicht gefunden.",
+    "selection": "Markierter Abschnitt",
+    "copyWithPlace": "Mit Stelle kopieren",
+    "openingOther": "Die andere Ausgabe wird geöffnet…",
+    "otherMissing": "Die andere Ausgabe hat diesen Teil nicht (oder darin keine Stellen dieser Gliederung — Seiten lassen sich nicht übertragen)."
+  },
+  "blocks": {
+    "refMissing": "Diese Stelle steht nicht im gespeicherten Text",
+    "showInText": "Im Text zeigen",
+    "showInOtherPart": "Im Text zeigen (in einem anderen Teil)",
+    "pageStart": "Beginn der Seite {page}",
+    "pageStartPdf": "Beginn der Seite {page} (Seite {pdf} der PDF-Datei)",
+    "note": "Fußnote {id}",
+    "unsure": "Unsichere Lesung",
+    "unsureMark": "unsichere Lesung",
+    "gap": "In der Quelle fehlend oder ausgelassen",
+    "place": "Stelle: {loc}",
+    "figure": "Abbildung",
+    "figureInSource": "Abbildung in der Quelle",
+    "qed": "Ende des Beweises"
+  },
+  "jump": {
+    "ambiguous": "[im Text: mehrdeutig]",
+    "hide": "Text ausblenden",
+    "show": "im Text zeigen{other}",
+    "reader": "Leser",
+    "failed": "Dieser Abschnitt lässt sich gerade nicht öffnen.",
+    "notInPart": "In diesem Teil des Textes ist diese Stelle nicht zu sehen."
+  },
+  "scheme": {
+    "pages": {
+      "label": "Seiten der Ausgabe",
+      "says": "Nur die Seiten dieser einen Ausgabe (Bücher, Artikel ohne eigene Zählung). Zählt ein Buch seine Teile getrennt (Einleitung „xii“ oder „12*“, Anhang „3'“, Beilagen „(7)“, „A12“), trägt die Seite die Zeichen ihrer Serie, wie gedruckt — beliebige —, und das Werk sagt im Feld „Seitenserien“, in welcher Reihenfolge die Serien im Buch stehen."
+    },
+    "bible": {
+      "label": "Heilige Schrift",
+      "says": "Buch, Kapitel, Vers — gemeinsam für alle Übersetzungen (Psalmenzählung: hebräisch, griechisch in Klammern)."
+    },
+    "numbered": {
+      "label": "Nummern (Dokumente)",
+      "says": "Nummerierte Punkte kirchlicher Dokumente, des Katechismus, von Gesetzbüchern; ein Paragraf in der Nummer nach „§“."
+    },
+    "aquinas": {
+      "label": "Thomas von Aquin",
+      "says": "Teil, Quaestio, Artikel; Einwand (arg.), sed contra, Antwort (co.), Antwort auf einen Einwand (ad)."
+    },
+    "decimal": {
+      "label": "Dezimale Zählung",
+      "says": "Dezimal nummerierte Sätze, wie im Tractatus logico-philosophicus: jede Ziffer nach dem Punkt ist eine Ebene tiefer."
+    },
+    "sections": {
+      "label": "Paragrafen des Werks",
+      "says": "Durch das ganze Werk nummerierte Paragrafen (Bemerkungen), mit Teilen, wie in den Philosophischen Untersuchungen."
+    },
+    "outline": {
+      "label": "Gliederung des Werks",
+      "says": "Band, Teil, Buch, Kapitel, Paragraf, Absatz — so viele Ebenen, wie das Werk hat."
+    },
+    "time": {
+      "label": "Zeit der Aufnahme",
+      "says": "Minuten und Sekunden einer Aufnahme — wie die Seiten einer Ausgabe gehören sie zu dieser einen Aufführung, nicht zum Stück."
+    }
+  },
+  "statement": {
+    "definition": "Definition",
+    "theorem": "Satz",
+    "lemma": "Lemma",
+    "proposition": "Proposition",
+    "corollary": "Korollar",
+    "axiom": "Axiom",
+    "conjecture": "Vermutung",
+    "fact": "Fakt",
+    "property": "Eigenschaft",
+    "example": "Beispiel",
+    "remark": "Bemerkung",
+    "exercise": "Übung",
+    "problem": "Aufgabe",
+    "solution": "Lösung",
+    "answer": "Antwort",
+    "proof": "Beweis",
+    "notation": "Bezeichnung",
+    "algorithm": "Algorithmus"
   }
 }

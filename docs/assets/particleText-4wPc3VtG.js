@@ -1,0 +1,3 @@
+import{t}from"./i18n-CHHc4BnE.js";import{c as r,a}from"./i18n-Cws4B6TY.js";import{BOILING_SCENE as e}from"./particlePresets-Df3FF2F5.js";import"./vendor-Za3KE53c.js";function l(){const o=r.filter(i=>i.kind==="substance").map(i=>`${i.id} (${a(i.id)})`).join(", "),n=r.filter(i=>i.kind==="material").map(i=>`${i.id} (${a(i.id)})`).join(", ");return[t("labParticles.ai.format"),t("labParticles.ai.lists",{fluids:o,solids:n})].join(`
+`)}function f(){return[t("labParticles.ai.prompt"),"",l(),"",t("labParticles.ai.example"),JSON.stringify(e,null,2)].join(`
+`)}export{l as particleDescription,f as particlePrompt};

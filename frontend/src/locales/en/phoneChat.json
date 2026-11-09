@@ -1,0 +1,72 @@
+{
+  "head": {
+    "searchPh": "Search in conversation…",
+    "search": "Search in conversation",
+    "closeSearch": "Close search",
+    "all": "All messages",
+    "mutedTitle": "Muted — no notifications",
+    "muted": "muted",
+    "call": "Call",
+    "moreOptions": "More conversation options",
+    "options": "Conversation options"
+  },
+  "line": {
+    "reset": "As before: by group and last message",
+    "title": "You are sending from: {line} — {why}",
+    "which": "From which number",
+    "head": "Send from number · {why}"
+  },
+  "arch": {
+    "onTitle": "This conversation goes to the archive",
+    "offTitle": "This conversation is not archived",
+    "on": "in archive",
+    "off": "not archived"
+  },
+  "log": {
+    "you": "You",
+    "copyText": "Text only",
+    "copyWho": "With sender and time",
+    "unread": "Unread",
+    "picked": "Selected messages",
+    "cancelPick": "Cancel selection",
+    "pickedCount": "Selected:",
+    "show": "View",
+    "copyWhoTitle": "Copy with sender and time",
+    "copyTextTitle": "Copy text only",
+    "copyHow": "How to copy",
+    "copyRemembered": "Copy — the choice is remembered",
+    "earlier": "Load earlier",
+    "loading": "Loading conversation…",
+    "empty": "No messages here yet.",
+    "noMatch": "Nothing matches „{search}” in the loaded messages.",
+    "newJump": "New messages: {count} — go to them",
+    "toBottom": "Scroll to the bottom"
+  },
+  "row": {
+    "notSent": "not sent",
+    "sent": "Sent"
+  },
+  "mute": {
+    "title": "Mute the conversation?",
+    "body": "Messages keep arriving and stay in the conversation — the phone just doesn't notify about them.",
+    "hours8": "For 8 hours",
+    "week": "For a week",
+    "forever": "Forever"
+  },
+  "block": {
+    "title": "Block: {title}?",
+    "body": "The phone will no longer accept SMS or MMS from this sender. The block applies to the whole phone — also for calls. The conversation disappears from the phone. You can unblock in SMS → ⋮ → Blocked numbers.",
+    "alsoArchive": "Also delete it from the archive",
+    "confirm": "Block and delete"
+  },
+  "plan": {
+    "inHour": "In an hour",
+    "today18": "Today at 18:00",
+    "tomorrow9": "Tomorrow at 9:00",
+    "monday9": "On Monday at 9:00",
+    "future": "Choose a future time.",
+    "year": "At most a year ahead.",
+    "exact": "Exact time",
+    "plan": "Schedule"
+  }
+}

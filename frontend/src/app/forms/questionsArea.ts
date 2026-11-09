@@ -17,6 +17,7 @@
 import { aad, Field, fromBase64Url, openText } from '../core/crypto';
 import type { Ring } from '../core/keys';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 import { areaKeys, newestKey } from '../chat/chat';
 import { loadModules } from '../modules/module';
 import { labelAad, loadFields, optionsAad, sealQuestion, type SealedField } from './form';
@@ -43,7 +44,7 @@ async function keyAt(ring: Ring, areaId: string, epoch: number): Promise<Uint8Ar
 
 async function openQuestion(ring: Ring, f: SealedField): Promise<{ label: string; help: string | null; options: string[] }> {
   const key = await keyAt(ring, f.labelAreaId ?? f.areaId, f.labelEpoch ?? f.epoch);
-  if (key === null) throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — brakuje klucza obszaru, pod którym leży.');
+  if (key === null) throw new WorkspaceError(t('formsEdit.qarea.noKey'));
   try {
     const label = await openText(key, labelAad(f.fieldId), fromBase64Url(f.labelSealed));
     const help = f.helpSealed === null ? null : await openText(key, helpAad(f.fieldId), fromBase64Url(f.helpSealed));
@@ -51,7 +52,7 @@ async function openQuestion(ring: Ring, f: SealedField): Promise<{ label: string
       : (await openText(key, optionsAad(f.fieldId), fromBase64Url(f.optionsSealed))).split('\n').filter((o) => o !== '');
     return { label, help, options };
   } catch {
-    throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — bez tego nie da się ich przepieczętować.');
+    throw new WorkspaceError(t('formsOffice.msg.resealUnread'));
   }
 }
 
@@ -63,11 +64,11 @@ async function openQuestion(ring: Ring, f: SealedField): Promise<{ label: string
 export async function moveQuestions(ring: Ring, moduleId: string, toAreaId: string | null): Promise<{ fields: number }> {
   const row = (await loadModules()).modules.find((m) => m.moduleId === moduleId);
   const own = row?.areaId ?? null;
-  if (own === null) throw new WorkspaceError('Formularz nie ma jeszcze własnego obszaru.');
+  if (own === null) throw new WorkspaceError(t('formsEdit.qarea.noOwn'));
   const target = toAreaId ?? own;
 
   const newest = newestKey(await areaKeys(ring, target, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza obszaru, w którym mają być widoczne pytania.');
+  if (newest === null) throw new WorkspaceError(t('formsEdit.qarea.noTarget'));
 
   const { fields, design } = await loadFields(moduleId);
 
@@ -80,7 +81,7 @@ export async function moveQuestions(ring: Ring, moduleId: string, toAreaId: stri
   let designOut: { epoch: number; sealed: string } | null = null;
   if (design !== null) {
     const doc = await openDesign(design, (await keyAt(ring, design.areaId, design.epoch)) ?? undefined, moduleId);
-    if (doc === null) throw new WorkspaceError('Układu formularza nie da się teraz odczytać — bez tego nie da się go przepieczętować.');
+    if (doc === null) throw new WorkspaceError(t('formsOffice.msg.resealDesign'));
     designOut = { epoch: newest.epoch, sealed: await sealDesign(doc, newest.key, moduleId) };
   }
 

@@ -16,6 +16,7 @@ import { storeOf, type LibraryStore } from '../library/libraryStore';
 import type { Ring } from '../core/keys';
 import { graphJson } from './graph';
 import { CogitaLibrary } from './store';
+import { t } from '../core/i18n';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const sourcesOf = (store: LibraryStore): Record<string, unknown>[] => {
@@ -51,7 +52,7 @@ export async function revisionFromEntry(ring: Ring, libraryId: string, entryId: 
   const chosen = baseFor(rows, libraryId, (row) => storeOf(ring, row));
   const source = rows.find((r) => r.libraryId === libraryId);
   const writing = source !== undefined && libraryKindOf(source) === 'writing';
-  if (chosen === null) throw new Error(writing ? 'Nie ma bazy wiedzy, która korzysta z tego skryptorium, ani takiej w jego obszarze — załóż ją w Wiedzy.' : 'Nie ma bazy wiedzy, która korzysta z tej biblioteki, ani takiej w jej obszarze — załóż ją w Wiedzy.');
+  if (chosen === null) throw new Error(writing ? t('cogitaEdit.fromEntry.noBaseWriting') : t('cogitaEdit.fromEntry.noBaseBooks'));
   const store = storeOf(ring, chosen.base);
   if (chosen.link) {
     const settings = store.all().find((e) => e.kind === 'settings');
@@ -60,6 +61,6 @@ export async function revisionFromEntry(ring: Ring, libraryId: string, entryId: 
     await store.save({ ...(settings === undefined ? {} : { id: settings.id }), kind: 'settings', data: { ...(settings?.data ?? {}), sources: [...sourcesOf(store), { id: libraryId, kind: writing ? 'writing' : 'books', name }] } });
   }
   const lib = new CogitaLibrary(store, true);
-  const saved = await lib.saveDoc('revision', { name: `Z kazania: ${title}`.slice(0, 120), graph: fromEntryGraph(entryId) });
+  const saved = await lib.saveDoc('revision', { name: t('cogitaEdit.fromEntry.revisionName', { title }).slice(0, 120), graph: fromEntryGraph(entryId) });
   return { baseId: chosen.base.libraryId, revisionId: saved.id, linked: chosen.link };
 }

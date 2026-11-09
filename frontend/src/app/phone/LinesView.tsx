@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import { useCrumbs } from '../shell/crumbTrail';
 import { WorkspaceError, type Who } from '../core/session';
 import { toast } from '../ui/dialogs';
@@ -34,6 +35,7 @@ import './phone.css';
  * ihre Nummer. Nennt eine Karte ihre Nummer nicht, trägt man sie hier ein (nur auf diesem Telefon).
  */
 export function OwnLines() {
+  const t = useT();
   const [lines, setLines] = useState<readonly Line[] | null>(null);
   const [status, setStatus] = useState<PhoneStatus | null>(null);
   const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
@@ -48,26 +50,26 @@ export function OwnLines() {
     const value = (typed[line.subId] ?? line.number ?? '').trim();
     try {
       await Phone.setLine({ subId: line.subId, number: value === '' ? null : value });
-      toast(value === '' ? 'Usunięto numer.' : 'Zapisano numer.');
+      toast(value === '' ? t('phoneLines.own.removed') : t('phoneLines.own.saved'));
       load();
     } catch {
-      toast('Nie udało się zapisać numeru.');
+      toast(t('phoneLines.own.saveFailed'));
     }
   };
 
   return (
     <fieldset className="ph-own-lines">
-      <legend>Twoje numery</legend>
-      <p>Archiwum zapisuje przy wiadomościach, z którego numeru poszły; odpowiedź z przeglądarki wysyła telefon, który ma numer rozmowy.</p>
+      <legend>{t('phoneLines.own.title')}</legend>
+      <p>{t('phoneLines.own.note')}</p>
       <ul>
         {lines.map((l) => (
           <li key={l.subId}>
-            <span>{l.name}{status?.defaultSubId === l.subId && lines.length > 1 ? ' (domyślny do SMS)' : ''}</span>
+            <span>{l.name}{status?.defaultSubId === l.subId && lines.length > 1 ? ` ${t('phoneLines.own.default')}` : ''}</span>
             {l.known ? <strong>{phoneShown(l.number)}</strong> : (
               <span className="ph-own-line">
-                <input type="tel" value={typed[l.subId] ?? l.number ?? ''} placeholder="Numer tej karty, np. +48 600 100 200" aria-label={`Numer: ${l.name}`}
+                <input type="tel" value={typed[l.subId] ?? l.number ?? ''} placeholder={t('phoneLines.own.numberPh')} aria-label={t('phoneLines.own.numberOf', { name: l.name })}
                   onChange={(e) => setTyped({ ...typed, [l.subId]: e.target.value })} />
-                <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void save(l)}>Zapisz</button>
+                <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void save(l)}>{t('common.save')}</button>
               </span>
             )}
           </li>
@@ -78,18 +80,19 @@ export function OwnLines() {
 }
 
 export function LinesView({ who }: { who: Who }) {
+  const t = useT();
   const lines = usePhoneLines();
   const { groupRules, setGroupRule } = useLineRules();
   const [contacts, setContacts] = useState<readonly Contact[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  useCrumbs([{ label: 'Numery i grupy', href: null }]);
+  useCrumbs([{ label: t('phoneLines.title'), href: null }]);
 
   const reload = useCallback(() => {
     forgetContacts();
     void contactsOf(who).then((list) => { setContacts(list); setFailed(null); })
-      .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kontaktów.'));
-  }, [who]);
+      .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : t('phoneLines.loadFailed')));
+  }, [who, t]);
   useEffect(() => { reload(); }, [reload]);
 
   /* Alle Gruppen: aus den Kontakten und aus den Regeln (eine Regel ohne Leute bleibt sichtbar). */
@@ -97,46 +100,45 @@ export function LinesView({ who }: { who: Who }) {
     const count = new Map<string, number>();
     for (const c of contacts ?? []) for (const g of c.groups) count.set(g, (count.get(g) ?? 0) + 1);
     for (const g of Object.keys(groupRules)) if (!count.has(g)) count.set(g, 0);
-    return [...count.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pl'));
-  }, [contacts, groupRules]);
+    return [...count.entries()].sort((a, b) => a[0].localeCompare(b[0], t.locale));
+  }, [contacts, groupRules, t]);
 
   return (
     <>
-      <PageHeader title="Numery i grupy" />
+      <PageHeader title={t('phoneLines.title')} />
       <OwnLines />
 
-      <section className="ph-line-groups" aria-label="Grupy z własnym numerem">
-        <h2 className="ph-section-title">Grupy z własnym numerem</h2>
+      <section className="ph-line-groups" aria-label={t('phoneLines.groups.title')}>
+        <h2 className="ph-section-title">{t('phoneLines.groups.title')}</h2>
         <p className="ph-section-note">
-          Osobom z grupy SMS idą zawsze z wybranego numeru — w rozmowie, w nowej wiadomości i w odpowiedzi z powiadomienia.
-          W rozmowie można to zmienić w jej nagłówku (dotyczy wtedy tylko tej rozmowy).
+          {t('phoneLines.groups.note')}
         </p>
-        {lines.length < 2 && <p className="wk-empty">Ten telefon ma jeden numer — wybór numeru dla grup pojawi się przy dwóch kartach SIM.</p>}
+        {lines.length < 2 && <p className="wk-empty">{t('phoneLines.groups.oneSim')}</p>}
         {failed !== null && <p className="wk-error">{failed}</p>}
-        {contacts === null && failed === null && <Loading label="Wczytywanie kontaktów…" lines={2} />}
-        {contacts !== null && groups.length === 0 && <p className="wk-empty">Nie ma jeszcze grup. Utwórz pierwszą — albo wpisz grupę przy kontakcie (Kontakty → osoba → Grupy).</p>}
+        {contacts === null && failed === null && <Loading label={t('phoneLines.loading')} lines={2} />}
+        {contacts !== null && groups.length === 0 && <p className="wk-empty">{t('phoneLines.groups.empty')}</p>}
         {contacts !== null && groups.length > 0 && (
           <ul className="ph-group-rows">
             {groups.map(([g, n]) => {
               const rule = findLine(lines, groupRules[g]);
               return (
                 <li key={g} className="ph-group-row">
-                  <span className="ph-group-name"><strong>{g}</strong><small>{n === 1 ? '1 osoba' : `${n} osób`}</small></span>
+                  <span className="ph-group-name"><strong>{g}</strong><small>{t('phoneLines.persons', { count: n })}</small></span>
                   {lines.length > 1 && (
-                    <select aria-label={`Numer dla grupy ${g}`} value={rule === null ? '' : lineKeyOf(rule)}
+                    <select aria-label={t('phoneLines.groups.numberFor', { group: g })} value={rule === null ? '' : lineKeyOf(rule)}
                       onChange={(e) => setGroupRule(g, e.target.value === '' ? null : e.target.value)}>
-                      <option value="">Numer domyślny</option>
+                      <option value="">{t('phoneLines.defaultNumber')}</option>
                       {lines.map((l) => <option key={l.subId} value={lineKeyOf(l)}>{lineText(l)}</option>)}
                     </select>
                   )}
-                  <button type="button" className="wk-link-btn" onClick={() => setEditing(g)}><Icon name="users" />Osoby…</button>
+                  <button type="button" className="wk-link-btn" onClick={() => setEditing(g)}><Icon name="users" />{t('phoneLines.groups.people')}</button>
                 </li>
               );
             })}
           </ul>
         )}
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={contacts === null} onClick={() => setEditing('')}><Icon name="plus" />Nowa grupa</button>
+          <button type="button" className="wk-btn" disabled={contacts === null} onClick={() => setEditing('')}><Icon name="plus" />{t('phoneLines.groups.new')}</button>
         </div>
       </section>
 
@@ -163,6 +165,7 @@ function GroupEditor({ who, name, contacts, lines, rule, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (name: string, key: string | null) => void;
 }) {
+  const t = useT();
   const fresh = name === '';
   const [title, setTitle] = useState(name);
   const [key, setKey] = useState<string>(rule ?? (fresh && lines.length > 1 ? lineKeyOf(lines[lines.length - 1]) : ''));
@@ -179,10 +182,10 @@ function GroupEditor({ who, name, contacts, lines, rule, onClose, onSaved }: {
 
   const save = async () => {
     const group = title.trim();
-    if (group === '') { toast('Nazwij grupę.'); return; }
-    if (group.includes(',')) { toast('Nazwa grupy nie może zawierać przecinka.'); return; }
+    if (group === '') { toast(t('phoneLines.edit.nameIt')); return; }
+    if (group.includes(',')) { toast(t('phoneLines.edit.noComma')); return; }
     const changes = contacts.filter((c) => members.has(c.id) !== c.groups.includes(group) || (!fresh && group !== name && c.groups.includes(name)));
-    setBusy('Zapisywanie…');
+    setBusy(t('common.saving'));
     try {
       const ctx = await openPhone(who);
       let done = 0;
@@ -191,38 +194,40 @@ function GroupEditor({ who, name, contacts, lines, rule, onClose, onSaved }: {
         const groups = members.has(c.id) ? [...without, group] : without;
         await saveContact(ctx, c.id, { ...c, groups }, c.version);
         done += 1;
-        setBusy(`Zapisywanie… ${done}/${changes.length}`);
+        setBusy(t('phoneLines.edit.savingN', { done, total: changes.length }));
       }
       onSaved(group, key === '' ? null : key);
-      toast(`Grupa „${group}”: ${members.size === 1 ? '1 osoba' : `${members.size} osób`}${key === '' ? '' : `, numer ${lineText(findLine(lines, key) ?? lines[0])}`}.`);
+      toast(key === ''
+        ? t('phoneLines.edit.saved', { group, persons: t('phoneLines.persons', { count: members.size }) })
+        : t('phoneLines.edit.savedNumber', { group, persons: t('phoneLines.persons', { count: members.size }), number: lineText(findLine(lines, key) ?? lines[0]) }));
     } catch (e) {
-      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się zapisać grupy.');
+      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneLines.edit.saveFailed'));
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <Modal title={fresh ? 'Nowa grupa' : `Grupa „${name}”`} onClose={onClose} wide>
+    <Modal title={fresh ? t('phoneLines.groups.new') : t('phoneLines.edit.title', { group: name })} onClose={onClose} wide>
       <div className="ph-group-edit">
         <label className="wk-field">
-          <span>Nazwa grupy</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="np. Praca, Bierzmowanie 2026" autoFocus={fresh} />
+          <span>{t('phoneLines.edit.name')}</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('phoneLines.edit.namePh')} autoFocus={fresh} />
         </label>
         {lines.length > 1 && (
           <label className="wk-field">
-            <span>SMS do tych osób wysyłaj z numeru</span>
+            <span>{t('phoneLines.edit.sendFrom')}</span>
             <select value={key} onChange={(e) => setKey(e.target.value)}>
-              <option value="">Numer domyślny</option>
+              <option value="">{t('phoneLines.defaultNumber')}</option>
               {lines.map((l) => <option key={l.subId} value={lineKeyOf(l)}>{lineText(l)}</option>)}
             </select>
           </label>
         )}
         <label className="wk-field">
-          <span>Osoby ({members.size})</span>
-          <input type="search" value={query} placeholder="Szukaj: imię, numer…" onChange={(e) => setQuery(e.target.value)} />
+          <span>{t('phoneLines.edit.people', { count: members.size })}</span>
+          <input type="search" value={query} placeholder={t('phoneLines.edit.searchPh')} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <ul className="ph-choose-list" aria-label="Kontakty">
+        <ul className="ph-choose-list" aria-label={t('phoneLines.edit.contacts')}>
           {shown.map((c) => (
             <li key={c.id}>
               <label className="wk-check">
@@ -237,8 +242,8 @@ function GroupEditor({ who, name, contacts, lines, rule, onClose, onSaved }: {
         </ul>
         {busy !== null && <p className="ch-compose-line" aria-live="polite">{busy}</p>}
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={busy !== null} onClick={() => void save()}>Zapisz grupę</button>
-          <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+          <button type="button" className="wk-btn" disabled={busy !== null} onClick={() => void save()}>{t('phoneLines.edit.save')}</button>
+          <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </Modal>

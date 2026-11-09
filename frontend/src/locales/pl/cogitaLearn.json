@@ -1009,5 +1009,25 @@
   "landscapeClient": {
     "failed": "Krajobraz: błąd obliczeń.",
     "workerDied": "Krajobraz: worker przestał działać."
+  },
+  "choice": {
+    "hit": "dobrze zaznaczone",
+    "missed": "pominięte — to też prawda",
+    "wrong": "źle zaznaczone",
+    "left": "słusznie pominięte",
+    "right": "dobra odpowiedź",
+    "wrongAnswer": "zła odpowiedź"
+  },
+  "home": {
+    "title": "Twój dom",
+    "fullTitle": "Twoja nauka — wszystkie statystyki i nagrody",
+    "numbers": "{land} z {topics} tematów umiesz · {won} z {regions} obszarów zdobytych · {ready} gotowych do nauki · {due} kart do powtórki",
+    "review": "Powtórz ({n})",
+    "stackLine": "po {n} kart naraz",
+    "all": "Wszystkie statystyki i nagrody",
+    "hint": "Dwuklik na dom otwiera wszystko od razu.",
+    "close": "Zamknij",
+    "settings": "Jak się uczysz",
+    "noLearner": "Statystyki i nagrody pojawią się, gdy zaczniesz się uczyć."
   }
 }

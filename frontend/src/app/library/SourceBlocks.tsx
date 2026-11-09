@@ -16,6 +16,7 @@
 import { createContext, Fragment, useContext, type MouseEvent, type ReactNode } from 'react';
 
 import { Glue, glue, Tex, TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 import { jump } from './markupView';
 import { boxesOf, codeAsText, pieces, type Piece, type SourceBlock } from './sourceText';
 import { statementKind } from './textLabels';
@@ -29,12 +30,13 @@ export const TextRefsContext = createContext<TextRefs | null>(null);
 
 function RefLink({ label }: { label: string }) {
   const refs = useContext(TextRefsContext);
+  const t = useT();
   const at = refs?.where(label) ?? null;
   if (refs === null || at === null) {
-    return <span className="src-ref is-dead" title={refs === null ? undefined : 'Tego miejsca nie ma w zapisanym tekście'}><TexText text={label} /></span>;
+    return <span className="src-ref is-dead" title={refs === null ? undefined : t('librarySource.blocks.refMissing')}><TexText text={label} /></span>;
   }
   return (
-    <button type="button" className="src-ref" title={at === 'here' ? 'Pokaż w tekście' : 'Pokaż w tekście (w innej części)'} onClick={() => refs.open(label)}>
+    <button type="button" className="src-ref" title={at === 'here' ? t('librarySource.blocks.showInText') : t('librarySource.blocks.showInOtherPart')} onClick={() => refs.open(label)}>
       <TexText text={label} />
     </button>
   );
@@ -42,6 +44,7 @@ function RefLink({ label }: { label: string }) {
 
 /** Ein Text mit seinen Zeichen ({{page}}, {{note}}, {{?}}, {{gap}}, {{ref}}) und seinen Wzory. */
 export function TextPieces({ text, prefix }: { text: string; prefix: string }) {
+  const t = useT();
   /* Satzzeichen nach einem Wzór im Satz bleiben bei ihm (`glue`). */
   const parts = glue(pieces(text), (p) => p.t === 'math' && !p.display, (p) => (p.t === 'text' ? p.v : null), (p, v) => ({ ...p, v }) as Piece);
   return (
@@ -52,10 +55,10 @@ export function TextPieces({ text, prefix }: { text: string; prefix: string }) {
           case 'math': return <Glue key={i} punct={punct}><Tex tex={p.tex} display={p.display} /></Glue>;
           case 'ref': return <RefLink key={i} label={p.label} />;
           /* Zeichen am Rand und im Fluss stehen als `data-label` (CSS `::before`): sie gehören nicht zum markierten Text eines Zitats. */
-          case 'page': return <span key={i} className="src-page" data-label={`s. ${p.page}`} role="note" aria-label={p.pdf === undefined ? `Początek strony ${p.page}` : `Początek strony ${p.page} (strona ${p.pdf} pliku PDF)`} title={p.pdf === undefined ? undefined : `PDF ${p.pdf}`} />;
-          case 'note': return <sup key={i} className="src-noteref"><a href={`#${prefix}n-${p.id}`} data-label={p.id} aria-label={`Przypis ${p.id}`} onClick={(e: MouseEvent) => jump(e, `${prefix}n-${p.id}`)} /></sup>;
-          case 'unsure': return <span key={i} className="src-unsure" title="Niepewny odczyt">{p.v === '' ? '?' : <TexText text={p.v} />}</span>;
-          default: return <span key={i} className="src-gap" title="Brak w źródle albo pominięte">[…]</span>;
+          case 'page': return <span key={i} className="src-page" data-label={`s. ${p.page}`} role="note" aria-label={p.pdf === undefined ? t('librarySource.blocks.pageStart', { page: p.page }) : t('librarySource.blocks.pageStartPdf', { page: p.page, pdf: p.pdf })} title={p.pdf === undefined ? undefined : `PDF ${p.pdf}`} />;
+          case 'note': return <sup key={i} className="src-noteref"><a href={`#${prefix}n-${p.id}`} data-label={p.id} aria-label={t('librarySource.blocks.note', { id: p.id })} onClick={(e: MouseEvent) => jump(e, `${prefix}n-${p.id}`)} /></sup>;
+          case 'unsure': return <span key={i} className="src-unsure" title={t('librarySource.blocks.unsure')}>{p.v === '' ? '?' : <TexText text={p.v} />}</span>;
+          default: return <span key={i} className="src-gap" title={t('librarySource.blocks.gap')}>[…]</span>;
         }
       })}
     </>
@@ -64,10 +67,11 @@ export function TextPieces({ text, prefix }: { text: string; prefix: string }) {
 
 /** Kod: Zeichen für Zeichen — nur ein Seitenwechsel darin wird gezeichnet. */
 function CodePieces({ text }: { text: string }) {
+  const t = useT();
   return (
     <>
       {pieces(codeAsText(text)).map((p, i) => (p.t === 'page'
-        ? <span key={i} className="src-page" data-label={`s. ${p.page}`} role="note" aria-label={`Początek strony ${p.page}`} />
+        ? <span key={i} className="src-page" data-label={`s. ${p.page}`} role="note" aria-label={t('librarySource.blocks.pageStart', { page: p.page })} />
         : <Fragment key={i}>{p.t === 'text' ? p.v.replace(/​/g, '') : ''}</Fragment>))}
     </>
   );
@@ -88,8 +92,9 @@ function StatementHead({ block, prefix }: { block: SourceBlock; prefix: string }
 
 /** Ein Block — `hit`: von der gesuchten Stelle getroffen. */
 export function SourceBlockView({ block, index, prefix, hit = false }: { block: SourceBlock; index: number; prefix: string; hit?: boolean }) {
+  const t = useT();
   const cls = `src-block is-${block.type}${hit ? ' is-hit' : ''}${block.uncertain === true ? ' is-uncertain' : ''}`;
-  const loc = block.loc !== undefined && block.loc !== '' ? <span className="src-loc" data-label={block.loc} role="note" aria-label={`Miejsce: ${block.loc}`} /> : null;
+  const loc = block.loc !== undefined && block.loc !== '' ? <span className="src-loc" data-label={block.loc} role="note" aria-label={t('librarySource.blocks.place', { loc: block.loc })} /> : null;
   const body = (() => {
     switch (block.type) {
       case 'heading': {
@@ -125,8 +130,8 @@ export function SourceBlockView({ block, index, prefix, hit = false }: { block: 
       case 'figure':
         return (
           <figure className="src-figure">
-            <div className="src-figure-art" role="img" aria-label={block.alt ?? block.text ?? block.label ?? 'Rysunek'}>
-              <span className="src-figure-mark">Rysunek w źródle</span>
+            <div className="src-figure-art" role="img" aria-label={block.alt ?? block.text ?? block.label ?? t('librarySource.blocks.figure')}>
+              <span className="src-figure-mark">{t('librarySource.blocks.figureInSource')}</span>
               {block.alt !== undefined && <span className="src-figure-alt"><TextPieces text={block.alt} prefix={prefix} /></span>}
             </div>
             {(block.label !== undefined || block.text !== undefined) && (
@@ -147,7 +152,7 @@ export function SourceBlockView({ block, index, prefix, hit = false }: { block: 
     <div className={cls} data-block={index} id={`${prefix}b-${index}`}>
       {loc}
       {body}
-      {block.uncertain === true && <span className="src-flag" data-label="niepewny odczyt" role="note" aria-label="Niepewny odczyt" />}
+      {block.uncertain === true && <span className="src-flag" data-label={t('librarySource.blocks.unsureMark')} role="note" aria-label={t('librarySource.blocks.unsure')} />}
     </div>
   );
 }
@@ -192,6 +197,7 @@ export function SourceFlow({ blocks, shown, prefix, hits, indexOf = (i: number) 
   hits?: ReadonlySet<number>;
   indexOf?: (i: number) => number;
 }) {
+  const t = useT();
   const visible = shown ?? blocks.map((_, i) => i);
   const seen = new Set(visible);
   const lastOf = new Map<string, number>();
@@ -206,7 +212,7 @@ export function SourceFlow({ blocks, shown, prefix, hits, indexOf = (i: number) 
     return (
       <div key={`box-${node.id}`} className={`src-box is-${kind.group} kind-${kind.id}`} data-box={node.id}>
         {draw(node.children)}
-        {qed && <span className="src-qed" role="note" aria-label="Koniec dowodu">∎</span>}
+        {qed && <span className="src-qed" role="note" aria-label={t('librarySource.blocks.qed')}>∎</span>}
       </div>
     );
   });

@@ -13,6 +13,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 
 import { Avatar, clock, cls, COPY_WHO_PREF, dayKey, dayLabel, full, Icon, PopMenu, useButtonMenu, hueOf, type MenuItem } from '../chat/ChatKit';
 import { DayChip, flashRow, SEEK_PAGES } from '../chat/DayJump';
+import { useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { Modal } from '../ui/Modal';
 import type { Line } from './native';
@@ -56,6 +57,7 @@ export function SmsHeader({ back, title, seed, group = false, sub, menu, search,
   call?: string | null;
   muted?: boolean;
 }) {
+  const t = useT();
   const [searching, setSearching] = useState(search !== '');
   const more = useButtonMenu();
   const stop = () => { onSearch(''); setSearching(false); };
@@ -64,37 +66,37 @@ export function SmsHeader({ back, title, seed, group = false, sub, menu, search,
     return (
       <header className="ch-head is-search">
         <span className="ch-head-ic"><Icon name="search" /></span>
-        <input className="ch-search" autoFocus value={search} placeholder="Szukaj w rozmowie…" aria-label="Szukaj w rozmowie"
+        <input className="ch-search" autoFocus value={search} placeholder={t('phoneChat.head.searchPh')} aria-label={t('phoneChat.head.search')}
           onChange={(e) => onSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); stop(); } }} />
-        <button type="button" className="ch-icon-btn" aria-label="Zamknij wyszukiwanie" onClick={stop}><Icon name="x" /></button>
+        <button type="button" className="ch-icon-btn" aria-label={t('phoneChat.head.closeSearch')} onClick={stop}><Icon name="x" /></button>
       </header>
     );
   }
 
   return (
     <header className="ch-head ph-head">
-      <a className="ch-icon-btn" href={back} aria-label="Wszystkie wiadomości" title="Wszystkie wiadomości"><Icon name="back" /></a>
+      <a className="ch-icon-btn" href={back} aria-label={t('phoneChat.head.all')} title={t('phoneChat.head.all')}><Icon name="back" /></a>
       <Avatar seed={seed} name={title} icon={group ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} />
       <div className="ch-head-text">
         <h1 className="ch-head-title">
           <span>{title}</span>
-          {muted && <span className="ch-quiet" title="Wyciszona — bez powiadomień"><Icon name="bell-off" label="wyciszona" /></span>}
+          {muted && <span className="ch-quiet" title={t('phoneChat.head.mutedTitle')}><Icon name="bell-off" label={t('phoneChat.head.muted')} /></span>}
         </h1>
         {sub !== undefined && <span className="ch-head-sub ph-head-sub">{sub}</span>}
       </div>
       {call !== null && (
-        <a className="ch-icon-btn" href={`tel:${call.replace(/\s+/g, '')}`} aria-label="Zadzwoń" title="Zadzwoń"><Icon name="phone" /></a>
+        <a className="ch-icon-btn" href={`tel:${call.replace(/\s+/g, '')}`} aria-label={t('phoneChat.head.call')} title={t('phoneChat.head.call')}><Icon name="phone" /></a>
       )}
-      <button type="button" className="ch-icon-btn" aria-label="Szukaj w rozmowie" title="Szukaj" onClick={() => setSearching(true)}>
+      <button type="button" className="ch-icon-btn" aria-label={t('phoneChat.head.search')} title={t('common.search')} onClick={() => setSearching(true)}>
         <Icon name="search" />
       </button>
       {menu.length > 0 && (
-        <button type="button" className="ch-icon-btn" aria-label="Więcej opcji rozmowy" title="Więcej" aria-haspopup="menu"
+        <button type="button" className="ch-icon-btn" aria-label={t('phoneChat.head.moreOptions')} title={t('common.more')} aria-haspopup="menu"
           aria-expanded={more.open !== null} onClick={(e) => more.toggle(e.currentTarget)}>
           <Icon name="more" />
         </button>
       )}
-      {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="Opcje rozmowy" items={menu} onClose={more.close} />}
+      {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label={t('phoneChat.head.options')} items={menu} onClose={more.close} />}
     </header>
   );
 }
@@ -109,6 +111,7 @@ export function LineChip({ lines, choice, onChoose }: {
   /** Eine Karte für dieses Gespräch — `null`: wieder nach Gruppe und Gewohnheit. */
   onChoose: (line: Line | null) => void;
 }) {
+  const t = useT();
   const menu = useButtonMenu();
   if (lines.length < 2 || choice.line === null) return null;
   const current = choice.line;
@@ -119,18 +122,18 @@ export function LineChip({ lines, choice, onChoose }: {
       checked: l.subId === current.subId,
       onSelect: () => onChoose(l)
     })),
-    ...(choice.why === 'thread' ? [{ label: 'Jak dotąd: według grupy i ostatniej wiadomości', icon: 'refresh' as const, onSelect: () => onChoose(null) }] : [])
+    ...(choice.why === 'thread' ? [{ label: t('phoneChat.line.reset'), icon: 'refresh' as const, onSelect: () => onChoose(null) }] : [])
   ];
   return (
     <>
       <button type="button" className="ch-chip ph-line-chip" aria-haspopup="menu" aria-expanded={menu.open !== null}
-        title={`Wysyłasz z numeru: ${lineText(current)} — ${whyText(choice)}`} data-why={choice.why}
+        title={t('phoneChat.line.title', { line: lineText(current), why: whyText(choice) })} data-why={choice.why}
         onClick={(e) => { e.stopPropagation(); menu.toggle(e.currentTarget); }}>
         <Icon name={whyIcon(choice.why)} />{lineName(current)}<Icon name="down" />
       </button>
       {menu.open !== null && (
-        <PopMenu anchor={{ rect: menu.open.rect }} from={menu.open.from} label="Z którego numeru" items={items} onClose={menu.close}>
-          <p className="ch-pop-head ph-why-head"><Icon name={whyIcon(choice.why)} />Wysyłaj z numeru · {whyText(choice)}</p>
+        <PopMenu anchor={{ rect: menu.open.rect }} from={menu.open.from} label={t('phoneChat.line.which')} items={items} onClose={menu.close}>
+          <p className="ch-pop-head ph-why-head"><Icon name={whyIcon(choice.why)} />{t('phoneChat.line.head', { why: whyText(choice) })}</p>
         </PopMenu>
       )}
     </>
@@ -139,9 +142,10 @@ export function LineChip({ lines, choice, onChoose }: {
 
 /** Geht dieses Gespräch ins Archiv? */
 export function ArchiveMark({ on }: { on: boolean }) {
+  const t = useT();
   return (
-    <span className={cls('ph-arch', on && 'is-on')} title={on ? 'Ta rozmowa trafia do archiwum' : 'Ta rozmowa nie jest archiwizowana'}>
-      <Icon name="archive" />{on ? 'w archiwum' : 'poza archiwum'}
+    <span className={cls('ph-arch', on && 'is-on')} title={on ? t('phoneChat.arch.onTitle') : t('phoneChat.arch.offTitle')}>
+      <Icon name="archive" />{on ? t('phoneChat.arch.on') : t('phoneChat.arch.off')}
     </span>
   );
 }
@@ -173,7 +177,7 @@ export interface SmsItem {
 
 const GAP = 10 * 60_000;
 
-const fold = (text: string) => text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/\p{M}/gu, '');
+const fold = (text: string) => text.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 
 /* -- Wo man stand ------------------------------------------------------------------------------ */
 
@@ -306,6 +310,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
    */
   firstNew?: string | null;
 }) {
+  const t = useT();
   const box = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
@@ -586,13 +591,13 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   };
   const chosen = picked === null ? [] : visible.filter((m) => picked.has(m.key));
   const readable: Readable[] = chosen.map((m) => ({
-    key: m.key, who: m.mine ? 'Ty' : m.author ?? title, at: m.at, body: m.body !== '' ? m.body : m.media !== undefined ? '[MMS]' : ''
+    key: m.key, who: m.mine ? t('phoneChat.log.you') : m.author ?? title, at: m.at, body: m.body !== '' ? m.body : m.media !== undefined ? '[MMS]' : ''
   }));
   useEffect(() => { setPicked(null); }, [title]);
   const copyNow = (who: boolean) => { copyReadable(readable, who); endPicking(); };
   const copyItems: MenuItem[] = [
-    { label: 'Tylko treść', icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyNow(false); } },
-    { label: 'Z nadawcą i godziną', icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyNow(true); } }
+    { label: t('phoneChat.log.copyText'), icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyNow(false); } },
+    { label: t('phoneChat.log.copyWho'), icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyNow(true); } }
   ];
 
   /* Je Tag ein Abschnitt — das Datum klebt nur, solange sein Tag zu sehen ist. */
@@ -607,7 +612,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
       rows.push(<div key={`d-${m.key}`} className="ch-day" role="separator"><DayChip at={m.at} onPick={jumpToDay}>{dayLabel(iso(m.at))}</DayChip></div>);
     }
     const isNew = m.key === firstNew && needle === '';
-    if (isNew) rows.push(<div key="new" className="ch-unread" role="separator"><span>Nieprzeczytane</span></div>);
+    if (isNew) rows.push(<div key="new" className="ch-unread" role="separator"><span>{t('phoneChat.log.unread')}</span></div>);
     const start = isNew || newDay || prev === undefined || prev.mine !== m.mine || (prev.author ?? '') !== (m.author ?? '') || m.at - prev.at > GAP;
     rows.push(
       <SmsRow key={m.key} m={m} start={start} group={group} search={search}
@@ -618,22 +623,22 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   return (
     <div className="ch-log-wrap">
       {picked !== null && (
-        <div className="ch-pickbar" role="toolbar" aria-label="Zaznaczone wiadomości">
-          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj" onClick={endPicking}><Icon name="x" /></button>
-          <strong className="ch-pickbar-count"><span className="ph-pick-word">Zaznaczone: </span>{chosen.length}</strong>
+        <div className="ch-pickbar" role="toolbar" aria-label={t('phoneChat.log.picked')}>
+          <button type="button" className="ch-icon-btn" aria-label={t('phoneChat.log.cancelPick')} title={t('common.cancel')} onClick={endPicking}><Icon name="x" /></button>
+          <strong className="ch-pickbar-count"><span className="ph-pick-word">{t('phoneChat.log.pickedCount')} </span>{chosen.length}</strong>
           <span className="ch-pickbar-actions">
-            <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} onClick={() => setReading(true)}><Icon name="eye" />Wyświetl</button>
+            <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} onClick={() => setReading(true)}><Icon name="eye" />{t('phoneChat.log.show')}</button>
             <span className="ch-copy">
-              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? 'Kopiuj z nadawcą i godziną' : 'Kopiuj samą treść'}
-                onClick={() => copyNow(withWho)}>Kopiuj</button>
-              <button type="button" className="wk-link-btn ch-copy-how" aria-label="Jak kopiować" aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
+              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? t('phoneChat.log.copyWhoTitle') : t('phoneChat.log.copyTextTitle')}
+                onClick={() => copyNow(withWho)}>{t('common.copy')}</button>
+              <button type="button" className="wk-link-btn ch-copy-how" aria-label={t('phoneChat.log.copyHow')} aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
                 disabled={chosen.length === 0} onClick={(e) => copyMenu.toggle(e.currentTarget)}><Icon name="down" /></button>
             </span>
             {pickActions?.(chosen, endPicking)}
           </span>
           {copyMenu.open !== null && (
-            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label="Jak kopiować" items={copyItems} onClose={copyMenu.close}>
-              <p className="ch-pop-head">Kopiuj — wybór zostaje zapamiętany</p>
+            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label={t('phoneChat.log.copyHow')} items={copyItems} onClose={copyMenu.close}>
+              <p className="ch-pop-head">{t('phoneChat.log.copyRemembered')}</p>
             </PopMenu>
           )}
         </div>
@@ -641,12 +646,12 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
 
       <div className={cls('ch-log', picked !== null && 'is-picking')} ref={box} onScroll={onScroll} role="log" aria-live="polite" aria-relevant="additions">
         <div className="ch-log-in" ref={inner}>
-          {more && <button type="button" className="ch-earlier" onClick={earlier}>Wczytaj wcześniejsze</button>}
+          {more && <button type="button" className="ch-earlier" onClick={earlier}>{t('phoneChat.log.earlier')}</button>}
           {failed !== null && <p className="ch-empty ph-error">{failed}</p>}
-          {items === null && failed === null && <p className="ch-empty">Wczytywanie rozmowy…</p>}
-          {items !== null && items.length === 0 && tail === undefined && <p className="ch-empty">{empty ?? 'Nie ma tu jeszcze wiadomości.'}</p>}
+          {items === null && failed === null && <p className="ch-empty">{t('phoneChat.log.loading')}</p>}
+          {items !== null && items.length === 0 && tail === undefined && <p className="ch-empty">{empty ?? t('phoneChat.log.empty')}</p>}
           {items !== null && items.length > 0 && visible.length === 0 && (
-            <p className="ch-empty">{`Nic nie pasuje do „${search}” we wczytanych wiadomościach.`}</p>
+            <p className="ch-empty">{t('phoneChat.log.noMatch', { search })}</p>
           )}
           {blocks.map((b) => <section key={b.key} className="ch-dayblock">{b.nodes}</section>)}
           {tail}
@@ -654,7 +659,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
       </div>
 
       {(away || fresh > 0) && (
-        <button type="button" className="ch-jump" aria-label={fresh > 0 ? `Nowe wiadomości: ${fresh} — przejdź do nich` : 'Przewiń na dół'} onClick={toBottom}>
+        <button type="button" className="ch-jump" aria-label={fresh > 0 ? t('phoneChat.log.newJump', { count: fresh }) : t('phoneChat.log.toBottom')} onClick={toBottom}>
           <Icon name="chevron" />
           {fresh > 0 && <span className="ch-jump-count">{fresh}</span>}
         </button>
@@ -669,17 +674,18 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
 function SmsRow({ m, start, group, search, picked, onPick }: {
   m: SmsItem; start: boolean; group: boolean; search: string; picked: boolean | null; onPick: () => void;
 }) {
+  const t = useT();
   const picking = picked !== null;
   /* Lange drücken (rechte Maustaste) markiert; solange markiert wird, markiert auch ein Tipp. */
   const press = usePress(onPick, () => { if (picking) onPick(); });
   const failed = m.state === 'failed';
   const meta = (live: boolean) => (
     <>
-      {failed && <span className="ph-meta-failed">nie wysłano</span>}
+      {failed && <span className="ph-meta-failed">{t('phoneChat.row.notSent')}</span>}
       {m.state === 'sending' && <Icon name="clock" />}
       {m.sim !== undefined && <span className="ph-sim" title={live ? m.simTitle : undefined} aria-label={live ? m.simTitle : undefined}>{m.sim}</span>}
       <time dateTime={iso(m.at)} title={live ? full(iso(m.at)) : undefined}>{clock(iso(m.at))}</time>
-      {m.mine && m.state !== 'failed' && m.state !== 'sending' && <span className="ch-ticks" title="Wysłana">✓</span>}
+      {m.mine && m.state !== 'failed' && m.state !== 'sending' && <span className="ch-ticks" title={t('phoneChat.row.sent')}>✓</span>}
     </>
   );
   const pad = <span className="ch-meta-pad" aria-hidden="true">{meta(false)}</span>;
@@ -722,17 +728,18 @@ export function PlannedRow({ text, meta, failed = false, tools }: { text: string
 
 /** Wie lange still: acht Stunden, eine Woche, für immer. */
 export function MuteDialog({ onMute, onClose }: { onMute: (until: number) => void; onClose: () => void }) {
+  const t = useT();
   const pick = (until: number) => { onClose(); onMute(until); };
   return (
-    <Modal title="Wyciszyć rozmowę?" onClose={onClose}>
-      <p className="ch-confirm">Wiadomości dalej przychodzą i są w rozmowie — telefon tylko o nich nie powiadamia.</p>
+    <Modal title={t('phoneChat.mute.title')} onClose={onClose}>
+      <p className="ch-confirm">{t('phoneChat.mute.body')}</p>
       <div className="ch-plan-quick">
-        <button type="button" className="ch-chip" onClick={() => pick(Date.now() + 8 * 3_600_000)}>Na 8 godzin</button>
-        <button type="button" className="ch-chip" onClick={() => pick(Date.now() + 7 * 86_400_000)}>Na tydzień</button>
-        <button type="button" className="ch-chip" onClick={() => pick(0)}>Na zawsze</button>
+        <button type="button" className="ch-chip" onClick={() => pick(Date.now() + 8 * 3_600_000)}>{t('phoneChat.mute.hours8')}</button>
+        <button type="button" className="ch-chip" onClick={() => pick(Date.now() + 7 * 86_400_000)}>{t('phoneChat.mute.week')}</button>
+        <button type="button" className="ch-chip" onClick={() => pick(0)}>{t('phoneChat.mute.forever')}</button>
       </div>
       <div className="wk-actions">
-        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
       </div>
     </Modal>
   );
@@ -748,24 +755,24 @@ export function BlockDialog({ title, archived, onBlock, onClose }: {
   onBlock: (alsoArchive: boolean) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [alsoArchive, setAlsoArchive] = useState(true);
   return (
-    <Modal title={`Zablokować: ${title}?`} onClose={onClose}>
+    <Modal title={t('phoneChat.block.title', { title })} onClose={onClose}>
       <p className="ch-confirm">
-        Telefon nie przyjmie już od tego nadawcy SMS ani MMS. Blokada działa w całym telefonie — także dla połączeń.
-        Rozmowa zniknie z telefonu. Odblokować można w SMS → ⋮ → Zablokowane numery.
+        {t('phoneChat.block.body')}
       </p>
       {archived && (
         <label className="ch-plan-silent">
           <input type="checkbox" checked={alsoArchive} onChange={(e) => setAlsoArchive(e.target.checked)} />
-          <span>Usuń ją też z archiwum</span>
+          <span>{t('phoneChat.block.alsoArchive')}</span>
         </label>
       )}
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-danger" onClick={() => { onClose(); onBlock(archived && alsoArchive); }}>
-          <Icon name="ban" />Zablokuj i usuń
+          <Icon name="ban" />{t('phoneChat.block.confirm')}
         </button>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
       </div>
     </Modal>
   );
@@ -773,6 +780,7 @@ export function BlockDialog({ title, archived, onBlock, onClose }: {
 
 /** Wann eine geplante hinausgeht — schnell gewählt oder genau (wie „Zaplanuj wysłanie" im Chat). */
 export function PlanDialog({ onPlan, onClose, note }: { onPlan: (at: number) => void; onClose: () => void; note?: string }) {
+  const t = useT();
   const local = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   const [value, setValue] = useState(() => local(new Date(Date.now() + 3_600_000)));
   const [failed, setFailed] = useState<string | null>(null);
@@ -780,30 +788,30 @@ export function PlanDialog({ onPlan, onClose, note }: { onPlan: (at: number) => 
   const atHour = (days: number, hour: number) => { const d = new Date(now); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d; };
   const monday = atHour(((8 - now.getDay()) % 7) || 7, 9);
   const quick = [
-    { label: 'Za godzinę', at: new Date(now.getTime() + 3_600_000) },
-    ...(now.getHours() < 17 ? [{ label: 'Dziś o 18:00', at: atHour(0, 18) }] : []),
-    { label: 'Jutro o 9:00', at: atHour(1, 9) },
-    { label: 'W poniedziałek o 9:00', at: monday }
+    { label: t('phoneChat.plan.inHour'), at: new Date(now.getTime() + 3_600_000) },
+    ...(now.getHours() < 17 ? [{ label: t('phoneChat.plan.today18'), at: atHour(0, 18) }] : []),
+    { label: t('phoneChat.plan.tomorrow9'), at: atHour(1, 9) },
+    { label: t('phoneChat.plan.monday9'), at: monday }
   ];
   const plan = (d: Date) => {
-    if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now() + 30_000) { setFailed('Wybierz przyszły termin.'); return; }
-    if (d.getTime() > Date.now() + 365 * 86_400_000) { setFailed('Najdalej za rok.'); return; }
+    if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now() + 30_000) { setFailed(t('phoneChat.plan.future')); return; }
+    if (d.getTime() > Date.now() + 365 * 86_400_000) { setFailed(t('phoneChat.plan.year')); return; }
     onClose();
     onPlan(d.getTime());
   };
   return (
-    <Modal title="Wyślij później" onClose={onClose}>
+    <Modal title={t('phoneSms.compose.later')} onClose={onClose}>
       <div className="ch-plan-quick">
         {quick.map((q) => <button key={q.label} type="button" className="ch-chip" onClick={() => plan(q.at)}>{q.label}</button>)}
       </div>
       <label className="wk-field">
-        <span>Dokładny termin</span>
+        <span>{t('phoneChat.plan.exact')}</span>
         <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
       </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => plan(new Date(value))}><Icon name="clock" />Zaplanuj</button>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+        <button type="button" className="wk-btn" onClick={() => plan(new Date(value))}><Icon name="clock" />{t('phoneChat.plan.plan')}</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
       </div>
       {note !== undefined && <p className="ch-compose-line">{note}</p>}
     </Modal>

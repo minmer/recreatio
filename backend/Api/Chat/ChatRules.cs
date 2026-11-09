@@ -3,7 +3,10 @@ namespace Api;
 /// <summary>Shared posting rules used by every interactive chat write path.</summary>
 public static class ChatRules
 {
-    /// <summary>Shared area conversations collect for the area; private conversations, including a person's link, do not require a controller.</summary>
+    /// <summary>
+    /// 0129 — welche Rozmowy jemanden brauchen, der für den Bereich geradesteht: die aller (`area`) und der Kanał.
+    /// Seit 2026-11-08 nicht mehr `seat` („Napisz do nas", ein Mensch vom Formular): private Gespräche wie zu zweit.
+    /// </summary>
     public static bool RequiresController(string kind) => kind is "area" or "channel";
 
     /// <summary>

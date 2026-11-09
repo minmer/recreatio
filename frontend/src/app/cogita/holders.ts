@@ -19,6 +19,7 @@ import type { SeatView } from '../seats/seatContext';
 import { answersArea, placeFor } from './answersTo';
 import { Learner, targetOf, type Holder, type Target } from './learn';
 import type { CogitaLibrary } from './store';
+import { t } from '../core/i18n';
 
 export function holderOfMe(me: Me, roleId?: string | null): Holder {
   const role = (roleId == null ? undefined : me.roles.find((r) => r.id === roleId && r.kind === 'person')) ?? me.person;
@@ -132,7 +133,7 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
         made.onLoad = undefined;
         if (alive) { setHeld({ key: whose, learner: made }); setFailed(null); setLoading(null); }
       } catch (e) {
-        if (alive) { setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać postępów.'); setLoading(null); }
+        if (alive) { setFailed(e instanceof Error ? e.message : t('cogitaData.holders.loadFailed')); setLoading(null); }
       }
     })();
     return () => { alive = false; off(); };

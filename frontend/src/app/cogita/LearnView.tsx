@@ -33,7 +33,7 @@ import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
 import { cogitaTrail, type CogitaPart } from './parts';
-import { WHOLE_BASE } from './visibility';
+import { wholeBase } from './visibility';
 import { BASES_CHANGED } from './sources';
 import { isDocKind } from './kinds';
 import { loadDue, type DueRow } from './learn';
@@ -300,7 +300,7 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
       <p className="wk-hint">{t('cogitaLearnRun.learnView.whoHint')}</p>
       {/* 2026-10-22 (Schritt 8) — eine Baza folgt ihrem Bereich: in einem jawnym ist sie als Ganze öffentlich. */}
       {(areas.find((a) => a.areaId === areaId)?.publicLevel ?? 'none') !== 'none' && (
-        <p className="wk-warn">{t('cogitaLearnRun.learnView.publicWarn', { whole: WHOLE_BASE })}</p>
+        <p className="wk-warn">{t('cogitaLearnRun.learnView.publicWarn', { whole: wholeBase() })}</p>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">

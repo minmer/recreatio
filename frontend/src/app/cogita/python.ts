@@ -18,6 +18,7 @@
  */
 
 import type { CodeTest } from './cardBasics';
+import { t } from '../core/i18n';
 
 export type Reply = { id: string; ok: true; result: unknown } | { id: string; ok: false; error: string; timeout?: boolean };
 
@@ -40,7 +41,7 @@ function ensure(): Worker {
     waiting.delete(event.data.id);
     one.resolve(event.data);
   });
-  made.addEventListener('error', () => reset('Python przestał działać.'));
+  made.addEventListener('error', () => reset(t('cogitaLearnLogic.python.crashed')));
   worker = made;
   return made;
 }
@@ -54,17 +55,17 @@ function reset(error: string, late?: string): void {
 }
 
 function ask(message: Record<string, unknown>, timeoutMs: number): Promise<Reply> {
-  if (typeof Worker === 'undefined' || typeof window === 'undefined') return Promise.resolve({ id: '', ok: false, error: 'Python nie jest tu dostępny.' });
+  if (typeof Worker === 'undefined' || typeof window === 'undefined') return Promise.resolve({ id: '', ok: false, error: t('cogitaLearnLogic.python.unavailable') });
   const id = `${Date.now().toString(36)}-${(sequence += 1).toString(36)}`;
   return new Promise((resolve) => {
-    const timer = window.setTimeout(() => { reset('Python liczył za długo.', id); }, timeoutMs);
+    const timer = window.setTimeout(() => { reset(t('cogitaLearnLogic.python.tooLong'), id); }, timeoutMs);
     waiting.set(id, { resolve, timer });
     try {
       ensure().postMessage({ ...message, id });
     } catch (e) {
       window.clearTimeout(timer);
       waiting.delete(id);
-      resolve({ id, ok: false, error: e instanceof Error ? e.message : 'Python nie jest tu dostępny.' });
+      resolve({ id, ok: false, error: e instanceof Error ? e.message : t('cogitaLearnLogic.python.unavailable') });
     }
   });
 }
@@ -73,8 +74,22 @@ function ask(message: Record<string, unknown>, timeoutMs: number): Promise<Reply
 export const WORKER: PythonLine = { ask };
 
 /** Der Baustein „Python" einer Vorlage: `run(*wejścia)`. Wirft mit der Meldung des Codes. */
+/*
+ * 2026-11-05 — DIE WORTE AUS PYTHON: der Worker und der Python-Code kennen keine Wörterbücher; sie sagen Schlüssel
+ * („cogitaLearnLogic.python.…“), hier werden sie zu Worten (auch mitten in einer Meldung mit Traceback).
+ */
+const KEY = /cogitaLearnLogic\.python\.\w+/g;
+const words = (s: string): string => s.replace(KEY, (k) => t(k));
+function spoken(reply: Reply): Reply {
+  if (!reply.ok) return { ...reply, error: words(reply.error) };
+  const r = reply.result;
+  if (typeof r !== 'object' || r === null || Array.isArray(r)) return reply;
+  return { ...reply, result: Object.fromEntries(Object.entries(r as Record<string, unknown>).map(([k, v]) => [k, typeof v === 'string' && (k === 'error' || k === 'questionError') ? words(v) : v])) };
+}
+const said = (line: PythonLine) => async (message: Record<string, unknown>, timeoutMs: number): Promise<Reply> => spoken(await line.ask(message, timeoutMs));
+
 export async function runPython(code: string, args: readonly unknown[]): Promise<unknown> {
-  const reply = await ask({ type: 'run', code, args }, 20_000);
+  const reply = spoken(await ask({ type: 'run', code, args }, 20_000));
   if (!reply.ok) throw new Error(reply.error);
   return reply.result;
 }
@@ -176,7 +191,7 @@ export function compactJson(value: unknown, limit = 400): string {
     return JSON.stringify(v) ?? 'null';
   };
   const text = py(value);
-  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
+  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`; // i18n-ignore
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -209,19 +224,20 @@ type Opened = { readonly kind: 'ready'; readonly questionError: string | null } 
 
 /** Python laden (lange Frist) und den Code ausführen (kurze Frist). */
 async function open(job: CodeJob, line: PythonLine): Promise<Opened> {
-  const up = await line.ask({ type: 'ready' }, START_MS);
+  const ask = said(line);
+  const up = await ask({ type: 'ready' }, START_MS);
   if (!up.ok) {
-    return { kind: 'unavailable', error: up.timeout === true ? 'Python ładował się za długo — sprawdź internet i spróbuj jeszcze raz.' : `Nie udało się uruchomić Pythona (za pierwszym razem potrzebny jest internet): ${up.error}` };
+    return { kind: 'unavailable', error: up.timeout === true ? t('cogitaLearnLogic.python.loadTooLong') : t('cogitaLearnLogic.python.startFailed', { error: up.error ?? '' }) };
   }
-  const loaded = await line.ask({ type: 'load', createInput: job.createInput, reference: job.reference, learner: job.learner }, LOAD_MS + CASE_MARGIN_MS);
+  const loaded = await ask({ type: 'load', createInput: job.createInput, reference: job.reference, learner: job.learner }, LOAD_MS + CASE_MARGIN_MS);
   if (!loaded.ok) {
     return loaded.timeout === true
-      ? { kind: 'timeout', error: `Kod działa za długo już przy uruchomieniu (ponad ${LOAD_MS / 1000} s) — czy jakaś pętla stoi poza funkcją transform?` }
+      ? { kind: 'timeout', error: t('cogitaLearnLogic.python.loadTimeout', { s: LOAD_MS / 1000 }) }
       : { kind: 'invalid', error: loaded.error };
   }
   const r = typeof loaded.result === 'object' && loaded.result !== null ? loaded.result as Record<string, unknown> : {};
-  if (r.status === 'invalid') return { kind: 'invalid', error: str(r.error) || 'Kod się nie uruchomił.' };
-  if (r.status !== 'ready') return { kind: 'unavailable', error: 'Python odpowiedział niezrozumiale.' };
+  if (r.status === 'invalid') return { kind: 'invalid', error: str(r.error) || t('cogitaLearnLogic.python.invalid') };
+  if (r.status !== 'ready') return { kind: 'unavailable', error: t('cogitaLearnLogic.python.garbled') };
   return { kind: 'ready', questionError: strOrNull(r.questionError) };
 }
 
@@ -230,7 +246,7 @@ type Planned =
   | { readonly kind: 'hidden'; readonly n: number; readonly seed: number };
 
 const PER_CASE = CASE_MS + CASE_MARGIN_MS;
-const TIMEOUT_TEXT = `Przekroczony czas (${CASE_MS / 1000} s na przypadek).`;
+const timeoutText = (): string => t('cogitaLearnLogic.python.caseTimeout', { s: CASE_MS / 1000 });
 
 /**
  * DIE ANTWORT IN CODE PRÜFEN: die sichtbaren Beispiele, dann die verdeckten Fälle — jeder mit eigener Frist. `onStep`
@@ -241,7 +257,7 @@ export async function runCode(job: CodeJob, onStep?: (step: CodeStep) => void, l
   const tests = job.tests ?? [];
   const total = caseCount(job);
   const hiddenCount = total - tests.length;
-  if (total === 0) return { status: 'sandbox', passed: 0, total: 0, error: 'To pytanie nie ma przykładów ani ukrytych przypadków do sprawdzenia.', results: [] };
+  if (total === 0) return { status: 'sandbox', passed: 0, total: 0, error: t('cogitaLearnLogic.python.nothing'), results: [] };
 
   onStep?.({ phase: 'loading', done: 0, total });
   const first = await open(job, line);
@@ -262,7 +278,7 @@ export async function runCode(job: CodeJob, onStep?: (step: CodeStep) => void, l
     if (done >= plan.length) return;
     onStep?.({ phase: 'loading', done, total });
     const again = await open(job, line);
-    if (again.kind !== 'ready') stopped = `Nie uruchomiono — ${again.error}`;
+    if (again.kind !== 'ready') stopped = t('cogitaLearnLogic.python.notRun', { why: again.error });
   };
 
   for (let at = 0; at < plan.length; at += 1) {
@@ -272,40 +288,40 @@ export async function runCode(job: CodeJob, onStep?: (step: CodeStep) => void, l
       : { kind: one.kind, n: one.n, input: '—', expected: '—' };
     if (stopped !== null) { results.push({ ...base, got: null, ok: false, skipped: true, error: stopped }); continue; }
     if (one.kind === 'hidden' && questionError !== null) {
-      results.push({ ...base, got: null, ok: false, skipped: true, sandbox: true, error: `Nie uruchomiono — błąd w pytaniu (create_input/reference): ${questionError}` });
+      results.push({ ...base, got: null, ok: false, skipped: true, sandbox: true, error: t('cogitaLearnLogic.python.notRunQuestion', { error: questionError }) });
       continue;
     }
     onStep?.({ phase: 'case', done: at, total });
 
     let made = base;
     if (one.kind === 'hidden') {
-      const prepared = await line.ask({ type: 'make', seed: one.seed }, PER_CASE);
+      const prepared = await said(line)({ type: 'make', seed: one.seed }, PER_CASE);
       if (!prepared.ok) {
         /*
          * Die Frage selbst rechnet zu lange (oder Python brach ab): kein Fehler des Lernenden — und die übrigen verdeckten
          * Fälle laufen nicht (nach ihnen kommt nichts mehr: die Beispiele liefen zuerst, also kein Neustart).
          */
-        questionError = prepared.timeout === true ? 'create_input/reference liczą za długo' : prepared.error;
-        results.push({ ...base, got: null, ok: false, sandbox: true, error: `Błąd w pytaniu (create_input/reference): ${questionError}` });
+        questionError = prepared.timeout === true ? t('cogitaLearnLogic.python.questionTooLong') : prepared.error;
+        results.push({ ...base, got: null, ok: false, sandbox: true, error: t('cogitaLearnLogic.python.questionError', { error: questionError ?? '' }) });
         continue;
       }
       const r = typeof prepared.result === 'object' && prepared.result !== null ? prepared.result as Record<string, unknown> : {};
       if (r.ok !== true) {
-        questionError = str(r.error) || 'create_input/reference się nie powiodły';
-        results.push({ ...base, got: null, ok: false, sandbox: true, error: `Błąd w pytaniu (create_input/reference): ${questionError}` });
+        questionError = str(r.error) || t('cogitaLearnLogic.python.questionFailed');
+        results.push({ ...base, got: null, ok: false, sandbox: true, error: t('cogitaLearnLogic.python.questionError', { error: questionError ?? '' }) });
         continue;
       }
       made = { ...base, input: str(r.input) || '—', expected: str(r.expected) || '—' };
     }
 
     const reply = one.kind === 'example'
-      ? await line.ask({ type: 'example', input: JSON.stringify(one.test.input ?? null) ?? 'null', expected: JSON.stringify(one.test.output ?? null) ?? 'null' }, PER_CASE)
-      : await line.ask({ type: 'hidden' }, PER_CASE);
+      ? await said(line)({ type: 'example', input: JSON.stringify(one.test.input ?? null) ?? 'null', expected: JSON.stringify(one.test.output ?? null) ?? 'null' }, PER_CASE)
+      : await said(line)({ type: 'hidden' }, PER_CASE);
     if (reply.ok) { results.push(caseFrom(made, reply.result)); continue; }
     if (reply.timeout === true) {
       timeouts += 1;
-      results.push({ ...made, got: null, ok: false, timeout: true, error: TIMEOUT_TEXT });
-      if (timeouts >= MAX_TIMEOUTS) { stopped = `Nie uruchomiono — kod ${MAX_TIMEOUTS} razy przekroczył czas.`; continue; }
+      results.push({ ...made, got: null, ok: false, timeout: true, error: timeoutText() });
+      if (timeouts >= MAX_TIMEOUTS) { stopped = t('cogitaLearnLogic.python.tooManyTimeouts', { n: MAX_TIMEOUTS }); continue; }
     } else {
       results.push({ ...made, got: null, ok: false, error: reply.error });
     }

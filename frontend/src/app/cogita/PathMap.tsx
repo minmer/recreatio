@@ -23,13 +23,14 @@ import { createPortal } from 'react-dom';
 import { texPlain } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
 import { words as wordsIn, type Words } from './lang';
+import { texts } from '../core/i18n';
 import type { PartKind, PathMarks, PathModel, PathState } from './pathLayout';
 import './pathMap.css';
 
 /** 2026-11-05 (Prompt 23, D5) — ein Name mit Wzory als Zeile Text (im SVG zeichnet kein KaTeX). */
 const plainOf = (text: string): string => text.replace(/\$\$?([^$]+)\$\$?/g, (_, t: string) => texPlain(t));
 /** Gekürzt mit „…" (der ganze Name steht im Fenster beim Tippen). */
-const cut = (text: string, chars: number): string => (text.length <= chars ? text : `${text.slice(0, Math.max(1, chars - 1)).trimEnd()}…`);
+const cut = (text: string, chars: number): string => (text.length <= chars ? text : `${text.slice(0, Math.max(1, chars - 1)).trimEnd()}…`); // i18n-ignore
 
 /** 2026-11-04 (Prompt 11) — was nach dem Ende kommt (ein Knoten in der Reihe über „Koniec"). */
 export interface PathNext {
@@ -37,7 +38,7 @@ export interface PathNext {
   readonly label: string;
   /** Eine Erzählung, ein Thema — oder die Karte (das nächste Feld, „Wróć do mapy"). */
   readonly kind: 'story' | 'topic' | 'map';
-  /** Can start immediately; a locked destination may instead offer its prerequisite route. */
+  /** Jetzt möglich (wählbar); ein gesperrtes Ziel bietet statt dessen seinen Weg („Pokaż drogę"). */
   readonly ready: boolean;
   /** Was dort wartet („4 slajdy · 6 pytań"). */
   readonly work?: string;
@@ -49,7 +50,7 @@ export interface PathNext {
   readonly goalAction?: { readonly label: string; readonly run: () => void };
   /** 2026-11-05 — wie weit der Lernende dort schon ist: zu Ende („ukończone", grün mit ✓) oder begonnen. */
   readonly state?: 'done' | 'started';
-  /** An optional detour, separate from the next stages of learning. */
+  /** Ein freiwilliger Umweg — getrennt von den nächsten Schritten des Lernens. */
   readonly optional?: boolean;
 }
 
@@ -135,7 +136,7 @@ function kindIcon(kind: PartKind | 'auto' | 'map' | undefined, r: number): strin
 /** Was jede Karte zuletzt zeigte (gelernt, leuchtend) — für das Aufleuchten nach der Rückkehr. */
 const SEEN = new Map<string, { readonly lit: ReadonlySet<string>; readonly done: ReadonlySet<string>; readonly glow?: { readonly lit: ReadonlySet<string>; readonly done: ReadonlySet<string>; readonly until: number } }>();
 
-export const PATH_STATE_WORDS: Readonly<Record<PathState, string>> = { done: 'ukończone', available: 'otwarte — możesz zacząć', locked: 'zamknięte — najpierw to, co niżej' };
+export const PATH_STATE_WORDS: Readonly<Record<PathState, string>> = texts({ done: 'cogitaLearn.words.done', available: 'cogitaLearn.words.open', locked: 'cogitaLearn.words.locked' });
 
 /** Eine Seite des Fensters über einem Knoten (eine Kennung der Karte oder ein Knoten der Reihe danach). */
 const NEXT = 'next:';
@@ -816,7 +817,7 @@ function loopSide(model: PathModel, a: number, b: number): { readonly side: 1 | 
   return { side, gap: gapOf(side) };
 }
 
-/** Join the HTML choices and SVG map in their shared canvas, including the space reserved for labels. */
+/** 2026-11-08 — die Striche von der Reihe „Co dalej" (HTML) zum obersten Feld der Karte (SVG), gemessen in ihrer gemeinsamen Fläche. */
 function NextConnections({ from, next }: { from: string; next: readonly PathNext[] }) {
   const ref = useRef<SVGSVGElement>(null);
   useLayoutEffect(() => {

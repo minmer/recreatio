@@ -27,9 +27,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   answerOpen, ATTENDANCE_WORD, attendanceOn, chipText, datesOf, dateOf, dayText, dutyRoom, hoursOf, isoDay,
-  neededText, nextDay, planText, PRESENCE_THEY, PRESENCE_WORD, presenceOn, reportsUntil, taskDays, timeText
+  neededText, nextDay, planText, PRESENCE_THEY, PRESENCE_WORD, presenceOn, reportsUntil, taskDays, timeText, WEEKDAYS
 } from './candidateTasks';
 import { WorkspaceError } from '../core/session';
+import { fmtDate, rich, useT } from '../core/i18n';
 import { takenKey, type TakenMap } from './taskTaken';
 import type { PresenceAnswer, PresenceChange, StepState, TaskChange, TaskDate, TaskDuty } from './steps';
 
@@ -38,7 +39,7 @@ type Task = NonNullable<StepState['task']>;
 /** Ein Klick weiter: nichts → tak → nie → jeszcze nie wiem → nichts. */
 const NEXT: Record<PresenceAnswer | 'none', PresenceAnswer | 'none'> = { none: 'yes', yes: 'no', no: 'maybe', maybe: 'none' };
 
-const WORD: Record<PresenceAnswer | 'none', string> = { yes: 'tak', no: 'nie', maybe: 'jeszcze nie wiem', none: 'bez odpowiedzi' };
+const WORD: Record<PresenceAnswer | 'none', string> = { yes: 'steps.word.yes', no: 'steps.word.no', maybe: 'steps.word.maybe', none: 'steps.word.none' };
 const MARK: Record<PresenceAnswer, string> = { yes: '✓', no: '✕', maybe: '?' };
 
 export function TaskCard({ label, help, task, office = false, taken, onPresence }: {
@@ -54,6 +55,7 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
   /** Zu einem Tag: Antwort, Funktion, Liste. */
   onPresence?: (change: PresenceChange) => Promise<void>;
 }) {
+  const t = useT();
   const { plan, phase, state } = task;
   const today = isoDay(new Date());
   const days = useMemo(() => taskDays(plan), [plan]);
@@ -80,10 +82,10 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
    * blasse Aufgabe der eigenen Liste.)
    */
   const over = phase === 'reporting' || phase === 'over' || coming === null;
-  const status = task.fulfilled ? (counted || over ? '✓ wykonane' : '✓ na bieżąco')
-    : days.length === 1 ? (said[0] === null ? 'czeka na odpowiedź' : asked ? words[said[0]] : WORD[said[0]])
-    : yes + no + maybe === 0 ? 'czeka na odpowiedź'
-    : [yes > 0 && `tak ${yes}`, no > 0 && `nie ${no}`, maybe > 0 && `? ${maybe}`].filter(Boolean).join(' · ');
+  const status = task.fulfilled ? (counted || over ? t('steps.card.done') : t('steps.chat.upToDate'))
+    : days.length === 1 ? (said[0] === null ? t('steps.card.waiting') : asked ? words[said[0]] : t(WORD[said[0]]))
+    : yes + no + maybe === 0 ? t('steps.card.waiting')
+    : [yes > 0 && t('steps.card.yesN', { count: yes }), no > 0 && t('steps.card.noN', { count: no }), maybe > 0 && `? ${maybe}`].filter(Boolean).join(' · ');
   const tone = task.fulfilled ? 'fulfilled' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
 
   /* 0101 — zugeklappt am Anfang: erst die Karte, der Kalender auf einen Klick. */
@@ -107,7 +109,7 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
         </span>
         <span className="wk-ptask-name">
           <strong className="wk-ptask-title">{label}</strong>
-          <span className="wk-ptask-plan">{planText(plan)}{need !== null && ` · potrzeba ${need}`}</span>
+          <span className="wk-ptask-plan">{planText(plan)}{need !== null && ` · ${t('steps.card.need', { need })}`}</span>
         </span>
         <span className={`wk-ptask-status is-${tone}`}>{status}</span>
         <span className="wk-ptask-chev" aria-hidden="true">
@@ -119,11 +121,11 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
       <div hidden={!open} className="wk-ptask-body">
         {help !== null && help.trim() !== '' && <p className="wk-hint" style={{ whiteSpace: 'pre-wrap' }}>{help}</p>}
         <p className="wk-ptask-when">
-          {phase === 'upcoming' && `Zaczyna się ${dayText(coming ?? plan.startsOn)}${at === null ? '' : `, ${at}`}.`}
-          {coming !== null && phase === 'active' && at !== null && (coming === today ? `Dziś, ${at}.` : `Najbliżej: ${dayText(coming)}, ${at}.`)}
-          {phase === 'reporting' && `Zakończone — odpowiadać można do ${dayText(reportsUntil(plan))}.`}
-          {phase === 'over' && 'Zakończone.'}
-          {task.done > 0 && ` ${item ? 'Obecność' : 'Zrobione'}: ${task.done}${task.needed !== null && task.needed > 1 ? ` z ${task.needed}` : ''}.`}
+          {phase === 'upcoming' && (at === null ? t('steps.card.starts', { day: dayText(coming ?? plan.startsOn) }) : t('steps.card.startsAt', { day: dayText(coming ?? plan.startsOn), at }))}
+          {coming !== null && phase === 'active' && at !== null && (coming === today ? t('steps.card.today', { at }) : t('steps.card.next', { day: dayText(coming), at }))}
+          {phase === 'reporting' && t('steps.card.reporting', { day: dayText(reportsUntil(plan)) })}
+          {phase === 'over' && t('steps.card.over')}
+          {task.done > 0 && ` ${t(item ? (task.needed !== null && task.needed > 1 ? 'steps.card.presentOf' : 'steps.card.present') : (task.needed !== null && task.needed > 1 ? 'steps.card.doneOf' : 'steps.card.doneN'), { done: task.done, needed: task.needed ?? 0 })}`}
         </p>
         {onPresence !== undefined && (rows
           /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */
@@ -136,8 +138,6 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
 
 /* -- 0100: das Monatsblatt ----------------------------------------------------------------------- */
 
-const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
-const WEEK = ['pn', 'wt', 'śr', 'czw', 'pt', 'sob', 'ndz'];
 
 /** Die Monate von … bis, als `YYYY-MM`. */
 function monthsOf(first: string, last: string): string[] {
@@ -157,6 +157,7 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
   taken?: TakenMap;
   onPresence: (change: PresenceChange) => Promise<void>;
 }) {
+  const t = useT();
   const { plan, phase, state } = task;
   const today = isoDay(new Date());
   const inPlan = useMemo(() => new Set(days), [days]);
@@ -195,7 +196,7 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
     });
   }, [state]);
 
-  useEffect(() => () => { for (const t of timers.current.values()) window.clearTimeout(t); }, []);
+  useEffect(() => () => { for (const tm of timers.current.values()) window.clearTimeout(tm); }, []);
 
   /* Wer hier noch etwas sagen darf: die Kanzlei immer; der Mensch bis zum Beginn (Termine mit Fragen vorher) bzw. bis „zaznaczać do". */
   const locked = (day: string): boolean => {
@@ -220,7 +221,7 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
       chain.current = chain.current
         .then(() => onPresence({ day, answer: value ?? 'none' }))
         .catch((e: unknown) => {
-          setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+          setFailed(e instanceof WorkspaceError ? e.message : t('steps.saveFailed'));
           setLocal((was) => { const n = new Map(was); n.delete(day); return n; });
         })
         .finally(() => setSaving((n) => n - 1));
@@ -228,12 +229,13 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
   };
 
   if (days.length === 0 || shown === null) {
-    return <p className="wk-hint">W tym okresie nie ma dni tego zadania (termin zmieniony albo usunięty z kalendarza).</p>;
+    return <p className="wk-hint">{t('steps.card.noDays')}</p>;
   }
 
   const first = dateOf(`${shown}-01`);
   const lead = (first.getDay() + 6) % 7;
   const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const monthName = fmtDate(first, { month: 'long', year: 'numeric' }, t.lang);
   const cells: (string | null)[] = [...Array<null>(lead).fill(null)];
   for (let n = 1; n <= length; n += 1) cells.push(`${shown}-${String(n).padStart(2, '0')}`);
 
@@ -245,18 +247,21 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
   return (
     <div className="wk-taskcal" data-task-calendar="">
       <p className="wk-taskcal-how">
-        Kliknij dzień: raz — <span className="wk-taskcal-word is-yes">tak</span>, dwa razy — <span className="wk-taskcal-word is-no">nie</span>,
-        {' '}trzy razy — <span className="wk-taskcal-word is-maybe">jeszcze nie wiem</span>, cztery razy — bez odpowiedzi.
+        {rich(t('steps.card.how'), {
+          yes: (s, k) => <span key={k} className="wk-taskcal-word is-yes">{s}</span>,
+          no: (s, k) => <span key={k} className="wk-taskcal-word is-no">{s}</span>,
+          maybe: (s, k) => <span key={k} className="wk-taskcal-word is-maybe">{s}</span>
+        })}
       </p>
 
       <div className="wk-taskcal-sheet">
         <div className="wk-taskcal-head">
-          <button type="button" className="wk-taskcal-nav" disabled={month <= 0} aria-label="Poprzedni miesiąc" onClick={() => setMonth(month - 1)}>‹</button>
-          <strong>{MONTHS[first.getMonth()]} {first.getFullYear()}</strong>
-          <button type="button" className="wk-taskcal-nav" disabled={month >= months.length - 1} aria-label="Następny miesiąc" onClick={() => setMonth(month + 1)}>›</button>
+          <button type="button" className="wk-taskcal-nav" disabled={month <= 0} aria-label={t('steps.card.prevMonth')} onClick={() => setMonth(month - 1)}>‹</button>
+          <strong>{monthName}</strong>
+          <button type="button" className="wk-taskcal-nav" disabled={month >= months.length - 1} aria-label={t('steps.card.nextMonth')} onClick={() => setMonth(month + 1)}>›</button>
         </div>
-        <div className="wk-taskcal-grid" role="group" aria-label={`${MONTHS[first.getMonth()]} ${first.getFullYear()}`}>
-          {WEEK.map((w) => <span key={w} className="wk-taskcal-dow" aria-hidden="true">{w}</span>)}
+        <div className="wk-taskcal-grid" role="group" aria-label={monthName}>
+          {WEEKDAYS.map((w) => <span key={w.bit} className="wk-taskcal-dow" aria-hidden="true">{w.short}</span>)}
           {cells.map((day, i) => {
             if (day === null) return <span key={`gap-${i}`} className="wk-taskcal-gap" aria-hidden="true" />;
             const number = Number(day.slice(8));
@@ -265,7 +270,7 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
             const was = attendanceOn(state, day);
             const date = dates.get(day);
             const shut = locked(day);
-            const name = `${chipText(day)}${date !== undefined ? `, ${hoursOf(date)}` : ''}: ${WORD[answer ?? 'none']}${was !== null ? ` · ${ATTENDANCE_WORD[was]}` : ''}`;
+            const name = `${chipText(day)}${date !== undefined ? `, ${hoursOf(date)}` : ''}: ${t(WORD[answer ?? 'none'])}${was !== null ? ` · ${ATTENDANCE_WORD[was]}` : ''}`;
             return (
               <button key={day} type="button" data-task-cal-day={day} data-answer={answer ?? 'none'}
                 className={`wk-taskcal-day is-${answer ?? 'none'}${day === today ? ' is-today' : ''}${shut ? ' is-shut' : ''}`}
@@ -280,13 +285,13 @@ function TaskCalendar({ task, days, office, taken, onPresence }: {
       </div>
 
       {choosing.map((d) => (
-        <div key={d.day} className="wk-duties" role="group" aria-label={`${chipText(d.day)}: funkcja`} data-duties-day={d.day}>
-          <span className="wk-hint">{chipText(d.day)} — {office ? 'funkcja:' : 'co chcesz robić?'}</span>
+        <div key={d.day} className="wk-duties" role="group" aria-label={t('steps.card.dutyOf', { day: chipText(d.day) })} data-duties-day={d.day}>
+          <span className="wk-hint">{chipText(d.day)} — {office ? t('steps.card.dutyColon') : t('steps.card.whatDo')}</span>
           <DutyChips day={d.day} task={task} taken={taken} onPresence={onPresence} onFailed={setFailed} />
         </div>
       ))}
 
-      {saving > 0 && <p className="wk-hint" role="status">Zapisywanie…</p>}
+      {saving > 0 && <p className="wk-hint" role="status">{t('common.saving')}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
   );
@@ -300,6 +305,7 @@ function DutyChips({ day, task, taken, onPresence, onFailed }: {
   onPresence: (change: PresenceChange) => Promise<void>;
   onFailed: (message: string | null) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const said = presenceOn(task.state, day);
 
@@ -309,7 +315,7 @@ function DutyChips({ day, task, taken, onPresence, onFailed }: {
     try {
       await onPresence({ day, answer: 'yes', dutyId });
     } catch (e) {
-      onFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onFailed(e instanceof WorkspaceError ? e.message : t('steps.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -325,9 +331,9 @@ function DutyChips({ day, task, taken, onPresence, onFailed }: {
           <button key={d.dutyId} type="button" className={mine ? 'wk-duty is-on' : 'wk-duty'} aria-pressed={mine}
             disabled={busy || (room.full && !mine)} data-duty={d.dutyId}
             onClick={() => void pick(mine ? '' : d.dutyId)}>
-            {d.label ?? 'funkcja'}
+            {d.label ?? t('steps.duty')}
             {mine ? ' ✓' : taken !== undefined && room.free !== null && (
-              <span className="wk-duty-room">{room.full ? ' · zajęte' : ` · wolne ${room.free}`}</span>
+              <span className="wk-duty-room">{room.full ? ` · ${t('steps.card.full')}` : ` · ${t('steps.card.free', { count: room.free })}`}</span>
             )}
           </button>
         );
@@ -344,6 +350,7 @@ function PresenceDates({ plan, task, taken, onPresence }: {
   taken?: TakenMap;
   onPresence: (change: PresenceChange) => Promise<void>;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const dates = datesOf(plan);
@@ -351,13 +358,13 @@ function PresenceDates({ plan, task, taken, onPresence }: {
   const ahead = dates.filter((d) => answerOpen(d, now));
   const behind = dates.filter((d) => !answerOpen(d, now)).reverse();
 
-  if (dates.length === 0) return <p className="wk-hint">W tym okresie nie ma terminów (termin zmieniony albo usunięty z kalendarza).</p>;
+  if (dates.length === 0) return <p className="wk-hint">{t('steps.card.noDates')}</p>;
 
   const act = (change: PresenceChange) => {
     setBusy(true);
     setFailed(null);
     void onPresence(change)
-      .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.'))
+      .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : t('steps.saveFailed')))
       .finally(() => setBusy(false));
   };
 
@@ -379,6 +386,7 @@ function DateRow({ date, task, taken, busy, onPresence }: {
   busy: boolean;
   onPresence: (change: PresenceChange) => void;
 }) {
+  const t = useT();
   const said = presenceOn(task.state, date.day);
   const answer = said?.answer ?? null;
   const markable = date.day <= isoDay(new Date());
@@ -388,19 +396,19 @@ function DateRow({ date, task, taken, busy, onPresence }: {
     <li className={`wk-date is-${attendance ?? answer ?? 'open'}`} data-presence-day={date.day}>
       <div className="wk-date-head">
         <span className="wk-date-when">{chipText(date.day)} · {hoursOf(date)}</span>
-        <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: odpowiedź`}>
+        <span className="wk-seg" role="group" aria-label={t('steps.card.answerOf', { day: chipText(date.day) })}>
           {(['yes', 'maybe', 'no'] as const).map((a) => (
             <button key={a} type="button" className={answer === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={answer === a}
               disabled={busy} data-presence-answer={a} onClick={() => onPresence({ day: date.day, answer: answer === a ? 'none' : a })}>
-              {a === 'yes' ? 'Będzie' : a === 'maybe' ? 'Nie wie' : 'Nie będzie'}
+              {a === 'yes' ? t('steps.sheet.yes') : a === 'maybe' ? t('steps.sheet.maybe') : t('steps.sheet.no')}
             </button>
           ))}
         </span>
       </div>
 
       {answer === 'yes' && task.duties.length > 0 && (
-        <div className="wk-duties" role="group" aria-label="Funkcja">
-          <span className="wk-hint">Funkcja:</span>
+        <div className="wk-duties" role="group" aria-label={t('steps.card.duty')}>
+          <span className="wk-hint">{t('steps.card.dutyLabel')}</span>
           {task.duties.map((d: TaskDuty) => {
             const mine = said?.dutyId === d.dutyId;
             const room = dutyRoom(d.capacity, taken?.get(takenKey(date.day, d.dutyId)) ?? 0);
@@ -408,7 +416,7 @@ function DateRow({ date, task, taken, busy, onPresence }: {
               <button key={d.dutyId} type="button" className={mine ? 'wk-duty is-on' : 'wk-duty'} aria-pressed={mine}
                 disabled={busy || (room.full && !mine)} data-duty={d.dutyId}
                 onClick={() => onPresence({ day: date.day, dutyId: mine ? '' : d.dutyId })}>
-                {d.label ?? 'funkcja'}{mine && ' ✓'}
+                {d.label ?? t('steps.duty')}{mine && ' ✓'}
               </button>
             );
           })}
@@ -417,11 +425,11 @@ function DateRow({ date, task, taken, busy, onPresence }: {
 
       {/* NACHHER: da gewesen? */}
       {markable && (
-        <span className="wk-seg" role="group" aria-label={`${chipText(date.day)}: obecność`}>
+        <span className="wk-seg" role="group" aria-label={t('steps.card.attendanceOf', { day: chipText(date.day) })}>
           {(['present', 'absent', 'excused'] as const).map((a) => (
             <button key={a} type="button" className={attendance === a ? 'wk-seg-opt is-on' : 'wk-seg-opt'} aria-pressed={attendance === a}
               disabled={busy} data-attendance={a} onClick={() => onPresence({ day: date.day, attendance: attendance === a ? 'none' : a })}>
-              {a === 'present' ? '✓ Obecność' : a === 'absent' ? 'Nieobecność' : 'Usprawiedliwiona'}
+              {a === 'present' ? t('steps.sheet.present') : a === 'absent' ? t('steps.sheet.absent') : t('steps.sheet.excused')}
             </button>
           ))}
         </span>

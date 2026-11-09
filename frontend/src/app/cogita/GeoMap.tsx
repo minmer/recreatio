@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useT } from '../core/i18n';
 
 const TILE = 256;
 
@@ -47,6 +48,7 @@ export function GeoMap({ center, zoom: startZoom = 13, marks = [], circles = [],
   height?: string;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
+  const t = useT();
   const [size, setSize] = useState({ w: 600, h: 320 });
   const [zoom, setZoom] = useState(startZoom);
   const [mid, setMid] = useState(center ?? marks[0] ?? circles[0] ?? { lat: 50.0619, lon: 19.9369 });
@@ -100,8 +102,8 @@ export function GeoMap({ center, zoom: startZoom = 13, marks = [], circles = [],
     <div className="cg-map" ref={box} style={height === undefined ? undefined : { height }}
       onPointerDown={down} onPointerMove={move} onPointerUp={up}
       onWheel={(e) => setZoom((z) => Math.max(2, Math.min(19, z + (e.deltaY < 0 ? 1 : -1))))}
-      role={onPick === undefined ? 'img' : 'application'} aria-label={onPick === undefined ? 'Mapa' : 'Mapa — dotknij, żeby wskazać miejsce'}>
-      {tiles.map((t) => <img key={t.key} src={t.src} alt="" draggable={false} style={{ left: t.x, top: t.y }} />)}
+      role={onPick === undefined ? 'img' : 'application'} aria-label={onPick === undefined ? t('cogitaLearnPath.geo.map') : t('cogitaLearnPath.geo.pick')}>
+      {tiles.map((x) => <img key={x.key} src={x.src} alt="" draggable={false} style={{ left: x.x, top: x.y }} />)}
       {circles.map((ci, i) => {
         const p = at(ci.lat, ci.lon);
         const d = 2 * ci.radius * pxPerMetre(ci.lat, zoom);
@@ -114,10 +116,10 @@ export function GeoMap({ center, zoom: startZoom = 13, marks = [], circles = [],
           : <span key={`m${i}`} className="cg-map-dot" style={{ left: p.left, top: p.top, ...(m.color === undefined ? {} : { background: m.color }) }} title={m.label} />;
       })}
       <div className="cg-map-zoom" onPointerDown={(e) => e.stopPropagation()}>
-        <button type="button" aria-label="Przybliż" onClick={() => setZoom((z) => Math.min(19, z + 1))}>+</button>
-        <button type="button" aria-label="Oddal" onClick={() => setZoom((z) => Math.max(2, z - 1))}>−</button>
+        <button type="button" aria-label={t('cogitaLearnPath.geo.zoomIn')} onClick={() => setZoom((z) => Math.min(19, z + 1))}>+</button>
+        <button type="button" aria-label={t('cogitaLearnPath.geo.zoomOut')} onClick={() => setZoom((z) => Math.max(2, z - 1))}>−</button>
       </div>
-      <span className="cg-map-credit">© OpenStreetMap</span>
+      <span className="cg-map-credit">{'© OpenStreetMap' /* i18n-ignore */}</span>
     </div>
   );
 }

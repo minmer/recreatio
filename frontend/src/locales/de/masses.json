@@ -1,5 +1,43 @@
 {
-  "service": { "mass": "Messe", "confession": "Beichte", "devotion": "Andacht" },
+  "service": {
+    "mass": "Messe",
+    "confession": "Beichte",
+    "devotion": "Andacht",
+    "loadingRole": "Rolle wird geladen…",
+    "noPerson": "Dieses Konto führt noch keine Person — leg sie unter Rollen an.",
+    "needDate": "Gib Tag und Uhrzeit an.",
+    "needUntil": "Eine Serie braucht ein Ende — gib den letzten Tag an.",
+    "added": "Angelegt: {what} {date} {time}.",
+    "addedSeries": "Angelegt: {what} {date} {time}, {repeat} bis {until}.",
+    "addFailed": "Anlegen fehlgeschlagen.",
+    "title": "Eintrag anlegen",
+    "what": "Was",
+    "devotionOption": "Andacht (Rosenkranz, Kreuzweg…)",
+    "appointmentOption": "Termin (mit Anmeldung)",
+    "appointmentHint": "Ein Termin allein nimmt noch niemanden auf — öffne ihn unten unter „Termine“ zur Anmeldung und gib die Anzahl der Plätze an.",
+    "time": "Uhrzeit",
+    "minutes": "Dauer (Min.)",
+    "confessionHint": "Im Schaukasten: „Beichte bis …“ — das Ende ergibt sich aus der Dauer.",
+    "name": "Name (im Schaukasten sichtbar)",
+    "placeholderDevotion": "z. B. Rosenkranz",
+    "placeholderConfession": "leer: „Beichte“",
+    "placeholderMass": "z. B. Novenenmesse",
+    "repeat": "Wiederholung",
+    "until": "Bis zum Tag",
+    "localHint": "Die Uhrzeit ist lokal — 18:00 ist sechs Uhr abends in der Kirche, auch nach der Zeitumstellung. Ohne gewählte Wochentage gilt der Tag des ersten Termins. Alles lässt sich später unter „Plan und Änderungen“ oder im Kalender ändern.",
+    "areaHint": "Der Eintrag kommt in den Bereich <b>{area}</b>. Im Schaukasten erscheint er erst, wenn die Epoche dieses Bereichs veröffentlicht ist — Öffentlichkeit ist ein Schlüssel, kein Schalter.",
+    "adding": "Wird angelegt…",
+    "add": "Anlegen"
+  },
+  "newCalendar": {
+    "title": "Terminkalender einer anderen Gruppe",
+    "noArea": "Ein Terminkalender gehört zu einer Gruppe (einem Bereich) — und du schreibst in keiner. Leg sie im Reiter „Bereiche“ an und komm dann hierher zurück.",
+    "defaultTitle": "Termine",
+    "opening": "Terminkalender wird geöffnet…",
+    "area": "Gruppe (Bereich)",
+    "hint": "Die Gruppe entscheidet, wer diesen Plan sieht. Soll er in den Schaukasten, wähle eine öffentliche — oder öffne sie später. Jede Gruppe hat genau einen Terminkalender, der von selbst entsteht; die Zeiten gelten in polnischer Zeit.",
+    "open": "Terminkalender öffnen"
+  },
   "devotionNames": {
     "rosary": "Rosenkranz",
     "wayOfCross": "Kreuzweg",
@@ -14,9 +52,317 @@
     "jasnaGora": "Appell von Jasna Góra",
     "vespers": "Vesper"
   },
-  "intentions": { "one": "{count} Intention", "other": "{count} Intentionen" },
-  "kind": { "single": "einzeln", "collective": "gemeinsam" },
-  "status": { "accepted": "angenommen", "celebrated": "gefeiert", "cancelled": "zurückgezogen" },
-  "weekdayBit": { "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So" },
-  "day": { "today": "heute", "tomorrow": "morgen", "todayFull": "heute, {date}", "tomorrowFull": "morgen, {date}" }
+  "intentions": {
+    "one": "{count} Intention",
+    "other": "{count} Intentionen"
+  },
+  "kind": {
+    "single": "einzeln",
+    "collective": "gemeinsam"
+  },
+  "status": {
+    "accepted": "angenommen",
+    "celebrated": "gefeiert",
+    "cancelled": "zurückgezogen"
+  },
+  "weekdayBit": {
+    "mon": "Mo",
+    "tue": "Di",
+    "wed": "Mi",
+    "thu": "Do",
+    "fri": "Fr",
+    "sat": "Sa",
+    "sun": "So"
+  },
+  "day": {
+    "today": "heute",
+    "tomorrow": "morgen",
+    "todayFull": "heute, {date}",
+    "tomorrowFull": "morgen, {date}",
+    "earlier": "Früher: {times}",
+    "none": "Keine Messen.",
+    "short": "{weekday} {day}.{month}.",
+    "weekdayShort": {
+      "0": "So",
+      "1": "Mo",
+      "2": "Di",
+      "3": "Mi",
+      "4": "Do",
+      "5": "Fr",
+      "6": "Sa"
+    }
+  },
+  "card": {
+    "loadFailed": "Der Plan ließ sich nicht laden."
+  },
+  "jsonPanel": {
+    "loadFailed": "Die Messen dieses Zeitraums ließen sich nicht lesen.",
+    "noKeys": "Ohne Schlüssel in diesem Tab lässt sich nichts importieren — melde dich erneut an.",
+    "checking": "Messen dieses Zeitraums werden geprüft…",
+    "nothing": "Nichts zu ändern — alles aus dem Dokument steht schon im Kalender.",
+    "bothDays": "Gib beide Tage des Zeitraums an.",
+    "endBeforeStart": "Das Ende des Zeitraums liegt vor dem Anfang.",
+    "maxDays": "Höchstens {max} Tage auf einmal.",
+    "pickCalendar": "Wähle oben einen Kalender.",
+    "exportNoKeys": "Ohne Schlüssel in diesem Tab enthält der Export keine Spender, Gaben, Orte oder Namen von Personen.",
+    "unreadable": {
+      "one": "{count} Feld (Spender, Gabe) lässt sich hier nicht lesen — es fehlt im Export.",
+      "other": "{count} Felder (Spender, Gabe) lassen sich hier nicht lesen — sie fehlen im Export."
+    },
+    "copied": "Kopiert — füge es in dein Gespräch mit der KI ein, zusammen mit Fotos des Buchs; die Antwort fügst du unten unter „Import“ ein.",
+    "clipboardFailed": "Die Zwischenablage hat den Text nicht angenommen — markiere ihn unten und kopiere ihn.",
+    "promptFailed": "Der Prompt ließ sich nicht vorbereiten.",
+    "range": "Zeitraum des Exports",
+    "preparing": "Wird vorbereitet…",
+    "copyPrompt": "KI-Prompt kopieren (Intentionenbuch)",
+    "promptLabel": "KI-Prompt",
+    "summary": "Messen und Intentionen als JSON",
+    "lead": "Messen, Andachten und Beichte des Kalenders „{calendar}“ mit Intentionen — Tag für Tag, im oben gewählten Zeitraum. Ein Eintrag mit „id“ wird an Ort und Stelle geändert, ohne „id“ kommt er hinzu; zuerst siehst du, welche Messe an welchem Tag welche Intention bekommt. Nichts wird gelöscht.",
+    "importLabel": "In den Kalender importieren",
+    "conflicts": "Messen, die im Kalender schon eine andere Intention haben ({count})",
+    "skip": "Überspringen — die neuen Intentionen kommen nicht dazu (die Warnungen oben sagen, welche)",
+    "addBeside": "Neben die bestehenden eintragen — zwei einzelne in einer Messe bedeuten zwei Priester"
+  },
+  "terms": {
+    "loadFailed": "Die Termine ließen sich nicht laden.",
+    "removeAsk": "Termin {when} entfernen?",
+    "removeAskPeople": "Termin {when} entfernen? Die angemeldeten Personen ({names}) werden ausgetragen.",
+    "removed": "Termin {when} entfernt.",
+    "removedPeople": "Termin {when} entfernt — ausgetragen: {names}.",
+    "removeFailed": "Der Termin ließ sich nicht entfernen.",
+    "adding": "Wird eingetragen…",
+    "somebody": "eine Person",
+    "added": "Eingetragen: {name} — {when}.",
+    "addedOver": "Eingetragen: {name} — {when} (über dem Limit: {taken} von {capacity}).",
+    "unseatAsk": "Aus dem Termin austragen: {name}?",
+    "unseatAskHost": "Aus dem Termin austragen: {name}? Das ist der Gastgeber — freie Plätze öffnen sich für alle.",
+    "unseating": "Wird ausgetragen…",
+    "unseated": "Ausgetragen: {name}.",
+    "closing": "Wird geschlossen…",
+    "opening": "Wird geöffnet…",
+    "closedDone": "Termin {when} geschlossen — niemand kann sich mehr anmelden.",
+    "openedDone": "Termin {when} nimmt wieder Anmeldungen an.",
+    "title": "Termine",
+    "noResource": "Dieser Kalender gehört zu keiner Ressource — niemand kann seine Termine wählen. Leg eine Ressource unter <link>Reservierungen</link> an.",
+    "empty": "In diesem Zeitraum gibt es keinen Termin. Leg ihn oben als „Termin“ an.",
+    "taken": "{taken} von {capacity}",
+    "overLimit": "über dem Limit",
+    "closedByOffice": "vom Büro geschlossen",
+    "closedByHost": "vom Gastgeber geschlossen",
+    "firstDecides": "Erster, entscheidet",
+    "host": "Gastgeber",
+    "addedTag": "eingetragen",
+    "addedNoLink": "eingetragen, ohne Link",
+    "asksHost": "fragt den Gastgeber",
+    "waits": "wartet",
+    "unseatNamed": "Austragen: {name}",
+    "unseat": "Aus dem Termin austragen",
+    "hostPending": "{name} hat diesen Termin als Erste(r) gewählt und entscheidet bis {until}, ob Bekannte eingeladen werden. Ohne Antwort öffnet sich der Termin für alle.",
+    "hostInviting": "Der Gastgeber ({name}) wählt bis {until} selbst Personen — sind es danach weniger als {min}, öffnen sich die freien Plätze für alle. Den Code kennt nur er.",
+    "hostDoneFull": "Die Zeit des Gastgebers endete {until} — die Gruppe ist vollständig, der Termin bleibt ihr.",
+    "hostDoneOpen": "Die Zeit des Gastgebers endete {until} — die freien Plätze sind für alle.",
+    "addPerson": "Person eintragen",
+    "closeTitle": "Niemand kann sich mehr anmelden — auch wenn Plätze frei sind",
+    "openTitle": "Der Termin nimmt wieder Anmeldungen an",
+    "removeTitlePeople": "Die angemeldeten Personen werden ausgetragen",
+    "removeTitle": "Der Termin verschwindet aus der Auswahl",
+    "noName": "ohne Namen",
+    "noNameSince": "ohne Namen (angemeldet {when})",
+    "removing": "Wird entfernt…",
+    "full": "Der Termin ist voll — du trägst über dem Limit ein.",
+    "searchPlaceholder": "Person suchen oder Vor- und Nachnamen eingeben",
+    "whoToAdd": "Wen eintragen",
+    "loadingPeople": "Personen werden geladen…",
+    "addWithoutLink": "„{name}“ ohne Link eintragen"
+  },
+  "rules": {
+    "resource": "Jeder Termin hier lässt sich wählen — das ist die Ressource <link>{name}</link>.",
+    "capacity": "Personen pro Termin",
+    "perPerson": "Termine pro Person",
+    "hours": "Stunden des Gastgebers",
+    "minimum": "Mindestzahl Personen",
+    "perPersonFree": "Eine Person kann beliebig viele Termine nehmen.",
+    "perPersonLimit": "Eine Person kann {count} gleichzeitig haben — danach nur noch tauschen.",
+    "noHost": "Ohne Gastgeber: jeder meldet sich selbst an.",
+    "host": "Wer sich zuerst anmeldet, wählt {hours} Std. lang die anderen selbst — mit dem eigenen Code oder durch Zustimmung auf Anfrage.",
+    "afterHost": "Danach bleibt ein Termin mit mindestens {min} Personen der Gruppe (der Gastgeber kann ihn auch selbst schließen); mit weniger öffnen sich die freien Plätze für alle."
+  },
+  "entry": {
+    "saveFailed": "Die Intention ließ sich nicht speichern.",
+    "markFailed": "Markieren fehlgeschlagen.",
+    "orderFailed": "Die Reihenfolge ließ sich nicht ändern.",
+    "editMass": "Messe ändern",
+    "markAll": "Als gefeiert markieren ({count})",
+    "none": "Keine Intentionen.",
+    "needPriests": {
+      "one": "{count} einzelne — {count} Priester nötig.",
+      "other": "{count} einzelne — {count} Priester nötig."
+    },
+    "needPriestsHave": {
+      "one": "{count} einzelne — {count} Priester nötig (eingeteilt: {have}).",
+      "other": "{count} einzelne — {count} Priester nötig (eingeteilt: {have})."
+    },
+    "placeholder": "Für den verstorbenen Johann Schmidt",
+    "newIntention": "Neue Intention",
+    "newKind": "Art der neuen Intention",
+    "genericSaveFailed": "Speichern fehlgeschlagen.",
+    "assignFailed": "Zuweisen fehlgeschlagen.",
+    "deleteAsk": "Die Intention „{text}“ löschen? Das lässt sich nicht rückgängig machen.",
+    "deleteFailed": "Löschen fehlgeschlagen.",
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "text": "Text der Intention",
+    "kind": "Art",
+    "status": "Stand",
+    "celebrant": "Wer diese Intention feiert",
+    "celebrantNone": "— wer feiert —",
+    "moveTo": "Auf eine andere Messe verlegen",
+    "moveFailed": "Verlegen fehlgeschlagen.",
+    "pickMass": "— Messe wählen —",
+    "moveHint": "Ein anderer Termin außerhalb dieser zwei Wochen: wähle oben einen anderen Tag.",
+    "delete": "Intention löschen",
+    "sealedNoKeys": "Spender und Gabe sind verschlüsselt — ohne Schlüssel in diesem Tab sind sie nicht zu sehen.",
+    "reading": "Wird entschlüsselt…",
+    "noAreaKey": "Du hast den Schlüssel dieses Bereichs nicht — Speichern nicht möglich.",
+    "giver": "Bestellt von",
+    "giverPlaceholder": "z. B. Familie Schmidt, Tel. …",
+    "offering": "Gabe",
+    "offeringPlaceholder": "z. B. 50 zł",
+    "saved": "Gespeichert.",
+    "sealedHint": "Verschlüsselt — nicht im Schaukasten und nicht auf dem Ausdruck."
+  },
+  "office": {
+    "loadFailed": "Der Plan ließ sich nicht laden.",
+    "failedWhat": "Fehlgeschlagen: {what}",
+    "noKeys": "Ohne Schlüssel in diesem Tab lassen sich Einträge nicht ändern — melde dich erneut an.",
+    "notYours": "Diesen Eintrag gibt es in deinem Kalender nicht — du kannst ihn nicht ändern.",
+    "openFailed": "Der Eintrag ließ sich nicht öffnen.",
+    "entry": "Eintrag",
+    "restoring": "Wird wiederhergestellt…",
+    "restored": "Wiederhergestellt: {what} {when}.",
+    "cancelAsk": "Nur diesen Termin absagen: {what} {when}? Die Serie bleibt.",
+    "cancelling": "Wird abgesagt…",
+    "cancelled": "Abgesagt: {what} {when}. Das lässt sich rückgängig machen — „Wiederherstellen“.",
+    "noCalendar": "Du hast noch keinen Terminkalender. Ein Terminkalender hält die Termine einer Gruppe (eines Bereichs) — wähle eine Gruppe, dann entsteht er von selbst.",
+    "title": "Messen, Andachten und Intentionen",
+    "calendar": "Terminkalender der Gruppe",
+    "day": "Tag",
+    "dayInCalendar": "Dieser Tag im Kalender",
+    "moreLabel": "Mehr: Messen und Intentionen",
+    "json": "Import und Export (JSON)",
+    "tab": {
+      "intentions": "Intentionen",
+      "plan": "Plan und Änderungen",
+      "new": "Neuer Eintrag",
+      "terms": "Termine zur Anmeldung",
+      "print": "Druck"
+    },
+    "noMasses": "In den zwei Wochen ab diesem Tag steht keine Messe im Plan. Leg sie unter „Neuer Eintrag“ an — ein wiederkehrender Eintrag reicht für den ganzen Zeitraum.",
+    "keys": "<k>Enter</k> speichert und bleibt bei dieser Messe · <k>Strg</k>+<k>Enter</k> speichert und geht zur nächsten — auch zum nächsten Tag · <k>Esc</k> leert das Feld",
+    "saved": "Änderungen gespeichert.",
+    "jsonTitle": "Messen und Intentionen — Import und Export (JSON)",
+    "position": "{at} von {of}"
+  },
+  "browser": {
+    "fromNow": "Ab jetzt",
+    "todayDate": "Heute · {date}",
+    "calendar": "Kalender",
+    "nextMass": "Nächste Messe",
+    "earlier": "Früher",
+    "later": "Später",
+    "loading": "wird geladen…",
+    "view": "Ansicht",
+    "keptOld": "Diese Tage ließen sich nicht laden — die vorigen sind zu sehen.",
+    "weekdays": "Wochentage",
+    "noneThisDay": "Keine Messen an diesem Tag.",
+    "noMasses": "keine Messen",
+    "masses": {
+      "one": "{count} Messe",
+      "other": "{count} Messen"
+    }
+  },
+  "shape": {
+    "toolsStep": "Pfeile und Kalender: jeder beliebige Tag.",
+    "toolsFull": "Ansichten: {modes}; ein Kalender zur Wahl des Datums.",
+    "mode": {
+      "soon": "Demnächst",
+      "day": "Tag",
+      "week": "Woche",
+      "month": "Monat"
+    },
+    "next": "Die nächste Messe und in wie viel Zeit — mehr passt nicht in einen Streifen.",
+    "hoursOne": "Messzeiten des Tages; die vergangenen abgeblendet.",
+    "hoursTwo": "Messzeiten heute und am nächsten Tag.",
+    "ticker": "Die nächste Messe mit ihrer Intention, danach die nächsten Zeiten.",
+    "spotlight": "Die nächste Messe mit ihren Intentionen, darunter die Zeiten der nächsten Tage.",
+    "day": "Ein Tag Messe für Messe, mit Intentionen, Beichte und Andachten; der nächste in einer Zeile.",
+    "columns": {
+      "one": "{count} Tag nebeneinander ({columns} Spalten), mit Intentionen, Beichte und Andachten.",
+      "other": "{count} Tage nebeneinander ({columns} Spalten), mit Intentionen, Beichte und Andachten."
+    },
+    "stack": {
+      "one": "{count} Tag untereinander, mit Intentionen, Beichte und Andachten.",
+      "other": "{count} Tage untereinander, mit Intentionen, Beichte und Andachten."
+    }
+  },
+  "soon": {
+    "now": "läuft",
+    "moment": "gleich",
+    "minutes": {
+      "one": "in {count} Min.",
+      "other": "in {count} Min."
+    },
+    "hours": {
+      "one": "in etwa {count} Std.",
+      "other": "in etwa {count} Std."
+    }
+  },
+  "glance": {
+    "noneInPlan": "Keine Messen im Plan.",
+    "noneSoon": "In den nächsten Tagen gibt es keine Messen mehr.",
+    "checkEpoch": "Wenn Messen eingetragen sind, prüfe, ob die Epoche des Bereichs veröffentlicht ist.",
+    "noneThese": "Keine Messen an diesen Tagen.",
+    "nearest": "Nächste",
+    "then": "Danach",
+    "collective": "gemeinsame Intentionen ({count})"
+  },
+  "row": {
+    "until": "bis {time}",
+    "cancelledConfession": "abgesagt",
+    "cancelledDevotion": "abgesagt",
+    "cancelledMass": "abgesagt",
+    "collective": "Gemeinsame Intentionen ({count})"
+  },
+  "plan": {
+    "empty": "In diesen zwei Wochen gibt es keine Messe, Beichte oder Andacht. Leg sie unter „Neuer Eintrag“ an.",
+    "cancelledOnce": "abgesagt (nur dieser Termin)",
+    "moved": "verlegt",
+    "noIntentions": "ohne Intentionen",
+    "intentions": "Intentionen",
+    "restore": "Wiederherstellen",
+    "cancel": "Absagen",
+    "inCalendar": "Im Kalender"
+  },
+  "people": {
+    "celebrates": "zelebriert: {names}",
+    "leads": "leitet: {names}",
+    "hears": "hört Beichte: {names}",
+    "present": "anwesend: {names}",
+    "person": "Person"
+  },
+  "print": {
+    "blocked": "Der Druck ließ sich nicht öffnen — der Browser hat das neue Fenster vielleicht blockiert.",
+    "failed": "Der Druck ließ sich nicht vorbereiten.",
+    "title": "Druck für den Schaukasten",
+    "hint": "Der Bogen geht von Montag bis Sonntag — so hängt er im Schaukasten. Gemeinsame Intentionen bekommen eine eigene Seite mit Platz für Nachträge.",
+    "print": "Intentionen drucken (A4)",
+    "nextWeek": "nächste Woche"
+  },
+  "sheet": {
+    "range": "{from} – {to} {year}",
+    "collective": "Gemeinsame Intentionen",
+    "cancelled": "Messe abgesagt",
+    "title": "Messintentionen",
+    "note": "A4-Bogen. Der Name des Sonntags im Kirchenjahr wird im System noch nicht geführt — trag ihn von Hand ein, wenn er auf dem Blatt stehen soll."
+  }
 }

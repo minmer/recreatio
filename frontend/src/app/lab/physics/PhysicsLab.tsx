@@ -17,6 +17,7 @@
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 
+import { useT } from '../../core/i18n';
 import { LIQUIDS } from '../fluid';
 import { LabFrame, LabFull, LabSection, LabTool, labNum } from '../LabFrame';
 import { Recorder, drawRecorder, type Series } from '../labGraph';
@@ -76,6 +77,7 @@ export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { con
   /* 2026-11-03 (G) — das Ziel erreicht: in einer Erzählung zählt es (der Baustein sagt, auf welcher Karte). */
   const goalSaid = useRef(onGoal);
   goalSaid.current = onGoal;
+  const t = useT();
   const sandbox = config.mode === 'sandbox';
   const [doc, setDoc] = useState<unknown>(() => config.scene ?? SANDBOX_SCENE);
   const configKey = JSON.stringify(config.scene ?? null);
@@ -386,26 +388,26 @@ export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { con
 
   const bar = (
     <>
-      <LabTool icon={running ? 'pause' : 'play'} label={running ? 'Pauza' : 'Start'} text={running ? 'Pauza' : 'Start'} on={running} onClick={() => setRunning((r) => !r)} />
-      {!running && <LabTool icon="next" label="Krok (1/60 s)" onClick={() => { world.wake(); world.frame(1 / 60, 1); bump(); loopRef.current?.wake(); }} />}
-      <LabTool icon="history" label="Od nowa" onClick={reset} />
-      <button type="button" className="lab-tool" title="Tempo" aria-label={`Tempo ${speed}×`} onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}>{String(speed).replace('.', ',')}×</button>
-      {scene.vars.length > 0 && <LabTool icon="shuffle" label="Nowe losowanie" onClick={() => { setDrawKey((k) => k + 1); setRunning(false); }} />}
-      <LabTool icon="search" label="Dopasuj widok" onClick={() => { const cam = camRef.current?.cam; if (cam !== undefined) { const v = scene.view ?? world.bounds(); cam.fit(v[0], v[1], v[2], v[3], 16); loopRef.current?.wake(); } }} />
+      <LabTool icon={running ? 'pause' : 'play'} label={running ? t('labPhysics.lab.pause') : t('labPhysics.lab.start')} text={running ? t('labPhysics.lab.pause') : t('labPhysics.lab.start')} on={running} onClick={() => setRunning((r) => !r)} />
+      {!running && <LabTool icon="next" label={t('labPhysics.lab.step')} onClick={() => { world.wake(); world.frame(1 / 60, 1); bump(); loopRef.current?.wake(); }} />}
+      <LabTool icon="history" label={t('labPhysics.lab.restart')} onClick={reset} />
+      <button type="button" className="lab-tool" title={t('labPhysics.lab.speed')} aria-label={t('labPhysics.lab.speedValue', { x: speed })} onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}>{String(speed).replace('.', ',')}×</button>
+      {scene.vars.length > 0 && <LabTool icon="shuffle" label={t('labPhysics.lab.newDraw')} onClick={() => { setDrawKey((k) => k + 1); setRunning(false); }} />}
+      <LabTool icon="search" label={t('labPhysics.lab.fit')} onClick={() => { const cam = camRef.current?.cam; if (cam !== undefined) { const v = scene.view ?? world.bounds(); cam.fit(v[0], v[1], v[2], v[3], 16); loopRef.current?.wake(); } }} />
     </>
   );
 
   return (
     <LabFrame
       whole={whole}
-      title={config.title || (sandbox ? 'Laboratorium fizyki' : 'Doświadczenie')}
-      chips={<span className="lab-chip">{sandbox ? 'piaskownica' : 'doświadczenie'}</span>}
+      title={config.title || (sandbox ? t('labPhysics.lab.titleSandbox') : t('labPhysics.lab.titleExperiment'))}
+      chips={<span className="lab-chip">{sandbox ? t('labPhysics.lab.chipSandbox') : t('labPhysics.lab.chipExperiment')}</span>}
       bar={bar}
       note={goalHit && scene.goal !== null ? <p className="lab-note is-ok" role="status">{scene.goal.say}</p> : said !== null ? <p className="lab-note" role="status">{said}</p> : null}
-      stage={<div ref={stage} className="lab-canvas-box"><canvas ref={canvas} aria-label={`${config.title || 'Laboratorium fizyki'} — scena; przeciągnij ciała, przesuń tło, dwa palce przybliżają`} /></div>}
+      stage={<div ref={stage} className="lab-canvas-box"><canvas ref={canvas} aria-label={t('labPhysics.lab.canvas', { title: config.title || t('labPhysics.lab.titleSandbox') })} /></div>}
       side={(
         <section ref={side} className="lab-side-in">
-          {config.text.length > 0 && <LabSection title="Opis">{config.text.map((t, i) => <p key={i} className="lab-text">{t}</p>)}</LabSection>}
+          {config.text.length > 0 && <LabSection title={t('labPhysics.lab.description')}>{config.text.map((x, i) => <p key={i} className="lab-text">{x}</p>)}</LabSection>}
           <Steps steps={scene.steps} at={stepAt} showing={showing} onShow={() => { reset(); window.setTimeout(() => { setStepAt(0); setShowing(true); }, 60); }} onNext={() => { act(stepAt); setStepAt((n) => n + 1); }} />
           {body !== null && (
             <BodyInspector body={body} edit={edit && !running} onDelete={() => { world.remove(body); setPick(null); bump(); }}
@@ -426,11 +428,11 @@ export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { con
                 world.wake(); bump();
               }} />
           )}
-          {palette.length > 0 && <LabSection title="Dodaj"><PaletteGrid items={palette} onPick={addItem} /></LabSection>}
-          {tools.length > 0 && <LabSection title="Narzędzia"><Tools tools={tools} active={tool} onPick={setTool} /></LabSection>}
+          {palette.length > 0 && <LabSection title={t('labPhysics.panel.add')}><PaletteGrid items={palette} onPick={addItem} /></LabSection>}
+          {tools.length > 0 && <LabSection title={t('labPhysics.panel.tools')}><Tools tools={tools} active={tool} onPick={setTool} /></LabSection>}
           {recorder !== null && (
-            <LabSection title={`Wykres: ${world.bodies.find((b) => b.id === graphOf?.body)?.label ?? ''}`}>
-              <canvas ref={graphCanvas} className="lab-graph" aria-label="Wykres wartości w czasie" />
+            <LabSection title={t('labPhysics.lab.graph', { label: world.bodies.find((b) => b.id === graphOf?.body)?.label ?? '' })}>
+              <canvas ref={graphCanvas} className="lab-graph" aria-label={t('labPhysics.lab.graphAria')} />
             </LabSection>
           )}
           <WorldControls controls={controls} gravity={world.g} air={world.air > 0}
@@ -443,35 +445,35 @@ export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { con
               else setVectors((vs) => (vs.includes(w) ? vs.filter((x) => x !== w) : [...vs, w]));
             }} />
           {sandbox && (
-            <LabSection title="Doświadczenia i zapis" open={false}>
+            <LabSection title={t('labPhysics.lab.presetsAndSave')} open={false}>
               <label className="lab-field">
-                Wczytaj doświadczenie
+                {t('labPhysics.lab.loadPreset')}
                 <select value="" onChange={(e) => { const p = PHYS_PRESETS.find((x) => x.key === e.currentTarget.value); if (p !== undefined) { setDoc(p.scene); setSaid(p.summary); } }}>
-                  <option value="">— wybierz —</option>
+                  <option value="">{t('labPhysics.lab.choose')}</option>
                   {PHYS_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.title}</option>)}
                 </select>
               </label>
               <div className="lab-row">
                 <button type="button" className="wk-btn wk-btn-line" onClick={() => {
-                  try { localStorage.setItem(storeKey(config.title), JSON.stringify(sceneOfWorld(world, scene))); setSaid('Zapisano układ w tej przeglądarce.'); } catch { setSaid('Przeglądarka nie pozwala zapisać.'); }
-                }}>Zapisz</button>
+                  try { localStorage.setItem(storeKey(config.title), JSON.stringify(sceneOfWorld(world, scene))); setSaid(t('labPhysics.lab.saved')); } catch { setSaid(t('labPhysics.lab.saveFailed')); }
+                }}>{t('labPhysics.lab.save')}</button>
                 <button type="button" className="wk-btn wk-btn-line" onClick={() => {
                   let text: string | null = null;
                   try { text = localStorage.getItem(storeKey(config.title)); } catch { text = null; }
-                  if (text === null) { setSaid('Nie ma zapisanego układu.'); return; }
-                  try { setDoc(JSON.parse(text) as unknown); setSaid('Wczytano zapisany układ.'); } catch { setSaid('Zapis jest uszkodzony.'); }
-                }}>Wczytaj</button>
-                <button type="button" className="wk-btn wk-btn-line" aria-expanded={json !== null} onClick={() => setJson(json === null ? JSON.stringify(sceneOfWorld(world, scene), null, 1) : null)}>JSON</button>
+                  if (text === null) { setSaid(t('labPhysics.lab.nothingSaved')); return; }
+                  try { setDoc(JSON.parse(text) as unknown); setSaid(t('labPhysics.lab.loaded')); } catch { setSaid(t('labPhysics.lab.broken')); }
+                }}>{t('labPhysics.lab.load')}</button>
+                <button type="button" className="wk-btn wk-btn-line" aria-expanded={json !== null} onClick={() => setJson(json === null ? JSON.stringify(sceneOfWorld(world, scene), null, 1) : null)}>{t('labPhysics.lab.json')}</button>
               </div>
               {json !== null && (
                 <>
-                  <p className="lab-muted">Ten JSON to scena — wklej go w edytorze modułu jako „scene”, a doświadczenie zostanie na stronie.</p>
+                  <p className="lab-muted">{t('labPhysics.lab.jsonNote')}</p>
                   <textarea className="lab-json" value={json} rows={8} readOnly onFocus={(e) => e.currentTarget.select()} />
                 </>
               )}
             </LabSection>
           )}
-          {body === null && basin === null && <p className="lab-muted">{sandbox ? 'Dodaj ciała z listy, przeciągaj je, łącz narzędziami. Start uruchamia czas.' : 'Dotknij ciała albo zbiornika, żeby zobaczyć jego wartości. Start uruchamia czas.'}</p>}
+          {body === null && basin === null && <p className="lab-muted">{sandbox ? t('labPhysics.lab.hintSandbox') : t('labPhysics.lab.hintExperiment')}</p>}
         </section>
       )}
     />

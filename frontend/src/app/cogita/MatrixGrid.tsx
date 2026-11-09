@@ -11,6 +11,7 @@
  */
 
 import { Fragment } from 'react';
+import { useT } from '../core/i18n';
 
 import { cellKey, type Matrix } from './views';
 import type { Group } from './selection';
@@ -36,6 +37,7 @@ export function MatrixGrid({ matrix, chosen, onCell, onEmpty, caption }: {
   onEmpty?: (row: string, col: string) => void;
   caption?: string;
 }) {
+  const t = useT();
   const heads = matrix.cols.some((c) => c.head !== undefined) ? spans(matrix.cols) : null;
   return (
     <div className="cg-table-wrap">
@@ -69,8 +71,8 @@ export function MatrixGrid({ matrix, chosen, onCell, onEmpty, caption }: {
                       {n > 0
                         ? <button type="button" className="cg-ref" aria-label={`${r.label} × ${c.label}: ${n}`} aria-pressed={on} onClick={() => onCell(r.key, c.key)}>{n}</button>
                         : onEmpty !== undefined && r.key !== '' && c.key !== ''
-                          ? <button type="button" className="wk-link-btn" aria-label={`${r.label} × ${c.label}: dodaj`} title="Dodaj tutaj" onClick={() => onEmpty(r.key, c.key)}>+</button>
-                          : <span className="cg-muted" aria-label="pusto">·</span>}
+                          ? <button type="button" className="wk-link-btn" aria-label={t('cogitaLearnRun.matrix.add', { row: r.label, col: c.label })} title={t('cogitaLearnRun.matrix.addHere')} onClick={() => onEmpty(r.key, c.key)}>+</button>
+                          : <span className="cg-muted" aria-label={t('cogitaLearnRun.matrix.empty')}>·</span>}
                     </td>
                   );
                 })}

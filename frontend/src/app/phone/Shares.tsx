@@ -22,6 +22,7 @@ import { cls, coarsePointer } from '../chat/ChatKit';
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
 import { useRemembered } from '../core/prefs';
+import { fmtDate, useT } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
@@ -31,25 +32,26 @@ import { DropVeil, usePageDrop } from './fileDrop';
 import { phoneHere } from './here';
 import { phoneShown } from './numbers';
 import { openPhone, type PhoneCtx } from './phoneContext';
-import { loadShares, unshare, type ShareEntry } from './share';
+import { daysLabel, loadShares, unshare, type ShareEntry } from './share';
 import { ShareConnections } from './ShareConnections';
 import { addFiles, copyText, dropSending, linesOf, retrySending, useShareQueue, watchShares, type Made, type Sending } from './shareQueue';
-import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import './phone.css';
 
-const day = (at: string) => new Date(at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
+const day = (at: string) => fmtDate(new Date(at), { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** Wie lange ein neuer Link gilt — dieselbe Wahl wie beim Anhang einer SMS. */
 const DAYS_PREF = 'sms.linkDays';
 
 export function SharesView({ who }: { who: Who }) {
+  const t = useT();
   const [ctx, setCtx] = useState<PhoneCtx | null>(null);
   const [list, setList] = useState<readonly ShareEntry[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [daysText, setDaysText] = useRemembered(DAYS_PREF, '30');
   const days = (SHARE_DAYS as readonly number[]).includes(Number(daysText)) ? Number(daysText) : 30;
   const { queue, made } = useShareQueue();
-  useCrumbs([{ label: 'Pliki przez link', href: null }]);
+  useCrumbs([{ label: t('phoneShare.view.title'), href: null }]);
   useEffect(() => watchShares(), []);
 
   const load = useCallback(async () => {
@@ -59,9 +61,9 @@ export function SharesView({ who }: { who: Who }) {
       setList(await loadShares(opened));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać linków.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('phoneShare.view.loadFailed'));
     }
-  }, [who]);
+  }, [who, t]);
   useEffect(() => { void load(); }, [load]);
   /* Ein neuer Link ist fertig: die Liste neu — er steht dann oben. */
   const madeCount = made.length;
@@ -91,16 +93,16 @@ export function SharesView({ who }: { who: Who }) {
   const remove = async (entry: ShareEntry) => {
     if (ctx === null) return;
     const yes = await ask({
-      title: `Usunąć ${entry.label?.name ?? 'ten plik'}?`,
-      body: 'Link przestanie działać od razu — także u tych, którzy już go dostali.',
-      confirm: 'Usuń', danger: true
+      title: entry.label === null ? t('phoneShare.view.removeAskThis') : t('phoneShare.view.removeAsk', { name: entry.label.name }),
+      body: t('phoneShare.view.removeBody'),
+      confirm: t('common.delete'), danger: true
     });
     if (!yes) return;
     try {
       await unshare(ctx, entry.id);
-      toast('Usunięto — link już nie działa.');
+      toast(t('phoneShare.view.removed'));
     } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.');
+      toast(e instanceof WorkspaceError ? e.message : t('phoneShare.view.removeFailed'));
     }
     await load();
   };
@@ -112,26 +114,24 @@ export function SharesView({ who }: { who: Who }) {
   const total = (list ?? []).reduce((n, s) => n + s.size, 0);
   return (
     <>
-      <PageHeader title="Pliki przez link" meta={list === null || list.length === 0 ? undefined : `${list.length} · razem ${sizeText(total)}`} />
+      <PageHeader title={t('phoneShare.view.title')} meta={list === null || list.length === 0 ? undefined : t('phoneShare.view.meta', { count: list.length, size: sizeText(total) })} />
       <p className="ph-shares-intro">
-        Zdjęcia i pliki jako link — dodane tutaj, wysłane w SMS albo z Thunderbirda — w pełnej jakości, zaszyfrowane. Klucz jest tylko w linku;
-        recreatio.pl go nie zna. Po terminie plik znika sam.
+        {t('phoneShare.view.intro')}
       </p>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {ctx !== null && <ShareAdd days={days} onDays={(d) => setDaysText(String(d))} queue={queue} onFiles={take} />}
-      {dropping && <DropVeil text={`Upuść, a każdy plik dostanie link (ważny ${daysLabel(days)})`} />}
+      {dropping && <DropVeil text={t('phoneShare.view.drop', { days: daysLabel(days) })} />}
 
-      {list === null && failed === null && <Loading label="Wczytywanie linków…" />}
+      {list === null && failed === null && <Loading label={t('phoneShare.view.loading')} />}
       {list !== null && list.length === 0 && (
         <p className="wk-empty">
-          Nie ma jeszcze plików przez link. Dodaj plik wyżej — albo w rozmowie SMS dołącz zdjęcie lub plik i wybierz „Link — pełna jakość”,
-          albo połącz Thunderbirda (niżej).
+          {t('phoneShare.view.empty')}
         </p>
       )}
       {freshShown.length > 1 && (
         <div className="wk-actions ph-shares-fresh">
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => copyText(linesOf(freshShown), 'Skopiowano linki.')}>
-            <Icon name="copy" />Kopiuj nowe linki ({freshShown.length})
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => copyText(linesOf(freshShown), t('phoneShare.queue.copiedLinks'))}>
+            <Icon name="copy" />{t('phoneShare.view.copyNew', { count: freshShown.length })}
           </button>
         </div>
       )}
@@ -149,39 +149,40 @@ export default SharesView;
 
 /** Ein Link der Liste — ein neuer zeigt ihn ganz (zum Ansehen und Markieren). */
 function ShareRow({ entry: s, fresh, onRemove }: { entry: ShareEntry; fresh: boolean; onRemove: () => void }) {
+  const t = useT();
   const link = s.label === null ? null : shareLink(s.label.secret);
   const sent = (s.label !== null && s.label.to.length > 0) || s.device !== null;
   const share = link !== null && typeof navigator.share === 'function'
-    ? () => void navigator.share({ url: link, title: s.label?.name ?? 'Plik' }).catch(() => undefined)
+    ? () => void navigator.share({ url: link, title: s.label?.name ?? t('phoneShare.view.file') }).catch(() => undefined)
     : null;
   return (
     <li className={cls('ph-share', fresh && 'is-new')}>
       <span className="ph-share-name">
-        <Icon name={s.label?.type.startsWith('image/') === true ? 'image' : 'file'} />{s.label?.name ?? 'Plik'}
-        {fresh && <span className="wk-tag wk-tag-new">nowy</span>}
+        <Icon name={s.label?.type.startsWith('image/') === true ? 'image' : 'file'} />{s.label?.name ?? t('phoneShare.view.file')}
+        {fresh && <span className="wk-tag wk-tag-new">{t('phoneShare.view.new')}</span>}
       </span>
       <small>
-        {sizeText(s.size)} · {sent ? 'wysłano' : 'dodano'} {day(s.createdAt)}
-        {s.label !== null && s.label.to.length > 0 ? ` · do ${s.label.to.map(phoneShown).join(', ')}` : ''}
-        {s.device !== null ? ` · z: ${s.device.name ?? 'Thunderbird'}` : ''}
+        {sizeText(s.size)} · {t(sent ? 'phoneShare.view.sentOn' : 'phoneShare.view.addedOn', { date: day(s.createdAt) })}
+        {s.label !== null && s.label.to.length > 0 ? ` · ${t('phoneShare.view.to', { to: s.label.to.map(phoneShown).join(', ') })}` : ''}
+        {s.device !== null ? ` · ${t('phoneShare.view.from', { device: s.device.name ?? 'Thunderbird' })}` : ''}
       </small>
-      <small>ważny do {day(s.expiresAt)} · {s.downloads === 0 ? 'jeszcze nie otwarty' : `otwarty ${s.downloads}×`}</small>
+      <small>{t('phoneShare.view.validUntil', { date: day(s.expiresAt) })} · {s.downloads === 0 ? t('phoneShare.view.notOpened') : t('phoneShare.view.opened', { count: s.downloads })}</small>
       {fresh && link !== null && (
-        <input className="ph-share-link" readOnly value={link} aria-label={`Link do ${s.label?.name ?? 'pliku'}`}
+        <input className="ph-share-link" readOnly value={link} aria-label={t('phoneShare.view.linkTo', { name: s.label?.name ?? t('phoneShare.view.file') })}
           onFocus={(e) => e.currentTarget.select()} />
       )}
       <span className="ph-share-tools">
         {link !== null && s.label !== null && (
           <>
-            <button type="button" className="wk-link-btn" onClick={() => copyText(link)}><Icon name="copy" />Kopiuj link</button>
-            {share !== null && <button type="button" className="wk-link-btn" onClick={share}><Icon name="share" />Udostępnij…</button>}
+            <button type="button" className="wk-link-btn" onClick={() => copyText(link)}><Icon name="copy" />{t('phoneShare.view.copyLink')}</button>
+            {share !== null && <button type="button" className="wk-link-btn" onClick={share}><Icon name="share" />{t('phoneShare.view.shareTo')}</button>}
             {phoneHere() && (
-              <a className="wk-link-btn" href={`${viewPath('sms', 'nowa')}?tekst=${encodeURIComponent(link)}`}><Icon name="send" />Wyślij SMS</a>
+              <a className="wk-link-btn" href={`${viewPath('sms', 'nowa')}?tekst=${encodeURIComponent(link)}`}><Icon name="send" />{t('phoneShare.view.sendSms')}</a>
             )}
-            <a className="wk-link-btn" href={`#/plik/${s.label.secret}`}><Icon name="eye" />Otwórz</a>
+            <a className="wk-link-btn" href={`#/plik/${s.label.secret}`}><Icon name="eye" />{t('common.open')}</a>
           </>
         )}
-        <button type="button" className="wk-link-btn wk-danger-link" onClick={onRemove}><Icon name="trash" />Usuń</button>
+        <button type="button" className="wk-link-btn wk-danger-link" onClick={onRemove}><Icon name="trash" />{t('common.delete')}</button>
       </span>
     </li>
   );
@@ -198,52 +199,54 @@ function ShareAdd({ days, onDays, queue, onFiles }: {
   queue: readonly Sending[];
   onFiles: (files: readonly File[]) => void;
 }) {
+  const t = useT();
   const picker = useRef<HTMLInputElement | null>(null);
   const touch = coarsePointer();
   return (
-    <section className="ph-share-add" aria-label="Nowy link do pliku">
+    <section className="ph-share-add" aria-label={t('phoneShare.add.title')}>
       <div className="ph-share-add-row">
-        <button type="button" className="wk-btn" onClick={() => picker.current?.click()}><Icon name="upload" />Dodaj pliki…</button>
+        <button type="button" className="wk-btn" onClick={() => picker.current?.click()}><Icon name="upload" />{t('phoneShare.add.pick')}</button>
         <label className="ph-share-days">
-          <span>Link ważny</span>
+          <span>{t('phoneShare.add.valid')}</span>
           <select value={days} onChange={(e) => onDays(Number(e.target.value))}>
             {SHARE_DAYS.map((d) => <option key={d} value={d}>{daysLabel(d)}</option>)}
           </select>
         </label>
       </div>
       <p className="ph-share-add-note">
-        {touch ? 'Każdy plik (do 25 MB) dostaje własny link.' : 'Albo przeciągnij pliki na stronę lub wklej je (Ctrl+V). Każdy plik (do 25 MB) dostaje własny link.'}
+        {touch ? t('phoneShare.add.noteTouch') : t('phoneShare.add.note')}
       </p>
       {queue.length > 0 && (
-        <ul className="ph-sending" aria-label="Wysyłane pliki">
+        <ul className="ph-sending" aria-label={t('phoneShare.add.sending')}>
           {queue.map((q) => <SendingRow key={q.key} item={q} />)}
         </ul>
       )}
-      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label="Wybierz pliki"
+      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label={t('phoneShare.add.pickLabel')}
         onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; onFiles(files); }} />
     </section>
   );
 }
 
 function SendingRow({ item: q }: { item: Sending }) {
+  const t = useT();
   const percent = q.done === null ? null : Math.round(q.done * 100);
-  const state = q.state === 'waiting' ? 'czeka'
-    : q.state === 'failed' ? 'nie wysłano'
-    : percent === null ? 'szyfrowanie…' : `wysyłanie… ${percent}%`;
+  const state = q.state === 'waiting' ? t('phoneShare.add.waiting')
+    : q.state === 'failed' ? t('phoneShare.add.notSent')
+    : percent === null ? t('phoneShare.add.encrypting') : t('phoneShare.add.uploading', { percent });
   return (
     <li className={cls('ph-share', 'ph-send', q.state === 'failed' && 'is-failed')}>
       <span className="ph-share-name"><Icon name="file" />{q.name}</span>
-      <small>{sizeText(q.size)} · link ważny {daysLabel(q.days)} · <span role="status">{state}</span></small>
+      <small>{sizeText(q.size)} · {t('phoneShare.add.validFor', { days: daysLabel(q.days) })} · <span role="status">{state}</span></small>
       {q.state === 'sending' && (
-        <progress className="ph-progress" value={q.done ?? undefined} max={1} aria-label={`Wysyłanie: ${q.name}`} />
+        <progress className="ph-progress" value={q.done ?? undefined} max={1} aria-label={t('phoneShare.add.uploadingName', { name: q.name })} />
       )}
       {q.error !== null && <p className="wk-error">{q.error}</p>}
       <span className="ph-share-tools">
         {q.state === 'failed' && q.size <= SHARE_MAX && (
-          <button type="button" className="wk-link-btn" onClick={() => retrySending(q.key)}><Icon name="refresh" />Spróbuj ponownie</button>
+          <button type="button" className="wk-link-btn" onClick={() => retrySending(q.key)}><Icon name="refresh" />{t('common.retry')}</button>
         )}
         <button type="button" className="wk-link-btn" onClick={() => dropSending(q.key)}>
-          <Icon name="x" />{q.state === 'sending' ? 'Przerwij' : q.state === 'failed' ? 'Usuń z listy' : 'Nie wysyłaj'}
+          <Icon name="x" />{q.state === 'sending' ? t('phoneShare.add.stop') : q.state === 'failed' ? t('phoneShare.add.removeFromList') : t('phoneShare.add.dontSend')}
         </button>
       </span>
     </li>

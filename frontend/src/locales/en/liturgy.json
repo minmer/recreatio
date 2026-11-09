@@ -1,7 +1,6 @@
 {
   "name": "Liturgy",
   "htmlLang": "en",
-  "libraryLede": "Source collections and liturgical libraries: separate structures, connected through references.",
   "sourcesCollection": "Sources and books",
   "collectionType": "Collection type",
   "lede": "Reusable texts, editions and passages, with calendars and rules for assembling the Office and Mass.",

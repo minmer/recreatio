@@ -21,7 +21,7 @@ import { partSize, type PartSize } from './part';
 import { partOf } from './parts/registry';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
-import { BLOCKED_KIND, BLOCKED_PART_TEXT, reportPath } from '../reports/reportPath';
+import { BLOCKED_KIND, reportPath } from '../reports/reportPath';
 import { useT, type Lang } from '../core/i18n';
 import { InLang } from './pageLang';
 import { langOfLayout } from './layout';
@@ -151,7 +151,7 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
 
   const quiet = (className: string, said: string | null) => <p className={className}>{said}</p>;
   const body = part === undefined ? <Loading label={t('common.loading')} />
-    : part !== null && part.kind === BLOCKED_KIND ? quiet('wk-blocked', BLOCKED_PART_TEXT)
+    : part !== null && part.kind === BLOCKED_KIND ? quiet('wk-blocked', t('reports.blockedPart'))
     : blockedPage ? quiet('wk-blocked', failed)
     : part === null || def === undefined ? quiet('wk-hint', failed ?? t('pages.widget.cannotShow'))
     : (

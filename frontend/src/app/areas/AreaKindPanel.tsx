@@ -22,7 +22,7 @@ import { createCalendar } from '../calendar/calendar';
 import { loadProgram, openProgram, type ProgramNode } from '../calendar/program';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
-import { plural } from '../core/plural';
+import { rich, t as tApp, useT, type T } from '../core/i18n';
 import { forgetKeys, keysFor } from '../core/ringOf';
 import { call, WorkspaceError, type Who } from '../core/session';
 import { Listings } from '../events/AreaEventSettings';
@@ -77,15 +77,15 @@ const ClassTools = later(() => import('./ClassTools').then((m) => m.ClassTools))
 
 /** „Rekolekcje 2027" → „rekolekcje-2027" — so, wie eine Adresse heissen darf. */
 export const slugOf = (name: string): string => name.toLowerCase()
-  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'wydarzenie';
+  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l') // i18n-ignore — Adresse ohne Diakritika
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'wydarzenie'; // i18n-ignore — eine Adresse
 
 /** Die Fragen eines neuen Formulars zgłoszeń. */
 export const SIGNUP_QUESTIONS = [
-  { id: 'q1', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
-  { id: 'q2', kind: 'line', label: 'Nazwisko', required: true, halfWidth: true, identity: 'surname' },
-  { id: 'q3', kind: 'phone', label: 'Telefon', required: true, halfWidth: true, identity: 'phone' },
-  { id: 'q4', kind: 'email', label: 'E-mail', required: false, halfWidth: true, identity: 'email' }
+  { id: 'q1', kind: 'line', get label() { return tApp('areasKind.signup.given'); }, required: true, halfWidth: true, identity: 'given_name' },
+  { id: 'q2', kind: 'line', get label() { return tApp('areasKind.signup.surname'); }, required: true, halfWidth: true, identity: 'surname' },
+  { id: 'q3', kind: 'phone', get label() { return tApp('areasKind.signup.phone'); }, required: true, halfWidth: true, identity: 'phone' },
+  { id: 'q4', kind: 'email', get label() { return tApp('areasKind.signup.email'); }, required: false, halfWidth: true, identity: 'email' }
 ] as const;
 
 /** Ein Baustein, der auf eine Seite kommt — unter alles, was dort steht. */
@@ -121,7 +121,7 @@ function below(parts: readonly DraftPart[], box: NewPart['box']): Partial<Record
 /** Bausteine ans Ende einer Seite — die anderen bleiben, wie sie sind. */
 export async function addToPage(path: string, wanted: readonly NewPart[]): Promise<void> {
   const page = await loadPage(path);
-  if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
+  if (page.locked === true) throw new WorkspaceError(tApp('areasKind.pageSealed'));
   let parts: DraftPart[] = page.parts.map(toDraft);
   for (const one of wanted) {
     parts = [...parts, {
@@ -150,10 +150,10 @@ export async function createSubpage(input: {
     try {
       await setPageController(input.path, input.areaId);
     } catch (e) {
-      note = `Strona powstała, ale nie podaje jeszcze administratora danych tego obszaru: ${failure(e, 'błąd')}`;
+      note = tApp('areasKind.pageNoController', { error: failure(e, tApp('areasSchool.school.error')) });
     }
   }
-  await savePage(input.path, { title: input.title.trim() || 'Strona', lead: input.lead });
+  await savePage(input.path, { title: input.title.trim() || tApp('areasKind.page'), lead: input.lead });
   if (input.parts.length > 0) await addToPage(input.path, input.parts);
   return { note };
 }
@@ -166,17 +166,17 @@ export async function createSignupForm(who: Who, ring: Ring, input: {
   readonly areaId: string; readonly name: string; readonly publishTo: string; readonly onStage: (what: string) => void;
 }): Promise<{ formId: string; note: string | null }> {
   const formId = newId();
-  input.onStage('Tworzenie formularza…');
+  input.onStage(tApp('areasKind.stage.form'));
   await createModule(formId, 'form', input.name, input.areaId, 'person');
   await writeFormContent(who, { moduleId: formId, areaId: input.areaId }, { questions: SIGNUP_QUESTIONS },
     { replace: false, answersTo: input.areaId, onStage: input.onStage });
   let note: string | null = null;
   if (input.publishTo !== input.areaId) {
-    input.onStage('Pytania w obszarze publikacji…');
+    input.onStage(tApp('areasKind.stage.questions'));
     try {
       await moveQuestions(ring, formId, input.publishTo);
     } catch (e) {
-      note = `Pytania formularza zostały w tym obszarze (${failure(e, 'nie udało się ich przenieść')}) — zmienisz to w ustawieniach formularza.`;
+      note = tApp('areasKind.questionsStayed', { error: failure(e, tApp('areasKind.questionsNotMoved')) });
     }
   }
   return { formId, note };
@@ -198,13 +198,13 @@ export async function createAreaRole(ring: Ring, person: SealedRole, input: {
 
 /** 0109 — der Kurs: Baza wiedzy mit täglicher Powtórka, die Antworten in den Bereich (Przyjęcia). */
 export async function createCourseBase(ring: Ring, person: SealedRole, areaId: string, name: string, onStage: (what: string) => void): Promise<string> {
-  onStage('Zakładanie bazy wiedzy…');
+  onStage(tApp('areasKind.stage.base'));
   const libraryId = await createLibrary(ring, areaId, name, 'knowledge');
   if (!(await loadIntake(areaId).then(() => true, () => false))) {
-    onStage('Klucz przyjęć odpowiedzi (kilka sekund)…');
+    onStage(tApp('areasKind.stage.intake'));
     await createIntake(ring, areaId, person.id);
   }
-  onStage('Codzienna powtórka…');
+  onStage(tApp('areasKind.stage.revision'));
   const store = storeOf(ring, { libraryId, areaId });
   await store.sync();
   const [{ CogitaLibrary }, { REVISION_PRESETS }] = await Promise.all([import('../cogita/store'), import('../cogita/presets')]);
@@ -227,7 +227,7 @@ export async function myWriter(ring: Ring, areaId: string): Promise<string> {
   const { members } = await loadMembers(areaId);
   const mine = members.filter((m) => ring.has(m.roleId));
   const writer = mine.find((m) => m.capabilities.includes('admin')) ?? mine.find((m) => m.capabilities.includes('write'));
-  if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+  if (writer === undefined) throw new WorkspaceError(tApp('areas.page.noWriter'));
   return writer.roleId;
 }
 
@@ -376,19 +376,39 @@ export interface RoleDef {
   readonly capability: 'read' | 'write' | 'admin';
   readonly says: string;
   readonly link: string;
+  /** Der polnische Name aus der Zeit vor den Sprachen — ältere Rollen heissen so. */
+  readonly legacy?: string;
 }
 
-const ORGANISERS: RoleDef = { key: 'organisers', label: 'Organizatorzy', capability: 'admin', says: 'prowadzą wszystko', link: 'Link dla organizatorów' };
-const HELPERS: RoleDef = { key: 'helpers', label: 'Pomocnicy', capability: 'write', says: 'piszą w kalendarzu i rozmowach', link: 'Link dla pomocników' };
-const PARTICIPANTS: RoleDef = { key: 'participants', label: 'Uczestnicy', capability: 'read', says: 'czytają strony, kalendarz i rozmowy; dostaje ją każdy zapisany', link: 'Link dla uczestników' };
-const MEMBERS: RoleDef = { key: 'members', label: 'Członkowie', capability: 'write', says: 'piszą w rozmowie i kalendarzu grupy', link: 'Link dla członków' };
-const LEADERS: RoleDef = { key: 'leaders', label: 'Prowadzący', capability: 'admin', says: 'prowadzą grupę', link: 'Link dla prowadzących' };
-const LEARNERS: RoleDef = { key: 'learners', label: 'Uczący się', capability: 'read', says: 'uczą się z bazy, a Ty widzisz ich postępy', link: 'Link dla uczących się' };
+const ORGANISERS: RoleDef = {
+  key: 'organisers', capability: 'admin', legacy: 'Organizatorzy', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.organisers.label'); }, get says() { return tApp('areasKind.role.organisers.says'); }, get link() { return tApp('areasKind.role.organisers.link'); }
+};
+const HELPERS: RoleDef = {
+  key: 'helpers', capability: 'write', legacy: 'Pomocnicy', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.helpers.label'); }, get says() { return tApp('areasKind.role.helpers.says'); }, get link() { return tApp('areasKind.role.helpers.link'); }
+};
+const PARTICIPANTS: RoleDef = {
+  key: 'participants', capability: 'read', legacy: 'Uczestnicy', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.participants.label'); }, get says() { return tApp('areasKind.role.participants.says'); }, get link() { return tApp('areasKind.role.participants.link'); }
+};
+const MEMBERS: RoleDef = {
+  key: 'members', capability: 'write', legacy: 'Członkowie', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.members.label'); }, get says() { return tApp('areasKind.role.members.says'); }, get link() { return tApp('areasKind.role.members.link'); }
+};
+const LEADERS: RoleDef = {
+  key: 'leaders', capability: 'admin', legacy: 'Prowadzący', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.leaders.label'); }, get says() { return tApp('areasKind.role.leaders.says'); }, get link() { return tApp('areasKind.role.leaders.link'); }
+};
+const LEARNERS: RoleDef = {
+  key: 'learners', capability: 'read', legacy: 'Uczący się', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasKind.role.learners.label'); }, get says() { return tApp('areasKind.role.learners.says'); }, get link() { return tApp('areasKind.role.learners.link'); }
+};
 
 /** Die Rolle einer Art — unter ihrem Schlüssel (auch aus einem JSON-Import), sonst an ihrem Namen („Uczestnicy: Rekolekcje 2027"). */
 export const roleFor = (roles: readonly RoleSeen[], def: RoleDef): RoleSeen | null =>
   roles.find((r) => r.key === def.key)
-  ?? roles.find((r) => r.name !== null && (r.name === def.label || r.name.startsWith(`${def.label}:`))) ?? null;
+  ?? roles.find((r) => r.name !== null && [def.label, def.legacy].some((n) => n !== undefined && (r.name === n || r.name!.startsWith(`${n}:`)))) ?? null;
 
 /* == Der Reiter ================================================================== */
 
@@ -420,10 +440,12 @@ export interface Ctx {
   readonly setOpen: (id: string | null) => void;
   readonly links: Readonly<Record<string, string>>;
   readonly setLink: (key: string, url: string) => void;
+  /** Die Wörter in der Sprache des Reiters. */
+  readonly t: T;
 }
 
 export const nameOf = (ctx: Ctx, areaId: string): string =>
-  areaId === ctx.area.areaId ? ctx.area.name : ctx.areas.find((a) => a.areaId === areaId)?.name ?? 'inny obszar';
+  areaId === ctx.area.areaId ? ctx.area.name : ctx.areas.find((a) => a.areaId === areaId)?.name ?? ctx.t('areasKind.otherArea');
 
 export const isPublic = (ctx: Ctx, areaId: string): boolean => {
   if (areaId === ctx.area.areaId) return ctx.state.public;
@@ -442,6 +464,7 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
   /** Den JSON des Bereichs zeigen — nicht, wenn ihn die Seite schon darunter hält (`AreaPage`). */
   withJson?: boolean;
 }) {
+  const t = useT();
   const [world, setWorld] = useState<World | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -464,12 +487,12 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
     try {
       const keys = await keysFor(who);
       const person = selfOf(keys.graph);
-      if (keys.ring === null || person === null) throw new WorkspaceError('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.');
+      if (keys.ring === null || person === null) throw new WorkspaceError(t('areasKind.passwordFirst'));
       const said = await act({ ring: keys.ring, person, step: setBusy });
       toast(done, { kind: 'ok' });
       if (typeof said === 'string' && said !== '') setNote(said);
     } catch (e) {
-      toast(failure(e, 'Nie udało się — część mogła już powstać.'), { kind: 'error' });
+      toast(failure(e, t('areasKind.partlyFailed')), { kind: 'error' });
     } finally {
       /* Auch nach einem Fehler: ein Teil kann schon stehen. */
       forgetKeys();
@@ -478,9 +501,9 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
       setBusy(null);
       onChanged();
     }
-  }, [who, onChanged]);
+  }, [who, onChanged, t]);
 
-  if (world === null) return failed ? <p className="wk-error">Nie udało się wczytać tego obszaru.</p> : <Loading lines={3} />;
+  if (world === null) return failed ? <p className="wk-error">{t('areasKind.loadFailed')}</p> : <Loading lines={3} />;
 
   const main = profile.main?.path ?? null;
   const signup = (main === null ? undefined : world.forms.find((f) => f.extendsId === null && f.pages.includes(main)))
@@ -491,13 +514,14 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
     title: (world.card?.title ?? '').trim() || area.name,
     publishTo: profile.publishAreaId ?? area.areaId,
     main, signup, open, setOpen, links,
-    setLink: (key, url) => setLinks((was) => ({ ...was, [key]: url }))
+    setLink: (key, url) => setLinks((was) => ({ ...was, [key]: url })),
+    t
   };
 
   const daily = profile.kind === 'school' || profile.kind === 'class';
   const tools = (
     <section className="wk-kind-sec" aria-labelledby="kind-tools-h">
-      <h2 className="wk-h2" id="kind-tools-h">{TOOLS_TITLE[profile.kind]}</h2>
+      <h2 className="wk-h2" id="kind-tools-h">{t(`areasKind.toolsTitle.${profile.kind}`)}</h2>
       <ul className="wk-kind-tools">
         {profile.kind === 'event' && <EventTools ctx={ctx} />}
         {profile.kind === 'group' && <GroupTools ctx={ctx} />}
@@ -515,11 +539,11 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
 
       {state.admin ? (
         <>
-          {ring === null && <p className="wk-warn">Klucze nie są otwarte w tej karcie — podaj hasło, żeby coś tu zmienić.</p>}
+          {ring === null && <p className="wk-warn">{t('areasKind.keysClosed')}</p>}
           {busy !== null && <p className="wk-working" role="status">{busy}</p>}
           {note !== null && (
             <p className="wk-note" role="status">
-              {note} <button type="button" className="wk-link-btn" onClick={() => setNote(null)}>Zamknij</button>
+              {note} <button type="button" className="wk-link-btn" onClick={() => setNote(null)}>{t('common.close')}</button>
             </p>
           )}
 
@@ -529,7 +553,7 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
           {daily && tools}
 
           <section className="wk-kind-sec" aria-labelledby="kind-card-h">
-            <h2 className="wk-h2" id="kind-card-h">Wizytówka</h2>
+            <h2 className="wk-h2" id="kind-card-h">{t('areasJson.plan.card')}</h2>
             <CardEditor key={`${profile.card?.sealed ?? ''}|${profile.imageId ?? ''}|${profile.category ?? ''}|${world.card?.title ?? ''}`} ctx={ctx} />
           </section>
 
@@ -544,13 +568,13 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
           )}
         </>
       ) : (
-        <p className="wk-note">Wizytówkę i narzędzia zmienia ten, kto prowadzi obszar.</p>
+        <p className="wk-note">{t('areasKind.leaderChanges')}</p>
       )}
 
       {/* Importieren legt an und ändert — das tut, wer den Bereich führt. */}
       {state.admin && withJson && (
         <section className="wk-kind-sec" aria-labelledby="kind-json-h">
-          <h2 className="wk-h2" id="kind-json-h">Import i eksport (JSON dla AI)</h2>
+          <h2 className="wk-h2" id="kind-json-h">{t('areas.page.jsonTitle')}</h2>
           <AreaJsonPanel area={area} ring={ring} who={who} onImported={onChanged} />
         </section>
       )}
@@ -558,19 +582,12 @@ export function AreaKindPanel({ who, area, areas, ring, state, profile, onChange
   );
 }
 
-const TOOLS_TITLE: Record<ProfileKind, string> = {
-  event: 'Wydarzenie krok po kroku',
-  group: 'Grupa',
-  organisation: 'Parafia / organizacja',
-  course: 'Kurs',
-  school: 'Szkoła: klasy i programy',
-  class: 'Klasa: dziennik, uczniowie, plan lekcji'
-};
+/* Die Überschrift der Werkzeuge je Art: `areasKind.toolsTitle.<art>`. */
 
 /* == Für jeden Leser: die Karte ================================================== */
 
 function Summary({ ctx }: { ctx: Ctx }) {
-  const { profile, world, area, state } = ctx;
+  const { profile, world, area, state, t } = ctx;
   const card = world.card;
   const item = profile.item;
   const when = item === null || item.startsAt === null ? null
@@ -591,21 +608,21 @@ function Summary({ ctx }: { ctx: Ctx }) {
         <p className="wk-kind-tags">
           <span className="wk-tag">{kindLabel(profile.kind)}</span>
           {profile.category !== null && profile.category !== '' && <span className="wk-tag">{profile.category}</span>}
-          {profile.archivedAt !== null ? <span className="wk-tag">zakończone</span> : profile.ended ? <span className="wk-tag">po terminie</span> : null}
-          {state.openForms.length > 0 && <span className="wk-tag wk-tag-open">Zapisy otwarte</span>}
+          {profile.archivedAt !== null ? (<span className="wk-tag">{t('areasKind.summary.ended')}</span>) : profile.ended ? (<span className="wk-tag">{t('areasKind.summary.past')}</span>) : null}
+          {state.openForms.length > 0 && <span className="wk-tag wk-tag-open">{t('areasKind.summary.open')}</span>}
         </p>
         <h2 className="wk-kind-title" id="kind-title">{(card?.title ?? '').trim() || area.name}</h2>
         {card !== null && card.lead.trim() !== '' && <p className="wk-kind-lead">{card.lead}</p>}
         {profile.card !== null && card === null && (
-          <p className="wk-card-muted">Wizytówki nie da się tu odczytać — brak klucza obszaru, w którym jest widoczna.</p>
+          <p className="wk-card-muted">{t('areasKind.summary.cardUnread')}</p>
         )}
         {(when !== null || place !== null) && <p className="wk-kind-when">{[when, place].filter((x) => x !== null).join(' · ')}</p>}
         {(ctx.main !== null || after !== null || talk !== null || channel !== null) && (
           <p className="wk-kind-links">
-            {ctx.main !== null && <a className="wk-link" href={pagePath(ctx.main)}>Strona główna</a>}
-            {after !== null && <a className="wk-link" href={pagePath(after)}>Po wydarzeniu{profile.ended ? '' : ' (ukryta do końca)'}</a>}
-            {talk !== null && <a className="wk-link" href={viewPath('chat', talk.chatId)}>Rozmowa</a>}
-            {channel !== null && <a className="wk-link" href={viewPath('chat', channel.chatId)}>Kanał</a>}
+            {ctx.main !== null && <a className="wk-link" href={pagePath(ctx.main)}>{t('areasKind.summary.main')}</a>}
+            {after !== null && <a className="wk-link" href={pagePath(after)}>{profile.ended ? t('areasKind.summary.after') : t('areasKind.summary.afterHidden')}</a>}
+            {talk !== null && <a className="wk-link" href={viewPath('chat', talk.chatId)}>{t('areas.page.chatLink')}</a>}
+            {channel !== null && <a className="wk-link" href={viewPath('chat', channel.chatId)}>{t('areas.page.channelLink')}</a>}
           </p>
         )}
       </div>
@@ -644,19 +661,19 @@ export function Go({ ctx, label, to }: { ctx: Ctx; label: string; to: string }) 
 }
 
 function checksOf(ctx: Ctx): Check[] {
-  const { state, profile, world, area } = ctx;
+  const { state, profile, world, area, t } = ctx;
   const c = state.controller;
   const settings = viewPath('areas', area.areaId, 'ustawienia');
   const out: Check[] = [];
 
   out.push({
     key: 'controller', ok: c !== null,
-    text: c !== null ? <>Administrator danych: {c.name}</>
-      : profile.kind === 'group' ? 'Brak administratora danych — rozmowa grupy nie powstanie.'
+    text: c !== null ? t('areasKind.check.controller', { name: c.name })
+      : profile.kind === 'group' ? t('areasKind.check.noControllerGroup')
       /* 2026-10-27 — eine öffentliche Seite braucht ihn (0129): ohne ihn keine Seite des Kurses, auf die der Link führt. */
-      : profile.kind === 'course' ? 'Brak administratora danych — strona kursu z powtórką dla uczących się nie powstanie.'
-      : 'Brak administratora danych — formularze nic nie przyjmą, a rozmowy nie powstaną.',
-    fix: <a className="wk-btn wk-btn-line wk-btn-small" href={settings}>Wskaż go</a>
+      : profile.kind === 'course' ? t('areasKind.check.noControllerCourse')
+      : t('areasKind.check.noController'),
+    fix: <a className="wk-btn wk-btn-line wk-btn-small" href={settings}>{t('areasKind.check.setIt')}</a>
   });
 
   if (profile.kind === 'event') {
@@ -668,9 +685,9 @@ function checksOf(ctx: Ctx): Check[] {
         key: 'page-controller',
         ok: responsible !== null && (responsible.areaId === area.areaId || responsible.controller?.id === c.id),
         text: responsible !== null && (responsible.areaId === area.areaId || responsible.controller?.id === c.id)
-          ? 'Strona główna podaje administratora danych tego obszaru.'
-          : 'Strona główna podaje innego administratora danych niż ten obszar.',
-        fix: <Fix ctx={ctx} label="Przypisz stronę do obszaru" what="Przypisywanie strony…" done="Strona podaje administratora danych tego obszaru."
+          ? t('areasKind.check.pageController')
+          : t('areasKind.check.pageOtherController'),
+        fix: <Fix ctx={ctx} label={t('areasKind.check.assignPage')} what={t('areasKind.check.assigning')} done={t('areasKind.check.pageAssigned')}
           act={async () => { await setPageController(main, area.areaId); }} />
       });
     }
@@ -679,15 +696,15 @@ function checksOf(ctx: Ctx): Check[] {
     if (profile.itemId !== null && vis !== null && !isPublic(ctx, vis)) {
       out.push({
         key: 'term-public', ok: false,
-        text: `Termin widzą tylko członkowie „${nameOf(ctx, vis)}” — na kartach nie będzie daty.`,
-        fix: <Go ctx={ctx} label="Zmień, gdzie widać" to="term" />
+        text: t('areasKind.check.termMembers', { name: nameOf(ctx, vis) }),
+        fix: <Go ctx={ctx} label={t('areasKind.check.changeWhere')} to="term" />
       });
     }
     out.push(signupCheck(ctx));
     out.push({
       key: 'public-card', ok: world.publicCard !== null,
-      text: world.publicCard !== null ? 'Karta jest widoczna publicznie — na listach „Wydarzenia”.'
-        : 'Karta jeszcze się nie pokazuje: strona główna musi być publiczna, a wizytówka w jawnym obszarze.'
+      text: world.publicCard !== null ? t('areasKind.check.cardPublic')
+        : t('areasKind.check.cardHidden')
     });
   }
 
@@ -695,14 +712,14 @@ function checksOf(ctx: Ctx): Check[] {
     const talk = world.chats.find((x) => x.kind === 'area') ?? null;
     out.push({
       key: 'chat', ok: talk !== null,
-      text: talk !== null ? 'Rozmowa grupy jest.' : 'Grupa nie ma jeszcze rozmowy.',
-      fix: <Fix ctx={ctx} label="Załóż rozmowę" what="Zakładanie rozmowy…" done="Rozmowa grupy jest gotowa." act={(held) => makeChat(ctx, held, false)} />
+      text: talk !== null ? t('areasKind.check.groupChat') : t('areasKind.check.groupNoChat'),
+      fix: <Fix ctx={ctx} label={t('areasKind.check.makeChat')} what={t('areas.page.creatingChat')} done={t('areasKind.check.groupChatReady')} act={(held) => makeChat(ctx, held, false)} />
     });
     const members = roleFor(world.roles, MEMBERS);
     out.push({
       key: 'members', ok: members !== null,
-      text: members !== null ? 'Rola członków jest — link dla członków utworzysz niżej.' : 'Brak roli członków — bez niej nie ma linku dla członków.',
-      fix: <Fix ctx={ctx} label="Utwórz rolę członków" what="Tworzenie roli…" done="Rola członków jest gotowa." act={(held) => makeRole(ctx, held, MEMBERS)} />
+      text: members !== null ? t('areasKind.check.members') : t('areasKind.check.noMembers'),
+      fix: <Fix ctx={ctx} label={t('areasKind.check.makeMembers')} what={t('areasKind.check.makingRole')} done={t('areasKind.check.membersReady')} act={(held) => makeRole(ctx, held, MEMBERS)} />
     });
   }
 
@@ -710,15 +727,15 @@ function checksOf(ctx: Ctx): Check[] {
     out.push(mainCheck(ctx));
     out.push({
       key: 'public', ok: state.public,
-      text: state.public ? 'Obszar jest jawny — jego strona i listy są dla wszystkich.' : 'Obszar nie jest jawny — jego listy i wizytówkę zobaczą tylko członkowie.',
-      fix: <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', area.areaId, 'dostep')}>Dostęp → Dla wszystkich</a>
+      text: state.public ? t('areasKind.check.public') : t('areasKind.check.notPublic'),
+      fix: <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', area.areaId, 'dostep')}>{t('areasKind.check.accessForAll')}</a>
     });
     if (ctx.main !== null) {
       const has = (world.page?.parts ?? []).some((p) => p.kind === 'events');
       out.push({
         key: 'lists', ok: has,
-        text: has ? 'Strona główna ma listę wydarzeń lub grup.' : 'Na stronie głównej nie ma jeszcze list wydarzeń ani grup.',
-        fix: <Go ctx={ctx} label="Dodaj listy" to="lists" />
+        text: has ? t('areasKind.check.lists') : t('areasKind.check.noLists'),
+        fix: <Go ctx={ctx} label={t('areasKind.check.addLists')} to="lists" />
       });
     }
   }
@@ -727,44 +744,43 @@ function checksOf(ctx: Ctx): Check[] {
     const bases = world.bases;
     out.push({
       key: 'base', ok: bases.length > 0,
-      text: bases.length === 1 ? 'Kurs korzysta z jednej bazy wiedzy.'
-        : bases.length > 1 ? `Kurs korzysta z ${bases.length} baz wiedzy.` : 'Kurs nie ma jeszcze bazy wiedzy.',
+      text: bases.length > 0 ? t('areasKind.check.bases', { count: bases.length }) : t('areasKind.check.noBase'),
       fix: (
         <>
-          <Fix ctx={ctx} label="Utwórz bazę" what="Zakładanie bazy…" done="Baza wiedzy jest gotowa." act={(held) => makeBase(ctx, held)} />
-          {world.otherBases.length > 0 && <Go ctx={ctx} label="Wybierz istniejącą" to="base" />}
+          <Fix ctx={ctx} label={t('areasKind.check.makeBase')} what={t('areasKind.check.makingBase')} done={t('areasKind.check.baseReady')} act={(held) => makeBase(ctx, held)} />
+          {world.otherBases.length > 0 && <Go ctx={ctx} label={t('areasKind.check.chooseExisting')} to="base" />}
         </>
       )
     });
     const learners = roleFor(world.roles, LEARNERS);
     out.push({
       key: 'learners', ok: learners !== null,
-      text: learners !== null ? 'Rola uczących się jest — link utworzysz niżej.' : 'Brak roli uczących się.',
-      fix: <Fix ctx={ctx} label="Utwórz rolę" what="Tworzenie roli…" done="Rola uczących się jest gotowa." act={(held) => makeRole(ctx, held, LEARNERS)} />
+      text: learners !== null ? t('areasKind.check.learners') : t('areasKind.check.noLearners'),
+      fix: <Fix ctx={ctx} label={t('areasKind.check.makeRole')} what={t('areasKind.check.makingRole')} done={t('areasKind.check.learnersReady')} act={(held) => makeRole(ctx, held, LEARNERS)} />
     });
     /* 2026-11-01 — Bazy aus anderen Bereichen: die Uczący się müssen sie lesen, sonst sehen sie auf der Seite nichts. */
     const closed = bases.filter((b) => b.row !== null && !b.own && !world.learnersIn.has(b.row.areaId) && !isPublic(ctx, b.row.areaId));
     if (closed.length > 0) {
       out.push({
         key: 'access', ok: false,
-        text: `Uczący się nie czytają ${closed.length === 1 ? 'obszaru bazy' : 'obszarów baz'} ${closed.map((b) => `„${b.name ?? 'Baza wiedzy'}”`).join(', ')} — nie zobaczą ${closed.length === 1 ? 'jej' : 'ich'} na stronie.`,
-        fix: <Fix ctx={ctx} label="Wpuść uczących się" what="Dostęp dla uczących się…" done="Uczący się czytają bazy kursu." act={(held) => letLearnersIntoAll(ctx, held, closed)} />
+        text: t('areasKind.check.learnersClosed', { count: closed.length, names: closed.map((b) => t('areasJson.quoted', { name: b.name ?? t('areasKind.base') })).join(', ') }),
+        fix: <Fix ctx={ctx} label={t('areasKind.check.letLearners')} what={t('areasKind.check.lettingLearners')} done={t('areasKind.check.learnersRead')} act={(held) => letLearnersIntoAll(ctx, held, closed)} />
       });
     }
     if (ctx.main !== null && bases.length > 0) {
       const learning = bases.some((b) => b.learning.length > 0);
       out.push({
         key: 'learnpage', ok: learning,
-        text: learning ? 'Na stronie głównej jest nauka z bazy kursu — link dla uczących się prowadzi tam.' : 'Na stronie głównej nie ma jeszcze powtórki — tam uczą się osoby z linku, także bez konta.',
-        fix: <Fix ctx={ctx} label="Dodaj powtórki" what="Dodawanie powtórek…" done="Powtórki są na stronie głównej." act={(held) => placeAll(ctx, held)} />
+        text: learning ? t('areasKind.check.learnPage') : t('areasKind.check.noLearnPage'),
+        fix: <Fix ctx={ctx} label={t('areasKind.check.addRevisions')} what={t('areasKind.check.addingRevisions')} done={t('areasKind.check.revisionsAdded')} act={(held) => placeAll(ctx, held)} />
       });
       /* Ein Lernbaustein, dessen Antworten nicht ausdrücklich in den Kurs gehen (womöglich in einen anderen Kurs derselben Baza). */
       const stray = strayLearning(pageParts(ctx), ctx.area.areaId, (id) => insideCourse(ctx, id));
       if (stray.length > 0) {
         out.push({
           key: 'answers', ok: false,
-          text: `${stray.length === 1 ? 'Moduł nauki' : `${stray.length} moduły nauki`} na stronie głównej nie ${stray.length === 1 ? 'kieruje' : 'kierują'} odpowiedzi do kursu — ich postępów możesz tu nie zobaczyć.`,
-          fix: <Fix ctx={ctx} label="Kieruj do kursu" what="Zapisywanie strony…" done="Odpowiedzi z modułów nauki idą do kursu." act={() => routeAnswers(ctx)} />
+          text: t('areasKind.check.stray', { count: stray.length }),
+          fix: <Fix ctx={ctx} label={t('areasKind.check.route')} what={t('areasKind.check.savingPage')} done={t('areasKind.check.routed')} act={() => routeAnswers(ctx)} />
         });
       }
     }
@@ -774,92 +790,96 @@ function checksOf(ctx: Ctx): Check[] {
 }
 
 function cardCheck(ctx: Ctx): Check {
-  const { profile, world } = ctx;
+  const { profile, world, t } = ctx;
   if (profile.card !== null && world.card === null) {
-    return { key: 'card', ok: null, text: 'Wizytówka jest, ale nie da się jej tu odczytać.' };
+    return { key: 'card', ok: null, text: t('areasKind.check.cardUnread') };
   }
   const ok = world.card !== null && world.card.title.trim() !== '';
   return {
     key: 'card', ok,
-    text: ok ? <>Wizytówka: {world.card?.title}{isPublic(ctx, profile.card?.areaId ?? ctx.area.areaId) ? '' : ' (widzą ją tylko członkowie)'}</>
-      : 'Brak wizytówki — tytułu i opisu na kartach i listach.',
-    fix: <Go ctx={ctx} label="Uzupełnij" to="card" />
+    text: ok ? t(isPublic(ctx, profile.card?.areaId ?? ctx.area.areaId) ? 'areasKind.check.card' : 'areasKind.check.cardMembers', { title: world.card?.title ?? '' })
+      : t('areasKind.check.noCard'),
+    fix: <Go ctx={ctx} label={t('areasKind.check.complete')} to="card" />
   };
 }
 
 function publishCheck(ctx: Ctx): Check {
+  const { t } = ctx;
   const name = nameOf(ctx, ctx.publishTo);
   const suggested = defaultPublishArea(ctx.areas, ctx.area.areaId);
   const better = suggested !== ctx.publishTo && isPublic(ctx, suggested) ? suggested : null;
   return {
     key: 'publish', ok: ctx.state.publishPublic,
-    text: ctx.state.publishPublic ? `Publikujesz w jawnym obszarze „${name}”.`
-      : `„${name}” nie jest jawny — kartę, termin i pytania zobaczą tylko jego członkowie.`,
+    text: ctx.state.publishPublic ? t('areasKind.check.publishPublic', { name })
+      : t('areasKind.check.publishClosed', { name }),
     fix: better !== null
-      ? <Fix ctx={ctx} label={`Publikuj w „${nameOf(ctx, better)}”`} what="Zapisywanie…" done={`Nowe rzeczy pokażesz w „${nameOf(ctx, better)}”.`}
+      ? <Fix ctx={ctx} label={t('areasKind.check.publishIn', { name: nameOf(ctx, better) })} what={t('common.saving')} done={t('areasKind.check.publishedIn', { name: nameOf(ctx, better) })}
         act={async () => { await saveProfile(ctx.area.areaId, { publishAreaId: better }); }} />
-      : <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', ctx.publishTo, 'dostep')}>Otwórz go dla wszystkich</a>
+      : <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', ctx.publishTo, 'dostep')}>{t('areasKind.check.openForAll')}</a>
   };
 }
 
 function mainCheck(ctx: Ctx): Check {
+  const { t } = ctx;
   return {
     key: 'main', ok: ctx.main !== null,
-    text: ctx.main !== null ? <>Strona główna: <a className="wk-link" href={pagePath(ctx.main)}>recreatio.pl/{ctx.main}</a></> : 'Brak strony głównej.',
-    fix: <Go ctx={ctx} label="Utwórz stronę" to="main" />
+    text: ctx.main !== null ? <>{t('areasKind.check.mainLabel')} <a className="wk-link" href={pagePath(ctx.main)}>{`recreatio.pl/${ctx.main}`}</a></> : t('areasKind.check.noMain'),
+    fix: <Go ctx={ctx} label={t('areasKind.check.makePage')} to="main" />
   };
 }
 
 function termCheck(ctx: Ctx): Check {
+  const { t } = ctx;
   const item = ctx.profile.item;
   const when = item === null || item.startsAt === null ? null
     : whenText({ id: ctx.profile.itemId ?? '', startsAt: item.startsAt, endsAt: item.endsAt, allDay: item.allDay, status: null, fields: [] });
   return {
     key: 'term', ok: ctx.profile.itemId !== null,
-    text: ctx.profile.itemId !== null ? `Główny termin: ${when ?? 'ustawiony'}` : 'Brak głównego terminu — od niego zależy data na kartach i koniec wydarzenia.',
-    fix: <Go ctx={ctx} label="Dodaj termin" to="term" />
+    text: ctx.profile.itemId !== null ? t('areasKind.check.term', { when: when ?? t('areasKind.check.termSet') }) : t('areasKind.check.noTerm'),
+    fix: <Go ctx={ctx} label={t('areasKind.check.addTerm')} to="term" />
   };
 }
 
 function signupCheck(ctx: Ctx): Check {
-  const { state, profile } = ctx;
+  const { state, profile, t } = ctx;
   const form = ctx.signup;
-  if (state.openForms.length > 0) return { key: 'signup', ok: true, text: 'Zapisy otwarte — formularz przyjmuje zgłoszenia.' };
-  if (profile.archivedAt !== null) return { key: 'signup', ok: null, text: 'Zapisy zamknięte — wydarzenie się skończyło.' };
+  if (state.openForms.length > 0) return { key: 'signup', ok: true, text: t('areasKind.check.signupOpen') };
+  if (profile.archivedAt !== null) return { key: 'signup', ok: null, text: t('areasKind.check.signupEnded') };
   if (form === null) {
     return {
-      key: 'signup', ok: false, text: 'Brak formularza zgłoszeń.',
-      fix: <Fix ctx={ctx} label="Utwórz formularz" what="Tworzenie formularza…" done="Formularz zgłoszeń jest gotowy." act={(held) => makeSignup(ctx, held)} />
+      key: 'signup', ok: false, text: t('areasKind.check.noSignup'),
+      fix: <Fix ctx={ctx} label={t('areasKind.check.makeForm')} what={t('areasKind.stage.form')} done={t('areasKind.check.formReady')} act={(held) => makeSignup(ctx, held)} />
     };
   }
   if (form.closed) {
-    return { key: 'signup', ok: false, text: 'Formularz zgłoszeń jest zamknięty.', fix: <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(form.moduleId)}>Otwórz formularz</a> };
+    return { key: 'signup', ok: false, text: t('areasKind.check.formClosed'), fix: <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(form.moduleId)}>{t('areasKind.check.openForm')}</a> };
   }
   if (ctx.main !== null && !form.pages.includes(ctx.main)) {
     return {
-      key: 'signup', ok: false, text: 'Formularz nie stoi na stronie głównej.',
-      fix: <Fix ctx={ctx} label="Postaw na stronie" what="Formularz na stronie…" done="Formularz stoi na stronie głównej." act={() => placeForm(ctx, form.moduleId)} />
+      key: 'signup', ok: false, text: t('areasKind.check.formNotOnPage'),
+      fix: <Fix ctx={ctx} label={t('areasKind.check.placeForm')} what={t('areasKind.check.placingForm')} done={t('areasKind.check.formPlaced')} act={() => placeForm(ctx, form.moduleId)} />
     };
   }
   const at = questionsAreaOf(form) ?? ctx.area.areaId;
   if (!isPublic(ctx, at)) {
     const target = isPublic(ctx, ctx.publishTo) && ctx.publishTo !== at ? ctx.publishTo : null;
     return {
-      key: 'signup', ok: false, text: `Pytania formularza leżą w „${nameOf(ctx, at)}”, którego nie czyta każdy.`,
+      key: 'signup', ok: false, text: t('areasKind.check.questionsIn', { name: nameOf(ctx, at) }),
       fix: target === null ? undefined
-        : <Fix ctx={ctx} label={`Pytania do „${nameOf(ctx, target)}”`} what="Przenoszenie pytań…" done="Pytania są widoczne w obszarze publikacji."
+        : <Fix ctx={ctx} label={t('areasKind.check.questionsTo', { name: nameOf(ctx, target) })} what={t('areasKind.check.movingQuestions')} done={t('areasKind.check.questionsMoved')}
           act={async (held) => { await moveQuestions(held.ring, form.moduleId, target === form.areaId ? null : target); }} />
     };
   }
-  return { key: 'signup', ok: false, text: 'Zapisy jeszcze nie przyjmują — strona główna musi być publiczna, a obszar mieć administratora danych.' };
+  return { key: 'signup', ok: false, text: t('areasKind.check.signupNotYet') };
 }
 
 function Readiness({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const checks = checksOf(ctx);
   const missing = checks.filter((c) => c.ok === false).length;
   return (
     <section className="wk-kind-sec" aria-labelledby="kind-ready-h">
-      <h2 className="wk-h2" id="kind-ready-h">{missing === 0 ? 'Wszystko gotowe' : `Do zrobienia: ${missing}`}</h2>
+      <h2 className="wk-h2" id="kind-ready-h">{missing === 0 ? t('areasKind.ready') : t('areasKind.todo', { count: missing })}</h2>
       <ul className="wk-kind-checks">
         {checks.map((c) => (
           <li key={c.key} className={c.ok === true ? 'is-ok' : c.ok === false ? 'is-missing' : 'is-unknown'} data-check={c.key}>
@@ -875,10 +895,11 @@ function Readiness({ ctx }: { ctx: Ctx }) {
 
 /* == Wizytówka und wohin =========================================================== */
 
-const CATEGORIES = ['rekolekcje', 'pielgrzymka', 'wyjazd', 'obóz', 'warsztaty', 'koncert', 'spotkanie', 'kurs', 'schola', 'oaza'];
+const CATEGORIES = ['rekolekcje', 'pielgrzymka', 'wyjazd', 'obóz', 'warsztaty', 'koncert', 'spotkanie', 'kurs', 'schola', 'oaza']; // i18n-ignore — vorgeschlagene Werte (Daten)
 
 /** Ein Bereich zur Wahl: der eigene und die, die ich führe — mit „każdy" / „tylko członkowie". */
 export function WherePick({ ctx, label, value, onPick }: { ctx: Ctx; label: string; value: string; onPick: (areaId: string) => void }) {
+  const { t } = ctx;
   const choices = publishChoices(ctx.areas, ctx.area.areaId);
   return (
     <div className="wk-field">
@@ -890,7 +911,7 @@ export function WherePick({ ctx, label, value, onPick }: { ctx: Ctx; label: stri
         value={value}
         disabled={ctx.busy}
         onChange={onPick}
-        note={(areaId) => (isPublic(ctx, areaId) ? 'widzi każdy' : 'tylko członkowie')}
+        note={(areaId) => (isPublic(ctx, areaId) ? t('areasKind.where.everyone') : t('areasKind.where.members'))}
       />
     </div>
   );
@@ -899,27 +920,28 @@ export function WherePick({ ctx, label, value, onPick }: { ctx: Ctx; label: stri
 function ImagePick({ images, value, busy, hasPage, onPick }: {
   images: readonly PageImageRow[]; value: string; busy: boolean; hasPage: boolean; onPick: (id: string) => void;
 }) {
+  const t = useT();
   if (images.length === 0 && value === '') {
     return (
       <p className="wk-kind-small">
-        {hasPage ? 'Zdjęcie wybierzesz z plików strony głównej — dodaj je w edytorze strony.' : 'Zdjęcie wybierzesz z plików strony głównej, gdy ją utworzysz.'}
+        {hasPage ? t('areasKind.image.fromPage') : t('areasKind.image.later')}
       </p>
     );
   }
   const shown: readonly { id: string; name: string | null }[] = value !== '' && !images.some((one) => one.id === value)
-    ? [{ id: value, name: 'obecne zdjęcie' }, ...images] : images;
+    ? [{ id: value, name: t('areasKind.image.current') }, ...images] : images;
   return (
     <div className="wk-field">
-      <span>Zdjęcie</span>
-      <div className="wk-kind-images" role="radiogroup" aria-label="Zdjęcie">
+      <span>{t('areasKind.image.label')}</span>
+      <div className="wk-kind-images" role="radiogroup" aria-label={t('areasKind.image.label')}>
         <label className={`wk-kind-pick${value === '' ? ' is-on' : ''}`}>
           <input type="radio" name="kind-image" checked={value === ''} disabled={busy} onChange={() => onPick('')} />
-          <span className="wk-kind-pick-none">bez zdjęcia</span>
+          <span className="wk-kind-pick-none">{t('areasKind.image.none')}</span>
         </label>
         {shown.map((one) => (
           <label key={one.id} className={`wk-kind-pick${value === one.id ? ' is-on' : ''}`}>
             <input type="radio" name="kind-image" checked={value === one.id} disabled={busy} onChange={() => onPick(one.id)} />
-            <FadeImg src={eventImageUrl(one.id)} alt={one.name ?? 'zdjęcie'} loading="lazy" decoding="async" />
+            <FadeImg src={eventImageUrl(one.id)} alt={one.name ?? t('areasKind.image.alt')} loading="lazy" decoding="async" />
           </label>
         ))}
       </div>
@@ -944,12 +966,12 @@ async function syncMainTitle(ctx: Ctx, next: CardText): Promise<string | null> {
     await savePage(path, { title: next.title.trim(), lead });
     return null;
   } catch (e) {
-    return `Wizytówka zapisana, ale tytułu strony głównej nie udało się zmienić: ${failure(e, 'błąd')}`;
+    return ctx.t('areasKind.card.titleNotSynced', { error: failure(e, ctx.t('areasSchool.school.error')) });
   }
 }
 
 function CardEditor({ ctx }: { ctx: Ctx }) {
-  const { profile, world, area } = ctx;
+  const { profile, world, area, t } = ctx;
   /* Eine Grupa und eine Klasa zeigen ihre Wizytówka zuerst nur ihren Menschen. */
   const firstWhere = profile.card?.areaId ?? (profile.kind === 'group' || profile.kind === 'class' ? area.areaId : ctx.publishTo);
   const [title, setTitle] = useState(world.card?.title ?? '');
@@ -962,10 +984,10 @@ function CardEditor({ ctx }: { ctx: Ctx }) {
   const changed = title !== (world.card?.title ?? '') || lead !== (world.card?.lead ?? '') || category !== (profile.category ?? '')
     || imageId !== (profile.imageId ?? '') || where !== firstWhere || unreadable;
 
-  const save = () => ctx.run('Zapisywanie wizytówki…', 'Zapisano wizytówkę.', async (held) => {
+  const save = () => ctx.run(t('areasKind.card.saving'), t('areasKind.card.saved'), async (held) => {
     const empty = title.trim() === '' && lead.trim() === '';
     const card = empty ? { sealed: '' as const } : await sealCard(held.ring, area.areaId, where, { title, lead }).catch(() => {
-      throw new WorkspaceError(`Nie masz klucza obszaru „${nameOf(ctx, where)}” — wybierz inny w „Gdzie widać”.`);
+      throw new WorkspaceError(t('areasKind.card.noKey', { name: nameOf(ctx, where) }));
     });
     await saveProfile(area.areaId, { card, category: category.trim(), ...(imageId !== (profile.imageId ?? '') ? { imageId } : {}) });
     return (await syncMainTitle(ctx, { title, lead })) ?? undefined;
@@ -974,55 +996,55 @@ function CardEditor({ ctx }: { ctx: Ctx }) {
   return (
     <form className="wk-kind-form" id="kind-card" onSubmit={(e) => { e.preventDefault(); void save(); }}>
       {unreadable && (
-        <p className="wk-warn">Obecnej wizytówki nie da się tu odczytać (brak klucza obszaru „{nameOf(ctx, profile.card?.areaId ?? '')}”) — zapis ją zastąpi.</p>
+        <p className="wk-warn">{t('areasKind.card.unreadable', { name: nameOf(ctx, profile.card?.areaId ?? '') })}</p>
       )}
       <label className="wk-field">
-        <span>Tytuł</span>
+        <span>{t('common.title')}</span>
         <input value={title} maxLength={200} disabled={ctx.busy} placeholder={area.name} data-kind-title="" onChange={(e) => setTitle(e.target.value)} />
       </label>
       <label className="wk-field">
-        <span>Opis</span>
-        <textarea value={lead} rows={3} maxLength={600} disabled={ctx.busy} placeholder="Jednym, dwoma zdaniami: dla kogo i o czym." onChange={(e) => setLead(e.target.value)} />
+        <span>{t('common.description')}</span>
+        <textarea value={lead} rows={3} maxLength={600} disabled={ctx.busy} placeholder={t('areasKind.card.leadPlaceholder')} onChange={(e) => setLead(e.target.value)} />
       </label>
       <label className="wk-field">
-        <span>Kategoria (do filtrów na listach)</span>
-        <input value={category} maxLength={40} disabled={ctx.busy} list="kind-categories" placeholder="np. rekolekcje" onChange={(e) => setCategory(e.target.value)} />
+        <span>{t('areasKind.card.category')}</span>
+        <input value={category} maxLength={40} disabled={ctx.busy} list="kind-categories" placeholder={t('areasKind.card.categoryPlaceholder')} onChange={(e) => setCategory(e.target.value)} />
       </label>
       <datalist id="kind-categories">
         {CATEGORIES.map((one) => <option key={one} value={one} />)}
       </datalist>
       <ImagePick images={world.images} value={imageId} busy={ctx.busy} hasPage={ctx.main !== null} onPick={setImageId} />
-      <WherePick ctx={ctx} label="Gdzie widać wizytówkę" value={where} onPick={setWhere} />
+      <WherePick ctx={ctx} label={t('areasKind.card.where')} value={where} onPick={setWhere} />
       <div className="wk-actions">
-        <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || !changed} data-kind-save-card="">Zapisz wizytówkę</button>
+        <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || !changed} data-kind-save-card="">{t('areasKind.card.save')}</button>
       </div>
     </form>
   );
 }
 
 function PublishSection({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const now = ctx.publishTo;
   const suggested = defaultPublishArea(ctx.areas, ctx.area.areaId);
   const pick = (next: string) => {
     if (next === now) return;
-    void ctx.run('Zapisywanie…', `Nowe rzeczy pokażesz w „${nameOf(ctx, next)}”.`, async () => {
+    void ctx.run(t('common.saving'), t('areasKind.check.publishedIn', { name: nameOf(ctx, next) }), async () => {
       await saveProfile(ctx.area.areaId, { publishAreaId: next === ctx.area.areaId ? '' : next });
     });
   };
   return (
     <section className="wk-kind-sec" aria-labelledby="kind-publish-h" id="kind-publish">
-      <h2 className="wk-h2" id="kind-publish-h">Publikuj w</h2>
-      <WherePick ctx={ctx} label="Nowe rzeczy pokazuj w" value={now} onPick={pick} />
+      <h2 className="wk-h2" id="kind-publish-h">{t('areasKind.publish.title')}</h2>
+      <WherePick ctx={ctx} label={t('areasKind.publish.label')} value={now} onPick={pick} />
       {suggested !== now && isPublic(ctx, suggested) && (
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => pick(suggested)}>
-            Proponowany: „{nameOf(ctx, suggested)}” — jawny, prowadzisz go
+            {t('areasKind.publish.suggested', { name: nameOf(ctx, suggested) })}
           </button>
         </div>
       )}
       <p className="wk-kind-small">
-        Wizytówka, główny termin i pytania formularzy mogą być widoczne w innym obszarze niż dane — odpowiedzi, osoby i rozmowy
-        zostają tutaj. Każdą rzecz możesz potem przenieść osobno; do innego obszaru publikujesz tylko, gdy prowadzisz oba.
+        {t('areasKind.publish.note')}
       </p>
     </section>
   );
@@ -1073,13 +1095,14 @@ function GroupTools({ ctx }: { ctx: Ctx }) {
 }
 
 function OrganisationTools({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const c = ctx.state.controller;
   return (
     <>
-      <Tool id="controller" name="Administrator danych" ok={c !== null}
-        says={c !== null ? <>{c.name} — odpowiada za dane wydarzeń i grup w tym obszarze i niżej.</> : 'Wskaż go — będzie odpowiadał za dane wszystkich wydarzeń i grup w tym obszarze i niżej.'}>
+      <Tool id="controller" name={t('areas.page.controller')} ok={c !== null}
+        says={c !== null ? t('areasKind.org.controller', { name: c.name }) : t('areasKind.org.noController')}>
         <div className="wk-actions">
-          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', ctx.area.areaId, 'ustawienia')}>{c !== null ? 'Ustawienia' : 'Wskaż'}</a>
+          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', ctx.area.areaId, 'ustawienia')}>{c !== null ? t('common.settings') : t('areasKind.org.set')}</a>
         </div>
       </Tool>
       <MainPageTool ctx={ctx} />
@@ -1094,15 +1117,16 @@ function OrganisationTools({ ctx }: { ctx: Ctx }) {
  * Hauptseite mit ihr lernt — und Otwórz, Postępy (die dieses Kurses), Dodaj na stronę, Odłącz.
  */
 function CourseTools({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const bases = ctx.world.bases;
   const picking = ctx.open === 'base';
   return (
     <>
-      <Tool id="base" name={bases.length > 1 ? 'Bazy wiedzy' : 'Baza wiedzy'} ok={bases.length > 0}
+      <Tool id="base" name={bases.length > 1 ? t('areasKind.course.bases') : t('areasKind.base')} ok={bases.length > 0}
         says={bases.length > 0
-          ? 'Z tych baz uczą się uczący się kursu. Każda zostaje w swoim obszarze i może służyć też innym kursom i stronom — odpowiedzi z modułów tego kursu idą do kursu.'
-          : ctx.world.otherBases.length > 0 ? 'Wpisy i pytania kursu, z codzienną powtórką dla uczących się — nowa baza albo te, które już masz (ile chcesz).'
-          : 'Wpisy i pytania kursu, z codzienną powtórką dla uczących się.'}>
+          ? t('areasKind.course.basesSays')
+          : ctx.world.otherBases.length > 0 ? t('areasKind.course.noBaseOthers')
+          : t('areasKind.course.noBase')}>
         {bases.length > 0 && (
           <ul className="wk-kind-bases" data-course-bases={bases.length}>
             {bases.map((b) => <BaseRow key={b.libraryId} ctx={ctx} base={b} />)}
@@ -1111,12 +1135,12 @@ function CourseTools({ ctx }: { ctx: Ctx }) {
         {picking ? <PickBase ctx={ctx} /> : (
           <div className="wk-actions">
             <button type="button" className={bases.length === 0 ? 'wk-btn wk-btn-small' : 'wk-btn wk-btn-line wk-btn-small'} disabled={ctx.busy} data-course-new=""
-              onClick={() => void ctx.run('Zakładanie bazy…', 'Baza wiedzy jest gotowa.', (held) => makeBase(ctx, held))}>
-              {bases.length === 0 ? 'Utwórz bazę' : 'Utwórz nową bazę'}
+              onClick={() => void ctx.run(t('areasKind.check.makingBase'), t('areasKind.check.baseReady'), (held) => makeBase(ctx, held))}>
+              {bases.length === 0 ? t('areasKind.check.makeBase') : t('areasKind.course.makeNew')}
             </button>
             {ctx.world.otherBases.length > 0 && (
               <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-pick="" onClick={() => ctx.setOpen('base')}>
-                {bases.length === 0 ? 'Wybierz istniejącą' : 'Dodaj istniejącą'}
+                {bases.length === 0 ? t('areasKind.check.chooseExisting') : t('areasKind.course.addExisting')}
               </button>
             )}
           </div>
@@ -1130,48 +1154,49 @@ function CourseTools({ ctx }: { ctx: Ctx }) {
 
 /** Eine Baza des Kurses — eine Zeile mit ihrem Stand und ihren Handgriffen. */
 function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
-  const name = base.name ?? 'Baza wiedzy';
+  const { t } = ctx;
+  const name = base.name ?? t('areasKind.base');
   const row = base.row;
   const learners = roleFor(ctx.world.roles, LEARNERS);
   const elsewhere = row !== null && !base.own;
   const reads = row === null || base.own || ctx.world.learnersIn.has(row.areaId);
   const open = !reads && row !== null && isPublic(ctx, row.areaId);
   const state = [
-    row === null ? 'nie masz już do niej dostępu' : null,
-    elsewhere ? (reads ? 'uczący się czytają ten obszar' : open ? 'obszar jest jawny' : 'uczący się nie czytają tego obszaru') : null,
-    ctx.main === null ? null : base.learning.length > 0 ? 'na stronie głównej ✓' : 'nie ma jej na stronie głównej'
+    row === null ? t('areasKind.course.noAccess') : null,
+    elsewhere ? (reads ? t('areasKind.course.learnersRead') : open ? t('areasKind.course.areaPublic') : t('areasKind.course.learnersDont')) : null,
+    ctx.main === null ? null : base.learning.length > 0 ? t('areasKind.course.onMain') : t('areasKind.course.notOnMain')
   ].filter((x): x is string => x !== null);
   const unlink = async () => {
     const remaining = ctx.world.bases.filter((b) => b.libraryId !== base.libraryId && b.row !== null).map((b) => b.row!);
     const closes = row !== null && learners !== null && ctx.world.learnersIn.has(row.areaId) && closesArea(ctx.area.areaId, row, remaining);
     const yes = await ask({
-      title: `Odłączyć „${name}” od kursu?`,
+      title: t('areasKind.course.unlinkAsk', { name }),
       body: [
-        base.parts.length > 0 ? 'Jej moduły znikną ze strony głównej kursu.' : null,
-        closes && row !== null ? `Rola „${LEARNERS.label}” przestanie czytać obszar „${nameOf(ctx, row.areaId)}”.` : null,
-        'Baza, jej wpisy i postępy zostają, jak są — także w innych kursach, które z niej korzystają.'
+        base.parts.length > 0 ? t('areasKind.course.unlinkModules') : null,
+        closes && row !== null ? t('areasKind.course.unlinkRole', { role: LEARNERS.label, name: nameOf(ctx, row.areaId) }) : null,
+        t('areasKind.course.unlinkStays')
       ].filter((x) => x !== null).join(' '),
-      confirm: 'Odłącz'
+      confirm: t('areas.audience.detach')
     });
-    if (yes) void ctx.run('Odłączanie bazy…', `„${name}” nie jest już w kursie.`, (held) => unlinkBase(ctx, held, base, closes));
+    if (yes) void ctx.run(t('areasKind.course.unlinking'), t('areasKind.course.unlinked', { name }), (held) => unlinkBase(ctx, held, base, closes));
   };
   return (
     <li className="wk-kind-base" data-course-base={base.libraryId}>
-      <p className="wk-kind-base-name"><strong>„{name}”</strong>{row !== null && <span className="wk-card-muted"> — {base.own ? 'w obszarze kursu' : `obszar „${nameOf(ctx, row.areaId)}”`}</span>}</p>
+      <p className="wk-kind-base-name"><strong>{t('areasJson.quoted', { name })}</strong>{row !== null && <span className="wk-card-muted"> — {base.own ? t('areasKind.course.inCourse') : t('areasKind.course.inArea', { name: nameOf(ctx, row.areaId) })}</span>}</p>
       {state.length > 0 && <p className="wk-kind-small" data-course-base-state="">{state.join(' · ')}</p>}
       <div className="wk-actions">
-        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', row.libraryId, 'wpisy')}>Otwórz</a>}
+        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', row.libraryId, 'wpisy')}>{t('common.open')}</a>}
         {/* 2026-10-27 — wie die Uczący się lernen; 2026-11-01 — die DIESES Kurses (sein Bereich in der Adresse). */}
-        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', row.libraryId, 'postepy', answersOfBase(pageParts(ctx), base.learning, ctx.area.areaId))} data-course-progress="">Postępy uczących się</a>}
+        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', row.libraryId, 'postepy', answersOfBase(pageParts(ctx), base.learning, ctx.area.areaId))} data-course-progress="">{t('areasKind.course.progress')}</a>}
         {row !== null && ctx.main !== null && base.learning.length === 0 && (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-place=""
-            onClick={() => void ctx.run('Dodawanie powtórki…', 'Powtórka jest na stronie głównej.', (held) => placeBase(ctx, held, row))}>Dodaj na stronę</button>
+            onClick={() => void ctx.run(t('areasKind.course.addingRevision'), t('areasKind.course.revisionAdded'), (held) => placeBase(ctx, held, row))}>{t('areasKind.course.addToPage')}</button>
         )}
         {row !== null && !reads && !open && (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-letin=""
-            onClick={() => void ctx.run('Dostęp dla uczących się…', `Uczący się czytają obszar „${nameOf(ctx, row.areaId)}”.`, async (held) => { await letLearnersIn(ctx, held, [row.areaId]); })}>Wpuść uczących się</button>
+            onClick={() => void ctx.run(t('areasKind.check.lettingLearners'), t('areasKind.course.learnersReadArea', { name: nameOf(ctx, row.areaId) }), async (held) => { await letLearnersIn(ctx, held, [row.areaId]); })}>{t('areasKind.check.letLearners')}</button>
         )}
-        {!base.own && <button type="button" className="wk-link-btn" disabled={ctx.busy} data-course-unlink="" onClick={() => void unlink()}>Odłącz</button>}
+        {!base.own && <button type="button" className="wk-link-btn" disabled={ctx.busy} data-course-unlink="" onClick={() => void unlink()}>{t('areas.audience.detach')}</button>}
       </div>
     </li>
   );
@@ -1184,9 +1209,10 @@ function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
  * ändert sich nicht.
  */
 function PickBase({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const course = ctx.area.areaId;
   const read = ctx.world.learnersIn;
-  const name = (b: LibraryRow) => ctx.world.baseNames.get(b.libraryId) ?? 'Baza wiedzy';
+  const name = (b: LibraryRow) => ctx.world.baseNames.get(b.libraryId) ?? t('areasKind.base');
   const choices = ctx.world.otherBases.filter((b) => {
     if (b.areaId === course || read.has(b.areaId)) return true;
     const area = ctx.areas.find((a) => a.areaId === b.areaId);
@@ -1204,41 +1230,42 @@ function PickBase({ ctx }: { ctx: Ctx }) {
       e.preventDefault();
       if (chosen === undefined) return;
       const pick = { ...chosen, name: name(chosen) };
-      void ctx.run('Łączenie bazy z kursem…', `„${pick.name}” jest w kursie.`, (held) => addBase(ctx, held, pick, place && ctx.main !== null));
+      void ctx.run(t('areasKind.course.linking'), t('areasKind.course.linked', { name: pick.name }), (held) => addBase(ctx, held, pick, place && ctx.main !== null));
     }}>
       {chosen === undefined ? (
-        <p className="wk-kind-small">Nie ma bazy, którą można tu dodać: kurs może korzystać z bazy z obszaru, do którego możesz kogoś wpuścić — nie z Twojego prywatnego.</p>
+        <p className="wk-kind-small">{t('areasKind.course.noneToAdd')}</p>
       ) : (
         <>
           <label className="wk-field">
-            <span>Istniejąca baza wiedzy</span>
+            <span>{t('areasKind.course.existing')}</span>
             <select value={chosen.libraryId} disabled={ctx.busy} onChange={(e) => setPicked(e.target.value)} data-course-pick-select="">
-              {choices.map((b) => <option key={b.libraryId} value={b.libraryId}>{name(b)} — obszar „{nameOf(ctx, b.areaId)}”</option>)}
+              {choices.map((b) => <option key={b.libraryId} value={b.libraryId}>{t('areasKind.course.baseInArea', { base: name(b), name: nameOf(ctx, b.areaId) })}</option>)}
             </select>
           </label>
           {chosen.areaId === course ? (
-            <p className="wk-kind-small">Ta baza jest w obszarze kursu — uczący się już ją czytają.</p>
+            <p className="wk-kind-small">{t('areasKind.course.inCourseRead')}</p>
           ) : read.has(chosen.areaId) ? (
-            <p className="wk-kind-small">Uczący się już czytają obszar „{nameOf(ctx, chosen.areaId)}”.</p>
+            <p className="wk-kind-small">{t('areasKind.course.alreadyRead', { name: nameOf(ctx, chosen.areaId) })}</p>
           ) : (
             <p className="wk-warn" data-course-pick-warn="">
-              Baza zostaje w obszarze „{nameOf(ctx, chosen.areaId)}”. Rola „{LEARNERS.label}” dostanie do niego dostęp do czytania: uczący się z linku
-              zobaczą wszystko, co jest w tym obszarze{neighbours.length > 0 ? <>, także {neighbours.length === 1 ? 'bazę' : 'bazy'} {neighbours.map((b) => `„${name(b)}”`).join(', ')}</> : ''} — nie tylko tę bazę.
-              {roleFor(ctx.world.roles, LEARNERS) === null && ' Rola uczących się powstanie przy tym (kilkanaście sekund).'}
+              {neighbours.length > 0
+                ? t('areasKind.course.pickWarnNeighbours', { name: nameOf(ctx, chosen.areaId), role: LEARNERS.label, count: neighbours.length, bases: neighbours.map((b) => t('areasJson.quoted', { name: name(b) })).join(', ') })
+                : t('areasKind.course.pickWarn', { name: nameOf(ctx, chosen.areaId), role: LEARNERS.label })}
+              {roleFor(ctx.world.roles, LEARNERS) === null && ` ${t('areasKind.course.roleWillBeMade')}`}
             </p>
           )}
-          <p className="wk-kind-small">Ustawienia bazy się nie zmieniają — może też służyć innym kursom i stronom.</p>
+          <p className="wk-kind-small">{t('areasKind.course.settingsStay')}</p>
           {ctx.main !== null && (
             <label className="wk-check" data-course-pick-place="">
               <input type="checkbox" checked={place} disabled={ctx.busy} onChange={(e) => setPlace(e.target.checked)} />
-              <span>Dodaj jej powtórkę na stronę główną (odpowiedzi do kursu)</span>
+              <span>{t('areasKind.course.placeToo')}</span>
             </label>
           )}
         </>
       )}
       <div className="wk-actions">
-        {chosen !== undefined && <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-pick-go="">Dodaj tę bazę</button>}
-        <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>Anuluj</button>
+        {chosen !== undefined && <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-pick-go="">{t('areasKind.course.addThis')}</button>}
+        <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>{t('common.cancel')}</button>
       </div>
     </form>
   );
@@ -1247,6 +1274,7 @@ function PickBase({ ctx }: { ctx: Ctx }) {
 /* -- Strona główna, podstrony -- */
 
 export function MainPageTool({ ctx, optional = false }: { ctx: Ctx; optional?: boolean }) {
+  const { t } = ctx;
   const main = ctx.main;
   const editing = ctx.open === 'main';
   const pages = ctx.world.pages.filter((p) => p.path !== '');
@@ -1258,70 +1286,71 @@ export function MainPageTool({ ctx, optional = false }: { ctx: Ctx; optional?: b
 
   if (main !== null && !editing) {
     return (
-      <Tool id="main" name="Strona główna" ok says={<a className="wk-link" href={pagePath(main)}>recreatio.pl/{main}</a>}>
+      <Tool id="main" name={t('areasKind.summary.main')} ok says={<a className="wk-link" href={pagePath(main)}>{`recreatio.pl/${main}`}</a>}>
         <div className="wk-actions">
-          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(main))}>Edytuj stronę</a>
-          <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen('main')}>Wybierz inną</button>
+          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(main))}>{t('areasKind.main.edit')}</a>
+          <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen('main')}>{t('areasKind.main.other')}</button>
         </div>
       </Tool>
     );
   }
 
   return (
-    <Tool id="main" name="Strona główna" ok={main !== null ? true : optional ? null : false}
-      says={ctx.profile.kind === 'event' ? 'Strona, którą pokazują karty i listy — z wizytówką na górze.' : 'Strona, którą pokazują karty i listy.'}>
+    <Tool id="main" name={t('areasKind.summary.main')} ok={main !== null ? true : optional ? null : false}
+      says={ctx.profile.kind === 'event' ? t('areasKind.main.saysEvent') : t('areasKind.main.says')}>
       {pages.length === 0 ? (
         <p className="wk-kind-small">
-          Nie prowadzisz jeszcze żadnej strony — adres najwyższego poziomu bierze się kodem w <a className="wk-link" href={viewPath('pages')}>Stronach</a>.
+          {rich(t('areasKind.main.noPages'), { a: (s) => <a className="wk-link" href={viewPath('pages')}>{s}</a> })}
         </p>
       ) : (
         <form className="wk-kind-form" onSubmit={(e) => {
           e.preventDefault();
-          void ctx.run('Tworzenie strony…', 'Strona główna jest gotowa.', (held) => makeMainPage(ctx, held, `${under}/${address}`));
+          void ctx.run(t('areasKind.main.creating'), t('areasKind.main.ready'), (held) => makeMainPage(ctx, held, `${under}/${address}`));
         }}>
           <div className="wk-kind-row">
             <label className="wk-field">
-              <span>Nowa strona pod</span>
+              <span>{t('areasKind.main.under')}</span>
               <select value={under} disabled={ctx.busy} onChange={(e) => setParent(e.target.value)}>
-                {pages.map((p) => <option key={p.path} value={p.path}>recreatio.pl/{p.path}/…</option>)}
+                {pages.map((p) => <option key={p.path} value={p.path}>{`recreatio.pl/${p.path}/…`}</option>)}
               </select>
             </label>
             <label className="wk-field">
-              <span>Końcówka adresu</span>
+              <span>{t('areasKind.main.ending')}</span>
               <input value={slug} maxLength={40} disabled={ctx.busy} placeholder={slugOf(ctx.title)} onChange={(e) => setSlug(e.target.value)} />
             </label>
           </div>
-          <p className="wk-kind-address">recreatio.pl/{under}/{address}</p>
+          <p className="wk-kind-address">{`recreatio.pl/${under}/${address}`}</p>
           <div className="wk-actions">
-            <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || under === ''} data-kind-main="">Utwórz stronę</button>
+            <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || under === ''} data-kind-main="">{t('areasKind.check.makePage')}</button>
           </div>
         </form>
       )}
       <div className="wk-field">
-        <span>Albo istniejąca strona</span>
+        <span>{t('areasKind.main.existing')}</span>
         <PickPage value={picked} busy={ctx.busy} onPick={setPicked} />
       </div>
       <div className="wk-actions">
         {picked !== '' && picked !== main && (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-            onClick={() => void ctx.run('Zapisywanie…', 'Ustawiono stronę główną.', async () => { await saveProfile(ctx.area.areaId, { path: picked }); ctx.setOpen(null); })}>
-            Ustaw jako główną
+            onClick={() => void ctx.run(t('common.saving'), t('areasKind.main.set'), async () => { await saveProfile(ctx.area.areaId, { path: picked }); ctx.setOpen(null); })}>
+            {t('areasKind.main.setAsMain')}
           </button>
         )}
-        {editing && <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>Anuluj</button>}
+        {editing && <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>{t('common.cancel')}</button>}
       </div>
     </Tool>
   );
 }
 
 function SubpagesTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const [name, setName] = useState('');
   const main = ctx.main;
   if (main === null) return null;
   const after = ctx.profile.after?.path ?? null;
   const lower = ctx.world.pages.filter((p) => p.path.startsWith(`${main}/`) && p.path !== after);
   return (
-    <Tool id="sub" name="Podstrony" ok={lower.length > 0 ? true : null} says="Program, dojazd, regulamin — każda pod adresem strony głównej.">
+    <Tool id="sub" name={t('areasKind.sub.title')} ok={lower.length > 0 ? true : null} says={t('areasKind.sub.says')}>
       {lower.length > 0 && (
         <ul className="wk-kind-list">
           {lower.map((p) => <li key={p.path}><a className="wk-link" href={viewPath('pages', ...pageSteps(p.path))}>{p.path.slice(main.length + 1)}</a></li>)}
@@ -1331,16 +1360,16 @@ function SubpagesTool({ ctx }: { ctx: Ctx }) {
         e.preventDefault();
         const called = name.trim();
         if (called === '') return;
-        void ctx.run('Tworzenie podstrony…', 'Podstrona jest gotowa — dodaj na niej moduły.', async (held) => {
+        void ctx.run(t('areasKind.sub.creating'), t('areasKind.sub.ready'), async (held) => {
           await createSubpage({ path: `${main}/${slugOf(called)}`, roleId: held.person.id, areaId: null, title: called, lead: null, parts: [] });
           setName('');
         });
       }}>
         <label className="wk-field">
-          <span>Nowa podstrona</span>
-          <input value={name} maxLength={80} disabled={ctx.busy} placeholder="np. Program" onChange={(e) => setName(e.target.value)} />
+          <span>{t('areasKind.sub.new')}</span>
+          <input value={name} maxLength={80} disabled={ctx.busy} placeholder={t('areasKind.sub.placeholder')} onChange={(e) => setName(e.target.value)} />
         </label>
-        <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || name.trim() === ''}>Dodaj</button>
+        <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || name.trim() === ''}>{t('common.add')}</button>
       </form>
     </Tool>
   );
@@ -1349,15 +1378,16 @@ function SubpagesTool({ ctx }: { ctx: Ctx }) {
 /* -- Formularze -- */
 
 function SignupTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const form = ctx.signup;
   if (form === null) {
     return (
-      <Tool id="signup" name="Formularz zgłoszeń" ok={false}
-        says="Imię, nazwisko, telefon, e-mail. Odpowiedzi trafiają do tego obszaru, pytania widać tam, gdzie publikujesz.">
+      <Tool id="signup" name={t('areasKind.signupTool.title')} ok={false}
+        says={t('areasKind.signupTool.says')}>
         <div className="wk-actions">
           <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy} data-kind-signup=""
-            onClick={() => void ctx.run('Tworzenie formularza…', 'Formularz zgłoszeń jest gotowy.', (held) => makeSignup(ctx, held))}>
-            Utwórz formularz
+            onClick={() => void ctx.run(t('areasKind.stage.form'), t('areasKind.check.formReady'), (held) => makeSignup(ctx, held))}>
+            {t('areasKind.check.makeForm')}
           </button>
         </div>
       </Tool>
@@ -1367,40 +1397,41 @@ function SignupTool({ ctx }: { ctx: Ctx }) {
   const at = questionsAreaOf(form) ?? ctx.area.areaId;
   const open = ctx.state.openForms.includes(form.moduleId);
   return (
-    <Tool id="signup" name="Formularz zgłoszeń" ok={open}
-      says={<>{form.name} · {form.entries} {plural(form.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}{form.closed ? ' · zamknięty' : open ? ' · przyjmuje' : ' · jeszcze nie przyjmuje'}</>}>
+    <Tool id="signup" name={t('areasKind.signupTool.title')} ok={open}
+      says={`${form.name} · ${t('areasKind.signupTool.entries', { count: form.entries })} · ${form.closed ? t('areasKind.signupTool.closed') : open ? t('areasKind.signupTool.accepts') : t('areasKind.signupTool.notYet')}`}>
       <div className="wk-actions">
-        <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(form.moduleId)}>Otwórz</a>
+        <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(form.moduleId)}>{t('common.open')}</a>
         {!onMain && ctx.main !== null && (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-            onClick={() => void ctx.run('Formularz na stronie…', 'Formularz stoi na stronie głównej.', () => placeForm(ctx, form.moduleId))}>
-            Postaw na stronie głównej
+            onClick={() => void ctx.run(t('areasKind.check.placingForm'), t('areasKind.check.formPlaced'), () => placeForm(ctx, form.moduleId))}>
+            {t('areasKind.signupTool.place')}
           </button>
         )}
       </div>
-      <WherePick ctx={ctx} label="Pytania widać w" value={at} onPick={(next) => {
+      <WherePick ctx={ctx} label={t('areasKind.signupTool.where')} value={at} onPick={(next) => {
         if (next === at) return;
-        void ctx.run('Przenoszenie pytań…', `Pytania są teraz widoczne w „${nameOf(ctx, next)}”.`, async (held) => {
+        void ctx.run(t('areasKind.check.movingQuestions'), t('areasKind.signupTool.moved', { name: nameOf(ctx, next) }), async (held) => {
           await moveQuestions(held.ring, form.moduleId, next === form.areaId ? null : next);
         });
       }} />
-      <p className="wk-kind-small">Odpowiedzi zawsze trafiają do tego obszaru. To samo zmienisz w ustawieniach formularza.</p>
+      <p className="wk-kind-small">{t('areasKind.signupTool.note')}</p>
     </Tool>
   );
 }
 
 function SubFormsTool({ ctx, form }: { ctx: Ctx; form: ModuleRow }) {
+  const { t } = ctx;
   const [name, setName] = useState('');
   const [filler, setFiller] = useState<'person' | 'office'>('person');
   const subs = ctx.world.forms.filter((f) => f.extendsId === form.moduleId);
   return (
-    <Tool id="subforms" name="Podformularze" ok={subs.length > 0 ? true : null}
-      says="Dodatkowe pytania do zgłoszenia — uzupełnia uczestnik albo tylko prowadzący (notatki).">
+    <Tool id="subforms" name={t('areasJson.step.subforms')} ok={subs.length > 0 ? true : null}
+      says={t('areasKind.subforms.says')}>
       {subs.length > 0 && (
         <ul className="wk-kind-list">
           {subs.map((f) => (
             <li key={f.moduleId}>
-              <a className="wk-link" href={formPath(f.moduleId)}>{f.name}</a> <span className="wk-tag">{f.audience === 'office' ? 'prowadzący' : 'uczestnik'}</span>
+              <a className="wk-link" href={formPath(f.moduleId)}>{f.name}</a> <span className="wk-tag">{f.audience === 'office' ? t('areasKind.subforms.office') : t('areasKind.subforms.person')}</span>
             </li>
           ))}
         </ul>
@@ -1409,23 +1440,23 @@ function SubFormsTool({ ctx, form }: { ctx: Ctx; form: ModuleRow }) {
         e.preventDefault();
         const called = name.trim();
         if (called === '') return;
-        void ctx.run('Tworzenie podformularza…', 'Podformularz jest gotowy — dodaj w nim pytania.', async () => {
+        void ctx.run(t('areasKind.subforms.creating'), t('areasKind.subforms.ready'), async () => {
           await createModule(newId(), 'form', called, ctx.area.areaId, 'person', undefined, { extendsId: form.moduleId, audience: filler });
           setName('');
         });
       }}>
         <label className="wk-field">
-          <span>Nowy podformularz</span>
-          <input value={name} maxLength={120} disabled={ctx.busy} placeholder="np. Zgoda rodzica" onChange={(e) => setName(e.target.value)} />
+          <span>{t('areasKind.subforms.new')}</span>
+          <input value={name} maxLength={120} disabled={ctx.busy} placeholder={t('areasKind.subforms.placeholder')} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="wk-field">
-          <span>Wypełnia</span>
+          <span>{t('areasKind.subforms.filler')}</span>
           <select value={filler} disabled={ctx.busy} onChange={(e) => setFiller(e.target.value === 'office' ? 'office' : 'person')}>
-            <option value="person">uczestnik</option>
-            <option value="office">prowadzący</option>
+            <option value="person">{t('areasKind.subforms.person')}</option>
+            <option value="office">{t('areasKind.subforms.office')}</option>
           </select>
         </label>
-        <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || name.trim() === ''}>Dodaj</button>
+        <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || name.trim() === ''}>{t('common.add')}</button>
       </form>
     </Tool>
   );
@@ -1474,14 +1505,15 @@ function termDraft(ctx: Ctx): TermDraft {
   };
 }
 
-const pointWhen = (root: ProgramNode, p: ProgramNode): string => {
-  const time = (d: Date) => d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const pointWhen = (root: ProgramNode, p: ProgramNode, t: T): string => {
+  const time = (d: Date) => d.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' });
   const day = dayOf(p.start) === dayOf(root.start) && dayOf(root.end) === dayOf(root.start) ? ''
-    : `${p.start.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })} `;
-  return p.allDay ? day.trim() || 'cały dzień' : `${day}${time(p.start)}–${time(p.end)}`;
+    : `${p.start.toLocaleDateString(t.locale, { weekday: 'short', day: 'numeric', month: 'short' })} `;
+  return p.allDay ? day.trim() || t('areasKind.term.allDay') : `${day}${time(p.start)}–${time(p.end)}`;
 };
 
 function TermTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const has = ctx.profile.itemId !== null;
   const node = ctx.world.program;
   const editing = !has || ctx.open === 'term';
@@ -1499,18 +1531,18 @@ function TermTool({ ctx }: { ctx: Ctx }) {
     const when = ctx.profile.item?.startsAt == null ? null
       : whenText({ id: itemId ?? '', startsAt: ctx.profile.item.startsAt, endsAt: ctx.profile.item.endsAt, allDay: ctx.profile.item.allDay, status: null, fields: [] });
     return (
-      <Tool id="term" name="Główny termin i program" ok
-        says={<>{when ?? 'termin'}{node?.location ? ` · ${node.location}` : ''}{vis !== null ? ` · widzi: ${isPublic(ctx, vis) ? 'każdy' : `tylko „${nameOf(ctx, vis)}”`}` : ''}</>}>
+      <Tool id="term" name={t('areasKind.term.title')} ok
+        says={<>{when ?? t('areasKind.term.term')}{node?.location ? ` · ${node.location}` : ''}{vis !== null ? ` · ${isPublic(ctx, vis) ? t('areasKind.term.seenAll') : t('areasKind.term.seenOnly', { name: nameOf(ctx, vis) })}` : ''}</>}>
         <div className="wk-actions">
           {here ? (
-            <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => ctx.setOpen('term')}>Zmień termin</button>
+            <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => ctx.setOpen('term')}>{t('areasKind.term.change')}</button>
           ) : (
-            <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')}>Zmień w kalendarzu</a>
+            <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')}>{t('areasKind.term.changeInCalendar')}</a>
           )}
           {ctx.main !== null && itemId !== null && !programShown && (
             <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-              onClick={() => void ctx.run('Program na stronie…', 'Program stoi na stronie głównej.', () => placeProgram(ctx))}>
-              Pokaż program na stronie
+              onClick={() => void ctx.run(t('areasKind.term.placing'), t('areasKind.term.placed'), () => placeProgram(ctx))}>
+              {t('areasKind.term.show')}
             </button>
           )}
         </div>
@@ -1518,7 +1550,7 @@ function TermTool({ ctx }: { ctx: Ctx }) {
           <ol className="wk-kind-points">
             {node.children.map((p) => (
               <li key={p.itemId}>
-                <span className="wk-kind-point-when">{pointWhen(node, p)}</span> {p.title}{p.location !== null && p.location !== '' ? ` · ${p.location}` : ''}
+                <span className="wk-kind-point-when">{pointWhen(node, p, t)}</span> {p.title}{p.location !== null && p.location !== '' ? ` · ${p.location}` : ''}
               </li>
             ))}
           </ol>
@@ -1527,40 +1559,40 @@ function TermTool({ ctx }: { ctx: Ctx }) {
           <div className="wk-actions">
             <button type="button" className="wk-link-btn" disabled={ctx.busy}
               onClick={() => setPoint({ title: '', date: dayOf(node.start), time: '', endTime: '', place: '' })}>
-              + Punkt programu
+              {t('areasKind.term.addPoint')}
             </button>
           </div>
         ) : (
           <form className="wk-kind-form" onSubmit={(e) => {
             e.preventDefault();
             const wanted = point;
-            void ctx.run('Dodawanie punktu…', 'Dodano punkt programu.', async (held) => { await addPoint(ctx, held, wanted); setPoint(null); });
+            void ctx.run(t('areasKind.term.addingPoint'), t('areasKind.term.pointAdded'), async (held) => { await addPoint(ctx, held, wanted); setPoint(null); });
           }}>
             <label className="wk-field">
-              <span>Punkt programu</span>
-              <input value={point.title} maxLength={200} disabled={ctx.busy} placeholder="np. Msza święta" onChange={(e) => setPoint({ ...point, title: e.target.value })} />
+              <span>{t('areasKind.term.point')}</span>
+              <input value={point.title} maxLength={200} disabled={ctx.busy} placeholder={t('areasKind.term.pointPlaceholder')} onChange={(e) => setPoint({ ...point, title: e.target.value })} />
             </label>
             <div className="wk-kind-row">
               <label className="wk-field">
-                <span>Dzień</span>
+                <span>{t('areasSchool.class.day')}</span>
                 <input type="date" value={point.date} disabled={ctx.busy} onChange={(e) => setPoint({ ...point, date: e.target.value })} />
               </label>
               <label className="wk-field">
-                <span>Od</span>
+                <span>{t('common.from')}</span>
                 <input type="time" value={point.time} disabled={ctx.busy} onChange={(e) => setPoint({ ...point, time: e.target.value })} />
               </label>
               <label className="wk-field">
-                <span>Do</span>
+                <span>{t('common.to')}</span>
                 <input type="time" value={point.endTime} disabled={ctx.busy || point.time === ''} onChange={(e) => setPoint({ ...point, endTime: e.target.value })} />
               </label>
             </div>
             <label className="wk-field">
-              <span>Miejsce (opcjonalnie)</span>
+              <span>{t('areasKind.term.placeOptional')}</span>
               <input value={point.place} maxLength={200} disabled={ctx.busy} onChange={(e) => setPoint({ ...point, place: e.target.value })} />
             </label>
             <div className="wk-actions">
-              <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || point.title.trim() === '' || point.date === ''}>Dodaj punkt</button>
-              <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => setPoint(null)}>Anuluj</button>
+              <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || point.title.trim() === '' || point.date === ''}>{t('areasKind.term.addPointButton')}</button>
+              <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => setPoint(null)}>{t('common.cancel')}</button>
             </div>
           </form>
         ))}
@@ -1570,21 +1602,21 @@ function TermTool({ ctx }: { ctx: Ctx }) {
 
   if (has && !here) {
     return (
-      <Tool id="term" name="Główny termin i program" ok says="Ten termin ma link albo nie da się go tu odczytać — zmień go w kalendarzu, żeby nic nie zginęło.">
+      <Tool id="term" name={t('areasKind.term.title')} ok says={t('areasKind.term.linked')}>
         <div className="wk-actions">
-          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')}>Otwórz kalendarz</a>
-          <button type="button" className="wk-link-btn" onClick={() => ctx.setOpen(null)}>Zamknij</button>
+          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')}>{t('areasKind.term.openCalendar')}</a>
+          <button type="button" className="wk-link-btn" onClick={() => ctx.setOpen(null)}>{t('common.close')}</button>
         </div>
       </Tool>
     );
   }
 
   return (
-    <Tool id="term" name="Główny termin i program" ok={has ? true : false}
-      says={has ? undefined : 'Jego koniec to koniec wydarzenia; punkty programu dodasz potem.'}>
+    <Tool id="term" name={t('areasKind.term.title')} ok={has ? true : false}
+      says={has ? undefined : t('areasKind.term.says')}>
       <Segment
         now={mode}
-        options={[{ value: 'new', label: has ? 'Zmień ten termin' : 'Nowy termin' }, { value: 'pick', label: 'Wybierz istniejący' }]}
+        options={[{ value: 'new', label: has ? t('areasKind.term.changeThis') : t('areasKind.term.new') }, { value: 'pick', label: t('areasKind.term.pickExisting') }]}
         busy={ctx.busy}
         onPick={setMode}
       />
@@ -1592,43 +1624,43 @@ function TermTool({ ctx }: { ctx: Ctx }) {
       <form className="wk-kind-form" onSubmit={(e) => {
         e.preventDefault();
         const wanted = draft;
-        void ctx.run('Zapisywanie terminu…', has ? 'Zapisano termin.' : 'Główny termin jest gotowy.', async (held) => {
+        void ctx.run(t('areasKind.term.saving'), has ? t('areasKind.term.saved') : t('areasKind.term.ready'), async (held) => {
           await saveTerm(ctx, held, wanted);
           ctx.setOpen(null);
         });
       }}>
         <label className="wk-field">
-          <span>Tytuł terminu</span>
+          <span>{t('areasKind.term.titleField')}</span>
           <input value={draft.title} maxLength={200} disabled={ctx.busy} placeholder={ctx.title} onChange={(e) => set({ title: e.target.value })} />
         </label>
         <div className="wk-kind-row">
           <label className="wk-field">
-            <span>Początek</span>
+            <span>{t('areasKind.term.start')}</span>
             <input type="date" value={draft.date} disabled={ctx.busy} data-kind-date="" onChange={(e) => set({ date: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Godzina (puste: cały dzień)</span>
+            <span>{t('areasKind.term.time')}</span>
             <input type="time" value={draft.time} disabled={ctx.busy} onChange={(e) => set({ time: e.target.value })} />
           </label>
         </div>
         <div className="wk-kind-row">
           <label className="wk-field">
-            <span>Koniec (opcjonalnie)</span>
+            <span>{t('areasKind.term.end')}</span>
             <input type="date" value={draft.endDate} min={draft.date === '' ? undefined : draft.date} disabled={ctx.busy} onChange={(e) => set({ endDate: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Godzina końca</span>
+            <span>{t('areasKind.term.endTime')}</span>
             <input type="time" value={draft.endTime} disabled={ctx.busy || draft.time === ''} onChange={(e) => set({ endTime: e.target.value })} />
           </label>
         </div>
         <label className="wk-field">
-          <span>Miejsce</span>
-          <input value={draft.place} maxLength={200} disabled={ctx.busy} placeholder="np. Dom rekolekcyjny w Limanowej" onChange={(e) => set({ place: e.target.value })} />
+          <span>{t('areasKind.term.place')}</span>
+          <input value={draft.place} maxLength={200} disabled={ctx.busy} placeholder={t('areasKind.term.placePlaceholder')} onChange={(e) => set({ place: e.target.value })} />
         </label>
-        <WherePick ctx={ctx} label="Gdzie widać termin" value={draft.where} onPick={(where) => set({ where })} />
+        <WherePick ctx={ctx} label={t('areasKind.term.where')} value={draft.where} onPick={(where) => set({ where })} />
         <div className="wk-actions">
-          <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || draft.date === ''} data-kind-term="">{has ? 'Zapisz termin' : 'Dodaj termin'}</button>
-          {has && <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>Anuluj</button>}
+          <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || draft.date === ''} data-kind-term="">{has ? t('areasKind.term.save') : t('areasKind.check.addTerm')}</button>
+          {has && <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>{t('common.cancel')}</button>}
         </div>
       </form>
       )}
@@ -1649,6 +1681,7 @@ interface TermChoice {
  * dafür um — wer ihn sieht, bleibt gleich, seine Punkte gehen über ihren Termin mit.
  */
 function PickTerm({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const [choices, setChoices] = useState<readonly TermChoice[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [all, setAll] = useState(false);
@@ -1659,7 +1692,7 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
     void (async () => {
       try {
         const ring = (await keysFor(ctx.who)).ring;
-        if (ring === null) throw new WorkspaceError('Klucze nie są otwarte.');
+        if (ring === null) throw new WorkspaceError(t('areasKind.pick.keysClosed'));
         const now = Date.now();
         /* Der Dienst gibt höchstens 400 Tage: einen Monat zurück, knapp ein Jahr voraus. */
         const { occurrences } = await loadAgenda(new Date(now - 30 * 86_400_000), new Date(now + 365 * 86_400_000));
@@ -1681,15 +1714,15 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
     return () => { live = false; };
   }, [ctx.who, ctx.areas, ctx.area.areaId, ctx.profile.itemId]);
 
-  if (failed) return <p className="wk-kind-small">Nie udało się wczytać terminów z kalendarzy.</p>;
+  if (failed) return <p className="wk-kind-small">{t('areasKind.pick.failed')}</p>;
   if (choices === null) return <Loading lines={2} />;
   const own = choices.filter((c) => c.here);
   if (choices.length === 0) {
-    return <p className="wk-kind-small">Nie ma terminu do wybrania — pojedynczego (bez powtórzeń), w kalendarzu, w którym możesz pisać, od miesiąca wstecz do roku naprzód.</p>;
+    return <p className="wk-kind-small">{t('areasKind.pick.none')}</p>;
   }
-  const words = find.trim().toLocaleLowerCase('pl').split(/\s+/).filter(Boolean);
+  const words = find.trim().toLocaleLowerCase(t.locale).split(/\s+/).filter(Boolean);
   const shown = (all ? choices : own).filter((c) => {
-    const text = `${c.item.title} ${c.item.location ?? ''} ${nameOf(ctx, c.item.occurrence.areaId)}`.toLocaleLowerCase('pl');
+    const text = `${c.item.title} ${c.item.location ?? ''} ${nameOf(ctx, c.item.occurrence.areaId)}`.toLocaleLowerCase(t.locale);
     return words.every((w) => text.includes(w));
   });
 
@@ -1697,15 +1730,15 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
     const o = choice.item.occurrence;
     if (!choice.here) {
       const yes = await ask({
-        title: 'Przenieść termin do tego obszaru?',
-        body: `„${choice.item.title}” jest w kalendarzu obszaru „${nameOf(ctx, o.areaId)}”. Głównym terminem może być tylko termin z kalendarza tego obszaru, więc przejdzie do kalendarza „${ctx.area.name}”. Widzą go ci sami ludzie co dotąd, punkty programu idą z nim.`,
-        confirm: 'Przenieś i wybierz'
+        title: t('areasKind.pick.moveAsk'),
+        body: t('areasKind.pick.moveBody', { title: choice.item.title, from: nameOf(ctx, o.areaId), to: ctx.area.name }),
+        confirm: t('areasKind.pick.moveAndPick')
       });
       if (!yes) return;
     }
-    void ctx.run('Ustawianie terminu…', 'Główny termin jest ustawiony.', async (held) => {
+    void ctx.run(t('areasKind.pick.setting'), t('areasKind.pick.set'), async (held) => {
       if (!choice.here) {
-        held.step('Przenoszenie terminu…');
+        held.step(t('areasKind.pick.moving'));
         const calendar = await createCalendar({ areaId: ctx.area.areaId, title: ctx.area.name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
         /* Das Schema gehört dem alten Kalender — im neuen gilt das universelle (der Dienst setzt es so). */
         await saveEvent(held.ring, { ...draftOf(choice.item), calendarId: calendar.calendarId, schemeId: undefined, values: undefined }, o.itemId);
@@ -1719,12 +1752,12 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
     <>
       {(all ? choices : own).length > 8 && (
         <label className="wk-field">
-          <span>Szukaj</span>
-          <input value={find} placeholder="tytuł, miejsce, obszar" onChange={(e) => setFind(e.target.value)} />
+          <span>{t('common.search')}</span>
+          <input value={find} placeholder={t('areasKind.pick.findPlaceholder')} onChange={(e) => setFind(e.target.value)} />
         </label>
       )}
-      {!all && own.length === 0 && <p className="wk-kind-small">W kalendarzu tego obszaru nie ma takiego terminu.</p>}
-      {all && shown.length === 0 && <p className="wk-kind-small">Nic nie pasuje.</p>}
+      {!all && own.length === 0 && <p className="wk-kind-small">{t('areasKind.pick.noneHere')}</p>}
+      {all && shown.length === 0 && <p className="wk-kind-small">{t('areasKind.pick.noMatch')}</p>}
       <ul className="wk-kind-roles" data-kind-term-pick="">
         {shown.map((c) => {
           const o = c.item.occurrence;
@@ -1733,11 +1766,11 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
             <li key={o.itemId}>
               <span className="wk-kind-role-name">
                 <b>{c.item.title}</b> · {when}{c.item.location ? ` · ${c.item.location}` : ''}
-                {!c.here && <span className="wk-kind-small"> · kalendarz „{nameOf(ctx, o.areaId)}”</span>}
+                {!c.here && <span className="wk-kind-small"> · {t('areasKind.pick.calendar', { name: nameOf(ctx, o.areaId) })}</span>}
               </span>
               <div className="wk-actions">
                 <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => void pick(c)}>
-                  {c.here ? 'Wybierz' : 'Przenieś i wybierz'}
+                  {c.here ? t('common.select') : t('areasKind.pick.moveAndPick')}
                 </button>
               </div>
             </li>
@@ -1747,7 +1780,7 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
       {own.length < choices.length && (
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>
-            {all ? 'Tylko z kalendarza tego obszaru' : `Także z innych kalendarzy (${choices.length - own.length})`}
+            {all ? t('areasKind.pick.onlyHere') : t('areasKind.pick.others', { count: choices.length - own.length })}
           </button>
         </div>
       )}
@@ -1758,18 +1791,18 @@ function PickTerm({ ctx }: { ctx: Ctx }) {
 /* -- Rozmowy, „Napisz do nas" -- */
 
 function AskTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const has = (ctx.world.page?.parts ?? []).some((p) => p.kind === 'seat-ask');
   return (
-    <Tool id="ask" name="„Napisz do nas”" ok={has ? true : null}
-      says={has ? 'Stoi na stronie głównej. Kto odpowiada i z których formularzy można pisać, ustawisz w edytorze strony.'
-        : 'Zapisana osoba pisze do organizatorów — tę rozmowę widzą tylko ona i oni.'}>
+    <Tool id="ask" name={t('areasKind.ask.title')} ok={has ? true : null}
+      says={has ? t('areasKind.ask.has') : t('areasKind.ask.says')}>
       <div className="wk-actions">
-        {ctx.main === null ? <span className="wk-kind-small">Najpierw strona główna.</span>
-          : has ? <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(ctx.main))}>Edytuj stronę</a>
+        {ctx.main === null ? (<span className="wk-kind-small">{t('areasKind.mainFirst')}</span>)
+          : has ? <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(ctx.main))}>{t('areasKind.main.edit')}</a>
           : (
             <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-              onClick={() => void ctx.run('„Napisz do nas”…', '„Napisz do nas” stoi na stronie głównej.', (held) => makeAsk(ctx, held))}>
-              Dodaj na stronę główną
+              onClick={() => void ctx.run(t('areasKind.ask.stage'), t('areasKind.ask.placed'), (held) => makeAsk(ctx, held))}>
+              {t('areasKind.ask.add')}
             </button>
           )}
       </div>
@@ -1778,30 +1811,31 @@ function AskTool({ ctx }: { ctx: Ctx }) {
 }
 
 export function ChatTool({ ctx, kind }: { ctx: Ctx; kind: 'area' | 'channel' }) {
+  const { t } = ctx;
   const chat = ctx.world.chats.find((c) => c.kind === kind) ?? null;
   const channel = kind === 'channel';
-  const name = channel ? 'Kanał ogłoszeń' : ctx.profile.kind === 'group' ? 'Rozmowa grupy' : ctx.profile.kind === 'class' ? 'Rozmowa klasy' : 'Rozmowa uczestników';
+  const name = channel ? t('areasJson.import.channel') : ctx.profile.kind === 'group' ? t('areasKind.chat.group') : ctx.profile.kind === 'class' ? t('areasKind.chat.class') : t('areasKind.chat.participants');
   const form = ctx.signup;
   const joined = chat !== null && form !== null && (chat.formIds ?? []).includes(form.moduleId);
   return (
     <Tool id={channel ? 'channel' : 'chat'} name={name} ok={chat !== null ? true : channel ? null : false}
-      says={channel ? 'Piszą prowadzący, czytają wszyscy — także zapisani z formularza.' : 'Piszą wszyscy z obszaru — i zapisani z formularza.'}>
+      says={channel ? t('areasKind.chat.channelSays') : t('areasKind.chat.chatSays')}>
       <div className="wk-actions">
         {chat === null ? (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-            onClick={() => void ctx.run(channel ? 'Zakładanie kanału…' : 'Zakładanie rozmowy…', channel ? 'Kanał jest gotowy.' : 'Rozmowa jest gotowa.',
+            onClick={() => void ctx.run(channel ? t('areas.page.creatingChannel') : t('areas.page.creatingChat'), channel ? t('areasKind.chat.channelReady') : t('areasKind.chat.chatReady'),
               (held) => makeChat(ctx, held, channel))}>
-            Załóż
+            {t('areas.newArea.create')}
           </button>
         ) : (
-          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('chat', chat.chatId)}>Otwórz</a>
+          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('chat', chat.chatId)}>{t('common.open')}</a>
         )}
         {chat !== null && form !== null && !joined && (
           <button type="button" className="wk-link-btn" disabled={ctx.busy}
-            onClick={() => void ctx.run('Dołączanie zapisanych…', 'Zapisani są w tej rozmowie.', async (held) => {
+            onClick={() => void ctx.run(t('areasKind.chat.joining'), t('areasKind.chat.joined'), async (held) => {
               await linkAudienceForm('chat', chat.chatId, form.moduleId, true, await myWriter(held.ring, ctx.area.areaId));
             })}>
-            Dołącz zapisanych
+            {t('areasKind.chat.join')}
           </button>
         )}
       </div>
@@ -1812,12 +1846,13 @@ export function ChatTool({ ctx, kind }: { ctx: Ctx; kind: 'area' | 'channel' }) 
 /* -- Role -- */
 
 export function RolesTool({ ctx, defs }: { ctx: Ctx; defs: readonly RoleDef[] }) {
+  const { t } = ctx;
   const found = defs.map((def) => ({ def, role: roleFor(ctx.world.roles, def) }));
   const others = ctx.world.roles.filter((r) => !found.some((f) => f.role?.roleId === r.roleId)).length;
   const all = found.every((f) => f.role !== null);
   return (
-    <Tool id="roles" name="Role" ok={all ? true : found.some((f) => f.role !== null) ? null : false}
-      says="Rola daje dostęp do obszaru — przez link albo z formularza. Tworzenie roli i linku trwa kilkanaście sekund.">
+    <Tool id="roles" name={t('areasKind.roles.title')} ok={all ? true : found.some((f) => f.role !== null) ? null : false}
+      says={t('areasKind.roles.says')}>
       <ul className="wk-kind-roles">
         {found.map(({ def, role }) => (
           <li key={def.key} data-role={def.key}>
@@ -1825,23 +1860,23 @@ export function RolesTool({ ctx, defs }: { ctx: Ctx; defs: readonly RoleDef[] })
             <span className="wk-actions">
               {role === null ? (
                 <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-                  onClick={() => void ctx.run('Tworzenie roli…', `Rola „${def.label}” jest gotowa.`, (held) => makeRole(ctx, held, def))}>
-                  Utwórz
+                  onClick={() => void ctx.run(t('areasKind.check.makingRole'), t('areasKind.roles.ready', { name: def.label }), (held) => makeRole(ctx, held, def))}>
+                  {t('common.create')}
                 </button>
               ) : role.mine ? (
                 <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-                  onClick={() => void ctx.run('Tworzenie linku…', 'Link jest gotowy — skopiuj go poniżej.', (held) => makeLink(ctx, held, def, role))}>
+                  onClick={() => void ctx.run(t('areasKind.roles.makingLink'), t('areasKind.roles.linkReady'), (held) => makeLink(ctx, held, def, role))}>
                   {def.link}
                 </button>
-              ) : <span className="wk-tag">jest</span>}
+              ) : <span className="wk-tag">{t('areasKind.roles.exists')}</span>}
             </span>
             {ctx.links[def.key] !== undefined && <LinkShare url={ctx.links[def.key]} />}
           </li>
         ))}
       </ul>
       <p className="wk-kind-small">
-        {others > 0 && <>Inne role w obszarze: {others}. </>}
-        Linki znajdziesz potem w karcie <a className="wk-link" href={viewPath('areas', ctx.area.areaId, 'dostep')}>Dostęp</a>.
+        {others > 0 && <>{t('areasKind.roles.others', { count: others })} </>}
+        {rich(t('areasKind.roles.linksLater'), { a: (s) => <a className="wk-link" href={viewPath('areas', ctx.area.areaId, 'dostep')}>{s}</a> })}
       </p>
     </Tool>
   );
@@ -1850,44 +1885,45 @@ export function RolesTool({ ctx, defs }: { ctx: Ctx; defs: readonly RoleDef[] })
 /* -- Po wydarzeniu, koniec -- */
 
 function AfterTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const [picked, setPicked] = useState('');
   const after = ctx.profile.after?.path ?? null;
   const unlink = async () => {
     const yes = await ask({
-      title: 'Odłączyć stronę po wydarzeniu?',
-      body: 'Strona zostaje i od razu będzie widoczna — nie czeka już na koniec wydarzenia.',
-      confirm: 'Odłącz'
+      title: t('areasKind.after.unlinkAsk'),
+      body: t('areasKind.after.unlinkBody'),
+      confirm: t('areas.audience.detach')
     });
-    if (yes) void ctx.run('Odłączanie…', 'Strona po wydarzeniu odłączona.', async () => { await saveProfile(ctx.area.areaId, { afterPath: '' }); });
+    if (yes) void ctx.run(t('areasKind.after.unlinking'), t('areasKind.after.unlinked'), async () => { await saveProfile(ctx.area.areaId, { afterPath: '' }); });
   };
   return (
-    <Tool id="after" name="Strona po wydarzeniu" ok={after !== null ? true : null}
-      says="Ukryta do końca wydarzenia, potem pokazuje się na kartach zamiast zapisów. Moduł na niej może być tylko dla uczestników z ich własnym linkiem — w edytorze strony: „Widoczne dla”.">
+    <Tool id="after" name={t('areasKind.after.title')} ok={after !== null ? true : null}
+      says={t('areasKind.after.says')}>
       {after !== null ? (
         <div className="wk-actions">
-          <a className="wk-link" href={pagePath(after)}>recreatio.pl/{after}</a>
-          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(after))}>Edytuj stronę</a>
-          <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => void unlink()}>Odłącz</button>
+          <a className="wk-link" href={pagePath(after)}>{`recreatio.pl/${after}`}</a>
+          <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('pages', ...pageSteps(after))}>{t('areasKind.main.edit')}</a>
+          <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => void unlink()}>{t('areas.audience.detach')}</button>
         </div>
       ) : (
         <>
           <div className="wk-actions">
-            {ctx.main === null ? <span className="wk-kind-small">Najpierw strona główna.</span> : (
+            {ctx.main === null ? <span className="wk-kind-small">{t('areasKind.mainFirst')}</span> : (
               <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-kind-after=""
-                onClick={() => void ctx.run('Tworzenie strony…', 'Strona po wydarzeniu jest gotowa — pokaże się po końcu.', (held) => makeAfterPage(ctx, held))}>
-                Utwórz recreatio.pl/{ctx.main}/po-wydarzeniu
+                onClick={() => void ctx.run(t('areasKind.main.creating'), t('areasKind.after.ready'), (held) => makeAfterPage(ctx, held))}>
+                {t('areasKind.after.make', { path: `${ctx.main}/po-wydarzeniu` })}
               </button>
             )}
           </div>
           <div className="wk-field">
-            <span>Albo istniejąca strona</span>
+            <span>{t('areasKind.main.existing')}</span>
             <PickPage value={picked} busy={ctx.busy} onPick={setPicked} />
           </div>
           {picked !== '' && picked !== ctx.main && (
             <div className="wk-actions">
               <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-                onClick={() => void ctx.run('Zapisywanie…', 'Ustawiono stronę po wydarzeniu.', async () => { await saveProfile(ctx.area.areaId, { afterPath: picked }); })}>
-                Ustaw jako stronę po wydarzeniu
+                onClick={() => void ctx.run(t('common.saving'), t('areasKind.after.set'), async () => { await saveProfile(ctx.area.areaId, { afterPath: picked }); })}>
+                {t('areasKind.after.setAs')}
               </button>
             </div>
           )}
@@ -1897,48 +1933,49 @@ function AfterTool({ ctx }: { ctx: Ctx }) {
   );
 }
 
-const dateText = (iso: string): string => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+const dateText = (iso: string, t: T): string => new Date(iso).toLocaleDateString(t.locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
 function ArchiveTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const p = ctx.profile;
   const archived = p.archivedAt !== null;
-  const says = archived ? `Zakończone ${dateText(p.archivedAt!)} — formularze zamknięte, widać stronę po wydarzeniu.`
-    : p.archiveMode === 'manual' ? 'Zakończysz je przyciskiem poniżej.'
-    : p.itemId === null ? 'Zakończy się samo godzinę po końcu głównego terminu — gdy go dodasz.'
-    : 'Zakończy się samo godzinę po końcu głównego terminu: formularze się zamkną, pokaże się strona po wydarzeniu.';
+  const says = archived ? t('areasKind.archive.ended', { date: dateText(p.archivedAt!, t) })
+    : p.archiveMode === 'manual' ? t('areasKind.archive.manual')
+    : p.itemId === null ? t('areasKind.archive.autoNoTerm')
+    : t('areasKind.archive.auto');
 
   const end = async () => {
     const yes = await ask({
-      title: 'Zakończyć wydarzenie teraz?',
-      body: 'Formularze przestaną przyjmować zgłoszenia, a strona po wydarzeniu stanie się widoczna. Można to cofnąć („Przywróć”).',
-      confirm: 'Zakończ'
+      title: t('areasKind.archive.endAsk'),
+      body: t('areasKind.archive.endBody'),
+      confirm: t('areasKind.archive.end')
     });
-    if (yes) void ctx.run('Kończenie…', 'Wydarzenie zakończone.', async () => { await setArchived(ctx.area.areaId, true); });
+    if (yes) void ctx.run(t('areasKind.archive.ending'), t('areasKind.archive.endedToast'), async () => { await setArchived(ctx.area.areaId, true); });
   };
   const restore = async () => {
     const yes = await ask({
-      title: 'Przywrócić wydarzenie?',
-      body: 'Formularze zamknięte przy końcu znowu przyjmą zgłoszenia, a koniec ustawisz potem ręcznie.',
-      confirm: 'Przywróć'
+      title: t('areasKind.archive.restoreAsk'),
+      body: t('areasKind.archive.restoreBody'),
+      confirm: t('areasKind.archive.restore')
     });
-    if (yes) void ctx.run('Przywracanie…', 'Wydarzenie znowu trwa.', async () => { await setArchived(ctx.area.areaId, false); });
+    if (yes) void ctx.run(t('areasKind.archive.restoring'), t('areasKind.archive.restored'), async () => { await setArchived(ctx.area.areaId, false); });
   };
 
   return (
-    <Tool id="archive" name="Koniec wydarzenia" ok={archived ? true : null} says={says}>
+    <Tool id="archive" name={t('areasKind.archive.title')} ok={archived ? true : null} says={says}>
       {!archived && (
         <Segment
           now={p.archiveMode}
-          options={[{ value: 'auto', label: 'Samo, po terminie' }, { value: 'manual', label: 'Ręcznie' }]}
+          options={[{ value: 'auto', label: t('areasKind.archive.optAuto') }, { value: 'manual', label: t('areasKind.archive.optManual') }]}
           busy={ctx.busy}
-          onPick={(mode) => void ctx.run('Zapisywanie…', mode === 'auto' ? 'Wydarzenie zakończy się samo.' : 'Wydarzenie zakończysz ręcznie.',
+          onPick={(mode) => void ctx.run(t('common.saving'), mode === 'auto' ? t('areasKind.archive.willAuto') : t('areasKind.archive.willManual'),
             async () => { await saveProfile(ctx.area.areaId, { archiveMode: mode }); })}
         />
       )}
       <div className="wk-actions">
         {archived
-          ? <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => void restore()}>Przywróć</button>
-          : <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-kind-end="" onClick={() => void end()}>Zakończ teraz</button>}
+          ? <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => void restore()}>{t('areasKind.archive.restore')}</button>
+          : <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-kind-end="" onClick={() => void end()}>{t('areasKind.archive.endNow')}</button>}
       </div>
     </Tool>
   );
@@ -1947,23 +1984,24 @@ function ArchiveTool({ ctx }: { ctx: Ctx }) {
 /* -- Parafia: Listen -- */
 
 const LISTS: readonly { readonly type: 'event' | 'group'; readonly label: string }[] = [
-  { type: 'event', label: 'Wydarzenia' },
-  { type: 'group', label: 'Grupy' }
+  { type: 'event', label: 'areasKind.lists.event' },
+  { type: 'group', label: 'areasKind.lists.group' }
 ];
 
 function ListsTool({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx;
   const parts = ctx.world.page?.parts ?? [];
   const has = (type: 'event' | 'group') => parts.some((p) => p.kind === 'events' && ((readConfig(p.config).type ?? '') || 'event') === type);
   return (
-    <Tool id="lists" name="Listy na stronie głównej" ok={ctx.main === null ? false : LISTS.every((one) => has(one.type)) ? true : null}
-      says="Wydarzenia i grupy z tego obszaru i obszarów w nim — uzupełniają się same.">
+    <Tool id="lists" name={t('areasKind.lists.title')} ok={ctx.main === null ? false : LISTS.every((one) => has(one.type)) ? true : null}
+      says={t('areasKind.lists.says')}>
       <div className="wk-actions">
-        {ctx.main === null ? <span className="wk-kind-small">Najpierw strona główna.</span> : LISTS.map((one) => has(one.type) ? (
-          <span key={one.type} className="wk-tag wk-tag-open">{one.label} ✓</span>
+        {ctx.main === null ? <span className="wk-kind-small">{t('areasKind.mainFirst')}</span> : LISTS.map((one) => has(one.type) ? (
+          <span key={one.type} className="wk-tag wk-tag-open">{t(one.label)} ✓</span>
         ) : (
           <button key={one.type} type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy}
-            onClick={() => void ctx.run('Dodawanie listy…', `Lista „${one.label}” stoi na stronie głównej.`, () => placeList(ctx, one.type))}>
-            Dodaj listę „{one.label}”
+            onClick={() => void ctx.run(t('areasKind.lists.adding'), t('areasKind.lists.added', { name: t(one.label) }), () => placeList(ctx, one.type))}>
+            {t('areasKind.lists.add', { name: t(one.label) })}
           </button>
         ))}
       </div>
@@ -1986,7 +2024,7 @@ async function makeMainPage(ctx: Ctx, held: Held, path: string): Promise<string 
   }
   /* Ein Formular, das noch auf keiner Seite steht, kommt gleich mit. */
   if (ctx.signup !== null && ctx.signup.pages.length === 0) parts.push(formPart(ctx.signup.moduleId));
-  held.step('Tworzenie strony…');
+  held.step(ctx.t('areasKind.main.creating'));
   const made = await createSubpage({
     path, roleId: held.person.id, areaId: ctx.state.controller === null ? null : ctx.area.areaId,
     title: ctx.title, lead: (ctx.world.card?.lead ?? '').trim() || null, parts
@@ -1997,7 +2035,7 @@ async function makeMainPage(ctx: Ctx, held: Held, path: string): Promise<string 
 }
 
 async function placeForm(ctx: Ctx, formId: string): Promise<void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   await addToPage(ctx.main, [formPart(formId)]);
 }
 
@@ -2005,19 +2043,19 @@ async function makeSignup(ctx: Ctx, held: Held): Promise<string | void> {
   const made = await createSignupForm(ctx.who, held.ring, { areaId: ctx.area.areaId, name: ctx.title, publishTo: ctx.publishTo, onStage: held.step });
   const notes: string[] = made.note === null ? [] : [made.note];
   if (ctx.main !== null) {
-    held.step('Formularz na stronie głównej…');
+    held.step(ctx.t('areasKind.act.formOnMain'));
     await addToPage(ctx.main, [formPart(made.formId)]);
   }
   const participants = roleFor(ctx.world.roles, PARTICIPANTS);
   if (participants !== null) {
-    await setMemberRoles(made.formId, [participants.roleId]).catch(() => { notes.push('Rola uczestników nie została połączona z formularzem — zrobisz to w jego ustawieniach.'); });
+    await setMemberRoles(made.formId, [participants.roleId]).catch(() => { notes.push(ctx.t('areasKind.act.participantsNotLinked')); });
   }
   return notes.join(' ') || undefined;
 }
 
 async function saveTerm(ctx: Ctx, held: Held, draft: TermDraft): Promise<void> {
   const term = mainTermOf(draft);
-  if (term === null) throw new WorkspaceError('Podaj dzień początku.');
+  if (term === null) throw new WorkspaceError(ctx.t('areasKind.act.needStart'));
   const itemId = ctx.profile.itemId;
   const was = ctx.profile.item;
   const saved = await savePublishedItem(held.ring, {
@@ -2036,9 +2074,9 @@ async function saveTerm(ctx: Ctx, held: Held, draft: TermDraft): Promise<void> {
 
 async function addPoint(ctx: Ctx, held: Held, point: PointDraft): Promise<void> {
   const itemId = ctx.profile.itemId;
-  if (itemId === null) throw new WorkspaceError('Najpierw główny termin.');
+  if (itemId === null) throw new WorkspaceError(ctx.t('areasKind.act.termFirst'));
   const term = mainTermOf({ date: point.date, time: point.time, endDate: point.date, endTime: point.endTime });
-  if (term === null) throw new WorkspaceError('Podaj dzień punktu programu.');
+  if (term === null) throw new WorkspaceError(ctx.t('areasKind.act.needPointDay'));
   await savePublishedItem(held.ring, {
     areaId: ctx.area.areaId,
     visibilityAreaId: ctx.profile.item?.visibilityAreaId ?? ctx.publishTo,
@@ -2049,8 +2087,8 @@ async function addPoint(ctx: Ctx, held: Held, point: PointDraft): Promise<void> 
 }
 
 async function placeProgram(ctx: Ctx): Promise<void> {
-  if (ctx.main === null || ctx.profile.itemId === null) throw new WorkspaceError('Najpierw strona główna i główny termin.');
-  await addToPage(ctx.main, [{ kind: 'program', config: { title: 'Program', calendar: ctx.world.calendarId ?? '', item: ctx.profile.itemId }, box: { colSpan: 6, rowSpan: 5 } }]);
+  if (ctx.main === null || ctx.profile.itemId === null) throw new WorkspaceError(ctx.t('areasKind.act.mainAndTermFirst'));
+  await addToPage(ctx.main, [{ kind: 'program', config: { title: ctx.t('areasKind.act.programTitle'), calendar: ctx.world.calendarId ?? '', item: ctx.profile.itemId }, box: { colSpan: 6, rowSpan: 5 } }]);
 }
 
 /**
@@ -2059,24 +2097,24 @@ async function placeProgram(ctx: Ctx): Promise<void> {
  * Formular zgłoszeń daran.
  */
 async function makeAsk(ctx: Ctx, held: Held): Promise<string | void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   const partId = newId();
-  held.step('„Napisz do nas” na stronie…');
-  await addToPage(ctx.main, [{ id: partId, kind: 'seat-ask', config: { title: 'Napisz do nas' }, box: { colSpan: 3, rowSpan: 5 } }]);
-  held.step('Kto odpowiada…');
-  const made = await createArea(held.ring, held.person, `Organizatorzy — ${ctx.title}`.slice(0, 200), ctx.area.areaId);
+  held.step(ctx.t('areasKind.act.askOnPage'));
+  await addToPage(ctx.main, [{ id: partId, kind: 'seat-ask', config: { title: ctx.t('areasKind.act.askTitle') }, box: { colSpan: 3, rowSpan: 5 } }]);
+  held.step(ctx.t('areasKind.act.whoAnswers'));
+  const made = await createArea(held.ring, held.person, ctx.t('areasKind.act.organisersArea', { name: ctx.title }).slice(0, 200), ctx.area.areaId);
   await updateModule(partId, { areaId: made.areaId });
   const notes: string[] = [];
   const organisers = roleFor(ctx.world.roles, ORGANISERS);
   if (organisers !== null) {
     await joinArea(held.ring, made.areaId, { id: organisers.roleId, kind: 'group', wrapPublicKey: organisers.wrapPublicKey }, held.person.id, 'write')
-      .catch(() => { notes.push('Rola organizatorów nie została dodana do odpowiadających — dodasz ją w edytorze strony.'); });
+      .catch(() => { notes.push(ctx.t('areasKind.act.organisersNotAdded')); });
   }
   if (ctx.signup !== null) {
     await linkAudienceForm('module', partId, ctx.signup.moduleId, true, held.person.id)
-      .catch(() => { notes.push('Formularza zgłoszeń nie dołączono — dołączysz go w edytorze strony.'); });
+      .catch(() => { notes.push(ctx.t('areasKind.act.formNotAttached')); });
   } else {
-    notes.push('Dołącz formularz zgłoszeń w edytorze strony — bez niego nikt tu nie napisze.');
+    notes.push(ctx.t('areasKind.act.attachForm'));
   }
   return notes.join(' ') || undefined;
 }
@@ -2086,11 +2124,11 @@ async function makeChat(ctx: Ctx, held: Held, channel: boolean): Promise<string 
   const chatId = await startAreaChat(ctx.area.areaId, writer, channel);
   if (ctx.signup === null) return;
   const joined = await linkAudienceForm('chat', chatId, ctx.signup.moduleId, true, writer).then(() => true, () => false);
-  return joined ? undefined : 'Rozmowa powstała, ale zapisanych nie dołączono — użyj „Dołącz zapisanych”.';
+  return joined ? undefined : ctx.t('areasKind.act.chatNotJoined');
 }
 
 async function makeRole(ctx: Ctx, held: Held, def: RoleDef): Promise<string | void> {
-  const made = await createAreaRole(held.ring, held.person, { areaId: ctx.area.areaId, name: `${def.label}: ${ctx.title}`, capability: def.capability, onStage: held.step });
+  const made = await createAreaRole(held.ring, held.person, { areaId: ctx.area.areaId, name: ctx.t('areasKind.act.roleName', { role: def.label, name: ctx.title }), capability: def.capability, onStage: held.step });
   /* Unter ihrem Schlüssel — dann trifft sie auch ein JSON-Import und der Export nennt sie so. */
   if (!ctx.world.roles.some((r) => r.key === def.key)) {
     await saveImportKeys(ctx.area.areaId, [{ kind: 'role', key: def.key, refId: made.roleId, refText: def.label }]).catch(() => undefined);
@@ -2099,7 +2137,7 @@ async function makeRole(ctx: Ctx, held: Held, def: RoleDef): Promise<string | vo
   /* Wer sich zapisze, bekommt die Rolle der Uczestnicy. */
   const had = ctx.signup.memberRoleIds ?? (ctx.signup.memberRoleId === null ? [] : [ctx.signup.memberRoleId]);
   const linked = await setMemberRoles(ctx.signup.moduleId, [...had.filter((id) => id !== made.roleId), made.roleId]).then(() => true, () => false);
-  return linked ? undefined : 'Rola powstała, ale nie połączono jej z formularzem — zrobisz to w jego ustawieniach.';
+  return linked ? undefined : ctx.t('areasKind.act.roleNotLinked');
 }
 
 /**
@@ -2108,7 +2146,7 @@ async function makeRole(ctx: Ctx, held: Held, def: RoleDef): Promise<string | vo
  * Konto stellt er sich vor (`cogita/pageLearner.tsx`); seine Antworten gehen in die Przyjęcia des Kurses.
  */
 async function firstRevision(ring: Ring, base: Pick<LibraryRow, 'libraryId' | 'areaId'>, held?: Held): Promise<{ libraryId: string; revisionId: string } | null> {
-  held?.step('Powtórka bazy…');
+  held?.step(tApp('areasKind.act.baseRevision'));
   const store = storeOf(ring, base);
   await store.sync();
   const revision = store.all().find((e) => e.kind === 'revision');
@@ -2135,22 +2173,22 @@ function aimFor(ctx: Ctx, def: RoleDef): string {
 
 async function makeLink(ctx: Ctx, held: Held, def: RoleDef, role: RoleSeen): Promise<void> {
   const link = await createLink(held.ring, held.person, {
-    label: `${def.label}: ${ctx.title}`, roles: [{ roleId: role.roleId, lead: false }], once: false,
+    label: ctx.t('areasKind.act.roleName', { role: def.label, name: ctx.title }), roles: [{ roleId: role.roleId, lead: false }], once: false,
     expiresDays: def.key === LEARNERS.key ? 365 : 90, aim: aimFor(ctx, def)
   }, held.step);
   ctx.setLink(def.key, link.url);
 }
 
 async function makeAfterPage(ctx: Ctx, held: Held): Promise<string | void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   const path = `${ctx.main}/po-wydarzeniu`;
   const made = await createSubpage({
     path, roleId: held.person.id, areaId: ctx.state.controller === null ? null : ctx.area.areaId,
-    title: `${ctx.title} — po wydarzeniu`, lead: null,
+    title: ctx.t('areasKind.act.afterTitle', { name: ctx.title }), lead: null,
     parts: [
-      { kind: 'text', config: { title: 'Dziękujemy', body: 'Dziękujemy, że byliście z nami!' }, box: { colSpan: 6, rowSpan: 3 } },
+      { kind: 'text', config: { title: ctx.t('areasKind.act.thanksTitle'), body: ctx.t('areasKind.act.thanksBody') }, box: { colSpan: 6, rowSpan: 3 } },
       /* Nur für die Menschen des Wydarzenie — leer, bis jemand Bilder oder Materialien einträgt. */
-      { kind: 'text', config: { title: 'Dla uczestników', body: '' }, audienceAreaId: ctx.area.areaId, box: { colSpan: 6, rowSpan: 3 } }
+      { kind: 'text', config: { title: ctx.t('areasKind.act.forParticipants'), body: '' }, audienceAreaId: ctx.area.areaId, box: { colSpan: 6, rowSpan: 3 } }
     ]
   });
   await saveProfile(ctx.area.areaId, { afterPath: path });
@@ -2158,10 +2196,10 @@ async function makeAfterPage(ctx: Ctx, held: Held): Promise<string | void> {
 }
 
 async function placeList(ctx: Ctx, type: 'event' | 'group'): Promise<void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   const config: Record<string, string> = type === 'event'
-    ? { title: 'Wydarzenia', type, areas: ctx.area.areaId, deep: 'yes', when: 'coming' }
-    : { title: 'Grupy', type, areas: ctx.area.areaId, deep: 'yes' };
+    ? { title: ctx.t('areasKind.lists.event'), type, areas: ctx.area.areaId, deep: 'yes', when: 'coming' }
+    : { title: ctx.t('areasKind.lists.group'), type, areas: ctx.area.areaId, deep: 'yes' };
   await addToPage(ctx.main, [{ kind: 'events', config, box: { colSpan: 6, rowSpan: 3 } }]);
 }
 
@@ -2177,9 +2215,9 @@ async function makeBase(ctx: Ctx, held: Held): Promise<string | void> {
   if (ctx.main === null) return;
   const revision = await firstRevision(held.ring, { libraryId, areaId: ctx.area.areaId }, held);
   if (revision === null) return;
-  held.step('Powtórka na stronie głównej…');
+  held.step(ctx.t('areasKind.act.revisionOnMain'));
   await addToPage(ctx.main, [revisionPart(revision, ctx.area.areaId)]);
-  return 'Jej powtórka stoi na stronie głównej — tam uczą się osoby z linku.';
+  return ctx.t('areasKind.act.revisionPlaced');
 }
 
 /** Der Name einer Rolle unter den Mitgliedern eines Bereichs — ohne ihn steht sie dort namenlos (es geht auch ohne). */
@@ -2198,19 +2236,19 @@ async function nameRoleIn(ring: Ring, areaId: string, roleId: string, name: stri
  */
 async function letLearnersIn(ctx: Ctx, held: Held, areas: readonly string[]): Promise<Ring> {
   const course = ctx.area.areaId;
-  const name = `${LEARNERS.label}: ${ctx.title}`;
+  const name = ctx.t('areasKind.act.roleName', { role: LEARNERS.label, name: ctx.title });
   const learners = roleFor(ctx.world.roles, LEARNERS);
   if (learners === null) {
-    held.step('Rola uczących się (kilkanaście sekund)…');
+    held.step(ctx.t('areasKind.act.learnersRole'));
     const made = await createCommonRole(held.ring, held.person, { name, areas: [course, ...areas].map((areaId) => ({ areaId, capability: 'read' as const })) }, held.step);
     for (const there of [course, ...areas]) await nameRoleIn(made.ring, there, made.roleId, name);
     await saveImportKeys(course, [{ kind: 'role', key: LEARNERS.key, refId: made.roleId, refText: LEARNERS.label }]).catch(() => undefined);
     return made.ring;
   }
   for (const there of areas) {
-    held.step(`Dostęp uczących się do obszaru „${nameOf(ctx, there)}”…`);
+    held.step(ctx.t('areasKind.act.learnersAccess', { name: nameOf(ctx, there) }));
     const issuer = await issuerIn(held.ring, there);
-    if (issuer === null) throw new WorkspaceError(`Do obszaru „${nameOf(ctx, there)}” nie możesz nikogo wpuścić — poproś tego, kto go prowadzi, albo wybierz bazę z obszaru, który prowadzisz.`);
+    if (issuer === null) throw new WorkspaceError(ctx.t('areasKind.act.cantLetIn', { name: nameOf(ctx, there) }));
     await joinArea(held.ring, there, { id: learners.roleId, kind: 'group', wrapPublicKey: learners.wrapPublicKey }, issuer, 'read');
     await nameRoleIn(held.ring, there, learners.roleId, learners.name ?? name);
   }
@@ -2225,7 +2263,7 @@ async function letLearnersIntoAll(ctx: Ctx, held: Held, bases: readonly CourseBa
 /** Die Przyjęcia des Kurses — ohne sie läse niemand die Antworten, die in den Kurs gehen. */
 async function ensureIntake(ctx: Ctx, held: Held, ring: Ring): Promise<void> {
   if (await loadIntake(ctx.area.areaId).then(() => true, () => false)) return;
-  held.step('Klucz przyjęć odpowiedzi (kilka sekund)…');
+  held.step(ctx.t('areasKind.stage.intake'));
   await createIntake(ring, ctx.area.areaId, held.person.id);
 }
 
@@ -2243,15 +2281,15 @@ async function addBase(ctx: Ctx, held: Held, base: OpenLibrary, place: boolean):
   const reads = base.areaId === course || ctx.world.learnersIn.has(base.areaId);
   const ring = reads ? held.ring : await letLearnersIn(ctx, held, [base.areaId]);
   await saveImportKeys(course, [{ kind: 'library', key: baseKey(base.libraryId), refId: base.libraryId, refText: base.name }])
-    .catch(() => notes.push('Serwer nie zapamiętał tej bazy przy kursie (potrzebna nowsza wersja) — kurs pokaże ją, dopóki jej moduł stoi na stronie głównej.'));
+    .catch(() => notes.push(ctx.t('areasKind.act.baseNotRemembered')));
   await ensureIntake(ctx, held, ring);
   if (place && ctx.main !== null) {
     const revision = await firstRevision(ring, base, held);
-    if (revision === null) notes.push('Baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki), potem „Dodaj na stronę”.');
+    if (revision === null) notes.push(ctx.t('areasKind.act.noRevisionYet'));
     else {
-      held.step('Powtórka na stronie głównej…');
+      held.step(ctx.t('areasKind.act.revisionOnMain'));
       await addToPage(ctx.main, [revisionPart(revision, course)]);
-      notes.push('Jej powtórka stoi na stronie głównej — odpowiedzi idą do kursu.');
+      notes.push(ctx.t('areasKind.act.revisionPlacedCourse'));
     }
   }
   ctx.setOpen(null);
@@ -2260,28 +2298,28 @@ async function addBase(ctx: Ctx, held: Held, base: OpenLibrary, place: boolean):
 
 /** Die erste Powtórka einer Baza auf die Hauptseite — die Antworten in den Kurs. */
 async function placeBase(ctx: Ctx, held: Held, base: LibraryRow): Promise<void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   const revision = await firstRevision(held.ring, base, held);
-  if (revision === null) throw new WorkspaceError('Ta baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki).');
+  if (revision === null) throw new WorkspaceError(ctx.t('areasKind.act.baseNoRevision'));
   await ensureIntake(ctx, held, held.ring);
   await addToPage(ctx.main, [revisionPart(revision, ctx.area.areaId)]);
 }
 
 /** Jede Baza des Kurses ohne Lernbaustein auf der Hauptseite bekommt ihre erste Powtórka dort (die ohne Powtórka nicht). */
 async function placeAll(ctx: Ctx, held: Held): Promise<string | void> {
-  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  if (ctx.main === null) throw new WorkspaceError(ctx.t('areasKind.mainFirst'));
   const parts: NewPart[] = [];
   const without: string[] = [];
   for (const base of ctx.world.bases) {
     if (base.row === null || base.learning.length > 0) continue;
     const revision = await firstRevision(held.ring, base.row, held);
-    if (revision === null) without.push(`„${base.name ?? 'Baza wiedzy'}”`);
+    if (revision === null) without.push(ctx.t('areasJson.quoted', { name: base.name ?? ctx.t('areasKind.base') }));
     else parts.push(revisionPart(revision, ctx.area.areaId));
   }
-  if (parts.length === 0) throw new WorkspaceError(`${without.join(', ')} — bez powtórki. Utwórz ją w Nauce (Powtórki).`);
+  if (parts.length === 0) throw new WorkspaceError(ctx.t('areasKind.act.withoutRevision', { names: without.join(', ') }));
   await ensureIntake(ctx, held, held.ring);
   await addToPage(ctx.main, parts);
-  return without.length === 0 ? undefined : `Bez powtórki (nie dodano): ${without.join(', ')}.`;
+  return without.length === 0 ? undefined : ctx.t('areasKind.act.notAdded', { names: without.join(', ') });
 }
 
 /** Die Bausteine der Hauptseite, wie die Regeln sie lesen (`courseBases.ts`). */
@@ -2299,7 +2337,7 @@ async function routeAnswers(ctx: Ctx): Promise<void> {
   if (ctx.main === null) return;
   const course = ctx.area.areaId;
   const page = await loadPage(ctx.main);
-  if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
+  if (page.locked === true) throw new WorkspaceError(tApp('areasKind.pageSealed'));
   const drafts = page.parts.map(toDraft);
   const stray = new Set(strayLearning(drafts.map((p) => ({ id: p.id, kind: p.kind, config: p.config as Record<string, string> })), course, (id) => insideCourse(ctx, id)).map((p) => p.id));
   await saveParts(ctx.main, drafts.map((part) => (stray.has(part.id) ? { ...part, config: { ...part.config, answers: course } } : part)));
@@ -2316,15 +2354,15 @@ async function unlinkBase(ctx: Ctx, held: Held, base: CourseBase, closes: boolea
     await saveImportKeys(ctx.area.areaId, base.keys.map((key) => ({ kind: 'library' as const, key, remove: true }))).catch(() => undefined);
   }
   if (ctx.main !== null && base.parts.length > 0) {
-    held.step('Strona główna…');
+    held.step(ctx.t('areasKind.act.mainPage'));
     const page = await loadPage(ctx.main);
-    if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
+    if (page.locked === true) throw new WorkspaceError(tApp('areasKind.pageSealed'));
     const gone = new Set(base.parts);
     await saveParts(ctx.main, page.parts.map(toDraft).filter((part) => !gone.has(part.id)));
   }
   const learners = roleFor(ctx.world.roles, LEARNERS);
   if (closes && learners !== null && base.row !== null) {
-    held.step(`Zamykanie obszaru „${nameOf(ctx, base.row.areaId)}” dla uczących się…`);
+    held.step(ctx.t('areasKind.act.closingFor', { name: nameOf(ctx, base.row.areaId) }));
     const r = await dropFromArea(base.row.areaId, learners.roleId);
     if (r.note !== '') notes.push(r.note);
   }
@@ -2333,7 +2371,7 @@ async function unlinkBase(ctx: Ctx, held: Held, base: CourseBase, closes: boolea
 
 /* == Ustawienia: der Rodzaj ======================================================= */
 
-const NO_KIND = { kind: null, label: 'Zwykły obszar', says: 'Bez wizytówki i narzędzi rodzaju.' } as const;
+const NO_KIND = { kind: null, get label() { return tApp('areasKind.setting.plain'); }, get says() { return tApp('areasKind.setting.plainSays'); } } as const;
 
 /**
  * „Rodzaj obszaru" in den Ustawienia. Die Art wechseln oder abnehmen lässt den
@@ -2345,6 +2383,7 @@ export function AreaKindSetting({ area, areas, state, onChanged }: {
   state: ProfileState | null;
   onChanged: (profile?: Profile | null) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   if (state === null) return <Loading lines={1} />;
   const now = state.profile?.kind ?? null;
@@ -2353,17 +2392,17 @@ export function AreaKindSetting({ area, areas, state, onChanged }: {
     if (next === now) return;
     if (next === null) {
       const yes = await ask({
-        title: 'Zdjąć rodzaj obszaru?',
-        body: 'Obszar, strony, formularze, terminy i rozmowy zostają. Znika wizytówka, a obszar znika z list.',
-        confirm: 'Zdejmij',
+        title: t('areasKind.setting.removeAsk'),
+        body: t('areasKind.setting.removeBody'),
+        confirm: t('areasKind.setting.remove'),
         danger: true
       });
       if (!yes) return;
     } else if (now !== null) {
       const yes = await ask({
-        title: `Zmienić rodzaj na „${kindLabel(next)}”?`,
-        body: 'Wszystko w obszarze zostaje — zmieniają się narzędzia i listy, na których się pokazuje.',
-        confirm: 'Zmień'
+        title: t('areasKind.setting.changeAsk', { kind: kindLabel(next) }),
+        body: t('areasKind.setting.changeBody'),
+        confirm: t('common.change')
       });
       if (!yes) return;
     }
@@ -2372,17 +2411,17 @@ export function AreaKindSetting({ area, areas, state, onChanged }: {
       if (next === null) {
         await removeProfile(area.areaId);
         onChanged(null);
-        toast('Obszar jest znowu zwykłym obszarem.', { kind: 'ok' });
+        toast(t('areasKind.setting.removed'), { kind: 'ok' });
       } else {
         /* Ein neues Wydarzenie veröffentlicht gleich dort, wo es naheliegt: im nächsten jawnen Bereich darüber, den ich führe. */
         const publish = now === null && next === 'event' ? defaultPublishArea(areas, area.areaId) : area.areaId;
         const out = await saveProfile(area.areaId, { kind: next, ...(publish !== area.areaId ? { publishAreaId: publish } : {}) });
         onChanged(out.profile);
-        toast(`Rodzaj obszaru: ${kindLabel(next)}.`, { kind: 'ok' });
+        toast(t('areasKind.setting.changed', { kind: kindLabel(next) }), { kind: 'ok' });
         if (now === null) window.location.hash = viewPath('areas', area.areaId, 'profil');
       }
     } catch (e) {
-      toast(failure(e, 'Nie udało się zmienić rodzaju obszaru.'), { kind: 'error' });
+      toast(failure(e, t('areasKind.setting.failed')), { kind: 'error' });
     } finally {
       setBusy(false);
     }
@@ -2390,7 +2429,7 @@ export function AreaKindSetting({ area, areas, state, onChanged }: {
 
   const choices: readonly { readonly kind: ProfileKind | null; readonly label: string; readonly says: string }[] = [NO_KIND, ...PROFILE_KINDS];
   return (
-    <div className="wk-kind-choices" role="radiogroup" aria-label="Rodzaj obszaru">
+    <div className="wk-kind-choices" role="radiogroup" aria-label={t('areas.page.kind')}>
       {choices.map((one) => (
         <label key={one.kind ?? 'none'} className={`wk-kind-choice${now === one.kind ? ' is-on' : ''}`} data-area-kind={one.kind ?? 'none'}>
           <input type="radio" name={`area-kind-${area.areaId}`} checked={now === one.kind} disabled={!state.admin || busy} onChange={() => void pick(one.kind)} />
@@ -2400,11 +2439,11 @@ export function AreaKindSetting({ area, areas, state, onChanged }: {
           </span>
         </label>
       ))}
-      {!state.admin && <p className="wk-kind-small">Rodzaj zmienia ten, kto prowadzi obszar.</p>}
+      {!state.admin && <p className="wk-kind-small">{t('areasKind.setting.leader')}</p>}
       {state.admin && now === null && (
         <p className="wk-kind-small">
-          Albo cały obszar naraz — strony, formularz, terminy, role, rozmowy — z JSON przygotowanego przez AI:{' '}
-          <a className="wk-link" href={viewPath('areas', area.areaId, 'profil')} data-area-json-open="">Import z JSON</a>
+          {t('areasKind.setting.orJson')}{' '}
+          <a className="wk-link" href={viewPath('areas', area.areaId, 'profil')} data-area-json-open="">{t('areasKind.setting.importJson')}</a>
         </p>
       )}
     </div>

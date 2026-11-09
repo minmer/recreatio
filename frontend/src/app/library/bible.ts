@@ -123,7 +123,7 @@ Rev|Ap|Ap,Apc|Rev,Rv,Apoc,Re|Apokalipsa świętego Jana,Apokalipsa,Objawienie|Ap
 
 /** Wie ein Name verglichen wird: klein, ohne Akzente und Punkte, ohne Leerzeichen; „I Kor" wie „1 Kor". */
 function norm(name: string): string {
-  return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+  return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l') // i18n-ignore
     .replace(/\./g, ' ').trim()
     .replace(/^(iii|ii|i)\s+(?=\p{L})/u, (m) => ({ i: '1', ii: '2', iii: '3' } as Record<string, string>)[m.trim()] ?? m)
     .replace(/\s+/g, '');

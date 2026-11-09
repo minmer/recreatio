@@ -15,6 +15,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 import type { GapSlot } from './cardBasics';
 
 /** Die Möglichkeiten einer Lücke: das richtige Wort und die falschen, gemischt (je Zeigen neu), ohne Doppelte. */
@@ -38,6 +39,7 @@ function GapChoice({ options, value, onChange, locked, label, state, onEnter }: 
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const t = useT();
   /* Steht die Lücke am rechten Rand (ein Telefon), öffnet die Liste nach links — nie über den Bildschirm hinaus. */
   const [toLeft, setToLeft] = useState(false);
   const root = useRef<HTMLSpanElement | null>(null);
@@ -79,9 +81,9 @@ function GapChoice({ options, value, onChange, locked, label, state, onEnter }: 
   return (
     <span ref={root} className={`cg-gap-choice${state}${open ? ' is-open' : ''}`}>
       <button ref={button} type="button" className="cg-gap-button" disabled={locked} aria-haspopup="listbox" aria-expanded={open} aria-controls={id}
-        aria-label={value === '' ? `${label}: wybierz` : `${label}: ${value}`} aria-activedescendant={open ? `${id}-${active}` : undefined}
+        aria-label={value === '' ? t('cogitaLearnRun.gap.choose', { label }) : `${label}: ${value}`} aria-activedescendant={open ? `${id}-${active}` : undefined}
         data-gap-choice="" onClick={() => (open ? setOpen(false) : show())} onKeyDown={onKey}>
-        {value === '' ? <span className="cg-muted">wybierz…</span> : <TexText text={value} />}
+        {value === '' ? <span className="cg-muted">{t('cogitaLearnRun.gap.pick')}</span> : <TexText text={value} />}
         <span className="cg-gap-caret" aria-hidden>▾</span>
       </button>
       {open && (
@@ -111,6 +113,7 @@ export function GapAnswer({ pieces, gaps, locked, autoFocus = true, given, marks
   action?: ReactNode;
 }) {
   const [values, setValues] = useState<readonly string[]>(() => given ?? gaps.map(() => ''));
+  const t = useT();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const options = useMemo(() => gaps.map((g) => (g.choices !== undefined && g.choices.length > 0 ? optionsOf(g) : null)), [gaps]);
   const root = useRef<HTMLDivElement | null>(null);
@@ -140,7 +143,7 @@ export function GapAnswer({ pieces, gaps, locked, autoFocus = true, given, marks
           const slot = gaps[i];
           const m = checked ? marks?.[i] ?? false : null;
           const state = m === null ? '' : m ? ' is-right' : ' is-wrong';
-          const label = `Luka ${i + 1} z ${gaps.length}`;
+          const label = t('cogitaLearnRun.gap.label', { k: i + 1, n: gaps.length });
           return (
             <span key={i}>
               {piece !== '' && <TexText text={piece} />}
@@ -153,8 +156,8 @@ export function GapAnswer({ pieces, gaps, locked, autoFocus = true, given, marks
                         size={Math.max(4, Math.min(24, (slot.accepted[0] ?? '').length + 2))} autoComplete="off" autoCapitalize="off" spellCheck={false}
                         onChange={(e) => set(i, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); next(i); } }} />
                     )}
-                  {m !== null && <span className="cg-option-mark" aria-label={m ? 'dobrze' : 'źle'}>{m ? '✓' : '✗'}</span>}
-                  {m === false && <span className="cg-gap-fix">dobrze: <strong><TexText text={slot.accepted[0] ?? ''} /></strong></span>}
+                  {m !== null && <span className="cg-option-mark" aria-label={m ? t('cogitaLearnRun.card.right') : t('cogitaLearnRun.card.wrong')}>{m ? '✓' : '✗'}</span>}
+                  {m === false && <span className="cg-gap-fix">{t('cogitaLearnRun.card.rightIs')}<strong><TexText text={slot.accepted[0] ?? ''} /></strong></span>}
                 </span>
               )}
             </span>
@@ -164,11 +167,11 @@ export function GapAnswer({ pieces, gaps, locked, autoFocus = true, given, marks
       {action ?? (!checked && (
         <div className="cg-answer-actions">
           <button key="check" type="button" className="wk-btn" disabled={locked || filled === 0} onClick={submit}>
-            Sprawdź{filled > 0 && filled < gaps.length ? ` (${filled} z ${gaps.length})` : ''}
+            {filled > 0 && filled < gaps.length ? t('cogitaLearnRun.card.checkSome', { k: filled, n: gaps.length }) : t('cogitaLearnRun.card.check')}
           </button>
         </div>
       ))}
-      {checked && <p className="cg-order-count" data-gaps-count={right}>{right} z {gaps.length} {gaps.length === 1 ? 'luki' : 'luk'} dobrze</p>}
+      {checked && <p className="cg-order-count" data-gaps-count={right}>{t('cogitaLearnRun.gap.right', { right, count: gaps.length })}</p>}
     </div>
   );
 }

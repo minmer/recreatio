@@ -111,5 +111,278 @@
     "publicWarn": "Dieser Bereich ist öffentlich: jeder, auch ohne Konto, liest {whole} dieser Basis. Soll etwas nur für Ausgewählte bleiben, lege die Basis in einem geschlossenen Bereich an.",
     "creating": "Wird angelegt…",
     "create": "Anlegen"
+  },
+  "card": {
+    "true": "wahr",
+    "false": "falsch",
+    "trueLabel": "Wahr",
+    "falseLabel": "Falsch",
+    "codeAnswer": "Code, der alle Fälle besteht",
+    "pointAnswer": "der markierte Punkt",
+    "drawingAnswer": "Ziel der Zeichnung erreicht",
+    "dateHint": {
+      "year": "Jahr, z. B. 1410",
+      "month": "z. B. 7.1410 oder Juli 1410",
+      "day": "z. B. 15.07.1410 oder 15. Juli 1410"
+    },
+    "datePart": {
+      "year": "Jahr",
+      "month": "Monat",
+      "day": "Tag"
+    },
+    "none": "keine",
+    "near": "knapp · ",
+    "rightIs": "richtig: ",
+    "number": "Zahl",
+    "numberUnit": "Zahl, ggf. mit Einheit",
+    "answerPlaceholder": "Antwort",
+    "answer": "Antwort",
+    "answerHow": "Antwort — {how}",
+    "check": "Prüfen",
+    "checkSome": "Prüfen ({k} von {n})",
+    "pairOf": "{label} — Paar {n}",
+    "matchHint": "Wähle ein Element auf einer Seite, dann sein Gegenstück auf der anderen. Erneutes Wählen löst das Paar.",
+    "knew": "Gewusst",
+    "partly": "Teilweise",
+    "notKnew": "Nicht gewusst",
+    "showAnswer": "Antwort zeigen",
+    "pointHint": "Zeige auf eine Stelle im Bild der Frage.",
+    "pairsRight": {
+      "one": "{right} von {count} Paar richtig",
+      "other": "{right} von {count} Paaren richtig"
+    },
+    "right": "richtig",
+    "wrong": "falsch",
+    "noPair": "ohne Paar",
+    "rightHinted": "Richtig — mit Hinweis (<s></s>)",
+    "verdictRight": "Richtig!",
+    "almost": "Fast (<s></s>)",
+    "wrongShare": "Leider nicht (<s></s>).",
+    "verdictWrong": "Leider nicht.",
+    "noAnswer": "Keine Antwort.",
+    "correctIs": "Richtig: ",
+    "also": " · auch: ",
+    "yours": " · deine Antwort: ",
+    "diff": "Vergleich Zeichen für Zeichen",
+    "explanation": "Erklärung",
+    "hintN": "Hinweis {n}",
+    "hintCost": "Jeder Hinweis senkt das Ergebnis dieser Antwort um {pct} %.",
+    "hintOf": "Hinweis {n}/{all}"
+  },
+  "code": {
+    "loading": "Python wird gestartet… (beim ersten Mal werden etwa 10 MB geladen)",
+    "checking": "Prüfung: Fall {k} von {n}…",
+    "startFailed": "Python konnte nicht gestartet werden.",
+    "examplesHead": {
+      "one": "Beispiel — so soll <c>transform(x)</c> arbeiten:",
+      "other": "Beispiele — so soll <c>transform(x)</c> arbeiten:"
+    },
+    "returns": "gibt zurück",
+    "field": "Code: Funktion transform(x)",
+    "nothing": "Diese Frage hat noch nichts zu prüfen.",
+    "plan": "Prüfung: {what} — je {s} s. Die Funktion <c>transform(x)</c> bekommt eine Eingabe und gibt ein Ergebnis zurück.",
+    "examples": {
+      "one": "{count} Beispiel",
+      "other": "{count} Beispiele"
+    },
+    "hidden": {
+      "one": "{count} verdeckter Fall",
+      "other": "{count} verdeckte Fälle"
+    },
+    "and": " und ",
+    "check": "Code prüfen",
+    "right": "richtig",
+    "skippedBroken": "übersprungen (Fehler der Frage)",
+    "notRun": "nicht ausgeführt",
+    "broken": "Fehler der Frage",
+    "timeout": "Zeit überschritten",
+    "error": "Fehler",
+    "wrong": "falsch",
+    "exampleN": "Beispiel {n}",
+    "hiddenN": "Verdeckt {n}",
+    "why": "Warum:",
+    "errorLabel": "Fehler:",
+    "printed": "Mit print ausgegeben:",
+    "of": "{k} von {n}",
+    "sum": {
+      "one": "{passed} von {count} Fall richtig",
+      "other": "{passed} von {count} Fällen richtig"
+    },
+    "sumParts": " (Beispiele: {examples}, verdeckt: {hidden})",
+    "invalid": "Der Code lief nicht:",
+    "tooLong": "Zu lange:",
+    "note": "Hinweis:",
+    "caption": "Ergebnisse der Prüfung, Fall für Fall",
+    "colCase": "Fall",
+    "colInput": "Eingabe",
+    "colExpected": "Erwartet",
+    "colGot": "Dein Ergebnis",
+    "colResult": "Ergebnis"
+  },
+  "build": {
+    "preview": "Vorschau der Antwort",
+    "empty": "Hier erscheint deine Antwort.",
+    "added": "Hinzugefügt: {text}, Position {at}.",
+    "removed": "Entfernt: {text}.",
+    "lifted": "Aufgenommen: {text}, Position {at} von {n}.",
+    "liftedKeys": "Aufgenommen: {text}, Position {at} von {n}. Pfeile verschieben, Leertaste legt ab, Escape bricht ab, Entf entfernt.",
+    "dropped": "Abgelegt auf Position {at} von {n}.",
+    "cancelled": "Abgebrochen — die Kachel ist zurück an ihrem Platz.",
+    "moved": "Auf Position {at} von {n} verschoben.",
+    "lineEmpty": "Deine Antwort — leer",
+    "line": {
+      "one": "Deine Antwort — {count} Kachel",
+      "other": "Deine Antwort — {count} Kacheln"
+    },
+    "pick": "Wähle Kacheln unten…",
+    "tileRole": "verschiebbare Kachel",
+    "tile": "{text}, Position {at} von {n}",
+    "tileRight": "{text}, Position {at} von {n}, richtig",
+    "tileWrong": "{text}, Position {at} von {n}, falsch",
+    "bank": "Kacheln zur Auswahl",
+    "add": "Hinzufügen: {text}",
+    "cleared": "Antwort geleert.",
+    "clear": "Leeren",
+    "inPlace": "{right} von {n} am richtigen Platz",
+    "showMine": "Meine Antwort zeigen",
+    "showSolution": "Lösung zeigen"
+  },
+  "order": {
+    "droppedSame": "An derselben Stelle abgelegt.",
+    "cancelledShort": "Abgebrochen.",
+    "liftedKeys": "Aufgenommen: {text}, Position {at} von {n}. Pfeile verschieben, Leertaste legt ab, Escape bricht ab.",
+    "cancelled": "Abgebrochen — das Element ist zurück an seinem Platz.",
+    "list": "Reihenfolge — ziehen oder Pfeile benutzen",
+    "itemRole": "verschiebbares Element",
+    "itemWrong": "{text}, Position {at} von {n}, falsch — richtige Position {place}",
+    "yours": "bei dir: {at}",
+    "up": "Nach oben: {text}",
+    "down": "Nach unten: {text}",
+    "neighbours": "{k} von {n} Nachbarpaaren in richtiger Reihenfolge",
+    "showMine": "Meine Reihenfolge zeigen",
+    "showRight": "Richtige Reihenfolge zeigen"
+  },
+  "gap": {
+    "choose": "{label}: wählen",
+    "pick": "wählen…",
+    "label": "Lücke {k} von {n}",
+    "right": {
+      "one": "{right} von {count} Lücke richtig",
+      "other": "{right} von {count} Lücken richtig"
+    }
+  },
+  "interactive": {
+    "broken": "Diese Zeichnung ist leer oder kein gültiges JSON.",
+    "showMine": "Meinen Versuch zeigen"
+  },
+  "matrix": {
+    "add": "{row} × {col}: hinzufügen",
+    "addHere": "Hier hinzufügen",
+    "empty": "leer"
+  },
+  "part": {
+    "checking": "Wird geprüft…",
+    "nothing": "Jetzt nichts zu wiederholen.",
+    "cards": {
+      "one": " — {count} Karte",
+      "other": " — {count} Karten"
+    },
+    "open": "öffnen"
+  },
+  "step": {
+    "done": "erledigt",
+    "overdue": "überfällig",
+    "todo": "zu erledigen",
+    "until": " · bis {date}",
+    "noBase": "Die Wissensbasis des Kurses ist über diesen Link nicht verfügbar — frag die Leitung.",
+    "measuring": "Es wird gezählt, wie viel du schon kannst…",
+    "noCards": "Diese Wissensbasis hat noch keine Karten.",
+    "share": "Du kannst {share} — Ziel: {goal} · {name}",
+    "howMuch": "Wie viel du schon kannst",
+    "fold": "Zuklappen",
+    "review": "Wiederholen",
+    "learn": "Lernen",
+    "fromBase": "Aus der Wissensbasis",
+    "choose": "— wählen —",
+    "unavailable": "(nicht verfügbar) {id}",
+    "allCards": "— alle Karten der Wissensbasis —",
+    "deleted": "(gelöscht)",
+    "doneAt": "Erledigt bei",
+    "percent": "% Kenntnis"
+  },
+  "pathRun": {
+    "noQuestions": "Dazu gibt es noch keine Fragen."
+  },
+  "away": {
+    "opening": "Wird geöffnet…",
+    "checking": "Gerät wird geprüft…",
+    "sealed": "Wiederholungen ohne Internet sind mit deinem Schlüssel versiegelt.",
+    "title": "Lernen ohne Internet",
+    "none": "Auf diesem Gerät gibt es nichts zum Lernen ohne Internet. Das wird mit Netz vorbereitet: melde dich an, wähle „Schlüssel auf diesem Gerät behalten“ (Konto → Sicherheit und Schlüssel) und gehe einmal eine Wiederholung durch, die der Autor mit „Auf Geräten ohne Internet behalten“ markiert hat. Danach meldest du dich hier ohne Netz an.",
+    "signInFailed": "Anmeldung ohne Internet fehlgeschlagen.",
+    "signInTitle": "Ohne Internet anmelden",
+    "signInLede": "Das Passwort prüft dieses Gerät — ohne den Dienst. Wenn das Netz zurück ist, melden wir dich mit demselben Schlüssel an, ohne nach dem Passwort zu fragen.",
+    "account": "Konto",
+    "login": "Kontoname",
+    "password": "Passwort",
+    "computing": "Schlüssel wird berechnet…",
+    "signIn": "Ohne Internet anmelden",
+    "signedIn": "Ohne Internet angemeldet: <b>{login}</b>.",
+    "signOut": "Abmelden",
+    "here": "Auf diesem Gerät ohne Internet",
+    "nothing": "Nichts. Ein Autor kann eine Wiederholung mit „Auf Geräten ohne Internet behalten“ markieren — dann bleibt sie nach dem ersten Durchgang mit Netz hier (nur, wenn der Schlüssel auf diesem Gerät behalten wird).",
+    "broken": "Wiederholung (öffnet sich nicht)",
+    "saved": "gespeichert am {date}",
+    "waiting": {
+      "one": "{count} Antwortpaket wartet auf das Internet — es wird gesendet, sobald das Netz zurück ist und du angemeldet bist.",
+      "other": "{count} Antwortpakete warten auf das Internet — sie werden gesendet, sobald das Netz zurück ist und du angemeldet bist."
+    },
+    "openingRun": "Wiederholung wird geöffnet…",
+    "notHere": "Diese Wiederholung ist nicht auf diesem Gerät.",
+    "all": "Alle Wiederholungen ohne Internet"
+  },
+  "lesson": {
+    "card": "Karte",
+    "mastered": "Gemeistert",
+    "masteredOf": {
+      "one": "{done} von {count} Karte",
+      "other": "{done} von {count} Karten"
+    },
+    "firstTry": "Beim ersten Mal richtig",
+    "time": "Lernzeit",
+    "practise": "Zum Üben",
+    "practiseN": "Zum Üben ({n})",
+    "hinted": "mit Hinweis",
+    "again": "Diese noch einmal üben ({n})"
+  },
+  "goal": {
+    "title": "Tagesziel",
+    "today": "Heute {k} von {n}",
+    "reached": "Ziel erreicht",
+    "left": " · noch {cards}",
+    "streak": {
+      "one": "Serie: {count} Tag in Folge",
+      "other": "Serie: {count} Tage in Folge"
+    },
+    "week": "Letzte 7 Tage",
+    "day": "{day}: {cards}",
+    "dayMet": "{day}: {cards} — Ziel erreicht"
+  },
+  "public": {
+    "loading": "Wiederholung wird geladen…",
+    "noRead": "Diese Wissensbasis kannst du nicht lesen — eine Wiederholung ohne Konto geht mit einer Basis aus einem öffentlichen Bereich (oder mit einem Link dorthin).",
+    "noRevision": "Diese Wiederholung ist nicht in der Wissensbasis."
+  },
+  "intro": {
+    "failed": "Das hat nicht geklappt — versuch es noch einmal.",
+    "text": "Stell dich vor, dann sieht die Kursleitung („{course}“) deinen Fortschritt — und er wartet auch auf einem anderen Gerät mit diesem Link auf dich.",
+    "given": "Vorname",
+    "surname": "Nachname",
+    "busy": "Einen Moment…",
+    "go": "Vorstellen und lernen",
+    "linkPerson": "die Person aus dem Link",
+    "you": "du",
+    "asOffice": "Du lernst als {who} — die Kursleitung sieht den Fortschritt auch.",
+    "asOwn": "Du lernst als {who} — der Fortschritt bleibt in deinem Konto."
   }
 }

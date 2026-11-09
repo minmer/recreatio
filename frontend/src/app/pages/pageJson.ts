@@ -23,7 +23,7 @@
  * erkannt und wie bisher übernommen.
  */
 
-import { asArray, asRecord, asText, count } from './event/kit';
+import { asArray, asRecord, asText } from './event/kit';
 import { type FormContent } from '../forms/formJson';
 import type { VirtualAreaDoc } from '../forms/virtualAreasJson';
 import { describePlan, readAppointments, referencesIn, REFERENCE_FIELDS, type AppointmentsPlan } from '../calendar/appointmentsJson';
@@ -54,6 +54,10 @@ import { importLegacy, legacyPages } from './slides/SlidesImport';
 export const PAGE_FORMAT = 'recreatio/page';
 export const MODULE_FORMAT = 'recreatio/module';
 export const PART_FORMAT = 'recreatio/part';
+
+/** Wo eine Warnung steht: „Moduł 3", „Scena 2" — in der Sprache der App. */
+const moduleAt = (index: number): string => t('pagesJson.w.module', { n: index + 1 });
+const sceneAt = (index: number): string => t('pagesJson.w.scene', { n: index + 1 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (value: string): boolean => UUID.test(value);
@@ -195,7 +199,7 @@ export function parseDocument(text: string): { value: unknown } | { error: strin
   try {
     return { value: JSON.parse(text) as unknown };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Nieprawidłowy JSON.' };
+    return { error: e instanceof Error ? e.message : t('pagesJson.w.badJson') };
   }
 }
 
@@ -254,7 +258,7 @@ function readTheme(value: unknown): Theme | null | undefined {
 function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
   const out: string[] = [];
   const check = (key: string, list: readonly string[], fallback: string) => {
-    if (has(said, key) && !list.includes(asText(said[key]))) out.push(`${where}: "show.${key}" „${asText(said[key])}” — dozwolone: ${list.join(', ')}; będzie "${fallback}".`);
+    if (has(said, key) && !list.includes(asText(said[key]))) out.push(t('pagesJson.w.allowed', { where, what: `"show.${key}"`, value: asText(said[key]), list: list.join(', '), fallback }));
   };
   check('skin', SKINS, 'card');
   check('type', TEXT_TYPES, 'auto');
@@ -263,22 +267,22 @@ function pieceWarnings(said: Record<string, unknown>, where: string): string[] {
   check('origin', ORIGINS, 'center');
   check('between', BETWEENS, 'glide');
   /* 0108 — ein Ruch, den das Wörterbuch nicht kennt, bewegt nichts. */
-  for (const name of unknownMotions(said.motion)) out.push(`${where}: ruch "show.motion" „${name}” — nie ma go w słowniku (niżej: Ruch); pominięty.`);
+  for (const name of unknownMotions(said.motion)) out.push(t('pagesJson.w.motion', { where, what: '"show.motion"', name }));
   if (has(said, 'places') && (typeof said.places !== 'object' || said.places === null || Array.isArray(said.places))) {
-    out.push(`${where}: "show.places" to nie obiekt { "klucz sceny": miejsce } — moduł nie stanie w prezentacji.`);
+    out.push(t('pagesJson.w.places', { where }));
   }
   /* 2026-10-19 — was an Klatki, Ausschnitt und Maske eines Platzes nicht passt. */
-  for (const [key, raw] of Object.entries(asRecord(said.places))) out.push(...placeWarnings(asRecord(raw), `${where}, scena „${key}”`));
+  for (const [key, raw] of Object.entries(asRecord(said.places))) out.push(...placeWarnings(asRecord(raw), t('pagesJson.w.sceneKey', { where, key })));
   return out;
 }
 
 /** 2026-10-19 — ein Ausschnitt, der kein Ausschnitt ist, und eine Maske, deren Form es nicht gibt. */
 function lookWarnings(said: Record<string, unknown>, where: string): string[] {
   const out: string[] = [];
-  if (has(said, 'crop') && readCrop(said.crop) === null) out.push(`${where}: "crop" „${asText(said.crop)}” — to nie punkt kadru (np. "57% 40%", "center", "left top"); pominięty.`);
+  if (has(said, 'crop') && readCrop(said.crop) === null) out.push(t('pagesJson.w.crop', { where, value: asText(said.crop) }));
   if (has(said, 'mask') && said.mask !== null && said.mask !== 'none') {
     const shape = asText(asRecord(said.mask).shape);
-    if (!(MASK_SHAPES as readonly string[]).includes(shape)) out.push(`${where}: "mask" — kształt „${shape}” — dozwolone: ${MASK_SHAPES.join(', ')}; pominięta.`);
+    if (!(MASK_SHAPES as readonly string[]).includes(shape)) out.push(t('pagesJson.w.mask', { where, shape, list: MASK_SHAPES.join(', ') }));
   }
   return out;
 }
@@ -287,17 +291,17 @@ function lookWarnings(said: Record<string, unknown>, where: string): string[] {
 function placeWarnings(said: Record<string, unknown>, where: string): string[] {
   const out = lookWarnings(said, where);
   if (has(said, 'tall')) out.push(...lookWarnings(asRecord(said.tall), `${where}, "tall"`));
-  if (has(said, 'by') && !(PROGRESS as readonly string[]).includes(asText(said.by))) out.push(`${where}: "by" „${asText(said.by)}” — dozwolone: ${PROGRESS.join(', ')}; będzie "scene".`);
+  if (has(said, 'by') && !(PROGRESS as readonly string[]).includes(asText(said.by))) out.push(t('pagesJson.w.allowed', { where, what: '"by"', value: asText(said.by), list: PROGRESS.join(', '), fallback: 'scene' }));
   if (has(said, 'frames')) {
-    if (!Array.isArray(said.frames)) out.push(`${where}: "frames" to nie lista klatek — pominięte.`);
+    if (!Array.isArray(said.frames)) out.push(t('pagesJson.w.framesNotList', { where }));
     else {
-      if (said.frames.length > MAX_FRAMES) out.push(`${where}: ${said.frames.length} klatek — liczy się pierwszych ${MAX_FRAMES}.`);
+      if (said.frames.length > MAX_FRAMES) out.push(t('pagesJson.w.framesMany', { where, count: said.frames.length, max: MAX_FRAMES }));
       said.frames.forEach((raw, i) => {
         const one = asRecord(raw);
-        if (typeof one.at !== 'number' && typeof one.step !== 'number') out.push(`${where}, klatka ${i + 1}: brak "at" (0–1) albo "step" — pominięta.`);
-        if (has(one, 'ease') && !(EASES as readonly string[]).includes(asText(one.ease))) out.push(`${where}, klatka ${i + 1}: "ease" „${asText(one.ease)}” — dozwolone: ${EASES.join(', ')}; będzie "inOut".`);
-        out.push(...lookWarnings(one, `${where}, klatka ${i + 1}`));
-        if (has(one, 'tall')) out.push(...lookWarnings(asRecord(one.tall), `${where}, klatka ${i + 1}, "tall"`));
+        if (typeof one.at !== 'number' && typeof one.step !== 'number') out.push(t('pagesJson.w.frameNoAt', { where: t('pagesJson.w.frame', { where, n: i + 1 }) }));
+        if (has(one, 'ease') && !(EASES as readonly string[]).includes(asText(one.ease))) out.push(t('pagesJson.w.allowed', { where: t('pagesJson.w.frame', { where, n: i + 1 }), what: '"ease"', value: asText(one.ease), list: EASES.join(', '), fallback: 'inOut' }));
+        out.push(...lookWarnings(one, t('pagesJson.w.frame', { where, n: i + 1 })));
+        if (has(one, 'tall')) out.push(...lookWarnings(asRecord(one.tall), `${t('pagesJson.w.frame', { where, n: i + 1 })}, "tall"`));
       });
     }
   }
@@ -309,8 +313,8 @@ function layerWarnings(value: unknown, where: string): string[] {
   const out: string[] = [];
   asArray(value).forEach((raw, i) => {
     const one = asRecord(raw);
-    if (!(LAYER_KINDS as readonly string[]).includes(asText(one.kind))) out.push(`${where}, warstwa ${i + 1}: rodzaj „${asText(one.kind)}” — dozwolone: ${LAYER_KINDS.join(', ')}; pominięta.`);
-    for (const name of unknownMotions(one.motion)) out.push(`${where}, warstwa ${i + 1}: ruch „${name}” — nie ma go w słowniku; pominięty.`);
+    if (!(LAYER_KINDS as readonly string[]).includes(asText(one.kind))) out.push(t('pagesJson.w.layerKind', { where: t('pagesJson.w.layer', { where, n: i + 1 }), kind: asText(one.kind), list: LAYER_KINDS.join(', ') }));
+    for (const name of unknownMotions(one.motion)) out.push(t('pagesJson.w.layerMotion', { where: t('pagesJson.w.layer', { where, n: i + 1 }), name }));
   });
   return out;
 }
@@ -319,7 +323,7 @@ function layerWarnings(value: unknown, where: string): string[] {
 function deckWarnings(value: unknown): string[] {
   const root = asRecord(value);
   const out: string[] = [];
-  if (has(root, 'nav') && !(DECK_NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"deck.nav" „${asText(root.nav)}” — dozwolone: ${DECK_NAVS.join(', ')}; będzie "labels".`);
+  if (has(root, 'nav') && !(DECK_NAVS as readonly string[]).includes(asText(root.nav))) out.push(t('pagesJson.w.allowedTop', { what: '"deck.nav"', value: asText(root.nav), list: DECK_NAVS.join(', '), fallback: 'labels' }));
   out.push(...layerWarnings(root.backdrop, '"deck.backdrop"'));
   return out;
 }
@@ -328,24 +332,24 @@ function deckWarnings(value: unknown): string[] {
 function showWarnings(value: unknown): string[] {
   const out: string[] = [];
   const root = asRecord(value);
-  if (has(root, 'format') && !(FORMATS as readonly string[]).includes(asText(root.format))) out.push(`"show.format" „${asText(root.format)}” — dozwolone: ${FORMATS.join(', ')}; będzie "screen".`);
-  if (has(root, 'fonts') && !(FONT_PAIRS as readonly string[]).includes(asText(root.fonts))) out.push(`"show.fonts" „${asText(root.fonts)}” — dozwolone: ${FONT_PAIRS.join(', ')}; będzie "app".`);
-  if (has(root, 'nav') && !(NAVS as readonly string[]).includes(asText(root.nav))) out.push(`"show.nav" „${asText(root.nav)}” — dozwolone: ${NAVS.join(', ')}; będzie "labels".`);
+  if (has(root, 'format') && !(FORMATS as readonly string[]).includes(asText(root.format))) out.push(t('pagesJson.w.allowedTop', { what: '"show.format"', value: asText(root.format), list: FORMATS.join(', '), fallback: 'screen' }));
+  if (has(root, 'fonts') && !(FONT_PAIRS as readonly string[]).includes(asText(root.fonts))) out.push(t('pagesJson.w.allowedTop', { what: '"show.fonts"', value: asText(root.fonts), list: FONT_PAIRS.join(', '), fallback: 'app' }));
+  if (has(root, 'nav') && !(NAVS as readonly string[]).includes(asText(root.nav))) out.push(t('pagesJson.w.allowedTop', { what: '"show.nav"', value: asText(root.nav), list: NAVS.join(', '), fallback: 'labels' }));
   out.push(...layerWarnings(root.backdrop, '"show.backdrop"'));
   /* 2026-10-19 — ein Klang ohne Adresse, die er sein darf, klingt nicht. */
   if (has(root, 'sound') && root.sound !== null && mediaUrl(asRecord(root.sound).url) === null) {
-    out.push('"show.sound" nie ma adresu dźwięku ("url": "page-image:<id>" albo "https://…") — bez dźwięku.');
+    out.push(t('pagesJson.w.sound'));
   }
   asArray(root.scenes).forEach((raw, i) => {
     const scene = asRecord(raw);
-    if (has(scene, 'volume') && typeof scene.volume !== 'number') out.push(`Scena ${i + 1}: "volume" to nie liczba 0–1 — będzie 1.`);
+    if (has(scene, 'volume') && typeof scene.volume !== 'number') out.push(t('pagesJson.w.volume', { where: sceneAt(i) }));
     if (has(scene, 'change') && !(SCENE_CHANGES as readonly string[]).includes(asText(scene.change))) {
-      out.push(`Scena ${i + 1}: "change" „${asText(scene.change)}” — dozwolone: ${SCENE_CHANGES.join(', ')}; będzie "fade".`);
+      out.push(t('pagesJson.w.allowed', { where: sceneAt(i), what: '"change"', value: asText(scene.change), list: SCENE_CHANGES.join(', '), fallback: 'fade' }));
     }
     if (has(scene, 'thread') && !(THREADS as readonly string[]).includes(asText(scene.thread))) {
-      out.push(`Scena ${i + 1}: "thread" „${asText(scene.thread)}” — dozwolone: ${THREADS.join(', ')}; będzie "none".`);
+      out.push(t('pagesJson.w.allowed', { where: sceneAt(i), what: '"thread"', value: asText(scene.thread), list: THREADS.join(', '), fallback: 'none' }));
     }
-    out.push(...layerWarnings(scene.layers, `Scena ${i + 1}: "layers"`));
+    out.push(...layerWarnings(scene.layers, `${sceneAt(i)}: "layers"`));
   });
   return out;
 }
@@ -435,9 +439,9 @@ function planLegacy(doc: unknown, now: PageNow, options: ImportOptions): PagePla
   const done = importLegacy(doc, index, options.replace ? [] : now.parts);
   const theme = options.takeTheme ? done.theme : null;
   const lines = [
-    `Dokument starego systemu — strona „${pages[index]?.label ?? '?'}”: ${count(done.parts.length, 'moduł', 'moduły', 'modułów')} — ${options.replace ? 'zamiast obecnych' : 'na końcu strony'}.`,
-    ...(theme !== null ? [`Kolory wydarzenia (${theme.mode === 'dark' ? 'ciemne' : 'jasne'}).`] : []),
-    ...(now.title === '' && done.title !== null ? [`Tytuł strony: „${done.title}”.`] : [])
+    t(options.replace ? 'pagesJson.l.legacyReplace' : 'pagesJson.l.legacyAppend', { page: pages[index]?.label ?? '?', count: done.parts.length }),
+    ...(theme !== null ? [t(theme.mode === 'dark' ? 'pagesJson.l.legacyDark' : 'pagesJson.l.legacyLight')] : []),
+    ...(now.title === '' && done.title !== null ? [t('pagesJson.l.pageTitle', { title: done.title })] : [])
   ];
   return {
     legacy: true,
@@ -460,7 +464,7 @@ function planLegacy(doc: unknown, now: PageNow, options: ImportOptions): PagePla
 export function planImport(doc: unknown, now: PageNow, options: ImportOptions): PagePlan | { error: string } {
   const kind = documentKind(doc);
   if (kind === 'legacy') return planLegacy(doc, now, options);
-  if (kind === 'unknown') return { error: 'To nie wygląda na dokument strony ani modułu — brakuje "modules" (albo "kind" i "config").' };
+  if (kind === 'unknown') return { error: t('pagesJson.w.notPage') };
 
   const root = asRecord(doc);
   const warnings: string[] = [];
@@ -473,7 +477,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   const replace = kind === 'page' && options.replace;
 
   if (kind === 'page' && has(root, 'path') && asText(root.path) !== '' && asText(root.path) !== now.path) {
-    lines.push(`Dokument pochodzi ze strony „${asText(root.path)}” — moduły bez pasującego "id" powstaną tu jako nowe miejsca.`);
+    lines.push(t('pagesJson.l.fromPage', { path: asText(root.path) }));
   }
 
   const used = new Set<string>();
@@ -496,7 +500,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const def = partOf(kindSaid);
 
     if (def === undefined && match?.kind !== kindSaid) {
-      warnings.push(`Moduł ${index + 1}: ${kindSaid === '' ? 'brak "kind"' : `nieznany rodzaj „${kindSaid}”`} — pominięty.`);
+      warnings.push(kindSaid === '' ? t('pagesJson.w.noKind', { where: moduleAt(index) }) : t('pagesJson.w.unknownKind', { where: moduleAt(index), kind: kindSaid }));
       return;
     }
 
@@ -508,7 +512,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const moduleId = match !== undefined
       ? (isUuid(docModule) ? docModule : match.moduleId)
       : options.copyModules ? null : isUuid(docModule) ? docModule : null;
-    if (docModule !== '' && !isUuid(docModule)) warnings.push(`Moduł ${index + 1}: "module" „${docModule}” nie jest identyfikatorem — powstanie nowy moduł.`);
+    if (docModule !== '' && !isUuid(docModule)) warnings.push(t('pagesJson.w.moduleId', { where: moduleAt(index), id: docModule }));
 
     /* 2026-10-24 — was das Modul selbst führt (die Sperren der Wymagania), setzt kein Dokument. */
     const config = has(entry, 'config')
@@ -520,11 +524,11 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const wish = readModuleWish(entry);
     if (kindSaid === 'form' && carriesForm(wish)) {
       forms.set(id, formPartOf(wish));
-      warnings.push(...wish.warnings.map((w) => `Moduł ${index + 1}: ${w}`));
+      warnings.push(...wish.warnings.map((w) => `${moduleAt(index)}: ${w}`));
       const said = formWishLine(wish, `Formularz ${asText(entry.name).trim() === '' ? index + 1 : `„${asText(entry.name).trim()}”`}`);
       if (said !== null) lines.push(said);
     } else if (kindSaid !== 'form' && formOnlyKeys(wish).length > 0) {
-      warnings.push(`Moduł ${index + 1}: ${formOnlyKeys(wish).map((k) => `"${k}"`).join(', ')} ma tylko formularz — pominięte.`);
+      warnings.push(t('pagesJson.w.formOnly', { where: moduleAt(index), keys: formOnlyKeys(wish).map((k) => `"${k}"`).join(', ') }));
     }
 
     /* Der Platz: aus dem Dokument, sonst der bisherige, sonst der erste freie. */
@@ -544,20 +548,20 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       : match === undefined ? undefined : match.layout.slide === undefined ? undefined : slideJson(readSlide(match.layout));
     const said = asRecord(entry.slide);
     if (has(said, 'transition') && !(TRANSITIONS as readonly string[]).includes(asText(said.transition))) {
-      warnings.push(`Moduł ${index + 1}: "slide.transition" „${asText(said.transition)}” — dozwolone: ${TRANSITIONS.join(', ')}; będzie "scroll".`);
+      warnings.push(t('pagesJson.w.allowed', { where: moduleAt(index), what: '"slide.transition"', value: asText(said.transition), list: TRANSITIONS.join(', '), fallback: 'scroll' }));
     }
     if (has(said, 'enter') && !(ENTERS as readonly string[]).includes(asText(said.enter))) {
-      warnings.push(`Moduł ${index + 1}: "slide.enter" „${asText(said.enter)}” — dozwolone: ${ENTERS.join(', ')}; będzie "none".`);
+      warnings.push(t('pagesJson.w.allowed', { where: moduleAt(index), what: '"slide.enter"', value: asText(said.enter), list: ENTERS.join(', '), fallback: 'none' }));
     }
     /* 0107 — ein Name, den das Wörterbuch nicht kennt, bewegt nichts. */
-    for (const name of unknownMotions(said.motion)) warnings.push(`Moduł ${index + 1}: ruch "slide.motion" „${name}” — nie ma go w słowniku (niżej: Ruch); pominięty.`);
-    warnings.push(...layerWarnings(said.layers, `Moduł ${index + 1}: "slide.layers"`));
+    for (const name of unknownMotions(said.motion)) warnings.push(t('pagesJson.w.motion', { where: moduleAt(index), what: '"slide.motion"', name }));
+    warnings.push(...layerWarnings(said.layers, `${moduleAt(index)}: "slide.layers"`));
 
     /* 0085 — sein Platz in der Präsentation: aus dem Dokument, sonst der bisherige. "show": null nimmt ihn heraus. */
     const shown: Piece | undefined = has(entry, 'show')
       ? (entry.show === null ? undefined : readPieceValue(entry.show))
       : match === undefined || match.layout.show === undefined ? undefined : readPiece(match.layout);
-    if (has(entry, 'show') && entry.show !== null) warnings.push(...pieceWarnings(asRecord(entry.show), `Moduł ${index + 1}`));
+    if (has(entry, 'show') && entry.show !== null) warnings.push(...pieceWarnings(asRecord(entry.show), moduleAt(index)));
 
     const keepPlace = match !== undefined && !complete && !has(entry, 'size') && !has(entry, 'layout');
     const place = !keepPlace && !(complete && (replace || match !== undefined));
@@ -566,7 +570,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const placedLayout: Layout = shown === undefined ? sliding : withPiece(sliding, shown);
 
     /* 2026-11-05 — die Sprache des Bausteins: aus dem Dokument ("lang": null nimmt sie weg), sonst die bisherige. */
-    const langSaid = has(entry, 'lang') ? langIn(entry.lang, `Moduł ${index + 1}: "lang"`, warnings) : undefined;
+    const langSaid = has(entry, 'lang') ? langIn(entry.lang, `${moduleAt(index)}: "lang"`, warnings) : undefined;
     const layout: Layout = withLang(placedLayout, langSaid !== undefined ? langSaid : match === undefined ? null : langOfLayout(match.layout));
 
     made.push({ part: { id, moduleId, kind: kindSaid, layout, config }, place, size });
@@ -608,9 +612,11 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
 
   const removed = replace ? now.parts.filter((p) => !used.has(p.id)) : [];
   if (kind === 'page' || entries.length > 0) {
-    lines.push(`Moduły: zmienione w miejscu — ${updated}, nowe — ${added}${replace ? `, znikną ze strony — ${removed.length}` : `, pozostałe bez zmian — ${now.parts.length - used.size}`}.`);
+    lines.push(replace
+      ? t('pagesJson.l.modulesReplace', { updated, added, removed: removed.length })
+      : t('pagesJson.l.modulesKeep', { updated, added, kept: now.parts.length - used.size }));
   }
-  if (forms.size > 0) lines.push(`Pytania: ${count(forms.size, 'formularz', 'formularze', 'formularzy')}.`);
+  if (forms.size > 0) lines.push(t('pagesJson.l.questions', { count: forms.size }));
 
   /* Die Seite selbst — nur, was das Dokument nennt. */
   const plan: {
@@ -619,20 +625,20 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   if (kind === 'page') {
     if (typeof root.title === 'string' && root.title.trim() !== '' && root.title.trim() !== now.title) {
       plan.title = root.title.trim();
-      lines.push(`Tytuł: „${plan.title}”.`);
+      lines.push(t('pagesJson.l.title', { title: plan.title }));
     }
     if (has(root, 'lead') && (root.lead === null || typeof root.lead === 'string')) {
       const lead = typeof root.lead === 'string' && root.lead.trim() !== '' ? root.lead.trim() : null;
-      if ((lead ?? '') !== now.lead.trim()) { plan.lead = lead; lines.push(lead === null ? 'Tekst strony: usunięty.' : 'Tekst strony: nowy.'); }
+      if ((lead ?? '') !== now.lead.trim()) { plan.lead = lead; lines.push(t(lead === null ? 'pagesJson.l.leadRemoved' : 'pagesJson.l.leadNew')); }
     }
     if ((PAGE_MODES as readonly unknown[]).includes(root.mode)) {
       const mode = root.mode as PageMode;
-      if (mode !== now.mode) lines.push(mode === 'slides' ? 'Wygląd: slajdy.' : mode === 'presentation' ? 'Wygląd: prezentacja.' : 'Wygląd: strona z modułami.');
+      if (mode !== now.mode) lines.push(t(mode === 'slides' ? 'pagesJson.l.modeSlides' : mode === 'presentation' ? 'pagesJson.l.modePresentation' : 'pagesJson.l.modePage'));
       plan.mode = mode;
-    } else if (has(root, 'mode')) warnings.push(`"mode" „${asText(root.mode)}” — dozwolone "page", "slides" albo "presentation"; zostaje jak jest.`);
+    } else if (has(root, 'mode')) warnings.push(t('pagesJson.w.mode', { value: asText(root.mode) }));
     if (has(root, 'theme') || has(root, 'cover') || has(root, 'show') || has(root, 'deck') || has(root, 'style')) {
       const theme = has(root, 'theme') ? readTheme(root.theme) : now.look.theme;
-      if (theme === undefined) warnings.push('"theme" nie ma "mode" ("dark", "light" albo "auto") — kolory zostają jak są.');
+      if (theme === undefined) warnings.push(t('pagesJson.w.theme'));
       if (has(root, 'show') && root.show !== null) warnings.push(...showWarnings(root.show));
       if (has(root, 'cover')) warnings.push(...layerWarnings(root.cover, '"cover"'));
       if (has(root, 'deck') && root.deck !== null) warnings.push(...deckWarnings(root.deck));
@@ -652,17 +658,20 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       };
       if (JSON.stringify(look) !== JSON.stringify(now.look)) plan.look = look;
       if (plan.look !== undefined) {
-        lines.push(`Kolory: ${plan.look.theme === null ? 'automatyczne' : plan.look.theme.night != null ? 'jasne i nocne (jak urządzenie)' : plan.look.theme.mode === 'dark' ? 'ciemne' : 'jasne'}${has(root, 'cover') ? `, tło tytułu: ${count(plan.look.cover.length, 'warstwa', 'warstwy', 'warstw')}` : ''}.`);
+        {
+          const colors = t(plan.look.theme === null ? 'pagesJson.l.colorsAuto' : plan.look.theme.night != null ? 'pagesJson.l.colorsNight' : plan.look.theme.mode === 'dark' ? 'pagesJson.l.colorsDark' : 'pagesJson.l.colorsLight');
+          lines.push(has(root, 'cover') ? t('pagesJson.l.colorsCover', { colors, count: plan.look.cover.length }) : t('pagesJson.l.colors', { colors }));
+        }
         if (has(root, 'style')) lines.push(plan.look.style === undefined ? t('appearance.page.importNone') : t('appearance.page.importLine'));
-        if (has(root, 'show') && plan.look.show !== undefined) lines.push(`Prezentacja: ${count(readShow(plan.look.show).scenes.length, 'scena', 'sceny', 'scen')}.`);
+        if (has(root, 'show') && plan.look.show !== undefined) lines.push(t('pagesJson.l.scenes', { count: readShow(plan.look.show).scenes.length }));
         if (has(root, 'deck') && plan.look.deck !== undefined) {
           const d = plan.look.deck;
-          lines.push(`Pokaz: ${[
-            d.backdrop.length > 0 ? `tło wspólne — ${count(d.backdrop.length, 'warstwa', 'warstwy', 'warstw')}` : null,
-            d.nav === 'dots' ? 'kropki zamiast nazw' : d.nav === 'none' ? 'bez paska' : null,
-            d.titleSlide ? null : 'bez slajdu tytułowego',
-            d.width === null ? null : `scena do ${d.width} rem`
-          ].filter((one) => one !== null).join(', ')}.`);
+          lines.push(t('pagesJson.l.deck', { parts: [
+            d.backdrop.length > 0 ? t('pagesJson.l.deckBackdrop', { count: d.backdrop.length }) : null,
+            d.nav === 'dots' ? t('pagesJson.l.deckDots') : d.nav === 'none' ? t('pagesJson.l.deckNoBar') : null,
+            d.titleSlide ? null : t('pagesJson.l.deckNoTitle'),
+            d.width === null ? null : t('pagesJson.l.deckWidth', { width: d.width })
+          ].filter((one) => one !== null).join(', ') }));
         }
       }
     }
@@ -673,36 +682,36 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       if (lang !== undefined && lang !== (base.lang ?? null)) {
         const { lang: _was, ...rest } = base;
         plan.look = lang === null ? rest : { ...rest, lang };
-        lines.push(lang === null ? 'Język strony: jak u odwiedzającego.' : `Język strony: ${lang}.`);
+        lines.push(lang === null ? t('pagesJson.l.langVisitor') : t('pagesJson.l.lang', { lang }));
       }
     }
     if (has(root, 'menu')) {
-      if (root.menu === null) { plan.menu = null; lines.push('Menu: bez menu.'); }
+      if (root.menu === null) { plan.menu = null; lines.push(t('pagesJson.l.menuNone')); }
       else if (Array.isArray(root.menu)) {
         const badImages: string[] = [];
         const items = readMenuItems(root.menu, 0, badImages);
-        for (const label of badImages) warnings.push(`Menu: „${label}” — "image" to nie obraz (page-image:<id>, https://… albo /plik.svg) — zostaje sama nazwa.`);
+        for (const label of badImages) warnings.push(t('pagesJson.w.menuImage', { label }));
         plan.menu = items.length === 0 ? null : { items };
-        lines.push(items.length === 0 ? 'Menu: bez menu.' : `Menu: ${count(items.length, 'pozycja', 'pozycje', 'pozycji')}.`);
+        lines.push(items.length === 0 ? t('pagesJson.l.menuNone') : t('pagesJson.l.menuItems', { count: items.length }));
       } else if (asText(asRecord(root.menu).from).trim() !== '') {
         plan.menu = { from: asText(asRecord(root.menu).from).trim() };
-        lines.push(`Menu: to samo co na „${(plan.menu as { from: string }).from}”.`);
-      } else warnings.push('"menu" nie jest listą ani { "from": … } — zostaje jak jest.');
+        lines.push(t('pagesJson.l.menuFrom', { from: (plan.menu as { from: string }).from }));
+      } else warnings.push(t('pagesJson.w.menu'));
     }
     if (has(root, 'logic')) {
-      if (root.logic === null) { plan.logic = null; lines.push('Mapa logiki: usunięta.'); }
+      if (root.logic === null) { plan.logic = null; lines.push(t('pagesJson.l.logicRemoved')); }
       else {
         const swap = (id: unknown) => (typeof id === 'string' ? ids.get(id) ?? id : id);
         const given = asRecord(typeof root.logic === 'string' ? safeJson(root.logic) : root.logic);
         const swapped = { ...given, nodes: asArray(given.nodes).map((n) => ({ ...asRecord(n), partId: swap(asRecord(n).partId), goto: swap(asRecord(n).goto) })) };
         const logic: PageLogic | null = readLogic(JSON.stringify(swapped));
-        if (logic === null) warnings.push('"logic" jest nieczytelne — mapa logiki zostaje jak jest.');
+        if (logic === null) warnings.push(t('pagesJson.w.logic'));
         else {
           plan.logic = JSON.stringify(logic);
-          lines.push(`Mapa logiki: ${count(logic.nodes.length, 'węzeł', 'węzły', 'węzłów')}.`);
+          lines.push(t('pagesJson.l.logic', { count: logic.nodes.length }));
           const here = new Set(parts.map((p) => p.id));
           const lost = logic.nodes.filter((n) => n.kind === 'part' && n.partId !== undefined && !here.has(n.partId)).length;
-          if (lost > 0) warnings.push(`Mapa logiki wskazuje ${lost} ${lost === 1 ? 'moduł, którego' : 'moduły, których'} nie ma na stronie.`);
+          if (lost > 0) warnings.push(t('pagesJson.w.logicLost', { count: lost }));
         }
       }
     }
@@ -713,14 +722,14 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const decl = root.subject === null ? null : readSubject(root.subject);
     const known = decl === null ? undefined : subjectKindOf(decl.kind);
     if (root.subject !== null && (decl === null || known === undefined)) {
-      warnings.push(decl === null ? '"subject" nie ma "kind" — wybór na stronie zostaje jak jest.' : `"subject": nieznany rodzaj „${decl.kind}” — wybór na stronie zostaje jak jest.`);
+      warnings.push(decl === null ? t('pagesJson.w.subjectNoKind') : t('pagesJson.w.subjectKind', { kind: decl.kind }));
     } else {
       const next = writeSubject(decl);
       if (next !== writeSubject(readSubject(now.subject ?? null))) {
         plan.subject = next;
-        lines.push(decl === null || known === undefined ? 'Wybór na stronie: brak.' : `Wybór na stronie: ${known.label.toLowerCase()}.`);
+        lines.push(decl === null || known === undefined ? t('pagesJson.l.subjectNone') : t('pagesJson.l.subject', { kind: known.label.toLowerCase() }));
         const missing = decl === null || known === undefined ? null : known.missing(decl);
-        if (missing !== null) warnings.push(`Wybór na stronie: ${missing}`);
+        if (missing !== null) warnings.push(t('pagesJson.w.subjectMissing', { missing }));
       }
     }
   }
@@ -741,7 +750,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const known = plan.appointments?.keys ?? new Set<string>();
     for (const part of parts) {
       for (const name of referencesIn(part.config, referenceFieldsOf(part.kind))) {
-        if (!known.has(name)) warnings.push(`Moduł „${partOf(part.kind)?.label ?? part.kind}”: „@${name}” — nie ma takiego terminu ani kalendarza w "appointments"/"calendars".`);
+        if (!known.has(name)) warnings.push(t('pagesJson.w.refMissing', { label: partOf(part.kind)?.label ?? part.kind, name }));
       }
     }
   }
@@ -750,20 +759,20 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   {
     const scenes = new Set(readShow((plan.look ?? now.look).show).scenes.map((sc) => sc.key));
     const lost = parts.reduce((n, p) => n + Object.keys(readPiece(p.layout).places).filter((key) => !scenes.has(key)).length, 0);
-    if (lost > 0) warnings.push(`Prezentacja: ${count(lost, 'miejsce wskazuje', 'miejsca wskazują', 'miejsc wskazuje')} scenę, której nie ma w "show.scenes" — nie będzie widoczne.`);
+    if (lost > 0) warnings.push(t('pagesJson.w.placesLost', { count: lost }));
 
     /* 0089 — ein Ausgang, der auf nichts zeigt: „dalej" geht dann zur nächsten der Liste, ein Knopf nirgends hin. */
     const show = readShow((plan.look ?? now.look).show);
     const broken = show.scenes.filter((sc) => brokenTarget(show, sc.next)).length
       + parts.reduce((n, p) => n + Object.values(readPiece(p.layout).go).filter((t) => brokenTarget(show, t)).length, 0);
-    if (broken > 0) warnings.push(`Prezentacja: ${count(broken, 'wyjście („next” albo „go”) prowadzi', 'wyjścia prowadzą', 'wyjść prowadzi')} do sceny albo linku, których nie ma — „dalej” pójdzie do następnej sceny, przycisk nigdzie.`);
+    if (broken > 0) warnings.push(t('pagesJson.w.exitsBroken', { count: broken }));
   }
 
   if (!has(plan, 'logic') && now.logic !== null && replace) {
     const logic = readLogic(now.logic);
     const here = new Set(parts.map((p) => p.id));
     const lost = (logic?.nodes ?? []).filter((n) => n.kind === 'part' && n.partId !== undefined && !here.has(n.partId)).length;
-    if (lost > 0) warnings.push(`Mapa logiki strony wskazuje ${lost} ${lost === 1 ? 'moduł, który' : 'moduły, które'} znikną ze strony.`);
+    if (lost > 0) warnings.push(t('pagesJson.w.logicWillLose', { count: lost }));
   }
 
   return { legacy: false, ...plan, parts, configs, names, forms, from, lines, warnings };
@@ -773,7 +782,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
 function langIn(value: unknown, where: string, warnings: string[]): Lang | null | undefined {
   if (value === null || value === '') return null;
   if (isLang(value)) return value;
-  warnings.push(`${where} „${asText(value)}” — dozwolone: ${LANGS.join(', ')} albo null; zostaje jak jest.`);
+  warnings.push(t('pagesJson.w.lang', { where, value: asText(value), list: LANGS.join(', ') }));
   return undefined;
 }
 

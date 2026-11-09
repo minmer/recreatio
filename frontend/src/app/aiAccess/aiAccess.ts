@@ -26,7 +26,7 @@ import { areaKeys, newestKey } from '../chat/chat';
 import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { API, call, WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
 import { storeOf, type LibraryStore } from '../library/libraryStore';
@@ -133,7 +133,7 @@ export interface Refreshed {
 
 /** In Worten, wenn etwas misslang — sonst `null`. */
 export const failedWords = (r: Refreshed): string | null => r.failed === 0 ? null
-  : `Nie udało się przygotować ${r.failed} ${plural(r.failed, 'odpisu', 'odpisów', 'odpisów')}${r.reason === undefined ? '' : ` (${r.reason})`}. Spróbuj „Odśwież teraz”.`;
+  : r.reason === undefined ? t('aiAccess.panel.failedSnaps', { count: r.failed }) : t('aiAccess.panel.failedSnapsWhy', { count: r.failed, reason: r.reason });
 
 /**
  * EINEN LINK ANLEGEN — zwei Schritte: der Dienst würfelt das Geheimnis, dieser
@@ -144,7 +144,7 @@ export async function createAiAccess(
   ring: Ring, areaId: string, libraries: readonly string[], days: number, progress?: (done: number, total: number) => void, wholeArea = true
 ): Promise<CreatedAccess> {
   const newest = newestKey(await areaKeys(ring, areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru.');
+  if (newest === null) throw new WorkspaceError(t('registry.noAreaKey'));
 
   const id = newId();
   const made = await call<{ id: string; token: string; expiresAt: string }>(base(areaId), {
@@ -369,7 +369,7 @@ export async function refreshAiAccess(
   opts.progress?.(0, total);
   for (const job of jobs) {
     const key = await accessKey(ring, areaId, job.access);
-    if (key === null) { failed += job.parts.length; reason ??= 'brak klucza tego obszaru na tym urządzeniu'; continue; }
+    if (key === null) { failed += job.parts.length; reason ??= t('aiAccess.panel.noKeyHere'); continue; }
     /* Titel und Verweise nur innerhalb der Behälter DIESES Links. */
     const scopeIds = job.access.parts.map((p) => p.libraryId).sort();
     let parts = scopes.get(scopeIds.join(','));

@@ -19,6 +19,7 @@
 import { useMemo, useState } from 'react';
 
 import { WorkspaceError } from '../core/session';
+import { t as tApp, useT } from '../core/i18n';
 import { ask } from '../ui/dialogs';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { Modal } from '../ui/Modal';
@@ -38,21 +39,21 @@ export interface SourceTargets {
   readonly storeFor: (row: OpenLibrary) => LibraryStore;
 }
 
-const count = (n: number, one: string, few: string, many: string) =>
-  `${n} ${n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many}`;
+
 
 export function SourceBox({ store, library, work, targets }: { store: LibraryStore; library: OpenLibrary; work: Entry; targets?: SourceTargets }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const texts = useMemo(() => textsOfWork(finderOf(store), work.id), [store, store.revision, work.id]);
   const writable = (targets?.libraries ?? [library]).filter((l) => l.writes && libraryKindOf(l) === 'books');
   const [open, setOpen] = useState(false);
-  const nameOf = (libraryId: string) => (targets?.libraries ?? [library]).find((l) => l.libraryId === libraryId)?.name ?? 'inna biblioteka';
+  const t = useT();
+  const nameOf = (libraryId: string) => (targets?.libraries ?? [library]).find((l) => l.libraryId === libraryId)?.name ?? t('library.kindList.otherLibrary');
 
   return (
     <section className="lib-box" data-source-box="">
-      <h2 className="lib-box-h">Tekst źródła</h2>
+      <h2 className="lib-box-h">{t('librarySource.box.title')}</h2>
       {texts.length === 0
-        ? <p className="lib-box-sub">Brak pełnego tekstu — dzieło działa i bez niego. Gdy tekst się pojawi, cytaty i przypisy z miejscem same do niego poprowadzą.</p>
+        ? <p className="lib-box-sub">{t('librarySource.box.none')}</p>
         : (
           <ul className="src-texts">
             {texts.map(({ entry, manifest }) => {
@@ -61,17 +62,17 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
               const formulas = manifest.parts.reduce((n, p) => n + (p.formulas ?? 0), 0);
               return (
                 <li key={entry.id}>
-                  <a className="wk-btn" href={viewPath('library', lib, work.id, 'tekst')}>Czytaj</a>{' '}
-                  <span>{count(manifest.parts.length, 'część', 'części', 'części')}, {count(words, 'słowo', 'słowa', 'słów')}{formulas > 0 ? `, ${count(formulas, 'wzór', 'wzory', 'wzorów')}` : ''}</span>
-                  <span className="lib-row-meta"> · w bibliotece „{nameOf(lib)}”{lib !== library.libraryId ? ' (osobno od dzieła)' : ''}</span>
+                  <a className="wk-btn" href={viewPath('library', lib, work.id, 'tekst')}>{t('librarySource.box.read')}</a>{' '}
+                  <span>{t('librarySource.box.parts', { count: manifest.parts.length })}, {t('librarySource.preview.words', { count: words })}{formulas > 0 ? `, ${t('librarySource.preview.formulas', { count: formulas })}` : ''}</span>
+                  <span className="lib-row-meta"> · {t(lib !== library.libraryId ? 'librarySource.box.inLibraryApart' : 'librarySource.box.inLibrary', { name: nameOf(lib) })}</span>
                 </li>
               );
             })}
           </ul>
         )}
-      {writable.length > 0 && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" onClick={() => setOpen(true)}>{texts.length === 0 ? 'Dodaj tekst (JSON)' : 'Dodaj lub zmień części (JSON)'}</button></div>}
+      {writable.length > 0 && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" onClick={() => setOpen(true)}>{texts.length === 0 ? t('librarySource.box.add') : t('librarySource.box.change')}</button></div>}
       {open && (
-        <Modal title="Tekst źródła — import JSON" wide onClose={() => setOpen(false)}>
+        <Modal title={t('librarySource.box.modal')} wide onClose={() => setOpen(false)}>
           <SourceImport store={store} library={library} work={work} writable={writable} storeFor={targets?.storeFor ?? (() => store)} />
         </Modal>
       )}
@@ -81,27 +82,28 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
 
 /** Wohin der Text geht — und was das für die heisst, die lesen. */
 function TextLibraryPick({ writable, target, workLibrary, onPick }: { writable: readonly OpenLibrary[]; target: OpenLibrary; workLibrary: OpenLibrary; onPick: (id: string) => void }) {
+  const t = useT();
   return (
     <>
       {writable.length > 1 && (
         <label className="wk-field">
-          <span>Biblioteka tekstu</span>
+          <span>{t('librarySource.box.textLibrary')}</span>
           <select value={target.libraryId} onChange={(e) => onPick(e.target.value)}>
-            {writable.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}{l.areaPublic === true ? ' (publiczna)' : ''}</option>)}
+            {writable.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}{l.areaPublic === true ? t('librarySource.box.publicMark') : ''}</option>)}
           </select>
         </label>
       )}
-      {target.libraryId !== workLibrary.libraryId && <p className="wk-note">Tekst będzie w bibliotece „{target.name}”, dzieło jest w „{workLibrary.name}”. Kto czyta tylko „{workLibrary.name}”, widzi dzieło i cytaty, ale nie tekst.</p>}
-      {target.areaPublic === true && <p className="wk-note">Biblioteka „{target.name}” jest publiczna — tekst przeczyta każdy, także bez konta.</p>}
+      {target.libraryId !== workLibrary.libraryId && <p className="wk-note">{t('librarySource.box.apart', { target: target.name, work: workLibrary.name })}</p>}
+      {target.areaPublic === true && <p className="wk-note">{t('librarySource.box.publicNote', { name: target.name })}</p>}
     </>
   );
 }
 
 /** Ein öffentlicher Text: erst fragen (Urheberrecht). `false`: nicht speichern. */
 const publicOk = async (target: OpenLibrary): Promise<boolean> => target.areaPublic !== true || ask({
-  title: 'Tekst w bibliotece publicznej?',
-  body: `Biblioteka „${target.name}” jest w obszarze publicznym — pełny tekst przeczyta każdy, także bez konta. Udostępniaj tylko teksty, które wolno publikować (prawa autorskie).`,
-  confirm: 'Tak, zapisz publicznie'
+  title: tApp('librarySource.box.publicAsk'),
+  body: tApp('librarySource.box.publicBody', { name: target.name }),
+  confirm: tApp('librarySource.box.publicConfirm')
 });
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -111,8 +113,8 @@ function metaOf(doc: unknown, work: Entry): { error?: string; warning?: string }
   const one = Array.isArray(doc) ? doc.find(isObject) : doc;
   if (!isObject(one) || !isObject(one.work)) return {};
   const key = typeof one.work.key === 'string' ? one.work.key.replace(/^@/, '') : '';
-  if (key !== '' && key.toLowerCase() !== (work.key ?? '').toLowerCase()) return { error: `Ten tekst jest dla innego dzieła („${key}”) — zaimportuj go w Źródłach jako „Dzieło z tekstem” albo otwórz właściwe dzieło.` };
-  return { warning: 'Dane dzieła z dokumentu pominięte — to dzieło już jest; jego pola zmienisz na tej stronie.' };
+  if (key !== '' && key.toLowerCase() !== (work.key ?? '').toLowerCase()) return { error: tApp('librarySource.box.otherWork', { key }) };
+  return { warning: tApp('librarySource.box.workSkipped') };
 }
 
 function SourceImport({ store, library, work, writable, storeFor }: {
@@ -133,6 +135,7 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   const scheme = manifest?.scheme ?? workScheme(work.data);
   /* 2026-11-01 — KaTeX gleich beim Öffnen: bis jemand ein Dokument einfügt, ist es da, und die Vorschau setzt jeden Wzór. */
   const tex = useTexApi()?.checkTex;
+  const t = useT();
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const meta = metaOf(doc, work);
@@ -143,10 +146,10 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   };
 
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    if (!target.writes) throw new WorkspaceError('W tej bibliotece możesz tylko czytać.');
+    if (!target.writes) throw new WorkspaceError(t('library.json.readOnly'));
     const meta = metaOf(doc, work);
     if (meta.error !== undefined) throw new WorkspaceError(meta.error);
-    if (!(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
+    if (!(await publicOk(target))) return { lines: [t('librarySource.write.nothing')], warnings: [] };
     return writePortions({ target: targetStore, work, docs: portionDocs(doc), stage, ...(library.writes ? { workStore: store } : {}), ...(tex === undefined ? {} : { tex }) });
   };
 
@@ -159,9 +162,9 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   const remove = async () => {
     if (manifestEntry === undefined || manifest === undefined) return;
     if (!(await ask({
-      title: 'Usunąć tekst tego dzieła?',
-      body: `Usuwa pełny tekst z biblioteki „${target.name}” (${count(manifest.parts.length, 'część', 'części', 'części')}). Dzieło, cytaty i przypisy zostają — przestaną tylko prowadzić do tekstu.`,
-      confirm: 'Usuń tekst',
+      title: t('librarySource.box.removeAsk'),
+      body: t('librarySource.box.removeBody', { name: target.name, parts: t('librarySource.box.parts', { count: manifest.parts.length }) }),
+      confirm: t('librarySource.box.removeConfirm'),
       danger: true
     }))) return;
     await targetStore.removeMany([...manifest.parts.map((p) => p.id), manifestEntry.id]);
@@ -172,18 +175,18 @@ function SourceImport({ store, library, work, writable, storeFor }: {
       <TextLibraryPick writable={writable} target={target} workLibrary={library} onPick={setTargetId} />
       <JsonPanel
         open
-        summary={`Tekst: ${title}`}
-        lead={<>Jedna część tekstu, kilka albo cały tekst („portions”) — np. przepisany przez AI z PDF-u. Część o tym samym kluczu zastępuje poprzednią, inne zostają; ta sama część drugi raz niczego nie zmienia. Obok jest opis formatu i polecenie do skopiowania.</>}
-        fileName={`tekst-${(work.key ?? work.id).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
+        summary={t('librarySource.box.summary', { title })}
+        lead={<>{t('librarySource.box.lead')}</>}
+        fileName={`${t('librarySource.box.fileName')}-${(work.key ?? work.id).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
         exportDoc={exportDoc}
         description={() => sourceTextPrompt(work, title, scheme)}
         preview={preview}
-        importLabel="Importuj tekst"
+        importLabel={t('librarySource.box.importText')}
         onImport={onImport}
       />
       {manifest !== undefined && (
         <section className="lib-danger">
-          <button type="button" className="wk-btn lib-btn-danger" onClick={() => void remove()}>Usuń tekst z „{target.name}”</button>
+          <button type="button" className="wk-btn lib-btn-danger" onClick={() => void remove()}>{t('librarySource.box.removeFrom', { name: target.name })}</button>
         </section>
       )}
     </div>
@@ -195,13 +198,14 @@ function SourceImport({ store, library, work, writable, storeFor }: {
 /** „Dzieło z tekstem (JSON)" — in den Źródła einer Bibliothek, in der man schreibt. */
 export function WorkWithTextButton({ store, library, targets }: { store: LibraryStore; library: OpenLibrary; targets?: SourceTargets }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const writable = (targets?.libraries ?? [library]).filter((l) => l.writes && libraryKindOf(l) === 'books');
   if (!library.writes) return null;
   return (
     <>
-      <button type="button" className="wk-btn wk-btn-line" onClick={() => setOpen(true)}>Dzieło z tekstem (JSON)</button>
+      <button type="button" className="wk-btn wk-btn-line" onClick={() => setOpen(true)}>{t('librarySource.box.withWorkButton')}</button>
       {open && (
-        <Modal title="Dzieło z pełnym tekstem — import JSON" wide onClose={() => setOpen(false)}>
+        <Modal title={t('librarySource.box.withWorkModal')} wide onClose={() => setOpen(false)}>
           <WorkWithTextImport store={store} library={library} writable={writable.length === 0 ? [library] : writable} storeFor={targets?.storeFor ?? (() => store)} />
         </Modal>
       )}
@@ -227,6 +231,7 @@ function WorkWithTextImport({ store, library, writable, storeFor }: {
     return one === undefined ? undefined : readManifest(one.data);
   };
   const tex = useTexApi()?.checkTex;
+  const t = useT();
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const plan = planWorkWithText(doc, store, manifestOf, tex);
@@ -236,20 +241,20 @@ function WorkWithTextImport({ store, library, writable, storeFor }: {
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
     const plan = planWorkWithText(doc, store, manifestOf, tex);
     if ('error' in plan) throw new WorkspaceError(plan.error);
-    if (plan.docs.length > 0 && !(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
+    if (plan.docs.length > 0 && !(await publicOk(target))) return { lines: [t('librarySource.write.nothing')], warnings: [] };
     /* Erst das Werk und wen es nennt (wie der Import der Bibliothek), dann sein Text. */
     let work: Entry | undefined = store.own(plan.work.id);
     for (const [i, draft] of plan.library.drafts.entries()) {
-      stage(`Zapisywanie wpisu ${i + 1} z ${plan.library.drafts.length}…`);
+      stage(t('librarySource.box.savingEntry', { n: i + 1, total: plan.library.drafts.length }));
       const saved = await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
       if (saved.id === plan.work.id) work = saved;
     }
     work ??= store.get(plan.work.id);
-    if (work === undefined) throw new WorkspaceError('Dzieło jest w innej bibliotece — tekst dodasz na jego stronie.');
+    if (work === undefined) throw new WorkspaceError(t('librarySource.box.workElsewhere'));
     const text = plan.docs.length === 0 ? { lines: [], warnings: [] } : await writePortions({ target: targetStore, work, docs: plan.docs, stage, workStore: store, ...(tex === undefined ? {} : { tex }) });
     const opened = work.id;
     window.setTimeout(() => { window.location.hash = viewPath('library', library.libraryId, opened); }, 1200);
-    return { lines: [...plan.lines.slice(0, 1), ...text.lines, 'Otwieram stronę dzieła…'], warnings: [...plan.library.warnings, ...text.warnings] };
+    return { lines: [...plan.lines.slice(0, 1), ...text.lines, t('librarySource.box.opening')], warnings: [...plan.library.warnings, ...text.warnings] };
   };
 
   return (
@@ -257,13 +262,13 @@ function WorkWithTextImport({ store, library, writable, storeFor }: {
       <TextLibraryPick writable={writable} target={target} workLibrary={library} onPick={setTargetId} />
       <JsonPanel
         open
-        summary="Dzieło z pełnym tekstem"
-        lead={<>Jeden dokument: opis dzieła (książki, artykułu, rozdziału, dokumentu), jego autorzy i — gdy trzeba — czasopismo albo książka, w której jest, oraz jego tekst w częściach. Dzieło trafia do „{library.name}”; o istniejącym kluczu zostaje uzupełnione, nie zdublowane. Obok opis formatu i polecenie dla AI.</>}
-        fileName="dzielo-z-tekstem.json"
+        summary={t('librarySource.box.withWorkSummary')}
+        lead={<>{t('librarySource.box.withWorkLead', { name: library.name })}</>}
+        fileName={`${t('librarySource.box.withWorkFile')}.json`}
         exportDoc={() => WORK_WITH_TEXT_EXAMPLE}
         description={workWithTextPrompt}
         preview={preview}
-        importLabel="Importuj dzieło z tekstem"
+        importLabel={t('librarySource.box.withWorkImport')}
         onImport={onImport}
       />
     </div>

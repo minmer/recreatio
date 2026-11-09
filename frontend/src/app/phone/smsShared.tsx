@@ -4,6 +4,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 
+import { fmtDate, t, texts } from '../core/i18n';
 import { PRIMARY_HOST } from '../routes';
 import { fold } from '../shell/search';
 import { initialsOf } from './numbers';
@@ -28,16 +29,16 @@ const DAY = 86400_000;
 export function shortWhen(at: number): string {
   const d = new Date(at);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
-  if (now.getTime() - at < 6 * DAY) return d.toLocaleDateString('pl-PL', { weekday: 'short' });
-  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
-  return d.toLocaleDateString('pl-PL');
+  if (d.toDateString() === now.toDateString()) return fmtDate(d, { hour: '2-digit', minute: '2-digit' });
+  if (now.getTime() - at < 6 * DAY) return fmtDate(d, { weekday: 'short' });
+  if (d.getFullYear() === now.getFullYear()) return fmtDate(d, { day: 'numeric', month: 'short' });
+  return fmtDate(d, { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export const dayLabel = (at: number): string =>
-  new Date(at).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: new Date(at).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+  fmtDate(new Date(at), { weekday: 'long', day: 'numeric', month: 'long', year: new Date(at).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 
-export const timeOf = (at: number): string => new Date(at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+export const timeOf = (at: number): string => fmtDate(new Date(at), { hour: '2-digit', minute: '2-digit' });
 
 /** Der Wert eines datetime-local-Feldes für eine Zeit („2026-10-18T18:00", Ortszeit). */
 export const localInput = (at: number): string => new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -48,10 +49,10 @@ export function aheadWhen(at: number): string {
   const now = new Date();
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const time = timeOf(at);
-  if (d.toDateString() === now.toDateString()) return `dziś ${time}`;
-  if (d.toDateString() === tomorrow.toDateString()) return `jutro ${time}`;
-  if (at > now.getTime() && at - now.getTime() < 6 * DAY) return `${d.toLocaleDateString('pl-PL', { weekday: 'short' })} ${time}`;
-  return `${d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' })} ${time}`;
+  if (d.toDateString() === now.toDateString()) return t('phone.when.today', { time });
+  if (d.toDateString() === tomorrow.toDateString()) return t('phone.when.tomorrow', { time });
+  if (at > now.getTime() && at - now.getTime() < 6 * DAY) return `${fmtDate(d, { weekday: 'short' })} ${time}`;
+  return `${fmtDate(d, { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' })} ${time}`;
 }
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]/g;
@@ -64,10 +65,10 @@ const HOME = `https://${PRIMARY_HOST}/#/`;
  */
 export function Linked({ text, live = true, mark = '' }: { text: string; live?: boolean; mark?: string }) {
   const out: ReactNode[] = [];
-  const needle = mark.trim().toLocaleLowerCase('pl-PL');
+  const needle = mark.trim().toLocaleLowerCase();
   const marked = (part: string, key: string) => {
     if (needle === '') { out.push(part); return; }
-    const hay = part.toLocaleLowerCase('pl-PL');
+    const hay = part.toLocaleLowerCase();
     let at = 0;
     for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, at)) {
       if (i > at) out.push(part.slice(at, i));
@@ -95,12 +96,12 @@ export const barStyle = (top: number): CSSProperties => ({ '--ph-top': `${top}px
 
 /* -- Suchen: nach Menschen, Nummern oder im Text ------------------------------------------------ */
 
-export type SearchMode = 'osoby' | 'numery' | 'tresc';
+export type SearchMode = 'osoby' | 'numery' | 'tresc'; // i18n-ignore
 
 export const SEARCH: Record<SearchMode, { readonly label: string; readonly placeholder: string }> = {
-  osoby: { label: 'Osoby', placeholder: 'Szukaj osoby…' },
-  numery: { label: 'Numery', placeholder: 'Szukaj numeru…' },
-  tresc: { label: 'Wiadomości', placeholder: 'Szukaj w treści…' }
+  osoby: texts({ label: 'phone.search.people', placeholder: 'phone.search.peoplePh' }),
+  numery: texts({ label: 'phone.search.numbers', placeholder: 'phone.search.numbersPh' }),
+  tresc: texts({ label: 'phone.search.messages', placeholder: 'phone.search.messagesPh' })
 };
 
 export const isMode = (value: string): value is SearchMode => value === 'osoby' || value === 'numery' || value === 'tresc';

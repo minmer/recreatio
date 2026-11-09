@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 
 import { keyOf } from '../core/dayMath';
+import { useT } from '../core/i18n';
 import {
   byDay, CONFESSION, dayKey, DEVOTION, fullDayLabel, hour, isMass, loadPlan, type PublicMass
 } from './mass';
@@ -184,8 +185,9 @@ const timeClass = (m: PublicMass, ctx: Ctx) =>
 export function DayBlock({ ctx, day, onOpen }: { ctx: Ctx; day: Day; onOpen?: (date: Date) => void }) {
   const past = ctx.fold ? day.masses.filter((m) => m.status !== 'cancelled' && new Date(m.endsAt) <= ctx.now) : [];
   const ahead = day.masses.filter((m) => !past.includes(m));
+  const t = useT();
   const today = day.key === dayKey(ctx.now.toISOString());
-  const name = fullDayLabel(day.date.toISOString(), ctx.now);
+  const name = fullDayLabel(day.date.toISOString(), ctx.now, t.lang);
 
   return (
     <section className={`wk-mass-day${today ? ' is-today' : ''}`}>
@@ -198,14 +200,14 @@ export function DayBlock({ ctx, day, onOpen }: { ctx: Ctx; day: Day; onOpen?: (d
       {past.length > 0 && (
         <details className="wk-mass-past">
           <summary>
-            Wcześniej: {past.filter(isMass).map((m) => hour(m.startsAt)).join(' · ')
-              || past.map((m) => hour(m.startsAt)).join(' · ')}
+            {t('masses.day.earlier', { times: past.filter(isMass).map((m) => hour(m.startsAt)).join(' · ')
+              || past.map((m) => hour(m.startsAt)).join(' · ') })}
           </summary>
           {past.map((m) => <Row key={massKey(m)} ctx={ctx} mass={m} />)}
         </details>
       )}
 
-      {day.masses.length === 0 && <p className="wk-mass-none">Brak mszy.</p>}
+      {day.masses.length === 0 && <p className="wk-mass-none">{t('masses.day.none')}</p>}
       {ahead.map((m) => <Row key={massKey(m)} ctx={ctx} mass={m} />)}
     </section>
   );
@@ -213,6 +215,7 @@ export function DayBlock({ ctx, day, onOpen }: { ctx: Ctx; day: Day; onOpen?: (d
 
 /** Eine Messe (oder Beichte, oder ein Nabożeństwo) in einem Tag: Uhrzeit links, alles andere daneben. */
 export function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
+  const t = useT();
   const confession = mass.kind === CONFESSION;
   const devotion = mass.kind === DEVOTION;
   const cancelled = mass.status === 'cancelled';
@@ -235,11 +238,11 @@ export function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
            */
           <span className="wk-mass-head">
             <span className="wk-mass-title">
-              {(mass.title ?? '').trim() !== '' ? mass.title : confession ? 'Spowiedź' : 'Nabożeństwo'}
-              {confession && ` do ${hour(mass.endsAt)}`}
+              {(mass.title ?? '').trim() !== '' ? mass.title : confession ? t('masses.service.confession') : t('masses.service.devotion')}
+              {confession && ` ${t('masses.row.until', { time: hour(mass.endsAt) })}`}
             </span>
             {when !== null && !cancelled && <span className="wk-mass-soon">{when}</span>}
-            {cancelled && <span className="wk-mass-off">{confession ? 'odwołana' : 'odwołane'}</span>}
+            {cancelled && <span className="wk-mass-off">{confession ? t('masses.row.cancelledConfession') : t('masses.row.cancelledDevotion')}</span>}
             {ctx.place && <span className="wk-mass-where">{mass.calendarTitle}</span>}
           </span>
         ) : (
@@ -248,7 +251,7 @@ export function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
               <span className="wk-mass-head">
                 {(mass.title ?? '') !== '' && <span className="wk-mass-title">{mass.title}</span>}
                 {when !== null && <span className="wk-mass-soon">{when}</span>}
-                {cancelled && <span className="wk-mass-off">odwołana</span>}
+                {cancelled && <span className="wk-mass-off">{t('masses.row.cancelledMass')}</span>}
               </span>
             )}
             <PublicValues mass={mass} />
@@ -290,6 +293,7 @@ export function PublicValues({ mass }: { mass: PublicMass }) {
  * oder mit anderen gelesen wird, und ob seine dabei ist.
  */
 export function Intentions({ mass }: { mass: PublicMass }) {
+  const t = useT();
   const ones = mass.intentions.filter((i) => i.kind !== 'collective');
   const many = mass.intentions.filter((i) => i.kind === 'collective');
 
@@ -307,7 +311,7 @@ export function Intentions({ mass }: { mass: PublicMass }) {
 
       {many.length > 0 && (
         <details className="wk-mass-many">
-          <summary>Intencje zbiorowe ({many.length})</summary>
+          <summary>{t('masses.row.collective', { count: many.length })}</summary>
           <ol className="wk-mass-ints">
             {many.map((i) => <li key={i.ordinal}>{i.text}</li>)}
           </ol>

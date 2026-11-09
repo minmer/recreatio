@@ -113,7 +113,7 @@ function LayersEditor({ raw, onSet, ctx, busy }: EditorProps) {
             </div>
             <label className="se-inline">
               <span>{t('moduleContent.layers.shadow')}</span>
-              <input value={ply.shadow ?? ''} disabled={busy} placeholder="0 26px 60px rgba(8, 20, 38, 0.6)"
+              <input value={ply.shadow ?? ''} disabled={busy} placeholder="0 26px 60px rgba(8, 20, 38, 0.6)" /* i18n-ignore */
                 onChange={(e) => update(index, { ...ply, shadow: SHADOW.test(e.target.value.trim()) ? e.target.value.trim() : null })} />
             </label>
             <MotionField value={ply.motion} busy={busy} onChange={(motion) => update(index, { ...ply, motion })} />

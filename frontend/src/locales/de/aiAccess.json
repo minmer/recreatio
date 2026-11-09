@@ -112,5 +112,114 @@
     "too_many": "Diese Verbindung liest schon so viele Bereiche wie möglich (20). Entferne zuerst einen.",
     "not_found": "Diese Verbindung gibt es nicht mehr.",
     "not_ready": "Der Dienst ist noch nicht aktualisiert — versuche es später."
+  },
+  "connect": {
+    "noRequest": "In dieser Adresse fehlt eine Verbindungsanfrage.",
+    "checking": "Verbindungsanfrage wird geprüft…",
+    "connection": "Verbindung mit einem KI-Assistenten",
+    "connecting": "Wird verbunden…",
+    "cannotOpen": "Der Link im Bereich „{area}“ lässt sich auf diesem Gerät nicht öffnen.",
+    "denying": "Wird abgelehnt…",
+    "creating": "Link wird erstellt und Abschriften vorbereitet…",
+    "snapshots": "Abschriften werden vorbereitet… {done}/{total}",
+    "title": "Mit einem KI-Assistenten verbinden",
+    "lede": "<b>{client}</b> möchte ausgewählte Sammlungen von Recreatio lesen — nur lesen. Nach der Zustimmung kehrst du zu <b>{host}</b> zurück.",
+    "note": "Der Assistent bekommt nur die unten angehakten Zugangslinks für KI: er liest ihre Bibliothek, ihr Skriptorium und ihre Wissensbasen, nichts darüber hinaus, und ändert nichts. Was er liest, geht an seinen Anbieter. Du trennst ihn, indem du den Link löschst (Bereich → Zugang → Zugang für KI) — das wirkt sofort.",
+    "unlockWhy": "Links öffnen sich nur bei dir — gib dein Passwort ein.",
+    "noAreas": "Du führst keinen Bereich mit Bibliothek, Skriptorium oder Wissensbasis.",
+    "areas": "Bereiche",
+    "linkForAi": "Link für KI",
+    "wholeArea": "— der ganze Bereich, auch neue Sammlungen",
+    "validUntil": "gültig bis {date}",
+    "createLink": "Link für KI erstellen ({names})",
+    "allow": "Erlauben",
+    "deny": "Ablehnen"
+  },
+  "panel": {
+    "days": {
+      "d7": "eine Woche",
+      "d30": "einen Monat",
+      "d90": "3 Monate",
+      "d365": "ein Jahr"
+    },
+    "daysN": {
+      "one": "{count} Tag",
+      "other": "{count} Tage"
+    },
+    "refreshingAi": "Abschriften für KI werden aufgefrischt…",
+    "refreshingAiN": "Abschriften für KI werden aufgefrischt… {done}/{total}",
+    "askCreate": "Link für KI erstellen?",
+    "askCreateBody": "Wer diesen Link hat, liest die ausgewählten Sammlungen dieses Bereichs — auch der KI-Assistent, dem du ihn gibst, und sein Anbieter. Nichts darüber hinaus, und er ändert nichts. Den Link kannst du jederzeit löschen.",
+    "createLinkShort": "Link erstellen",
+    "creating": "Link wird erstellt…",
+    "title": "Zugang für KI",
+    "lead": "Ein Link nur zum Lesen: ein KI-Assistent (ChatGPT, Claude…) liest darüber die ausgewählten Sammlungen dieses Bereichs — Bibliothek, Skriptorium, Wissensbasen — und nichts darüber hinaus. Er ändert nichts. Was er liest, geht an seinen Anbieter.",
+    "mcpBefore": "Dauerhaft in ChatGPT (oder einem anderen Assistenten mit MCP): füge einen eigenen MCP-Server",
+    "mcpAfter": "mit OAuth-Anmeldung hinzu. Beim Verbinden meldest du dich bei Recreatio an und wählst, welche dieser Links der Assistent bekommt.",
+    "unavailable": "Zugang für KI ist gerade nicht verfügbar — versuche es später.",
+    "noContainers": "Dieser Bereich hat noch keine Bibliothek, kein Skriptorium und keine Wissensbasis.",
+    "leaderOnly": "Einen Link für KI legt an, wer den Bereich führt.",
+    "unlock": "Entsperre die Schlüssel (Passwort), um Links für KI zu erstellen.",
+    "state": {
+      "works": "funktioniert",
+      "expired": "abgelaufen",
+      "unfinished": "unvollständig",
+      "broken": "funktioniert nicht"
+    },
+    "when": {
+      "one": "ab {from} · gültig bis {until} · einmal genutzt",
+      "other": "ab {from} · gültig bis {until} · {count}-mal genutzt"
+    },
+    "whenLast": {
+      "one": "ab {from} · gültig bis {until} · einmal genutzt, zuletzt {last}",
+      "other": "ab {from} · gültig bis {until} · {count}-mal genutzt, zuletzt {last}"
+    },
+    "partFresh": {
+      "one": "{count} Eintrag · aktuell (vom {date})",
+      "other": "{count} Einträge · aktuell (vom {date})"
+    },
+    "partStale": {
+      "one": "{count} Eintrag · aufzufrischen (vom {date})",
+      "other": "{count} Einträge · aufzufrischen (vom {date})"
+    },
+    "creatorLeft": "Funktioniert nicht: die Person, die ihn erstellt hat, führt diesen Bereich nicht mehr. Lösche ihn und erstelle einen neuen.",
+    "cannotShow": "Dieser Link lässt sich auf diesem Gerät nicht zeigen (kein Schlüssel dieses Bereichs).",
+    "showLink": "Link zeigen",
+    "refreshing": "Abschriften werden aufgefrischt…",
+    "refreshingN": "Abschriften werden aufgefrischt… {done}/{total}",
+    "refreshNow": "Jetzt auffrischen",
+    "extend": "Verlängern",
+    "collections": "Sammlungen",
+    "askDelete": "Link für KI löschen?",
+    "askDeleteBody": "Er funktioniert sofort nicht mehr: ein Assistent, der ihn kennt, liest nichts mehr. Die Abschriften verschwinden.",
+    "deleting": "Wird gelöscht…",
+    "validFromToday": "Gültig ab heute für:",
+    "extending": "Wird verlängert…",
+    "saveCollections": "Sammlungen speichern",
+    "changing": "Sammlungen werden geändert…",
+    "copyLink": "Link kopieren",
+    "seeAsAi": "Sehen, was die KI sieht",
+    "howToUse": "Füge den Link in ein Gespräch mit einer KI ein und schreib, was du suchst — z. B. „Lies {url} und finde meine Predigten über Brot“. In ChatGPT kannst du ihn dauerhaft hinzufügen: GPT erstellen → Konfigurieren → Aktionen → Von URL importieren → {url}/openapi.json. Wer diesen Link hat, liest — schick ihn nur dorthin, wo er hin soll.",
+    "createLink": "Link für KI erstellen",
+    "validFor": "Gültig für",
+    "whatReads": "Was die KI liest",
+    "wholeArea": "Der ganze Bereich — auch später hinzukommende Sammlungen",
+    "failedSnaps": {
+      "one": "{count} Abschrift konnte nicht vorbereitet werden. Versuche „Jetzt auffrischen“.",
+      "other": "{count} Abschriften konnten nicht vorbereitet werden. Versuche „Jetzt auffrischen“."
+    },
+    "failedSnapsWhy": {
+      "one": "{count} Abschrift konnte nicht vorbereitet werden ({reason}). Versuche „Jetzt auffrischen“.",
+      "other": "{count} Abschriften konnten nicht vorbereitet werden ({reason}). Versuche „Jetzt auffrischen“."
+    },
+    "noKeyHere": "kein Schlüssel dieses Bereichs auf diesem Gerät"
+  },
+  "snap": {
+    "notInAccess": "Diese Sammlung gehört nicht zu diesem Zugang.",
+    "noGzip": "Dieser Browser kann die Abschrift nicht packen — öffne die App in einem neueren.",
+    "liturgy": "Liturgie: kanonische Werke, Ausgaben, Texte, Abschnitte, Feiern, Vorlagen, Zuordnungen und ausdrückliche Regeln. Stabile kanonische IDs stehen in data.id; Verweise nennen Ressourcen, nie kopierte Tagestexte. Entwürfe und fehlende Abhängigkeiten sind kein bestätigter liturgischer Inhalt.",
+    "books": "## Bibliothek — Quellen\nWerke (\"work\"), Zitate (\"quote\") und Personen (\"person\"); ein Zitat zeigt auf sein Werk, ein Werk — auf Autoren, Übersetzer, das Buch oder die Zeitschrift, in der es steht. \"key\" ist der Zitierschlüssel: in Texten [@schlüssel, S. 23].\n{bible}",
+    "writing": "## Skriptorium — eigene Texte\nTexte (\"text\": Titel, Plan, Inhalt, weitere Angaben; die Textart fügt ihre Felder hinzu), ihre Vorträge (\"delivery\": wann, wo, was vom Plan gesagt, was ausgelassen wurde), Projekte (\"project\") und Textarten (\"texttype\").\n\n{markup}",
+    "base": "## Einträge der Wissensbasis (Cogita)\nEin Eintrag hat Arten (\"kinds\" — die erste gibt den Namen) und Felder in \"data\" nach seinen Arten; was jedes Feld bedeutet — in \"kinds\" dieser Sammlung.\nFeldtypen: {types}.\nEin Wert kann unsicher sein: {\"value\", \"state\", \"source\": {\"work\": Werk-ID, \"locator\": \"S. 23\"}, \"note\"}; Stände: {states}.\nEin Verweis ist die ID eines anderen Eintrags (mit Titel in \"refs\" des Eintrags); ein Verweis mit Stelle: {\"value\": id, \"locator\": \"Ps 110\"}.\nDas Feld \"blocks\" ist eine Aussage: Absätze {\"type\": \"paragraph\", \"text\"}, Listen {\"type\": \"ordered\"|\"unordered\", \"items\"}, Tabellen {\"type\": \"table\", \"columns\", \"rows\"}; eine Zelle ist eine Liste von Stücken {\"text\"} oder {\"ref\": id, \"locator\"}. These = der erste Satz des ersten Absatzes.\nFrage: eine Art \"question\"; \"form\" (Fragetyp) sagt, wie gefragt wird: {questions}; ein Feld mit \"when\" gehört nur zu den genannten Fragetypen; \"about\" — Einträge, die die Frage prüft; \"needs\" — was man vorher können muss.\nLernreihenfolge: ein Verweisfeld mit \"prerequisite\": \"up\" — worauf es zeigt, muss man FRÜHER kennen (Begriff → „Setzt voraus“); \"down\" — die genannten Einträge bauen darauf auf. Aus solchen Feldern berechnet die App Stufen von den Grundlagen (Stufe 1 — nichts davor) und fragt zuerst das Allgemeine, dann das Einzelne.\nDaten: \"1999\", \"1999-05\", \"1999-05-03\", \"-1000\" (v. Chr.); Bereich: {\"segments\": [{\"from\", \"to\"}]}.\nStruktur (z. B. die Argumentation eines Artikels): ein Verweisfeld mit \"structure\": \"up\" — dieser Eintrag liegt UNTER dem, worauf er zeigt (ein Schritt unter einer Frage, eine Antwort unter einem Einwand); \"structure\": \"down\" — die genannten Einträge liegen unter ihm. Die Wurzel (ohne Wert im Feld \"up\") ist meist die Leitfrage. Ihr Baum: über MCP get_related(ID der Wurzel, direction \"in\", fields: [Schlüssel des Feldes \"up\"], depth 3), dann wieder von jedem Eintrag in Tiefe 3 (höchstens 60 Einträge je Aufruf; bei \"truncated\" nennen die Kanten auch die, die nicht hineinpassten — von ihnen weiter); über REST /entry/{id}: Einträge in \"linkedFrom\" mit diesem Feld liegen direkt darunter — und so weiter von jedem von ihnen (oder, beim Durchsehen aller Einträge: unter Eintrag X liegen die, deren Feld \"up\" den Wert X hat). Die Reihenfolge der Schritte ist die Reihenfolge ihrer Stellen im Werk (ein Verweisfeld mit Stelle in einem Werk der Bibliothek). Einträge, die über ein Feld ohne \"structure\" auf einen Schritt zeigen (z. B. ein Kommentar: \"Worüber\"), gehören nicht zur Rekonstruktion — es sind fremde oder eigene Anmerkungen.\n\n{markup}"
   }
 }

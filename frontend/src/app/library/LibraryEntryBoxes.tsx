@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 
 import { WorkspaceError } from '../core/session';
+import { rich, useT } from '../core/i18n';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { LibraryImportPlan } from './libraryJson';
 import { type LibEntry, isKey, kindOf } from './libraryKinds';
@@ -37,6 +38,7 @@ export function KeyBox({ store, id, value, readOnly, onChange }: {
 }) {
   const [draft, setDraft] = useState(value);
   const [note, setNote] = useState<string | null>(null);
+  const t = useT();
   useEffect(() => { setDraft(value); }, [value]);
   const taken = draft !== '' && store.keyTaken(draft, id);
   const elsewhere = draft !== '' && !taken ? store.keyTakenElsewhere(draft, id) : undefined;
@@ -44,19 +46,19 @@ export function KeyBox({ store, id, value, readOnly, onChange }: {
   const commit = () => {
     if (draft === value || wrong) return;
     void onChange(draft).then((r) => setNote(r === null || r.pinned + r.failed === 0 ? null
-      : `Teksty, które nazywały wpis starym kluczem (${r.pinned}), wskazują go teraz na stałe${r.failed > 0 ? `; ${r.failed} w bibliotekach, których nie możesz zmieniać — tam działa stary klucz, zachowany przy wpisie` : ''}.`));
+      : r.failed > 0 ? t('library.key.pinnedSome', { n: r.pinned, failed: r.failed }) : t('library.key.pinned', { n: r.pinned })));
   };
   return (
     <section className="lib-box">
-      <h2 className="lib-box-h">Klucz cytowania</h2>
-      <input value={draft} disabled={readOnly} placeholder="zostanie zaproponowany" aria-label="Klucz cytowania"
+      <h2 className="lib-box-h">{t('library.key.title')}</h2>
+      <input value={draft} disabled={readOnly} placeholder={t('library.key.placeholder')} aria-label={t('library.key.title')}
         onChange={(e) => setDraft(e.target.value.replace(/\s+/g, ''))}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }} />
-      {draft !== '' && !taken && !wrong && <p className="lib-key-hint">W tekście: <code>[@{draft}]</code> albo <code>[@{draft}, s. 12]</code> — zapisze się stały odnośnik, więc zmiana klucza niczego nie zepsuje.</p>}
-      {taken && <p className="wk-warn">Ten klucz ma już inny wpis w tej bibliotece — zostanie uzupełniony literą.</p>}
-      {elsewhere !== undefined && <p className="wk-warn">Ten klucz ma już wpis w innej bibliotece, którą widzisz. Pisząc [@{draft}] w tej bibliotece wybierasz ten wpis; w tekstach zapisze się stały odnośnik, więc nic się nie pomyli.</p>}
-      {wrong && <p className="wk-warn">Tylko litery, cyfry i znaki . _ : -</p>}
+      {draft !== '' && !taken && !wrong && <p className="lib-key-hint">{rich(t('library.key.hint', { key: draft }), { a: (s, k) => <code key={k}>{s}</code>, b: (s, k) => <code key={k}>{s}</code> })}</p>}
+      {taken && <p className="wk-warn">{t('library.key.taken')}</p>}
+      {elsewhere !== undefined && <p className="wk-warn">{t('library.key.elsewhere', { key: draft })}</p>}
+      {wrong && <p className="wk-warn">{t('library.key.wrong')}</p>}
       {note !== null && <p className="wk-note">{note}</p>}
     </section>
   );
@@ -91,7 +93,8 @@ export function EntryJson({ store, entry, isNew, format, home }: {
   /** Wohin ein neuer Eintrag nach dem Import führt. */
   home: (id: string) => string;
 }) {
-  const label = kindOf(entry.kind)?.label.toLowerCase() ?? 'wpis';
+  const t = useT();
+  const label = kindOf(entry.kind)?.label.toLowerCase() ?? t('library.doc.entry').toLowerCase();
   const shaped = (doc: unknown) => (isNew ? intoThis(doc, entry.id, entry.kind, store) : doc);
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const planned = format.plan(shaped(doc));
@@ -99,15 +102,15 @@ export function EntryJson({ store, entry, isNew, format, home }: {
   };
   return (
     <JsonPanel
-      summary={isNew ? 'Import z JSON' : 'Import / eksport JSON'}
+      summary={isNew ? t('library.entryJson.importOnly') : t('library.entryJson.summary')}
       lead={isNew
-        ? <>Wklej opis ({label}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i to, na co w nim wskazujesz, jeśli opiszesz to w tym samym dokumencie).</>
-        : <>Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).</>}
-      fileName={`wpis-${entry.key ?? entry.id.slice(0, 8)}.json`}
+        ? <>{t('library.entryJson.leadNew', { kind: label })}</>
+        : <>{t('library.entryJson.lead')}</>}
+      fileName={`${t('library.entryJson.fileName')}-${entry.key ?? entry.id.slice(0, 8)}.json`}
       exportDoc={() => format.exportDoc([entry])}
       description={format.describe}
       preview={preview}
-      importLabel="Importuj i zapisz"
+      importLabel={t('library.json.import')}
       onImport={async (doc) => {
         const planned = format.plan(shaped(doc));
         if ('error' in planned) throw new WorkspaceError(planned.error);
@@ -124,18 +127,19 @@ export function DeleteBox({ store, entry, back: backTo }: { store: LibraryStore;
   const [sure, setSure] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const back = store.backlinks(entry.id);
+  const t = useT();
   return (
     <section className="lib-box">
       {!sure ? (
-        <button type="button" className="wk-link-btn lib-danger-link" onClick={() => setSure(true)}>Usuń ten wpis…</button>
+        <button type="button" className="wk-link-btn lib-danger-link" onClick={() => setSure(true)}>{t('library.remove.open')}</button>
       ) : (
         <>
-          <p>Usunąć „{store.title(entry)}”?{back.length > 0 ? ` Odwołuje się do niego ${back.length} wpisów — te odwołania zostaną puste.` : ''}</p>
+          <p>{t('library.remove.ask', { title: store.title(entry) })}{back.length > 0 ? ` ${t('library.remove.backlinks', { count: back.length })}` : ''}</p>
           <div className="wk-actions">
             <button type="button" className="wk-btn lib-btn-danger" onClick={() => void store.remove(entry.id).then(
               () => { window.location.hash = backTo; },
-              (e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.'))}>Usuń</button>
-            <button type="button" className="wk-link-btn" onClick={() => setSure(false)}>Anuluj</button>
+              (e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.music.removeFailed')))}>{t('common.delete')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setSure(false)}>{t('common.cancel')}</button>
           </div>
           {failed !== null && <p className="wk-error">{failed}</p>}
         </>

@@ -27,7 +27,7 @@
 
 import { Fragment, type ReactNode } from 'react';
 
-import { parseInline, safeHref, UNREADABLE, type Inline } from '../library/libraryMarkup';
+import { parseInline, safeHref, unreadable, type Inline } from '../library/libraryMarkup';
 import { Glue, glue, Tex } from './tex/Tex';
 
 const LINK = /\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\)/g;
@@ -56,7 +56,7 @@ function inlines(list: readonly Inline[]): ReactNode[] {
       case 'link': return <Link key={i} href={one.href}>{inlines(one.c)}</Link>;
       case 'ref': return <Fragment key={i}>{inlines(one.c)}</Fragment>;
       case 'note': return <small key={i} className="wk-card-aside"> ({inlines(one.c)})</small>;
-      case 'cite': return <small key={i} className="wk-card-aside"> {UNREADABLE}</small>;
+      case 'cite': return <small key={i} className="wk-card-aside"> {unreadable()}</small>;
       default: return null;
     }
   });

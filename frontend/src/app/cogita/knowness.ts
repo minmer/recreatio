@@ -29,6 +29,8 @@
  * kann die Antworten nicht lesen.
  */
 
+import { texts } from '../core/i18n';
+
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
@@ -186,7 +188,7 @@ export function stability(marks: readonly Mark[], sp: Spacing = DEFAULT_SPACING)
  */
 export type Level = 'unseen' | 'learning' | 'known';
 
-export const LEVEL_LABEL: Record<Level, string> = { unseen: 'nieznane', learning: 'do powtórki', known: 'znane' };
+export const LEVEL_LABEL: Record<Level, string> = texts({ unseen: 'cogitaLearnLogic.level.unseen', learning: 'cogitaLearnLogic.level.learning', known: 'cogitaLearnLogic.level.known' });
 
 /** Das Band einer Kenntnis — `answered: false` heisst nie gefragt (also nieznane). */
 export const levelOfKnowness = (k: number, answered = true): Level => (!answered || !(k >= FORGOTTEN) ? 'unseen' : k < KNOWN ? 'learning' : 'known');
@@ -244,11 +246,11 @@ export function snapshotOfState(question: string, direction: string, state: Card
 export const DEPENDENCY_KINDS = ['prerequisite', 'elaboration', 'context'] as const;
 export type DependencyKind = (typeof DEPENDENCY_KINDS)[number];
 
-export const DEPENDENCY_LABEL: Record<DependencyKind, string> = {
-  prerequisite: 'Najpierw trzeba znać',
-  elaboration: 'Pogłębia',
-  context: 'Daje tło'
-};
+export const DEPENDENCY_LABEL: Record<DependencyKind, string> = texts({
+  prerequisite: 'cogitaLearnLogic.dependency.prerequisite',
+  elaboration: 'cogitaLearnLogic.dependency.elaboration',
+  context: 'cogitaLearnLogic.dependency.context'
+});
 
 /**
  * `parent` ist die Grundlage, `child` baut auf ihr auf. Die Reihenfolge des Lernens kommt nur aus Voraussetzungen

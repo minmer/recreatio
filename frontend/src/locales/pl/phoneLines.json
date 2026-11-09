@@ -1,0 +1,53 @@
+{
+  "why": {
+    "thread": "wybrany dla tej rozmowy",
+    "group": "grupa „{group}”",
+    "last": "stąd przyszła ostatnia wiadomość",
+    "default": "domyślny numer SMS"
+  },
+  "own": {
+    "removed": "Usunięto numer.",
+    "saved": "Zapisano numer.",
+    "saveFailed": "Nie udało się zapisać numeru.",
+    "title": "Twoje numery",
+    "note": "Archiwum zapisuje przy wiadomościach, z którego numeru poszły; odpowiedź z przeglądarki wysyła telefon, który ma numer rozmowy.",
+    "default": "(domyślny do SMS)",
+    "numberPh": "Numer tej karty, np. +48 600 100 200",
+    "numberOf": "Numer: {name}"
+  },
+  "title": "Numery i grupy",
+  "loadFailed": "Nie udało się wczytać kontaktów.",
+  "loading": "Wczytywanie kontaktów…",
+  "groups": {
+    "title": "Grupy z własnym numerem",
+    "note": "Osobom z grupy SMS idą zawsze z wybranego numeru — w rozmowie, w nowej wiadomości i w odpowiedzi z powiadomienia. W rozmowie można to zmienić w jej nagłówku (dotyczy wtedy tylko tej rozmowy).",
+    "oneSim": "Ten telefon ma jeden numer — wybór numeru dla grup pojawi się przy dwóch kartach SIM.",
+    "empty": "Nie ma jeszcze grup. Utwórz pierwszą — albo wpisz grupę przy kontakcie (Kontakty → osoba → Grupy).",
+    "numberFor": "Numer dla grupy {group}",
+    "people": "Osoby…",
+    "new": "Nowa grupa"
+  },
+  "persons": {
+    "one": "{count} osoba",
+    "few": "{count} osoby",
+    "many": "{count} osób",
+    "other": "{count} osoby"
+  },
+  "defaultNumber": "Numer domyślny",
+  "edit": {
+    "nameIt": "Nazwij grupę.",
+    "noComma": "Nazwa grupy nie może zawierać przecinka.",
+    "savingN": "Zapisywanie… {done}/{total}",
+    "saved": "Grupa „{group}”: {persons}.",
+    "savedNumber": "Grupa „{group}”: {persons}, numer {number}.",
+    "saveFailed": "Nie udało się zapisać grupy.",
+    "title": "Grupa „{group}”",
+    "name": "Nazwa grupy",
+    "namePh": "np. Praca, Bierzmowanie 2026",
+    "sendFrom": "SMS do tych osób wysyłaj z numeru",
+    "people": "Osoby ({count})",
+    "searchPh": "Szukaj: imię, numer…",
+    "contacts": "Kontakty",
+    "save": "Zapisz grupę"
+  }
+}

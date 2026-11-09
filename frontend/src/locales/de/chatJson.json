@@ -246,5 +246,72 @@
   "sample": {
     "topics": "zwei neue Themen und je eine Nachricht",
     "reminder": "eine Erinnerung für morgen früh, ohne Ton"
+  },
+  "dialog": {
+    "range7": "7 Tage",
+    "range30": "30 Tage",
+    "range90": "90 Tage",
+    "range365": "Jahr",
+    "rangeAll": "Alles",
+    "loadFailed": "Die Nachrichten dieses Chats konnten nicht geladen werden.",
+    "loading": "Die Nachrichten dieses Chats werden geladen — einen Moment…",
+    "loadingOlder": "Ältere Nachrichten, auf die sich das Dokument bezieht, werden geladen — einen Moment…",
+    "stillLoading": "Die Nachrichten dieses Chats werden noch geladen — versuch es gleich noch einmal.",
+    "olderLoading": "Ältere Nachrichten werden noch geladen — versuch es gleich noch einmal.",
+    "period": "Export — Zeitraum",
+    "topic": "Export — Thema",
+    "allMessages": "Alle Nachrichten",
+    "closed": "(geschlossen)",
+    "fetching": "Nachrichten des Chats werden geladen…",
+    "leadImport": "Nachrichten aus dem gewählten Zeitraum (oder Thema), Themen, Aufgaben und Termine — für das Archiv oder für einen KI-Assistenten. Der Import ordnet Themen und Angeheftetes und fügt deine neuen Nachrichten hinzu, markiert mit „Aus einem Import“; er schreibt nie im Namen anderer oder rückwirkend und löscht nichts.",
+    "leadRead": "Nachrichten aus dem gewählten Zeitraum (oder Thema), Themen, Aufgaben und Termine — für das Archiv oder für einen KI-Assistenten. In diesem Chat liest du nur, deshalb gibt es hier nur den Export.",
+    "importLabel": "In den Chat importieren",
+    "note": "Neue Nachrichten gehen als <b>{name}</b>, markiert mit „Aus einem Import“."
+  },
+  "run": {
+    "failed": "das hat nicht geklappt.",
+    "creatingTopics": "Themen werden angelegt… {n}/{count}",
+    "newTopic": "Neues Thema: „{title}“",
+    "newTopicClosed": "Neues Thema: „{title}“ (geschlossen)",
+    "topicFailed": "Thema „{title}“ wurde nicht angelegt: {error}",
+    "changingTopics": "Themen werden geändert…",
+    "closed": "Thema „{title}“ geschlossen",
+    "reopened": "Thema „{title}“ wieder geöffnet",
+    "topicError": "Thema „{title}“: {error}",
+    "lost": {
+      "one": "{count} Nachricht nicht verschoben — ihr Thema ist nicht entstanden.",
+      "other": "{count} Nachrichten nicht verschoben — ihr Thema ist nicht entstanden."
+    },
+    "sorting": "Nachrichten werden in Themen geordnet…",
+    "moveError": "Verschieben in ein Thema: {error}",
+    "moved": {
+      "one": "Zwischen Themen verschoben: {count} Nachricht",
+      "other": "Zwischen Themen verschoben: {count} Nachrichten"
+    },
+    "notYours": {
+      "one": "{count} Nachricht anderer verschiebt die Leitung — sie blieb, wo sie war.",
+      "other": "{count} Nachrichten anderer verschiebt die Leitung — sie blieben, wo sie waren."
+    },
+    "marking": "Anheften und Speichern…",
+    "pinError": "Anheften: {error}",
+    "starError": "Speichern: {error}",
+    "marked": {
+      "one": "Angeheftet, gelöst oder gespeichert: {count} Nachricht",
+      "other": "Angeheftet, gelöst oder gespeichert: {count} Nachrichten"
+    },
+    "notWriting": "Die neuen Nachrichten sind nicht hinausgegangen — in diesem Chat schreibst du nicht.",
+    "sending": "Nachrichten werden gesendet… {n}/{count}",
+    "noTopic": "Nachricht {n} von {count} ging ohne Thema — das Thema ist nicht entstanden.",
+    "sendFailed": "Nachricht {n} von {count} ist nicht hinausgegangen: {error}",
+    "rest": "Die übrigen ({left}) auch nicht — damit sich die Reihenfolge nicht ändert.",
+    "sent": {
+      "one": "{count} Nachricht als {name} gesendet, markiert mit „Aus einem Import“",
+      "other": "{count} Nachrichten als {name} gesendet, markiert mit „Aus einem Import“"
+    },
+    "planned": {
+      "one": "{count} Nachricht geplant — wartet unter „Geplant“ (Menü ⋮)",
+      "other": "{count} Nachrichten geplant — warten unter „Geplant“ (Menü ⋮)"
+    },
+    "nothing": "Nichts geändert."
   }
 }

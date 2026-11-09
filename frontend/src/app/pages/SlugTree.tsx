@@ -39,6 +39,7 @@ import { pagePath, PATH_SHAPE } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { ask } from '../ui/dialogs';
 import type { Node } from '../core/tree';
+import { rich, useT } from '../core/i18n';
 
 /** Nur ein Stück, keine Schrägstriche: an einer Stelle im Baum ist das der Name. */
 const SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -51,6 +52,7 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
   onEdit: (path: string) => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
       await todo();
       onChanged();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.editor.failed'));
     } finally {
       setBusy(null);
     }
@@ -124,7 +126,7 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
     if (from === null || !allowed(target)) return;
 
     const leaf = from.slice(from.lastIndexOf('/') + 1);
-    void act('Przenoszenie…', () => moveSlug(from, `${target}/${leaf}`));
+    void act(t('pagesAddresses.tree.moving'), () => moveSlug(from, `${target}/${leaf}`));
   };
 
   const shared: Shared = {
@@ -141,11 +143,7 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
 
   return (
     <>
-      <p className="wk-hint">
-        Przeciągnij adres na inny, żeby go pod niego wsunąć. <strong>Treść zostaje</strong> —
-        zmienia się sam adres, razem z podstronami i odnośnikami do nich.
-        Na najwyższy poziom nie da się przeciągnąć: tam wchodzi się kodem.
-      </p>
+      <p className="wk-hint">{rich(t('pagesAddresses.tree.dragHint'), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
@@ -206,6 +204,7 @@ function Row({ node, depth, desk, names, ring, areas, editing, dragging, over, a
   node: Node;
   depth: number;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   /*
@@ -253,7 +252,7 @@ function Row({ node, depth, desk, names, ring, areas, editing, dragging, over, a
       <span>
         {page === null ? (
           // Ein Zwischenstück, das niemand führt: keine Seite, aber eine Ebene.
-          <code className="wk-tree-gap" title="Tego adresu nikt nie prowadzi">{label}</code>
+          <code className="wk-tree-gap" title={t('pagesAddresses.tree.nobody')}>{label}</code>
         ) : (
           <a className="wk-link" href={pagePath(node.path)}><code>{label}</code></a>
         )}
@@ -273,9 +272,9 @@ function Row({ node, depth, desk, names, ring, areas, editing, dragging, over, a
         {page !== null && (
           <span className="wk-badge">
             {(page.accessAreaIds ?? []).length > 0
-              ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.some((a) => a.areaId === id) ? areaPath(areas, id).short : 'obszar').join(', ')}`
-              : 'publiczny'}
-            {page.seal != null ? ' · zaszyfrowana' : ''}
+              ? t('${K}accessOnly', { areas: (page.accessAreaIds ?? []).map((id) => areas.some((a) => a.areaId === id) ? areaPath(areas, id).short : t('${K}area')).join(', ') })
+              : t('${K}public')}
+            {page.seal != null ? t('${K}sealedTag') : ''}
           </span>
         )}
       </span>
@@ -284,11 +283,11 @@ function Row({ node, depth, desk, names, ring, areas, editing, dragging, over, a
         {page !== null && (
           <>
             <button type="button" className="wk-link-btn" onClick={() => setOpen(!open)}>
-              {open ? 'Zwiń' : 'Ustawienia'}
+              {open ? t('pages.editor.fold') : t('pagesAddresses.tree.settings')}
             </button>
             {' · '}
             <button type="button" className="wk-link-btn" onClick={() => onEdit(node.path)}>
-              {editing === node.path ? 'Zamknij stronę' : 'Edytuj stronę'}
+              {editing === node.path ? t('pagesAddresses.tree.closePage') : t('pages.public.edit')}
             </button>
           </>
         )}
@@ -328,6 +327,7 @@ function Visibility({ page, areas, ring, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const now = page.accessAreaIds ?? [];
   const [restricted, setRestricted] = useState(now.length > 0);
   const [chosen, setChosen] = useState<readonly string[]>(now);
@@ -342,33 +342,33 @@ function Visibility({ page, areas, ring, busy, onAct }: {
 
   return (
     <fieldset className="wk-field wk-access-pick">
-      <legend>Kto może otworzyć tę stronę</legend>
+      <legend>{t('pagesAddresses.tree.whoOpens')}</legend>
 
       <label className="wk-check">
         <input type="radio" name={`access-${page.path}`} checked={!restricted} disabled={busy}
           onChange={() => setRestricted(false)} />
-        <span>Każdy — strona publiczna</span>
+        <span>{t('pagesAddresses.tree.everyone')}</span>
       </label>
       <label className="wk-check">
         <input type="radio" name={`access-${page.path}`} checked={restricted} disabled={busy}
           onChange={() => setRestricted(true)} />
-        <span>Tylko osoby z dostępem do obszarów:</span>
+        <span>{t('pagesAddresses.tree.onlyAreas')}</span>
       </label>
 
       {restricted && (
         <div className="wk-access-areas">
           {/* DER GANZE BAUM (AreaPickMany): „Kandydaci" gibt es in der Firmung und in der Erstkommunion — eingerückt, wie sie ineinander liegen. */}
-          <AreaPickMany label="Obszary z dostępem do strony" areas={areas} only={areas.filter((a) => a.personal !== true)} value={chosen.filter((id) => areas.some((a) => a.areaId === id))}
+          <AreaPickMany label={t('pagesAddresses.tree.areasLabel')} areas={areas} only={areas.filter((a) => a.personal !== true)} value={chosen.filter((id) => areas.some((a) => a.areaId === id))}
             onChange={(next) => { if (!busy) setChosen([...next, ...chosen.filter((id) => !areas.some((a) => a.areaId === id))]); }} />
           {chosen.filter((id) => areas.some((a) => a.areaId === id)).length > 0 && (
             <span className="wk-hint">
-              Wybrane: {chosen.filter((id) => areas.some((a) => a.areaId === id)).map((id) => areaPath(areas, id).full).join(' · ')}
+              {t('pagesAddresses.tree.chosen', { areas: chosen.filter((id) => areas.some((a) => a.areaId === id)).map((id) => areaPath(areas, id).full).join(' · ') })}
             </span>
           )}
           {unseen.map((id) => (
             <label key={id} className="wk-check">
               <input type="checkbox" checked={chosen.includes(id)} disabled={busy} onChange={() => toggle(id)} />
-              <span>obszar, którego nie widzisz</span>
+              <span>{t('pagesAddresses.tree.unseen')}</span>
             </label>
           ))}
         </div>
@@ -376,14 +376,14 @@ function Visibility({ page, areas, ring, busy, onAct }: {
 
       <span className="wk-hint">
         {restricted
-          ? 'Otworzą ją tylko: osoby z linkiem z tych obszarów (np. zapisane formularzem, którego odpowiedzi trafiają do obszaru), osoby z dostępem do tych obszarów i ci, którzy prowadzą stronę. Inni zobaczą, że potrzebny jest dostęp — także zalogowani, gdy wybiorą osobę bez dostępu. Stronę z formularzem do samodzielnego zapisu zostaw publiczną.'
-          : 'Każdy może ją otworzyć. Terminy i formularze na niej działają dla każdego, kto ma jakikolwiek link tego adresu.'}
+          ? t('pagesAddresses.tree.restrictedHint')
+          : t('pagesAddresses.tree.publicHint')}
       </span>
 
       {!same && (restricted ? chosen.length > 0 : true) && (
         <span className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy}
-            onClick={() => void onAct('Zapisywanie…', async () => {
+            onClick={() => void onAct(t('pages.editor.saving'), async () => {
               await setPageAreas(page.path, restricted ? chosen : []);
               /* 0121 — eine versiegelte Seite bekommt gleich einen neuen Schlüssel: nur noch für die Bereiche, die jetzt gelten. */
               if (page.seal != null && restricted && ring !== null) {
@@ -391,12 +391,12 @@ function Visibility({ page, areas, ring, busy, onAct }: {
                 await sealPage(page.path, chosen, page.roleId, ring);
               }
             })}>
-            Zapisz
+            {t('common.save')}
           </button>
         </span>
       )}
       {restricted && chosen.length === 0 && (
-        <span className="wk-hint">Zaznacz co najmniej jeden obszar.</span>
+        <span className="wk-hint">{t('pagesAddresses.tree.pickOne')}</span>
       )}
 
       {/* 0121 — erst, wenn die Seite mit Zugang GESPEICHERT ist: versiegelt wird, was gilt. */}
@@ -422,6 +422,7 @@ function Sealing({ page, areas, ring, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const sealed = page.seal != null;
   const [state, setState] = useState<{ unwrapped: readonly string[]; open: readonly string[] } | null>(null);
 
@@ -435,41 +436,36 @@ function Sealing({ page, areas, ring, busy, onAct }: {
   }, [page]);
 
   const named = (ids: readonly string[]) =>
-    ids.map((id) => (areas.some((a) => a.areaId === id) ? areaPath(areas, id).full : 'obszar, którego nie widzisz')).join(', ');
+    ids.map((id) => (areas.some((a) => a.areaId === id) ? areaPath(areas, id).full : t('pagesAddresses.tree.unseen'))).join(', ');
 
   const turnOn = async () => {
     if (ring === null) return;
     const yes = await ask({
-      title: 'Zaszyfrować tę stronę?',
-      body: 'Tytuł, tekst, wygląd, mapa, wybór, treść modułów i menu będą szyfrowane w przeglądarce. Serwer zobaczy tylko adres, to, że strona istnieje, i ile ma modułów. Klucz strony dostaną osoby z dostępem do jej obszarów i rola, która ją prowadzi.',
-      list: [
-        'Osoby z formularza (bez konta) zobaczą stronę dopiero wtedy, gdy formularz daje im rolę z jednym z tych obszarów i ktoś z obsługi przekaże im klucz.',
-        'Moduł z tej strony nie może stać na żadnej innej stronie.',
-        'Gdy zginą wszystkie klucze, strony nie da się odczytać — kopia bazy jej nie odtworzy.',
-        'Obrazy i pliki tej strony nie są (jeszcze) szyfrowane.'
-      ],
-      confirm: 'Zaszyfruj'
+      title: t('pagesAddresses.tree.seal.title'),
+      body: t('pagesAddresses.tree.seal.body'),
+      list: [t('pagesAddresses.tree.seal.form'), t('pagesAddresses.tree.seal.single'), t('pagesAddresses.tree.seal.lost'), t('pagesAddresses.tree.seal.files')],
+      confirm: t('pagesAddresses.tree.seal.confirm')
     });
     if (!yes) return;
     const { sealPage } = await import('./pageSealing');
-    await onAct('Szyfrowanie strony…', () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
+    await onAct(t('pagesAddresses.tree.seal.sealing'), () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
   };
 
   const turnOff = async () => {
     const yes = await ask({
-      title: 'Wyłączyć szyfrowanie tej strony?',
-      body: 'Strona zostanie z dostępem, ale jej treść znów będzie zapisana otwarcie — tak, jak przed zaszyfrowaniem.',
-      confirm: 'Wyłącz szyfrowanie'
+      title: t('pagesAddresses.tree.unseal.title'),
+      body: t('pagesAddresses.tree.unseal.body'),
+      confirm: t('pagesAddresses.tree.unseal.confirm')
     });
     if (!yes) return;
     const { unsealPage } = await import('./pageSealing');
-    await onAct('Odszyfrowywanie strony…', () => unsealPage(page.path));
+    await onAct(t('pagesAddresses.tree.unseal.working'), () => unsealPage(page.path));
   };
 
   const renew = async () => {
     if (ring === null) return;
     const { sealPage } = await import('./pageSealing');
-    await onAct('Odnawianie klucza strony…', () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
+    await onAct(t('pagesAddresses.tree.seal.renewing'), () => sealPage(page.path, page.accessAreaIds ?? [], page.roleId, ring));
   };
 
   return (
@@ -477,17 +473,17 @@ function Sealing({ page, areas, ring, busy, onAct }: {
       <label className="wk-check">
         <input type="checkbox" checked={sealed} disabled={busy || ring === null}
           onChange={() => void (sealed ? turnOff() : turnOn())} />
-        <span>Zaszyfrowana — treść strony czytają tylko osoby z kluczem jej obszarów; serwer jej nie zna (obrazów i plików jeszcze nie szyfruje)</span>
+        <span>{t('pagesAddresses.tree.seal.check')}</span>
       </label>
-      {ring === null && <span className="wk-warn">Do szyfrowania potrzebny jest klucz konta — zaloguj się ponownie.</span>}
+      {ring === null && <span className="wk-warn">{t('pagesAddresses.tree.seal.needKey')}</span>}
       {sealed && state !== null && state.unwrapped.length > 0 && (
         <span className="wk-warn">
-          Bez klucza strony: {named(state.unwrapped)}. Osoby tylko z tych obszarów jej nie otworzą, dopóki ktoś z ich kluczem nie odnowi klucza strony.{' '}
-          <button type="button" className="wk-link-btn" disabled={busy || ring === null} onClick={() => void renew()}>Odnów klucz</button>
+          {t('pagesAddresses.tree.seal.unwrapped', { areas: named(state.unwrapped) })}{' '}
+          <button type="button" className="wk-link-btn" disabled={busy || ring === null} onClick={() => void renew()}>{t('pagesAddresses.tree.seal.renew')}</button>
         </span>
       )}
       {state !== null && state.open.length > 0 && (
-        <span className="wk-warn">Obszar {named(state.open)} jest jawny — każdy może pobrać jego klucz, więc szyfrowanie niczego przed nikim nie ukryje.</span>
+        <span className="wk-warn">{t('pagesAddresses.tree.seal.openArea', { areas: named(state.open) })}</span>
       )}
     </div>
   );
@@ -505,6 +501,7 @@ function Rename({ page, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const parent = parentOf(page.path);
   const leaf = page.path.slice(page.path.lastIndexOf('/') + 1);
 
@@ -516,33 +513,31 @@ function Rename({ page, busy, onAct }: {
    * neue Wurzel zu nehmen, und die gibt es nur gegen einen Code.
    */
   if (parent === '') {
-    return <p className="wk-hint">Adres najwyższego poziomu zmienia się tylko kodem.</p>;
+    return <p className="wk-hint">{t('pagesAddresses.tree.topLevel')}</p>;
   }
 
   const blocker =
-    clean === '' ? 'Nazwa nie może być pusta.'
-    : !SEGMENT.test(clean) ? 'Nazwa: małe litery, cyfry i myślniki.'
-    : clean === 'portal' ? 'Słowo „portal" jest zajęte — za nim zaczynają się miejsca.'
+    clean === '' ? t('pagesAddresses.tree.emptyName')
+    : !SEGMENT.test(clean) ? t('pagesAddresses.tree.badName')
+    : clean === 'portal' ? t('pagesAddresses.tree.portal')
     : null;
 
   return (
     <label className="wk-field">
-      <span>Nazwa tego kroku</span>
+      <span>{t('pagesAddresses.tree.stepName')}</span>
       <input value={name} disabled={busy} autoComplete="off"
         onChange={(e) => setName(e.target.value)} />
 
       {clean !== leaf && blocker === null && (
         <>
-          <span className="wk-hint">
-            Powstanie <code>{parent}/{clean}</code>. Treść zostaje.
-          </span>
+          <span className="wk-hint">{rich(t('pagesAddresses.tree.renameWill', { path: `${parent}/${clean}` }), { code: (s, k) => <code key={k}>{s}</code> })}</span>
           <span className="wk-actions">
             <button
               type="button" className="wk-btn" disabled={busy}
-              onClick={() => void onAct('Zmiana nazwy…',
+              onClick={() => void onAct(t('pagesAddresses.tree.renaming'),
                 () => moveSlug(page.path, `${parent}/${clean}`))}
             >
-              Zmień nazwę
+              {t('pagesAddresses.tree.rename')}
             </button>
           </span>
         </>
@@ -566,6 +561,7 @@ function AddChild({ parent, desk, names, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [roleId, setRoleId] = useState(takers(desk.roles)[0]?.id ?? '');
 
@@ -574,29 +570,27 @@ function AddChild({ parent, desk, names, busy, onAct }: {
 
   const blocker =
     clean === '' ? null
-    : !SEGMENT.test(clean) ? 'Nazwa: małe litery, cyfry i myślniki.'
-    : clean === 'portal' ? 'Słowo „portal" jest zajęte — za nim zaczynają się miejsca.'
-    : !PATH_SHAPE.test(wanted) ? 'Taki adres nie przejdzie.'
+    : !SEGMENT.test(clean) ? t('pagesAddresses.tree.badName')
+    : clean === 'portal' ? t('pagesAddresses.tree.portal')
+    : !PATH_SHAPE.test(wanted) ? t('pagesAddresses.tree.badPath')
     : null;
 
   return (
     <>
       <label className="wk-field">
-        <span>Dodaj podstronę</span>
-        <input value={name} placeholder="klasy" disabled={busy} autoComplete="off"
+        <span>{t('pagesAddresses.tree.addChild')}</span>
+        <input value={name} placeholder={t('pagesAddresses.tree.addChildPlaceholder')} disabled={busy} autoComplete="off"
           onChange={(e) => setName(e.target.value)} />
       </label>
 
       {clean !== '' && blocker === null && (
-        <p className="wk-hint">
-          Powstanie <code>{wanted}</code> — bez kodu, bo prowadzisz to, co wyżej.
-        </p>
+        <p className="wk-hint">{rich(t('pagesAddresses.tree.addWill', { path: wanted }), { code: (s, k) => <code key={k}>{s}</code> })}</p>
       )}
 
       {blocker !== null && <p className="wk-blocker">{blocker}</p>}
 
       <label className="wk-field">
-        <span>Kto będzie odpowiadał</span>
+        <span>{t('pagesAddresses.tree.who')}</span>
         <select value={roleId} disabled={busy} onChange={(e) => setRoleId(e.target.value)}>
           {takers(desk.roles).map((r) => (
             <option key={r.id} value={r.id}>{roleLabel(r, names)}</option>
@@ -609,11 +603,11 @@ function AddChild({ parent, desk, names, busy, onAct }: {
           type="button" className="wk-btn"
           disabled={busy || clean === '' || blocker !== null || roleId === ''}
           onClick={() => {
-            void onAct('Zakładanie…', () => openSubpage(wanted, roleId));
+            void onAct(t('pagesAddresses.tree.creating'), () => openSubpage(wanted, roleId));
             setName('');
           }}
         >
-          Dodaj
+          {t('common.add')}
         </button>
       </div>
     </>

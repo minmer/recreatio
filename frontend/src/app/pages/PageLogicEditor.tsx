@@ -40,6 +40,7 @@ import { keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
 import { loadSteps, openSteps, type StepKind } from '../steps/steps';
 import { Loading } from '../ui/Loading';
+import { t, useT, type T } from '../core/i18n';
 
 /* -- Was der Editor über Formulare weiss ----------------------------------------------- */
 
@@ -65,10 +66,14 @@ async function marksOf(formId: string, who: Who): Promise<readonly Mark[]> {
   }
 
   return (await openSteps(steps, (areaId, epoch) => keys.get(areaId)?.get(epoch)))
-    .map((s) => ({ stepId: s.stepId, label: s.label ?? 'znacznik (zapieczętowany)', doneBy: s.doneBy, kind: s.kind ?? 'mark' }));
+    .map((s) => ({ stepId: s.stepId, label: s.label ?? t('pages.logicEd.sealedMark'), doneBy: s.doneBy, kind: s.kind ?? 'mark' }));
 }
 
 /* -- Ein Knoten ------------------------------------------------------------------------- */
+
+/** Was ein Znacznik verlangt, in Worten. */
+const markWord = (m: Mark, t: T): string => t(m.kind === 'task' ? 'pages.logicEd.mark.task' : m.kind === 'booking' ? 'pages.logicEd.mark.booking' : m.kind === 'chat' ? 'pages.logicEd.mark.chat'
+  : m.kind === 'learn' ? 'pages.logicEd.mark.learn' : m.doneBy === 'person' ? 'pages.logicEd.mark.person' : 'pages.logicEd.mark.office');
 
 interface NodeData {
   readonly node: PageNode;
@@ -77,6 +82,7 @@ interface NodeData {
 }
 
 function PageNodeView({ data, selected }: NodeProps<NodeData>) {
+  const t = useT();
   const { node, summary, preview } = data;
   const role = roleOfKind(node.kind);
   const ports = pagePortsOf(node.kind);
@@ -104,9 +110,9 @@ function PageNodeView({ data, selected }: NodeProps<NodeData>) {
 
       {preview !== undefined && (
         <span className={`wk-lnode-val${preview ? ' is-yes' : ''}`}>
-          {node.kind === 'part' ? (preview ? 'widoczny' : 'ukryty')
-            : node.kind === 'step' ? (preview ? 'zrobione' : 'do zrobienia')
-            : preview ? 'tak' : 'nie'}
+          {t(node.kind === 'part' ? (preview ? 'pages.logicEd.visible' : 'pages.logicEd.hidden')
+            : node.kind === 'step' ? (preview ? 'pages.steps.done' : 'pages.steps.todo')
+            : preview ? 'pages.logicEd.yes' : 'pages.logicEd.no')}
         </span>
       )}
 
@@ -150,6 +156,7 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
   who: Who;
   onSaved: (logic: string | null) => void;
 }) {
+  const t = useT();
   const start = useMemo(() => withParts(readLogic(saved) ?? EMPTY_LOGIC, parts), [saved, parts]);
   const startText = JSON.stringify(start);
 
@@ -200,29 +207,29 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
     return () => { alive = false; };
   }, [wanted, who]);
 
-  const formName = (id?: string) => (id === undefined ? '— wybierz formularz —' : forms.find((f) => f.moduleId === id)?.name ?? '(formularz)');
+  const formName = (id?: string) => (id === undefined ? t('pages.logicEd.chooseForm') : forms.find((f) => f.moduleId === id)?.name ?? t('pages.logicEd.form'));
   const partName = (partId?: string) => {
     const part = parts.find((p) => p.id === partId);
-    if (part === undefined) return '(usunięty moduł)';
+    if (part === undefined) return t('pages.logicEd.removedPart');
     const own = part.config.title?.trim() || (part.moduleId === null ? '' : forms.find((f) => f.moduleId === part.moduleId)?.name ?? '');
     return own === '' ? partLabel(part.kind) : `${partLabel(part.kind)}: ${own}`;
   };
 
   const summary = (n: PageNode): string => {
     switch (n.kind) {
-      case 'part': return partName(n.partId) + ((n.message ?? '').trim() === '' ? '' : ' · z komunikatem');
-      case 'step': return `${(n.label ?? '').trim() || '(bez nazwy)'}${n.dueAt ? ` · do ${n.dueAt}` : ''}`;
+      case 'part': return partName(n.partId) + ((n.message ?? '').trim() === '' ? '' : t('${K}withMessage'));
+      case 'step': return `${(n.label ?? '').trim() || t('${K}unnamed')}${n.dueAt ? t('${K}dueTag', { date: n.dueAt }) : ''}`;
       case 'registered':
       case 'confirmed': return formName(n.formId);
       case 'answer': {
         const q = questions.get(n.formId ?? '')?.find((f) => f.fieldId === n.fieldId);
-        return `${q?.label ?? (n.fieldId === undefined ? '— wybierz pytanie —' : 'pytanie')} · ${ANSWER_OP_LABEL[n.op ?? 'filled']}${n.op === 'eq' || n.op === 'ne' ? (n.valueHash ? ' ●●●' : ' (bez wartości)') : ''}`;
+        return `${q?.label ?? (n.fieldId === undefined ? t('${K}chooseQuestion') : t('${K}question'))} · ${ANSWER_OP_LABEL[n.op ?? 'filled']}${n.op === 'eq' || n.op === 'ne' ? (n.valueHash ? ' ●●●' : t('${K}noValue')) : ''}`;
       }
       case 'mark': {
         const m = marks.get(n.formId ?? '')?.find((one) => one.stepId === n.stepId);
-        return m === undefined ? (n.stepId === undefined ? '— wybierz znacznik —' : 'znacznik') : `${m.label} · ${m.kind === 'task' ? 'zadanie: wykonane' : m.kind === 'booking' ? 'termin wybrany' : m.kind === 'chat' ? 'wiadomości przeczytane' : m.kind === 'learn' ? 'nauczone' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}`;
+        return m === undefined ? (n.stepId === undefined ? t('${K}chooseMark') : t('${K}markWord')) : `${m.label} · ${markWord(m, t)}`;
       }
-      case 'date': return n.date ? `${n.when === 'before' ? 'przed' : 'od'} ${n.date}` : '— wybierz datę —';
+      case 'date': return n.date ? t(n.when === 'before' ? '${K}before' : '${K}from', { date: n.date }) : t('${K}chooseDate');
       default: return '';
     }
   };
@@ -326,7 +333,7 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
       await savePageLogic(path, text);
       onSaved(text);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać mapy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.logicEd.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -337,28 +344,24 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
 
   return (
     <section className="wk-logic">
-      <p className="wk-hint">
-        Moduły tej strony są już na mapie (po prawej) — każdy ma wejście „pokaż, gdy". Po lewej
-        dodaj dane osoby, w środku łącz je przez I / LUB / NIE. Kroki dodajesz jak moduły: każdy
-        krok to wiersz w module „Kroki osoby", w kolejności z góry na dół.
-      </p>
+      <p className="wk-hint">{t('pages.logicEd.intro')}</p>
 
       <div className="wk-logic-palette">
         <div className="wk-logic-pal-group">
-          <span className="wk-hint">Osoba</span>
+          <span className="wk-hint">{t('pages.logicEd.person')}</span>
           {INPUT_KINDS.map((kind) => (
             <button key={kind} type="button" className="wk-lpal wk-lpal-input" onClick={() => add(kind)}>+ {PAGE_NODE_LABEL[kind]}</button>
           ))}
         </div>
         <div className="wk-logic-pal-group">
-          <span className="wk-hint">Logika</span>
+          <span className="wk-hint">{t('pages.logicEd.logic')}</span>
           {GATE_KINDS.map((kind) => (
             <button key={kind} type="button" className="wk-lpal" onClick={() => add(kind)}>+ {PAGE_NODE_LABEL[kind]}</button>
           ))}
         </div>
         <div className="wk-logic-pal-group">
-          <span className="wk-hint">Na stronie</span>
-          <button type="button" className="wk-lpal wk-lpal-output" onClick={() => add('step')}>+ Krok</button>
+          <span className="wk-hint">{t('pages.logicEd.onPage')}</span>
+          <button type="button" className="wk-lpal wk-lpal-output" onClick={() => add('step')}>+ {PAGE_NODE_LABEL.step}</button>
         </div>
       </div>
 
@@ -384,11 +387,7 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
 
         <aside className="wk-side">
           {chosen === null ? (
-            <p className="wk-empty">
-              Kliknij węzeł, żeby go ustawić. Połącz wyjście (prawa kropka) z wejściem modułu albo
-              kroku (lewa kropka). Kilka krawędzi w jednym wejściu — muszą być spełnione wszystkie;
-              kto chce „albo", wstawia LUB. Zaznaczony węzeł albo krawędź usuwa Delete.
-            </p>
+            <p className="wk-empty">{t('pages.logicEd.help')}</p>
           ) : (
             <Inspector
               node={chosen}
@@ -405,10 +404,10 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
       </div>
 
       <details className="wk-fold" open={inputs.length > 0}>
-        <summary>Podgląd — zaznacz, co jest prawdą o osobie</summary>
+        <summary>{t('pages.logicEd.preview')}</summary>
 
         {inputs.length === 0 ? (
-          <p className="wk-hint">Mapa nie czyta jeszcze żadnych danych osoby.</p>
+          <p className="wk-hint">{t('pages.logicEd.noInputs')}</p>
         ) : (
           <div className="wk-checks">
             {inputs.map((n) => (
@@ -423,7 +422,7 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
 
         <ul className="wk-card-lines">
           {parts.filter((p) => outcome.hidden.has(p.id)).map((p) => (
-            <li key={p.id}>ukryty: {partName(p.id)}{outcome.messages.has(p.id) ? ` → „${outcome.messages.get(p.id)}"` : ''}</li>
+            <li key={p.id}>{outcome.messages.has(p.id) ? t('${K}hiddenWith', { name: partName(p.id), message: outcome.messages.get(p.id) ?? '' }) : t('${K}hiddenLine', { name: partName(p.id) })}</li>
           ))}
           {outcome.steps.map((s) => (
             <li key={s.nodeId}>{s.status === 'done' ? '✓' : s.status === 'overdue' ? '!' : '○'} {s.label}</li>
@@ -435,12 +434,12 @@ export function PageLogicEditor({ path, parts, logic: saved, who, onSaved }: {
 
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>
-          {busy ? 'Zapisywanie…' : 'Zapisz mapę'}
+          {busy ? t('pages.editor.saving') : t('pages.logicEd.save')}
         </button>
         {dirty && (
           <button type="button" className="wk-link-btn" disabled={busy}
             onClick={() => { setNodes(start.nodes); setEdges(start.edges); setSelected(null); }}>
-            Cofnij zmiany
+            {t('pages.logicEd.revert')}
           </button>
         )}
       </div>
@@ -460,6 +459,7 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
   onPatch: (change: Partial<PageNode>) => void;
   onDrop: () => void;
 }) {
+  const t = useT();
   const needsForm = node.kind === 'registered' || node.kind === 'confirmed' || node.kind === 'answer' || node.kind === 'mark';
 
   return (
@@ -469,12 +469,10 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
       {node.kind === 'part' && (
         <>
           <p className="wk-hint">{partName(node.partId)}</p>
-          <p className="wk-hint">
-            Bez krawędzi moduł widać zawsze. Z krawędziami — tylko gdy wszystkie są prawdziwe.
-          </p>
+          <p className="wk-hint">{t('pages.logicEd.partHint')}</p>
           <label className="wk-field">
-            <span>Zamiast modułu, gdy jest ukryty (opcjonalnie)</span>
-            <textarea rows={2} value={node.message ?? ''} placeholder="np. Rezerwacja otworzy się po potwierdzeniu danych."
+            <span>{t('pages.logicEd.message')}</span>
+            <textarea rows={2} value={node.message ?? ''} placeholder={t('pages.logicEd.messagePlaceholder')}
               onChange={(e) => onPatch({ message: e.target.value })} />
           </label>
         </>
@@ -483,41 +481,37 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
       {node.kind === 'step' && (
         <>
           <label className="wk-field">
-            <span>Krok</span>
-            <input value={node.label ?? ''} placeholder="np. Wybierz termin spotkania" onChange={(e) => onPatch({ label: e.target.value })} />
+            <span>{PAGE_NODE_LABEL.step}</span>
+            <input value={node.label ?? ''} placeholder={t('pages.logicEd.stepPlaceholder')} onChange={(e) => onPatch({ label: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Wyjaśnienie (opcjonalnie)</span>
+            <span>{t('pages.logicEd.stepHelp')}</span>
             <input value={node.help ?? ''} onChange={(e) => onPatch({ help: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Termin (opcjonalnie)</span>
+            <span>{t('pages.logicEd.stepDue')}</span>
             <input type="date" value={node.dueAt ?? ''} onChange={(e) => onPatch({ dueAt: e.target.value || undefined })} />
           </label>
           <label className="wk-field">
-            <span>Przycisk „Przejdź" prowadzi do modułu</span>
+            <span>{t('pages.logicEd.stepGoto')}</span>
             <select value={node.goto ?? ''} onChange={(e) => onPatch({ goto: e.target.value || undefined })}>
-              <option value="">— bez przycisku —</option>
+              <option value="">{t('pages.logicEd.noButton')}</option>
               {parts.map((p) => <option key={p.id} value={p.id}>{partName(p.id)}</option>)}
             </select>
           </label>
-          <p className="wk-hint">
-            „zrobione, gdy" — kiedy krok jest odhaczony. „dotyczy, gdy" — kiedy w ogóle stoi na liście
-            (bez krawędzi: zawsze). Jeśli „zrobione" wisi na jednym znaczniku, który odhacza osoba,
-            osoba odhaczy go przyciskiem przy kroku.
-          </p>
+          <p className="wk-hint">{t('pages.logicEd.stepHint')}</p>
         </>
       )}
 
       {needsForm && (
         <label className="wk-field">
-          <span>Formularz</span>
+          <span>{t('pages.logicEd.formLabel')}</span>
           <select value={node.formId ?? ''}
             onChange={(e) => onPatch({ formId: e.target.value || undefined, fieldId: undefined, stepId: undefined, valueHash: undefined })}>
-            <option value="">— wybierz —</option>
+            <option value="">{t('pages.logicEd.choose')}</option>
             {forms.filter((f) => node.kind !== 'mark' || f.extendsId === null).map((f) => (
               <option key={f.moduleId} value={f.moduleId}>
-                {f.name}{f.extendsId !== null ? ' (rozszerzenie)' : ''}
+                {f.name}{f.extendsId !== null ? t('pages.logicEd.extension') : ''}
               </option>
             ))}
           </select>
@@ -529,18 +523,18 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
       )}
 
       {node.kind === 'mark' && node.formId !== undefined && (
-        marks === null ? <Loading label="Wczytywanie znaczników…" />
-        : marks.length === 0 ? <p className="wk-hint">Ten formularz nie ma znaczników — dodasz je w jego zakładce „Znaczniki".</p>
+        marks === null ? <Loading label={t('pages.logicEd.loadingMarks')} />
+        : marks.length === 0 ? <p className="wk-hint">{t('pages.logicEd.noMarks')}</p>
         : (
           <label className="wk-field">
-            <span>Znacznik</span>
+            <span>{t('pages.logicEd.markLabel')}</span>
             <select value={node.stepId ?? ''} onChange={(e) => {
               const m = marks.find((one) => one.stepId === e.target.value);
               /* 0098 — eine Aufgabe zählt, sobald sie erfüllt ist; sie hat keinen Haken zum Anklicken. */
               onPatch({ stepId: m?.stepId, markBy: m?.kind === 'mark' ? m.doneBy : undefined });
             }}>
-              <option value="">— wybierz —</option>
-              {marks.map((m) => <option key={m.stepId} value={m.stepId}>{m.label} · {m.kind === 'task' ? 'zadanie: wykonane' : m.kind === 'booking' ? 'termin wybrany' : m.kind === 'chat' ? 'wiadomości przeczytane' : m.kind === 'learn' ? 'nauczone' : m.doneBy === 'person' ? 'odhacza osoba' : 'odhacza kancelaria'}</option>)}
+              <option value="">{t('pages.logicEd.choose')}</option>
+              {marks.map((m) => <option key={m.stepId} value={m.stepId}>{m.label} · {markWord(m, t)}</option>)}
             </select>
           </label>
         )
@@ -549,14 +543,14 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
       {node.kind === 'date' && (
         <>
           <label className="wk-field">
-            <span>Prawda</span>
+            <span>{t('pages.logicEd.true')}</span>
             <select value={node.when ?? 'after'} onChange={(e) => onPatch({ when: e.target.value === 'before' ? 'before' : 'after' })}>
-              <option value="after">od tego dnia</option>
-              <option value="before">przed tym dniem</option>
+              <option value="after">{t('pages.logicEd.fromDay')}</option>
+              <option value="before">{t('pages.logicEd.beforeDay')}</option>
             </select>
           </label>
           <label className="wk-field">
-            <span>Dzień</span>
+            <span>{t('pages.logicEd.day')}</span>
             <input type="date" value={node.date ?? ''} onChange={(e) => onPatch({ date: e.target.value || undefined })} />
           </label>
         </>
@@ -564,26 +558,22 @@ function Inspector({ node, parts, partName, forms, questions, marks, onPatch, on
 
       {(node.kind === 'chosen' || node.kind === 'link' || node.kind === 'loggedIn') && (
         <p className="wk-hint">
-          {node.kind === 'chosen' ? 'Prawda, gdy u góry strony wybrano osobę — z linku albo własną.'
-            : node.kind === 'link' ? 'Prawda, gdy wybrana osoba przyszła przez swój link.'
-            : 'Prawda, gdy oglądający jest zalogowany i ma własne osoby.'}
+          {t(node.kind === 'chosen' ? 'pages.logicEd.is.chosen' : node.kind === 'link' ? 'pages.logicEd.is.link' : 'pages.logicEd.is.loggedIn')}
         </p>
       )}
 
-      {node.kind === 'registered' && <p className="wk-hint">Prawda, gdy osoba wysłała ten formularz (także rozszerzenie).</p>}
-      {node.kind === 'confirmed' && <p className="wk-hint">Prawda, gdy osoba przejrzała i potwierdziła swoje dane z tego formularza.</p>}
+      {node.kind === 'registered' && <p className="wk-hint">{t('pages.logicEd.is.registered')}</p>}
+      {node.kind === 'confirmed' && <p className="wk-hint">{t('pages.logicEd.is.confirmed')}</p>}
 
       {(GATE_KINDS as readonly string[]).includes(node.kind) && (
         <p className="wk-hint">
-          {node.kind === 'and' ? 'Prawda, gdy prawdziwe są wszystkie wejścia.'
-            : node.kind === 'or' ? 'Prawda, gdy prawdziwe jest choć jedno wejście.'
-            : 'Odwraca: prawda staje się fałszem i odwrotnie.'}
+          {t(node.kind === 'and' ? 'pages.logicEd.is.and' : node.kind === 'or' ? 'pages.logicEd.is.or' : 'pages.logicEd.is.not')}
         </p>
       )}
 
       {node.kind !== 'part' && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>Usuń węzeł</button>
+          <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>{t('pages.logicEd.removeNode')}</button>
         </div>
       )}
     </div>
@@ -600,6 +590,7 @@ function AnswerSettings({ node, questions, onPatch }: {
   questions: readonly OpenField[] | null;
   onPatch: (change: Partial<PageNode>) => void;
 }) {
+  const t = useT();
   const field = questions?.find((f) => f.fieldId === node.fieldId) ?? null;
   const [draft, setDraft] = useState('');
   const [known, setKnown] = useState<string | null>(null);
@@ -626,18 +617,18 @@ function AnswerSettings({ node, questions, onPatch }: {
 
   return (
     <>
-      {questions === null ? <Loading label="Wczytywanie pytań…" /> : (
+      {questions === null ? <Loading label={t('pages.logicEd.loadingQuestions')} /> : (
         <label className="wk-field">
-          <span>Pytanie</span>
+          <span>{t('pages.logicEd.questionLabel')}</span>
           <select value={node.fieldId ?? ''} onChange={(e) => onPatch({ fieldId: e.target.value || undefined, valueHash: undefined })}>
-            <option value="">— wybierz —</option>
-            {questions.map((f) => <option key={f.fieldId} value={f.fieldId}>{f.label ?? 'zapieczętowane pytanie'}</option>)}
+            <option value="">{t('pages.logicEd.choose')}</option>
+            {questions.map((f) => <option key={f.fieldId} value={f.fieldId}>{f.label ?? t('pages.logicEd.sealedQuestion')}</option>)}
           </select>
         </label>
       )}
 
       <label className="wk-field">
-        <span>Prawda, gdy odpowiedź jest</span>
+        <span>{t('pages.logicEd.answerIs')}</span>
         <select value={node.op ?? 'filled'} onChange={(e) => onPatch({ op: e.target.value as AnswerOp })}>
           {(Object.keys(ANSWER_OP_LABEL) as AnswerOp[]).map((op) => <option key={op} value={op}>{ANSWER_OP_LABEL[op]}</option>)}
         </select>
@@ -646,21 +637,21 @@ function AnswerSettings({ node, questions, onPatch }: {
       {(node.op === 'eq' || node.op === 'ne') && field !== null && (
         field.options.length > 0 ? (
           <label className="wk-field">
-            <span>Wartość</span>
+            <span>{t('pages.logicEd.value')}</span>
             <select value={known ?? ''} onChange={(e) => void setValue(e.target.value)}>
-              <option value="">— wybierz —</option>
+              <option value="">{t('pages.logicEd.choose')}</option>
               {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
         ) : (
           <div className="wk-field">
-            <span>Wartość {node.valueHash !== undefined && '(ustawiona)'}</span>
+            <span>{node.valueHash !== undefined ? t('pages.logicEd.valueSet') : t('pages.logicEd.value')}</span>
             <div className="wk-inline">
-              <input value={draft} placeholder={node.valueHash !== undefined ? 'wpisz, żeby zmienić' : 'np. tak'}
+              <input value={draft} placeholder={node.valueHash !== undefined ? t('pages.logicEd.typeToChange') : t('pages.logicEd.valuePlaceholder')}
                 onChange={(e) => setDraft(e.target.value)} />
               <button type="button" className="wk-link-btn" disabled={draft.trim() === ''}
                 onClick={() => { void setValue(draft); setDraft(''); }}>
-                Ustaw
+                {t('pages.logicEd.set')}
               </button>
             </div>
           </div>
@@ -668,10 +659,7 @@ function AnswerSettings({ node, questions, onPatch }: {
       )}
 
       {(node.op === 'eq' || node.op === 'ne') && (
-        <p className="wk-hint">
-          Na mapie zapisuje się tylko odcisk wartości, nie ona sama — mapa strony jest jawna.
-          Wielkość liter i spacje na brzegach nie mają znaczenia.
-        </p>
+        <p className="wk-hint">{t('pages.logicEd.hashHint')}</p>
       )}
     </>
   );

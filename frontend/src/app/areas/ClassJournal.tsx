@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { plural } from '../core/plural';
+import { fmtDate, useT, type Lang } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import type { LibraryRow } from '../library/library';
 import { LESSON_STATES, str } from '../library/libraryKinds';
@@ -40,9 +40,9 @@ const addDays = (day: string, n: number): string => {
 const startOf = (day: string): Date => new Date(`${day}T00:00:00`);
 const endOf = (day: string): Date => new Date(`${day}T23:59:59`);
 
-const dayLabel = (day: string): string =>
-  new Date(`${day}T12:00:00`).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' });
-const timeLabel = (iso: string): string => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const dayLabel = (day: string, lang: Lang): string =>
+  fmtDate(new Date(`${day}T12:00:00`), { weekday: 'short', day: 'numeric', month: 'short' }, lang);
+const timeLabel = (iso: string, lang: Lang): string => fmtDate(new Date(iso), { hour: '2-digit', minute: '2-digit' }, lang);
 
 /** Welche Stände eine Zeile anbietet: geplant nur ab heute. */
 const statesFor = (date: string, today: string): readonly LessonState[] =>
@@ -62,6 +62,7 @@ export function ClassJournal({ ctx, store, library, lessons, round, revision }: 
   /** Der Stand des Skryptorium — die Realizacje folgen ihm. */
   revision: number;
 }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const today = dayOf(new Date());
   const [from, setFrom] = useState(() => addDays(today, -WINDOW_BACK));
@@ -91,7 +92,7 @@ export function ClassJournal({ ctx, store, library, lessons, round, revision }: 
     if (id === null) return null;
     const lesson = lessons.find((l) => l.textId === id);
     if (lesson !== undefined) return lesson.title;
-    return str(store.get(id)?.data ?? {}, 'title').trim() || 'Bez tytułu';
+    return str(store.get(id)?.data ?? {}, 'title').trim() || t('areasSchool.untitled');
   };
   const signOf = (id: string): string => {
     const cell = cellOf(realizations.filter((r) => r.textId === id));
@@ -109,21 +110,21 @@ export function ClassJournal({ ctx, store, library, lessons, round, revision }: 
 
   const topics = (
     <>
-      <option value="">— bez tematu —</option>
+      <option value="">{t('areasSchool.journal.noTopic')}</option>
       {programs.map((p) => (
         <optgroup key={p.id} label={p.title}>
           {p.lessons.map((l) => <option key={l.textId} value={l.textId}>{signOf(l.textId)}{l.number}. {l.title}</option>)}
         </optgroup>
       ))}
       {extraIds.length > 0 && (
-        <optgroup label="Dodatkowe">
-          {extraIds.map((id) => <option key={id} value={id}>{signOf(id)}{titleOf(id)} (dodatkowa)</option>)}
+        <optgroup label={t('areasSchool.journal.extraGroup')}>
+          {extraIds.map((id) => <option key={id} value={id}>{signOf(id)}{t('areasSchool.journal.extraItem', { title: titleOf(id) ?? '' })}</option>)}
         </optgroup>
       )}
     </>
   );
 
-  const distributeNow = () => void ctx.run('Rozkładanie programu na terminy…', 'Program rozłożony na kolejne lekcje.', async () => {
+  const distributeNow = () => void ctx.run(t('areasSchool.journal.distributing'), t('areasSchool.journal.distributed'), async () => {
     const start = new Date();
     const end = new Date();
     end.setDate(end.getDate() + 26 * 7);
@@ -131,9 +132,9 @@ export function ClassJournal({ ctx, store, library, lessons, round, revision }: 
     const plan = distribute(lessons, realizationsOf(store.all(), classId), future, dayOf(start));
     for (const one of plan) await saveRealization(store, { textId: one.textId, date: one.date, classAreaId: classId, state: 'planned' });
     if (plan.length === 0) {
-      return future.length === 0 ? 'Nie ma kolejnych terminów — dodaj lekcje w „Plan lekcji”.' : 'Wszystkie lekcje programu są już odbyte albo zaplanowane.';
+      return future.length === 0 ? t('areasSchool.journal.noSlots') : t('areasSchool.journal.allPlanned');
     }
-    return `Zaplanowano ${plan.length} ${plural(plan.length, 'lekcję', 'lekcje', 'lekcji')}: od ${dayLabel(plan[0].date)} do ${dayLabel(plan[plan.length - 1].date)}.`;
+    return t('areasSchool.journal.planned', { count: plan.length, from: dayLabel(plan[0].date, t.lang), to: dayLabel(plan[plan.length - 1].date, t.lang) });
   });
 
   const year = schoolYear(new Date());
@@ -143,34 +144,34 @@ export function ClassJournal({ ctx, store, library, lessons, round, revision }: 
   return (
     <div className="wk-journal" data-journal="">
       <div className="wk-journal-bar">
-        <button type="button" className="wk-btn wk-btn-line wk-btn-small" data-journal-earlier="" onClick={() => move(-STEP)}>← Wcześniej</button>
-        <button type="button" className="wk-btn wk-btn-line wk-btn-small" data-journal-later="" onClick={() => move(STEP)}>Później →</button>
+        <button type="button" className="wk-btn wk-btn-line wk-btn-small" data-journal-earlier="" onClick={() => move(-STEP)}>{t('areasSchool.journal.earlier')}</button>
+        <button type="button" className="wk-btn wk-btn-line wk-btn-small" data-journal-later="" onClick={() => move(STEP)}>{t('areasSchool.journal.later')}</button>
         {whole ? (
-          <button type="button" className="wk-link-btn" onClick={() => { setFrom(addDays(today, -WINDOW_BACK)); setTo(addDays(today, WINDOW_AHEAD)); }}>Najbliższe tygodnie</button>
+          <button type="button" className="wk-link-btn" onClick={() => { setFrom(addDays(today, -WINDOW_BACK)); setTo(addDays(today, WINDOW_AHEAD)); }}>{t('areasSchool.journal.nextWeeks')}</button>
         ) : (
-          <button type="button" className="wk-link-btn" data-journal-year="" onClick={() => { setFrom(year.from); setTo(year.until); }}>Cały rok szkolny</button>
+          <button type="button" className="wk-link-btn" data-journal-year="" onClick={() => { setFrom(year.from); setTo(year.until); }}>{t('areasSchool.journal.wholeYear')}</button>
         )}
-        <span className="wk-kind-small">{dayLabel(from)} – {dayLabel(to)}</span>
+        <span className="wk-kind-small">{dayLabel(from, t.lang)} – {dayLabel(to, t.lang)}</span>
       </div>
 
       {writes && (
         <div className="wk-actions">
           {lessons.length > 0 && (
             <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy} data-journal-distribute="" onClick={distributeNow}>
-              Rozłóż program na kolejne lekcje
+              {t('areasSchool.journal.distribute')}
             </button>
           )}
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} aria-expanded={extra} data-journal-extra-open="" onClick={() => setExtra(!extra)}>
-            + Lekcja dodatkowa
+            {t('areasSchool.journal.addExtra')}
           </button>
         </div>
       )}
       {writes && extra && <ExtraLesson ctx={ctx} store={store} today={today} onDone={() => setExtra(false)} />}
 
-      {slotsFailed && <p className="wk-error">Nie udało się odczytać planu lekcji — widać tylko zapisane lekcje.</p>}
+      {slotsFailed && <p className="wk-error">{t('areasSchool.journal.slotsFailed')}</p>}
       {slots === null ? <Loading lines={3} /> : rows.length === 0 ? (
         <p className="wk-kind-small">
-          W tym czasie nie ma lekcji. Dodaj lekcję w tygodniu w „Plan lekcji” — albo wpisz lekcję dodatkową.
+          {t('areasSchool.journal.empty')}
         </p>
       ) : (
         <ol className="wk-journal-rows">
@@ -198,6 +199,7 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
   topics: ReactNode;
   titleOf: (id: string | null) => string | null;
 }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const r: Realization | null = row.realization;
   const [summary, setSummary] = useState(r?.summary ?? '');
@@ -231,7 +233,7 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
         });
         madeId.current = saved.id;
       } catch (e) {
-        setError(failure(e, 'Nie udało się zapisać.'));
+        setError(failure(e, t('areasSchool.journal.saveFailed')));
       } finally {
         setBusy(false);
       }
@@ -241,7 +243,7 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
 
   const send = () => {
     if (r === null) return;
-    void ctx.run('Wysyłanie do klasy…', 'Wysłano klasie.', async (held) => {
+    void ctx.run(t('areasSchool.journal.sending'), t('areasSchool.journal.sent'), async (held) => {
       await postToClass(held.ring, {
         classAreaId: classId, personId: held.person.id,
         text: lessonMessage({ date: row.date, title: titleOf(r.textId), summary, homework })
@@ -257,23 +259,23 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
     <li className={`wk-journal-row${row.date === today ? ' is-today' : row.date < today ? ' is-past' : ''}${r !== null ? ` is-${r.state}` : ''}`}
       data-journal-row="" data-date={row.date} data-state={r?.state ?? ''}>
       <div className="wk-journal-when">
-        <span className="wk-journal-day">{dayLabel(row.date)}</span>
-        {row.slot !== null && <span>{timeLabel(row.slot.startsAt)}</span>}
-        {row.slot?.cancelled === true && <span className="wk-tag">odwołana</span>}
-        {row.slot === null && <span className="wk-card-muted">poza planem</span>}
+        <span className="wk-journal-day">{dayLabel(row.date, t.lang)}</span>
+        {row.slot !== null && <span>{timeLabel(row.slot.startsAt, t.lang)}</span>}
+        {row.slot?.cancelled === true && <span className="wk-tag">{t('areasSchool.journal.cancelled')}</span>}
+        {row.slot === null && <span className="wk-card-muted">{t('areasSchool.journal.offPlan')}</span>}
       </div>
       <div className="wk-journal-body">
         <div className="wk-journal-line">
           {writes ? (
-            <select value={r?.textId ?? ''} disabled={off} aria-label="Temat lekcji" data-journal-topic=""
+            <select value={r?.textId ?? ''} disabled={off} aria-label={t('areasSchool.journal.topic')} data-journal-topic=""
               onChange={(e) => void save({ textId: e.target.value === '' ? null : e.target.value })}>
               {topics}
             </select>
           ) : (
-            <span className="wk-journal-title">{title ?? '— bez tematu —'}</span>
+            <span className="wk-journal-title">{title ?? t('areasSchool.journal.noTopic')}</span>
           )}
           {writes ? (
-            <span className="wk-seg wk-journal-states" role="group" aria-label="Stan lekcji">
+            <span className="wk-seg wk-journal-states" role="group" aria-label={t('areasSchool.journal.state')}>
               {states.map((s) => (
                 <button key={s} type="button" disabled={off} aria-pressed={r?.state === s} data-journal-state={s}
                   className={r?.state === s ? `wk-seg-opt wk-seg-on is-${s}` : 'wk-seg-opt'}
@@ -288,33 +290,33 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
         {writes ? (
           <div className="wk-journal-texts">
             <label className="wk-field">
-              <span>Notatka</span>
-              <input value={summary} disabled={off} maxLength={2000} placeholder="Co było, na czym skończyliśmy" data-journal-note=""
+              <span>{t('areasSchool.journal.note')}</span>
+              <input value={summary} disabled={off} maxLength={2000} placeholder={t('areasSchool.journal.notePlaceholder')} data-journal-note=""
                 onChange={(e) => setSummary(e.target.value)}
                 onBlur={() => { if (summary !== (r?.summary ?? '')) void save({ summary }); }} />
             </label>
             <label className="wk-field">
-              <span>Zadanie dla klasy</span>
-              <input value={homework} disabled={off} maxLength={2000} placeholder="np. przeczytać Łk 15" data-journal-homework=""
+              <span>{t('areasSchool.journal.homework')}</span>
+              <input value={homework} disabled={off} maxLength={2000} placeholder={t('areasSchool.journal.homeworkPlaceholder')} data-journal-homework=""
                 onChange={(e) => setHomework(e.target.value)}
                 onBlur={() => { if (homework !== (r?.homework ?? '')) void save({ homework }); }} />
             </label>
           </div>
         ) : (r !== null && (r.summary !== '' || r.homework !== '')) && (
           <p className="wk-kind-small">
-            {r.summary}{r.summary !== '' && r.homework !== '' ? ' · ' : ''}{r.homework !== '' ? `Zadanie: ${r.homework}` : ''}
+            {r.summary}{r.summary !== '' && r.homework !== '' ? ' · ' : ''}{r.homework !== '' ? t('areasSchool.message.homework', { homework: r.homework }) : ''}
           </p>
         )}
 
         {r !== null && (
           <div className="wk-actions">
-            <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, r.id)} data-journal-details="">Szczegóły — co z planu lekcji</a>
+            <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, r.id)} data-journal-details="">{t('areasSchool.journal.details')}</a>
             {writes && (
-              <button type="button" className="wk-link-btn" disabled={off} data-journal-send="" onClick={send}>Wyślij klasie</button>
+              <button type="button" className="wk-link-btn" disabled={off} data-journal-send="" onClick={send}>{t('areasSchool.journal.send')}</button>
             )}
           </div>
         )}
-        {busy && <span className="wk-kind-small" role="status">Zapisywanie…</span>}
+        {busy && <span className="wk-kind-small" role="status">{t('common.saving')}</span>}
         {error !== null && <p className="wk-error" role="alert">{error}</p>}
       </div>
     </li>
@@ -324,24 +326,25 @@ function JournalLine({ ctx, store, library, row, today, writes, topics, titleOf 
 /* -- Lekcja dodatkowa ------------------------------------------------------------------------------ */
 
 function ExtraLesson({ ctx, store, today, onDone }: { ctx: Ctx; store: LibraryStore; today: string; onDone: () => void }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const [textId, setTextId] = useState('');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(today);
   const [state, setState] = useState<LessonState>('done');
   const texts = useMemo(() => store.ofKind('text')
-    .map((t) => ({ id: t.id, title: str(t.data, 'title').trim() || 'Bez tytułu' }))
-    .sort((a, b) => a.title.localeCompare(b.title, 'pl')), [store]);
+    .map((x) => ({ id: x.id, title: str(x.data, 'title').trim() || t('areasSchool.untitled') }))
+    .sort((a, b) => a.title.localeCompare(b.title, t.locale)), [store, t]);
 
   const pickDate = (next: string) => {
     setDate(next);
     setState(next > today ? 'planned' : 'done');
   };
 
-  const submit = () => void ctx.run('Zapisywanie lekcji…', 'Lekcja jest w dzienniku.', async () => {
+  const submit = () => void ctx.run(t('areasSchool.journal.savingLesson'), t('areasSchool.journal.lessonSaved'), async () => {
     let id = textId;
     if (id === '') {
-      if (title.trim() === '') throw new WorkspaceError('Wybierz temat albo wpisz nowy.');
+      if (title.trim() === '') throw new WorkspaceError(t('areasSchool.journal.needTopic'));
       id = (await store.save({ kind: 'text', data: { title: title.trim().slice(0, 200), status: 'draft' } })).id;
     }
     await saveRealization(store, { textId: id, date, classAreaId: classId, state });
@@ -352,27 +355,27 @@ function ExtraLesson({ ctx, store, today, onDone }: { ctx: Ctx; store: LibrarySt
     <form className="wk-kind-form wk-journal-extra" data-journal-extra="" onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <div className="wk-kind-row">
         <label className="wk-field">
-          <span>Temat ze skryptorium</span>
+          <span>{t('areasSchool.journal.fromScriptorium')}</span>
           <select value={textId} disabled={ctx.busy} data-journal-extra-text="" onChange={(e) => setTextId(e.target.value)}>
-            <option value="">— nowy temat —</option>
-            {texts.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+            <option value="">{t('areasSchool.journal.newTopicOption')}</option>
+            {texts.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
           </select>
         </label>
         {textId === '' && (
           <label className="wk-field">
-            <span>Nowy temat</span>
-            <input value={title} maxLength={200} disabled={ctx.busy} placeholder="np. Przygotowanie do jasełek" data-journal-extra-title=""
+            <span>{t('areasSchool.journal.newTopic')}</span>
+            <input value={title} maxLength={200} disabled={ctx.busy} placeholder={t('areasSchool.journal.newTopicPlaceholder')} data-journal-extra-title=""
               onChange={(e) => setTitle(e.target.value)} />
           </label>
         )}
       </div>
       <div className="wk-kind-row">
         <label className="wk-field">
-          <span>Dzień</span>
+          <span>{t('areasSchool.class.day')}</span>
           <input type="date" value={date} disabled={ctx.busy} data-journal-extra-date="" onChange={(e) => pickDate(e.target.value)} />
         </label>
         <label className="wk-field">
-          <span>Stan</span>
+          <span>{t('areasSchool.journal.stateShort')}</span>
           <select value={state} disabled={ctx.busy} onChange={(e) => setState(e.target.value as LessonState)}>
             {statesFor(date, today).map((s) => <option key={s} value={s}>{STATE_WORD[s]}</option>)}
           </select>
@@ -380,9 +383,9 @@ function ExtraLesson({ ctx, store, today, onDone }: { ctx: Ctx; store: LibrarySt
       </div>
       <div className="wk-actions">
         <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || date === '' || (textId === '' && title.trim() === '')} data-journal-extra-save="">
-          Zapisz w dzienniku
+          {t('areasSchool.journal.saveInJournal')}
         </button>
-        <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={onDone}>Anuluj</button>
+        <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={onDone}>{t('common.cancel')}</button>
       </div>
     </form>
   );

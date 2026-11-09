@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
 import { type OpenField, setPartConfig } from './form';
@@ -47,6 +48,8 @@ export function SmsPanel({
   const templates = templatesOf(config);
   const [naming, setNaming] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const t = useT();
+  const code = { code: (s: string, k: number) => <code key={k}>{s}</code>, b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
   const saveList = async (list: readonly SmsTemplate[]) => {
     setSaving(true);
@@ -57,7 +60,7 @@ export function SmsPanel({
       onConfig(done.config);
       setNaming(null);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać szablonu.');
+      onError(e instanceof WorkspaceError ? e.message : t('formsOffice.sms.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -92,15 +95,15 @@ export function SmsPanel({
   return (
     <div className="wk-sms">
       {templates.length > 0 && (
-        <ul className="wk-chips" aria-label="Zapisane szablony">
+        <ul className="wk-chips" aria-label={t('formsOffice.sms.templates')}>
           {templates.map((one, i) => (
             <li key={`${one.label}-${i}`} className={one.text === text ? 'wk-chip is-on' : 'wk-chip'}>
               <button type="button" className="wk-chip-pick" onClick={() => onText(one.text)}>{one.label}</button>
               <button
                 type="button" className="wk-chip-x" disabled={saving}
-                aria-label={`Usuń szablon ${one.label}`}
+                aria-label={t('formsOffice.sms.removeTemplate', { name: one.label })}
                 onClick={async () => {
-                  if (await askText(`Usunąć szablon „${one.label}"?`)) {
+                  if (await askText(t('formsOffice.sms.removeAsk', { name: one.label }))) {
                     void saveList(templates.filter((_, j) => j !== i));
                   }
                 }}
@@ -115,8 +118,8 @@ export function SmsPanel({
       <textarea
         rows={3}
         value={text}
-        aria-label="Treść wiadomości"
-        placeholder="Napisz wiadomość albo wybierz gotową…"
+        aria-label={t('formsOffice.sms.text')}
+        placeholder={t('formsOffice.sms.textPlaceholder')}
         onChange={(e) => onText(e.target.value)}
       />
 
@@ -133,38 +136,33 @@ export function SmsPanel({
       </div>
 
       <p className="wk-hint">
-        <code>{'{link}'}</code> — strona osoby (powstaje sama), <code>{'{imie}'}</code> — samo
-        imię, <code>{'{osoba}'}</code> — imię i nazwisko
-        {hasPhones && <>, <code>{`{${VERIFY}}`}</code> — link potwierdzający ten numer</>}.
-        Czego nie da się wypełnić, zostaje widoczne w nawiasach.
+        {rich(t(hasPhones ? 'formsOffice.sms.holesHintVerify' : 'formsOffice.sms.holesHint', { verify: `{${VERIFY}}` }), code)}
       </p>
 
       {preview !== null && (
         <p className="wk-sms-preview">
-          <span className="wk-row-side">Dla: {previewName}</span>
+          <span className="wk-row-side">{t('formsOffice.sms.previewFor', { name: previewName })}</span>
           {preview}
         </p>
       )}
 
       {leaks.length > 0 && (
         <p className="wk-warn">
-          Wiadomość zawiera {leaks.map((l) => `{${l}}`).join(', ')} — o to link pyta przy pierwszym
-          otwarciu. Kto dostanie SMS pomyłkowo, przeczyta odpowiedź razem z pytaniem. Usuń to z treści.
+          {t('formsOffice.sms.leaks', { list: leaks.map((l) => `{${l}}`).join(', ') })}
         </p>
       )}
 
       {usesHole(text, LINK) && withoutSeat > 0 && (
         <p className="wk-hint">
-          {withoutSeat === 1 ? '1 osoba nie ma' : `${withoutSeat} osób nie ma`} miejsca — u nich{' '}
-          <code>{'{link}'}</code> zostanie w nawiasach.
+          {rich(t('formsOffice.sms.withoutSeat', { count: withoutSeat }), code)}
         </p>
       )}
 
       {usesHole(text, LINK) && willRenew > 0 && (
         <p className="wk-hint">
-          {willRenew === 1 ? '1 osoba dostanie' : `${willRenew} osób dostanie`} przy wysyłce <strong>nowy link</strong>
-          {asked.length > 0 && <>, który przy pierwszym otwarciu zapyta o: {asked.map((f) => f.label ?? '—').join(', ')}</>}
-          . Ich dotychczasowy link przestanie działać.
+          {rich(asked.length > 0
+            ? t('formsOffice.sms.willRenewAsks', { count: willRenew, list: asked.map((f) => f.label ?? '—').join(', ') })
+            : t('formsOffice.sms.willRenew', { count: willRenew }), code)}
         </p>
       )}
 
@@ -174,30 +172,30 @@ export function SmsPanel({
             type="button" className="wk-link-btn" disabled={saving || text.trim() === ''}
             onClick={() => setNaming(templates.find((one) => one.text === text)?.label ?? '')}
           >
-            Zapisz jako szablon
+            {t('formsOffice.sms.saveAs')}
           </button>
         ) : (
           <form className="wk-inline" onSubmit={(e) => { e.preventDefault(); saveAs(naming); }}>
             <input
               value={naming}
-              placeholder="Nazwa, np. Przypomnienie"
-              aria-label="Nazwa szablonu"
+              placeholder={t('formsOffice.sms.namePlaceholder')}
+              aria-label={t('formsOffice.sms.name')}
               disabled={saving}
               onChange={(e) => setNaming(e.target.value)}
             />
             <button type="submit" className="wk-btn" disabled={saving || naming.trim() === ''}>
-              {saving ? 'Zapisywanie…' : 'Zapisz'}
+              {saving ? t('common.saving') : t('common.save')}
             </button>
             <button type="button" className="wk-link-btn" disabled={saving} onClick={() => setNaming(null)}>
-              Anuluj
+              {t('common.cancel')}
             </button>
           </form>
         )}
 
         {sentCount > 0 && (
           <span className="wk-hint">
-            Otwarto {sentCount} {sentCount === 1 ? 'wiadomość' : 'wiadomości'} w tym przejściu ·{' '}
-            <button type="button" className="wk-link-btn" onClick={onForget}>Wyczyść znaczniki</button>
+            {t('formsOffice.sms.opened', { count: sentCount })} ·{' '}
+            <button type="button" className="wk-link-btn" onClick={onForget}>{t('formsOffice.sms.clearMarks')}</button>
           </span>
         )}
       </div>

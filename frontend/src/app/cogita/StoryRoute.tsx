@@ -12,7 +12,10 @@ import { storyRoute } from './storyLock';
 import { keepStoryGoal } from './storyGoal';
 import type { CogitaLibrary } from './store';
 
-/** A route remains open while its prerequisites are studied; cancelling never unlocks it. */
+/**
+ * 2026-11-08 — „POKAŻ DROGĘ": der Weg zu einem gesperrten Ziel, Schritt für Schritt mit seiner Sperre; nach jedem
+ * Schritt neu gerechnet. Zurückgehen öffnet nichts — die Sperre gilt wie in der Erzählung und im Krajobraz.
+ */
 export function StoryRoute({ target, startAsGoal = false, lib, cards, learner, W, label, onClose, onOpen, renderStory }: {
   readonly target: string;
   readonly startAsGoal?: boolean;
@@ -65,7 +68,7 @@ export function StoryRoute({ target, startAsGoal = false, lib, cards, learner, W
   };
   useEffect(() => {
     if (startAsGoal) void startGoal();
-    // A direct goal action runs once when this destination opens, not after progress updates.
+    // „Ustaw jako cel" von aussen: einmal beim Öffnen, nicht nach jedem neuen Fortschritt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startAsGoal]);
   return <section className="cg-flow cg-story-route" data-story-route={target}>

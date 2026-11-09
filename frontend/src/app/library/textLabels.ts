@@ -9,6 +9,8 @@
  * „Twierdzenie 2.3" in einem Zitat oder Wpis führt in den Text.
  */
 
+import { t } from '../core/i18n';
+
 export interface StatementKind {
   readonly id: string;
   /** Wie es im Buch heisst — so steht es, wenn das Label fehlt. */
@@ -17,25 +19,28 @@ export interface StatementKind {
   readonly group: 'claim' | 'definition' | 'example' | 'proof';
 }
 
+/** 2026-11-09 — der Name einer Art in der Sprache der App (`librarySource.statement.<id>`). */
+const kind = (id: string, group: StatementKind['group']): StatementKind => ({ id, group, get label() { return t(`librarySource.statement.${id}`); } });
+
 export const STATEMENT_KINDS: readonly StatementKind[] = [
-  { id: 'definition', label: 'Definicja', group: 'definition' },
-  { id: 'theorem', label: 'Twierdzenie', group: 'claim' },
-  { id: 'lemma', label: 'Lemat', group: 'claim' },
-  { id: 'proposition', label: 'Stwierdzenie', group: 'claim' },
-  { id: 'corollary', label: 'Wniosek', group: 'claim' },
-  { id: 'axiom', label: 'Aksjomat', group: 'definition' },
-  { id: 'conjecture', label: 'Hipoteza', group: 'claim' },
-  { id: 'fact', label: 'Fakt', group: 'claim' },
-  { id: 'property', label: 'Własność', group: 'claim' },
-  { id: 'example', label: 'Przykład', group: 'example' },
-  { id: 'remark', label: 'Uwaga', group: 'example' },
-  { id: 'exercise', label: 'Ćwiczenie', group: 'example' },
-  { id: 'problem', label: 'Zadanie', group: 'example' },
-  { id: 'solution', label: 'Rozwiązanie', group: 'proof' },
-  { id: 'answer', label: 'Odpowiedź', group: 'proof' },
-  { id: 'proof', label: 'Dowód', group: 'proof' },
-  { id: 'notation', label: 'Oznaczenie', group: 'definition' },
-  { id: 'algorithm', label: 'Algorytm', group: 'example' },
+  kind('definition', 'definition'),
+  kind('theorem', 'claim'),
+  kind('lemma', 'claim'),
+  kind('proposition', 'claim'),
+  kind('corollary', 'claim'),
+  kind('axiom', 'definition'),
+  kind('conjecture', 'claim'),
+  kind('fact', 'claim'),
+  kind('property', 'claim'),
+  kind('example', 'example'),
+  kind('remark', 'example'),
+  kind('exercise', 'example'),
+  kind('problem', 'example'),
+  kind('solution', 'proof'),
+  kind('answer', 'proof'),
+  kind('proof', 'proof'),
+  kind('notation', 'definition'),
+  kind('algorithm', 'example'),
   { id: 'other', label: '', group: 'example' }
 ];
 
@@ -45,7 +50,7 @@ export const statementKind = (id: string | undefined): StatementKind =>
 /** Was kein Ziel eines Verweises ist: ein Beweis, eine Lösung gehören zu dem, was sie beweisen. */
 export const NOT_A_TARGET: ReadonlySet<string> = new Set(['proof', 'solution', 'answer']);
 
-const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /** Wortanfänge (gefaltet) → Art; längere zuerst. Polnisch, dazu das Englische, das in Büchern steht. */
 const STEMS: readonly (readonly [string, string])[] = ([

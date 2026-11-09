@@ -17,6 +17,7 @@ import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 
 import { saveBlob } from './app/core/platform';
+import { t } from './app/core/i18n';
 import { isDark, onTheme } from './app/core/theme';
 
 const HOME = '#/workspace';
@@ -119,12 +120,12 @@ function onDownload(event: MouseEvent): void {
   if (!link.href.startsWith('blob:') && !link.href.startsWith('data:')) return;
 
   event.preventDefault();
-  const name = link.getAttribute('download') || 'plik';
+  const name = link.getAttribute('download') || t('app.shell.file');
 
   void fetch(link.href)
     .then((response) => response.blob())
     .then((blob) => saveBlob(blob, name))
-    .catch(() => { window.alert('Nie udało się zapisać pliku.'); });
+    .catch(() => { window.alert(t('app.shell.saveFailed')); });
 }
 
 export async function startShell(): Promise<void> {

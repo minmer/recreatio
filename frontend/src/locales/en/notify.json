@@ -1,0 +1,111 @@
+{
+  "ring": {
+    "newMessage": "New message",
+    "newMessages": "New messages: {count}",
+    "moreElsewhere": "{chat} · and {count} in other conversations",
+    "newEntry": "New submission",
+    "newEntries": "New submissions: {count}",
+    "someoneFilled": "Someone filled in a form.",
+    "joined": "Someone joined by link",
+    "joinedBody": "See the access links in Areas.",
+    "learn": "Review waiting",
+    "learnBody": {
+      "one": "{count} card to review",
+      "other": "{count} cards to review"
+    }
+  },
+  "chat": {
+    "seat": "Conversation with: {name}",
+    "channel": "Channel: {name}",
+    "self": "Notes",
+    "formPerson": "the person from the form"
+  },
+  "deviceLabel": "Phone (app)",
+  "line": {
+    "cannotOpen": "A message this device can't open",
+    "photo": "Photo",
+    "voice": "Voice message",
+    "video": "Video",
+    "file": "File: {name}",
+    "withFiles": "{text} (attachments: {count})",
+    "empty": "Empty message",
+    "forwarded": "Forwarded: {text}"
+  },
+  "renewFailed": "Could not extend access.",
+  "reminder": {
+    "start": "Time to start",
+    "middle": "Half the time has passed",
+    "end": "The end is near",
+    "task": "Task"
+  },
+  "reply": {
+    "session": "Session expired — open the app and sign in.",
+    "noKey": "The key isn't kept on this device — reply in the app.",
+    "empty": "Empty reply.",
+    "you": "You",
+    "needPerson": "A conversation needs a person — create one in the app.",
+    "readOnly": "In this conversation you only read.",
+    "noPerson": "The account doesn't run any person yet."
+  },
+  "look": {
+    "title": "Notifications",
+    "waiting": "What's waiting for you",
+    "waitingHint": "What the bell and the Now page show — in this order. Switched-off kinds don't count towards the number at the bell.",
+    "device": "On this device"
+  },
+  "bell": {
+    "labelNew": "Notifications: {count} new",
+    "checking": "Checking…",
+    "nothing": "Nothing new — everything reviewed.",
+    "markAll": "Mark everything as reviewed",
+    "settings": "Settings"
+  },
+  "push": {
+    "notBuilt": "Instant notifications: this version of the app doesn't support them — news arrives with the background check.",
+    "notServer": "Instant notifications: the server doesn't send them yet — news arrives with the background check.",
+    "notPhone": "Instant notifications: the phone hasn't registered yet (needs internet and Google services). Try restarting the app.",
+    "lastError": "Last error: {error}.",
+    "on": "Instant notifications: on — a new message wakes the phone right away; the background check is only a backup."
+  },
+  "background": {
+    "m0": "never",
+    "m15": "every 15 min (more battery)",
+    "m30": "every 30 min",
+    "m60": "every hour",
+    "m180": "every 3 hours (least battery)"
+  },
+  "content": {
+    "notKept": "While the app is open, the content is always visible. To see it and reply also with the app closed, switch on Account → Key: Kept on this phone. Without that, only the number of news arrives with the app closed.",
+    "when": "(last {date})",
+    "session": "The session on this phone has expired — sign in again so content returns to notifications{when}.",
+    "key": "The phone couldn't open the key — open the app once with your password{when}.",
+    "failed": "The last opening of content failed{when}; we'll try again with the next news.",
+    "ok": "Content is decrypted only on this phone — Firebase carries only an empty signal. To reply from the notification, just type the text{when}."
+  },
+  "settings": {
+    "backgroundOff": "Background checking switched off.",
+    "saveFailed": "Could not save the device settings.",
+    "label": "Notification settings",
+    "denied": "Android didn't allow it. Switch on notifications for recreatio in the phone settings (Apps → recreatio → Notifications).",
+    "enable": "Switch on notifications on this device",
+    "noBrowser": "This browser doesn't show notifications — news is visible in the bell.",
+    "about": "Notify about",
+    "chats": "new messages",
+    "forms": "new submissions from forms",
+    "links": "joins through access links",
+    "reminders": "task reminders",
+    "contentTitle": "Content in notifications",
+    "contents": "show who writes and what, names from submissions and task titles — with replies right from the notification",
+    "lockScreen": "On the lock screen Android shows only “New message” if hiding sensitive content is set in the phone settings.",
+    "whenClosed": "When the app is closed, check",
+    "phoneHint": "The phone checks only numbers (no content), only with internet and when the battery isn't nearly empty. Task reminders arrive on time even without this.",
+    "browserHint": "In the browser: every minute while the tab is in front (news then shows on the page), every 5 minutes in the background; less often on low battery. When the tab is closed there are no notifications — install the app on your phone to always get them.",
+    "devices": "Devices that check in the background",
+    "device": "Device",
+    "thisDevice": "(this device)",
+    "lastSeen": "last {when}",
+    "never": "never yet",
+    "push": "instant (push)",
+    "drop": "Disconnect"
+  }
+}

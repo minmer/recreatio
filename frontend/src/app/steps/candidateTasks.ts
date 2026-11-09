@@ -26,19 +26,18 @@
  */
 
 import type { Absence, PresenceAnswer, PresenceState, TaskAnswer, TaskDate, TaskPlan, TaskState } from './steps';
-import { plural } from '../core/plural';
+import { appLang, fmtDate, localeOf, t, texts } from '../core/i18n';
 
 export type TaskPhase = 'hidden' | 'upcoming' | 'active' | 'reporting' | 'over';
 
 /** Die Wochentage, wie die Bits sie zählen: pn 1 … ndz 64. */
+const weekday = (bit: number, day: string) => ({
+  bit,
+  get short(): string { return t(`steps.weekday.${day}.short`); },
+  get many(): string { return t(`steps.weekday.${day}.many`); }
+});
 export const WEEKDAYS = [
-  { bit: 1, short: 'pn', many: 'poniedziałki' },
-  { bit: 2, short: 'wt', many: 'wtorki' },
-  { bit: 4, short: 'śr', many: 'środy' },
-  { bit: 8, short: 'czw', many: 'czwartki' },
-  { bit: 16, short: 'pt', many: 'piątki' },
-  { bit: 32, short: 'sob', many: 'soboty' },
-  { bit: 64, short: 'ndz', many: 'niedziele' }
+  weekday(1, 'mon'), weekday(2, 'tue'), weekday(4, 'wed'), weekday(8, 'thu'), weekday(16, 'fri'), weekday(32, 'sat'), weekday(64, 'sun')
 ] as const;
 
 /** Ein Tag als `YYYY-MM-DD` — in der Zeit des Geräts. */
@@ -156,13 +155,8 @@ export function nextDay(plan: TaskPlan, today: string): string | null {
   return null;
 }
 
-const months = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
-
-/** „3 października". */
-export const dayText = (day: string): string => {
-  const d = dateOf(day);
-  return `${d.getDate()} ${months[d.getMonth()]}`;
-};
+/** „3 października" — Tag und Monat in der Sprache der Anwendung. */
+export const dayText = (day: string): string => fmtDate(dateOf(day), { day: 'numeric', month: 'long' });
 
 /** „pt 17.10" — für die Knöpfe der Tage. */
 export const chipText = (day: string): string => {
@@ -175,7 +169,7 @@ export function periodText(plan: TaskPlan): string {
   const a = dateOf(plan.startsOn);
   const b = dateOf(plan.endsOn);
   if (plan.startsOn === plan.endsOn) return dayText(plan.startsOn);
-  if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} ${months[b.getMonth()]}`;
+  if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) return t('steps.date.sameMonth', { from: a.getDate(), to: dayText(plan.endsOn) });
   return `${dayText(plan.startsOn)} – ${dayText(plan.endsOn)}`;
 }
 
@@ -197,24 +191,23 @@ export function timeText(plan: TaskPlan): string | null {
     return hours.size === 1 ? hoursOf(dates[0]) : null;
   }
   const at = plan.atMinute === null ? null : `${Math.floor(plan.atMinute / 60)}:${String(plan.atMinute % 60).padStart(2, '0')}`;
-  const long = plan.minutes === null ? null : plan.minutes >= 60 && plan.minutes % 60 === 0 ? `${plan.minutes / 60} godz.` : `${plan.minutes} min`;
+  const long = plan.minutes === null ? null : plan.minutes >= 60 && plan.minutes % 60 === 0 ? t('steps.time.hours', { count: plan.minutes / 60 }) : t('steps.time.minutes', { count: plan.minutes });
   return at === null && long === null ? null : [at, long].filter((x) => x !== null).join(', ');
 }
 
 /** „1 termin", „3 terminy", „12 terminów". */
-export const termsText = (n: number): string =>
-  `${n} ${plural(n, 'termin', 'terminy', 'terminów')}`;
+export const termsText = (n: number): string => t('steps.terms', { count: n });
 
 /** „codziennie", „w piątki", „w poniedziałki i środy", „w dowolnym dniu"; 0099 — „12 terminów". */
 export function scheduleWord(plan: TaskPlan): string {
   if (plan.schedule === 'item') {
     const n = datesOf(plan).length;
-    return n === 0 ? 'brak terminów w tym okresie' : termsText(n);
+    return n === 0 ? t('steps.schedule.noDates') : termsText(n);
   }
-  if (plan.schedule === 'daily') return 'codziennie';
-  if (plan.schedule === 'any') return 'w dowolnym dniu';
+  if (plan.schedule === 'daily') return t('steps.schedule.daily');
+  if (plan.schedule === 'any') return t('steps.schedule.any');
   const days = WEEKDAYS.filter((w) => ((plan.weekdays ?? 0) & w.bit) !== 0).map((w) => w.many);
-  return days.length <= 1 ? `w ${days[0] ?? '—'}` : `w ${days.slice(0, -1).join(', ')} i ${days[days.length - 1]}`;
+  return t('steps.schedule.onDays', { days: days.length === 0 ? '—' : new (Intl as unknown as { ListFormat: new (l: string, o: { type: string }) => { format(x: readonly string[]): string } }).ListFormat(localeOf(appLang()), { type: 'conjunction' }).format(days) });
 }
 
 /**
@@ -230,30 +223,28 @@ export function planText(plan: TaskPlan): string {
       const span = periodText({ ...plan, startsOn: dates[0].day, endsOn: dates[dates.length - 1].day });
       return [termsText(dates.length), span, timeText(plan)].filter((x) => x !== null).join(' · ');
     }
-    return 'brak terminów w tym okresie (termin zmieniony albo usunięty z kalendarza)';
+    return t('steps.schedule.noDatesChanged');
   }
   return [periodText(plan), scheduleWord(plan), timeText(plan)].filter((x) => x !== null).join(' · ');
 }
 
-const DAY_NAMES = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
-
 /** „sobota, 18 października". */
-export const longDay = (day: string): string => `${DAY_NAMES[dateOf(day).getDay()]}, ${dayText(day)}`;
+export const longDay = (day: string): string => fmtDate(dateOf(day), { weekday: 'long', day: 'numeric', month: 'long' });
 
 /* -- 0099: zu einem Termin ------------------------------------------------------------------------- */
 
 /** Was der Mensch sagt — in seinen Worten … */
-export const PRESENCE_WORD: Record<PresenceAnswer, string> = { yes: 'będę', maybe: 'jeszcze nie wiem', no: 'nie będę' };
+export const PRESENCE_WORD: Record<PresenceAnswer, string> = texts({ yes: 'steps.presence.yes', maybe: 'steps.presence.maybe', no: 'steps.presence.no' });
 
 /** … und wie es die Kanzlei liest. */
-export const PRESENCE_THEY: Record<PresenceAnswer, string> = { yes: 'będzie', maybe: 'nie wie', no: 'nie będzie' };
+export const PRESENCE_THEY: Record<PresenceAnswer, string> = texts({ yes: 'steps.presenceThey.yes', maybe: 'steps.presenceThey.maybe', no: 'steps.presenceThey.no' });
 
 /** Nach dem Termin: da gewesen, nicht da, entschuldigt — oder noch nicht eingetragen. */
 export type Attendance = 'present' | Absence | null;
 
-export const ATTENDANCE_WORD: Record<Exclude<Attendance, null>, string> = {
-  present: 'obecność', absent: 'nieobecność', excused: 'nieobecność usprawiedliwiona'
-};
+export const ATTENDANCE_WORD: Record<Exclude<Attendance, null>, string> = texts({
+  present: 'steps.attendance.present', absent: 'steps.attendance.absent', excused: 'steps.attendance.excused'
+});
 
 /** Was jemand zu diesem Termin gesagt hat. */
 export const presenceOn = (state: TaskState | undefined, day: string): PresenceState | undefined =>
@@ -290,5 +281,5 @@ export const answerOpen = (date: TaskDate, now: Date = new Date()): boolean => n
 /** Wie viel es braucht, in Worten — „5 razy", oder nichts (einmal, oder: es zählt die Antwort). */
 export const neededText = (plan: TaskPlan): string | null => {
   const n = neededOf(plan);
-  return n === null || n === 1 ? null : `${n} razy`;
+  return n === null || n === 1 ? null : t('steps.times', { count: n });
 };

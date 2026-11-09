@@ -28,6 +28,7 @@ import { refsOf } from './refIndex';
 import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
+import { useT } from '../core/i18n';
 
 /** Die Arten der Karte, von links nach rechts (2026-10-21: die Wygłoszenia links neben ihren Texten). */
 export const LIBRARY_MAP = ['quote', 'work', 'person'] as const;
@@ -67,6 +68,7 @@ export function LibraryMap({ store, libraryId, mapKinds = LIBRARY_MAP, hrefOf }:
   const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set(mapKinds));
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
   const revision = store.revision;
 
   const { nodes, edges } = useMemo(() => {
@@ -111,7 +113,7 @@ export function LibraryMap({ store, libraryId, mapKinds = LIBRARY_MAP, hrefOf }:
     try {
       await store.save({ id: entry.id, kind: entry.kind, ...(entry.key === undefined ? {} : { key: entry.key }), data: { ...entry.data, ...patch } });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.catalog.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -123,7 +125,7 @@ export function LibraryMap({ store, libraryId, mapKinds = LIBRARY_MAP, hrefOf }:
     if (from === undefined || to === undefined) return;
     const field = fieldFor(from.kind, to.kind);
     if (field === null) {
-      setFailed(`${kindOf(from.kind)?.label ?? from.kind} nie odwołuje się do: ${kindOf(to.kind)?.label ?? to.kind}. (Cytat w tekście wstawiasz w treści: [@${to.key ?? 'klucz'}].)`);
+      setFailed(t('library.map.noField', { from: kindOf(from.kind)?.label ?? from.kind, to: kindOf(to.kind)?.label ?? to.kind, key: to.key ?? t('libraryData.quotesDoc.keyWord') }));
       return;
     }
     const next = field.many ? [...new Set([...ids(from.data, field.key), to.id])] : [to.id];
@@ -155,7 +157,7 @@ export function LibraryMap({ store, libraryId, mapKinds = LIBRARY_MAP, hrefOf }:
         ))}
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {busy && <p className="wk-working">Zapisywanie…</p>}
+      {busy && <p className="wk-working">{t('common.saving')}</p>}
       <div className="wk-dep-canvas">
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onConnect={onConnect} onEdgesDelete={onEdgesDelete}
           onNodeDoubleClick={(_, node) => { window.location.hash = hrefOf?.((node.data as Data).id) ?? viewPath('library', libraryId, (node.data as Data).id); }}

@@ -14,6 +14,19 @@
 
 import type { FlowDoc, FlowEdge, FlowNode, FlowNodeType, FlowOut, Test } from '../flow/flowModel';
 import { INTENTION_MODES, LITURGICAL_COLOURS, UNIVERSAL, type SchemeDef, type SchemeField } from '../scheme';
+import { t } from '../../core/i18n';
+
+/*
+ * Die Wörter einer Vorlage werden beim Lesen geholt (`calendarApp.tpl.*`) — in der Sprache, in der
+ * jemand die Vorlage in seinen Kalender holt; danach gehören sie ihm.
+ */
+function worded<T extends object, K extends string>(base: T, keys: Readonly<Record<K, string>>): T & Readonly<Record<K, string>> {
+  for (const k of Object.keys(keys) as K[]) {
+    Object.defineProperty(base, k, { get: () => t(`calendarApp.tpl.${keys[k]}`), enumerable: true, configurable: true });
+  }
+  return base as T & Readonly<Record<K, string>>;
+}
+const msg = (key: string) => worded({}, { message: key });
 
 const node = (id: string, type: FlowNodeType, x: number, y: number, data: Record<string, unknown> = {}): FlowNode => ({ id, type, x, y, data });
 const edge = (from: string, to: string, out: FlowOut = 'out'): FlowEdge => ({ id: `${from}-${out}-${to}`, from, to, ...(out === 'out' ? {} : { out }) });
@@ -35,15 +48,15 @@ export const INTENTION_RULE: FlowDoc = {
   nodes: [
     node('r_start', 'record-start', 0, 0),
     node('r_outside', 'if', 260, 0, when({ t: 'actor', is: 'outside' })),
-    node('r_wait', 'wait', 260, 160, { message: 'Intencja czeka na przyjęcie przez kancelarię.' }),
+    node('r_wait', 'wait', 260, 160, msg('rule.intentionWaits')),
     node('r_single', 'if', 520, 0, when({ t: 'mode', modes: ['single'] })),
     node('r_any', 'if', 520, 160, when({ t: 'count', scope: 'occurrence', status: 'live', op: '>=', n: 1 })),
-    node('r_refuse_single', 'refuse', 520, 320, { message: 'Ta msza ma już intencję — intencja pojedyncza musi być jedyna.' }),
+    node('r_refuse_single', 'refuse', 520, 320, msg('rule.singleAlone')),
     node('r_has_single', 'if', 780, 0, when({ t: 'count', scope: 'occurrence', mode: 'single', status: 'live', op: '>=', n: 1 })),
-    node('r_refuse_mixed', 'refuse', 780, 160, { message: 'Na tej mszy jest intencja pojedyncza — zbiorowa nie może do niej dojść.' }),
+    node('r_refuse_mixed', 'refuse', 780, 160, msg('rule.noMixed')),
     node('r_coll_here', 'if', 1040, 0, when({ t: 'count', scope: 'occurrence', mode: 'collective', status: 'live', op: '>=', n: 1 })),
     node('r_week', 'if', 1300, 0, when({ t: 'count', scope: 'week', mode: 'collective', status: 'live', per: 'occurrence', op: '>=', n: 2 })),
-    node('r_refuse_week', 'refuse', 1300, 160, { message: 'W tym tygodniu są już dwie msze z intencjami zbiorowymi.' }),
+    node('r_refuse_week', 'refuse', 1300, 160, msg('rule.weekFull')),
     node('r_allow', 'allow', 1560, 160)
   ],
   edges: [
@@ -70,9 +83,9 @@ export const SIGNUP_RULE: FlowDoc = {
     node('z_start', 'record-start', 0, 0),
     node('z_coming', 'if', 260, 0, when({ t: 'mode', modes: ['tak'] })),
     node('z_full', 'if', 260, 160, when({ t: 'count', scope: 'occurrence', mode: 'tak', status: 'all', op: '>=', n: 20 })),
-    node('z_refuse', 'refuse', 260, 320, { message: 'Nie ma już wolnych miejsc.' }),
+    node('z_refuse', 'refuse', 260, 320, msg('rule.noPlaces')),
     node('z_outside', 'if', 520, 0, when({ t: 'actor', is: 'outside' })),
-    node('z_wait', 'wait', 520, 160, { message: 'Zapis czeka na potwierdzenie.' }),
+    node('z_wait', 'wait', 520, 160, msg('rule.signupWaits')),
     node('z_allow', 'allow', 780, 0)
   ],
   edges: [
@@ -86,32 +99,23 @@ export const SIGNUP_RULE: FlowDoc = {
   ]
 };
 
-const OBCHOD: SchemeField = {
-  key: 'obchod', label: 'Obchód', type: 'text', public: true,
-  says: 'Obchód dnia albo formularz mszy (np. „Wszystkich Świętych”, „XXX Niedziela zwykła”) — stoi w planie i w gablocie.'
-};
+const OBCHOD: SchemeField = worded({ key: 'obchod', type: 'text', public: true } as const, { label: 'field.obchod.label', says: 'field.obchod.says' });
 
-const KOLOR: SchemeField = {
-  key: 'kolor', label: 'Kolor szat', type: 'colour', public: true, options: LITURGICAL_COLOURS,
-  says: 'Kolor szat liturgicznych — w planie jako znaczek koloru.'
-};
+const KOLOR: SchemeField = worded({ key: 'kolor', type: 'colour', public: true, options: LITURGICAL_COLOURS } as const,
+  { label: 'field.kolor.label', says: 'field.kolor.says' });
 
-const CZYTANIA: SchemeField = {
-  key: 'czytania', label: 'Czytania', type: 'bible',
-  says: 'Sigla czytań, np. „Iz 7,10-14; Ps 24; Rz 1,1-7; Mt 1,18-24” — tylko odnośniki, bez tekstów.'
-};
+const CZYTANIA: SchemeField = worded({ key: 'czytania', type: 'bible' } as const, { label: 'field.czytania.label', says: 'field.czytania.says' });
 
 const intentions = UNIVERSAL.lists[0];
 
 export const SCHEME_TEMPLATES: readonly { readonly id: string; readonly def: SchemeDef }[] = [
   {
     id: 'msza',
-    def: {
-      name: 'Msza',
+    def: worded({
       kind: 'mass',
       publicTitle: true,
       fields: [OBCHOD, KOLOR, CZYTANIA],
-      lists: [{
+      lists: [worded({
         key: intentions.key,
         label: intentions.label,
         itemLabel: intentions.itemLabel,
@@ -119,56 +123,41 @@ export const SCHEME_TEMPLATES: readonly { readonly id: string; readonly def: Sch
         textLabel: intentions.textLabel,
         person: intentions.person,
         fields: intentions.fields,
-        rule: INTENTION_RULE,
-        says: 'Intencje mszy: treść czytana na mszy i w gablocie; pojedyncza stoi sama, zbiorowych najwyżej dwie msze w tygodniu.'
-      }],
-      says: 'Msza z obchodem, kolorem szat, czytaniami i intencjami (z regułą pojedynczych i zbiorowych).'
-    }
+        rule: INTENTION_RULE
+      }, { says: 'msza.listSays' })]
+    }, { name: 'msza.name', says: 'msza.says' }) as SchemeDef
   },
   {
     id: 'nabozenstwo',
-    def: {
-      name: 'Nabożeństwo',
+    def: worded({
       kind: 'devotion',
       publicTitle: true,
       fields: [OBCHOD, KOLOR],
-      lists: [],
-      says: 'Nabożeństwo (Różaniec, Droga Krzyżowa, Gorzkie Żale …) z obchodem i kolorem.'
-    }
+      lists: []
+    }, { name: 'nabozenstwo.name', says: 'nabozenstwo.says' }) as SchemeDef
   },
   {
     id: 'spowiedz',
-    def: {
-      name: 'Spowiedź',
+    def: worded({
       kind: 'confession',
       publicTitle: true,
-      fields: [{
-        key: 'dla_wiernych', label: 'Dla wiernych', type: 'text', public: true,
-        says: 'Krótka informacja w planie, np. „przy konfesjonale św. Józefa”.'
-      }],
-      lists: [],
-      says: 'Spowiedź z krótką jawną informacją.'
-    }
+      fields: [worded({ key: 'dla_wiernych', type: 'text', public: true } as const, { label: 'spowiedz.fieldLabel', says: 'spowiedz.fieldSays' })],
+      lists: []
+    }, { name: 'spowiedz.name', says: 'spowiedz.says' }) as SchemeDef
   },
   {
     id: 'spotkanie-zapisy',
-    def: {
-      name: 'Spotkanie z zapisami',
+    def: worded({
       kind: 'appointment',
-      fields: [{ key: 'prowadzi', label: 'Prowadzi', type: 'text', public: true, says: 'Kto prowadzi spotkanie.' }],
-      lists: [{
+      fields: [worded({ key: 'prowadzi', type: 'text', public: true } as const, { label: 'zapisy.leadLabel', says: 'zapisy.leadSays' })],
+      lists: [worded({
         key: 'zapisy',
-        label: 'Zapisy',
-        itemLabel: 'zapis',
-        modes: [{ value: 'tak', label: 'będę' }, { value: 'moze', label: 'może' }, { value: 'nie', label: 'nie będę' }],
-        person: 'Kto',
-        fields: [{ key: 'uwagi', label: 'Uwagi', type: 'text', says: 'Uwagi do zapisu — widzi je kancelaria.' }],
+        modes: [worded({ value: 'tak' }, { label: 'zapisy.yes' }), worded({ value: 'moze' }, { label: 'zapisy.maybe' }), worded({ value: 'nie' }, { label: 'zapisy.no' })],
+        fields: [worded({ key: 'uwagi', type: 'text' } as const, { label: 'zapisy.notesLabel', says: 'zapisy.notesSays' })],
         outside: true,
-        rule: SIGNUP_RULE,
-        says: 'Zapisy na termin: „będę” liczy się do miejsc (20, do zmiany w regule); zapis z zewnątrz czeka na potwierdzenie.'
-      }],
-      says: 'Spotkanie, na które można się zapisać (np. kandydaci do bierzmowania wybierają termin).'
-    }
+        rule: SIGNUP_RULE
+      }, { label: 'zapisy.listLabel', itemLabel: 'zapisy.itemLabel', person: 'zapisy.person', says: 'zapisy.listSays' })]
+    }, { name: 'zapisy.name', says: 'zapisy.says' }) as SchemeDef
   }
 ];
 

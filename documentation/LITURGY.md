@@ -26,6 +26,8 @@ All entities use individual encrypted `app.library_entry` envelopes. Import rece
 
 The trusted browser validates the decrypted graph. The backend enforces area authorization, envelope limits, optimistic concurrency, atomic writes, and revision history; it cannot inspect private plaintext references. A different client writing envelopes directly must implement the same validation contract.
 
+Code in `frontend/src/app/library/liturgy/`: `names.ts` (the `lit_*` kind names, no validator) and `kinds.ts` (their Library kind definitions) are the only files the Library's first bundle loads. Everything else — `schema.ts` (zod), `defaults.ts`, `resources.ts`, `calendar.ts`, `compose.ts`, `persistence.ts`, `projection.ts` (computed text for Cogita and AI snapshots), `description.ts` and the screens (`LiturgyHome.tsx`, `ImportPanel.tsx`) — arrives with an opened Liturgia, a Cogita base or AI access. The example collection loads only when "Preview an example" is pressed.
+
 ## Import and revision workflow
 
 1. Open the collection's **Import / export** tab and paste/upload a document. **Preview an example** loads `templates/liturgy/complete-example.json`: 132 entities covering all nine types, all eight hours and Mass. All text is explicitly synthetic and all resources are drafts.
@@ -139,11 +141,3 @@ The following sources informed calendar reference fixtures and structural rules.
 - [Lectionary for Mass introduction, weekday arrangements](https://www.liturgyoffice.org/Resources/GIRM/Opportunities/Others/I092-Readings.pdf) and [USCCB lectionary questions](https://www.usccb.org/faq/questions-about-lectionary): separate Sunday and weekday cycles; weekdays of seasonal periods require their own assignments.
 
 No source's official Polish liturgical translations are bundled. Populate and review licensed editions, complete calendars, and particular rubrical templates before treating assembled output as an approved office or Mass formulary.
-
-### Verification recorded for this integration
-
-- 123 focused liturgy checks passed, including the 132-entity example, a 1,200-record correction, combined patch/removal dependency validation, exact canonical snapshots, reset followed by a new override, atomic audit receipts, and the existing calendar/composition checks.
-- 644 backend checks passed, including exact MCP exports, oversized complete texts, snapshot-pinned pagination, stale/legacy snapshots, collection-type restrictions and the embedded import documents. TypeScript and the Vite production build passed; the build still reports large application chunks.
-- Headless Edge exercised the actual `LiturgyHome` components with an in-memory store: preview before writing, atomic import receipt, full text/division rendering, indirect usage links, calendar antiphons, history, read-only access, and 390-pixel mobile layouts in both themes. No live database or deployment was used.
-- Additional browser checks exercised the full 132-record import, mixed additions/corrections/removals, dangling-reference rejection, action history and immediate/forced MCP snapshot refresh on a 390-pixel layout.
-- Broader repository checks remain non-green: the Library suite reaches an unchanged localized music-group assertion; Cogita checks report flow expectations and a React hook invocation in the test harness. Global style checks still report existing hint/inline-style counts, and localization checks report missing keys in unrelated sections. The new liturgy section adds no hard-coded-interface-text or CSS-token violations.

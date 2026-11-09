@@ -40,6 +40,7 @@ import { pageSteps, viewPath, modulePath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { useT, type T } from '../core/i18n';
 
 type Kind = 'page' | 'module' | 'area' | 'calendar' | 'library' | 'chat';
 
@@ -50,16 +51,16 @@ interface Data {
   readonly href?: string;
 }
 
-const KIND_WORD: Record<Kind, string> = {
-  page: 'strona', module: 'moduł', area: 'obszar', calendar: 'kalendarz', library: 'biblioteka', chat: 'rozmowa'
-};
+/* Das Wort je Art: `modules.dep.kind.<kind>`. */
+const kindWord = (t: T, kind: Kind): string => t(`modules.dep.kind.${kind}`);
 
 function Box({ data }: NodeProps<Data>) {
+  const t = useT();
   return (
     <div className={`wk-dep-node is-${data.kind}`}>
       {/* 0082 — auch eine Seite ist Ziel: ein Baustein öffnet sie („Lista osób" → die Seite eines Menschen). */}
       <Handle type="target" position={Position.Left} />
-      <span className="wk-dep-kind">{KIND_WORD[data.kind]}</span>
+      <span className="wk-dep-kind">{kindWord(t, data.kind)}</span>
       <strong>{data.label}</strong>
       {data.sub !== '' && <span className="wk-dep-sub">{data.sub}</span>}
       {(data.kind === 'page' || data.kind === 'module') && <Handle type="source" position={Position.Right} />}
@@ -86,7 +87,7 @@ function sourceKey(kind: string, target: Source): { key: string; many: boolean }
 const idsIn = (value: string | undefined) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
 /** Wie eine Rozmowa auf der Karte heisst — der Kanał neben der Rozmowa desselben Bereichs. */
-const chatLabel = (c: ChatRow | undefined) => c === undefined ? 'rozmowa' : c.kind === 'channel' ? `Kanał: ${c.areaName}` : c.areaName;
+const chatLabel = (t: T, c: ChatRow | undefined) => c === undefined ? t('modules.dep.kind.chat') : c.kind === 'channel' ? t('notify.chat.channel', { name: c.areaName }) : c.areaName;
 
 /** 0080 — woran ein Formular hängen kann: die Rozmowa und der Kanał eines Bereichs (`audience.ts`). */
 const takesForms = (c: ChatRow | undefined) => c !== undefined && (c.kind === 'area' || c.kind === 'channel');
@@ -104,6 +105,7 @@ export function DependencyMap() {
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [onlyUsed, setOnlyUsed] = useState(false);
+  const t = useT();
 
   const look = useCallback(async () => {
     try {
@@ -114,9 +116,9 @@ export function DependencyMap() {
       setWorld({ desk, modules: modules.modules, calendars: calendars.calendars, libraries: libraries.libraries, chats: chats.chats });
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać mapy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('modules.dep.loadFailed'));
     }
-  }, []);
+  }, [t]);
   useEffect(() => { void look(); }, [look]);
 
   const { nodes, edges } = useMemo(() => {
@@ -138,10 +140,10 @@ export function DependencyMap() {
       });
       for (const path of m.pages) {
         if (!pages.some((p) => p.path === path)) continue;
-        lines.push({ id: `on:${path}:${m.moduleId}`, source: `page:${path}`, target: `module:${m.moduleId}`, label: 'pokazuje', data: { rel: 'on' } });
+        lines.push({ id: `on:${path}:${m.moduleId}`, source: `page:${path}`, target: `module:${m.moduleId}`, label: t('modules.dep.edge.shows'), data: { rel: 'on' } });
       }
       if (m.extendsId !== null && modules.some((x) => x.moduleId === m.extendsId)) {
-        lines.push({ id: `ext:${m.moduleId}`, source: `module:${m.moduleId}`, target: `module:${m.extendsId}`, label: 'rozszerza', deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
+        lines.push({ id: `ext:${m.moduleId}`, source: `module:${m.moduleId}`, target: `module:${m.extendsId}`, label: t('modules.dep.edge.extends'), deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
       }
     });
 
@@ -154,8 +156,8 @@ export function DependencyMap() {
 
     for (const m of modules) {
       if (m.areaId !== null) {
-        place(`area:${m.areaId}`, { kind: 'area', label: m.areaName ?? 'obszar', sub: '', href: viewPath('areas', m.areaId) });
-        lines.push({ id: `data:${m.moduleId}`, source: `module:${m.moduleId}`, target: `area:${m.areaId}`, label: 'dane w', deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
+        place(`area:${m.areaId}`, { kind: 'area', label: m.areaName ?? t('modules.dep.kind.area'), sub: '', href: viewPath('areas', m.areaId) });
+        lines.push({ id: `data:${m.moduleId}`, source: `module:${m.moduleId}`, target: `area:${m.areaId}`, label: t('modules.dep.edge.dataIn'), deletable: false, className: 'is-fixed', data: { rel: 'fixed' } });
       }
       const config = readConfig(m.config);
       for (const target of SOURCES) {
@@ -167,14 +169,14 @@ export function DependencyMap() {
             const node = target === 'page' ? `page:${id.replace(/^#?\/*/, '')}` : `module:${id}`;
             if (!out.some((n) => n.id === node)) continue;
             lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: node,
-              label: target === 'page' ? 'otwiera' : 'z formularza', data: { rel: 'source', key: field.key, many: field.many, id } });
+              label: target === 'page' ? t('modules.dep.edge.opens') : t('modules.dep.edge.fromForm'), data: { rel: 'source', key: field.key, many: field.many, id } });
             continue;
           }
-          const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? 'kalendarz'
-            : target === 'chat' ? chatLabel(world.chats.find((c) => c.chatId === id))
-            : 'biblioteka';
+          const label = target === 'calendar' ? world.calendars.find((c) => c.calendarId === id)?.title ?? t('modules.dep.kind.calendar')
+            : target === 'chat' ? chatLabel(t, world.chats.find((c) => c.chatId === id))
+            : t('modules.dep.kind.library');
           place(`${target}:${id}`, { kind: target, label, sub: target === 'library' ? id.slice(0, 8) : '' });
-          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: 'z', data: { rel: 'source', key: field.key, many: field.many, id } });
+          lines.push({ id: `src:${m.moduleId}:${target}:${id}`, source: `module:${m.moduleId}`, target: `${target}:${id}`, label: t('modules.dep.edge.from'), data: { rel: 'source', key: field.key, many: field.many, id } });
         }
       }
     }
@@ -186,7 +188,7 @@ export function DependencyMap() {
       for (const id of kind.uses(decl)) {
         if (!modules.some((m) => m.moduleId === id)) continue;
         lines.push({ id: `subj:${p.path}:${id}`, source: `page:${p.path}`, target: `module:${id}`,
-          label: `wybór: ${kind.label.toLowerCase()}`, className: 'is-subject', data: { rel: 'subject', path: p.path } });
+          label: t('modules.dep.edge.subject', { kind: kind.label.toLowerCase() }), className: 'is-subject', data: { rel: 'subject', path: p.path } });
       }
     }
 
@@ -195,7 +197,7 @@ export function DependencyMap() {
       for (const formId of m.formIds ?? []) {
         if (!modules.some((x) => x.moduleId === formId)) continue;
         lines.push({ id: `ask:${formId}:${m.moduleId}`, source: `module:${formId}`, target: `module:${m.moduleId}`,
-          label: 'piszą do', data: { rel: 'ask', subject: m.moduleId, moduleId: formId } });
+          label: t('modules.dep.edge.writeTo'), data: { rel: 'ask', subject: m.moduleId, moduleId: formId } });
       }
     }
 
@@ -203,22 +205,22 @@ export function DependencyMap() {
     for (const c of world.chats) {
       for (const moduleId of c.formIds ?? []) {
         if (!modules.some((m) => m.moduleId === moduleId)) continue;
-        place(`chat:${c.chatId}`, { kind: 'chat', label: chatLabel(c), sub: '', href: viewPath('chat', c.chatId) });
+        place(`chat:${c.chatId}`, { kind: 'chat', label: chatLabel(t, c), sub: '', href: viewPath('chat', c.chatId) });
         lines.push({ id: `aud:${moduleId}:${c.chatId}`, source: `module:${moduleId}`, target: `chat:${c.chatId}`,
-          label: c.kind === 'channel' ? 'czytają' : 'piszą', data: { rel: 'audience', chatId: c.chatId, moduleId } });
+          label: c.kind === 'channel' ? t('modules.dep.edge.read') : t('modules.dep.edge.write'), data: { rel: 'audience', chatId: c.chatId, moduleId } });
       }
     }
     for (const c of world.calendars.filter((x) => x.archived !== true)) place(`calendar:${c.calendarId}`, { kind: 'calendar', label: c.title, sub: c.areaName });
     /* 2026-10-23 — drei Teile: Bibliothek, Skryptorium, Baza wiedzy. */
-    for (const l of world.libraries) place(`library:${l.libraryId}`, { kind: 'library', label: libraryKindOf(l) === 'writing' ? 'Skryptorium' : libraryKindOf(l) === 'knowledge' ? 'Baza wiedzy' : 'Biblioteka', sub: l.libraryId.slice(0, 8) });
+    for (const l of world.libraries) place(`library:${l.libraryId}`, { kind: 'library', label: t(`aiAccess.part.${libraryKindOf(l) === 'writing' ? 'writing' : libraryKindOf(l) === 'knowledge' ? 'knowledge' : 'books'}`), sub: l.libraryId.slice(0, 8) });
 
     return { nodes: out, edges: lines };
-  }, [world, onlyUsed]);
+  }, [world, onlyUsed, t]);
 
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setBusy(what);
     setFailed(null);
-    try { await todo(); await look(); } catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.'); } finally { setBusy(null); }
+    try { await todo(); await look(); } catch (e) { setFailed(e instanceof WorkspaceError ? e.message : t('common.failed')); } finally { setBusy(null); }
   };
 
   const moduleOf = (nodeId: string) => world?.modules.find((m) => `module:${m.moduleId}` === nodeId);
@@ -230,8 +232,8 @@ export function DependencyMap() {
       const path = c.source.slice(5);
       const m = moduleOf(c.target);
       if (m === undefined) return;
-      if (!(await askText(`Dodać „${m.name}" na stronę ${path}? Pojawi się na końcu strony.`))) return;
-      void act('Dodawanie na stronę…', async () => {
+      if (!(await askText(t('modules.dep.askAdd', { name: m.name, path })))) return;
+      void act(t('modules.dep.adding'), async () => {
         const page = await loadPage(path);
         const parts = page.parts.map(toDraft);
         await saveParts(path, [...parts, { id: newId(), moduleId: m.moduleId, kind: m.kind, layout: {}, config: readConfig(m.config) }]);
@@ -246,28 +248,28 @@ export function DependencyMap() {
       /* 0081 — ein Formular zu „Napisz do nas": wer es ausgefüllt hat, darf dort anfangen. */
       const target2 = target === 'module' ? world.modules.find((x) => x.moduleId === id) : undefined;
       if (m.kind === 'form' && target2?.kind === 'seat-ask') {
-        if (!(await askText(`Dołączyć formularz „${m.name}" do „${target2.name}"? Kto go wypełnił, będzie mógł tam zacząć rozmowę.`))) return;
-        void act('Dołączanie formularza…', () => linkAudienceForm('module', id, m.moduleId, true));
+        if (!(await askText(t('modules.dep.askLinkAsk', { name: m.name, target: target2.name })))) return;
+        void act(t('modules.dep.linking'), () => linkAudienceForm('module', id, m.moduleId, true));
         return;
       }
 
       /* 0080 — ein Formular zu einer Rozmowa: wer es ausgefüllt hat, ist dabei. */
       const chat = target === 'chat' ? world.chats.find((x) => x.chatId === id) : undefined;
       if (m.kind === 'form' && takesForms(chat)) {
-        if (!(await askText(`Dołączyć formularz „${m.name}" do: ${chatLabel(chat)}? Kto go wypełnił, ${chat?.kind === 'channel' ? 'będzie czytać ten kanał' : 'będzie czytać i pisać w tej rozmowie'}.`))) return;
-        void act('Dołączanie formularza…', () => linkAudienceForm('chat', id, m.moduleId, true));
+        if (!(await askText(t(chat?.kind === 'channel' ? 'modules.dep.askLinkChannel' : 'modules.dep.askLinkChat', { name: m.name, chat: chatLabel(t, chat) })))) return;
+        void act(t('modules.dep.linking'), () => linkAudienceForm('chat', id, m.moduleId, true));
         return;
       }
       /* 0082 — ein Baustein zu einem Formular (seine Menschen) oder zu einer Seite (die er öffnet). */
       const source: Source | null = target === 'module' ? (target2?.kind === 'form' ? 'form' : null) : target === 'area' ? null : target;
       const field = source === null ? null : sourceKey(m.kind, source);
       if (field === null) {
-        setFailed(`Moduł „${partOf(m.kind)?.label ?? m.kind}" nie bierze danych z: ${source === 'form' ? 'formularz' : KIND_WORD[target]}.`);
+        setFailed(t('modules.dep.noSource', { kind: partOf(m.kind)?.label ?? m.kind, source: source === 'form' ? t('modules.dep.form') : kindWord(t, target) }));
         return;
       }
       const config = readConfig(m.config);
       const next = field.many ? [...new Set([...idsIn(config[field.key]), id])].join(',') : id;
-      void act('Ustawianie źródła…', () => updateModule(m.moduleId, { config: JSON.stringify({ ...config, [field.key]: next }) }));
+      void act(t('modules.dep.settingSource'), () => updateModule(m.moduleId, { config: JSON.stringify({ ...config, [field.key]: next }) }));
     }
   };
 
@@ -277,49 +279,44 @@ export function DependencyMap() {
       if (rel === 'on') {
         const path = edge.source.slice(5);
         const m = moduleOf(edge.target);
-        if (m === undefined || !(await askText(`Zdjąć „${m.name}" ze strony ${path}? Moduł zostaje — można go postawić znowu.`))) { void look(); continue; }
-        void act('Zdejmowanie ze strony…', async () => {
+        if (m === undefined || !(await askText(t('modules.dep.askRemove', { name: m.name, path })))) { void look(); continue; }
+        void act(t('modules.dep.removing'), async () => {
           const page = await loadPage(path);
           await saveParts(path, page.parts.map(toDraft).filter((p) => p.moduleId !== m.moduleId));
         });
       } else if (rel === 'ask') {
         const info = edge.data as { subject: string; moduleId: string };
         const m = moduleOf(edge.source);
-        if (!(await askText(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, nie zacznie już tu rozmowy (zaczęte zostają).`))) { void look(); continue; }
-        void act('Odłączanie formularza…', () => linkAudienceForm('module', info.subject, info.moduleId, false));
+        if (!(await askText(t('modules.dep.askUnlinkAsk', { name: m?.name ?? t('modules.dep.form') })))) { void look(); continue; }
+        void act(t('modules.dep.unlinking'), () => linkAudienceForm('module', info.subject, info.moduleId, false));
       } else if (rel === 'audience') {
         const info = edge.data as { chatId: string; moduleId: string };
         const m = moduleOf(edge.source);
-        if (!(await askText(`Odłączyć formularz „${m?.name ?? 'formularz'}"? Kto go wypełnił, przestanie widzieć tę rozmowę.`))) { void look(); continue; }
-        void act('Odłączanie formularza…', () => linkAudienceForm('chat', info.chatId, info.moduleId, false));
+        if (!(await askText(t('modules.dep.askUnlinkChat', { name: m?.name ?? t('modules.dep.form') })))) { void look(); continue; }
+        void act(t('modules.dep.unlinking'), () => linkAudienceForm('chat', info.chatId, info.moduleId, false));
       } else if (rel === 'subject') {
         const info = edge.data as { path: string };
-        if (!(await askText(`Zdjąć „Wybór na stronie" ze strony ${info.path}? Moduły „Panel osoby" przestaną tam kogokolwiek pokazywać.`))) { void look(); continue; }
-        void act('Zdejmowanie wyboru…', () => savePageSubject(info.path, null));
+        if (!(await askText(t('modules.dep.askRemoveSubject', { path: info.path })))) { void look(); continue; }
+        void act(t('modules.dep.removingSubject'), () => savePageSubject(info.path, null));
       } else if (rel === 'source') {
         const m = moduleOf(edge.source);
         const info = edge.data as { key: string; many: boolean; id: string };
         if (m === undefined) continue;
         const config = readConfig(m.config);
         const next = info.many ? idsIn(config[info.key]).filter((x) => x !== info.id).join(',') : '';
-        void act('Usuwanie źródła…', () => updateModule(m.moduleId, { config: JSON.stringify({ ...config, [info.key]: next }) }));
+        void act(t('modules.dep.removingSource'), () => updateModule(m.moduleId, { config: JSON.stringify({ ...config, [info.key]: next }) }));
       } else {
         void look();
       }
     }
   };
 
-  if (world === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie mapy…" />;
+  if (world === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label={t('modules.dep.loading')} />;
 
   return (
     <div className="wk-dep">
-      <p className="wk-lede">
-        Strony, moduły i to, skąd moduły biorą dane. Przeciągnij linię od strony do modułu, żeby postawić go na stronie,
-        albo od modułu do kalendarza, biblioteki, rozmowy, formularza lub strony, żeby ustawić źródło (np. „Lista osób” → formularz
-        i strona osoby) — od formularza do rozmowy lub kanału, żeby osoby, które go wypełniły, były w niej. Zaznacz linię i naciśnij Delete, żeby ją usunąć.
-        Dwuklik otwiera rzecz.
-      </p>
-      <label className="wk-check"><input type="checkbox" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> <span>tylko moduły, które są na stronach</span></label>
+      <p className="wk-lede">{t('modules.dep.lede')}</p>
+      <label className="wk-check"><input type="checkbox" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> <span>{t('modules.dep.onlyUsed')}</span></label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-working">{busy}</p>}
       <div className="wk-dep-canvas">

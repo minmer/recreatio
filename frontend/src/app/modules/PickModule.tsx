@@ -23,6 +23,7 @@ import { createModule, loadModules, type ModuleRow } from './module';
 import { WorkspaceError } from '../core/session';
 import { AreaPick } from '../areas/AreaPick';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export function PickModule({ kind, chosen, busy, onPick, onMade }: {
   /** Die Art, die hier steht — nur Bausteine derselben passen an diese Stelle. */
@@ -48,6 +49,7 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
   const [areaId, setAreaId] = useState('');
   const [making, setMaking] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const look = useCallback(async () => {
     try {
@@ -79,29 +81,29 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
       await look();
       onMade(moduleId);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('modules.pick.makeFailed'));
     } finally {
       setMaking(false);
     }
   };
 
-  if (modules === null) return <Loading label="Wczytywanie modułów…" />;
+  if (modules === null) return <Loading label={t('modules.pick.loading')} />;
 
   return (
     <section className="pb-fields">
       <label className="wk-field">
-        <span>Który formularz</span>
+        <span>{t('modules.pick.which')}</span>
         <select
           value={chosen ?? ''}
           disabled={busy || making}
           onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}
         >
-          <option value="">— wybierz —</option>
+          <option value="">{t('modules.pick.choose')}</option>
           {fitting.map((one) => (
             <option key={one.moduleId} value={one.moduleId}>
               {one.name}
               {one.areaName !== null && ` · ${one.areaName}`}
-              {one.entries > 0 && ` · ${one.entries} zgł.`}
+              {one.entries > 0 && ` · ${t('modules.pick.entries', { count: one.entries })}`}
             </option>
           ))}
         </select>
@@ -113,33 +115,31 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
         Stellen, an denen er steht.
       */}
       {chosen !== null && fitting.some((one) => one.moduleId === chosen) && (
-        <p className="wk-hint">
-          Pytania i zgłoszenia należą do modułu — otwórz go, żeby je ułożyć.
-        </p>
+        <p className="wk-hint">{t('modules.pick.belongs')}</p>
       )}
 
       <details className="pb-new">
-        <summary>Albo załóż nowy</summary>
+        <summary>{t('modules.pick.orNew')}</summary>
 
         <label className="wk-field">
-          <span>Nazwa</span>
+          <span>{t('common.name')}</span>
           <input
             value={name}
-            placeholder="np. Zapisy na bierzmowanie"
+            placeholder={t('modules.pick.namePlaceholder')}
             disabled={busy || making}
             onChange={(e) => setName(e.target.value)}
           />
         </label>
 
         <label className="wk-field">
-          <span>Obszar</span>
+          <span>{t('modules.area')}</span>
           <AreaPick
-            label="Obszar" value={areaId} disabled={busy || making} onChange={setAreaId} areas={areas} only={usable}
-            extras={[{ value: '', label: '— bez obszaru —' }]}
+            label={t('modules.area')} value={areaId} disabled={busy || making} onChange={setAreaId} areas={areas} only={usable}
+            extras={[{ value: '', label: t('modules.noArea') }]}
           />
         </label>
 
-        <p className="wk-hint">Obszar to klucz — pod nim będą leżały odpowiedzi.</p>
+        <p className="wk-hint">{t('modules.pick.areaIsKey')}</p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 
@@ -150,7 +150,7 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
             disabled={busy || making || name.trim() === ''}
             onClick={() => void make()}
           >
-            {making ? 'Zakładanie…' : 'Załóż i otwórz'}
+            {making ? t('seats.portal.making') : t('seats.portal.make')}
           </button>
         </div>
       </details>

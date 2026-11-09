@@ -15,7 +15,7 @@
 
 import { newId } from '../core/ids';
 import type { Me } from '../core/me';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { fieldsOf, labelOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import { readSettings, type CogitaLibrary, type WorldRef } from './store';
 import type { DocKind } from './kinds';
@@ -42,7 +42,9 @@ export interface CrossPlan {
   readonly docs: readonly { readonly id: string; readonly kind: DocKind; readonly data: Readonly<Record<string, unknown>> }[];
 }
 
-const DOC_NAME: Partial<Record<DocKind, string>> = { flow: 'Przebieg', view: 'Widok', revision: 'Powtórka', collection: 'Zbiór', template: 'Szablon', look: 'Wygląd', rules: 'Zasady', anchor: 'Wejście' };
+/** Wie ein Dokument in den Hinweisen heisst (`cogitaData.worlds.doc.<art>`); `undefined`: keine eigene Bezeichnung. */
+const DOC_NAMED: ReadonlySet<string> = new Set(['flow', 'view', 'revision', 'collection', 'template', 'look', 'rules', 'anchor']);
+const docName = (kind: DocKind): string | undefined => (DOC_NAMED.has(kind) ? t(`cogitaData.worlds.doc.${kind}`) : undefined);
 
 /** Alle Verweise in andere Bazy, die ein Plan schreibt — je Stelle (Eintrag + Feld, Dokument + Schritt). */
 export function crossUses(lib: Pick<CogitaLibrary, 'kind' | 'entity'>, plan: CrossPlan): CrossUse[] {
@@ -57,13 +59,13 @@ export function crossUses(lib: Pick<CogitaLibrary, 'kind' | 'entity'>, plan: Cro
       if (key.startsWith('_')) continue;
       const f = fields.get(key);
       for (const c of crossRefsIn(value)) {
-        out.push({ ref: { handle: c.handle, ref: c.ref }, where: `Wpis „${title}”, pole „${f?.label ?? key}”`, ...(f?.type === 'ref' && c.label === undefined ? { external: f.external === true } : {}) });
+        out.push({ ref: { handle: c.handle, ref: c.ref }, where: t('cogitaData.import.entryField', { name: title, field: f?.label ?? key }), ...(f?.type === 'ref' && c.label === undefined ? { external: f.external === true } : {}) });
       }
     }
   }
   for (const d of plan.docs) {
     if (d.kind === 'settings') continue;
-    const name = `${DOC_NAME[d.kind] ?? 'Dokument'} „${str(d.data.name) || '—'}”`;
+    const name = t('cogitaData.import.docTitle', { doc: docName(d.kind) ?? t('cogitaData.worlds.doc.other'), name: str(d.data.name) || '—' });
     const nodes = d.kind === 'flow' && isObject(d.data.graph) && Array.isArray(d.data.graph.nodes) ? d.data.graph.nodes.filter(isObject) : [];
     const said = new Set<string>();
     for (const n of nodes) {
@@ -71,7 +73,7 @@ export function crossUses(lib: Pick<CogitaLibrary, 'kind' | 'entity'>, plan: Cro
       const c = crossOf(n.config.flow);
       if (c === null) continue;
       said.add(crossText(c));
-      out.push({ ref: c, where: `${name}, zagłębienie „${str(n.id) || '—'}”`, detour: true });
+      out.push({ ref: c, where: t('cogitaData.worlds.detourAt', { name, id: str(n.id) || '—' }), detour: true });
     }
     for (const c of crossRefsIn(d.data)) if (!said.has(crossText(c))) out.push({ ref: { handle: c.handle, ref: c.ref }, where: name });
   }
@@ -81,7 +83,7 @@ export function crossUses(lib: Pick<CogitaLibrary, 'kind' | 'entity'>, plan: Cro
 /** Was ein Plan sofort sagt (ohne eine Baza zu öffnen): "@@…" in einem Verweisfeld ohne "external": true. */
 export function crossImportWarnings(lib: Pick<CogitaLibrary, 'kind' | 'entity'>, plan: CrossPlan): string[] {
   return crossUses(lib, plan).filter((u) => u.external === false)
-    .map((u) => `${u.where}: odwołanie do innego świata „${crossText(u.ref)}” w polu bez "external": true — zapisze się i pokaże jako „W innych światach”, ale edytor nie pozwoli tam wybierać z innych światów; dodaj w rodzaju polu "external": true.`);
+    .map((u) => t('cogitaData.worlds.notExternal', { where: u.where, ref: crossText(u.ref) }));
 }
 
 /** Die Ustawienia nach dem Import: die der Baza, überschrieben durch die des Dokuments. */
@@ -106,7 +108,7 @@ export interface CrossCheck {
   readonly checked: number;
 }
 
-const many = (n: number) => `${n} ${plural(n, 'odwołanie', 'odwołania', 'odwołań')}`;
+const many = (n: number) => t('cogitaData.worlds.refs', { count: n });
 
 /**
  * DIE VERWEISE GEGEN IHRE BAZY: je Name einmal geöffnet. Nie ein Fehler — jede Zeile ist ein Hinweis, der Import geht
@@ -120,7 +122,7 @@ export async function crossCheck(uses: readonly CrossUse[], known: { readonly ow
   for (const u of uses) byHandle.set(u.ref.handle, [...(byHandle.get(u.ref.handle) ?? []), u]);
   for (const [handle, list] of byHandle) {
     if (known.own === handle) {
-      warnings.push(`„@@${handle}:…” to ta sama baza (${many(list.length)}, np. ${list[0]!.where}) — w obrębie bazy wskazuje się zwykłym „@nazwa”; te odwołania zapiszą się, ale nie zostaną pokazane jako inny świat.`);
+      warnings.push(t('cogitaData.worlds.sameBase', { handle, refs: many(list.length), where: list[0]!.where }));
       continue;
     }
     let world = known.worlds.find((w) => w.handle === handle) ?? null;
@@ -128,18 +130,18 @@ export async function crossCheck(uses: readonly CrossUse[], known: { readonly ow
     if (world === null) {
       const found = await opener.find(handle).catch(() => null);
       if (found === null) {
-        warnings.push(`Nieznany świat „@@${handle}” (${many(list.length)}, np. ${list[0]!.where}) — żadna baza, którą możesz czytać, nie ma w Ustawieniach nazwy „${handle}”. Odwołania zapiszą się; uczący się ich nie zobaczą, a w „Do zrobienia” będą jako zerwane, dopóki świat się nie znajdzie (Ustawienia → Inne światy).`);
+        warnings.push(t('cogitaData.worlds.unknown', { handle, refs: many(list.length), where: list[0]!.where }));
         continue;
       }
       world = { ...found.world, handle };
       wlib = found.lib;
       add.push(world);
-      warnings.push(`Dodano świat „${world.name}” (@@${handle}) do Ustawień tej bazy — odwołania „@@${handle}:…” prowadzą do niego.`);
+      warnings.push(t('cogitaData.worlds.added', { name: world.name, handle }));
     } else {
       wlib = await opener.open(world.id).catch(() => null);
     }
     if (wlib === null) {
-      warnings.push(`Świat „${world.name}” (@@${handle}): nie możesz go czytać — ${many(list.length)} zapisze się, ale nie da się ich sprawdzić; widzą je tylko ci, którzy ten świat czytają.`);
+      warnings.push(t('cogitaData.worlds.unreadable', { name: world.name, handle, refs: many(list.length) }));
       continue;
     }
     const said = new Set<string>();
@@ -149,8 +151,8 @@ export async function crossCheck(uses: readonly CrossUse[], known: { readonly ow
       const key = `${u.where}|${u.ref.ref}`;
       if (said.has(key)) continue;
       said.add(key);
-      if (target === null) warnings.push(`${u.where}: „${crossText(u.ref)}” — w świecie „${world.name}” nie ma takiego wpisu, opowieści ani widoku. Zapisze się jako zerwane (uczący się go nie zobaczą; „Do zrobienia”).`);
-      else if (u.detour === true && target.kind !== 'flow') warnings.push(`${u.where}: „${crossText(u.ref)}” w świecie „${world.name}” to nie opowieść — zagłębienie pokaże tylko kartę z linkiem.`);
+      if (target === null) warnings.push(t('cogitaData.worlds.broken', { where: u.where, ref: crossText(u.ref), name: world.name }));
+      else if (u.detour === true && target.kind !== 'flow') warnings.push(t('cogitaData.worlds.notStory', { where: u.where, ref: crossText(u.ref), name: world.name }));
     }
   }
   return { warnings, add, checked };
@@ -212,7 +214,7 @@ export function incomingIn(other: CogitaLibrary, otherName: string, target: Cogi
   };
   for (const e of other.entities()) if (other.isOwn(e.id)) scan(e.data, other.label(e) || e.id);
   for (const kind of ['flow', 'view', 'revision', 'collection'] as const) {
-    for (const d of other.docs(kind)) if (other.isOwn(d.id)) scan(d.data, `${DOC_NAME[kind] ?? kind} „${str(d.data.name) || '—'}”`);
+    for (const d of other.docs(kind)) if (other.isOwn(d.id)) scan(d.data, t('cogitaData.import.docTitle', { doc: docName(kind) ?? kind, name: str(d.data.name) || '—' }));
   }
   return out;
 }
@@ -236,5 +238,5 @@ export async function incomingLinksFor(me: Me, target: CogitaLibrary, gone: Read
 export function incomingText(list: readonly IncomingLink[], max = 6): string {
   if (list.length === 0) return '';
   const shown = list.slice(0, max).map((l) => `${l.base} — ${l.from} → ${l.target}`).join('; ');
-  return `Linki z innych światów: ${shown}${list.length > max ? ` i ${list.length - max} innych` : ''} — tam staną się zerwane (pokażą się w ich „Do zrobienia”, uczący się ich nie zobaczą).`;
+  return t('cogitaData.worlds.incoming', { list: list.length > max ? t('cogitaData.import.listedMore', { list: shown, count: list.length - max }) : shown });
 }

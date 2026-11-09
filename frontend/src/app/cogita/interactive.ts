@@ -38,6 +38,7 @@ import { readAssignText, readLive, type Live } from '../pages/motion/liveModel';
 import { Program } from '../pages/motion/liveRun';
 import { readShot, type WorldShot } from '../pages/motion/liveThings';
 import type { Outcome } from './check';
+import { t } from '../core/i18n';
 
 export interface InteractiveSpec {
   readonly form: 'interactive';
@@ -227,7 +228,7 @@ export function solutionWorld(spec: InteractiveSpec): WorldShot | null {
  */
 export function checkInteractive(spec: InteractiveSpec, given: unknown): Outcome {
   const values = answerValues(spec, given);
-  const expected = solutionText(spec) ?? 'cel rysunku osiągnięty';
+  const expected = solutionText(spec) ?? t('cogitaData.interactive.goalReached');
   if (values === null) return { correct: false, correctness: 0, answered: false, expected };
   const drawing = drawingOfText(spec.drawing);
   if (drawing === null) return { correct: false, correctness: 0, answered: true, expected };
@@ -299,7 +300,7 @@ function worldChangesText(spec: InteractiveSpec, drawing: Drawing, world: WorldS
     }
   }
   for (const t of start.things) if (!after.has(t.id)) out.push(`− ${label(t.kind)} ${t.id}`);
-  return out.length > 8 ? [...out.slice(0, 8), `… (${out.length - 8} więcej)`].join('; ') : out.join('; ');
+  return out.length > 8 ? [...out.slice(0, 8), t('cogitaData.interactive.more', { count: out.length - 8 })].join('; ') : out.join('; ');
 }
 
 /** Die Antwort in Worten: nur, was der Lernende einstellen konnte — und was er am Bau geändert hat. */

@@ -18,6 +18,7 @@
 
 import { itemsOf, WRITING_KINDS, type EntryData } from '../library/libraryKinds';
 import type { FieldDef } from './schema';
+import { t } from '../core/i18n';
 import type { LibraryStore } from '../library/libraryStore';
 import { newPointId } from '../scriptorium/sermon';
 import type { Group, Grouping } from './selection';
@@ -88,7 +89,7 @@ export function placeLinks(lib: CogitaLibrary, fields: readonly FieldDef[], link
  */
 export async function createHere(lib: CogitaLibrary, view: ViewDoc, here: HereContext): Promise<{ libraryId: string; id: string; inLibrary: boolean }> {
   const kindId = here.kind ?? kindOfView(view);
-  if (kindId === null) throw new Error('Ten widok nie ma jednego rodzaju — wybierz rodzaj w „Wybór i grupy".');
+  if (kindId === null) throw new Error(t('cogitaData.view.noKind'));
   if (lib.isForeignKind(kindId)) {
     /* Ein Rodzaj tekstu: ein Text mit diesem Rodzaj; sonst eine Art der Bibliothek oder des Skryptorium. */
     const type = BOOK_KINDS.has(kindId) ? undefined : lib.kind(kindId);
@@ -99,9 +100,9 @@ export async function createHere(lib: CogitaLibrary, view: ViewDoc, here: HereCo
     const target = typeof from === 'string' && from !== '' ? from
       : (type === undefined ? undefined : lib.origin(kindId)?.libraryId) ?? stores[0]?.store.libraryId;
     const store = storeIn(lib, target);
-    if (store === undefined || target === undefined) throw new Error(home === 'writing' ? 'Ta baza nie korzysta z żadnego skryptorium — dodaj je w Ustawieniach (Źródła).' : 'Ta baza nie korzysta z żadnej biblioteki — dodaj ją w Ustawieniach (Źródła).');
+    if (store === undefined || target === undefined) throw new Error(home === 'writing' ? t('cogitaData.view.noScriptorium') : t('cogitaData.view.noLibrary'));
     const placed = type === undefined ? {} : placeLinks(lib, type.fields, here.links);
-    const data: EntryData = plain === 'text' ? { title: 'Nowy tekst', ...(type === undefined ? {} : { textType: kindId }), ...placed, ...here.fields } : { ...placed, ...here.fields };
+    const data: EntryData = plain === 'text' ? { title: t('cogitaData.view.newText'), ...(type === undefined ? {} : { textType: kindId }), ...placed, ...here.fields } : { ...placed, ...here.fields };
     const saved = await store.save({ kind: plain, data });
     return { libraryId: target, id: saved.id, inLibrary: true };
   }
@@ -149,7 +150,7 @@ export async function learn(lib: CogitaLibrary, view: ViewDoc, ids?: readonly st
  */
 export async function learnFromView(lib: CogitaLibrary, viewId: string, name: string): Promise<string> {
   const saved = await lib.saveDoc('revision', {
-    name: `Powtórka: ${name}`.slice(0, 120),
+    name: t('cogitaData.view.revisionOf', { name }).slice(0, 120),
     graph: {
       nodes: [
         { id: 'widok', type: 'source.view', x: 40, y: 40, config: { view: viewId } },

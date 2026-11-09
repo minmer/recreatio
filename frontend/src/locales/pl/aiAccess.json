@@ -116,5 +116,128 @@
     "too_many": "To połączenie czyta już najwięcej obszarów, ile może (20). Najpierw usuń jeden.",
     "not_found": "Tego połączenia już nie ma.",
     "not_ready": "Usługa nie jest jeszcze zaktualizowana — spróbuj później."
+  },
+  "connect": {
+    "noRequest": "W tym adresie brakuje prośby o połączenie.",
+    "checking": "Sprawdzanie prośby o połączenie…",
+    "connection": "Połączenie z asystentem AI",
+    "connecting": "Łączenie…",
+    "cannotOpen": "Nie da się otworzyć linku w obszarze „{area}” na tym urządzeniu.",
+    "denying": "Odmawianie…",
+    "creating": "Tworzę link i przygotowuję odpisy…",
+    "snapshots": "Przygotowuję odpisy… {done}/{total}",
+    "title": "Połącz z asystentem AI",
+    "lede": "<b>{client}</b> chce czytać wybrane zbiory Recreatio — tylko czytać. Po zgodzie wrócisz do <b>{host}</b>.",
+    "note": "Asystent dostanie wyłącznie zaznaczone poniżej linki dostępu dla AI: przeczyta ich bibliotekę, skryptorium i bazy wiedzy, nic poza nimi, i niczego nie zmieni. To, co przeczyta, trafia do jego dostawcy. Odłączysz go, usuwając link (Obszar → Dostęp → Dostęp dla AI) — działa to od razu.",
+    "unlockWhy": "Linki otwierają się tylko u Ciebie — podaj hasło.",
+    "noAreas": "Nie prowadzisz żadnego obszaru z biblioteką, skryptorium albo bazą wiedzy.",
+    "areas": "Obszary",
+    "linkForAi": "Link dla AI",
+    "wholeArea": "— cały obszar, także nowe zbiory",
+    "validUntil": "ważny do {date}",
+    "createLink": "Utwórz link dla AI ({names})",
+    "allow": "Zezwól",
+    "deny": "Odmów"
+  },
+  "panel": {
+    "days": {
+      "d7": "tydzień",
+      "d30": "miesiąc",
+      "d90": "3 miesiące",
+      "d365": "rok"
+    },
+    "daysN": {
+      "one": "{count} dni",
+      "few": "{count} dni",
+      "many": "{count} dni",
+      "other": "{count} dni"
+    },
+    "refreshingAi": "Odświeżam odpisy dla AI…",
+    "refreshingAiN": "Odświeżam odpisy dla AI… {done}/{total}",
+    "askCreate": "Utworzyć link dla AI?",
+    "askCreateBody": "Kto ma ten link, przeczyta wybrane zbiory tego obszaru — także asystent AI, któremu go dasz, i jego dostawca. Nic poza nimi i niczego nie zmieni. Link możesz w każdej chwili usunąć.",
+    "createLinkShort": "Utwórz link",
+    "creating": "Tworzę link…",
+    "title": "Dostęp dla AI",
+    "lead": "Link tylko do odczytu: asystent AI (ChatGPT, Claude…) czyta przez niego wybrane zbiory tego obszaru — bibliotekę, skryptorium, bazy wiedzy — i nic poza nimi. Niczego nie zmieni. To, co przeczyta, trafia do jego dostawcy.",
+    "mcpBefore": "Na stałe w ChatGPT (albo innym asystencie z MCP): dodaj własny serwer MCP",
+    "mcpAfter": "z logowaniem OAuth. Przy łączeniu zalogujesz się do Recreatio i wybierzesz, które z tych linków asystent dostanie.",
+    "unavailable": "Dostęp dla AI jest teraz niedostępny — spróbuj później.",
+    "noContainers": "Ten obszar nie ma jeszcze biblioteki, skryptorium ani bazy wiedzy.",
+    "leaderOnly": "Link dla AI zakłada ten, kto prowadzi obszar.",
+    "unlock": "Odblokuj klucze (hasło), żeby tworzyć linki dla AI.",
+    "state": {
+      "works": "działa",
+      "expired": "wygasł",
+      "unfinished": "niedokończony",
+      "broken": "nie działa"
+    },
+    "when": {
+      "one": "od {from} · ważny do {until} · użyty 1 raz",
+      "few": "od {from} · ważny do {until} · użyty {count} razy",
+      "many": "od {from} · ważny do {until} · użyty {count} razy",
+      "other": "od {from} · ważny do {until} · użyty {count} razy"
+    },
+    "whenLast": {
+      "one": "od {from} · ważny do {until} · użyty 1 raz, ostatnio {last}",
+      "few": "od {from} · ważny do {until} · użyty {count} razy, ostatnio {last}",
+      "many": "od {from} · ważny do {until} · użyty {count} razy, ostatnio {last}",
+      "other": "od {from} · ważny do {until} · użyty {count} razy, ostatnio {last}"
+    },
+    "partFresh": {
+      "one": "{count} wpis · aktualny (z {date})",
+      "few": "{count} wpisy · aktualny (z {date})",
+      "many": "{count} wpisów · aktualny (z {date})",
+      "other": "{count} wpisów · aktualny (z {date})"
+    },
+    "partStale": {
+      "one": "{count} wpis · do odświeżenia (z {date})",
+      "few": "{count} wpisy · do odświeżenia (z {date})",
+      "many": "{count} wpisów · do odświeżenia (z {date})",
+      "other": "{count} wpisów · do odświeżenia (z {date})"
+    },
+    "creatorLeft": "Nie działa: osoba, która go utworzyła, nie prowadzi już tego obszaru. Usuń go i utwórz nowy.",
+    "cannotShow": "Tego linku nie da się pokazać na tym urządzeniu (brak klucza tego obszaru).",
+    "showLink": "Pokaż link",
+    "refreshing": "Odświeżam odpisy…",
+    "refreshingN": "Odświeżam odpisy… {done}/{total}",
+    "refreshNow": "Odśwież teraz",
+    "extend": "Przedłuż",
+    "collections": "Zbiory",
+    "askDelete": "Usunąć link dla AI?",
+    "askDeleteBody": "Przestanie działać od razu: asystent, który go zna, nic już nie przeczyta. Odpisy znikną.",
+    "deleting": "Usuwam…",
+    "validFromToday": "Ważny od dziś przez:",
+    "extending": "Przedłużam…",
+    "saveCollections": "Zapisz zbiory",
+    "changing": "Zmieniam zbiory…",
+    "copyLink": "Kopiuj link",
+    "seeAsAi": "Zobacz, co widzi AI",
+    "howToUse": "Wklej link w rozmowie z AI i napisz, czego szukasz — np. „Przeczytaj {url} i znajdź moje kazania o chlebie”. W ChatGPT możesz dodać go na stałe: Utwórz GPT → Konfiguruj → Akcje → Importuj z adresu URL → {url}/openapi.json. Kto ma ten link, czyta — wysyłaj go tylko tam, gdzie ma trafić.",
+    "createLink": "Utwórz link dla AI",
+    "validFor": "Ważny przez",
+    "whatReads": "Co czyta AI",
+    "wholeArea": "Cały obszar — także zbiory, które dojdą później",
+    "failedSnaps": {
+      "one": "Nie udało się przygotować {count} odpisu. Spróbuj „Odśwież teraz”.",
+      "few": "Nie udało się przygotować {count} odpisów. Spróbuj „Odśwież teraz”.",
+      "many": "Nie udało się przygotować {count} odpisów. Spróbuj „Odśwież teraz”.",
+      "other": "Nie udało się przygotować {count} odpisów. Spróbuj „Odśwież teraz”."
+    },
+    "failedSnapsWhy": {
+      "one": "Nie udało się przygotować {count} odpisu ({reason}). Spróbuj „Odśwież teraz”.",
+      "few": "Nie udało się przygotować {count} odpisów ({reason}). Spróbuj „Odśwież teraz”.",
+      "many": "Nie udało się przygotować {count} odpisów ({reason}). Spróbuj „Odśwież teraz”.",
+      "other": "Nie udało się przygotować {count} odpisów ({reason}). Spróbuj „Odśwież teraz”."
+    },
+    "noKeyHere": "brak klucza tego obszaru na tym urządzeniu"
+  },
+  "snap": {
+    "notInAccess": "Ten zbiór nie należy do tego dostępu.",
+    "noGzip": "Ta przeglądarka nie umie spakować odpisu — otwórz aplikację w nowszej.",
+    "liturgy": "Liturgia: canonical works, editions, texts, passages, observances, templates, assignments and explicit rules. Stable canonical IDs are in data.id; references name resources, never copied daily texts. Drafts and missing dependencies are not approved liturgical content.",
+    "books": "## Biblioteka — źródła\nDzieła (\"work\"), cytaty (\"quote\") i osoby (\"person\"); cytat wskazuje swoje dzieło, dzieło — autorów, tłumaczy, książkę albo czasopismo, w którym jest. \"key\" to klucz cytowania: w tekstach [@klucz, s. 23].\n{bible}",
+    "writing": "## Skryptorium — własne teksty\nTeksty (\"text\": tytuł, plan, treść, dalsze informacje; rodzaj tekstu dodaje swoje pola), ich wygłoszenia (\"delivery\": kiedy, gdzie, co z planu powiedziano, co pominięto), projekty (\"project\") i rodzaje tekstów (\"texttype\").\n\n{markup}",
+    "base": "## Wpisy bazy wiedzy (Cogita)\nWpis ma rodzaje (\"kinds\" — pierwszy daje nazwę) i pola w \"data\" według swoich rodzajów; co znaczy każde pole — w \"kinds\" tego zbioru.\nTypy pól: {types}.\nWartość bywa niepewna: {\"value\", \"state\", \"source\": {\"work\": id dzieła, \"locator\": \"s. 23\"}, \"note\"}; stany: {states}.\nOdwołanie to id innego wpisu (z tytułem w \"refs\" wpisu); odwołanie z miejscem: {\"value\": id, \"locator\": \"Ps 110\"}.\nPole \"blocks\" to wypowiedź: akapity {\"type\": \"paragraph\", \"text\"}, listy {\"type\": \"ordered\"|\"unordered\", \"items\"}, tabele {\"type\": \"table\", \"columns\", \"rows\"}; komórka to lista kawałków {\"text\"} albo {\"ref\": id, \"locator\"}. Teza = pierwsze zdanie pierwszego akapitu.\nPytanie: jeden rodzaj \"question\"; \"form\" (rodzaj pytania) mówi, jak się pyta: {questions}; pole z \"when\" należy tylko do podanych rodzajów pytań; \"about\" — wpisy, które pytanie sprawdza; \"needs\" — co trzeba umieć przed nim.\nKolejność nauki: pole odwołania z \"prerequisite\": \"up\" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga”); \"down\" — wskazane wpisy budują na tym. Z takich pól aplikacja liczy poziomy od podstaw (poziom 1 — nic przed nim) i pyta najpierw o ogólne, potem o szczegółowe.\nDaty: \"1999\", \"1999-05\", \"1999-05-03\", \"-1000\" (przed Chr.); zakres: {\"segments\": [{\"from\", \"to\"}]}.\nStruktura (np. wywód artykułu): pole odwołania z \"structure\": \"up\" — ten wpis leży POD tym, na co wskazuje (krok pod pytaniem, odpowiedź na zarzut pod zarzutem); \"structure\": \"down\" — wskazane wpisy leżą pod nim. Korzeń (bez wartości w polu \"up\") to zwykle pytanie wiodące. Jego drzewo: przez MCP get_related(id korzenia, direction \"in\", fields: [klucz pola \"up\"], depth 3), potem znowu od każdego wpisu z głębokości 3 (najwyżej 60 wpisów na wywołanie; przy \"truncated\" krawędzie nazywają też te, które się nie zmieściły — od nich dalej); przez REST /entry/{id}: wpisy w \"linkedFrom\" z tym polem leżą bezpośrednio niżej — i tak dalej od każdego z nich (albo, przeglądając wszystkie wpisy: pod wpisem X leżą te, których pole \"up\" ma wartość X). Kolejność kroków to kolejność ich miejsc w dziele (pole odwołania z miejscem do dzieła z biblioteki). Wpisy wskazujące krok polem bez \"structure\" (np. komentarz: \"O czym\") nie należą do rekonstrukcji — to cudze lub własne uwagi.\n\n{markup}"
   }
 }

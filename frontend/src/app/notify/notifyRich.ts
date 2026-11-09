@@ -38,6 +38,7 @@ import { authorText, chooseSpeaker, messageAuthor, speakersOf, throughRole } fro
 import type { RoleEdge } from '../roles/roles';
 import { myRoleNames } from '../roles/roleNames';
 import { formNewsPath, viewPath } from '../routes';
+import { t } from '../core/i18n';
 import { call, type Who, WorkspaceError } from '../core/session';
 import { loadTasks, markDone, openTasks, upcomingReminders, type ReminderKind } from '../calendar/tasks';
 
@@ -141,26 +142,26 @@ export const MAX_LINES = 8;
 /** Höchstens so viele Rozmowy auf einmal. */
 export const MAX_CHATS = 8;
 
-const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
+const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`); // i18n-ignore
 
 /** Eine Nachricht als Zeile: Text, sonst was angehängt ist; „Przekazane" davor. */
 export function lineText(opened: Opened | null): string {
-  if (opened === null) return 'Wiadomość, której to urządzenie nie może otworzyć';
+  if (opened === null) return t('notify.line.cannotOpen');
   const text = opened.text.replace(/\s+/g, ' ').trim();
   const files = opened.attachments ?? [];
   let out = text;
   if (out === '' && files.length > 0) {
     const first = files[0];
-    const what = first.type.startsWith('image/') ? 'Zdjęcie'
-      : first.type.startsWith('audio/') ? 'Wiadomość głosowa'
-      : first.type.startsWith('video/') ? 'Film'
-      : `Plik: ${first.name}`;
+    const what = first.type.startsWith('image/') ? t('notify.line.photo')
+      : first.type.startsWith('audio/') ? t('notify.line.voice')
+      : first.type.startsWith('video/') ? t('notify.line.video')
+      : t('notify.line.file', { name: first.name });
     out = files.length > 1 ? `${what} (+${files.length - 1})` : what;
   } else if (files.length > 0) {
-    out = `${out} (załączniki: ${files.length})`;
+    out = t('notify.line.withFiles', { text: out, count: files.length });
   }
-  if (out === '') out = 'Pusta wiadomość';
-  return clip(opened.forwarded === true ? `Przekazane: ${out}` : out, 600);
+  if (out === '') out = t('notify.line.empty');
+  return clip(opened.forwarded === true ? t('notify.line.forwarded', { text: out }) : out, 600);
 }
 
 /** Wer in einer Rozmowa spricht: zuerst eine Person, dann eine Rolle — wie die Rozmowa selbst. */
@@ -187,15 +188,15 @@ export function conversationTitle(
   chat: Pick<ChatDetail, 'kind' | 'members' | 'seats'>, row: Pick<DigestChat, 'areaName' | 'seatName'>,
   names: ReadonlyMap<string, string>, mine: (roleId: string) => boolean
 ): string {
-  if (chat.kind === 'self') return 'Notatki';
-  if (chat.kind === 'seat') return `Rozmowa z: ${row.seatName ?? chat.seats[0]?.name ?? 'osobą z formularza'}`;
+  if (chat.kind === 'self') return t('notify.chat.self');
+  if (chat.kind === 'seat') return t('notify.chat.seat', { name: row.seatName ?? chat.seats[0]?.name ?? t('notify.chat.formPerson') });
   if (chat.kind === 'direct') {
     const other = chat.members.find((m) => !mine(m.roleId));
     const name = other === undefined ? undefined : names.get(other.roleId);
     if (name !== undefined && name.trim() !== '') return name;
   }
   /* 0080 — der Kanał steht neben der Rozmowa desselben Bereichs. */
-  return chat.kind === 'channel' ? `Kanał: ${row.areaName}` : row.areaName;
+  return chat.kind === 'channel' ? t('notify.chat.channel', { name: row.areaName }) : row.areaName;
 }
 
 /* -- Öffnen --------------------------------------------------------------------- */
@@ -293,7 +294,7 @@ export async function renewWaiting(who: Who, areaIds: readonly string[]): Promis
       now = await renewArea(me.ring, areaId);
       noteRenewal(areaId, null);
     } catch (e) {
-      noteRenewal(areaId, e instanceof WorkspaceError ? e.message : 'Nie udało się przedłużyć dostępu.');
+      noteRenewal(areaId, e instanceof WorkspaceError ? e.message : t('notify.renewFailed'));
     }
     if (now === 0) renewTried.set(areaId, Date.now()); else renewTried.delete(areaId);
     done += now;
@@ -430,9 +431,9 @@ async function linksOf(me: Opener, count: number, since: string, shown: number |
 }
 
 const REMINDER_WORD: Record<ReminderKind, string> = {
-  start: 'Czas zacząć',
-  middle: 'Połowa czasu minęła',
-  end: 'Zbliża się koniec'
+  start: 'notify.reminder.start',
+  middle: 'notify.reminder.middle',
+  end: 'notify.reminder.end'
 };
 
 /**
@@ -442,10 +443,10 @@ const REMINDER_WORD: Record<ReminderKind, string> = {
 export async function remindersFor(ring: Ring | null): Promise<ReminderNotice[]> {
   const now = new Date();
   const { tasks } = await loadTasks(new Date(now.getTime() - 86400_000), new Date(now.getTime() + 7 * 86400_000));
-  const withReminders = tasks.filter((t) => (t.remind ?? 0) !== 0);
+  const withReminders = tasks.filter((one) => (one.remind ?? 0) !== 0);
   if (withReminders.length === 0) return [];
 
-  const named = ring === null ? withReminders.map((t) => ({ ...t, title: 'Zadanie', notes: null })) : await openTasks(ring, withReminders);
+  const named = ring === null ? withReminders.map((one) => ({ ...one, title: t('notify.reminder.task'), notes: null })) : await openTasks(ring, withReminders);
   const areaName = new Map((await loadAreas().catch(() => ({ areas: [] }))).areas.map((a) => [a.areaId, a.name]));
 
   return named.flatMap((task) => upcomingReminders(task, now).map((r) => {
@@ -453,7 +454,7 @@ export async function remindersFor(ring: Ring | null): Promise<ReminderNotice[]>
     return {
       tag: `task:${task.taskId}:${r.occurrenceAt}:${r.kind}`,
       title: task.title,
-      body: where === undefined ? REMINDER_WORD[r.kind] : `${REMINDER_WORD[r.kind]} · ${where}`,
+      body: where === undefined ? t(REMINDER_WORD[r.kind]) : `${t(REMINDER_WORD[r.kind])} · ${where}`,
       at: r.at.toISOString(),
       ms: r.at.getTime(),
       open: viewPath('tasks'),
@@ -525,22 +526,22 @@ export async function replyIn(
   who: Who | null, chatId: string, text: string, messageId?: string
 ): Promise<{ messageId: string; at: string; author: string; already?: boolean }> {
   const me = await opener(who);
-  if (me === 'session') throw new WorkspaceError('Sesja wygasła — otwórz aplikację i zaloguj się.');
-  if (me === 'key') throw new WorkspaceError('Klucz nie jest zachowany na tym urządzeniu — odpowiedz w aplikacji.');
+  if (me === 'session') throw new WorkspaceError(t('notify.reply.session'));
+  if (me === 'key') throw new WorkspaceError(t('notify.reply.noKey'));
   const body = text.trim();
-  if (body === '') throw new WorkspaceError('Pusta odpowiedź.');
+  if (body === '') throw new WorkspaceError(t('notify.reply.empty'));
 
   const chat = await loadChat(chatId);
   if (messageId !== undefined) {
     const sent = (await loadMessages(chat.chatId)).messages.find((m) => m.messageId === messageId);
-    if (sent !== undefined) return { messageId, at: sent.createdAt, author: 'Ty', already: true };
+    if (sent !== undefined) return { messageId, at: sent.createdAt, author: t('notify.reply.you'), already: true };
   }
   const held = await areaKeys(me.ring, chat.areaId, true);
   const talk = await chatKeysOf(chat.chatId, held);
   /* 0095 — eine Person spricht: am liebsten als sie selbst, sonst durch eine Rolle, die sie hält. */
   const as = chooseSpeaker(speakersOf(chat.writers, { roles: me.roles, edges: me.edges }, (id) => me.ring.maySign(id)), null);
   if (as === null) {
-    throw new WorkspaceError(chat.writers.some((id) => me.ring.maySign(id)) ? 'Do rozmowy potrzebna jest osoba — załóż ją w aplikacji.' : 'W tej rozmowie tylko czytasz.');
+    throw new WorkspaceError(chat.writers.some((id) => me.ring.maySign(id)) ? t('notify.reply.needPerson') : t('notify.reply.readOnly'));
   }
 
   /* Der Name reist mit — für die, die die Namen des Bereichs nicht lesen (0053). */
@@ -551,20 +552,20 @@ export async function replyIn(
   const via = throughRole(as) ? known(as.roleId) : null;
   const done = await sendMessage(me.ring, chat.chatId, talk, as.roleId, body, name,
     { ...(messageId === undefined ? {} : { messageId }), personId: as.personId, via });
-  return { messageId: done.messageId, at: done.createdAt, author: name ?? 'Ty' };
+  return { messageId: done.messageId, at: done.createdAt, author: name ?? t('notify.reply.you') };
 }
 
 /** „Przeczytane" aus der Meldung — dazu braucht es keinen Schlüssel, nur die Sitzung. */
 export async function readIn(who: Who | null, chatId: string): Promise<void> {
-  if (who === null) throw new WorkspaceError('Sesja wygasła — otwórz aplikację i zaloguj się.');
+  if (who === null) throw new WorkspaceError(t('notify.reply.session'));
   await markRead(chatId);
 }
 
 /** „Zrobione" aus einer Erinnerung — im Namen meiner Person, wie in der Liste der Zadania. */
 export async function doneIn(who: Who | null, taskId: string, occurrenceAt: string | null): Promise<void> {
-  if (who === null) throw new WorkspaceError('Sesja wygasła — otwórz aplikację i zaloguj się.');
+  if (who === null) throw new WorkspaceError(t('notify.reply.session'));
   const { graph } = await keysFor(who);
   const person = graph.roles.find((r) => r.kind === 'person');
-  if (person === undefined) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby.');
+  if (person === undefined) throw new WorkspaceError(t('notify.reply.noPerson'));
   await markDone(taskId, person.id, occurrenceAt ?? undefined);
 }

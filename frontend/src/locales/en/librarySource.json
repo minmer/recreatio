@@ -161,5 +161,151 @@
     "use": "## How the app uses this data\n- The work and the entries from \"entries\" go into the library in which the document is imported; the text — into the library chosen at import. After saving, the work's page opens.\n- The work, the authors and the periodical are ordinary Library entries (whoever sees its area sees them): they have their pages and are cited by key — [@kowalski2020, s. 47] in a Scriptorium text, in a knowledge-base entry or in a page's “Text” module becomes a footnote.",
     "prompt": "Turn the attached source (a PDF, scan or file with a book or article) into ONE JSON document for import into the Recreatio Library: the description of the work (bibliographic data from the title page or the article's header), its authors and — if it is an article or chapter — the periodical or book it is in, and the whole text divided into parts.\n\nTranscribe the text faithfully — word for word, in the order of the original, divided into paragraphs, with headings, lists, tables and footnotes, with page breaks exactly where they fall (also in the middle of a paragraph). Do not correct, do not summarise, do not add anything that is not in the source. Mark whatever is illegible or uncertain. If the whole does not fit into one answer, give \"work\", \"entries\" and the first parts in the first one, and in the following ones — \"work\": \"@work-key\" and the next parts.",
     "head": "# A work with its full text as JSON (\"{format}\", version {version})\n\nOne document creates in the Library the entry of a work (a book, article, chapter, document…), the entries it points to (authors, periodical, edited volume) and its full text. A work with a key that is already in the library is completed (the given fields), not duplicated; the same goes for an author or periodical with an existing key.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": { \"key\": \"surname2020\", \"data\": { … fields of the work … } },   — or the \"@key\" of a work that already exists\n  \"entries\": [ { \"kind\": \"person\", \"key\": \"…\", \"data\": { … } }, { \"kind\": \"work\", \"key\": \"…\", \"data\": { \"workType\": \"periodical\", … } } ],\n  \"scheme\": \"pages\",          — how places in this work are referred to (below)\n  \"edition\": { … },           — optional: PDF page offset, language\n  \"portions\": [ { \"portion\": { \"key\", \"label\", \"order\" }, \"blocks\": [ … ] }, … ]\n}\n\n- References in the work's fields (\"authors\", \"editors\", \"translators\", \"container\") are keys with \"@\": to entries from \"entries\" or to ones that are already in the library.\n- Take the description of the work from the title page, the imprint or the article's header; do not enter what is not there.\n\n## Fields of the work and the person"
+  },
+  "box": {
+    "title": "Source text",
+    "none": "No full text — the work works without it too. When a text appears, quotes and footnotes with a place lead to it by themselves.",
+    "read": "Read",
+    "parts": {
+      "one": "{count} part",
+      "other": "{count} parts"
+    },
+    "inLibrary": "in the library “{name}”",
+    "inLibraryApart": "in the library “{name}” (apart from the work)",
+    "add": "Add text (JSON)",
+    "change": "Add or change parts (JSON)",
+    "modal": "Source text — JSON import",
+    "textLibrary": "Library of the text",
+    "publicMark": " (public)",
+    "apart": "The text will be in the library “{target}”, the work is in “{work}”. Whoever reads only “{work}” sees the work and the quotes, but not the text.",
+    "publicNote": "The library “{name}” is public — anyone will read the text, even without an account.",
+    "publicAsk": "Text in a public library?",
+    "publicBody": "The library “{name}” is in a public area — anyone will read the full text, even without an account. Share only texts that may be published (copyright).",
+    "publicConfirm": "Yes, save publicly",
+    "otherWork": "This text is for another work (“{key}”) — import it in Sources as “Work with text” or open the right work.",
+    "workSkipped": "The work's data from the document was skipped — this work already exists; change its fields on this page.",
+    "removeAsk": "Delete this work's text?",
+    "removeBody": "Deletes the full text from the library “{name}” ({parts}). The work, quotes and footnotes stay — they just stop leading to the text.",
+    "removeConfirm": "Delete text",
+    "summary": "Text: {title}",
+    "lead": "One part of the text, several or the whole text (“portions”) — e.g. transcribed by AI from a PDF. A part with the same key replaces the previous one, others stay; the same part a second time changes nothing. Beside it are the format description and a prompt to copy.",
+    "fileName": "text",
+    "importText": "Import text",
+    "removeFrom": "Delete the text from “{name}”",
+    "withWorkButton": "Work with text (JSON)",
+    "withWorkModal": "Work with full text — JSON import",
+    "savingEntry": "Saving entry {n} of {total}…",
+    "workElsewhere": "The work is in another library — add the text on its page.",
+    "opening": "Opening the work's page…",
+    "withWorkSummary": "Work with full text",
+    "withWorkLead": "One document: the description of the work (a book, article, chapter, document), its authors and — when needed — the periodical or book it is in, and its text in parts. The work goes to “{name}”; one with an existing key is completed, not duplicated. Beside it are the format description and the prompt for AI.",
+    "withWorkFile": "work-with-text",
+    "withWorkImport": "Import work with text"
+  },
+  "reader": {
+    "noWork": "This work does not exist (or you have no access to it).",
+    "backToLibrary": "Back to the library",
+    "noText": "This work has no text you can read yet. You add it on the work's page (“Source text”).",
+    "text": "Text",
+    "textN": "Text {n} — {parts}",
+    "noParts": "This text has no parts yet.",
+    "tocLabel": "Parts of the text",
+    "toc": "Parts",
+    "goLabelled": "s. 45 · Theorem 2.3",
+    "goPlace": "place",
+    "goLabel": "Go to place",
+    "go": "Go",
+    "beside": "Beside",
+    "otherEdition": "— another edition —",
+    "opening": "Opening the text…",
+    "typesetting": "Typesetting formulas…",
+    "partFailed": "This part cannot be opened right now.",
+    "texMissing": "Formulas shown as LaTeX code — the module that typesets them did not load (no network?).",
+    "neighbours": "Neighbouring parts",
+    "openingPart": "Opening part {n} of {total}…",
+    "searchPlaceholder": "Search in the text",
+    "searchLabel": "Search the whole text",
+    "notFound": "Not found.",
+    "selection": "Selected passage",
+    "copyWithPlace": "Copy with place",
+    "openingOther": "Opening the other edition…",
+    "otherMissing": "The other edition does not have this part (or has no places of this structure in it — pages do not carry over)."
+  },
+  "blocks": {
+    "refMissing": "This place is not in the saved text",
+    "showInText": "Show in text",
+    "showInOtherPart": "Show in text (in another part)",
+    "pageStart": "Start of page {page}",
+    "pageStartPdf": "Start of page {page} (page {pdf} of the PDF file)",
+    "note": "Footnote {id}",
+    "unsure": "Uncertain reading",
+    "unsureMark": "uncertain reading",
+    "gap": "Missing in the source or omitted",
+    "place": "Place: {loc}",
+    "figure": "Figure",
+    "figureInSource": "Figure in the source",
+    "qed": "End of proof"
+  },
+  "jump": {
+    "ambiguous": "[in the text: ambiguous]",
+    "hide": "hide text",
+    "show": "show in text{other}",
+    "reader": "reader",
+    "failed": "This passage cannot be opened right now.",
+    "notInPart": "This place cannot be seen in this part of the text."
+  },
+  "scheme": {
+    "pages": {
+      "label": "Pages of the edition",
+      "says": "Only the pages of this particular edition (books, articles without their own numbering). When a book numbers its parts separately (introduction “xii” or “12*”, appendix “3'”, inserts “(7)”, “A12”), the page carries the marks of its series as printed — any marks — and the work says in the field “Page series” in what order the series stand in the book."
+    },
+    "bible": {
+      "label": "Holy Scripture",
+      "says": "Book, chapter, verse — shared by all translations (psalm numbering: Hebrew, Greek in brackets)."
+    },
+    "numbered": {
+      "label": "Numbers (documents)",
+      "says": "Numbered points of Church documents, the catechism, codes; a paragraph within a number after “§”."
+    },
+    "aquinas": {
+      "label": "Thomas Aquinas",
+      "says": "Part, question, article; objection (arg.), sed contra, answer (co.), reply to an objection (ad)."
+    },
+    "decimal": {
+      "label": "Decimal numbering",
+      "says": "Propositions numbered decimally, as in the Tractatus Logico-Philosophicus: each digit after the point is one level lower."
+    },
+    "sections": {
+      "label": "Sections of the work",
+      "says": "Sections (remarks) numbered through the whole work, with parts, as in the Philosophical Investigations."
+    },
+    "outline": {
+      "label": "Division of the work",
+      "says": "Volume, part, book, chapter, section, paragraph — as many levels as the work has."
+    },
+    "time": {
+      "label": "Recording time",
+      "says": "Minutes and seconds of a recording — like the pages of an edition they belong to this one performance, not to the piece."
+    }
+  },
+  "statement": {
+    "definition": "Definition",
+    "theorem": "Theorem",
+    "lemma": "Lemma",
+    "proposition": "Proposition",
+    "corollary": "Corollary",
+    "axiom": "Axiom",
+    "conjecture": "Conjecture",
+    "fact": "Fact",
+    "property": "Property",
+    "example": "Example",
+    "remark": "Remark",
+    "exercise": "Exercise",
+    "problem": "Problem",
+    "solution": "Solution",
+    "answer": "Answer",
+    "proof": "Proof",
+    "notation": "Notation",
+    "algorithm": "Algorithm"
   }
 }

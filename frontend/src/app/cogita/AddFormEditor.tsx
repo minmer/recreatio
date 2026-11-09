@@ -37,31 +37,33 @@ import { FitWhenMeasured, Remeasure } from './GraphEditor';
 import { FIELD_TYPE_LABEL, type FieldDef, type KindDef, type Lookup } from './schema';
 import { creatorFor, EntityPicker, entityName, entityNameTex, useBusy, useCtx } from './ui';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 
 /* -- Die Liste und ein neues Formular ------------------------------------------------------------- */
 
 /** „+ Formularz": leer, oder als Anfang aus einem Rodzaj (`formFromKind`). */
 export function NewFormMenu({ onMade }: { onMade: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const [json, setJson] = useState(false);
   const make = async (kind: KindDef | null) => {
     try {
-      const made = kind === null ? { name: 'Nowy formularz', graph: { nodes: [], edges: [] } } : formFromKind(kind, lib.look, () => newId().slice(-8));
+      const made = kind === null ? { name: t('cogitaEditForm.editor.newName'), graph: { nodes: [], edges: [] } } : formFromKind(kind, lib.look, () => newId().slice(-8));
       const saved = await lib.saveDoc('addform', addFormDoc({ id: '', name: made.name, graph: made.graph, keys: DEFAULT_KEYS, paste: DEFAULT_PASTE }));
       onMade(saved.id);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Nie udało się utworzyć formularza.', { kind: 'error' });
+      toast(e instanceof Error ? e.message : t('cogitaEditForm.editor.createFailed'), { kind: 'error' });
     }
   };
   return (
     <>
-      <MenuButton label="Nowy formularz dodawania" text="Formularz" icon="plus"
+      <MenuButton label={t('cogitaEditForm.editor.newMenu')} text={t('cogitaEditForm.editor.form')} icon="plus"
         items={[
-          ...lib.kinds.map((k) => ({ label: `Z rodzaju: ${k.name}`, onSelect: () => void make(k) })),
-          { label: 'Pusty', onSelect: () => void make(null) },
-          { label: 'Z JSON (wklej)…', onSelect: () => setJson(true) }
+          ...lib.kinds.map((k) => ({ label: t('cogitaEditForm.editor.fromKind', { kind: k.name }), onSelect: () => void make(k) })),
+          { label: t('cogitaEditForm.editor.empty'), onSelect: () => void make(null) },
+          { label: t('cogitaEditForm.editor.fromJson'), onSelect: () => setJson(true) }
         ]} />
-      {json && <FormJsonDialog onClose={() => setJson(false)} onImported={(id) => { toast('Zaimportowano formularz.'); onMade(id); }} />}
+      {json && <FormJsonDialog onClose={() => setJson(false)} onImported={(id) => { toast(t('cogitaEditForm.editor.imported')); onMade(id); }} />}
     </>
   );
 }
@@ -72,6 +74,7 @@ export function AddFormEditor({ formId, onChoose, onBack, onRun }: {
   onBack: () => void;
   onRun: (id: string) => void;
 }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const forms = lib.docs('addform');
   const entry = formId === null ? undefined : forms.find((e) => e.id === formId);
@@ -80,19 +83,19 @@ export function AddFormEditor({ formId, onChoose, onBack, onRun }: {
     <div className="cg">
       <div className="cg-row-between">
         <div className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={onBack}>← Sposoby dodawania</button>
-          <select value={formId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Formularz dodawania">
-            <option value="">— formularze dodawania ({forms.length}) —</option>
-            {forms.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Formularz'}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
+          <button type="button" className="wk-link-btn" onClick={onBack}>{t('cogitaEditForm.editor.back')}</button>
+          <select value={formId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label={t('cogitaEditForm.editor.select')}>
+            <option value="">{t('cogitaEditForm.editor.listHead', { n: forms.length })}</option>
+            {forms.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : t('cogitaEditForm.editor.form')}{lib.isOwn(e.id) ? '' : t('cogitaEditForm.editor.fromOrigin', { name: lib.origin(e.id)?.name ?? '?' })}</option>)}
           </select>
         </div>
         {writes && <NewFormMenu onMade={(id) => onChoose(id)} />}
       </div>
       {entry === undefined ? (
-        <p className="wk-empty">Formularz dodawania mówi, co powstaje z jednego wiersza — np. dwa słowa i tłumaczenie między nimi — i co wybierasz raz na początek (języki, temat). Zacznij od rodzaju, który chcesz dodawać.</p>
+        <p className="wk-empty">{t('cogitaEditForm.editor.intro')}</p>
       ) : (
         <>
-          {from !== undefined && <p className="wk-note">Z „{from.name}” — tu tylko do odczytu (wypełniać można). <a href={cogitaPath(from.libraryId, 'schematy', 'dodawanie', entry.id)}>Zmień tam</a></p>}
+          {from !== undefined && <p className="wk-note">{t('cogitaEditForm.editor.foreign', { name: from.name })} <a href={cogitaPath(from.libraryId, 'schematy', 'dodawanie', entry.id)}>{t('cogitaEditForm.editor.changeThere')}</a></p>}
           <FormDesigner key={entry.id} entryId={entry.id} version={entry.version} data={entry.data} writes={writes && from === undefined} onRun={() => onRun(entry.id)} onGone={() => onChoose(null)} onOpen={(id) => onChoose(id)} />
         </>
       )}
@@ -135,6 +138,7 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
   /** Ein anderes Formular öffnen — nach einem Import, der eines anlegte. */
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const [draft, setDraft] = useState<AddForm>(() => readAddForm(entryId, data));
   const [dirty, setDirty] = useState(false);
@@ -163,7 +167,7 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
   const save = () => run(async () => {
     await lib.saveDoc('addform', addFormDoc(draft), draft.id);
     setDirty(false);
-    toast('Zapisano formularz.');
+    toast(t('cogitaEditForm.editor.saved'));
   });
 
   const problems = [...new Set([...formProblems(draft, lib.look), ...graphProblems(draft.graph, palette).map((p) => p.text)])];
@@ -190,14 +194,14 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
   return (
     <div className="cg">
       <div className="cg-af-top-row">
-        <label className="wk-field"><span>Nazwa formularza</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
+        <label className="wk-field"><span>{t('cogitaEditForm.editor.name')}</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
         <div className="cg-row">
-          {writes && <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : dirty ? 'Zapisz formularz' : 'Zapisano'}</button>}
-          <button type="button" className={writes ? 'wk-btn wk-btn-quiet' : 'wk-btn'} disabled={dirty} title={dirty ? 'Najpierw zapisz zmiany' : undefined} onClick={onRun}>Wypełniaj →</button>
+          {writes && <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? t('common.saving') : dirty ? t('cogitaEditForm.editor.save') : t('common.saved')}</button>}
+          <button type="button" className={writes ? 'wk-btn wk-btn-quiet' : 'wk-btn'} disabled={dirty} title={dirty ? t('cogitaEditForm.editor.saveFirst') : undefined} onClick={onRun}>{t('cogitaEditForm.editor.fill')}</button>
           {writes && (
-            <MenuButton label={`Więcej: ${draft.name}`} items={[{
-              label: 'Usuń formularz', danger: true,
-              onSelect: () => void (async () => { if (await askText(`Usunąć formularz „${draft.name}"? Wpisy, które nim dodano, zostają.`)) void run(async () => { await lib.remove(draft.id); onGone(); }); })()
+            <MenuButton label={t('cogitaEditForm.editor.more', { name: draft.name })} items={[{
+              label: t('cogitaEditForm.editor.delete'), danger: true,
+              onSelect: () => void (async () => { if (await askText(t('cogitaEditForm.editor.askDelete', { name: draft.name }))) void run(async () => { await lib.remove(draft.id); onGone(); }); })()
             }]} />
           )}
         </div>
@@ -209,15 +213,15 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
       <div className="cg-af-design">
         <FormCanvas form={draft} readOnly={!writes} chosen={chosen} onChoose={setChosen} onGraph={setGraph}
           onWire={(from, to, field) => { const g = wire(draft.graph, from, to, field); if (g !== null) setGraph(g); }} />
-        <aside className="cg-af-side" aria-label="Węzły formularza">
+        <aside className="cg-af-side" aria-label={t('cogitaEditForm.editor.nodes')}>
           <FormModules form={draft} chosen={chosen} readOnly={!writes} onChoose={setChosen} onGraph={setGraph} wire={wire} onDuplicate={duplicate} onRemove={remove} />
         </aside>
       </div>
 
       <section className="cg-card">
-        <h3>Kolejność pól w wierszu</h3>
+        <h3>{t('cogitaEditForm.editor.order')}</h3>
         <RowOrder form={draft} readOnly={!writes} onOrder={(order) => set({ order })} />
-        <h3>Klawisze przy wpisywaniu</h3>
+        <h3>{t('cogitaEditForm.editor.keys')}</h3>
         <div className="cg-row">
           {KEY_NAMES.map(([key, name]) => (
             <label key={key} className="wk-field"><span>{name}</span>
@@ -227,33 +231,33 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
             </label>
           ))}
         </div>
-        <h3>Wklejanie listy</h3>
+        <h3>{t('cogitaEditForm.editor.paste')}</h3>
         <div className="cg-row">
-          <label className="wk-field"><span>Kolumny oddziela</span>
+          <label className="wk-field"><span>{t('cogitaEditForm.paste.columns')}</span>
             <select value={draft.paste.columns} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, columns: e.target.value as AddForm['paste']['columns'] } })}>
               {COLUMN_SEPARATORS.map((s) => <option key={s} value={s}>{COLUMN_SEPARATOR_LABEL[s]}</option>)}
             </select>
           </label>
-          <label className="wk-field"><span>Kilka wartości w komórce oddziela</span>
+          <label className="wk-field"><span>{t('cogitaEditForm.paste.values')}</span>
             <select value={draft.paste.values} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, values: e.target.value as AddForm['paste']['values'] } })}>
               {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{VALUE_SEPARATOR_LABEL[s]}</option>)}
             </select>
           </label>
-          <label className="pe-check"><input type="checkbox" checked={draft.paste.header} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, header: e.target.checked } })} /><span>pierwsza linia to nagłówki</span></label>
+          <label className="pe-check"><input type="checkbox" checked={draft.paste.header} disabled={!writes} onChange={(e) => set({ paste: { ...draft.paste, header: e.target.checked } })} /><span>{t('cogitaEditForm.paste.header')}</span></label>
         </div>
-        <label className="wk-field"><span>Słowo dla wypełniających (nieobowiązkowo)</span>
+        <label className="wk-field"><span>{t('cogitaEditForm.editor.says')}</span>
           <textarea rows={2} value={draft.says ?? ''} disabled={!writes} onChange={(e) => set({ says: e.target.value.trim() === '' ? undefined : e.target.value })} />
         </label>
       </section>
 
       <section className="cg-card">
-        <h3>Jak działa ten formularz</h3>
+        <h3>{t('cogitaEditForm.run.how')}</h3>
         <ul className="cg-af-desc">{describeForm(draft, lib.look).map((line, i) => <li key={i}>{line}</li>)}</ul>
       </section>
       {/* 2026-10-19 — dieser Formularz als JSON: hinaus mit seinen Rodzaje, herein mit dem Plan davor. */}
       {writes && (
         <FormJsonPanel forms={() => [{ id: draft.id, data: addFormDoc(draft) }]} name={draft.name}
-          {...(dirty ? { note: 'Masz niezapisane zmiany: eksport je zawiera, a import tego samego formularza („ref”) zastąpi je zapisanym.' } : {})}
+          {...(dirty ? { note: t('cogitaEditForm.editor.unsavedNote') } : {})}
           onImported={(id) => { if (id !== draft.id) onOpen(id); else setDirty(false); }} />
       )}
     </div>
@@ -262,9 +266,10 @@ function FormDesigner({ entryId, version, data, writes, onRun, onGone, onOpen }:
 
 /** Die Reihenfolge der Zeile — was Enter nacheinander ansteuert und wie die Spalten einer eingefügten Liste stehen. */
 function RowOrder({ form, readOnly, onOrder }: { form: AddForm; readOnly: boolean; onOrder: (order: string[]) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const groups = groupsOf(form, lib.look);
-  if (groups.length === 0) return <p className="cg-muted">Nic jeszcze nie jest wpisywane w wierszu.</p>;
+  if (groups.length === 0) return <p className="cg-muted">{t('cogitaEditForm.editor.orderNone')}</p>;
   const move = (i: number, by: -1 | 1) => {
     const ids = groups.map((g) => g.node);
     [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
@@ -272,15 +277,15 @@ function RowOrder({ form, readOnly, onOrder }: { form: AddForm; readOnly: boolea
   };
   return (
     <>
-    <p className="cg-muted">W tej kolejności wpisujesz pola (Enter) i stoją kolumny wklejanej listy — i w tej kolejności trafiają do pola, które przyjmuje kilka wpisów (np. psalm, psalm, pieśń).</p>
+    <p className="cg-muted">{t('cogitaEditForm.editor.orderHint')}</p>
     <ol className="cg-af-order">
       {groups.map((g, i) => (
         <li key={g.node}>
-          <span><strong>{g.label}</strong> <span className="cg-muted">{g.fields.map((f) => f.label).join(', ')}{g.many ? ' · kilka' : ''}</span></span>
+          <span><strong>{g.label}</strong> <span className="cg-muted">{g.fields.map((f) => f.label).join(', ')}{g.many ? t('cogitaEditForm.editor.severalDot') : ''}</span></span>
           {!readOnly && (
             <span className="cg-row">
-              <button type="button" className="wk-link-btn" aria-label={`${g.label}: wcześniej`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-              <button type="button" className="wk-link-btn" aria-label={`${g.label}: później`} disabled={i === groups.length - 1} onClick={() => move(i, 1)}>↓</button>
+              <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.editor.earlier', { label: g.label })} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+              <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.editor.later', { label: g.label })} disabled={i === groups.length - 1} onClick={() => move(i, 1)}>↓</button>
             </span>
           )}
         </li>
@@ -338,6 +343,7 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
   onGraph: (graph: Graph) => void;
   onWire: (from: string, to: string, field: string) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const [moving, setMoving] = useState<Readonly<Record<string, { x: number; y: number }>>>({});
   /* Die gemessene Grösse bleibt am Knoten: sonst vergisst React Flow sie bei jedem Zeichnen (jedem Buchstaben in einem Modul darunter) und blendet ihn kurz aus. */
@@ -348,13 +354,13 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
     const position = moving[n.id] ?? { x: n.x, y: n.y };
     if (n.type === 'pick') {
       const c = pickConfig(n.config);
-      const kinds = c.kinds.map((k) => lib.kind(k)?.name ?? k).join(' / ') || 'dowolny rodzaj';
+      const kinds = c.kinds.map((k) => lib.kind(k)?.name ?? k).join(' / ') || t('cogitaEditForm.editor.anyKind');
       return {
         id: n.id, type: 'af', position, selected: chosen === n.id, ...sizes[n.id],
         data: {
-          title: `Na początek: ${nodeLabel(n, lib.look, graph)}`,
-          sub: [kinds, c.many ? 'kilka' : '', c.optional ? 'można pominąć' : 'trzeba wybrać'].filter(Boolean).join(' · '),
-          rows: c.value.length > 0 ? c.value.map((id) => ({ key: id, text: entityName(lib, id), tone: 'value' as const })) : [{ key: '_', text: 'wybierasz przy dodawaniu', tone: 'value' as const }],
+          title: t('cogitaEditForm.editor.pickTitle', { node: nodeLabel(n, lib.look, graph) }),
+          sub: [kinds, c.many ? t('cogitaEditForm.describe.several') : '', c.optional ? t('cogitaEditForm.describe.skippable') : t('cogitaEditForm.editor.required')].filter(Boolean).join(' · '),
+          rows: c.value.length > 0 ? c.value.map((id) => ({ key: id, text: entityName(lib, id), tone: 'value' as const })) : [{ key: '_', text: t('cogitaEditForm.editor.chooseWhenAdding'), tone: 'value' as const }],
           pick: true
         }
       };
@@ -365,17 +371,17 @@ function FormCanvas({ form, readOnly, chosen, onChoose, onGraph, onWire }: {
     let empty = 0;
     for (const f of kind?.fields ?? []) {
       const source = c.fields[f.key];
-      if (f.type === 'ref') { rows.push({ key: f.key, text: `← ${f.label}${f.multi ? ' (kilka)' : ''}`, tone: 'port', port: true }); continue; }
+      if (f.type === 'ref') { rows.push({ key: f.key, text: `← ${f.label}${f.multi ? t('cogitaEditForm.describe.severalMark') : ''}`, tone: 'port', port: true }); continue; }
       if (source === undefined || !isTypeable(f)) { empty += 1; continue; }
-      rows.push(source.from === 'type' ? { key: f.key, text: `✎ ${f.label}`, tone: 'type' }
-        : source.from === 'ask' ? { key: f.key, text: `▣ ${f.label} — na początek`, tone: 'ask' }
+      rows.push(source.from === 'type' ? { key: f.key, text: `✎ ${f.label}`, tone: 'type' } // i18n-ignore: Zeichen und Feldname
+        : source.from === 'ask' ? { key: f.key, text: t('cogitaEditForm.editor.askRow', { field: f.label }), tone: 'ask' }
         : { key: f.key, text: `= ${f.label}: ${source.value ?? ''}`, tone: 'fixed' });
     }
     return {
       id: n.id, type: 'af', position, selected: chosen === n.id, ...sizes[n.id],
       data: {
         title: nodeLabel(n, lib.look, graph),
-        sub: [kind?.name ?? 'wybierz rodzaj', c.many ? 'kilka w wierszu' : '', c.reuse === 'never' ? 'zawsze nowy' : '', empty > 0 ? `${empty} pól pustych` : ''].filter(Boolean).join(' · '),
+        sub: [kind?.name ?? t('cogitaEditForm.editor.chooseKind'), c.many ? t('cogitaEditForm.editor.manyInRow') : '', c.reuse === 'never' ? t('cogitaEditForm.editor.alwaysNew') : '', empty > 0 ? t('cogitaEditForm.editor.emptyFields', { n: empty }) : ''].filter(Boolean).join(' · '),
         rows,
         pick: false
       }
@@ -452,6 +458,7 @@ const typedIn = (node: GraphNode, look: Pick<Lookup, 'kind'>): boolean => {
 };
 
 function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen: GraphNode | undefined; onAdd: (node: GraphNode) => void; onDuplicate: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const low = (x: number) => Math.max(0, ...form.graph.nodes.filter((n) => Math.abs(n.x - x) < 150).map((n) => n.y + 160));
@@ -460,13 +467,13 @@ function FormTools({ form, chosen, onAdd, onDuplicate }: { form: AddForm; chosen
   const column = typedXs.length > 0 ? Math.min(...typedXs) : COLUMN;
   return (
     <div className="cg-af-tools">
-      <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}><Icon name="plus" />Na początek</button>
-      <MenuButton label="Dodaj wpis, który powstaje z każdego wiersza" text="W każdym wierszu" icon="plus"
+      <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onAdd(pickNode(0, low(0), undefined, [], false))}><Icon name="plus" />{t('cogitaEditForm.node.pick')}</button>
+      <MenuButton label={t('cogitaEditForm.editor.addEntry')} text={t('cogitaEditForm.node.entry')} icon="plus"
         items={lib.kinds.map((k) => ({ label: k.name, onSelect: () => onAdd(entryNode(k, column, low(column))) }))} />
       {chosen !== undefined && typedHere(chosen) && (
-        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onDuplicate(chosen.id)}><Icon name="copy" />Kolejny taki jak „{nodeLabel(chosen, lib.look, form.graph)}”</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => onDuplicate(chosen.id)}><Icon name="copy" />{t('cogitaEditForm.editor.duplicate', { node: nodeLabel(chosen, lib.look, form.graph) })}</button>
       )}
-      <span className="cg-muted">Połącz kropkę wpisu (z prawej) z kropką pola (z lewej) — albo wybierz „skąd” przy polu w ustawieniach węzła.</span>
+      <span className="cg-muted">{t('cogitaEditForm.editor.wireHint')}</span>
     </div>
   );
 }
@@ -483,6 +490,7 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const typedHere = (n: GraphNode) => typedIn(n, lib.look);
   const { picks, entries } = designOrder(form);
@@ -496,8 +504,8 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
   return (
     <div className="cg">
       {entries.length > 0 && (
-        <section className="cg" aria-label="W każdym wierszu">
-          <h3>W każdym wierszu</h3>
+        <section className="cg" aria-label={t('cogitaEditForm.node.entry')}>
+          <h3>{t('cogitaEditForm.node.entry')}</h3>
           <div className="cg-af-modules">
             {entries.map((n) => (
               <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove} onDuplicate={typedHere(n) ? () => onDuplicate(n.id) : undefined}>
@@ -508,8 +516,8 @@ function FormModules({ form, chosen, readOnly, onChoose, onGraph, wire, onDuplic
         </section>
       )}
       {picks.length > 0 && (
-        <section className="cg" aria-label="Na początek">
-          <h3>Na początek</h3>
+        <section className="cg" aria-label={t('cogitaEditForm.node.pick')}>
+          <h3>{t('cogitaEditForm.node.pick')}</h3>
           <div className="cg-af-modules">
             {picks.map((n) => (
               <ModuleCard key={n.id} form={form} node={n} on={chosen === n.id} readOnly={readOnly} onChoose={onChoose} onRemove={onRemove}>
@@ -533,8 +541,9 @@ function ModuleCard({ form, node, on, readOnly, onChoose, onRemove, onDuplicate,
   onDuplicate?: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const { lib } = useCtx();
-  const sub = node.type === 'pick' ? 'wybór na początek' : lib.kind(entryConfig(node.config).kind)?.name ?? 'wybierz rodzaj';
+  const sub = node.type === 'pick' ? t('cogitaEditForm.editor.pickSub') : lib.kind(entryConfig(node.config).kind)?.name ?? t('cogitaEditForm.editor.chooseKind');
   return (
     <section className={`cg-card cg-af-module${on ? ' is-on' : ''}${node.type === 'pick' ? ' is-pick' : ''}`} data-af-node={node.id} onFocusCapture={() => { if (!on) onChoose(node.id); }}>
       <div className="cg-row-between">
@@ -545,8 +554,8 @@ function ModuleCard({ form, node, on, readOnly, onChoose, onRemove, onDuplicate,
         </button>
         {!readOnly && (
           <span className="cg-row">
-            {onDuplicate !== undefined && <button type="button" className="wk-link-btn" onClick={onDuplicate}>+ kolejny taki</button>}
-            <button type="button" className="wk-link-btn" onClick={() => onRemove(node.id)}>usuń</button>
+            {onDuplicate !== undefined && <button type="button" className="wk-link-btn" onClick={onDuplicate}>{t('cogitaEditForm.editor.another')}</button>}
+            <button type="button" className="wk-link-btn" onClick={() => onRemove(node.id)}>{t('cogitaEditForm.editor.remove')}</button>
           </span>
         )}
       </div>
@@ -565,6 +574,7 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
   wire: (graph: Graph, from: string, to: string, field: string) => Graph | null;
   onChoose: (id: string) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const c = entryConfig(node.config);
   const kind = lib.kind(c.kind);
@@ -598,49 +608,49 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
   return (
     <div className="wk-form cg cg-af-panel">
       {/* 2026-10-20 — Rodzaj, auch mehrere: dann wählt man in der Zeile bei jedem Wert, welcher (Psalm oder Pieśń). */}
-      <div className="wk-field"><span>Rodzaj</span>
-        <select aria-label="Rodzaj" value={c.kind} disabled={readOnly} onChange={(e) => changeKind(e.target.value)}>
-          {kind === undefined && <option value={c.kind}>— wybierz —</option>}
+      <div className="wk-field"><span>{t('cogitaEditForm.editor.kind')}</span>
+        <select aria-label={t('cogitaEditForm.editor.kind')} value={c.kind} disabled={readOnly} onChange={(e) => changeKind(e.target.value)}>
+          {kind === undefined && <option value={c.kind}>{t('cogitaEditForm.editor.choose')}</option>}
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
         {(c.also ?? []).map((id, i) => (
           <span key={i} className="cg-af-also">
-            <select aria-label={`Rodzaj ${i + 2}`} value={id} disabled={readOnly} onChange={(e) => setAlso((c.also ?? []).map((x, j) => (j === i ? e.target.value : x)))}>
+            <select aria-label={t('cogitaEditForm.editor.kindN', { n: i + 2 })} value={id} disabled={readOnly} onChange={(e) => setAlso((c.also ?? []).map((x, j) => (j === i ? e.target.value : x)))}>
               {lib.kinds.filter((k) => k.id === id || (k.id !== c.kind && !(c.also ?? []).includes(k.id) && choiceField(k) !== undefined)).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
             </select>
-            {!readOnly && <button type="button" className="wk-link-btn" aria-label={`Usuń rodzaj ${lib.kind(id)?.name ?? ''}`} onClick={() => setAlso((c.also ?? []).filter((_, j) => j !== i))}>×</button>}
+            {!readOnly && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.editor.removeKind', { kind: lib.kind(id)?.name ?? '' })} onClick={() => setAlso((c.also ?? []).filter((_, j) => j !== i))}>×</button>}
           </span>
         ))}
         {!readOnly && typedFields(kind, c).length > 0 && spare.length > 0 && (
-          <button type="button" className="wk-link-btn" onClick={() => setAlso([...(c.also ?? []), spare[0].id])}>+ inny rodzaj</button>
+          <button type="button" className="wk-link-btn" onClick={() => setAlso([...(c.also ?? []), spare[0].id])}>{t('cogitaEditForm.editor.otherKind')}</button>
         )}
-        {(c.also ?? []).length > 0 && <span className="cg-muted">W wierszu przy każdej wartości wybiera się, który rodzaj.</span>}
+        {(c.also ?? []).length > 0 && <span className="cg-muted">{t('cogitaEditForm.editor.otherKindHint')}</span>}
       </div>
-      <label className="wk-field"><span>Nazwa w formularzu</span>
+      <label className="wk-field"><span>{t('cogitaEditForm.editor.label')}</span>
         <input value={c.label ?? ''} disabled={readOnly} placeholder={kind?.name ?? ''} onChange={(e) => setConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
-      {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>}
+      {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>{t('cogitaEditForm.editor.many')}</span></label>}
       {/* 2026-10-27 — ein Schritt, der in einen anderen führt, darf leer bleiben (ein Grundbegriff ohne „Wymaga”). */}
       {form.graph.edges.some((e) => e.from === node.id) && (
-        <label className="pe-check"><input type="checkbox" checked={c.optional === true} disabled={readOnly} onChange={(e) => setConfig({ optional: e.target.checked ? true : undefined })} /><span>Może zostać puste — wpisy, do których prowadzi, powstają i bez niego</span></label>
+        <label className="pe-check"><input type="checkbox" checked={c.optional === true} disabled={readOnly} onChange={(e) => setConfig({ optional: e.target.checked ? true : undefined })} /><span>{t('cogitaEditForm.editor.optional')}</span></label>
       )}
       {kind !== undefined && (
-        <fieldset className="cg-af-fields"><legend>Pola</legend>
+        <fieldset className="cg-af-fields"><legend>{t('cogitaEditForm.editor.fields')}</legend>
           {kind.fields.map((f) => (f.type === 'ref'
             ? <RefSource key={f.key} form={form} node={node} field={f} readOnly={readOnly} onGraph={onGraph} wire={wire} onChoose={onChoose} source={c.fields[f.key]} onSource={(s) => setSource(f.key, s)} />
             : <FieldSourceRow key={f.key} field={f} source={c.fields[f.key]} readOnly={readOnly} onChange={(s) => setSource(f.key, s)} />))}
         </fieldset>
       )}
 
-      <label className="wk-field"><span>Gdy taki wpis już jest</span>
+      <label className="wk-field"><span>{t('cogitaEditForm.editor.reuse')}</span>
         <select value={c.reuse} disabled={readOnly} onChange={(e) => setConfig({ reuse: e.target.value })}>
-          <option value="same">użyj go (i dopisz, czego mu brakuje)</option>
-          <option value="never">dodaj nowy mimo to</option>
+          <option value="same">{t('cogitaEditForm.editor.reuseSame')}</option>
+          <option value="never">{t('cogitaEditForm.editor.reuseNever')}</option>
         </select>
       </label>
       {c.reuse === 'same' && set.length > 0 && (
         <details>
-          <summary>Rozpoznawany po: {identity.map((f) => f.label).join(', ') || '—'}</summary>
+          <summary>{t('cogitaEditForm.editor.identity', { fields: identity.map((f) => f.label).join(', ') || '—' })}</summary>
           <div className="cg">
             {set.map((f) => (
               <label key={f.key} className="pe-check">
@@ -651,7 +661,7 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
                 <span>{f.label}</span>
               </label>
             ))}
-            {c.identity !== undefined && !readOnly && <button type="button" className="wk-link-btn" onClick={() => setConfig({ identity: undefined })}>jak domyślnie</button>}
+            {c.identity !== undefined && !readOnly && <button type="button" className="wk-link-btn" onClick={() => setConfig({ identity: undefined })}>{t('cogitaEditForm.editor.asDefault')}</button>}
           </div>
         </details>
       )}
@@ -660,18 +670,19 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
 }
 
 function FieldSourceRow({ field, source, readOnly, onChange }: { field: FieldDef; source: FieldSource | undefined; readOnly: boolean; onChange: (s: FieldSource | undefined) => void }) {
+  const t = useT();
   const typeable = isTypeable(field);
   return (
     <div className="cg-af-field">
-      <span className="cg-af-field-name">{field.label} <span className="cg-muted">{FIELD_TYPE_LABEL[field.type]}{field.multi ? ', kilka' : ''}</span></span>
-      <select value={typeable ? source?.from ?? '' : ''} disabled={readOnly || !typeable} aria-label={`${field.label}: skąd wartość`}
+      <span className="cg-af-field-name">{field.label} <span className="cg-muted">{FIELD_TYPE_LABEL[field.type]}{field.multi ? t('cogitaEditForm.editor.severalComma') : ''}</span></span>
+      <select value={typeable ? source?.from ?? '' : ''} disabled={readOnly || !typeable} aria-label={t('cogitaEditForm.editor.sourceOf', { field: field.label })}
         onChange={(e) => onChange(e.target.value === '' ? undefined : { from: e.target.value as SourceMode, ...(source?.value === undefined ? {} : { value: source.value }) })}>
-        <option value="">{typeable ? '— puste —' : '— nie z formularza —'}</option>
+        <option value="">{typeable ? t('cogitaEditForm.editor.emptyOpt') : t('cogitaEditForm.editor.notFromForm')}</option>
         {typeable && (Object.keys(SOURCE_LABEL) as SourceMode[]).map((m) => <option key={m} value={m}>{SOURCE_LABEL[m]}</option>)}
       </select>
       {(source?.from === 'ask' || source?.from === 'fixed') && (
-        <ValueInput field={field} value={source.value ?? ''} disabled={readOnly} placeholder={source.from === 'ask' ? 'domyślnie (nieobowiązkowo)' : 'wartość'}
-          label={`${field.label}: ${source.from === 'ask' ? 'domyślnie' : 'wartość'}`}
+        <ValueInput field={field} value={source.value ?? ''} disabled={readOnly} placeholder={source.from === 'ask' ? t('cogitaEditForm.editor.defaultPh') : t('cogitaEditForm.editor.value')}
+          label={t('cogitaEditForm.askLabel', { node: field.label, field: source.from === 'ask' ? t('cogitaEditForm.editor.default') : t('cogitaEditForm.editor.value') })}
           onChange={(v) => onChange({ from: source.from, ...(v === '' ? {} : { value: v }) })} />
       )}
     </div>
@@ -691,6 +702,7 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose, sourc
   source?: FieldSource;
   onSource?: (s: FieldSource | undefined) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const graph = form.graph;
   const to = field.to ?? [];
@@ -722,32 +734,32 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose, sourc
 
   return (
     <div className="cg-af-field">
-      <span className="cg-af-field-name">{field.label} <span className="cg-muted">odwołanie{field.multi ? ', kilka' : ''}{to.length > 0 ? ` do: ${to.map((k) => lib.kind(k)?.name ?? k).join(', ')}` : ''}</span></span>
+      <span className="cg-af-field-name">{field.label} <span className="cg-muted">{t('cogitaEditForm.editor.reference')}{field.multi ? t('cogitaEditForm.editor.severalComma') : ''}{to.length > 0 ? t('cogitaEditForm.editor.refTo', { kinds: to.map((k) => lib.kind(k)?.name ?? k).join(', ') }) : ''}</span></span>
       {incoming.map((e) => {
         const from = graph.nodes.find((n) => n.id === e.from);
         return (
           <span key={e.id} className="cg-row">
             <button type="button" className="cg-ref" onClick={() => from !== undefined && onChoose(from.id)}>← {from === undefined ? '?' : nodeLabel(from, lib.look, graph)}</button>
-            {!readOnly && <button type="button" className="wk-link-btn" aria-label="Odłącz" onClick={() => onGraph({ nodes: graph.nodes, edges: graph.edges.filter((x) => x.id !== e.id) })}>×</button>}
+            {!readOnly && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.editor.unwire')} onClick={() => onGraph({ nodes: graph.nodes, edges: graph.edges.filter((x) => x.id !== e.id) })}>×</button>}
           </span>
         );
       })}
       {field.locator === true && incoming.length > 0 && onSource !== undefined && (
         <label className="pe-check">
           <input type="checkbox" checked={source?.from === 'type'} disabled={readOnly} onChange={(e) => onSource(e.target.checked ? { from: 'type' } : undefined)} />
-          <span>miejsce (np. werset „Łk 1,35”) wpisywane w każdym wierszu</span>
+          <span>{t('cogitaEditForm.editor.locatorTyped')}</span>
         </label>
       )}
       {!readOnly && (field.multi || incoming.length === 0) && (
-        <select value="" aria-label={`${field.label}: skąd`} onChange={(e) => choose(e.target.value)}>
-          <option value="">{incoming.length === 0 ? '— puste — (skąd?)' : '+ jeszcze skąd…'}</option>
-          <optgroup label="Na początek">
+        <select value="" aria-label={t('cogitaEditForm.editor.from', { field: field.label })} onChange={(e) => choose(e.target.value)}>
+          <option value="">{incoming.length === 0 ? t('cogitaEditForm.editor.fromEmpty') : t('cogitaEditForm.editor.fromMore')}</option>
+          <optgroup label={t('cogitaEditForm.node.pick')}>
             {picks.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look, graph)}</option>)}
-            <option value="new-pick">nowy wybór na początek</option>
+            <option value="new-pick">{t('cogitaEditForm.editor.newPick')}</option>
           </optgroup>
-          <optgroup label="Z tego samego wiersza">
+          <optgroup label={t('cogitaEditForm.editor.sameRow')}>
             {rows.map((n) => <option key={n.id} value={`node:${n.id}`}>{nodeLabel(n, lib.look, graph)}</option>)}
-            {targets.map((k) => <option key={k.id} value={`new-entry:${k.id}`}>nowy wpis: {k.name}</option>)}
+            {targets.map((k) => <option key={k.id} value={`new-entry:${k.id}`}>{t('cogitaEditForm.editor.newEntry', { kind: k.name })}</option>)}
           </optgroup>
         </select>
       )}
@@ -763,40 +775,41 @@ function PickPanel({ form, node, readOnly, onConfig }: {
   readOnly: boolean;
   onConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const c = pickConfig(node.config);
   return (
     <div className="wk-form cg cg-af-panel">
-      <label className="wk-field"><span>Nazwa</span>
+      <label className="wk-field"><span>{t('common.name')}</span>
         <input value={c.label ?? ''} disabled={readOnly} placeholder={nodeLabel(node, lib.look, form.graph)} onChange={(e) => onConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
       <div className="wk-field">
-        <span>Jakie wpisy można wybrać</span>
+        <span>{t('cogitaEditForm.editor.pickKinds')}</span>
         <span className="cg-row">
-          {c.kinds.length === 0 && <span className="cg-muted">dowolne</span>}
+          {c.kinds.length === 0 && <span className="cg-muted">{t('cogitaEditForm.editor.any')}</span>}
           {c.kinds.map((k) => (
-            <span key={k} className="cg-tag">{lib.kind(k)?.name ?? k}{!readOnly && <button type="button" className="wk-link-btn" aria-label={`Usuń: ${lib.kind(k)?.name ?? k}`} onClick={() => onConfig({ kinds: c.kinds.filter((x) => x !== k) })}>×</button>}</span>
+            <span key={k} className="cg-tag">{lib.kind(k)?.name ?? k}{!readOnly && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.pick.remove', { name: lib.kind(k)?.name ?? k })} onClick={() => onConfig({ kinds: c.kinds.filter((x) => x !== k) })}>×</button>}</span>
           ))}
           {!readOnly && (
-            <select value="" aria-label="Dodaj rodzaj do wyboru" onChange={(e) => { if (e.target.value !== '') onConfig({ kinds: [...c.kinds, e.target.value] }); }}>
-              <option value="">+ rodzaj</option>
+            <select value="" aria-label={t('cogitaEditForm.editor.addPickKind')} onChange={(e) => { if (e.target.value !== '') onConfig({ kinds: [...c.kinds, e.target.value] }); }}>
+              <option value="">{t('cogitaEditForm.editor.addKind')}</option>
               {lib.refKinds.filter((k) => !c.kinds.includes(k.id)).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
             </select>
           )}
         </span>
       </div>
-      <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => onConfig({ many: e.target.checked })} /><span>Kilka wpisów (np. kilka słów)</span></label>
-      <label className="pe-check"><input type="checkbox" checked={c.optional} disabled={readOnly} onChange={(e) => onConfig({ optional: e.target.checked })} /><span>Można zostawić puste</span></label>
+      <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => onConfig({ many: e.target.checked })} /><span>{t('cogitaEditForm.editor.pickMany')}</span></label>
+      <label className="pe-check"><input type="checkbox" checked={c.optional} disabled={readOnly} onChange={(e) => onConfig({ optional: e.target.checked })} /><span>{t('cogitaEditForm.editor.pickOptional')}</span></label>
       <div className="wk-field">
-        <span>Wybrane od razu</span>
+        <span>{t('cogitaEditForm.editor.preset')}</span>
         {c.value.map((id) => (
           <span key={id} className="cg-row">
             <span><TexText text={entityNameTex(lib, id)} /></span>
-            {!readOnly && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => onConfig({ value: c.value.filter((x) => x !== id) })}>×</button>}
+            {!readOnly && <button type="button" className="wk-link-btn" aria-label={t('common.remove')} onClick={() => onConfig({ value: c.value.filter((x) => x !== id) })}>×</button>}
           </span>
         ))}
         {!readOnly && (c.many || c.value.length === 0) && (
-          <EntityPicker lib={lib} kinds={c.kinds.length > 0 ? c.kinds : undefined} refs {...creatorFor(lib, c.kinds, !readOnly)} value={null} placeholder="szukaj…" onPick={(id) => id !== null && onConfig({ value: [...c.value.filter((x) => x !== id), id] })} />
+          <EntityPicker lib={lib} kinds={c.kinds.length > 0 ? c.kinds : undefined} refs {...creatorFor(lib, c.kinds, !readOnly)} value={null} placeholder={t('common.searchPlaceholder')} onPick={(id) => id !== null && onConfig({ value: [...c.value.filter((x) => x !== id), id] })} />
         )}
       </div>
     </div>

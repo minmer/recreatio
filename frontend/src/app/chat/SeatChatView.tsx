@@ -234,7 +234,7 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
                 </div>
               )}
             <p className="wk-hint">{t('chat.seat.askWho', { name: target.name })}</p>
-            {/* Private conversations can start without a controller; show one when assigned or inherited. */}
+            {/* 0129 — wer für die Daten geradesteht, wenn es jemanden gibt; seit 2026-11-08 fängt das Gespräch auch ohne an. */}
             {target.controller != null && <ControllerClause controller={target.controller} context="collect" />}
           </section>
         );

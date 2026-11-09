@@ -25,6 +25,7 @@
  */
 
 import { newId } from '../core/ids';
+import { t, texts } from '../core/i18n';
 import { blockData, blockOf, type CommentBlock, type Run } from './blocks';
 import { isUuid } from './library';
 import { mapRefTokens } from './libraryMarkup';
@@ -67,7 +68,7 @@ export interface ExtraField {
   readonly read: (value: unknown, where: string, ctx: { readonly resolve: (token: string, where: string) => string | null; readonly warn: (line: string) => void }) => unknown;
 }
 
-const WRITING_KINDS_NAMED: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wygłoszenia', project: 'projekty', texttype: 'rodzaje tekstów' };
+const WRITING_KINDS_NAMED: Readonly<Record<string, string>> = texts({ text: 'libraryData.writingKinds.text', delivery: 'libraryData.writingKinds.delivery', project: 'libraryData.writingKinds.project', texttype: 'libraryData.writingKinds.texttype' });
 
 export const LIBRARY_SPEC: FormatSpec = {
   format: LIBRARY_FORMAT,
@@ -75,9 +76,9 @@ export const LIBRARY_SPEC: FormatSpec = {
   kinds: LIBRARY_KINDS,
   saveOrder: ['person', 'work', 'quote'],
   elsewhere: (kind) => WRITING_KINDS_NAMED[kind] !== undefined
-    ? `${WRITING_KINDS_NAMED[kind]} są teraz w Skryptorium — importuje się je tam (format "${SCRIPTORIUM_FORMAT}")`
-    : kind === 'comment' ? 'komentarze są teraz własnym rodzajem w Wiedzy — gotowy schemat: plik templates/cogita/komentarz.json, a komentarze w JSON bazy wiedzy'
-    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Wiedzy (np. „Tajemnica”, „Obszar”), połączone polami-odwołaniami'
+    ? t('libraryData.import.inScriptorium', { kinds: WRITING_KINDS_NAMED[kind]!, format: SCRIPTORIUM_FORMAT })
+    : kind === 'comment' ? t('libraryData.import.commentsElsewhere')
+    : kind === 'topic' ? t('libraryData.import.topicsGone')
     : null
 };
 
@@ -166,16 +167,16 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
     : typeof root.kind === 'string' && typeof root.data === 'object' ? [root]
     : [];
   if (root.format === QUOTES_FORMAT) {
-    return { error: `To są cytaty jednej książki ("${QUOTES_FORMAT}") — importuje się je na stronie tej książki: Źródła → książka → „Cytaty z tej książki”.` };
+    return { error: t('libraryData.import.quotesFormat', { format: QUOTES_FORMAT }) };
   }
   /* 2026-10-24 — ein Text eines Werks (mit oder ohne neues Werk) hat seinen eigenen Import. */
   if (root.format === 'recreatio/source-text') {
-    return { error: 'To jest tekst źródła ("recreatio/source-text") — z nowym dziełem importuje się go w Źródłach: „Dzieło z tekstem (JSON)”; do dzieła, które już jest — na jego stronie, w ramce „Tekst źródła”.' };
+    return { error: t('libraryData.import.sourceText') };
   }
-  if (list.length === 0) return { error: `To nie jest dokument w formacie "${spec.format}" — brakuje "entries" (albo "kind" i "data").` };
+  if (list.length === 0) return { error: t('libraryData.import.notFormat', { format: spec.format }) };
   if (root.format !== undefined && root.format !== spec.format) {
-    const where = root.format === LIBRARY_FORMAT ? 'w Bibliotece' : root.format === SCRIPTORIUM_FORMAT ? 'w Skryptorium' : String(root.format).startsWith('recreatio.cogita') ? 'w Wiedzy (baza wiedzy → Więcej → Import i eksport)' : '';
-    return { error: `Inny format: „${String(root.format)}”${where === '' ? '' : ` — ten importuje się ${where}`}; tu przyjmowany jest "${spec.format}".` };
+    const where = root.format === LIBRARY_FORMAT ? t('libraryData.import.inLibrary') : root.format === SCRIPTORIUM_FORMAT ? t('libraryData.import.inScriptoriumWhere') : String(root.format).startsWith('recreatio.cogita') ? t('libraryData.import.inKnowledge') : '';
+    return { error: t(where === '' ? 'libraryData.import.otherFormat' : 'libraryData.import.otherFormatWhere', { given: String(root.format), where, format: spec.format }) };
   }
   const allowed = new Set(spec.kinds.map((k) => k.kind));
   /* 2026-10-23 — Arten, die dieses Format nicht nimmt, aber ein anderer Teil: die Datei gehört dorthin. */
@@ -185,7 +186,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
     if (!allowed.has(kind) && spec.elsewhere(kind) !== null) foreign.set(kind, (foreign.get(kind) ?? 0) + 1);
   }
   if (foreign.size > 0) {
-    return { error: `Ten plik ma wpisy, których tu się nie prowadzi: ${[...foreign].map(([kind, n]) => `${kind} (${n})`).join(', ')}. ${[...new Set([...foreign.keys()].map(spec.elsewhere))].join('; ')}.` };
+    return { error: t('libraryData.import.foreign', { list: [...foreign].map(([kind, n]) => `${kind} (${n})`).join(', '), where: [...new Set([...foreign.keys()].map(spec.elsewhere))].join('; ') }) };
   }
 
   const warnings: string[] = [];
@@ -198,18 +199,18 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
   list.forEach((one, index) => {
     const raw = asRecord(one);
     const kind = typeof raw.kind === 'string' ? raw.kind : '';
-    if (kindOf(kind) === undefined || !allowed.has(kind)) { warnings.push(`Wpis ${index + 1}: nieznany rodzaj „${kind}” — pominięty.`); return; }
+    if (kindOf(kind) === undefined || !allowed.has(kind)) { warnings.push(t('libraryData.import.unknownKind', { n: index + 1, kind })); return; }
     const givenId = typeof raw.id === 'string' ? raw.id.trim() : '';
     const givenKey = typeof raw.key === 'string' && raw.key.trim() !== '' ? raw.key.trim().replace(/^@/, '') : undefined;
 
     let existing = isUuid(givenId) ? base.get(givenId) : undefined;
-    if (existing !== undefined && existing.kind !== kind) { warnings.push(`Wpis ${index + 1}: kennung należy do wpisu innego rodzaju — powstanie nowy.`); existing = undefined; }
+    if (existing !== undefined && existing.kind !== kind) { warnings.push(t('libraryData.import.idOtherKind', { n: index + 1 })); existing = undefined; }
     if (existing === undefined && givenKey !== undefined) {
       const byKey = base.byKey(givenKey);
       if (byKey !== undefined && byKey.kind === kind) existing = byKey;
     }
     let id = existing?.id ?? (isUuid(givenId) && base.get(givenId) === undefined ? givenId : newId());
-    if (usedIds.has(id)) { warnings.push(`Wpis ${index + 1} powtarza wpis z tego samego dokumentu — pominięty.`); return; }
+    if (usedIds.has(id)) { warnings.push(t('libraryData.import.repeated', { n: index + 1 })); return; }
     usedIds.add(id);
     if (givenKey !== undefined) keyToId.set(givenKey.toLowerCase(), id);
     placed.push({ raw, id, kind, ...(givenKey === undefined ? {} : { key: givenKey }), existing });
@@ -222,7 +223,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
     if (isUuid(v) && (usedIds.has(v) || base.get(v) !== undefined)) return v;
     const key = v.replace(/^@/, '').toLowerCase();
     const id = keyToId.get(key) ?? base.byKey(key)?.id;
-    if (id === undefined) warnings.push(`${where}: nie znaleziono „${v}” — odwołanie pominięte.`);
+    if (id === undefined) warnings.push(t('libraryData.import.refNotFound', { where, ref: v }));
     return id ?? null;
   };
 
@@ -244,7 +245,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
         }).filter((x) => x !== null);
       case 'number': {
         const n = readAmount(value);
-        if (n === null) { warnings.push(`${where}: „${String(value)}” to nie liczba — pominięte.`); return null; }
+        if (n === null) { warnings.push(t('libraryData.import.notNumber', { where, value: String(value) })); return null; }
         return n;
       }
       case 'items': {
@@ -267,7 +268,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
           }
           if (Object.keys(item).length > 0) out.push(item);
         }
-        if (unknown.size > 0) warnings.push(`${where}: nieznane pola punktów (${[...unknown].join(', ')}) — pominięte.`);
+        if (unknown.size > 0) warnings.push(t('libraryData.import.unknownItemFields', { where, list: [...unknown].join(', ') }));
         if (subs.some((s) => s.key === 'id')) {
           const taken = new Set<string>();
           for (const item of out) {
@@ -282,10 +283,10 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
         const out: Record<string, unknown>[] = [];
         for (const [index, raw] of (Array.isArray(value) ? value : []).entries()) {
           const block = blockOf(raw);
-          if (block === null) { warnings.push(`${where}: blok ${index + 1} nie ma rozpoznawalnej treści — pominięty.`); continue; }
+          if (block === null) { warnings.push(t('libraryData.import.blockEmpty', { where, n: index + 1 })); continue; }
           const runs = (cell: readonly Run[]): Run[] => cell.flatMap((run): Run[] => {
             if (!('ref' in run)) return [run];
-            const id = resolve(run.ref, `${where} · blok ${index + 1}`);
+            const id = resolve(run.ref, `${where} · ${t('librarySource.import.block', { n: index + 1 })}`);
             return id === null ? [] : [{ ref: id, ...(run.locator === undefined ? {} : { locator: run.locator }) }];
           });
           const fixed: CommentBlock = block.type === 'paragraph' ? block
@@ -305,7 +306,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
          */
         const o = asRecord(value);
         if (typeof o.file !== 'string' || !isUuid(o.file)) {
-          warnings.push(`${where}: to nie jest plik z eksportu (brak "file") — pominięte. Pliki wgrywa się w aplikacji.`);
+          warnings.push(t('libraryData.import.notFile', { where }));
           return null;
         }
         const type = o.type === 'image' || o.type === 'audio' || o.type === 'video' ? o.type : 'document';
@@ -322,7 +323,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
         /* „miękka" statt "soft": wer die Bezeichnung schreibt, meint den Wert. */
         const byLabel = field.options.find((o) => slug(o.label) === slug(s));
         if (byLabel !== undefined) return byLabel.value;
-        warnings.push(`${where}: nieznana wartość „${s}”.`);
+        warnings.push(t('libraryData.import.unknownValue', { where, value: s }));
         return s;
       }
       default:
@@ -356,7 +357,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
         else data[name] = next;
         continue;
       }
-      if (field === undefined) { warnings.push(`${where}: nieznane pole — pominięte.`); continue; }
+      if (field === undefined) { warnings.push(t('libraryData.import.unknownField', { where })); continue; }
       const next = coerce(field, value, where);
       if (next === null || next === '' || (Array.isArray(next) && next.length === 0 && field.type !== 'outline')) delete data[name];
       else data[name] = next;
@@ -376,7 +377,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
       return id;
     }));
     for (const [name, value] of Object.entries(pinned)) data[name] = value;
-    for (const token of lost) warnings.push(`${def.label} „${String(given.title ?? given.name ?? one.key ?? '').slice(0, 40)}”: w tekście „@${token}” nie wskazuje żadnego wpisu — zostaje, jak jest.`);
+    for (const token of lost) warnings.push(t('libraryData.import.lostRef', { kind: def.label, title: String(given.title ?? given.name ?? one.key ?? '').slice(0, 40), token }));
 
     const key = one.key ?? one.existing?.key;
     if (one.existing !== undefined && JSON.stringify(one.existing.data) === JSON.stringify(data) && (one.existing.key ?? '') === (key ?? '')) {
@@ -391,7 +392,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
 
   const byKind = spec.kinds.map((k) => [k.plural, drafts.filter((d) => d.kind === k.kind).length] as const).filter(([, n]) => n > 0);
   const lines = [
-    `Nowe: ${created}, zmienione: ${updated}, bez zmian: ${unchanged}.`,
+    t('libraryData.import.counts', { created, updated, unchanged }),
     ...(byKind.length === 0 ? [] : [byKind.map(([label, n]) => `${label}: ${n}`).join(' · ')])
   ];
   return { drafts, created, updated, unchanged, lines, warnings };
@@ -409,13 +410,13 @@ export function patchFromDoc(doc: unknown, target: { readonly id: string; readon
   { patch: EntryData; lines: readonly string[]; warnings: readonly string[] } | { error: string } {
   const root = asRecord(doc);
   const list: unknown[] = Array.isArray(doc) ? doc : Array.isArray(root.entries) ? root.entries : typeof root.kind === 'string' || typeof root.data === 'object' ? [root] : [];
-  if (root.format !== undefined && root.format !== spec.format) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${spec.format}".` };
+  if (root.format !== undefined && root.format !== spec.format) return { error: t('libraryData.patch.otherFormat', { given: String(root.format), format: spec.format }) };
   const records = list.map(asRecord);
   const mine = records.find((one) => one.id === target.id) ?? (records.filter((one) => one.kind === target.kind || one.kind === undefined).length === 1
     ? records.find((one) => one.kind === target.kind || one.kind === undefined) : undefined);
-  if (mine === undefined) return { error: records.length === 0 ? 'Brak wpisu — dokument powinien mieć "entries" z jednym wpisem.' : 'Nie ma tu wpisu dla tego formularza (sprawdź "id" i "kind").' };
+  if (mine === undefined) return { error: records.length === 0 ? t('libraryData.patch.noEntry') : t('libraryData.patch.notForForm') };
   const given = asRecord(mine.data);
-  if (Object.keys(given).length === 0) return { error: 'Wpis nie ma pól ("data").' };
+  if (Object.keys(given).length === 0) return { error: t('libraryData.patch.noData') };
   const planned = planLibraryImport({ format: spec.format, entries: [{ id: target.id, kind: target.kind, data: given }] }, base, spec);
   if ('error' in planned) return planned;
   const draft = planned.drafts[0];
@@ -427,54 +428,26 @@ export function patchFromDoc(doc: unknown, target: { readonly id: string; readon
   const others = records.length - 1;
   return {
     patch,
-    lines: [`Pola do wpisania w formularz: ${Object.keys(patch).join(', ') || 'żadne'}.`],
-    warnings: [...planned.warnings, ...(others > 0 ? [`Pozostałe wpisy w dokumencie (${others}) są tu pomijane.`] : [])]
+    lines: [t('libraryData.patch.fields', { list: Object.keys(patch).join(', ') || t('libraryData.patch.none') })],
+    warnings: [...planned.warnings, ...(others > 0 ? [t('libraryData.patch.others', { n: others })] : [])]
   };
 }
 
 /* -- Die Beschreibung --------------------------------------------------------------------------- */
 
-const TYPE_SAYS: Record<LibField['type'], string> = {
-  line: 'tekst', text: 'tekst (może mieć wiele wierszy)', markup: 'tekst w zapisie treści (niżej)', number: 'liczba',
-  date: 'data RRRR-MM-DD', select: 'jedna z wartości', url: 'adres https://…', ref: 'odwołanie: kennung albo "@klucz"',
-  refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu', items: 'lista obiektów o polach:',
-  blocks: 'lista bloków (niżej: „Komentarz”)',
-  fields: 'lista pól — jak pola rodzaju w Wiedzy',
-  media: 'plik wgrany w aplikacji: { "file": kennunga pliku, "type": "audio" | "image" | "video" | "document", "name", "mime" } — taki, jaki daje eksport; nowych plików JSON nie wgrywa'
-};
+const TYPE_SAYS = (type: LibField['type']): string => t(`libraryData.typeSays.${type}`);
 
 /** Ein Feld in der Beschreibung — bei `items` darunter seine Unterfelder. */
 function fieldDoc(f: LibField, indent: string): string {
-  const head = `${indent}"${f.key}" — ${f.label}: ${f.says} (${TYPE_SAYS[f.type]})`;
+  const head = `${indent}"${f.key}" — ${f.label}: ${f.says} (${TYPE_SAYS(f.type)})`;
   if (f.type !== 'items') return head;
   return [head, ...(f.item ?? []).map((sub) => fieldDoc(sub, `${indent}    `))].join('\n');
 }
 
-/** 2026-10-23 — wie man eine Stelle der Schrift schreibt: im "locator" eines Zitats, in einem Przypis, im Feld z miejscem w Nauce. */
-export const BIBLE_DOC = `Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Wiedzy) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.`;
+/** 2026-11-05 — dieselben Beschreibungen in der Sprache der App. */
+export const bibleDoc = (): string => t('libraryData.describe.bible');
+export const markupDoc = (): string => t('libraryData.describe.markup', { bible: bibleDoc() });
 
-export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, punkty planu "plan[].text", "transcript" i "added[].text" wygłoszenia)
-  ## Śródtytuł            (# albo ## — śródtytuł, ### — mniejszy)
-  Akapity oddziela pusta linia; pojedyncze przejście do nowej linii zostaje (psalmy, pieśni).
-  **pogrubienie**  *kursywa*  [opis linku](https://…)
-  [@klucz]                 odwołanie do źródła (dzieło, cytat, osoba) — staje się przypisem
-  [@klucz, s. 23]          z miejscem w źródle
-  [@bt, J 6,35; @klucz2]   kilka odwołań w jednym przypisie
-  [@klucz-tekstu]          odwołanie do WŁASNEGO wpisu (tekst, projekt, wpis bazy wiedzy — np. komentarz) — nigdy przypis: w tekście staje się linkiem „(zob. jego tytuł)”
-  [[te słowa|@klucz]]      link do wpisu z własnymi słowami (np. [[kazaniu o chlebie|@kazanie-chleb]]) — też nigdy przypis
-  ^[treść przypisu]        własny przypis, bez źródła
-  ![@klucz-cytatu]         cytat z biblioteki jako osobny blok, z podpisem skąd pochodzi
-  ![@id-wpisu]             wpis bazy wiedzy z treścią w blokach (np. komentarz) jako osobny blok — cały, z tabelami
-  [[house|@id-słowa]]      link do wpisu bazy wiedzy (np. słowa ze słownika) — czytelnik widzi go, jeśli może czytać tę bazę
-  ![@id-widoku]            widok bazy wiedzy jako osobny blok (np. w punkcie planu): lista, która zmienia się razem z danymi — np. „psalmy jutrzni niedzielnej" z psałterza
-  > tekst                  wcięty cytat
-  - punkt   ·   1. punkt
-  ---                      linia oddzielająca
-  \\znak                    znak bez znaczenia (np. \\* zamiast kursywy)
-Przypisy liczą się same; pierwszy raz źródło jest podane w całości, potem skrótem z „dz. cyt.”, a tuż po sobie — „Tamże”. Pod tekstem pojawia się bibliografia.
-${BIBLE_DOC}
-Źródło (to, co przyszło z zewnątrz) się cytuje, własne wpisy się linkuje: [@ratzinger2007, s. 183; @kazanie-chleb] daje przypis do książki i w tekście link „(zob. Chleb życia)”. Czego czytelnik nie może otworzyć, pokazuje się jako „[odwołanie niedostępne]” (albo same słowa z [[…|@…]]) — bez tytułu i bez klucza.
-Klucz to pomoc przy pisaniu: aplikacja zapamiętuje stały odnośnik do wpisu (jego kennungę), więc późniejsza zmiana klucza nie psuje tekstu. Zamiast klucza można też podać kennungę wpisu: [@01a1…-…, s. 3]. Klucz, którego nie ma, zostaje w tekście, jak jest (z ostrzeżeniem przy imporcie).`;
 
 /** Die Arten eines Formats in der Beschreibung — Felder und ein ausgefülltes Beispiel. */
 export function kindsDoc(kinds: readonly LibKind[]): string {
@@ -482,8 +455,8 @@ export function kindsDoc(kinds: readonly LibKind[]): string {
     const fields = def.fields.map((f) => fieldDoc(f, '  ')).join('\n');
     const example = { kind: def.kind, ...(def.example.key === undefined ? {} : { key: def.example.key }), data: def.example.data };
     /* 2026-10-26 — weitere Beispiele (ein Werk der Musik, sein Komponist und Chor). */
-    const more = (def.more ?? []).map((one) => `\nPrzykład (${one.label}):\n${JSON.stringify({ kind: def.kind, ...(one.key === undefined ? {} : { key: one.key }), data: one.data }, null, 2)}`).join('');
-    return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}${more}`;
+    const more = (def.more ?? []).map((one) => `\n${t('libraryData.kindsDoc.exampleOf', { label: one.label })}\n${JSON.stringify({ kind: def.kind, ...(one.key === undefined ? {} : { key: one.key }), data: one.data }, null, 2)}`).join('');
+    return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? t('libraryData.kindsDoc.keyed') : ''}\n"data":\n${fields}\n${t('libraryData.kindsDoc.example')}\n${JSON.stringify(example, null, 2)}${more}`;
   }).join('\n\n');
 }
 
@@ -494,43 +467,13 @@ export function kindsDoc(kinds: readonly LibKind[]): string {
 export function libraryDescription(): string {
   const kinds = kindsDoc(LIBRARY_KINDS);
 
-  return `# Biblioteka jako JSON ("${LIBRARY_FORMAT}", wersja ${LIBRARY_VERSION})
-
-Co robi import:
-Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "${SCRIPTORIUM_FORMAT}"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Wiedzy (Cogita), jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
-- Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
-- Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania ("authors", "editors", "translators", "container", "work"; przy muzyce "composers", "lyricists", "arrangers", "performers", "piece", "album") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
-- Muzyka to też dzieła ("work"), z innym rodzajem: "piece" (utwór), "score" (nuty), "recording" (nagranie), "album" (płyta). Rodzaj decyduje, które pola dzieło ma. Nuty i nagranie wskazują swój utwór ("piece"), nagranie — swoją płytę ("album"). Pliki (strony nut, ścieżki nagrania: osobne głosy i instrumenty albo całość) wgrywa się w aplikacji; JSON opisuje je bez plików albo przenosi z eksportu. Miejsce w nagraniu to czas: "1:23", "1:23–1:45".
-- Plik z innymi rodzajami (teksty, wygłoszenia, projekty, komentarze, tematy) zostanie odrzucony — z informacją, gdzie go zaimportować.
-- "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
-- Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
-- Cytaty z jednej książki (np. odczytane przez AI ze zdjęć) mają własny format "${QUOTES_FORMAT}" — importuje się je na stronie tej książki.
-- Kto widzi wpis, decyduje wyłącznie obszar jego biblioteki: członkowie obszaru, a gdy obszar jest publiczny — wszyscy. Nie ma pól prywatnych ani publikowania pojedynczych wpisów; to, co ma zostać prywatne, idzie do biblioteki prywatnego obszaru.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-{
-  "format": "${LIBRARY_FORMAT}",
-  "version": ${LIBRARY_VERSION},
-  "name": "Moja biblioteka",
-  "entries": [ { "kind": "person", "key": "ratzinger", "data": { … } }, … ]
-}
-
-## Rodzaje wpisów
+  return `${t('libraryData.describe.head', { format: LIBRARY_FORMAT, version: LIBRARY_VERSION, scriptorium: SCRIPTORIUM_FORMAT, quotes: QUOTES_FORMAT })}
 ${kinds}
 
-## Miejsce w źródle
-${BIBLE_DOC}
-Inne miejsca: "s. 23", "nr 24", "rozdz. 4"; w nagraniu — czas: "1:23", "1:23–1:45", "1:02:03".
+${t('libraryData.describe.placeHead')}
+${bibleDoc()}
+${t('libraryData.describe.places')}
 
-## Jak aplikacja używa tych danych
-- W Bibliotece wpisy stoją w zakładkach „Źródła”, „Muzyka”, „Cytaty” i „Osoby”; każdy ma swoją stronę, a „Mapa” rysuje połączenia (cytat → dzieło → autorzy). Skaner kodów otwiera książkę po "isbn" albo po "libraryNumber".
-- [@klucz, miejsce] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem (za pierwszym razem pełny opis, potem skrót); pod tekstem Skryptorium i w druku (LaTeX) stoi lista „Źródła”. ![@klucz-cytatu] wstawia cytat jako blok z podpisem, skąd pochodzi.
-- Teksty zapisują kennungę wpisu, nie jego opis: poprawione dane dzieła albo osoby widać od razu w każdym przypisie, a zmiana klucza niczego nie psuje.
-- Moduł strony „Zbiór cytatów” pokazuje cytaty tej biblioteki (albo jednego dzieła): „myśl dnia” albo zbiór z wyszukiwaniem.
-- Baza wiedzy, która ma tę bibliotekę wśród źródeł, wskazuje jej wpisy, a szablony kart i powtórki mogą z nich korzystać (np. z cytatów); niczego nie kopiuje. W Skryptorium rodzaj tekstu może mieć pole, które wskazuje dzieło z miejscem (np. "@bt" i "Łk 1,26-38").
-- „Powiązania” przy wpisie pokazują, co na niego wskazuje — w bibliotekach, skryptoriach i bazach wiedzy, które czytający może otworzyć.
-- Pełny tekst dzieła dochodzi osobnym importem („Tekst źródła”, „Dzieło z tekstem”); wtedy zacytowane miejsca prowadzą do akapitu („pokaż w tekście”).
-- Wpisy są zapieczętowane w przeglądarce kluczem obszaru. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje tę bibliotekę, daje asystentowi jej odpis do czytania — asystent wyszukuje i czyta wpisy, niczego nie zmienia.
+${t('libraryData.describe.use')}
 `;
 }

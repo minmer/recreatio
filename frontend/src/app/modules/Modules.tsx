@@ -60,7 +60,7 @@ import { current as notifyNow, subscribe as notifySubscribe } from '../notify/no
 import { useRecent } from '../core/prefs';
 import { useTouched } from '../workspace/Recent';
 import { Icon } from '../ui/icons';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 
 const NEW = 'new';
 
@@ -97,6 +97,7 @@ export function viewOf(trail: readonly string[]): View {
  */
 export function Modules({ who, trail, forms = false }: { who: Who; trail: readonly string[]; forms?: boolean }) {
   const [modules, setModules] = useState<readonly ModuleRow[] | null>(null);
+  const t = useT();
   /* 0096 — die Gruppen von Formularen (Ordner). */
   const [groups, setGroups] = useState<readonly FormGroup[]>([]);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
@@ -120,9 +121,9 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
       setFailed(null);
     } catch (e) {
       setModules([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać modułów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('modules.page.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -149,11 +150,11 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
 
   /* -- Der Weg oben im Kopf ------------------------------------------------ */
 
-  const crumbs: Crumb[] = trail[0] === MAP ? [{ label: 'Mapa zależności', href: null }]
-    : trail[0] === FORM_MAP ? [{ label: 'Mapa formularzy', href: null }]
+  const crumbs: Crumb[] = trail[0] === MAP ? [{ label: t('modules.page.depMap'), href: null }]
+    : trail[0] === FORM_MAP ? [{ label: t('modules.page.formMap'), href: null }]
     : view.at === 'kinds' ? []
     /* Unter „Formularze" ist die Art schon der Ort: nur das eine Formular. */
-    : forms ? (view.at === 'list' ? [] : [{ label: view.at === NEW ? 'Nowy formularz' : mine?.name ?? '…', href: null }])
+    : forms ? (view.at === 'list' ? [] : [{ label: view.at === NEW ? t('modules.page.newForm') : mine?.name ?? '…', href: null }])
     : [
     {
       label: partLabel(view.kind),
@@ -165,7 +166,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
         .map((one) => ({ label: one.label, href: modulePath(one.kind) }))
     },
     ...(view.at === 'list' ? [] : [{
-      label: view.at === NEW ? 'Nowy' : mine?.name ?? '…',
+      label: view.at === NEW ? t('modules.page.new') : mine?.name ?? '…',
       href: null
     }])
   ];
@@ -180,7 +181,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
       await todo();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -227,20 +228,20 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
         {head}
 
         {/* 2026-10-17 — die Karten als zwei Zeilen, die Arten als Zeilen eines Kastens (auf dem Telefon lief die Liste über den Rand). */}
-        <nav className="wk-box" aria-label="Mapy">
+        <nav className="wk-box" aria-label={t('modules.page.maps')}>
           <a className="wk-line" href={viewPath('modules', MAP)}>
             <span className="wk-line-ic"><Icon name="flow" /></span>
             <span className="wk-line-text">
-              <span className="wk-line-title">Mapa zależności</span>
-              <span className="wk-line-sub">Strony, moduły i źródła — co z czego korzysta</span>
+              <span className="wk-line-title">{t('modules.page.depMap')}</span>
+              <span className="wk-line-sub">{t('modules.page.depMapSub')}</span>
             </span>
             <span className="wk-line-end"><Icon name="next" /></span>
           </a>
           <a className="wk-line" href={formsPath(FORM_MAP)}>
             <span className="wk-line-ic"><Icon name="branch" /></span>
             <span className="wk-line-text">
-              <span className="wk-line-title">Mapa formularzy</span>
-              <span className="wk-line-sub">Grupy, podformularze, link osoby</span>
+              <span className="wk-line-title">{t('modules.page.formMap')}</span>
+              <span className="wk-line-sub">{t('modules.page.formMapSub')}</span>
             </span>
             <span className="wk-line-end"><Icon name="next" /></span>
           </a>
@@ -248,7 +249,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
 
         <Unused modules={all} busy={busy !== null} onAct={act} />
 
-        <ul className="wk-box wk-kind-list" aria-label="Rodzaje modułów">
+        <ul className="wk-box wk-kind-list" aria-label={t('modules.page.kinds')}>
           {/* 2026-10-22 (Schritt 10) — ein ausgemusterter Baustein nur, solange es ihn noch gibt. */}
           {PARTS.filter((one) => one.retired === undefined || all.some((m) => m.kind === one.kind)).map((one) => {
             const count = all.filter((m) => m.kind === one.kind).length;
@@ -258,7 +259,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
                 <a className="wk-line" href={modulePath(one.kind)}>
                   <span className="wk-line-text">
                     <span className="wk-line-title">{one.label}</span>
-                    <span className="wk-line-sub">{one.retired === undefined ? one.use : `Wycofany: ${one.retired}`}</span>
+                    <span className="wk-line-sub">{one.retired === undefined ? one.use : t('modules.page.retired', { why: one.retired })}</span>
                   </span>
                   <span className="wk-line-end">{count === 0 ? '—' : <span className="wk-count is-quiet">{count}</span>}</span>
                 </a>
@@ -295,15 +296,15 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
                     <span className="wk-tag" title={areaPath(areas, one.areaId).full || undefined}>
                       {areaPath(areas, one.areaId).short || one.areaName}
                     </span>
-                  ) : <span className="wk-tag">bez obszaru</span>}
+                  ) : <span className="wk-tag">{t('modules.page.noArea')}</span>}
 
-                  {one.entries > 0 && <span className="wk-tag">{one.entries} zgłoszeń</span>}
+                  {one.entries > 0 && <span className="wk-tag">{t('modules.page.entriesTag', { count: one.entries })}</span>}
                 </span>
 
                 <span className="wk-tree-mine">
                   {one.usedOnPages === 0
-                    ? 'nigdzie nie stoi'
-                    : `na ${one.usedOnPages} ${one.usedOnPages === 1 ? 'stronie' : 'stronach'}`}
+                    ? t('modules.page.nowhere')
+                    : t('modules.page.onPages', { count: one.usedOnPages })}
                 </span>
               </a>
             </li>
@@ -311,13 +312,13 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
 
           <li>
             <a className="wk-tree-add" href={modulePath(view.kind, NEW)}>
-              <span aria-hidden="true">+</span> Nowy
+              <span aria-hidden="true">+</span> {t('modules.page.new')}
             </a>
           </li>
         </ul>
 
         {ofKind.length === 0 && (
-          <p className="wk-empty">Nie masz jeszcze żadnego takiego modułu.</p>
+          <p className="wk-empty">{t('modules.page.none')}</p>
         )}
       </>
     );
@@ -345,7 +346,7 @@ export function Modules({ who, trail, forms = false }: { who: Who; trail: readon
   /* -- 4. Einer, ganz ------------------------------------------------------ */
 
   if (mine === undefined) {
-    return <p className="wk-empty">Tego modułu już nie ma.</p>;
+    return <p className="wk-empty">{t('modules.page.gone')}</p>;
   }
 
   return (
@@ -380,19 +381,20 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: 
 }) {
   /* 0064 — nach einem Import mit Fragen liest das Formular neu. */
   const [round, setRound] = useState(0);
+  const t = useT();
   /* 0094 — das JSON ist der erweiterte Weg (bei einem Formular der der Formulare). */
   /* Eine Zeile Angaben statt einer Reihe „RODZAJ / NA STRONACH / ZGŁOSZEŃ". */
   const facts = [
     row.kind === 'form' ? (row.areaName ?? null) : partLabel(row.kind),
-    row.usedOnPages === 0 ? 'na żadnej stronie' : row.usedOnPages === 1 ? 'na 1 stronie' : `na ${row.usedOnPages} stronach`,
-    row.entries > 0 ? `${row.entries} ${plural(row.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń')}` : null
+    row.usedOnPages === 0 ? t('modules.page.noPage') : t('modules.page.onPages', { count: row.usedOnPages }),
+    row.entries > 0 ? t('workspace.parts.entries', { count: row.entries }) : null
   ].filter((one): one is string => one !== null && one !== '');
 
   return (
     <>
       <PageHeader
         title={row.name}
-        badge={row.kind === 'form' && row.closed ? <span className="wk-tag">Zapisy zamknięte</span> : row.kind === 'form' ? <span className="wk-tag wk-tag-open">Zapisy otwarte</span> : undefined}
+        badge={row.kind === 'form' && row.closed ? <span className="wk-tag">{t('modules.page.closed')}</span> : row.kind === 'form' ? <span className="wk-tag wk-tag-open">{t('modules.page.open')}</span> : undefined}
         meta={facts.join(' · ')}
       />
 
@@ -441,6 +443,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
   const def = partOf(row.kind);
   const [config, setConfig] = useState<Record<string, string>>(() => readConfig(row.config));
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   /*
    * 0063 — EIN EIGENER EDITOR SCHREIBT BEI JEDEM TASTENDRUCK. Gespeichert wird
@@ -462,11 +465,11 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       setConfig({ ...done.config, ...queued.current });
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('registry.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [row.moduleId]);
+  }, [row.moduleId, t]);
 
   const queue = (patch: Record<string, string>) => {
     setConfig((was) => ({ ...was, ...patch }));
@@ -484,10 +487,10 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
     const Editor = def.Editor;
     return (
       <section className="wk-form">
-        <h2 className="wk-h2">Treść</h2>
+        <h2 className="wk-h2">{t('modules.page.content')}</h2>
         {def.missing(config) !== null && <p className="wk-blocker">{def.missing(config)}</p>}
         <Editor raw={config} onSet={queue} busy={busy} ctx={{ path: row.pages[0] ?? null, moduleId: row.moduleId }} />
-        <p className="wk-hint" role="status">{saving ? 'Zapisywanie…' : 'Zmiany zapisują się same.'}</p>
+        <p className="wk-hint" role="status">{saving ? t('common.saving') : t('modules.page.autosave')}</p>
         {failed !== null && <p className="wk-error">{failed}</p>}
       </section>
     );
@@ -495,10 +498,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
 
   if (def === undefined || def.fields.length === 0) {
     return (
-      <p className="wk-hint">
-        Ten rodzaj nie ma własnych ustawień — wszystko, co pokazuje, bierze się
-        skądinąd.
-      </p>
+      <p className="wk-hint">{t('modules.page.noSettings')}</p>
     );
   }
 
@@ -513,13 +513,13 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       const done = await setPartConfig(row.moduleId, patch);
       setConfig(done.config);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('registry.saveFailed'));
     }
   };
 
   return (
     <section className="wk-form">
-      <h2 className="wk-h2">Treść</h2>
+      <h2 className="wk-h2">{t('modules.page.content')}</h2>
 
       {def.missing(config) !== null && <p className="wk-blocker">{def.missing(config)}</p>}
 
@@ -612,6 +612,7 @@ function Unused({ modules, busy, onAct }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [asking, setAsking] = useState(false);
+  const t = useT();
   const idle = modules.filter((one) => one.usedOnPages === 0);
   const free = idle.filter((one) => one.entries === 0);
   const kept = idle.filter((one) => one.entries > 0);
@@ -624,38 +625,36 @@ function Unused({ modules, busy, onAct }: {
       try {
         await removeModule(one.moduleId);
       } catch (e) {
-        refused.push(`${one.name}: ${e instanceof WorkspaceError ? e.message : 'nie udało się'}`);
+        refused.push(`${one.name}: ${e instanceof WorkspaceError ? e.message : t('modules.imp.failed')}`);
       }
     }
-    if (refused.length > 0) throw new WorkspaceError(`Nie usunięto: ${refused.join(' · ')}`);
+    if (refused.length > 0) throw new WorkspaceError(t('modules.unused.refused', { list: refused.join(' · ') }));
   };
 
   return (
     <section className="wk-unused">
       <p className="wk-unused-line">
-        <strong>Nieużywane moduły: {idle.length}</strong>
-        <span className="wk-hint"> — nie stoją na żadnej stronie.</span>
+        <strong>{t('modules.unused.count', { count: idle.length })}</strong>
+        <span className="wk-hint"> {t('modules.unused.nowhere')}</span>
         {free.length > 0 && !asking && (
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking(true)}>Usuń nieużywane…</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking(true)}>{t('modules.unused.delete')}</button>
         )}
       </p>
       {asking && (
         <div className="wk-unused-ask">
-          <p>Usunąć te moduły? Nie da się tego cofnąć.</p>
+          <p>{t('modules.unused.ask')}</p>
           <ul>{free.map((one) => <li key={one.moduleId}>{one.name} <span className="wk-hint">· {partLabel(one.kind)}</span></li>)}</ul>
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-danger" disabled={busy}
-              onClick={() => { setAsking(false); void onAct(`Usuwanie modułów (${free.length})…`, removeAll); }}>
-              Usuń {free.length}
+              onClick={() => { setAsking(false); void onAct(t('modules.unused.deleting', { count: free.length }), removeAll); }}>
+              {t('modules.unused.deleteN', { count: free.length })}
             </button>
-            <button type="button" className="wk-link-btn" onClick={() => setAsking(false)}>Anuluj</button>
+            <button type="button" className="wk-link-btn" onClick={() => setAsking(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
       {kept.length > 0 && (
-        <p className="wk-hint">
-          Zostają, bo mają zgłoszenia: {kept.map((one) => `${one.name} (${one.entries})`).join(', ')}. Zgłoszenia należą do osób, które je wysłały.
-        </p>
+        <p className="wk-hint">{t('modules.unused.kept', { list: kept.map((one) => `${one.name} (${one.entries})`).join(', ') })}</p>
       )}
     </section>
   );
@@ -680,12 +679,13 @@ function NewModule({ kind, areas, busy, onAct, onDone }: {
   const [name, setName] = useState('');
   const [areaId, setAreaId] = useState('');
   const [forKind, setForKind] = useState<Subject>('person');
+  const t = useT();
 
   /* Hineinlegen darf man nur, wo man schreiben darf — der Dienst verlangt es,
      und eine Auswahl, die mehr anböte, endete in einer Absage. */
   const usable = areas.filter((a) => a.myLevel === 'admin' || a.myLevel === 'write');
 
-  const blocker = busy ? null : name.trim() === '' ? 'Nazwij moduł.' : null;
+  const blocker = busy ? null : name.trim() === '' ? t('modules.new.nameIt') : null;
 
   return (
     <form
@@ -696,34 +696,34 @@ function NewModule({ kind, areas, busy, onAct, onDone }: {
 
         const moduleId = newId();
 
-        void onAct('Zakładanie…', () => createModule(
+        void onAct(t('seats.portal.making'), () => createModule(
           moduleId, kind, name.trim(), areaId === '' ? null : areaId,
           takesEntries(kind) ? forKind : 'none'
         )).then(() => onDone(moduleId));
       }}
     >
-      <h1 className="wk-h1">Nowy: {partLabel(kind)}</h1>
+      <h1 className="wk-h1">{t('modules.new.title', { kind: partLabel(kind) })}</h1>
 
       <label className="wk-field">
-        <span>Nazwa</span>
+        <span>{t('common.name')}</span>
         <input
           value={name}
-          placeholder="np. Zapisy na bierzmowanie"
+          placeholder={t('modules.pick.namePlaceholder')}
           onChange={(e) => setName(e.target.value)}
         />
       </label>
 
       <label className="wk-field">
-        <span>Obszar</span>
-        <AreaPick label="Obszar" value={areaId} onChange={setAreaId} areas={areas} only={usable}
-          extras={[{ value: '', label: '— bez obszaru —' }]} />
+        <span>{t('modules.area')}</span>
+        <AreaPick label={t('modules.area')} value={areaId} onChange={setAreaId} areas={areas} only={usable}
+          extras={[{ value: '', label: t('modules.noArea') }]} />
       </label>
 
-      <p className="wk-hint">Obszar to klucz — pod nim będą leżały dane tego modułu.</p>
+      <p className="wk-hint">{t('modules.new.areaHint')}</p>
 
       {takesEntries(kind) && (
         <label className="wk-field">
-          <span>Czyj to formularz</span>
+          <span>{t('modules.settings.whose')}</span>
           <select value={forKind} onChange={(e) => setForKind(e.target.value as Subject)}>
             {SUBJECTS.map((one) => (
               <option key={one} value={one}>{SUBJECT_LABEL[one]}</option>
@@ -736,7 +736,7 @@ function NewModule({ kind, areas, busy, onAct, onDone }: {
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={blocker !== null}>
-          Załóż i otwórz
+          {t('seats.portal.make')}
         </button>
       </div>
     </form>

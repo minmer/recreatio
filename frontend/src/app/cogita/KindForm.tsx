@@ -10,6 +10,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 
 import { QUANTITY_OPTIONS } from './nodeFields';
+import { t, useT } from '../core/i18n';
 import { findUnit, guessKind, kindById, kindsText, measures } from '../core/quantities';
 import {
   FIELD_KEY, FIELD_ROLES, FIELD_TYPE_LABEL, FIELD_TYPES, MEDIA_TYPES, patternKeys, RANGE_OF, readKind,
@@ -25,7 +26,7 @@ import {
 const REF_TO = 'ref:';
 const typeValue = (f: FieldDef): string => (f.type === 'ref' && f.to?.length === 1 ? `${REF_TO}${f.to[0]}` : f.type);
 
-const blankField = (n: number): FieldDef => ({ key: `pole${n}`, label: `Pole ${n}`, type: 'line', multi: false, uncertain: false });
+const blankField = (n: number): FieldDef => ({ key: `pole${n}`, label: t('cogitaEdit.kind.fieldN', { n }), type: 'line', multi: false, uncertain: false });
 
 /*
   2026-10-17 — DIE ZEILE EINES FELDES BRAUCHT EINE FESTE KENNUNG. Ein Feld hat
@@ -88,6 +89,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
   onSave: () => void;
   onRemove?: () => void;
 }) {
+  const t = useT();
   const types = options.types ?? FIELD_TYPES;
   const uncertain = options.uncertain !== false;
   const pattern = options.pattern !== false;
@@ -98,7 +100,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
   const taken = draft.fields.filter((f) => reserved.has(f.key)).map((f) => f.key);
   const set = (patch: Partial<KindDef>) => onChange({ ...draft, ...patch });
   /* Wohin ein Verweis zeigen kann: dieser Rodzaj selbst (auch ungespeichert — Synonym, Übersetzung), dann alle anderen. */
-  const allTargets = [{ id: draft.id, name: `${draft.name} (ten rodzaj)` }, ...targets.filter((k) => k.id !== draft.id)];
+  const allTargets = [{ id: draft.id, name: t('cogitaEdit.kind.thisKind', { name: draft.name }) }, ...targets.filter((k) => k.id !== draft.id)];
   /* Ein neuer Typ räumt auf, was nur zum alten passte (Optionen, Ziele, Einheit) — sonst bleibt das Feld, wie es ist. */
   const setField = (i: number, patch: Partial<FieldDef>) => set({
     fields: draft.fields.map((f, j) => {
@@ -128,10 +130,10 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
   return (
     <form className="wk-form cg cg-kind-form" onSubmit={(e) => { e.preventDefault(); if (writes) onSave(); }}>
       <div className="cg-row">
-        <label className="wk-field"><span>{options.nameLabel ?? 'Nazwa rodzaju'}</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
-        {pattern && <label className="wk-field"><span>Wzór etykiety</span><input value={draft.label} disabled={!writes} placeholder="{givenNames} {surname}" onChange={(e) => set({ label: e.target.value })} /></label>}
+        <label className="wk-field"><span>{options.nameLabel ?? t('cogitaEdit.kind.name')}</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
+        {pattern && <label className="wk-field"><span>{t('cogitaEdit.kind.label')}</span><input value={draft.label} disabled={!writes} placeholder="{givenNames} {surname}" onChange={(e) => set({ label: e.target.value })} /></label>}
         {pattern && (
-          <label className="wk-field"><span>Co odróżnia imienników</span>
+          <label className="wk-field"><span>{t('cogitaEdit.kind.tells')}</span>
             <select value={draft.tells ?? ''} disabled={!writes} onChange={(e) => set({ tells: e.target.value === '' ? undefined : e.target.value })}>
               <option value="">—</option>
               {draft.fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
@@ -140,21 +142,16 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
         )}
       </div>
       {options.hint}
-      {pattern && <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>}
-      {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich wbudowane narzędzia: przypisy, karty, sprawdzanie odpowiedzi) — można zmienić ich nazwy i dodać własne.</p>}
+      {pattern && <p className="wk-hint">{t('cogitaEdit.kind.inLabel')} {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && t('cogitaEdit.kind.noFieldUsed')}</p>}
+      {base && <p className="wk-hint">{t('cogitaEdit.kind.baseHint')}</p>}
       {/* 2026-10-31 — wie ein Eintrag zum Lesen aussieht („Nowy temat", die Erklärung): ein Zapis mit Feldern in Klammern (`reading.ts`). */}
       {pattern && options.reading !== false && (
         <div className="cg-kind-reading" data-kind-reading="">
-          <label className="wk-field"><span>Tekst do czytania — wzór</span>
-            <textarea rows={4} value={draft.reading ?? ''} disabled={!writes} placeholder={'{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}'}
+          <label className="wk-field"><span>{t('cogitaEdit.kind.reading')}</span>
+            <textarea rows={4} value={draft.reading ?? ''} disabled={!writes} placeholder={'{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}'} // i18n-ignore: ein Beispiel des Musters
               onChange={(e) => set({ reading: e.target.value === '' ? undefined : e.target.value })} />
           </label>
-          <p className="cg-muted">
-            Tak uczący się widzi wpis tego rodzaju: „Nowy temat” przed pierwszym pytaniem i wyjaśnienie po odpowiedzi. Pola w klamrach, zapis jak w tekście
-            (**pogrubienie**, *kursywa*, ## śródtytuł, przypis [@dzieło, s. 12]). Pierwszy akapit to zapowiedź, reszta po „Czytaj dalej”; lista sama w linii pod
-            pogrubionym śródtytułem jest zwinięta; część do pustej linii, w której wszystkie pola są puste, znika. Puste pole wzoru: streszczenie albo pierwszy
-            akapit, potem pola z tekstem.
-          </p>
+          <p className="cg-muted">{t('cogitaEdit.kind.readingHint')}</p>
           {readingPreview}
         </div>
       )}
@@ -169,7 +166,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
       */}
       <div className="cg-fields-wrap">
         <table className="cg-table cg-fields">
-          <thead><tr><th>Klucz</th><th>Nazwa</th><th>Typ</th><th>Kilka</th>{uncertain && <th>Niepewne</th>}<th>Więcej</th><th /></tr></thead>
+          <thead><tr><th>{t('cogitaEdit.kind.col.key')}</th><th>{t('cogitaEdit.kind.col.name')}</th><th>{t('cogitaEdit.kind.col.type')}</th><th>{t('cogitaEdit.kind.col.multi')}</th>{uncertain && <th>{t('cogitaEdit.kind.col.uncertain')}</th>}<th>{t('cogitaEdit.kind.col.more')}</th><th /></tr></thead>
           <tbody>
             {draft.fields.map((f, i) => {
               const fixed = fixedKeys.has(f.key);
@@ -178,30 +175,30 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
               return (
                 <Fragment key={key}>
                   <tr className={`cg-field-row${open ? ' is-open' : ''}`}>
-                    <td className="cg-field-key" data-label="Klucz"><input value={f.key} disabled={!writes || fixed} onChange={(e) => setField(i, { key: e.target.value })} aria-label="Klucz pola" /></td>
-                    <td className="cg-field-label" data-label="Nazwa"><input value={f.label} disabled={!writes} onChange={(e) => setField(i, { label: e.target.value })} aria-label="Nazwa pola" /></td>
-                    <td className="cg-field-type" data-label="Typ">
-                      <select value={typeValue(f)} disabled={!writes || fixed} aria-label="Typ pola"
+                    <td className="cg-field-key" data-label={t('cogitaEdit.kind.col.key')}><input value={f.key} disabled={!writes || fixed} onChange={(e) => setField(i, { key: e.target.value })} aria-label={t('cogitaEdit.kind.fieldKey')} /></td>
+                    <td className="cg-field-label" data-label={t('cogitaEdit.kind.col.name')}><input value={f.label} disabled={!writes} onChange={(e) => setField(i, { label: e.target.value })} aria-label={t('cogitaEdit.kind.fieldName')} /></td>
+                    <td className="cg-field-type" data-label={t('cogitaEdit.kind.col.type')}>
+                      <select value={typeValue(f)} disabled={!writes || fixed} aria-label={t('cogitaEdit.kind.fieldType')}
                         onChange={(e) => setField(i, e.target.value.startsWith(REF_TO) ? { type: 'ref', to: [e.target.value.slice(REF_TO.length)] } : { type: e.target.value as FieldType, ...(e.target.value === 'ref' ? { to: [] } : {}) })}>
-                        {[...types, ...((f.type === 'outline' || f.type === 'json') && !types.includes(f.type) ? [f.type] : [])].map((t) => <option key={t} value={t}>{t === 'ref' ? ((f.to ?? []).length > 1 ? 'Odwołanie do kilku rodzajów' : 'Odwołanie do dowolnego rodzaju') : FIELD_TYPE_LABEL[t]}</option>)}
+                        {[...types, ...((f.type === 'outline' || f.type === 'json') && !types.includes(f.type) ? [f.type] : [])].map((ty) => <option key={ty} value={ty}>{ty === 'ref' ? ((f.to ?? []).length > 1 ? t('cogitaEdit.kind.refMany') : t('cogitaEdit.kind.refAny')) : FIELD_TYPE_LABEL[ty]}</option>)}
                         {types.includes('ref') && (
-                          <optgroup label="Odwołanie do rodzaju">
+                          <optgroup label={t('cogitaEdit.kind.refTo')}>
                             {allTargets.map((k) => <option key={k.id} value={`${REF_TO}${k.id}`}>→ {k.name}</option>)}
                           </optgroup>
                         )}
                       </select>
                     </td>
-                    <td className="cg-field-flag cg-field-multi" data-label="Kilka"><input type="checkbox" checked={f.multi} disabled={!writes || fixed} onChange={(e) => setField(i, { multi: e.target.checked })} aria-label="Kilka wartości" /></td>
-                    {uncertain && <td className="cg-field-flag cg-field-uncertain" data-label="Niepewne"><input type="checkbox" checked={f.uncertain} disabled={!writes || fixed} onChange={(e) => setField(i, { uncertain: e.target.checked })} aria-label="Wartości niepewne" /></td>}
+                    <td className="cg-field-flag cg-field-multi" data-label={t('cogitaEdit.kind.col.multi')}><input type="checkbox" checked={f.multi} disabled={!writes || fixed} onChange={(e) => setField(i, { multi: e.target.checked })} aria-label={t('cogitaEdit.kind.multiValues')} /></td>
+                    {uncertain && <td className="cg-field-flag cg-field-uncertain" data-label={t('cogitaEdit.kind.col.uncertain')}><input type="checkbox" checked={f.uncertain} disabled={!writes || fixed} onChange={(e) => setField(i, { uncertain: e.target.checked })} aria-label={t('cogitaEdit.kind.uncertainValues')} /></td>}
                     <td className="cg-field-more-cell">
                       <button type="button" className="cg-field-toggle" aria-expanded={open} title={f.says} onClick={() => toggle(key)}>
-                        <span>{f.says ?? 'ustawienia'}</span>
+                        <span>{f.says ?? t('cogitaEdit.kind.settings')}</span>
                       </button>
                     </td>
                     <td className="cg-field-tools">
-                      {writes && <button type="button" className="wk-link-btn" aria-label="Wyżej" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>}
-                      {writes && <button type="button" className="wk-link-btn" aria-label="Niżej" disabled={i === draft.fields.length - 1} onClick={() => move(i, 1)}>↓</button>}
-                      {writes && !fixed && <button type="button" className="wk-link-btn" aria-label="Usuń pole" onClick={() => set({ fields: draft.fields.filter((_, j) => j !== i) })}>×</button>}
+                      {writes && <button type="button" className="wk-link-btn" aria-label={t('cogitaEdit.kind.up')} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>}
+                      {writes && <button type="button" className="wk-link-btn" aria-label={t('cogitaEdit.kind.down')} disabled={i === draft.fields.length - 1} onClick={() => move(i, 1)}>↓</button>}
+                      {writes && !fixed && <button type="button" className="wk-link-btn" aria-label={t('cogitaEdit.kind.removeField')} onClick={() => set({ fields: draft.fields.filter((_, j) => j !== i) })}>×</button>}
                     </td>
                   </tr>
                   {open && (
@@ -215,13 +212,13 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
           </tbody>
         </table>
       </div>
-      {writes && <button type="button" className="wk-link-btn" onClick={() => set({ fields: [...draft.fields, blankField(draft.fields.length + 1)] })}>+ pole</button>}
-      {[...problems, ...dupes.map((k) => `Dwa pola o kluczu „${k}".`), ...bad.map((k) => `Klucz „${k}": litery, cyfry i _, zaczyna się literą.`), ...taken.map((k) => `Klucz „${k}" jest zajęty: ${reserved.get(k) ?? 'stałe pole'}.`)].map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
-      <p className="wk-hint">Gdy usuniesz pole albo zmienisz jego typ, wartości wpisów zostają jako „poza schematem", dopóki ktoś o nich nie zdecyduje.</p>
+      {writes && <button type="button" className="wk-link-btn" onClick={() => set({ fields: [...draft.fields, blankField(draft.fields.length + 1)] })}>{t('cogitaEdit.kind.addField')}</button>}
+      {[...problems, ...dupes.map((k) => t('cogitaEdit.kind.dupe', { key: k })), ...bad.map((k) => t('cogitaEdit.kind.badKey', { key: k })), ...taken.map((k) => t('cogitaEdit.kind.takenKey', { key: k, by: reserved.get(k) ?? t('cogitaEdit.kind.fixedField') }))].map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
+      <p className="wk-hint">{t('cogitaEdit.kind.removeHint')}</p>
       {writes && (
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy || dupes.length > 0 || bad.length > 0 || taken.length > 0}>{busy ? 'Zapisywanie…' : options.saveLabel ?? 'Zapisz rodzaj'}</button>
-          {onRemove !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onRemove}>Usuń rodzaj…</button>}
+          <button type="submit" className="wk-btn" disabled={busy || dupes.length > 0 || bad.length > 0 || taken.length > 0}>{busy ? t('common.saving') : options.saveLabel ?? t('cogitaEdit.kind.save')}</button>
+          {onRemove !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onRemove}>{t('cogitaEdit.kind.delete')}</button>}
         </div>
       )}
     </form>
@@ -230,15 +227,16 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
 
 /** 2026-10-23 (Schritt 13) — die Grösse eines Zahlenfeldes, und ob seine Einheit zu ihr passt. */
 function QuantityPick({ field, disabled, onSet }: { field: FieldDef; disabled: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+  const t = useT();
   const unit = findUnit(field.unit);
   const guessed = field.quantity === undefined ? guessKind(field.unit) : undefined;
   const say = field.quantity !== undefined && unit !== undefined && !measures(unit, field.quantity)
-    ? `„${unit.symbol}” nie mierzy wielkości: ${kindById(field.quantity)?.label ?? field.quantity}.`
+    ? t('cogitaEdit.kind.unitWrong', { unit: unit.symbol, quantity: kindById(field.quantity)?.label ?? field.quantity })
     : field.quantity === undefined && unit !== undefined && unit.kinds.length > 1
-      ? `„${unit.symbol}” może znaczyć: ${kindsText(unit.kinds)} — wybierz.`
-      : guessed !== undefined ? `Z jednostki: ${kindById(guessed)?.label ?? guessed}.` : null;
+      ? t('cogitaEdit.kind.unitAmbiguous', { unit: unit.symbol, kinds: kindsText(unit.kinds) })
+      : guessed !== undefined ? t('cogitaEdit.kind.fromUnit', { quantity: kindById(guessed)?.label ?? guessed }) : null;
   return (
-    <label className="wk-field"><span>Wielkość</span>
+    <label className="wk-field"><span>{t('cogitaEdit.kind.quantity')}</span>
       <select value={field.quantity ?? ''} disabled={disabled} onChange={(e) => onSet({ quantity: e.target.value || undefined })}>
         {QUANTITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -253,20 +251,21 @@ function QuantityPick({ field, disabled, onSet }: { field: FieldDef; disabled: b
  * Eintrags zeigt es nur dann; ein Wert, der schon dasteht, bleibt, wenn der Typ wechselt.
  */
 function WhenPick({ field, choices, disabled, onSet }: { field: FieldDef; choices: readonly FieldDef[]; disabled: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+  const t = useT();
   const by = field.when === undefined ? undefined : choices.find((c) => c.key === field.when!.field);
   return (
     <div className="cg" data-field-when={field.key}>
-      <label className="wk-field"><span>Pokaż to pole tylko, gdy</span>
+      <label className="wk-field"><span>{t('cogitaEdit.kind.showWhen')}</span>
         <select value={field.when?.field ?? ''} disabled={disabled} onChange={(e) => {
           const next = choices.find((c) => c.key === e.target.value);
           onSet({ when: next === undefined ? undefined : { field: next.key, values: (next.options ?? []).slice(0, 1).map((o) => o.value) } });
         }}>
-          <option value="">— zawsze —</option>
-          {choices.map((c) => <option key={c.key} value={c.key}>„{c.label}” ma wartość…</option>)}
+          <option value="">{t('cogitaEdit.kind.always')}</option>
+          {choices.map((c) => <option key={c.key} value={c.key}>{t('cogitaEdit.kind.hasValue', { field: c.label })}</option>)}
         </select>
       </label>
       {by !== undefined && field.when !== undefined && (
-        <fieldset className="cg-row"><legend>…jedną z tych</legend>
+        <fieldset className="cg-row"><legend>{t('cogitaEdit.kind.oneOf')}</legend>
           {(by.options ?? []).map((o) => (
             <label key={o.value} className="pe-check">
               <input type="checkbox" checked={field.when!.values.includes(o.value)} disabled={disabled} onChange={(e) => {
@@ -284,21 +283,22 @@ function WhenPick({ field, choices, disabled, onSet }: { field: FieldDef; choice
 
 /** Die Einstellungen eines Feldes — unter seiner Zeile, über die ganze Breite. */
 function FieldMore({ field, targets, choices, disabled, own, onSet }: { field: FieldDef; targets: readonly KindTarget[]; choices: readonly FieldDef[]; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+  const t = useT();
   return (
     <div className="cg-field-settings">
-      <label className="wk-field"><span>Co znaczy (dla JSON i AI)</span><input value={field.says ?? ''} disabled={disabled && !own} onChange={(e) => onSet({ says: e.target.value || undefined })} /></label>
-      {field.type === 'number' && <label className="wk-field"><span>Jednostka</span><input value={field.unit ?? ''} disabled={disabled} onChange={(e) => onSet({ unit: e.target.value || undefined })} /></label>}
+      <label className="wk-field"><span>{t('cogitaEdit.kind.says')}</span><input value={field.says ?? ''} disabled={disabled && !own} onChange={(e) => onSet({ says: e.target.value || undefined })} /></label>
+      {field.type === 'number' && <label className="wk-field"><span>{t('cogitaEdit.kind.unit')}</span><input value={field.unit ?? ''} disabled={disabled} onChange={(e) => onSet({ unit: e.target.value || undefined })} /></label>}
       {/* 2026-10-23 (Schritt 13) — welche Grösse: dann wird in jeder Einheit dieser Grösse eingegeben und dazu in SI gespeichert. */}
       {field.type === 'number' && <QuantityPick field={field} disabled={disabled} onSet={onSet} />}
       {field.type === 'choice' && (
-        <label className="wk-field"><span>Do wyboru (wartość=nazwa w wierszu)</span>
+        <label className="wk-field"><span>{t('cogitaEdit.kind.options')}</span>
           <textarea rows={3} disabled={disabled} value={(field.options ?? []).map((o) => (o.value === o.label ? o.value : `${o.value}=${o.label}`)).join('\n')}
             onChange={(e) => onSet({ options: e.target.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const [v, ...rest] = l.split('='); return { value: v.trim(), label: (rest.join('=') || v).trim() }; }) })} />
         </label>
       )}
       {field.type === 'ref' && (
         <>
-          <fieldset className="cg-row"><legend>Do jakich rodzajów (puste — dowolnych; także z bibliotek, do których ta baza się odwołuje)</legend>
+          <fieldset className="cg-row"><legend>{t('cogitaEdit.kind.targets')}</legend>
             {targets.map((k) => (
               <label key={k.id} className="pe-check">
                 <input type="checkbox" checked={(field.to ?? []).includes(k.id)} disabled={disabled} onChange={(e) => onSet({ to: e.target.checked ? [...(field.to ?? []), k.id] : (field.to ?? []).filter((t) => t !== k.id) })} />
@@ -306,31 +306,31 @@ function FieldMore({ field, targets, choices, disabled, own, onSet }: { field: F
               </label>
             ))}
           </fieldset>
-          <label className="wk-field"><span>Nazwa po drugiej stronie</span><input value={field.inverse ?? ''} disabled={disabled} placeholder="np. napisane przez" onChange={(e) => onSet({ inverse: e.target.value || undefined })} /></label>
-          <label className="pe-check"><input type="checkbox" checked={field.symmetric === true} disabled={disabled} onChange={(e) => onSet({ symmetric: e.target.checked || undefined })} /><span>w obie strony (zapisane raz)</span></label>
+          <label className="wk-field"><span>{t('cogitaEdit.kind.inverse')}</span><input value={field.inverse ?? ''} disabled={disabled} placeholder={t('cogitaEdit.kind.inversePh')} onChange={(e) => onSet({ inverse: e.target.value || undefined })} /></label>
+          <label className="pe-check"><input type="checkbox" checked={field.symmetric === true} disabled={disabled} onChange={(e) => onSet({ symmetric: e.target.checked || undefined })} /><span>{t('cogitaEdit.kind.symmetric')}</span></label>
           {/* 2026-10-22 (Schritt 11) — ein Verweis mit Stelle: Psalm = Biblia + „Ps 110". */}
-          <label className="pe-check"><input type="checkbox" checked={field.locator === true} disabled={disabled} onChange={(e) => onSet({ locator: e.target.checked || undefined })} /><span>z miejscem (rozdział, werset, strona)</span></label>
+          <label className="pe-check"><input type="checkbox" checked={field.locator === true} disabled={disabled} onChange={(e) => onSet({ locator: e.target.checked || undefined })} /><span>{t('cogitaEdit.kind.locator')}</span></label>
           {/* 2026-10-25 (Wywód) — ein Strukturfeld: die Struktura folgt ihm in die Tiefe; für Informacja / Interpretacja zählt es nicht. */}
-          <label className="wk-field"><span>Połączenie w strukturze</span>
+          <label className="wk-field"><span>{t('cogitaEdit.kind.structure')}</span>
             <select value={field.structure ?? ''} disabled={disabled} onChange={(e) => onSet({ structure: e.target.value === 'up' || e.target.value === 'down' ? e.target.value : undefined })}>
-              <option value="">— zwykłe odwołanie —</option>
-              <option value="up">↑ wskazuje wpis wyżej (ten wpis leży pod nim)</option>
-              <option value="down">↓ wskazuje wpisy niżej (leżą pod tym wpisem)</option>
+              <option value="">{t('cogitaEdit.kind.plainRef')}</option>
+              <option value="up">{t('cogitaEdit.kind.structUp')}</option>
+              <option value="down">{t('cogitaEdit.kind.structDown')}</option>
             </select>
           </label>
           {/* 2026-10-27 — die Reihenfolge des Lernens (`prerequisites.ts`): was zuerst sitzen muss. Etwas anderes als die Struktur. */}
-          <label className="wk-field"><span>Kolejność nauki</span>
+          <label className="wk-field"><span>{t('cogitaEdit.kind.order')}</span>
             <select value={field.prerequisite ?? ''} disabled={disabled} onChange={(e) => onSet({ prerequisite: e.target.value === 'up' || e.target.value === 'down' ? e.target.value : undefined })}>
-              <option value="">— nie zmienia kolejności —</option>
-              <option value="up">↑ najpierw trzeba znać to, na co wskazuje (np. „Wymaga”)</option>
-              <option value="down">↓ to, na co wskazuje, buduje na tym wpisie (np. „Prowadzi do”)</option>
+              <option value="">{t('cogitaEdit.kind.orderNone')}</option>
+              <option value="up">{t('cogitaEdit.kind.orderUp')}</option>
+              <option value="down">{t('cogitaEdit.kind.orderDown')}</option>
             </select>
           </label>
         </>
       )}
       {choices.length > 0 && <WhenPick field={field} choices={choices} disabled={disabled} onSet={onSet} />}
       {field.type === 'media' && (
-        <fieldset className="cg-row"><legend>Jakie pliki</legend>
+        <fieldset className="cg-row"><legend>{t('cogitaEdit.kind.media')}</legend>
           {MEDIA_TYPES.map((m) => (
             <label key={m} className="pe-check">
               <input type="checkbox" checked={(field.media ?? MEDIA_TYPES).includes(m)} disabled={disabled} onChange={(e) => {
@@ -338,20 +338,20 @@ function FieldMore({ field, targets, choices, disabled, own, onSet }: { field: F
                 if (e.target.checked) now.add(m); else now.delete(m);
                 onSet({ media: [...now] });
               }} />
-              <span>{{ image: 'obraz', audio: 'dźwięk', video: 'film', document: 'dokument' }[m]}</span>
+              <span>{t(`cogitaEdit.kind.mediaType.${m}`)}</span>
             </label>
           ))}
         </fieldset>
       )}
       {field.type === 'range' && (
-        <label className="wk-field"><span>Zakres czego</span>
+        <label className="wk-field"><span>{t('cogitaEdit.kind.rangeOf')}</span>
           <select value={field.rangeOf ?? 'number'} disabled={disabled} onChange={(e) => onSet({ rangeOf: e.target.value as FieldDef['rangeOf'] })}>
-            {RANGE_OF.map((r) => <option key={r} value={r}>{{ number: 'liczb', date: 'dat', text: 'tekstów' }[r]}</option>)}
+            {RANGE_OF.map((r) => <option key={r} value={r}>{t(`cogitaEdit.kind.rangeType.${r}`)}</option>)}
           </select>
         </label>
       )}
       {own && (
-        <label className="wk-field"><span>Rola (dla wbudowanych narzędzi)</span>
+        <label className="wk-field"><span>{t('cogitaEdit.kind.role')}</span>
           <select value={field.role ?? ''} disabled={disabled} onChange={(e) => onSet({ role: e.target.value || undefined })}>
             <option value="">—</option>
             {FIELD_ROLES.map((r) => <option key={r.role} value={r.role}>{r.label}</option>)}

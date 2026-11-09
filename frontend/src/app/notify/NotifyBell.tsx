@@ -27,6 +27,7 @@ import { viewPath } from '../routes';
 import { keepsKey, type Who } from '../core/session';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { useT, type T } from '../core/i18n';
 
 const REMINDERS_EVERY = 30 * 60_000;
 
@@ -40,6 +41,7 @@ export function NotifyBell({ who }: { who: Who }) {
   const state = useSyncExternalStore(subscribe, current);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => start(who), [who]);
 
@@ -113,27 +115,27 @@ export function NotifyBell({ who }: { who: Who }) {
   return (
     <div className="wk-bell" ref={box}>
       <button type="button" className={`wk-bar-btn wk-bell-btn${count > 0 ? ' has-news' : ''}`} aria-expanded={open}
-        aria-label={count > 0 ? `Powiadomienia: ${count} nowych` : 'Powiadomienia'}
+        aria-label={count > 0 ? t('notify.bell.labelNew', { count }) : t('notify.look.title')}
         onClick={() => { setOpen((was) => !was); if (!open) void refresh(); }}>
         <Icon name="bell" />
         {count > 0 && <span className="wk-bell-count">{count > 99 ? '99+' : count}</span>}
       </button>
 
       {open && (
-        <div className="wk-bell-panel" role="dialog" aria-label="Powiadomienia">
-          {d === null ? <Loading label="Sprawdzanie…" /> : (
+        <div className="wk-bell-panel" role="dialog" aria-label={t('notify.look.title')}>
+          {d === null ? <Loading label={t('notify.bell.checking')} /> : (
             <>
               {/* 0094 — in der Reihenfolge, die das Konto gewählt hat (Konto → Wygląd warsztatu); ✓ wo es geht (0090). */}
               {items.length === 0
-                ? <p className="wk-hint">Nic nowego — wszystko przejrzane.</p>
+                ? <p className="wk-hint">{t('notify.bell.nothing')}</p>
                 : <AlertRows items={items} onPick={() => setOpen(false)} />}
 
               <div className="wk-actions">
                 {(d.registrations.count > 0 || d.links > 0) && (
-                  <button type="button" className="wk-link-btn" onClick={markSeen}>Oznacz wszystko jako przejrzane</button>
+                  <button type="button" className="wk-link-btn" onClick={markSeen}>{t('notify.bell.markAll')}</button>
                 )}
                 {/* Was sich meldet und in welcher Reihenfolge — und was dieses Gerät tut: eine Seite (Powiadomienia). */}
-                <a className="wk-link-btn" href={viewPath('account', 'widok')} onClick={() => setOpen(false)}>Ustawienia</a>
+                <a className="wk-link-btn" href={viewPath('account', 'widok')} onClick={() => setOpen(false)}>{t('notify.bell.settings')}</a>
               </div>
             </>
           )}
@@ -151,7 +153,7 @@ export function NotifyBell({ who }: { who: Who }) {
             ) : (
               <div className="wk-toast-body"><strong>{toast.title}</strong><span>{toast.body}</span></div>
             )}
-            <button type="button" className="wk-toast-close" aria-label="Zamknij" onClick={() => setToast(null)}>×</button>
+            <button type="button" className="wk-toast-close" aria-label={t('common.close')} onClick={() => setToast(null)}>×</button>
           </div>
         )}
       </div>
@@ -173,41 +175,33 @@ const markAsked = (): void => {
  * Drei Stellen müssen mitspielen: die App (mit Firebase gebaut), der Dienst
  * (Firebase eingerichtet) und dieses Gerät (seine Kennung kam an).
  */
-function pushWords(listed: DeviceList | null, phone: BackgroundStatus | null, mine: string | null): string {
-  if (listed === null || phone === null) return 'Sprawdzanie…';
-  if (phone.pushBuilt === false) return 'Natychmiastowe powiadomienia: ta wersja aplikacji ich nie obsługuje — nowości przychodzą przy sprawdzaniu w tle.';
-  if (listed.push?.available !== true) return 'Natychmiastowe powiadomienia: serwer jeszcze ich nie wysyła — nowości przychodzą przy sprawdzaniu w tle.';
+function pushWords(listed: DeviceList | null, phone: BackgroundStatus | null, mine: string | null, t: T): string {
+  if (listed === null || phone === null) return t('notify.bell.checking');
+  if (phone.pushBuilt === false) return t('notify.push.notBuilt');
+  if (listed.push?.available !== true) return t('notify.push.notServer');
   const row = listed.devices.find((d) => d.deviceId === mine);
-  if (row?.push !== true) return 'Natychmiastowe powiadomienia: telefon jeszcze się nie zgłosił (potrzebny internet i usługi Google). Spróbuj ponownie uruchomić aplikację.';
-  const failed = row.pushError !== null && row.pushError !== undefined ? ` Ostatni błąd: ${row.pushError}.` : '';
-  return `Natychmiastowe powiadomienia: włączone — nowa wiadomość budzi telefon od razu; sprawdzanie w tle to tylko zabezpieczenie.${failed}`;
+  if (row?.push !== true) return t('notify.push.notPhone');
+  const failed = row.pushError !== null && row.pushError !== undefined ? ` ${t('notify.push.lastError', { error: row.pushError })}` : '';
+  return `${t('notify.push.on')}${failed}`;
 }
 
-const BACKGROUND: readonly { value: NotifySettings['backgroundMinutes']; label: string }[] = [
-  { value: 0, label: 'nigdy' },
-  { value: 15, label: 'co 15 min (więcej baterii)' },
-  { value: 30, label: 'co 30 min' },
-  { value: 60, label: 'co godzinę' },
-  { value: 180, label: 'co 3 godziny (najmniej baterii)' }
-];
+/* Bezeichnung je Takt: `notify.background.<value>`. */
+const BACKGROUND: readonly NotifySettings['backgroundMinutes'][] = [0, 15, 30, 60, 180];
 
 /**
  * 0076 — kann das Telefon bei GESCHLOSSENER App den Inhalt öffnen? Dazu muss
  * der Schlüssel auf diesem Gerät verwahrt sein (Klucz: Zachowany) — der Läufer
  * im Hintergrund hat kein Passwort.
  */
-function contentWords(kept: boolean | null, phone: BackgroundStatus | null): string {
-  if (kept === null) return 'Sprawdzanie…';
-  if (!kept) {
-    return 'Gdy aplikacja jest otwarta, treść widać zawsze. Żeby widzieć ją i odpowiadać także przy zamkniętej aplikacji, '
-      + 'włącz Konto → Klucz: Zachowany na tym telefonie. Bez tego przy zamkniętej aplikacji przychodzi tylko liczba nowości.';
-  }
+function contentWords(kept: boolean | null, phone: BackgroundStatus | null, t: T): string {
+  if (kept === null) return t('notify.bell.checking');
+  if (!kept) return t('notify.content.notKept');
   const last = phone?.richResult ?? null;
-  const when = phone?.richAt === null || phone?.richAt === undefined ? '' : ` (ostatnio ${new Date(phone.richAt).toLocaleString('pl-PL')})`;
-  if (last === 'locked:session') return `Sesja na tym telefonie wygasła — zaloguj się ponownie, żeby treść wracała do powiadomień${when}.`;
-  if (last === 'locked:key') return `Telefon nie mógł otworzyć klucza — otwórz aplikację raz z hasłem${when}.`;
-  if (last !== null && last.startsWith('failed')) return `Ostatnie otwieranie treści nie powiodło się${when}; spróbujemy przy następnej nowości.`;
-  return `Treść jest odszyfrowywana tylko na tym telefonie — Firebase przenosi wyłącznie pusty sygnał. Na odpowiedź z powiadomienia wystarczy wpisać tekst${when}.`;
+  const when = phone?.richAt === null || phone?.richAt === undefined ? '' : ` ${t('notify.content.when', { date: new Date(phone.richAt).toLocaleString(t.locale) })}`;
+  if (last === 'locked:session') return t('notify.content.session', { when });
+  if (last === 'locked:key') return t('notify.content.key', { when });
+  if (last !== null && last.startsWith('failed')) return t('notify.content.failed', { when });
+  return t('notify.content.ok', { when });
 }
 
 export function NotifySettingsPanel({ who, settings, onClose }: { who: Who; settings: NotifySettings; onClose?: () => void }) {
@@ -223,6 +217,7 @@ export function NotifySettingsPanel({ who, settings, onClose }: { who: Who; sett
   const [phone, setPhone] = useState<BackgroundStatus | null>(null);
   const devices = listed?.devices ?? [];
   const mine = native ? thisDevice()?.deviceId ?? null : null;
+  const t = useT();
 
   const look = () => {
     void loadDevices().then(setListed).catch(() => undefined);
@@ -236,78 +231,75 @@ export function NotifySettingsPanel({ who, settings, onClose }: { who: Who; sett
     if (native && ('backgroundMinutes' in patch || 'chats' in patch || 'forms' in patch || 'links' in patch || 'contents' in patch || 'reminders' in patch)) {
       setBusy(true);
       void applyBackground(next)
-        .then(() => setNote(next.backgroundMinutes === 0 ? 'Sprawdzanie w tle wyłączone.' : 'Zapisano.'))
-        .catch(() => setNote('Nie udało się zapisać ustawień urządzenia.'))
+        .then(() => setNote(next.backgroundMinutes === 0 ? t('notify.settings.backgroundOff') : t('common.saved')))
+        .catch(() => setNote(t('notify.settings.saveFailed')))
         .finally(() => { setBusy(false); look(); });
     }
     if ('reminders' in patch) window.dispatchEvent(new Event('recreatio:tasks-changed'));
   };
 
   return (
-    <div className="wk-bell-settings" role="dialog" aria-label="Ustawienia powiadomień">
-      <h2 className="wk-h2">Powiadomienia</h2>
+    <div className="wk-bell-settings" role="dialog" aria-label={t('notify.settings.label')}>
+      <h2 className="wk-h2">{t('notify.look.title')}</h2>
 
       {notices.available && !allowed && (
         <p>
           <button type="button" className="wk-btn" onClick={() => void notices.ask().then((ok) => {
             setAllowed(ok);
             if (ok && native) void applyBackground(settings).finally(look);
-            else if (!ok && native) setNote('Android nie pozwolił. Włącz powiadomienia dla recreatio w ustawieniach telefonu (Aplikacje → recreatio → Powiadomienia).');
-          })}>Włącz powiadomienia na tym urządzeniu</button>
+            else if (!ok && native) setNote(t('notify.settings.denied'));
+          })}>{t('notify.settings.enable')}</button>
         </p>
       )}
-      {!notices.available && <p className="wk-hint">Ta przeglądarka nie pokazuje powiadomień — nowości widać w dzwonku.</p>}
+      {!notices.available && <p className="wk-hint">{t('notify.settings.noBrowser')}</p>}
 
       <fieldset className="wk-field">
-        <legend>Powiadamiaj o</legend>
-        <label className="wk-check"><input type="checkbox" checked={settings.chats} onChange={(e) => set({ chats: e.target.checked })} /> <span>nowych wiadomościach</span></label>
-        <label className="wk-check"><input type="checkbox" checked={settings.forms} onChange={(e) => set({ forms: e.target.checked })} /> <span>nowych zgłoszeniach z formularzy</span></label>
-        <label className="wk-check"><input type="checkbox" checked={settings.links} onChange={(e) => set({ links: e.target.checked })} /> <span>dołączeniach przez linki dostępu</span></label>
-        <label className="wk-check"><input type="checkbox" checked={settings.reminders} onChange={(e) => set({ reminders: e.target.checked })} /> <span>przypomnieniach o zadaniach</span></label>
+        <legend>{t('notify.settings.about')}</legend>
+        <label className="wk-check"><input type="checkbox" checked={settings.chats} onChange={(e) => set({ chats: e.target.checked })} /> <span>{t('notify.settings.chats')}</span></label>
+        <label className="wk-check"><input type="checkbox" checked={settings.forms} onChange={(e) => set({ forms: e.target.checked })} /> <span>{t('notify.settings.forms')}</span></label>
+        <label className="wk-check"><input type="checkbox" checked={settings.links} onChange={(e) => set({ links: e.target.checked })} /> <span>{t('notify.settings.links')}</span></label>
+        <label className="wk-check"><input type="checkbox" checked={settings.reminders} onChange={(e) => set({ reminders: e.target.checked })} /> <span>{t('notify.settings.reminders')}</span></label>
       </fieldset>
 
       {native && (
         <fieldset className="wk-field">
-          <legend>Treść w powiadomieniach</legend>
+          <legend>{t('notify.settings.contentTitle')}</legend>
           <label className="wk-check">
             <input type="checkbox" checked={settings.contents} onChange={(e) => set({ contents: e.target.checked })} />
-            {' '}<span>pokazuj, kto pisze i co, nazwiska ze zgłoszeń i tytuły zadań — z odpowiedzią prosto z powiadomienia</span>
+            {' '}<span>{t('notify.settings.contents')}</span>
           </label>
-          {settings.contents && <span className="wk-hint">{contentWords(kept, phone)}</span>}
-          {settings.contents && <span className="wk-hint">Na zablokowanym ekranie Android pokazuje tylko „Nowa wiadomość", jeśli tak ustawiono ukrywanie poufnych treści w ustawieniach telefonu.</span>}
+          {settings.contents && <span className="wk-hint">{contentWords(kept, phone, t)}</span>}
+          {settings.contents && <span className="wk-hint">{t('notify.settings.lockScreen')}</span>}
         </fieldset>
       )}
 
       {native ? (
         <label className="wk-field">
-          <span>Gdy aplikacja jest zamknięta, sprawdzaj</span>
+          <span>{t('notify.settings.whenClosed')}</span>
           <select value={settings.backgroundMinutes} disabled={busy}
             onChange={(e) => set({ backgroundMinutes: Number(e.target.value) as NotifySettings['backgroundMinutes'] })}>
-            {BACKGROUND.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+            {BACKGROUND.map((b) => <option key={b} value={b}>{t(`notify.background.m${b}`)}</option>)}
           </select>
-          <span className="wk-hint">Telefon sprawdza tylko liczby (bez treści), tylko z internetem i gdy bateria nie jest na wyczerpaniu. Przypomnienia o zadaniach przychodzą o czasie także bez tego.</span>
-          {settings.backgroundMinutes !== 0 && <span className="wk-note">{pushWords(listed, phone, mine)}</span>}
+          <span className="wk-hint">{t('notify.settings.phoneHint')}</span>
+          {settings.backgroundMinutes !== 0 && <span className="wk-note">{pushWords(listed, phone, mine, t)}</span>}
         </label>
       ) : (
-        <p className="wk-hint">
-          W przeglądarce: co minutę, gdy karta jest na wierzchu (nowości pokazują się wtedy na stronie), co 5 minut w tle; przy słabej baterii rzadziej.
-          Gdy karta jest zamknięta, powiadomień nie ma — zainstaluj aplikację na telefonie, żeby dostawać je zawsze.
-        </p>
+        <p className="wk-hint">{t('notify.settings.browserHint')}</p>
       )}
 
       {devices.length > 0 && (
         <section>
-          <h3 className="wk-h3">Urządzenia, które sprawdzają w tle</h3>
+          <h3 className="wk-h3">{t('notify.settings.devices')}</h3>
           <ul className="wk-link-list">
             {devices.map((dv) => (
               <li key={dv.deviceId} className="wk-link-item">
                 <span>
-                  {dv.label ?? 'Urządzenie'}{dv.deviceId === mine ? ' (to urządzenie)' : ''}
-                  {' · '}ostatnio {dv.lastSeenAt === null ? 'jeszcze nigdy' : new Date(dv.lastSeenAt).toLocaleString('pl-PL')}
-                  {dv.push === true && ' · od razu (push)'}
+                  {dv.label ?? t('notify.settings.device')}{dv.deviceId === mine ? ` ${t('notify.settings.thisDevice')}` : ''}
+                  {' · '}{t('notify.settings.lastSeen', { when: dv.lastSeenAt === null ? t('notify.settings.never') : new Date(dv.lastSeenAt).toLocaleString(t.locale) })}
+                  {dv.push === true && ` · ${t('notify.settings.push')}`}
                 </span>
                 <button type="button" className="wk-link-btn" onClick={() => void dropDevice(dv.deviceId)
-                  .then(() => setListed((was) => was === null ? was : { ...was, devices: was.devices.filter((x) => x.deviceId !== dv.deviceId) }))}>Odłącz</button>
+                  .then(() => setListed((was) => was === null ? was : { ...was, devices: was.devices.filter((x) => x.deviceId !== dv.deviceId) }))}>{t('notify.settings.drop')}</button>
               </li>
             ))}
           </ul>
@@ -315,7 +307,7 @@ export function NotifySettingsPanel({ who, settings, onClose }: { who: Who; sett
       )}
 
       {note !== null && <p className="wk-note">{note}</p>}
-      {onClose !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>Gotowe</button></div>}
+      {onClose !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>{t('common.done')}</button></div>}
     </div>
   );
 }

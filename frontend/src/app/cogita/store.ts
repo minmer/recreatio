@@ -19,7 +19,7 @@
  * jemand fragt.
  */
 
-import { projectLiturgyEntries } from '../library/liturgy/kinds';
+import { projectLiturgyEntries } from '../library/liturgy/projection';
 import { newId } from '../core/ids';
 import type { Entry, LibraryStore, SaveInput } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
@@ -43,20 +43,21 @@ import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
 import { readRule, ruleMatches, type RuleGroup, type SelectContext } from './selection';
 import { readView } from './views';
+import { t, texts } from '../core/i18n';
 
 /* -- Einstellungen einer Bibliothek als Kurs -------------------------------------------- */
 
 export const MOTIVATIONS = ['none', 'progress', 'streaks', 'exploration', 'rewards'] as const;
 export type Motivation = (typeof MOTIVATIONS)[number];
 
-export const MOTIVATION_LABEL: Record<Motivation, string> = {
-  none: 'Bez dodatków',
-  progress: 'Paski postępu',
-  streaks: 'Serie dni nauki',
-  exploration: 'Mapa odkrywania',
+export const MOTIVATION_LABEL: Readonly<Record<Motivation, string>> = texts({
+  none: 'cogitaData.motivation.none',
+  progress: 'cogitaData.motivation.progress',
+  streaks: 'cogitaData.motivation.streaks',
+  exploration: 'cogitaData.motivation.exploration',
   /* 2026-11-02 — Punkte, Serie, Tagesziel, Stufen, Abzeichen nach einem Dokument „Nagrody" (`rewards.ts`). */
-  rewards: 'Punkty i nagrody'
-};
+  rewards: 'cogitaData.motivation.rewards'
+});
 
 export interface DependencyEdge extends Dependency {
   /** Vorgeschlagen (aus Abläufen, Übergaben) und noch nicht bestätigt [E5]. */
@@ -238,10 +239,10 @@ export interface Collection {
 
 export const readCollection = (id: string, raw: unknown): Collection => {
   const d = isObject(raw) ? raw : {};
-  return { id, name: str(d.name).trim() || 'Zbiór', rule: readRule(d.rule), list: strings(d.list) };
+  return { id, name: str(d.name).trim() || t('cogitaData.docKind.collection'), rule: readRule(d.rule), list: strings(d.list) };
 };
 
-const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /**
  * 2026-11-03 — GERECHNETE KARTEN JE SPEICHER (über Bilder hinweg: eine `CogitaLibrary` lebt mit ihrem Bild, der Speicher
@@ -306,7 +307,7 @@ function searchIndex(entities: readonly Entity[], look: Lookup): Map<string, str
 function sameSort(before: Entry | undefined, sort: 'entity' | DocKind): void {
   if (before === undefined) return;
   const was = isDocKind(before.kind) ? before.kind : 'entity';
-  if (was !== sort) throw new Error('Ten identyfikator ma już wpis innego rodzaju — nie zapisano.');
+  if (was !== sort) throw new Error(t('cogitaData.store.otherSort'));
 }
 
 export class CogitaLibrary {
@@ -737,7 +738,7 @@ export class CogitaLibrary {
   private ownOnly(id: string | undefined): void {
     if (id === undefined || this.store.own(id) !== undefined) return;
     const from = this.origin(id);
-    if (from !== undefined) throw new Error(`To pochodzi z „${from.name}" — zmień to tam.`);
+    if (from !== undefined) throw new Error(t('cogitaData.store.fromSource', { name: from.name }));
   }
 
   /**
@@ -858,9 +859,9 @@ export class CogitaLibrary {
     if (plan.blocked !== null) throw new Error(plan.blocked);
     const rewrite = [...plan.unlink, ...plan.narrow];
     if (rewrite.length > 0) {
-      progress?.(`Poprawianie odwołań… (${rewrite.length})`);
+      progress?.(t('cogitaData.store.fixingRefs', { count: rewrite.length }));
       const done = await this.saveMany(rewrite.map((c) => ({ id: c.id, kinds: c.kinds, data: c.data })));
-      if (done.failed.length > 0) throw new Error(`Nie zapisano ${done.failed.length} wpisów: ${done.failed[0].error}`);
+      if (done.failed.length > 0) throw new Error(t('cogitaData.store.notSaved', { count: done.failed.length, error: done.failed[0].error }));
     }
     for (const k of plan.kinds) await this.saveKind(k);
     for (const d of [...plan.templates.map((x) => ['template', x] as const), ...plan.forms.map((x) => ['addform', x] as const), ...plan.collections.map((x) => ['collection', x] as const)]) {
@@ -871,7 +872,7 @@ export class CogitaLibrary {
     for (const id of plan.remove) {
       await this.store.remove(id);
       n += 1;
-      if (n % 10 === 0 || n === plan.remove.length) progress?.(`Usuwanie wpisów… ${n} z ${plan.remove.length}`);
+      if (n % 10 === 0 || n === plan.remove.length) progress?.(t('cogitaData.store.removing', { n, total: plan.remove.length }));
     }
     if (isBaseKind(plan.kind.id)) {
       const override = overrideEntryOf(this.store.all(), plan.kind.id);

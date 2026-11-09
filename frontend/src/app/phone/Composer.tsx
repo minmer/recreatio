@@ -19,14 +19,15 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { coarsePointer, cls, Icon, PopMenu, type Anchor } from '../chat/ChatKit';
+import { useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { WorkspaceError, type Who } from '../core/session';
 import { toast } from '../ui/dialogs';
 import { Phone, type PhoneStatus } from './native';
 import { smsParts } from './numbers';
 import { openPhone } from './phoneContext';
-import { shareFile } from './share';
-import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { daysLabel, shareFile } from './share';
+import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog } from './smsChat';
 import { aheadWhen } from './smsShared';
 
@@ -43,13 +44,13 @@ interface Attachment {
 const mmsAble = (type: string): boolean => type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/');
 
 /** Für die MMS: der Inhalt als base64, ohne das Präfix der data:-Adresse. */
-const base64Of = (file: File): Promise<string> => new Promise((resolve, reject) => {
+const base64Of = (file: File, failed: string): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => {
     const url = String(reader.result);
     resolve(url.slice(url.indexOf(',') + 1));
   };
-  reader.onerror = () => reject(new Error('Nie udało się odczytać pliku.'));
+  reader.onerror = () => reject(new Error(failed));
   reader.readAsDataURL(file);
 });
 
@@ -78,6 +79,7 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   /** Man beginnt zu schreiben (das Feld bekommt den Fokus) — das Gespräch geht ans Ende. */
   onWrite?: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(initial);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,9 +114,9 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const content = text.trim() !== '' || attachment !== null;
 
   const attach = (file: File) => {
-    if (file.size > SHARE_MAX) { toast('Plik może mieć najwyżej 25 MB.'); return; }
+    if (file.size > SHARE_MAX) { toast(t('phoneSms.compose.tooBig')); return; }
     const type = file.type || 'application/octet-stream';
-    if (!mmsAble(type) && !linkable) { toast('Taki plik można wysłać tylko jako link.'); return; }
+    if (!mmsAble(type) && !linkable) { toast(t('phoneSms.compose.linkOnly')); return; }
     uploaded.current = null;
     setAttachment({ file, type, name: file.name, size: file.size, preview: type.startsWith('image/') ? URL.createObjectURL(file) : null });
   };
@@ -133,7 +135,7 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const linked = async (a: Attachment): Promise<string> => {
     let link = uploaded.current !== null && uploaded.current.file === a.file ? uploaded.current.link : null;
     if (link === null) {
-      if (who === undefined) throw new Error('Nie da się wysłać linku.');
+      if (who === undefined) throw new Error(t('phoneSms.compose.noLink'));
       setProgress(0);
       try {
         const ctx = await openPhone(who);
@@ -151,13 +153,13 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
     setBusy(true);
     try {
       const body = viaLink && attachment !== null ? await linked(attachment) : text;
-      const file = !viaLink && attachment !== null ? { type: attachment.type, data: await base64Of(attachment.file), name: attachment.name } : null;
+      const file = !viaLink && attachment !== null ? { type: attachment.type, data: await base64Of(attachment.file, t('phoneSms.compose.readFailed')), name: attachment.name } : null;
       const { threadId } = await Phone.send({ to, body, subId: sub, group, attachment: file });
       setText('');
       drop();
       onSent(threadId);
     } catch (e) {
-      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się wysłać.');
+      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneSms.compose.sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -175,10 +177,10 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
       for (const one of to) threads.push((await Phone.schedule({ to: [one], body, sendAt: at, subId: sub ?? -1 })).entry.threadId);
       setText('');
       drop();
-      toast(`Zaplanowano: ${aheadWhen(at)}.`);
+      toast(t('phoneSms.compose.scheduled', { when: aheadWhen(at) }));
       onScheduled?.(threads);
     } catch (e) {
-      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się zaplanować.');
+      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneSms.compose.scheduleFailed'));
     } finally {
       setBusy(false);
     }
@@ -189,11 +191,15 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
 
   /* 2026-10-26 — ohne Empfänger lässt sich schon schreiben; nur Senden wartet (vorher hiess es hier fälschlich „ustaw … jako aplikację SMS"). */
   const noOne = to.length === 0;
-  const line = disabled ? 'Najpierw ustaw tę aplikację jako aplikację SMS.'
-    : noOne && content ? 'Wybierz, do kogo wysłać.'
-    : busy && progress !== null ? `Wysyłanie pliku… ${Math.round(progress * 100)}%`
-    : mms ? (group ? `MMS do ${to.length} osób (grupa)` : 'MMS')
-    : text !== '' || viaLink ? `${count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało ${count.left}${count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}${viaLink ? ' · z linkiem' : ''}`
+  const line = disabled ? t('phoneSms.compose.notDefault')
+    : noOne && content ? t('phoneSms.compose.chooseTo')
+    : busy && progress !== null ? t('phoneSms.compose.uploading', { percent: Math.round(progress * 100) })
+    : mms ? (group ? t('phoneSms.compose.mmsGroup', { count: to.length }) : t('phoneSms.compose.mms'))
+    : text !== '' || viaLink ? [
+      count.parts > 1 ? t('phoneSms.compose.parts', { count: count.parts }) : null,
+      t('phoneSms.compose.left', { left: count.left }) + (count.unicode ? t('phoneSms.compose.unicode') : ''),
+      viaLink ? t('phoneSms.compose.withLink') : null
+    ].filter((x): x is string => x !== null).join(' · ')
     : null;
 
   return (
@@ -203,74 +209,74 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
           <span className="ch-file-chip">
             {attachment.preview !== null ? <img src={attachment.preview} alt="" /> : <span className="ch-file-ic"><Icon name="file" /></span>}
             <span className="ch-file-text"><span className="ch-file-name">{attachment.name}</span><small>{sizeText(attachment.size)}</small></span>
-            <button type="button" className="ch-icon-btn is-small" aria-label={`Usuń załącznik ${attachment.name}`} disabled={busy} onClick={drop}><Icon name="x" /></button>
+            <button type="button" className="ch-icon-btn is-small" aria-label={t('phoneSms.compose.removeAttachment', { name: attachment.name })} disabled={busy} onClick={drop}><Icon name="x" /></button>
           </span>
         </div>
       )}
       {attachment !== null && linkable && (
-        <div className="ph-attach-how" role="radiogroup" aria-label="Jak wysłać załącznik">
+        <div className="ph-attach-how" role="radiogroup" aria-label={t('phoneSms.compose.how')}>
           <button type="button" className={cls('ch-chip', how === 'link' && 'is-on')} role="radio" aria-checked={how === 'link'} disabled={busy}
             onClick={() => setHowText('link')}>
-            <Icon name="link" />Link — pełna jakość
+            <Icon name="link" />{t('phoneSms.compose.howLink')}
           </button>
           <button type="button" className={cls('ch-chip', how === 'mms' && 'is-on')} role="radio" aria-checked={how === 'mms'}
             disabled={busy || !mmsAble(attachment.type)} onClick={() => setHowText('mms')}>
-            <Icon name="image" />MMS — {attachment.type.startsWith('image/') ? `do ${sizeText(mmsMax)}` : `najwyżej ${sizeText(mmsMax)}`}
+            <Icon name="image" />{attachment.type.startsWith('image/') ? t('phoneSms.compose.howMmsImage', { size: sizeText(mmsMax) }) : t('phoneSms.compose.howMms', { size: sizeText(mmsMax) })}
           </button>
           {how === 'link' && (
-            <select aria-label="Jak długo działa link" value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
-              {SHARE_DAYS.map((d) => <option key={d} value={d}>ważny {daysLabel(d)}</option>)}
+            <select aria-label={t('phoneSms.compose.linkDays')} value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
+              {SHARE_DAYS.map((d) => <option key={d} value={d}>{t('phoneSms.compose.valid', { days: daysLabel(d) })}</option>)}
             </select>
           )}
         </div>
       )}
       <div className="ch-compose-row">
         <div className="ch-field">
-          <textarea ref={field} rows={1} value={text} placeholder={mms ? 'MMS' : 'SMS'}
-            aria-label="Treść wiadomości" disabled={disabled} onChange={(e) => setText(e.target.value)} onFocus={onWrite}
+          <textarea ref={field} rows={1} value={text} placeholder={mms ? t('phoneSms.compose.mms') : t('phoneSms.compose.sms')}
+            aria-label={t('phoneSms.compose.body')} disabled={disabled} onChange={(e) => setText(e.target.value)} onFocus={onWrite}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !coarsePointer() && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
             }} />
           {media && (
-            <button type="button" className="ch-icon-btn" aria-label="Dołącz" title="Zdjęcie, film albo plik" aria-haspopup="menu"
+            <button type="button" className="ch-icon-btn" aria-label={t('phoneSms.compose.attach')} title={t('phoneSms.compose.attachTitle')} aria-haspopup="menu"
               aria-expanded={menu?.kind === 'attach'} disabled={disabled || busy} onClick={(e) => open('attach', e.currentTarget)}>
               <Icon name="clip" />
             </button>
           )}
         </div>
         {canLater && content && (
-          <button type="button" className="ch-send-more" aria-label="Wyślij później" title="Wyślij później" aria-haspopup="menu"
+          <button type="button" className="ch-send-more" aria-label={t('phoneSms.compose.later')} title={t('phoneSms.compose.later')} aria-haspopup="menu"
             aria-expanded={menu?.kind === 'send'} disabled={disabled || busy || noOne} onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => open('send', e.currentTarget)}>
             <Icon name="chevron" />
           </button>
         )}
-        <button type="submit" className="ch-send" aria-label="Wyślij" title="Wyślij" disabled={disabled || busy || !content || noOne}
+        <button type="submit" className="ch-send" aria-label={t('common.send')} title={t('common.send')} disabled={disabled || busy || !content || noOne}
           onMouseDown={(e) => e.preventDefault()}>
           <Icon name="send" />
         </button>
       </div>
-      {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label="Przesyłanie pliku" />}
+      {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label={t('phoneSms.compose.uploadBar')} />}
       {line !== null && <p className="ch-compose-line" role="status">{line}</p>}
 
-      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label="Wybierz plik"
+      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label={t('phoneSms.compose.pickFile')}
         onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file !== undefined) attach(file); }} />
 
       {menu?.kind === 'attach' && (
-        <PopMenu anchor={menu.anchor} from={menu.from} label="Dołącz" onClose={() => setMenu(null)} items={[
-          ...(coarsePointer() ? [{ label: 'Zrób zdjęcie', icon: 'camera' as const, onSelect: () => choose('image/*', true) }] : []),
-          { label: 'Zdjęcia i filmy', icon: 'image', onSelect: () => choose('image/*,video/*') },
-          ...(linkable ? [{ label: 'Plik — wyślę jako link', icon: 'file' as const, onSelect: () => choose('') }] : [])
+        <PopMenu anchor={menu.anchor} from={menu.from} label={t('phoneSms.compose.attach')} onClose={() => setMenu(null)} items={[
+          ...(coarsePointer() ? [{ label: t('phoneSms.compose.takePhoto'), icon: 'camera' as const, onSelect: () => choose('image/*', true) }] : []),
+          { label: t('phoneSms.compose.photos'), icon: 'image', onSelect: () => choose('image/*,video/*') },
+          ...(linkable ? [{ label: t('phoneSms.compose.fileAsLink'), icon: 'file' as const, onSelect: () => choose('') }] : [])
         ]} />
       )}
       {menu?.kind === 'send' && (
-        <PopMenu anchor={menu.anchor} from={menu.from} label="Wysyłanie" onClose={() => setMenu(null)} items={[
-          { label: 'Wyślij później…', icon: 'clock', onSelect: () => setPlanning(true) }
+        <PopMenu anchor={menu.anchor} from={menu.from} label={t('phoneSms.compose.sending')} onClose={() => setMenu(null)} items={[
+          { label: t('phoneSms.compose.laterDots'), icon: 'clock', onSelect: () => setPlanning(true) }
         ]} />
       )}
       {planning && (
         <PlanDialog onClose={() => setPlanning(false)} onPlan={(at) => void schedule(at)}
-          note="Telefon wyśle ją o tej porze sam — także bez internetu." />
+          note={t('phoneSms.compose.planNote')} />
       )}
     </form>
   );

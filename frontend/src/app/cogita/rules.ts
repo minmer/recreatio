@@ -11,6 +11,7 @@
  * Browser des Gastgebers öffnet die Antworten (Annahme des Bereichs), zählt
  * nach diesen Regeln und gibt die Punkte versiegelt an alle.
  */
+import { t } from '../core/i18n';
 
 export type Growth = 'linear' | 'exponential' | 'limited';
 export type FirstAnswerAction = 'none' | 'start_timer' | 'reveal' | 'next';
@@ -79,11 +80,11 @@ const r = (patch: Omit<Partial<LiveRules>, 'scoring'> & { scoring?: Partial<Live
 /** Die Voreinstellungen des Altbestands — als Vorlagen [F24]. */
 export const PRESETS: readonly Preset[] = [
   {
-    id: 'balanced_duel', label: 'Wyrównany pojedynek', says: 'Minuta na pytanie; po pierwszej odpowiedzi 10 s dla reszty; bonus za szybkość i serię.',
+    id: 'balanced_duel', get label() { return t('cogitaData.rules.preset.balanced_duel.label'); }, get says() { return t('cogitaData.rules.preset.balanced_duel.says'); },
     mode: 'simultaneous', hostView: 'panel', participantView: 'question', rules: DEFAULT_RULES
   },
   {
-    id: 'first_strike', label: 'Kto pierwszy', says: 'Liczy się pierwsza odpowiedź — po niej od razu dalej; za błąd odejmuje.',
+    id: 'first_strike', get label() { return t('cogitaData.rules.preset.first_strike.label'); }, get says() { return t('cogitaData.rules.preset.first_strike.says'); },
     mode: 'simultaneous', hostView: 'question', participantView: 'fullscreen',
     rules: r({
       firstAnswerAction: 'next', allAnsweredAction: 'none',
@@ -94,7 +95,7 @@ export const PRESETS: readonly Preset[] = [
     })
   },
   {
-    id: 'sprint_race', label: 'Sprint', says: '12 s na pytanie, potem od razu następne; duży bonus za szybkość.',
+    id: 'sprint_race', get label() { return t('cogitaData.rules.preset.sprint_race.label'); }, get says() { return t('cogitaData.rules.preset.sprint_race.says'); },
     mode: 'simultaneous', hostView: 'question', participantView: 'fullscreen',
     rules: r({
       firstAnswerAction: 'start_timer', allAnsweredAction: 'next',
@@ -105,7 +106,7 @@ export const PRESETS: readonly Preset[] = [
     })
   },
   {
-    id: 'accuracy_focus', label: 'Dokładność', says: 'Bez pośpiechu: 35 s, bez bonusu za szybkość; liczy się trafność i seria.',
+    id: 'accuracy_focus', get label() { return t('cogitaData.rules.preset.accuracy_focus.label'); }, get says() { return t('cogitaData.rules.preset.accuracy_focus.says'); },
     mode: 'simultaneous', hostView: 'panel', participantView: 'question',
     rules: r({
       firstAnswerAction: 'none', allAnsweredAction: 'reveal',
@@ -116,7 +117,7 @@ export const PRESETS: readonly Preset[] = [
     })
   },
   {
-    id: 'streak_master', label: 'Mistrz serii', says: 'Krótkie rundy; najwięcej daje seria dobrych odpowiedzi.',
+    id: 'streak_master', get label() { return t('cogitaData.rules.preset.streak_master.label'); }, get says() { return t('cogitaData.rules.preset.streak_master.says'); },
     mode: 'simultaneous', hostView: 'score', participantView: 'question',
     rules: r({
       roundTimer: { enabled: true, seconds: 14, onExpire: 'reveal' }, actionTimer: { enabled: true, seconds: 12, onExpire: 'reveal' },
@@ -126,7 +127,7 @@ export const PRESETS: readonly Preset[] = [
     })
   },
   {
-    id: 'marathon_classic', label: 'Maraton', says: 'Pytanie za pytaniem, samo przechodzi dalej po 5 s.',
+    id: 'marathon_classic', get label() { return t('cogitaData.rules.preset.marathon_classic.label'); }, get says() { return t('cogitaData.rules.preset.marathon_classic.says'); },
     mode: 'simultaneous', hostView: 'panel', participantView: 'score',
     rules: r({
       firstAnswerAction: 'none', allAnsweredAction: 'reveal',
@@ -137,7 +138,7 @@ export const PRESETS: readonly Preset[] = [
     })
   },
   {
-    id: 'async_challenge', label: 'Wyzwanie we własnym tempie', says: 'Każdy odpowiada, kiedy chce, do końca czasu sesji (30 min).',
+    id: 'async_challenge', get label() { return t('cogitaData.rules.preset.async_challenge.label'); }, get says() { return t('cogitaData.rules.preset.async_challenge.says'); },
     mode: 'asynchronous', hostView: 'score', participantView: 'question',
     rules: r({
       firstAnswerAction: 'none', allAnsweredAction: 'none',
@@ -319,17 +320,29 @@ export function roundDeadline(rules: LiveRules, roundStart: number, firstAnswerA
 
 /** Die Regeln in Sätzen — für den Gastgeber vor dem Start und die Teilnehmer im Warteraum. */
 export function describeRules(rules: LiveRules, mode: SessionMode = 'simultaneous'): string[] {
-  const action = (m: string) => (m === 'next' ? 'pokaż wynik i przejdź dalej' : m === 'reveal' ? 'pokaż wynik' : m === 'start_timer' ? 'uruchom odliczanie' : 'nic');
+  const R = 'cogitaData.rules.describe';
+  const action = (m: string) => (m === 'next' ? t(`${R}.actionNext`) : m === 'reveal' ? t(`${R}.actionReveal`) : m === 'start_timer' ? t(`${R}.actionTimer`) : t(`${R}.actionNone`));
   const lines: string[] = [];
-  if (mode === 'asynchronous') lines.push('Każdy odpowiada we własnym tempie.');
-  if (rules.roundTimer.enabled) lines.push(`Na pytanie jest ${rules.roundTimer.seconds} s — potem: ${action(rules.roundTimer.onExpire)}.`);
-  lines.push(`Pierwsza odpowiedź: ${action(rules.firstAnswerAction)}${rules.actionTimer.enabled ? ` (${rules.actionTimer.seconds} s dla pozostałych)` : ''}.`);
-  lines.push(`Gdy wszyscy odpowiedzą: ${action(rules.allAnsweredAction)}.`);
-  lines.push(`Dobra odpowiedź: ${rules.scoring.baseCorrect} pkt${rules.scoring.firstCorrectBonus > 0 ? `, pierwsza dobra +${rules.scoring.firstCorrectBonus}` : ''}${rules.speedBonus.enabled && rules.bonusTimer.enabled ? `, za szybkość do +${rules.speedBonus.maxPoints}` : ''}${rules.scoring.streakBaseBonus > 0 ? `, seria do +${rules.scoring.streakBaseBonus}` : ''}.`);
+  if (mode === 'asynchronous') lines.push(t(`${R}.async`));
+  if (rules.roundTimer.enabled) lines.push(t(`${R}.round`, { seconds: rules.roundTimer.seconds, action: action(rules.roundTimer.onExpire) }));
+  lines.push(rules.actionTimer.enabled
+    ? t(`${R}.firstTimed`, { action: action(rules.firstAnswerAction), seconds: rules.actionTimer.seconds })
+    : t(`${R}.first`, { action: action(rules.firstAnswerAction) }));
+  lines.push(t(`${R}.all`, { action: action(rules.allAnsweredAction) }));
+  const plus = [
+    rules.scoring.firstCorrectBonus > 0 ? t(`${R}.firstBonus`, { points: rules.scoring.firstCorrectBonus }) : '',
+    rules.speedBonus.enabled && rules.bonusTimer.enabled ? t(`${R}.speedBonus`, { points: rules.speedBonus.maxPoints }) : '',
+    rules.scoring.streakBaseBonus > 0 ? t(`${R}.streakBonus`, { points: rules.scoring.streakBaseBonus }) : ''
+  ].join('');
+  lines.push(t(`${R}.correct`, { points: rules.scoring.baseCorrect, more: plus }));
   if (rules.scoring.wrongAnswerPenalty > 0 || rules.scoring.firstWrongPenalty > 0 || rules.scoring.wrongStreakBasePenalty > 0) {
-    lines.push(`Za błąd: −${rules.scoring.wrongAnswerPenalty}${rules.scoring.firstWrongPenalty > 0 ? `, pierwszy błąd −${rules.scoring.firstWrongPenalty}` : ''}${rules.scoring.wrongStreakBasePenalty > 0 ? `, seria błędów do −${rules.scoring.wrongStreakBasePenalty}` : ''}.`);
+    const minus = [
+      rules.scoring.firstWrongPenalty > 0 ? t(`${R}.firstWrong`, { points: rules.scoring.firstWrongPenalty }) : '',
+      rules.scoring.wrongStreakBasePenalty > 0 ? t(`${R}.wrongStreak`, { points: rules.scoring.wrongStreakBasePenalty }) : ''
+    ].join('');
+    lines.push(t(`${R}.wrong`, { points: rules.scoring.wrongAnswerPenalty, more: minus }));
   }
-  lines.push(rules.nextQuestion.mode === 'timer' ? `Następne pytanie samo po ${rules.nextQuestion.seconds} s.` : 'Następne pytanie — gdy gospodarz kliknie.');
-  if (rules.sessionTimer.enabled) lines.push(`Sesja trwa ${Math.round(rules.sessionTimer.seconds / 60)} min.`);
+  lines.push(rules.nextQuestion.mode === 'timer' ? t(`${R}.nextTimer`, { seconds: rules.nextQuestion.seconds }) : t(`${R}.nextManual`));
+  if (rules.sessionTimer.enabled) lines.push(t(`${R}.session`, { minutes: Math.round(rules.sessionTimer.seconds / 60) }));
   return lines;
 }

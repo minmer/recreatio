@@ -16,7 +16,7 @@
  */
 
 import { API, call, WorkspaceError } from '../core/session';
-import { t } from '../core/i18n';
+import { fmtNumber, t } from '../core/i18n';
 
 export interface PageImageRow {
   readonly id: string;
@@ -84,8 +84,8 @@ export function typeOfFile(file: File): string | null {
 
 /** „PDF, 240 kB" — wie die Liste der Pliki es neben den Namen schreibt. */
 export function describeFile(name: string, bytes: number): string {
-  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toUpperCase() ?? 'PLIK';
-  const size = bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB` : `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toUpperCase() ?? t('pages.files.fileExt');
+  const size = bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB` : `${fmtNumber(bytes / 1024 / 1024, { maximumFractionDigits: 1 })} MB`;
   return `${ext}, ${size}`;
 }
 

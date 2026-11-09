@@ -1,0 +1,201 @@
+{
+  "fieldType": {
+    "text": "tekst",
+    "longtext": "dłuższy tekst",
+    "number": "liczba",
+    "choice": "wybór",
+    "colour": "kolor liturgiczny",
+    "date": "data",
+    "time": "godzina",
+    "bool": "tak / nie",
+    "bible": "fragment Pisma",
+    "person": "osoba",
+    "link": "link"
+  },
+  "colour": {
+    "white": "biały",
+    "red": "czerwony",
+    "green": "zielony",
+    "violet": "fioletowy",
+    "rose": "różowy",
+    "black": "czarny",
+    "gold": "złoty",
+    "blue": "niebieski"
+  },
+  "universal": {
+    "name": "Uniwersalny",
+    "single": "pojedyncza",
+    "collective": "zbiorowa",
+    "list": "Intencje",
+    "item": "intencja",
+    "text": "Treść intencji",
+    "person": "Kto odprawia",
+    "giver": "Ofiarodawca",
+    "giverSays": "Kto zamówił — nie jest odczytywany, zostaje w kancelarii.",
+    "offering": "Ofiara",
+    "offeringSays": "Ofiara — zostaje w kancelarii.",
+    "listSays": "Intencje mszy: treść czytana na mszy i w gablocie, rodzaj (pojedyncza / zbiorowa), kto odprawia.",
+    "says": "Schemat, który ma każdy dawny termin: wszystkie rodzaje i intencje mszy."
+  },
+  "yes": "tak",
+  "no": "nie",
+  "status": {
+    "waiting": "czeka",
+    "accepted": "przyjęty",
+    "declined": "odrzucony",
+    "cancelled": "wycofany",
+    "celebrated": "odbyty"
+  },
+  "intentionStatus": {
+    "waiting": "czeka",
+    "accepted": "przyjęta",
+    "declined": "odrzucona",
+    "cancelled": "wycofana",
+    "celebrated": "odprawiona"
+  },
+  "recordOutsidePublic": "Z zewnątrz można podać tylko jawne pola.",
+  "read": {
+    "optionsList": "{where}: „options” musi być listą — pominięte.",
+    "optionNoName": "{where}: opcja bez nazwy — pominięta.",
+    "fieldsList": "{where}: „fields” musi być listą — pominięte.",
+    "fieldNoName": "{where}: pole {n} bez nazwy („label”) — pominięte.",
+    "fieldType": "{where}: „{label}” — nieznany typ „{type}”, będzie tekstem.",
+    "flowNoNodes": "{where}: przebieg bez „nodes” — pominięty.",
+    "nodeNotPlan": "{where}: węzeł {type} nie pasuje do planu — pominięty.",
+    "nodeNotRule": "{where}: węzeł {type} nie pasuje do reguły — pominięty.",
+    "listsList": "„lists” musi być listą — pominięte.",
+    "listNoName": "Lista {n} bez nazwy („label”) — pominięta.",
+    "listWhere": "Lista „{label}”",
+    "notObject": "To nie jest obiekt JSON.",
+    "notScheme": "To nie jest schemat („format”: {format}).",
+    "schemeNoName": "Schemat potrzebuje nazwy („name”).",
+    "unknownKind": "Nieznany rodzaj „{kind}” — pominięty.",
+    "schemeWhere": "Schemat",
+    "notPlan": "To nie jest plan („format”: {format}).",
+    "planNoName": "Plan potrzebuje nazwy („name”).",
+    "planWhere": "Plan",
+    "planNoFlow": "Plan potrzebuje przebiegu („flow”).",
+    "otherScheme": "Schemat z dokumentu nie należy do tego kalendarza — wybierz schemat w planie."
+  },
+  "date": {
+    "fixed": "co roku ten sam dzień (miesiąc 1 = styczeń)",
+    "easter": "dni od Niedzieli Wielkanocnej: −46 Popielec, +49 Zesłanie Ducha Świętego, +60 Boże Ciało, +68 Najświętsze Serce Pana Jezusa",
+    "advent": "dni od pierwszej niedzieli Adwentu (−7 Jezusa Chrystusa Króla Wszechświata)",
+    "christmasSunday": "Święta Rodzina: niedziela w oktawie Narodzenia Pańskiego, a gdy jej nie ma — 30 grudnia",
+    "baptism": "Chrzest Pański: niedziela po 6 stycznia",
+    "nthWeekday": "n-ty dzień tygodnia miesiąca (n: 1–5, −1 — ostatni); z \"month\" tylko w tym miesiącu, bez niego co miesiąc (np. pierwszy piątek)",
+    "sundayAfter": "pierwsza niedziela PO danym dniu (nie w nim)"
+  },
+  "test": {
+    "weekday": "dzień tygodnia",
+    "slot": "godzina mszy — klucz z węzła \"slots\" (tylko w przebiegu \"mass\")",
+    "time": "msza zaczyna się w tym przedziale (wystarczy jedna granica)",
+    "season": "okres liturgiczny: {seasons}",
+    "week": "tydzień okresu",
+    "rank": "ranga obchodu (bez obchodu — dnia): 1 najwyższa … 13 dzień powszedni",
+    "celebration": "\"any\" — jest obchód, \"none\" — nie ma, \"name\" — nazwa obchodu zawiera \"name\"",
+    "festive": "niedziela albo święto nakazane",
+    "sunday": "niedziela",
+    "date": "ten dzień według reguły daty (niżej)",
+    "between": "dzień roku w przedziale \"MM-DD\" (także przez Nowy Rok)",
+    "var": "zmienna ustawiona wcześniej węzłem \"set\"; \"op\": \"=\", \"!=\" albo \"contains\"",
+    "mode": "rodzaj wpisu",
+    "count": "ile wpisów tej listy jest już przy tym terminie (\"scope\": \"occurrence\") albo w tygodniu od poniedziałku (\"week\"); \"mode\" — tylko tego rodzaju; \"status\": \"live\" (przyjęte i odprawione, domyślnie) albo \"all\" (także czekające); \"per\": \"occurrence\" — przy ilu INNYCH terminach tygodnia są takie wpisy",
+    "actor": "kto dodaje: \"office\" — prowadzący kalendarz, \"outside\" — ktoś spoza (jego wpis i tak czeka)",
+    "field": "pole wpisu: \"set\" — wypełnione, \"empty\" — puste, \"=\" — równe \"value\""
+  },
+  "node": {
+    "nodes": "Węzły:",
+    "date": {
+      "title": "Reguła daty (\"when\", warunek \"date\")",
+      "lead": "Data liczona na każdy rok od nowa:",
+      "tail": "Dzień tygodnia (\"weekday\", \"days\"): 1 = poniedziałek … 7 = niedziela."
+    },
+    "test": {
+      "title": "Warunek (\"if\")",
+      "lead": "Węzeł \"if\" ma dane {\"test\": …} i dwa wyjścia: \"yes\" (tak) i \"no\" (nie). Porównanie \"op\": <, <=, =, >=, >, !=.",
+      "plan": "Dzień i msza (w planie):",
+      "rule": "Wpis (w regule listy):"
+    },
+    "flow": {
+      "title": "Przebieg (\"flow\", \"rule\")",
+      "lead": "Przebieg to graf jak w edytorze: {\"v\":1,\"nodes\":[…],\"edges\":[…]}.",
+      "nodes": "{\"id\", \"type\", \"x\", \"y\", \"data\"} — \"id\" niepowtarzalny w przebiegu; \"x\", \"y\" — miejsce w edytorze; \"data\" — ustawienia węzła",
+      "edges": "{\"id\", \"from\", \"to\", \"out\"} — z wyjścia węzła \"from\" do węzła \"to\"; \"out\": \"out\" (jedyne wyjście, domyślnie), \"yes\" (tak) albo \"no\" (nie) z węzła \"if\"",
+      "tail": "Przebieg idzie od węzła startowego po krawędziach, aż dojdzie do węzła kończącego. Węzły bez połączenia nic nie robią; węzły z innego rodzaju przebiegu import pomija ze słowem."
+    },
+    "rule": {
+      "title": "Reguła listy (\"rule\")",
+      "lead": "Reguła idzie w przeglądarce, gdy ktoś dodaje wpis albo kancelaria przyjmuje czekający. Wynik: przyjąć, czekać albo odmówić (z komunikatem — wpis wtedy nie powstaje). Wpis kogoś spoza prowadzących czeka zawsze; reguła idzie jeszcze raz, gdy kancelaria go przyjmuje.",
+      "data": "Dane: \"refuse\" i \"wait\" — {\"message\": \"…\"} (co widzi dodający); \"if\" — warunek (niżej)."
+    },
+    "plan": {
+      "title": "Przebieg planu (\"flow\")",
+      "lead": "Przebieg \"day\" idzie raz na każdy dzień zakresu i kończy się węzłem \"slots\" (msze tego dnia) albo \"skip\" (bez mszy). Potem przebieg \"mass\" idzie raz na każdą mszę dnia i kończy się \"end\" (utwórz) albo \"skip\" (tej godziny nie ma). Pierwsza pasująca droga wygrywa — tak ustala się pierwszeństwo.",
+      "dataHead": "Dane węzłów:",
+      "season": "kolor każdego okresu ({seasons}) i dni szczególnych; węzeł liczy okres, tydzień, rangę dnia i kolor",
+      "feasts": "obchody: \"when\" — reguła daty (niżej), \"rank\" 1–13, \"festive\": true — godziny niedzielne, \"title\" — tytuł mszy (bez niego nazwa), \"moveIfImpeded\": true — wyparty przez wyższą rangę przechodzi na następny dzień; wygrywa najwyższa ranga",
+      "set": "tytuł mszy, pole schematu (po kluczu) albo zmienna (np. \"colour\")",
+      "slots": "msze w niedziele i święta nakazane oraz w pozostałe dni; \"key\" zostaje na zawsze — po nim podgląd poznaje msze już zaplanowane",
+      "recordText": "Za parafian",
+      "record": "stały wpis listy schematu przy tej mszy",
+      "ifSkipEnd": "\"if\" — warunek (niżej); \"skip\" i \"end\" bez danych",
+      "texts": "Teksty (\"value\", \"title\", \"text\") mogą mieć miejsca do wypełnienia: {celebration} {celebrationTitle} {title} {season} {seasonName} {week} {weekRoman} {sundayName} {dayName} {weekday} {colour} {date} {dateWords} {time} {slot} — i każdą zmienną z \"set\". Nieznane zostają, jak są (podgląd je pokaże)."
+    },
+    "field": {
+      "title": "Pole (\"fields[]\")",
+      "key": "a–z, 0–9, _ . - (brak: z nazwy); zostaje, gdy nazwa się zmienia — pod nim są wartości",
+      "label": "nazwa (wymagana)",
+      "level": "\"item\" — cały termin (domyślnie) albo \"day\" — jeden dzień serii (tylko pola terminu)",
+      "public": "true — wartość widać bez klucza: plan mszy, gablota, wydruk; inaczej zaszyfrowana. Przy polach wpisu: tylko takie wypełnia ktoś spoza prowadzących",
+      "required": "true — bez wartości nie da się zapisać",
+      "options": "dla \"choice\" i \"colour\": lista nazw albo {\"value\",\"label\"}",
+      "unit": "dla \"number\": jednostka (np. \"osób\")",
+      "onlyKinds": "tylko przy tych rodzajach terminów (np. [\"mass\"])",
+      "says": "objaśnienie pola",
+      "tail": "Wartości są tekstem. Kolor liturgiczny to słowo: {colours}."
+    },
+    "list": {
+      "title": "Lista wpisów (\"lists[]\")",
+      "lead": "Lista wpisów przy każdym terminie — np. intencje mszy albo zapisy na spotkanie.",
+      "key": "jak przy polu; lista \"intencje\" to intencje mszy (widać je też w „Msze i nabożeństwa”)",
+      "itemLabel": "jak nazywa się jeden wpis (np. „intencja”)",
+      "modes": "rodzaje wpisu: lista nazw albo {\"value\",\"label\"} (np. [{\"value\":\"single\",\"label\":\"pojedyncza\"},{\"value\":\"collective\",\"label\":\"zbiorowa\"}])",
+      "textLabel": "jawny tekst wpisu i jego podpis (np. „Treść intencji” — czytana na mszy, w planie i w gablocie)",
+      "person": "podpis przypiętej osoby (np. „Kto odprawia”); kto wpisuje się sam spoza prowadzących, jest tą osobą",
+      "fields": "pola wpisu (jak wyżej) — zaszyfrowane kluczem prowadzących kalendarz",
+      "outside": "true — wpisują się też osoby, które nie prowadzą kalendarza (wpis czeka na kancelarię)",
+      "onlyKinds": "lista tylko przy tych rodzajach terminów",
+      "rule": "reguła listy — przebieg (niżej); bez niej każdy wpis prowadzących jest przyjęty",
+      "says": "objaśnienie listy"
+    },
+    "usageTitle": "Jak aplikacja używa tych danych",
+    "schemeUsage": "- Schemat zapisany w ustawieniach kalendarza („Schematy terminów”) działa przy terminach, które go mają: edytor terminu pokazuje jego pola (pola \"level\": \"day\" — przy wybranym dniu serii), a szczegóły terminu w Kalendarzu — wartości i listy.\n- Jawne pola mszy (\"public\": true) idą do jawnego planu (moduł strony „Msze i nabożeństwa”, np. obchód i kolor szat) i na wydruk do gabloty — gdy obszar, który widzi kalendarz, jest jawny. Pozostałe wartości otwiera tylko klucz tego obszaru.\n- Listy wpisów stoją przy każdym dniu terminu. Prowadzący kalendarz dodają wpisy; przy \"outside\": true także ci, którzy go tylko czytają („Zgłoś”) — taki wpis czeka, a prowadzący widzą go w „Wpisy do przyjęcia” (dzwonek, „Czeka na Ciebie”). Prowadzący widzą wszystkie wpisy, czytający — przyjęte, odprawione i własne.\n- Reguły list sprawdza tylko przeglądarka — serwer ich nie zna, bo schemat jest zaszyfrowany.\n- Lista \"intencje\" to intencje mszy: pracuje na niej kancelaria („Msze i nabożeństwa”), a jej przyjęte i odprawione treści idą do jawnego planu i na wydruk. Wpisy innych list do jawnego planu nie trafiają.\n- Plan kalendarza tworzy terminy z wybranym schematem i od razu wypełnia jego pola oraz stałe wpisy list.",
+    "planUsage": "- Zapisany plan sam niczego nie tworzy. Dopiero „Zastosuj…” (ustawienia kalendarza → „Plany”) liczy w przeglądarce dni wybranego okresu i tworzy pojedyncze terminy w tym kalendarzu.\n- Każdy dostaje: rodzaj z planu (bez niego — ze schematu, a bez obu — \"mass\"), schemat planu, tytuł z przebiegu, wartości pól (także pól dnia) i jawny tytuł, jeśli tak mówi schemat; stałe wpisy z węzłów \"record\" (np. intencja „Za parafian”) są od razu przyjęte.\n- Utworzone terminy widzi każdy, kto ma klucz obszaru, który widzi kalendarz: w Kalendarzu, w „Teraz”, w „Msze i nabożeństwa” i w modułach stron; gdy ten obszar jest jawny — także w jawnym planie mszy i na wydruku do gabloty.\n- Termin pamięta plan, godzinę (\"key\" z \"slots\") i dzień: dzięki temu podgląd poznaje msze już zaplanowane, a prowadzący kalendarz dostają w „Czeka na Ciebie” „Plany do przedłużenia”, gdy ostatni termin z planu wypada w ciągu dwóch tygodni.\n- Plan jest szyfrowany kluczem obszaru, który prowadzi kalendarz (schemat — kluczem obszaru, który widzi terminy).",
+    "scheme": {
+      "title": "Schemat terminu (\"{format}\")",
+      "short": "Schemat terminu",
+      "lead": "Schemat mówi, czym są terminy kalendarza, jakie mają pola i jakie listy wpisów (intencje, zapisy). Jest szyfrowany w przeglądarce kluczem obszaru, który widzi terminy kalendarza. Import wczytuje dokument do edytora; zapisuje dopiero „Zapisz schemat”. Klucze pól i list zostają — pod nimi są wartości terminów.",
+      "name": "nazwa schematu (wymagana), np. „Msza”",
+      "kind": "rodzaj terminów: {kinds} — \"mass\" stawia termin w planie mszy i w gablocie",
+      "kinds": "rodzaje do wyboru przy terminie (zamiast jednego \"kind\")",
+      "publicTitle": "true — tytuł jawny (plan, gablota), false — zaszyfrowany; brak: jawny przy mszy, spowiedzi i nabożeństwie",
+      "fields": "pola terminu (niżej)",
+      "lists": "listy wpisów (niżej)",
+      "says": "objaśnienie schematu",
+      "example": "Przykład (szablon „Spotkanie z zapisami”):"
+    },
+    "template": "szablon „{name}”",
+    "planRoot": {
+      "title": "Plan (\"{format}\")",
+      "short": "Plan",
+      "lead": "Plan tworzy pojedyncze terminy (np. msze) na wybrany okres — „Zastosuj…”. Po utworzeniu terminy nie są z planem związane: zmienia się je jak każde inne; drugie zastosowanie tego samego planu pomija msze już zaplanowane. Import wczytuje dokument do edytora; zapisuje dopiero „Zapisz plan”.",
+      "name": "nazwa planu (wymagana)",
+      "schemeId": "schemat tworzonych terminów — schemat TEGO kalendarza; z innego kalendarza znika przy imporcie (wybierz go wtedy w planie)",
+      "kind": "rodzaj tworzonych terminów (np. \"mass\")",
+      "weeks": "ile tygodni proponuje okno „Zastosuj…” (1–60)",
+      "flow": "przebieg planu (niżej)",
+      "says": "objaśnienie planu"
+    }
+  }
+}

@@ -33,18 +33,19 @@ import {
   type FlowDoc, type FlowEdge, type FlowNode, type FlowNodeType, type FlowOut, type SlotsData
 } from './flowModel';
 import { defaultData, FLOW_NODE_TYPES, nodeSummary, type FaceData } from './FlowNodes';
+import { useT, type T } from '../../core/i18n';
 
-/** Die Gruppen der Palette — Anfang, Tag, Logik, Ende. */
+/** Die Gruppen der Palette — Anfang, Tag, Logik, Ende (`calendarApp.flowEditor.group.<label>`). */
 const PLAN_GROUPS: readonly { readonly label: string; readonly types: readonly FlowNodeType[] }[] = [
-  { label: 'Początek', types: ['day', 'mass'] },
-  { label: 'Dzień', types: ['season', 'feasts', 'slots'] },
-  { label: 'Logika', types: ['if', 'set', 'record'] },
-  { label: 'Koniec', types: ['end', 'skip'] }
+  { label: 'start', types: ['day', 'mass'] },
+  { label: 'day', types: ['season', 'feasts', 'slots'] },
+  { label: 'logic', types: ['if', 'set', 'record'] },
+  { label: 'end', types: ['end', 'skip'] }
 ];
 const RULE_GROUPS: readonly { readonly label: string; readonly types: readonly FlowNodeType[] }[] = [
-  { label: 'Początek', types: ['record-start'] },
-  { label: 'Logika', types: ['if'] },
-  { label: 'Koniec', types: ['allow', 'wait', 'refuse'] }
+  { label: 'start', types: ['record-start'] },
+  { label: 'logic', types: ['if'] },
+  { label: 'end', types: ['allow', 'wait', 'refuse'] }
 ];
 
 /** Breite und Höhe eines Knotens, ungefähr — zum Platzieren neuer Knoten. */
@@ -68,15 +69,15 @@ function reaches(edges: readonly FlowEdge[], from: string, to: string): boolean 
 }
 
 /** Was an der Karte und an ihren Knoten nicht stimmt. */
-function problemsOf(doc: FlowDoc, kind: 'plan' | 'rule'): { all: readonly string[]; byNode: ReadonlyMap<string, string> } {
+function problemsOf(doc: FlowDoc, kind: 'plan' | 'rule', t: T): { all: readonly string[]; byNode: ReadonlyMap<string, string> } {
   const all: string[] = [];
   const byNode = new Map<string, string>();
   const entries = (kind === 'plan' ? ['day', 'mass'] : ['record-start']) as FlowNodeType[];
 
   for (const type of entries) {
     const count = doc.nodes.filter((n) => n.type === type).length;
-    if (count === 0) all.push(`Brak węzła „${NODE_INFO[type].label}” — od niego zaczyna się ${type === 'day' ? 'każdy dzień' : type === 'mass' ? 'każda msza' : 'sprawdzanie wpisu'}.`);
-    if (count > 1) all.push(`Jest ${count} węzłów „${NODE_INFO[type].label}” — liczy się tylko jeden.`);
+    if (count === 0) all.push(t(`calendarApp.flowEditor.missing.${type === 'day' ? 'day' : type === 'mass' ? 'mass' : 'record'}`, { node: t(`calendarApp.flow.node.${type}.label`) }));
+    if (count > 1) all.push(t('calendarApp.flowEditor.tooMany', { count, node: t(`calendarApp.flow.node.${type}.label`) }));
   }
 
   /* Erreichbar von einem Anfang. */
@@ -90,12 +91,12 @@ function problemsOf(doc: FlowDoc, kind: 'plan' | 'rule'): { all: readonly string
   }
 
   for (const n of doc.nodes) {
-    if (!reached.has(n.id)) { byNode.set(n.id, 'nie łączy się z początkiem'); continue; }
+    if (!reached.has(n.id)) { byNode.set(n.id, t('calendarApp.flowEditor.unreached')); continue; }
     if (n.type === 'if') {
       const outs = new Set(doc.edges.filter((e) => e.from === n.id).map(outOf));
-      if (!outs.has('yes') && !outs.has('no')) byNode.set(n.id, 'brak wyjść „tak” i „nie”');
-      else if (!outs.has('yes')) byNode.set(n.id, 'brak wyjścia „tak”');
-      else if (!outs.has('no')) byNode.set(n.id, 'brak wyjścia „nie”');
+      if (!outs.has('yes') && !outs.has('no')) byNode.set(n.id, t('calendarApp.flowEditor.noYesNo'));
+      else if (!outs.has('yes')) byNode.set(n.id, t('calendarApp.flowEditor.noYes'));
+      else if (!outs.has('no')) byNode.set(n.id, t('calendarApp.flowEditor.noNo'));
     }
   }
 
@@ -118,6 +119,7 @@ export interface FlowEditorProps {
 }
 
 export function FlowEditor({ kind, doc, onChange, fields, lists, modes, preview, readOnly = false }: FlowEditorProps) {
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   /* Die Karte selbst — um einen neuen Knoten ins Bild zu holen. */
@@ -125,12 +127,13 @@ export function FlowEditor({ kind, doc, onChange, fields, lists, modes, preview,
 
   const allowed = kind === 'plan' ? PLAN_NODES : RULE_NODES;
   const groups = kind === 'plan' ? PLAN_GROUPS : RULE_GROUPS;
-  const problems = useMemo(() => problemsOf(doc, kind), [doc, kind]);
+  const problems = useMemo(() => problemsOf(doc, kind, t), [doc, kind, t]);
 
   /* Die Messen aus allen Knoten „Godziny mszy" — zur Wahl in „Która msza". */
   const slotKeys = useMemo(() => doc.nodes.filter((n) => n.type === 'slots').flatMap((n) => {
     const d = n.data as unknown as SlotsData;
-    return [...(d.festive ?? []).map((r) => ({ key: r.key, label: `nd ${r.time}` })), ...(d.weekdays ?? []).map((r) => ({ key: r.key, label: `pow. ${r.time}` }))];
+    return [...(d.festive ?? []).map((r) => ({ key: r.key, label: t('calendarApp.flowEditor.slotFestive', { time: r.time }) })),
+      ...(d.weekdays ?? []).map((r) => ({ key: r.key, label: t('calendarApp.flowEditor.slotWeekday', { time: r.time }) }))];
   }).filter((s, i, all) => s.key !== '' && all.findIndex((x) => x.key === s.key) === i), [doc.nodes]);
 
   const ctx = { fields, lists, modes };
@@ -252,16 +255,16 @@ export function FlowEditor({ kind, doc, onChange, fields, lists, modes, preview,
   return (
     <section className={`wk-flow is-${kind}`}>
       {!readOnly && (
-        <div className="wk-flow-palette" role="group" aria-label="Dodaj węzeł">
+        <div className="wk-flow-palette" role="group" aria-label={t('calendarApp.flowEditor.addNode')}>
           {groups.map((g) => (
             <div key={g.label} className="wk-flow-palgroup">
-              <span className="wk-flow-pallabel">{g.label}</span>
-              {g.types.filter((t) => (allowed as readonly FlowNodeType[]).includes(t)).map((type) => {
+              <span className="wk-flow-pallabel">{t(`calendarApp.flowEditor.group.${g.label}`)}</span>
+              {g.types.filter((ty) => (allowed as readonly FlowNodeType[]).includes(ty)).map((type) => {
                 const once = NODE_INFO[type].entry === true && has(type);
                 return (
                   <button key={type} type="button" className={`wk-flow-pal is-${NODE_INFO[type].entry === true ? 'entry' : type === 'if' ? 'test' : NODE_INFO[type].outs.length === 0 ? 'end' : 'act'}`}
-                    disabled={once} title={once ? 'Już jest na mapie' : NODE_INFO[type].says} data-node-type={type} onClick={() => add(type)}>
-                    + {NODE_INFO[type].label}
+                    disabled={once} title={once ? t('calendarApp.flowEditor.onMap') : t(`calendarApp.flow.node.${type}.says`)} data-node-type={type} onClick={() => add(type)}>
+                    + {t(`calendarApp.flow.node.${type}.label`)}
                   </button>
                 );
               })}
@@ -302,18 +305,15 @@ export function FlowEditor({ kind, doc, onChange, fields, lists, modes, preview,
           </ReactFlow>
         </div>
 
-        <aside className="wk-flow-panel" aria-label="Ustawienia węzła">
+        <aside className="wk-flow-panel" aria-label={t('calendarApp.flowEditor.settings')}>
           {chosen === null ? (
             <div className="wk-flow-stack">
               <p className="wk-empty">
-                Kliknij węzeł, żeby go ustawić. Wyjście (kropka po prawej) połącz z wejściem następnego węzła (kropka po
-                lewej). Nowy węzeł dodany przy zaznaczonym podłącza się do jego wolnego wyjścia. Zaznaczony węzeł albo
-                krawędź usuwa Delete.
+                {t('calendarApp.flowEditor.help')}
               </p>
               {kind === 'plan' && (
                 <p className="wk-flow-note">
-                  Dla każdego dnia ścieżka zaczyna się w „Dzień” i kończy w „Godziny mszy”; dla każdej mszy — w „Msza” i
-                  kończy w „Utwórz” albo „Bez mszy”.
+                  {t('calendarApp.flowEditor.planHelp')}
                 </p>
               )}
             </div>
@@ -335,7 +335,7 @@ export function FlowEditor({ kind, doc, onChange, fields, lists, modes, preview,
       </div>
 
       {preview !== undefined && preview !== null && preview !== false && (
-        <section className="wk-flow-preview" aria-label="Podgląd">{preview}</section>
+        <section className="wk-flow-preview" aria-label={t('common.preview')}>{preview}</section>
       )}
     </section>
   );

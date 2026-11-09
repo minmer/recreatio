@@ -130,5 +130,308 @@
     "saveFailed": "{kind} „{title}”: {error}.",
     "notSaved": "nie udało się zapisać",
     "saved": "Zapisano {n} z {total}."
+  },
+  "markup": {
+    "unreadable": "[odwołanie niedostępne]",
+    "infoTitle": "Zdaje sprawę ze źródła: wskazuje dzieło, cytat albo osobę z Biblioteki i nie opiera się na innej wypowiedzi.",
+    "interpTitle": "Własna myśl, porównanie albo synteza — opiera się na innej wypowiedzi albo nie wskazuje żadnego źródła.",
+    "info": "Informacja",
+    "interp": "Interpretacja",
+    "answered": "Pytanie — jest odpowiedź",
+    "open": "Pytanie otwarte",
+    "noThesis": "Brak tezy: treść nie zaczyna się od zdania",
+    "longThesis": "Teza dłuższa niż {n} znaków",
+    "selfEmbed": "[wypowiedź osadza samą siebie]",
+    "notes": "Przypisy",
+    "back": "Wróć do tekstu"
+  },
+  "doc": {
+    "template": "Szablon karty",
+    "revision": "Powtórka",
+    "flow": "Przebieg",
+    "view": "Widok",
+    "collection": "Zbiór",
+    "addform": "Formularz dodawania",
+    "kind": "Rodzaj",
+    "rules": "Zasady",
+    "values": "Wartości",
+    "look": "Wygląd",
+    "contribution": "Propozycja",
+    "anchor": "Wejście z Biblioteki",
+    "reward": "Nagrody",
+    "entry": "Wpis"
+  },
+  "where": {
+    "body": "w treści",
+    "further": "w „Dalszych informacjach”",
+    "blocks": "w treści komentarza",
+    "subjects": "o nim",
+    "added": "w tym, co doszło",
+    "transcript": "w zapisie wygłoszenia",
+    "outline": "w zarysie",
+    "plan": "w planie",
+    "planPoint": "plan, punkt {n}"
+  },
+  "pick": {
+    "createFailed": "Nie udało się utworzyć.",
+    "removeOne": "Usuń: {title}",
+    "create": "+ Utwórz {kind}: „{name}”",
+    "knowledge": {
+      "loading": "Wczytywanie baz wiedzy…",
+      "id": "kennung bazy wiedzy",
+      "choose": "— wybierz bazę wiedzy —",
+      "none": "Nie masz jeszcze bazy wiedzy —",
+      "create": "załóż ją w Wiedzy",
+      "first": "Najpierw wybierz bazę wiedzy.",
+      "closed": "Nie możesz czytać tej bazy wiedzy."
+    },
+    "writing": {
+      "loading": "Wczytywanie skryptoriów…",
+      "id": "kennung skryptorium",
+      "choose": "— wybierz skryptorium —",
+      "none": "Nie masz jeszcze skryptorium —",
+      "create": "załóż je"
+    },
+    "books": {
+      "loading": "Wczytywanie bibliotek…",
+      "id": "kennung biblioteki",
+      "choose": "— wybierz bibliotekę —",
+      "none": "Nie masz jeszcze biblioteki —",
+      "create": "załóż ją",
+      "first": "Najpierw wybierz bibliotekę.",
+      "closed": "Nie możesz czytać tej biblioteki."
+    },
+    "tag": {
+      "members": " — dla członków obszaru",
+      "publicBaseClosed": " — obszar publiczny, baza jeszcze nie otwarta",
+      "publicWaiting": " — obszar publiczny, czeka na potwierdzenie",
+      "publicWhole": " — publiczna w całości",
+      "public": " — publiczna"
+    },
+    "chooseWord": "wybierz",
+    "all": "wszystkie",
+    "dashed": "— {word} —",
+    "add": "+ Dodaj",
+    "elsewhere": "(w innej bibliotece albo niedostępny)",
+    "notInBase": "(nie ma go w tej bazie) {id}",
+    "baseEmpty": "W tej bazie nie ma jeszcze nic takiego."
+  },
+  "rel": {
+    "searched": "Przeszukano {libraries} i {bases} otwartych w tej karcie.",
+    "libraries": {
+      "one": "{count} bibliotekę",
+      "few": "{count} biblioteki",
+      "many": "{count} bibliotek",
+      "other": "{count} biblioteki"
+    },
+    "bases": {
+      "one": "{count} bazę wiedzy",
+      "few": "{count} bazy wiedzy",
+      "many": "{count} baz wiedzy",
+      "other": "{count} bazy wiedzy"
+    },
+    "opening": "Otwieranie…",
+    "searchAll": "Szukaj we wszystkich, które możesz czytać",
+    "onPages": "Na stronach, które prowadzisz",
+    "checkPages": "Sprawdź strony",
+    "checking": "Sprawdzanie stron…",
+    "checkFailed": "Nie udało się sprawdzić stron.",
+    "noPages": "Żadna z Twoich stron go nie pokazuje.",
+    "edit": "edytuj",
+    "title": "Powiązania",
+    "quotesOf": "Cytaty z tego źródła: {n}",
+    "quotesBelow": "— lista i dodawanie pod polami",
+    "addQuote": "+ Cytat (pełny formularz)",
+    "citedByTexts": "Przywołują go teksty",
+    "other": "Inne",
+    "inBase": "W bazie wiedzy „{name}”",
+    "base": "Baza wiedzy",
+    "thisCites": "Ten tekst przywołuje",
+    "passage": "Fragment Pisma",
+    "passagePlaceholder": "np. Dz 1,14 · Acts 1:14 · J 3,16-18",
+    "passageUnknown": "Nie rozpoznaję tej księgi albo miejsca (np. „Łk 1,26-38”, „Ps 23”, „1 Kor 13,4-7”).",
+    "nothingPoints": "nic tu nie wskazuje"
+  },
+  "area": {
+    "members": "członkowie jej obszaru",
+    "waiting": "członkowie obszaru — obszar jest publiczny, ale biblioteka czeka na potwierdzenie w Ustawieniach",
+    "everyone": "wszyscy — obszar jest publiczny",
+    "keyTaken": "Tam klucz „{from}” był już zajęty — wpis ma teraz klucz „{key}”. Stary zostaje przy wpisie, a teksty wskazują go stałym odnośnikiem, więc nic się nie zepsuło.",
+    "moveFailed": "Nie udało się przenieść.",
+    "seenScriptorium": "Skryptorium „{name}”: {who}.",
+    "seenLibrary": "Biblioteka „{name}”: {who}.",
+    "moveScriptorium": "Przenieś do innego skryptorium",
+    "moveLibrary": "Przenieś do innego biblioteki",
+    "moveLedeScriptorium": "Wpis zachowuje swoją kennung — odwołania i osadzenia dalej działają. Zobaczą go ci, którzy widzą tamto skryptorium. Tak tekst staje się publiczny: w skryptorium obszaru publicznego.",
+    "moveLedeLibrary": "Wpis zachowuje swoją kennung — odwołania i osadzenia dalej działają. Zobaczą go ci, którzy widzą tamto miejsce.",
+    "targetScriptorium": "Skryptorium docelowe",
+    "targetLibrary": "Biblioteka docelowa",
+    "public": "publiczna",
+    "forMembers": "dla członków obszaru",
+    "after": "Po przeniesieniu: {who}.",
+    "withType": "Przenieś też rodzaj tekstu „{name}” — bez niego czytelnicy tamtego skryptorium nie zobaczą pól tego rodzaju (inne teksty tego rodzaju dalej z niego korzystają).",
+    "files": "Pliki ({n}) przejdą razem z wpisem — zaszyfrowane kluczem tamtego obszaru; to może chwilę potrwać.",
+    "refsWarn": "Kto widzi tylko jedną z bibliotek, zobaczy w miejscu odwołania „{unreadable}” — bez tytułu i treści.",
+    "refsOut": "Wpis odwołuje się do {n} innych.",
+    "refsIn": "Do niego odwołuje się {n}.",
+    "moving": "Przenoszenie…",
+    "moveTo": "Przenieś do „{name}”"
+  },
+  "key": {
+    "pinned": "Teksty, które nazywały wpis starym kluczem ({n}), wskazują go teraz na stałe.",
+    "pinnedSome": "Teksty, które nazywały wpis starym kluczem ({n}), wskazują go teraz na stałe; {failed} w bibliotekach, których nie możesz zmieniać — tam działa stary klucz, zachowany przy wpisie.",
+    "title": "Klucz cytowania",
+    "placeholder": "zostanie zaproponowany",
+    "hint": "W tekście: <a>[@{key}]</a> albo <b>[@{key}, s. 12]</b> — zapisze się stały odnośnik, więc zmiana klucza niczego nie zepsuje.",
+    "taken": "Ten klucz ma już inny wpis w tej bibliotece — zostanie uzupełniony literą.",
+    "elsewhere": "Ten klucz ma już wpis w innej bibliotece, którą widzisz. Pisząc [@{key}] w tej bibliotece wybierasz ten wpis; w tekstach zapisze się stały odnośnik, więc nic się nie pomyli.",
+    "wrong": "Tylko litery, cyfry i znaki . _ : -"
+  },
+  "entryJson": {
+    "importOnly": "Import z JSON",
+    "summary": "Import / eksport JSON",
+    "leadNew": "Wklej opis ({kind}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i to, na co w nim wskazujesz, jeśli opiszesz to w tym samym dokumencie).",
+    "lead": "Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).",
+    "fileName": "wpis"
+  },
+  "remove": {
+    "open": "Usuń ten wpis…",
+    "ask": "Usunąć „{title}”?",
+    "backlinks": {
+      "one": "Odwołuje się do niego {count} wpis — to odwołanie zostanie puste.",
+      "few": "Odwołują się do niego {count} wpisy — te odwołania zostaną puste.",
+      "many": "Odwołuje się do niego {count} wpisów — te odwołania zostaną puste.",
+      "other": "Odwołuje się do niego {count} wpisu — te odwołania zostaną puste."
+    }
+  },
+  "picked": {
+    "pick": "Zaznacz: {label}",
+    "removeAsk": {
+      "one": "Usunąć {count} wpis?",
+      "few": "Usunąć {count} wpisy?",
+      "many": "Usunąć {count} wpisów?",
+      "other": "Usunąć {count} wpisu?"
+    },
+    "pointing": {
+      "one": "{count} inny wpis się do nich odwołuje — te odwołania pokażą, że wpisu już nie ma.",
+      "few": "{count} inne wpisy się do nich odwołują — te odwołania pokażą, że wpisu już nie ma.",
+      "many": "{count} innych wpisów się do nich odwołuje — te odwołania pokażą, że wpisu już nie ma.",
+      "other": "{count} innego wpisu się do nich odwołuje — te odwołania pokażą, że wpisu już nie ma."
+    },
+    "foreignStay": {
+      "one": "{count} z zaznaczonych leży w innej bibliotece — te zostaną.",
+      "few": "{count} z zaznaczonych leżą w innej bibliotece — te zostaną.",
+      "many": "{count} z zaznaczonych leży w innej bibliotece — te zostaną.",
+      "other": "{count} z zaznaczonych leży w innej bibliotece — te zostaną."
+    },
+    "noUndo": "Tego nie da się cofnąć z tej listy.",
+    "removing": "Usuwanie… {n} z {total}",
+    "removed": {
+      "one": "Usunięto {count} wpis.",
+      "few": "Usunięto {count} wpisy.",
+      "many": "Usunięto {count} wpisów.",
+      "other": "Usunięto {count} wpisu."
+    },
+    "region": "Zaznaczone wpisy",
+    "count": "Zaznaczone: {n}",
+    "all": "Zaznacz wszystkie ({n})",
+    "none": "Odznacz",
+    "remove": "Usuń ({n})",
+    "foreign": {
+      "one": "{count} z zaznaczonych leży w innej bibliotece — tych nie da się tu usunąć.",
+      "few": "{count} z zaznaczonych leżą w innej bibliotece — tych nie da się tu usunąć.",
+      "many": "{count} z zaznaczonych leży w innej bibliotece — tych nie da się tu usunąć.",
+      "other": "{count} z zaznaczonych leży w innej bibliotece — tych nie da się tu usunąć."
+    }
+  },
+  "knowledge": {
+    "wholeWork": "całe dzieło",
+    "inEdition": "{place} (w wydaniu: {edition})",
+    "title": "W Wiedzy",
+    "one": "W Wiedzy: {name} ›",
+    "many": {
+      "one": "W Wiedzy: {count} wejście ↓",
+      "few": "W Wiedzy: {count} wejścia ↓",
+      "many": "W Wiedzy: {count} wejść ↓",
+      "other": "W Wiedzy: {count} wejścia ↓"
+    }
+  },
+  "editor": {
+    "elsewhere": "Ten wpis jest w innej bibliotece.",
+    "openThere": "Otwórz go tam",
+    "missing": "Tego wpisu nie ma (albo został usunięty).",
+    "oldKind": "Ten wpis jest rodzaju, którego biblioteka już nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”.",
+    "reload": "Wczytaj nowszą wersję",
+    "keepMine": "Zachowaj moją (nadpisz)",
+    "readOnly": "Tę bibliotekę możesz tylko czytać.",
+    "tracksLater": "Ścieżki nagrania dodasz po zapisaniu wpisu.",
+    "filesLater": "Pliki nut dodasz po zapisaniu wpisu."
+  },
+  "public": {
+    "closed": "Tej biblioteki nie widzisz — jej obszar nie jest publiczny.",
+    "searchPlaceholder": "Szukaj w cytatach…",
+    "search": "Szukaj w cytatach",
+    "none": "Nie ma jeszcze cytatów.",
+    "more": "Więcej ({n})"
+  },
+  "basePick": {
+    "label": "Z bazy wiedzy",
+    "title": "Z bazy wiedzy: słowo, wpis albo widok",
+    "searchPlaceholder": "Szukaj w bazach wiedzy…",
+    "search": "Szukaj w bazach wiedzy",
+    "none": "Nie czytasz żadnej bazy wiedzy.",
+    "view": " · widok — wstawi listę, która żyje razem z bazą",
+    "link": " · odnośnik"
+  },
+  "blocks": {
+    "paragraph": "Akapit",
+    "ordered": "Lista numerowana",
+    "unordered": "Lista punktów",
+    "table": "Tabela",
+    "form": "Forma bloku",
+    "up": "W górę",
+    "down": "W dół",
+    "remove": "Usuń blok",
+    "lede": "Forma coś znaczy: lista numerowana — kolejność (tok myśli), lista punktów — rzeczy równorzędne, tabela — porównanie (każdy wiersz porównuje to samo).",
+    "prose": "Proza — **pogrubienie**, *kursywa*, przypis [@klucz, s. 3], wypowiedź osadzona: ![@kennung]",
+    "column": "Kolumna {n}",
+    "columnName": "Nazwa kolumny {n}",
+    "removeColumn": "Usuń kolumnę {n}",
+    "addColumn": "+ kolumna",
+    "removeRow": "Usuń wiersz {n}",
+    "addRow": "+ wiersz",
+    "removeItem": "Usuń punkt {n}",
+    "addItem": "+ punkt",
+    "textPlaceholder": "tekst",
+    "text": "Tekst",
+    "refPlace": "Miejsce odwołania",
+    "removeRef": "Usuń odwołanie",
+    "addText": "+ tekst",
+    "addRef": "+ odwołanie"
+  },
+  "draft": {
+    "new": "Nowy — zapisz, żeby powstał.",
+    "dirty": "Zmiany…",
+    "failed": "Nie zapisano.",
+    "stale": "Ktoś zmienił ten wpis w międzyczasie.",
+    "saved": "Zapisane."
+  },
+  "map": {
+    "noField": "{from} nie odwołuje się do: {to}. (Cytat w tekście wstawiasz w treści: [@{key}].)"
+  },
+  "old": {
+    "title": "Stare wpisy ({n})",
+    "lede": "Wpisy rodzajów, których ta wersja już nie obsługuje. {where} Można je przejrzeć i usunąć — same nie znikną.",
+    "none": "Nie ma starych wpisów.",
+    "changed": "zmieniony {date}"
+  },
+  "oldKind": {
+    "text": "Tekst",
+    "delivery": "Wygłoszenie",
+    "project": "Projekt",
+    "comment": "Komentarz",
+    "topic": "Temat",
+    "knowledge": "Wiedza",
+    "texttype": "Rodzaj tekstu"
   }
 }

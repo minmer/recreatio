@@ -8,8 +8,10 @@
 
 import { COMPARE_LABEL, type Compare, type Condition, type RuleGroup } from './selection';
 import { useCtx } from './ui';
+import { useT } from '../core/i18n';
 
 export function RuleEditor({ rule, onChange, depth = 0 }: { rule: RuleGroup; onChange: (r: RuleGroup) => void; depth?: number }) {
+  const t = useT();
   const { lib } = useCtx();
   const keys = [...new Map(lib.kinds.flatMap((k) => k.fields).map((f) => [f.key, f.label])).entries()];
   const set = (i: number, item: Condition | RuleGroup | null) => onChange({ ...rule, items: item === null ? rule.items.filter((_, j) => j !== i) : rule.items.map((x, j) => (j === i ? item : x)) });
@@ -17,8 +19,8 @@ export function RuleEditor({ rule, onChange, depth = 0 }: { rule: RuleGroup; onC
     <div className="cg-cond">
       <div className="cg-cond-row">
         <select value={rule.op} onChange={(e) => onChange({ ...rule, op: e.target.value === 'or' ? 'or' : 'and' })}>
-          <option value="and">wszystkie warunki (I)</option>
-          <option value="or">którykolwiek (LUB)</option>
+          <option value="and">{t('cogitaData.ruleEditor.all')}</option>
+          <option value="or">{t('cogitaData.ruleEditor.any')}</option>
         </select>
       </div>
       <div className="cg-cond-items">
@@ -28,7 +30,7 @@ export function RuleEditor({ rule, onChange, depth = 0 }: { rule: RuleGroup; onC
             <div key={i} className="cg-cond-row">
               {item.cmp !== 'kind' && item.cmp !== 'refers' && (
                 <select value={item.field ?? ''} onChange={(e) => set(i, { ...item, field: e.target.value })}>
-                  <option value="">pole…</option>
+                  <option value="">{t('cogitaData.ruleEditor.field')}</option>
                   {keys.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
               )}
@@ -44,8 +46,8 @@ export function RuleEditor({ rule, onChange, depth = 0 }: { rule: RuleGroup; onC
             </div>
           ))}
         <span className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { cmp: 'contains', field: keys[0]?.[0], value: '' }] })}>+ warunek</button>
-          {depth < 3 && <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { op: rule.op === 'and' ? 'or' : 'and', items: [] }] })}>+ grupa</button>}
+          <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { cmp: 'contains', field: keys[0]?.[0], value: '' }] })}>{t('cogitaData.ruleEditor.addCondition')}</button>
+          {depth < 3 && <button type="button" className="wk-link-btn" onClick={() => onChange({ ...rule, items: [...rule.items, { op: rule.op === 'and' ? 'or' : 'and', items: [] }] })}>{t('cogitaData.ruleEditor.addGroup')}</button>}
         </span>
       </div>
     </div>

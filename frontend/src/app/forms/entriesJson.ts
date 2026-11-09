@@ -31,6 +31,9 @@
 import { fullNameOf, isYes, KIND_LABEL, YES, type OpenField } from './form';
 import { type Answer } from './submissions';
 import { REPEAT_LABEL, roundAhead, roundOf, roundValid, type Repeat } from './rounds';
+import { t } from '../core/i18n';
+
+const E = 'formsData.entries.';
 
 export const ENTRIES_FORMAT = 'recreatio/entries';
 
@@ -169,11 +172,6 @@ export interface EntriesPlan {
   readonly warnings: readonly string[];
 }
 
-const count = (n: number, one: string, few: string, many: string): string => {
-  const tens = n % 100;
-  const last = n % 10;
-  return `${n} ${n === 1 ? one : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? few : many}`;
-};
 
 /**
  * WAS EIN DOKUMENT ÄNDERN WÜRDE — ohne etwas zu tun. Jede Zeile, die nicht
@@ -181,15 +179,15 @@ const count = (n: number, one: string, few: string, many: string): string => {
  */
 export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new Date()): EntriesPlan | { error: string } {
   const root = asRecord(doc);
-  if (root === null) return { error: 'To nie jest dokument JSON z listą osób.' };
+  if (root === null) return { error: t(`${E}notDoc`) };
   if (root.format !== undefined && root.format !== ENTRIES_FORMAT) {
-    return { error: `To dokument „${String(root.format)}”, a tutaj importuje się „${ENTRIES_FORMAT}”.` };
+    return { error: t(`${E}otherFormat`, { format: String(root.format), wanted: ENTRIES_FORMAT }) };
   }
-  if (!Array.isArray(root.entries)) return { error: 'Brakuje listy "entries".' };
+  if (!Array.isArray(root.entries)) return { error: t(`${E}noEntries`) };
 
   const warnings: string[] = [];
   if (typeof root.form === 'string' && root.form !== '' && root.form !== ctx.formId) {
-    warnings.push('Dokument pochodzi z innego formularza — osoby z "id" stamtąd zostaną potraktowane jak nowe.');
+    warnings.push(t(`${E}otherForm`));
   }
 
   const byKey = fieldsByKey(ctx.fields);
@@ -216,21 +214,21 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
 
   root.entries.forEach((raw, index) => {
     const entry = asRecord(raw);
-    const where = `Osoba ${index + 1}`;
-    if (entry === null) { warnings.push(`${where}: to nie jest obiekt — pominięta.`); return; }
+    const where = t(`${E}where`, { n: index + 1 });
+    if (entry === null) { warnings.push(t(`${E}notObject`, { where })); return; }
 
     /* Die Antworten, soweit sie zu einer Frage gehören. */
     const given = new Map<string, string>();
     const answersIn = entry.answers === undefined ? {} : asRecord(entry.answers);
-    if (answersIn === null) { warnings.push(`${where}: "answers" to nie jest obiekt — pominięta.`); return; }
+    if (answersIn === null) { warnings.push(t(`${E}answersNotObject`, { where })); return; }
 
     for (const [key, value] of Object.entries(answersIn)) {
       const field = byKey.get(fold(key));
-      if (field === undefined) { warnings.push(`${where}: nie ma pytania „${key}” — pominięte.`); continue; }
+      if (field === undefined) { warnings.push(t(`${E}noQuestion`, { where, key })); continue; }
       /* 0093 — was nur der Mensch schreibt, schreibt kein Import der Kanzlei. */
-      if (field.personOnly === true) { warnings.push(`${where}: na „${key}” odpowiada tylko sama osoba — pominięte.`); continue; }
+      if (field.personOnly === true) { warnings.push(t(`${E}personOnly`, { where, key })); continue; }
       const text = valueFor(field, value);
-      if (text === null) { warnings.push(`${where}: odpowiedź na „${key}” to nie tekst, liczba ani true/false — pominięta.`); continue; }
+      if (text === null) { warnings.push(t(`${E}badValue`, { where, key })); continue; }
       given.set(field.fieldId, text);
     }
 
@@ -242,16 +240,16 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
     if (existing === undefined && name !== null) {
       const alike = byName.get(fold(name)) ?? [];
       if (alike.length === 1) { existing = alike[0]; matchedByName += 1; }
-      else if (alike.length > 1) warnings.push(`${where} („${name}”): na liście jest kilka osób o tym imieniu i nazwisku — powstanie nowy wpis. Podaj "id" z eksportu, żeby zmienić istniejącą.`);
+      else if (alike.length > 1) warnings.push(t(`${E}sameName`, { where, name }));
     }
 
     let base: BaseRef;
 
     if (existing === undefined) {
       const answers = [...given].filter(([, value]) => value !== '').map(([fieldId, value]) => ({ fieldId, value }));
-      if (answers.length === 0) { warnings.push(`${where}: bez żadnej odpowiedzi — pominięta.`); return; }
+      if (answers.length === 0) { warnings.push(t(`${E}noAnswers`, { where })); return; }
       const ref = add.length;
-      add.push({ ref, name: name ?? `osoba ${index + 1}`, answers });
+      add.push({ ref, name: name ?? t(`${E}person`, { n: index + 1 }), answers });
       base = { ref };
     } else {
       const found = existing;
@@ -272,36 +270,38 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
     /* Was die Erweiterungen zu ihm tragen. */
     if (entry.records === undefined) return;
     const recordsIn = asRecord(entry.records);
-    if (recordsIn === null) { warnings.push(`${where}: "records" to nie jest obiekt — pominięte.`); return; }
+    if (recordsIn === null) { warnings.push(t(`${E}recordsNotObject`, { where })); return; }
 
     for (const [extKey, roundsRaw] of Object.entries(recordsIn)) {
       const ext = extByKey.get(fold(extKey));
-      if (ext === undefined) { warnings.push(`${where}: nie ma rozszerzenia „${extKey}” — pominięte.`); continue; }
-      if (ext.audience !== 'office') { warnings.push(`${where}: „${ext.name}” wypełnia osoba przez swój link — import w nim nie pisze.`); continue; }
+      if (ext === undefined) { warnings.push(t(`${E}noExt`, { where, key: extKey })); continue; }
+      if (ext.audience !== 'office') { warnings.push(t(`${E}extByPerson`, { where, ext: ext.name })); continue; }
 
       const rounds = asRecord(roundsRaw);
-      if (rounds === null) { warnings.push(`${where}: wpisy „${ext.name}” to nie obiekt — pominięte.`); continue; }
+      if (rounds === null) { warnings.push(t(`${E}roundsNotObject`, { where, ext: ext.name })); continue; }
 
       const extFields = fieldsByKey(ext.fields);
 
       for (const [roundKey, valuesRaw] of Object.entries(rounds)) {
         const round = ext.repeat === 'once' && (roundKey === ONCE_KEY || roundKey === '') ? '' : roundKey.trim();
         if (!roundValid(ext.repeat, round)) {
-          warnings.push(`${where}: „${roundKey}” to nie jest okres rozszerzenia „${ext.name}” (${ext.repeat === 'once' ? `"${ONCE_KEY}"` : `np. "${roundOf(ext.repeat, now)}"`}) — pominięty.`);
+          warnings.push(ext.repeat === 'once'
+            ? t(`${E}badRoundOnce`, { where, key: roundKey, ext: ext.name, once: ONCE_KEY })
+            : t(`${E}badRound`, { where, key: roundKey, ext: ext.name, sample: roundOf(ext.repeat, now) }));
           continue;
         }
-        if (roundAhead(ext.repeat, round, now)) { warnings.push(`${where}: okres ${round} jeszcze się nie zaczął — pominięty.`); continue; }
+        if (roundAhead(ext.repeat, round, now)) { warnings.push(t(`${E}roundAhead`, { where, round })); continue; }
 
         const values = asRecord(valuesRaw);
-        if (values === null) { warnings.push(`${where}: wpis ${roundKey} („${ext.name}”) to nie obiekt — pominięty.`); continue; }
+        if (values === null) { warnings.push(t(`${E}recordNotObject`, { where, key: roundKey, ext: ext.name })); continue; }
 
         const wanted = new Map<string, string>();
         for (const [key, value] of Object.entries(values)) {
           const field = extFields.get(fold(key));
-          if (field === undefined) { warnings.push(`${where}: „${ext.name}” nie ma pytania „${key}” — pominięte.`); continue; }
-          if (field.personOnly === true) { warnings.push(`${where}: na „${key}” („${ext.name}”) odpowiada tylko sama osoba — pominięte.`); continue; }
+          if (field === undefined) { warnings.push(t(`${E}extNoQuestion`, { where, ext: ext.name, key })); continue; }
+          if (field.personOnly === true) { warnings.push(t(`${E}extPersonOnly`, { where, ext: ext.name, key })); continue; }
           const text = valueFor(field, value);
-          if (text === null) { warnings.push(`${where}: odpowiedź na „${key}” to nie tekst, liczba ani true/false — pominięta.`); continue; }
+          if (text === null) { warnings.push(t(`${E}badValue`, { where, key })); continue; }
           wanted.set(field.fieldId, text);
         }
 
@@ -320,47 +320,40 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
     }
   });
 
-  if (matchedByName > 0) warnings.push(`${count(matchedByName, 'osoba bez "id" została dopasowana', 'osoby bez "id" zostały dopasowane', 'osób bez "id" zostało dopasowanych')} po imieniu i nazwisku do osób już wpisanych.`);
-  if (skippedSeat > 0) warnings.push(`${count(skippedSeat, 'osoba ma', 'osoby mają', 'osób ma')} własny link — ich odpowiedzi import nie zmienia (popraw je w zakładce „Zgłoszenia”).`);
+  if (matchedByName > 0) warnings.push(t(`${E}matched`, { count: matchedByName }));
+  if (skippedSeat > 0) warnings.push(t(`${E}skippedSeat`, { count: skippedSeat }));
 
   const lines: string[] = [];
-  if (add.length > 0) lines.push(`Nowe osoby: ${add.length}.`);
-  if (change.length > 0) lines.push(`Zmienione dane: ${count(change.length, 'osoba', 'osoby', 'osób')} (${count(change.reduce((n, c) => n + c.answers.length, 0), 'odpowiedź', 'odpowiedzi', 'odpowiedzi')}).`);
-  if (recordsNew.length > 0) lines.push(`Nowe wpisy w rozszerzeniach: ${recordsNew.length}.`);
-  if (recordsChange.length > 0) lines.push(`Zmienione wpisy w rozszerzeniach: ${recordsChange.length}.`);
-  if (lines.length === 0) lines.push('Nic do zmiany.');
+  if (add.length > 0) lines.push(t(`${E}linesAdd`, { count: add.length }));
+  if (change.length > 0) lines.push(t(`${E}linesChange`, { people: t(`${E}people`, { count: change.length }), answers: t('formsOffice.msg.answers', { count: change.reduce((n, c) => n + c.answers.length, 0) }) }));
+  if (recordsNew.length > 0) lines.push(t(`${E}linesRecordsNew`, { count: recordsNew.length }));
+  if (recordsChange.length > 0) lines.push(t(`${E}linesRecordsChange`, { count: recordsChange.length }));
+  if (lines.length === 0) lines.push(t(`${E}nothing`));
 
   return { add, change, recordsNew, recordsChange, lines, warnings };
 }
 
 /* -- Die Beschreibung, aus den Fragen DIESES Formulars -------------------------------------- */
 
-export const ENTRIES_KEYS: Readonly<Record<string, string>> = {
-  format: `"${ENTRIES_FORMAT}"`,
-  version: '1',
-  form: 'Identyfikator formularza (tylko informacja — import zawsze dotyczy otwartego formularza)',
-  name: 'Nazwa formularza (tylko informacja)',
-  entries: 'Osoby na liście — każda to jeden obiekt',
-  'entries[].id': 'Identyfikator osoby z eksportu — wtedy jej dane są ZMIENIANE. Pominięty: powstaje nowa osoba (albo dopasowanie po imieniu i nazwisku, jeśli na liście jest dokładnie jedna taka)',
-  'entries[].answers': 'Odpowiedzi osoby: { "pytanie": wartość }. Kluczem jest treść pytania (albo jego identyfikator). Pytanie „tak / nie”: true albo false. Czego nie ma, zostaje bez zmian; pusta wartość "" czyści odpowiedź',
-  'entries[].records': 'Wpisy w rozszerzeniach wypełnianych przez koordynatora: { "nazwa rozszerzenia": { "okres": { "pytanie": wartość } } }. Okres: klucz okresu (niżej), a w rozszerzeniu jednorazowym "once"'
-};
+/* Was jeder Schlüssel bedeutet — gelesen in der Sprache der App (`formsData.entries.key.*`). */
+export const ENTRIES_KEYS: Readonly<Record<string, string>> = (() => {
+  const out: Record<string, string> = { format: `"${ENTRIES_FORMAT}"`, version: '1' };
+  const names: Readonly<Record<string, string>> = {
+    form: 'form', name: 'name', entries: 'entries', 'entries[].id': 'id', 'entries[].answers': 'answers', 'entries[].records': 'records'
+  };
+  for (const [key, name] of Object.entries(names)) Object.defineProperty(out, key, { get: () => t(`${E}key.${name}`), enumerable: true });
+  return out;
+})();
 
 const kindWords = (f: OpenField): string =>
-  (f.kind === 'checkbox' ? 'tak / nie — true albo false'
-    : f.kind === 'choice' ? `jedna z: ${f.options.map((o) => `"${o}"`).join(', ') || '(brak opcji)'}`
-    : f.kind === 'date' ? 'data, "RRRR-MM-DD"'
-    : f.kind === 'number' ? 'liczba'
-    : f.kind === 'phone' ? 'telefon, np. "+48 600 700 800" (kilka: po przecinku)'
+  (f.kind === 'checkbox' ? t(`${E}kind.checkbox`)
+    : f.kind === 'choice' ? t(`${E}kind.choice`, { list: f.options.map((o) => `"${o}"`).join(', ') || t(`${E}kind.noOptions`) })
+    : f.kind === 'date' ? t(`${E}kind.date`)
+    : f.kind === 'number' ? t(`${E}kind.number`)
+    : f.kind === 'phone' ? t(`${E}kind.phone`)
     : KIND_LABEL[f.kind].toLowerCase());
 
-const ROUND_WORDS: Record<Repeat, string> = {
-  once: `jednorazowe — okres "${ONCE_KEY}"`,
-  day: 'co dzień — okres "RRRR-MM-DD", np. "2026-10-02"',
-  week: 'co tydzień — okres "RRRR-Wnn" (tydzień ISO, od poniedziałku), np. "2026-W40"',
-  month: 'co miesiąc — okres "RRRR-MM", np. "2026-10"',
-  year: 'co rok — okres "RRRR", np. "2026"'
-};
+const roundWords = (repeat: Repeat): string => t(`${E}round.${repeat}`, { once: ONCE_KEY });
 
 const exampleValue = (f: OpenField, sample: number): string | boolean =>
   (f.kind === 'checkbox' ? true
@@ -371,7 +364,7 @@ const exampleValue = (f: OpenField, sample: number): string | boolean =>
     : f.kind === 'email' ? 'jan@example.org'
     : f.identityRole === 'given_name' ? ['Jan', 'Maria'][sample % 2]
     : f.identityRole === 'surname' ? ['Kowalski', 'Nowak'][sample % 2]
-    : f.identityRole === 'address' ? ['ul. Długa 5/3, 34-600 Limanowa', 'ul. Krótka 12, 34-600 Limanowa'][sample % 2]
+    : f.identityRole === 'address' ? ['ul. Długa 5/3, 34-600 Limanowa', 'ul. Krótka 12, 34-600 Limanowa'][sample % 2] // i18n-ignore (Beispieldaten: eine polnische Adresse)
     : '…');
 
 /*
@@ -381,12 +374,7 @@ const exampleValue = (f: OpenField, sample: number): string | boolean =>
    Platz, keine Rolle (`Form.Members.cs`), kein Gespräch zu zweit (`OfficeSeatChats.tsx`), aber Obszary osób
    (`Form.Virtual.cs`); die Glocke schweigt (`Notify.cs`: `by_office = 0`), ein geschlossenes Formular nimmt sie an.
 */
-const ENTRIES_USAGE = `## Jak aplikacja używa tych danych
-- Osoby z importu stoją na liście formularza jak inne: w zakładce „Zgłoszenia” (z oznaczeniem „bez linku”), w „Tabeli”, na „Liście obecności” zadań z terminami i w modułach strony „Lista osób” i „Panel osoby”.
-- Wpisy z "records" stoją w arkuszu rozszerzenia, okres po okresie — z historią, podsumowaniem, „Drukuj listę” i „Pobierz CSV”.
-- Odpowiedzi otwierają tylko koordynatorzy formularza; kto prowadzi stronę, ale nie czyta obszaru odpowiedzi, widzi tylko, że wpisy są. CSV z „Tabeli” i eksport tego JSON mają odpowiedzi odszyfrowane — takiego pliku nic już nie chroni.
-- Dopisana osoba nie widzi swojego zgłoszenia, nie wypełnia podformularzy, nie dostaje ról uczestników ("memberRoles") ani rozmowy jeden na jeden; jej kroki, zadania i obecność zaznacza kancelaria, a obszar osoby z "virtualAreas" (jeśli formularz go ma) służy tylko kancelarii.
-- Import nie dzwoni: dzwonek i powiadomienia liczą tylko zgłoszenia wysłane przez same osoby. Działa też przy zamkniętym formularzu.`;
+const entriesUsage = (): string => `## ${t('formsFormat.usage.title')}\n${t(`${E}usage`)}`;
 
 /**
  * Die Beschreibung NEBEN dem Import — mit den Fragen und Erweiterungen dieses
@@ -414,28 +402,24 @@ export function entriesDescription(ctx: Pick<EntriesContext, 'formName' | 'field
     ]
   };
 
-  return `# Lista osób formularza „${ctx.formName}” jako JSON ("${ENTRIES_FORMAT}", wersja 1)
+  return `# ${t(`${E}descTitle`, { name: ctx.formName, format: ENTRIES_FORMAT })}
 
-Co robi import tutaj: DOPISUJE osoby do listy tego formularza i ZMIENIA dane osób już wpisanych; w rozszerzeniach, które wypełnia koordynator, dopisuje i zmienia wpisy (osobno dla każdego okresu). Niczego nie usuwa. Wszystko jest pieczętowane w tej przeglądarce, zanim trafi do usługi.
-- Osoba z "id" z eksportu jest zmieniana. Osoba bez "id" powstaje jako nowa — chyba że na liście jest dokładnie jedna osoba o tym samym imieniu i nazwisku: wtedy to ona.
-- Zmieniane są tylko odpowiedzi, które są w dokumencie; reszta zostaje.
-- Odpowiedzi osoby, która zapisała się sama i ma własny link, import nie zmienia.
-- Dopisana osoba nie ma własnego linku — prowadzi ją koordynator.
+${t(`${E}descIntro`)}
 
 ${Object.entries(ENTRIES_KEYS).map(([key, says]) => `  "${key}" — ${says}`).join('\n')}
 
-## Pytania tego formularza — klucze w "answers"
-${readable.length === 0 ? '  (nie da się ich odczytać Twoimi kluczami)' : readable.map((f) => `  "${keys.get(f.fieldId) ?? f.fieldId}" — ${kindWords(f)}`).join('\n')}
+## ${t(`${E}descQuestions`)}
+${readable.length === 0 ? `  ${t(`${E}descUnreadable`)}` : readable.map((f) => `  "${keys.get(f.fieldId) ?? f.fieldId}" — ${kindWords(f)}`).join('\n')}
 
-## Rozszerzenia — klucze w "records"
-${office.length === 0 ? '  (ten formularz nie ma rozszerzeń wypełnianych przez koordynatora)' : office.map((ext) => {
+## ${t(`${E}descExtensions`)}
+${office.length === 0 ? `  ${t(`${E}descNoExtensions`)}` : office.map((ext) => {
     const extKeys = answerKeys(ext.fields);
-    return `  "${ext.name}" — ${ROUND_WORDS[ext.repeat]}${ext.repeat === 'once' ? '' : ` (${REPEAT_LABEL[ext.repeat]}; okresu z przyszłości import nie przyjmie)`}\n${ext.fields.filter((f) => f.label !== null).map((f) => `      "${extKeys.get(f.fieldId) ?? f.fieldId}" — ${kindWords(f)}`).join('\n')}`;
+    return `  "${ext.name}" — ${roundWords(ext.repeat)}${ext.repeat === 'once' ? '' : ` ${t(`${E}descRepeat`, { repeat: REPEAT_LABEL[ext.repeat] })}`}\n${ext.fields.filter((f) => f.label !== null).map((f) => `      "${extKeys.get(f.fieldId) ?? f.fieldId}" — ${kindWords(f)}`).join('\n')}`;
   }).join('\n')}
 
-${ENTRIES_USAGE}
+${entriesUsage()}
 
-Przykład:
+${t('formsFormat.example')}
 ${JSON.stringify(example, null, 2)}
 `;
 }

@@ -57,7 +57,7 @@ export * from '${app}library/libraryMarkup';
 export * from '${app}library/libraryCite';
 export * from '${app}library/blocks';
 export * from '${app}library/statement';
-export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY_FORMAT, LIBRARY_SPEC, LIBRARY_VERSION, MARKUP_DOC } from '${app}library/libraryJson';
+export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY_FORMAT, LIBRARY_SPEC, LIBRARY_VERSION, markupDoc } from '${app}library/libraryJson';
 export { QuoteFigure } from '${app}library/LibraryText';
 export { TextArticle } from '${app}scriptorium/TextArticle';
 export { planScriptoriumImport, exportScriptorium, scriptoriumDescription, scriptoriumSpec, SCRIPTORIUM_FORMAT, SCRIPTORIUM_SPEC, SCRIPTORIUM_VERSION } from '${app}scriptorium/scriptoriumJson';
@@ -304,7 +304,7 @@ try {
     const cg = m.renderToStaticMarkup(m.createElement(m.CogitaMarkup, { text: '## Teza\n\nZdanie [@ratz, s. 3] i [[tekst|@inny]].', lib: { markupLook: L } }));
     assert.ok(cg.includes('lib-h') && cg.includes('lib-own-ref') && cg.includes('Jezus z Nazaretu') && cg.includes('Przypisy'), 'Cogita: headings, a source footnote, a link — the same pieces');
     assert.equal(m.plainOf('Księgi [[Samuela|@samuel]] to część Biblii [@bt, J 3,16].'), 'Księgi Samuela to część Biblii.', 'Cogita plain text from the same reader');
-    const told = m.MARKUP_DOC;
+    const told = m.markupDoc();
     assert.ok(told.includes('[[te słowa|@klucz]]') && told.includes('nigdy przypis') && told.includes('[odwołanie niedostępne]'), 'the markup description tells an AI: sources are cited, own entries linked');
     assert.ok(m.courseDescription().includes('[[słowo|@wpis]]') && m.courseDescription().includes('staje się przypisem'), 'the Cogita description says the same');
     assert.ok(m.courseDescription().includes('"kinds": ["quote"]') && m.courseDescription().includes('"from": "<identyfikator biblioteki>"'), 'the Cogita description shows templates and revisions over library material (step 5)');
@@ -395,7 +395,7 @@ try {
     assert.deepEqual(m.passageHits(index, []), [], 'nothing typed, nothing found');
     assert.ok(m.libraryDescription().includes('Łk 1,26–2,5') && m.libraryDescription().includes('Acts 1:14'), 'the description tells an AI how to write a place in the Scripture');
     assert.deepEqual([m.entryTitle({ id: 'w', kind: 'entity', data: { _kinds: ['x'], tekst: 'house' } }, look([])), m.entryTitle({ id: 'v', kind: 'view', data: { name: 'Psalmy jutrzni' } }, look([]))], ['house', 'Psalmy jutrzni'], 'Schritt 11: a base entry and a view have names in a text');
-    assert.ok(m.MARKUP_DOC.includes('![@id-widoku]') && m.MARKUP_DOC.includes('[[house|@id-słowa]]'), 'Schritt 11: the description shows linking a dictionary word and embedding a live view');
+    assert.ok(m.markupDoc().includes('![@id-widoku]') && m.markupDoc().includes('[[house|@id-słowa]]'), 'Schritt 11: the description shows linking a dictionary word and embedding a live view');
     /* Die Kästen zeichnen (ohne offene Speicher im Prüfling: nur der Rahmen). */
     const fake = { libraryId: 'lib-a', revision: 1, title: (e) => String(e.data.title ?? e.data.text ?? e.id), get: () => undefined, byKey: () => undefined, readable: () => [], all: () => [], ownByKey: () => undefined };
     const rel = m.renderToStaticMarkup(m.createElement(m.Relations, { store: fake, library: { libraryId: 'lib-a', writes: true }, entry: { ...BT, libraryId: 'lib-a' } }));

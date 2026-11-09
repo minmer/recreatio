@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
+import { fmtNumber } from '../core/i18n';
 import { LampRadio } from './native';
 import { pressHold, releaseHold, TAP_MS, type Hold } from './transmit';
 
@@ -127,7 +128,7 @@ export function SendKey({ className, disabled = false, onSend, children, title }
       {children}
       {holding && (
         <span className="lp-send-held" aria-hidden="true">
-          {(Math.max(0, held) / 1000).toLocaleString('pl-PL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s
+          {fmtNumber(Math.max(0, held) / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s
         </span>
       )}
     </button>

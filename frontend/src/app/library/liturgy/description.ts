@@ -7,6 +7,13 @@ const GUIDE = `# Liturgical Library — complete JSON import and maintenance con
 
 Liturgia is a parallel collection INSIDE Library, with collection kind \`liturgy\`. It is not a book, a Cogita knowledge base, an appointment calendar, or the parish Mass-intention register. Its texts can be source material for Cogita. It stores reusable texts and editions separately from references, assignments, calendar configuration, and composition rules. This format manages the WHOLE collection and all nine entity types, not just psalm fragments.
 
+## Jak aplikacja używa tych danych (how the app uses this data)
+
+- **Storage**: every entity becomes one entry of kind \`lit_*\` in this collection, sealed in the browser with the area's key; each import adds one \`lit_import\` receipt (the Import history tab). The collection's area decides who reads: its members, and everyone only when the area is public and its rule for collections is confirmed.
+- **In the collection**: Resources (list, one resource with its text, references and everything that uses it, revision history), Calendar and reading (the liturgical day and the composed hours and Mass, computed at read time from texts, passages, templates, assignments, rules and the bundled defaults), print/PDF, resolved JSON and an offline HTML file.
+- **Elsewhere**: a Cogita knowledge base that adds the collection under Settings → Sources sees its entries as read-only material, passages with their computed text; other Library collections can refer to its entries; an AI link that includes the collection carries the exact canonical entities (\`get_liturgy_library\`) and the computed texts (\`search_entries\`).
+- **What an import does not do**: it never deletes an entity the document omits, never changes a bundled default in place (a stored entity with the same id overrides it; \`reset_default\` returns to it), never fetches text from outside, never writes into Cogita or another collection; in a public area it is refused while any edition lacks \`share\` in \`permitted_usage\`.
+
 ## 1. Read the actual collection before editing it
 
 1. Call \`list_collections\` and choose the exact UUID whose \`part\` is \`liturgy\`. Check \`Ready\`, \`SnapshotCurrent\`, and \`SnapshotMadeAt\`.

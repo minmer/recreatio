@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { Icon } from '../chat/ChatKit';
+import { rich, useT } from '../core/i18n';
 import { whoIsThere } from '../core/session';
 import { viewPath } from '../routes';
 import { toast } from '../ui/dialogs';
@@ -39,6 +40,7 @@ export function showSmsSheet(to: string, text: string): Promise<boolean> {
 }
 
 function SmsSheet({ to, text, onDone }: { to: string; text: string; onDone: (sent: boolean) => void }) {
+  const t = useT();
   const [status, setStatus] = useState<PhoneStatus | null>(null);
   const [name, setName] = useState<string | null>(null);
   const lines = usePhoneLines();
@@ -71,16 +73,16 @@ function SmsSheet({ to, text, onDone }: { to: string; text: string; onDone: (sen
 
   const off = status !== null && !status.defaultSms;
   return (
-    <Modal title={name === null ? `SMS do ${phoneShown(to)}` : `SMS do: ${name} (${phoneShown(to)})`} onClose={() => onDone(false)}>
+    <Modal title={name === null ? t('phoneSms.sheet.titleTo', { to: phoneShown(to) }) : t('phoneSms.sheet.titleName', { name, to: phoneShown(to) })} onClose={() => onDone(false)}>
       {off && (
         <p className="ph-setup">
-          Ta aplikacja nie jest jeszcze aplikacją SMS telefonu — ustaw ją w <a href={viewPath('sms')} onClick={() => onDone(false)}>SMS</a>.
+          {rich(t('phoneSms.sheet.notDefault'), { a: (s) => <a href={viewPath('sms')} onClick={() => onDone(false)}>{s}</a> })}
         </p>
       )}
       {twoLines && (
         <label className="wk-field">
           <span className="ph-why" data-why={picked === null ? choice.why : 'thread'}>
-            <Icon name={picked === null ? whyIcon(choice.why) : 'pin'} />Z numeru{picked === null ? ` — ${whyText(choice)}` : ' — tylko ta wiadomość'}
+            <Icon name={picked === null ? whyIcon(choice.why) : 'pin'} />{t('phoneSms.sheet.fromNumber', { why: picked === null ? whyText(choice) : t('phoneSms.sheet.onlyThis') })}
           </span>
           <select value={sub === null ? '' : String(sub)} onChange={(e) => setPicked(Number(e.target.value))}>
             {lines.map((l) => <option key={l.subId} value={l.subId}>{lineText(l)}</option>)}
@@ -90,7 +92,7 @@ function SmsSheet({ to, text, onDone }: { to: string; text: string; onDone: (sen
       <div className="ph-sheet">
         <Composer to={[to]} sims={status?.sims ?? []} sub={sub} media={false}
           disabled={off} initial={text}
-          onSent={() => { toast(`Wysłano SMS do: ${name ?? phoneShown(to)}.`); onDone(true); }} />
+          onSent={() => { toast(t('phoneSms.sheet.sent', { to: name ?? phoneShown(to) })); onDone(true); }} />
       </div>
     </Modal>
   );

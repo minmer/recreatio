@@ -25,6 +25,7 @@ import { type CalendarRow, type Duty, type SealedField, setOccurrence, setPeople
 import { recordAad } from '../calendar/records';
 import { areaKeys, loadAreaNames, newestKey, openNames } from '../chat/chat';
 import { fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { t } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { addIntention, loadOffice, type OfficeIntention, type OfficeMass, updateIntention } from './mass';
@@ -44,7 +45,7 @@ export interface LoadedMasses {
 }
 
 const messageOf = (e: unknown): string =>
-  e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się';
+  e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : t('massesJson.run.failedWord');
 
 /** Die Menschen einer Gruppe mit Namen — wie `useAreaPeople`, nur ohne Hook. */
 async function loadPeople(me: Me | null, areaId: string): Promise<Person[]> {
@@ -227,9 +228,9 @@ function freshDraft(def: SeriesDef, calendar: CalendarRow, ownerRoleId: string):
 async function sealGift(me: Me, areaId: string | null, intentionId: string, gift: { giver?: string; offering?: string }): Promise<SealedField[]> {
   const given = (['giver', 'offering'] as const).filter((f) => gift[f] !== undefined);
   if (given.length === 0) return [];
-  if (areaId === null) throw new WorkspaceError('nie wiadomo, kluczem której grupy zapieczętować ofiarodawcę i ofiarę');
+  if (areaId === null) throw new WorkspaceError(t('massesJson.run.noSealArea'));
   const newest = newestKey(await areaKeys(me.ring, areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej grupy — ofiarodawcy i ofiary nie da się zapisać.');
+  if (newest === null) throw new WorkspaceError(t('massesJson.run.noGroupKey'));
   const out: SealedField[] = [];
   for (const field of given) {
     out.push({ field, areaId, epoch: newest.epoch, sealed: toBase64Url(await sealText(newest.key, recordAad('intencje', intentionId, field), gift[field]!.trim())) });
@@ -257,35 +258,35 @@ export async function runMassesImport(input: {
   for (const c of plan.creates) {
     if (c.handover !== null) continue;
     const calendar = calendarOf(c.calendarId);
-    if (calendar === undefined) { warnings.push(`${c.label}: nie ma tego kalendarza — nie założono.`); continue; }
-    stage(`Zakładanie: ${c.label}…`);
+    if (calendar === undefined) { warnings.push(t('massesJson.run.noCalendar', { label: c.label })); continue; }
+    stage(t('massesJson.run.stageCreate', { label: c.label }));
     let id: string;
     try {
       id = await saveEvent(me.ring, freshDraft(c.def, calendar, me.person.id));
     } catch (e) {
-      warnings.push(`${c.label}: nie założono — ${messageOf(e)}.`);
+      warnings.push(t('massesJson.run.notCreated', { label: c.label, why: messageOf(e) }));
       continue;
     }
     freshIds.set(c.fresh, id);
     done.masses++;
     if (c.people !== null && c.people.length > 0) {
-      try { await setPeople(id, c.people); } catch (e) { warnings.push(`${c.label}: założono, ale bez osób — ${messageOf(e)}.`); }
+      try { await setPeople(id, c.people); } catch (e) { warnings.push(t('massesJson.run.createdNoPeople', { label: c.label, why: messageOf(e) })); }
     }
   }
 
   /* -- 2. Geänderte Reihen (die ganze Reihe) ---------------------------------------------- */
   for (const u of plan.updates) {
     const item = loaded.opened.get(u.itemId);
-    stage(`Zmiana: ${u.label}…`);
+    stage(t('massesJson.run.stageChange', { label: u.label }));
     try {
       if (Object.keys(u.change).length > 0) {
-        if (item === undefined) throw new WorkspaceError('tego wpisu nie da się tu otworzyć');
+        if (item === undefined) throw new WorkspaceError(t('massesJson.run.cannotOpen'));
         await saveEvent(me.ring, applyDef(draftOf(item), u.change), u.itemId);
       }
       if (u.people !== null) await setPeople(u.itemId, u.people);
       done.masses++;
     } catch (e) {
-      warnings.push(`${u.label}: nie zmieniono — ${messageOf(e)}.`);
+      warnings.push(t('massesJson.run.notChanged', { label: u.label, why: messageOf(e) }));
     }
   }
 
@@ -293,23 +294,23 @@ export async function runMassesImport(input: {
   for (const c of plan.creates) {
     if (c.handover === null) continue;
     const item = loaded.opened.get(c.handover.itemId);
-    stage(`Zmiana od ${c.handover.from}: ${c.label}…`);
+    stage(t('massesJson.run.stageHandover', { from: c.handover.from, label: c.label }));
     let id: string | null = null;
     try {
-      if (item === undefined) throw new WorkspaceError('tego wpisu nie da się tu otworzyć');
+      if (item === undefined) throw new WorkspaceError(t('massesJson.run.cannotOpen'));
       id = await saveEvent(me.ring, applyDef(draftOf(item), c.def));
       await handover(c.handover.itemId, id, noonOf(c.handover.from));
     } catch (e) {
       /* Wie im Termin-Dialog: lehnt der Dienst die Übergabe ab, fällt die neue Reihe wieder weg — sie trägt noch nichts. */
       if (id !== null) await deleteEvent(id).catch(() => undefined);
-      warnings.push(`${c.label}: zmiana od ${c.handover.from} nie przeszła — ${messageOf(e)}.`);
+      warnings.push(t('massesJson.run.handoverFailed', { label: c.label, from: c.handover.from, why: messageOf(e) }));
       continue;
     }
     freshIds.set(c.fresh, id);
     done.masses++;
     /* Die Menschen der REIHE gehen bei der Übergabe nicht mit (nur die einzelner Tage) — also hier. */
     if (c.people !== null && c.people.length > 0) {
-      try { await setPeople(id, c.people); } catch (e) { warnings.push(`${c.label}: zmieniono, ale bez osób — ${messageOf(e)}.`); }
+      try { await setPeople(id, c.people); } catch (e) { warnings.push(t('massesJson.run.changedNoPeople', { label: c.label, why: messageOf(e) })); }
     }
   }
 
@@ -325,7 +326,7 @@ export async function runMassesImport(input: {
           if (!byDay.has(key)) byDay.set(key, m);
         }
       } catch (e) {
-        warnings.push(`Nie udało się odczytać planu po zmianach — ${messageOf(e)}.`);
+        warnings.push(t('massesJson.run.reloadFailed', { why: messageOf(e) }));
       }
     }
   }
@@ -347,9 +348,9 @@ export async function runMassesImport(input: {
   const ready: Ready[] = [];
   for (const s of plan.occurrences) {
     const itemId = 'existing' in s.mass ? s.mass.existing : freshIds.get(s.mass.fresh);
-    if (itemId === undefined) { warnings.push(`${s.label}: msza nie powstała — pominięte.`); continue; }
+    if (itemId === undefined) { warnings.push(t('massesJson.run.massNotMade', { label: s.label })); continue; }
     const at = occurrenceOf(s, itemId);
-    if (at === null) { warnings.push(`${s.label}: tej mszy nie ma w planie po zmianach — pominięte.`); continue; }
+    if (at === null) { warnings.push(t('massesJson.run.massGone', { label: s.label })); continue; }
     ready.push({ s, itemId, occurrenceAt: at.occurrenceAt, areaId: at.areaId ?? areaOfCalendar(s.calendarId) });
   }
   const step = async (r: Ready, what: string, todo: () => Promise<unknown>): Promise<boolean> => {
@@ -357,19 +358,19 @@ export async function runMassesImport(input: {
       await todo();
       return true;
     } catch (e) {
-      warnings.push(`${r.s.label}: ${what} — ${messageOf(e)}.`);
+      warnings.push(t('massesJson.run.stepFailed', { label: r.s.label, what, why: messageOf(e) }));
       return false;
     }
   };
 
   for (const r of ready) {
-    if (r.s.restore && await step(r, 'nie przywrócono', () => restoreOne(r.itemId, r.occurrenceAt))) done.days++;
+    if (r.s.restore && await step(r, t('massesJson.run.notRestored'), () => restoreOne(r.itemId, r.occurrenceAt))) done.days++;
   }
 
   for (const r of ready) {
-    if (r.s.changes.length > 0) stage(`${r.s.label}: zmiany intencji…`);
+    if (r.s.changes.length > 0) stage(t('massesJson.run.stageChanges', { label: r.s.label }));
     for (const c of r.s.changes) {
-      const ok = await step(r, 'intencja nie zmieniona', async () => {
+      const ok = await step(r, t('massesJson.run.intentionNotChanged'), async () => {
         const fields = c.giver === undefined && c.offering === undefined ? undefined
           : await sealGift(me, r.areaId, c.id, { ...(c.giver === undefined ? {} : { giver: c.giver }), ...(c.offering === undefined ? {} : { offering: c.offering }) });
         await updateIntention(c.id, {
@@ -387,20 +388,20 @@ export async function runMassesImport(input: {
   }
 
   for (const r of ready) {
-    if (r.s.adds.length > 0) stage(`${r.s.label}: nowe intencje…`);
+    if (r.s.adds.length > 0) stage(t('massesJson.run.stageAdds', { label: r.s.label }));
     for (const a of r.s.adds) {
       let id: string;
       try {
         id = (await addIntention(r.itemId, r.occurrenceAt, { text: a.text, kind: a.kind, ...(a.ordinal === null ? {} : { ordinal: a.ordinal }) })).intentionId;
       } catch (e) {
-        warnings.push(`${r.s.label}: intencja „${a.text.slice(0, 40)}” nie dodana — ${messageOf(e)}.`);
+        warnings.push(t('massesJson.run.notAdded', { label: r.s.label, text: a.text.slice(0, 40), why: messageOf(e) }));
         continue;
       }
       done.intentions++;
       /* Was `addIntention` nicht trägt: Stand, wer sie liest, Geber und Gabe (versiegelt mit IHRER Kennung). */
       const gift = { ...(a.giver === '' ? {} : { giver: a.giver }), ...(a.offering === '' ? {} : { offering: a.offering }) };
       if (a.status !== 'accepted' || a.celebrant !== null || Object.keys(gift).length > 0) {
-        await step(r, `intencja „${a.text.slice(0, 40)}” dodana, ale bez stanu, odprawiającego albo ofiary`, async () => {
+        await step(r, t('massesJson.run.addedPartly', { text: a.text.slice(0, 40) }), async () => {
           const fields = await sealGift(me, r.areaId, id, gift);
           await updateIntention(id, {
             ...(a.status === 'accepted' ? {} : { status: a.status }),
@@ -414,14 +415,14 @@ export async function runMassesImport(input: {
 
   for (const r of ready) {
     const people = r.s.people;
-    if (people !== null && await step(r, 'osoby nie zapisane', () => setPeople(r.itemId, people, r.occurrenceAt))) done.days++;
+    if (people !== null && await step(r, t('massesJson.run.peopleNotSaved'), () => setPeople(r.itemId, people, r.occurrenceAt))) done.days++;
   }
   for (const r of ready) {
-    if (r.s.cancel && await step(r, 'nie odwołano', () => setOccurrence(r.itemId, r.occurrenceAt, { cancelled: true }))) done.days++;
+    if (r.s.cancel && await step(r, t('massesJson.run.notCancelled'), () => setOccurrence(r.itemId, r.occurrenceAt, { cancelled: true }))) done.days++;
   }
 
   return {
-    lines: [`Zapisano: msze i nabożeństwa ${done.masses}, nowe intencje ${done.intentions}, zmiany intencji ${done.changes}, zmiany dni ${done.days}.`, ...plan.lines],
+    lines: [t('massesJson.run.summary', { masses: done.masses, intentions: done.intentions, changes: done.changes, days: done.days }), ...plan.lines],
     warnings: [...plan.warnings, ...warnings]
   };
 }

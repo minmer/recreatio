@@ -15,6 +15,7 @@
  */
 
 import { fieldsOf, readNumber, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
+import { texts } from '../core/i18n';
 import { formatPlace, pageOrdinal, parsePlace, placeSortKey, workScheme, workOptions, type Path, type Place, type PlaceOptions, type SchemeId } from '../library/locations';
 
 /** Was die Rechnung von einer Baza braucht — `CogitaLibrary` und der Kontext einer Auswahl haben es. */
@@ -432,12 +433,9 @@ export function pathFromRoot(id: string, src: StructureSource, limit = 64): stri
 /* -- Ein Artikel nach Tomasz (Układ „aquinas") ------------------------------------------------- */
 
 /** Die Stücke eines Artikels in der Reihenfolge des Textes: Zarzuty (arg.), Sed contra, Odpowiedź (co.), Odpowiedzi na zarzuty (ad). */
-export const PIECE_HEADING: Readonly<Record<1 | 2 | 3 | 4, string>> = {
-  1: 'Zarzuty — Videtur quod',
-  2: 'Sed contra',
-  3: 'Odpowiedź — Respondeo',
-  4: 'Odpowiedzi na zarzuty'
-};
+export const PIECE_HEADING: Readonly<Record<1 | 2 | 3 | 4, string>> = texts<'1' | '2' | '3' | '4'>({
+  1: 'cogitaData.piece.objections', 2: 'cogitaData.piece.sedContra', 3: 'cogitaData.piece.respondeo', 4: 'cogitaData.piece.replies'
+}) as unknown as Readonly<Record<1 | 2 | 3 | 4, string>>;
 
 /** Welches Stück eines Artikels eine Stelle nennt (nur im Układ „Tomasz z Akwinu"; sonst `null`). */
 export function pieceOf(locator: string, scheme: SchemeId): 1 | 2 | 3 | 4 | null {

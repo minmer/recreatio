@@ -18,6 +18,9 @@ import { joinArea, loadMembers, type Member } from '../areas/area';
 import { keysFor } from '../core/ringOf';
 import type { Ring, SealedRole } from '../core/keys';
 import type { Who } from '../core/session';
+import { appLang, localeOf, t } from '../core/i18n';
+
+const V = 'formsData.vaJson.';
 import {
   applyVirtualArea, changeVirtualArea, createVirtualArea, loadVirtualAreas, loadVirtualPlan, SUBMITTER_LEVELS, type SubmitterLevel
 } from './virtualAreas';
@@ -52,7 +55,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value.trim
 export function readVirtualAreas(value: unknown, warnings: string[]): readonly VirtualAreaDoc[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) {
-    warnings.push('"virtualAreas" to nie lista — pominięte.');
+    warnings.push(t(`${V}notList`));
     return [];
   }
   const out: VirtualAreaDoc[] = [];
@@ -60,18 +63,18 @@ export function readVirtualAreas(value: unknown, warnings: string[]): readonly V
   for (const [at, one] of value.entries()) {
     const row = record(one);
     const name = text(row.name);
-    if (name === '') { warnings.push(`"virtualAreas"[${at}] bez nazwy — pominięte.`); continue; }
+    if (name === '') { warnings.push(t(`${V}noName`, { at })); continue; }
     const key = name.toLocaleLowerCase('pl');
-    if (seen.has(key)) { warnings.push(`Obszar osoby „${name}” powtarza się — liczy się pierwszy.`); continue; }
+    if (seen.has(key)) { warnings.push(t(`${V}repeated`, { name })); continue; }
     seen.add(key);
     const submitter = (SUBMITTER_LEVELS as readonly string[]).includes(text(row.submitter)) ? text(row.submitter) as SubmitterLevel : 'write';
-    if (row.submitter !== undefined && submitter !== text(row.submitter)) warnings.push(`„${name}”: nieznane "submitter" — przyjęto "write".`);
+    if (row.submitter !== undefined && submitter !== text(row.submitter)) warnings.push(t(`${V}badSubmitter`, { name }));
     const roles: { role: string; level: VirtualRoleLevel }[] = [];
     for (const r of Array.isArray(row.roles) ? row.roles : []) {
       const entry = record(r);
       const role = text(entry.role);
       const level = text(entry.level) as VirtualRoleLevel;
-      if (role === '' || !ROLE_LEVELS.includes(level)) { warnings.push(`„${name}”: rola bez kennungi albo stopnia — pominięta.`); continue; }
+      if (role === '' || !ROLE_LEVELS.includes(level)) { warnings.push(t(`${V}badRole`, { name })); continue; }
       if (!roles.some((x) => x.role === role)) roles.push({ role, level });
     }
     out.push({ name, submitter, roles });
@@ -101,8 +104,8 @@ export async function exportVirtualAreas(partId: string): Promise<readonly Virtu
 /** Ein Satz für die Vorschau. */
 export function describeVirtualAreas(docs: readonly VirtualAreaDoc[]): string {
   return docs.length === 0
-    ? 'Obszary osób: w dokumencie żadnych (istniejące zostają).'
-    : `Obszary osób: ${docs.map((d) => `„${d.name}”`).join(', ')} — brakujące zostaną założone, role dodane, jeśli je masz.`;
+    ? t(`${V}describeNone`)
+    : t(`${V}describe`, { list: docs.map((d) => `„${d.name}”`).join(', ') });
 }
 
 /**
@@ -128,36 +131,37 @@ export async function importVirtualAreas(
     person = opened.graph.roles.find((r) => r.kind === 'person') ?? null;
   }
   if (ring === null || person === null) {
-    warnings.push('Obszary osób pominięte: najpierw podaj hasło.');
+    warnings.push(t(`${V}skipPassword`));
     return { lines, warnings };
   }
 
   let now = await loadVirtualAreas(partId);
   if (!now.ready) {
-    warnings.push('Obszary osób pominięte: będą dostępne po migracji 0120.');
+    warnings.push(t(`${V}skipMigration`));
     return { lines, warnings };
   }
   const formAreaId = now.formAreaId;
   if (formAreaId === null) {
-    warnings.push('Obszary osób pominięte: formularz nie ma obszaru.');
+    warnings.push(t(`${V}skipNoArea`));
     return { lines, warnings };
   }
 
   for (const doc of docs) {
-    let va = now.virtualAreas.find((v) => v.name.toLocaleLowerCase('pl') === doc.name.toLocaleLowerCase('pl'));
+    const locale = localeOf(appLang());
+    let va = now.virtualAreas.find((v) => v.name.toLocaleLowerCase(locale) === doc.name.toLocaleLowerCase(locale));
     if (va === undefined) {
-      stage(`Zakładanie obszaru osoby „${doc.name}”…`);
+      stage(t(`${V}creating`, { name: doc.name }));
       await createVirtualArea(ring, person, partId, formAreaId, doc.name, doc.submitter);
       now = await loadVirtualAreas(partId);
       va = now.virtualAreas.find((v) => v.name === doc.name);
-      lines.push(`Obszar osoby „${doc.name}” założony.`);
+      lines.push(t(`${V}created`, { name: doc.name }));
       if (va === undefined) continue;
     } else if (va.submitterLevel !== doc.submitter) {
       if (va.myLevel !== 'admin') {
-        warnings.push(`„${doc.name}”: regułę zmienia ten, kto ją prowadzi — "submitter" zostaje.`);
+        warnings.push(t(`${V}notLeader`, { name: doc.name }));
       } else {
         await changeVirtualArea(va.areaId, { submitterLevel: doc.submitter });
-        lines.push(`„${doc.name}”: osoba — ${doc.submitter}.`);
+        lines.push(t(`${V}submitterSet`, { name: doc.name, level: doc.submitter }));
       }
     }
 
@@ -168,18 +172,18 @@ export async function importVirtualAreas(
     for (const want of doc.roles) {
       if (members.some((m) => m.roleId === want.role)) continue;
       const role = ring.roleOf(want.role);
-      if (role === undefined) { warnings.push(`„${doc.name}”: roli ${want.role.slice(0, 8)}… nie masz — pominięta.`); continue; }
-      if (issuer === null) { warnings.push(`„${doc.name}”: nie prowadzisz tej reguły — rola ${want.role.slice(0, 8)}… pominięta.`); continue; }
-      stage(`„${doc.name}”: dodawanie roli…`);
+      if (role === undefined) { warnings.push(t(`${V}noRole`, { name: doc.name, role: want.role.slice(0, 8) })); continue; }
+      if (issuer === null) { warnings.push(t(`${V}noIssuer`, { name: doc.name, role: want.role.slice(0, 8) })); continue; }
+      stage(t(`${V}addingRole`, { name: doc.name }));
       await joinArea(ring, va.areaId, role, issuer, want.level);
       added++;
     }
-    if (added > 0) lines.push(`„${doc.name}”: dodano role — ${added}.`);
+    if (added > 0) lines.push(t(`${V}rolesAdded`, { name: doc.name, count: added }));
 
     if (va.mayCertify) {
-      stage(`„${doc.name}”: zakładanie obszarów osób…`);
+      stage(t(`${V}creatingAreas`, { name: doc.name }));
       const done = await applyVirtualArea(ring, await loadVirtualPlan(va.areaId)).catch(() => null);
-      if (done !== null && done.created + done.mirrored > 0) lines.push(`„${doc.name}”: obszary osób — założone ${done.created}, uzupełnione ${done.mirrored}.`);
+      if (done !== null && done.created + done.mirrored > 0) lines.push(t(`${V}areasDone`, { name: doc.name, created: done.created, mirrored: done.mirrored }));
     }
   }
 

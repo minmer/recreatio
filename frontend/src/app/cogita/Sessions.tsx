@@ -23,6 +23,7 @@ import { loadAreas, myEpochKeys, type AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { newId } from '../core/ids';
+import { fmtDate, rich, useT } from '../core/i18n';
 import { AnswerInput, answerText, Verdict } from './CardFace';
 import { checkCard } from './cards';
 import { type Card } from './cardBasics';
@@ -69,6 +70,7 @@ const deviceId = (): string => {
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
 export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
+  const t = useT();
   const { lib, writes, me } = useCtx();
   const [rows, setRows] = useState<readonly SessionRow[] | null>(null);
   const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map());
@@ -84,7 +86,7 @@ export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...t
         try {
           const area = await myEpochKeys(me.ring, s.areaId);
           const key = area.get(s.epoch);
-          if (key !== undefined) names.set(s.sessionId, (await openTitle(await sessionKeyOf(key, s.sessionId, s.epoch), s)) ?? 'Sesja');
+          if (key !== undefined) names.set(s.sessionId, (await openTitle(await sessionKeyOf(key, s.sessionId, s.epoch), s)) ?? t('cogitaViewsStats.sess.session'));
         } catch { /* ohne Namen */ }
       }
       if (alive) setTitles(names);
@@ -96,20 +98,20 @@ export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...t
   const chosen = rows?.find((r) => r.sessionId === open);
   if (open !== undefined && chosen !== undefined) {
     return chosen.host
-      ? <SessionHost session={chosen} title={titles.get(chosen.sessionId) ?? 'Sesja'} screen={trail[1] === 'ekran'} onBack={() => { go(); setTick((n) => n + 1); }} />
-      : <SessionJoinAsMember session={chosen} title={titles.get(chosen.sessionId) ?? 'Sesja'} onBack={() => go()} />;
+      ? <SessionHost session={chosen} title={titles.get(chosen.sessionId) ?? t('cogitaViewsStats.sess.session')} screen={trail[1] === 'ekran'} onBack={() => { go(); setTick((n) => n + 1); }} />
+      : <SessionJoinAsMember session={chosen} title={titles.get(chosen.sessionId) ?? t('cogitaViewsStats.sess.session')} onBack={() => go()} />;
   }
 
   return (
     <div className="cg">
       {writes && me !== null && <NewSession onMade={(id) => { setTick((n) => n + 1); go(id); }} />}
-      {rows === null ? <Loading label="Wczytywanie sesji…" /> : rows.length === 0 ? <p className="wk-empty">Nie ma jeszcze sesji tej bazy wiedzy.</p> : (
+      {rows === null ? <Loading label={t('cogitaViewsStats.sess.loading')} /> : rows.length === 0 ? <p className="wk-empty">{t('cogitaViewsStats.sess.none')}</p> : (
         <ul className="lib-list">
           {rows.map((s) => (
             <li key={s.sessionId}>
               <button type="button" className="lib-row cg-card" onClick={() => go(s.sessionId)}>
-                <span className="lib-row-title">{titles.get(s.sessionId) ?? 'Sesja'} <span className="cg-tag">{SESSION_KIND_LABEL[s.kind]}</span> <span className={`cg-tag${s.state === 'running' ? ' is-ok' : ''}`}>{{ lobby: 'czeka', running: 'trwa', paused: 'przerwa', finished: 'zakończona', closed: 'zamknięta' }[s.state]}</span></span>
-                <span className="lib-row-meta">{new Date(s.createdAt).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}{s.joinCode !== null ? ` · kod ${s.joinCode}` : ''}{s.host ? ' · prowadzisz' : ''}</span>
+                <span className="lib-row-title">{titles.get(s.sessionId) ?? t('cogitaViewsStats.sess.session')} <span className="cg-tag">{SESSION_KIND_LABEL[s.kind]}</span> <span className={`cg-tag${s.state === 'running' ? ' is-ok' : ''}`}>{t(`cogitaViewsStats.sess.state.${s.state}`)}</span></span>
+                <span className="lib-row-meta">{fmtDate(new Date(s.createdAt), { dateStyle: 'medium', timeStyle: 'short' }, t.lang)}{s.joinCode !== null ? t('cogitaViewsStats.sess.code', { code: s.joinCode }) : ''}{s.host ? t('cogitaViewsStats.sess.hosting') : ''}</span>
               </button>
             </li>
           ))}
@@ -120,6 +122,7 @@ export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...t
 }
 
 function NewSession({ onMade }: { onMade: (id: string) => void }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [kind, setKind] = useState<SessionKind>('live');
@@ -137,48 +140,48 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
   const host = me.roles.find((r) => r.kind === 'person') ?? me.person;
   return (
     <details className="cg-card">
-      <summary>+ Nowa sesja</summary>
+      <summary>{t('cogitaViewsStats.sess.new')}</summary>
       <div className="cg">
-        <label className="wk-field"><span>Rodzaj</span>
+        <label className="wk-field"><span>{t('cogitaViewsStats.sess.kind')}</span>
           <select value={kind} onChange={(e) => setKind(e.target.value as SessionKind)}>{(['live', 'async', 'sync', 'story', 'game'] as const).map((k) => <option key={k} value={k}>{SESSION_KIND_LABEL[k]}</option>)}</select>
         </label>
-        <label className="wk-field"><span>Tytuł</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="np. Quiz na festynie" /></label>
-        <label className="wk-field"><span>W obszarze (klasa, grupa) — tam trafiają wyniki</span>
-          <AreaPick label="W obszarze" areas={areas} value={areaId} onChange={setAreaId}
+        <label className="wk-field"><span>{t('cogitaViewsStats.sess.title')}</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('cogitaViewsStats.sess.titleHint')} /></label>
+        <label className="wk-field"><span>{t('cogitaViewsStats.sess.inArea')}</span>
+          <AreaPick label={t('cogitaViewsStats.sess.inAreaLabel')} areas={areas} value={areaId} onChange={setAreaId}
             only={areas.filter((a) => a.areaId !== lib.areaId && (a.myLevel === 'write' || a.myLevel === 'admin'))}
-            extras={[{ value: lib.areaId, label: 'obszar bazy wiedzy' }]} />
+            extras={[{ value: lib.areaId, label: t('cogitaViewsStats.sess.baseArea') }]} />
         </label>
         {(kind === 'live' || kind === 'async' || kind === 'sync') && (
-          <label className="wk-field"><span>Powtórka (pytania)</span>
-            <select value={revision} onChange={(e) => setRevision(e.target.value)}>{lib.docs('revision').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? 'Powtórka')}</option>)}</select>
+          <label className="wk-field"><span>{t('cogitaViewsStats.sess.revision')}</span>
+            <select value={revision} onChange={(e) => setRevision(e.target.value)}>{lib.docs('revision').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? t('cogitaViewsStats.sess.revisionDefault'))}</option>)}</select>
           </label>
         )}
         {(kind === 'story' || kind === 'game') && (
-          <label className="wk-field"><span>Przebieg</span>
-            <select value={flow} onChange={(e) => setFlow(e.target.value)}>{lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? 'Przebieg')}</option>)}</select>
+          <label className="wk-field"><span>{t('cogitaViewsStats.sess.flow')}</span>
+            <select value={flow} onChange={(e) => setFlow(e.target.value)}>{lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? t('cogitaViewsStats.sess.flow'))}</option>)}</select>
           </label>
         )}
         {kind === 'live' && (
-          <label className="wk-field"><span>Zasady</span>
+          <label className="wk-field"><span>{t('cogitaViewsStats.sess.rules')}</span>
             <select value={preset} onChange={(e) => setPreset(e.target.value)}>
               {PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-              {lib.docs('rules').map((e) => <option key={e.id} value={`doc:${e.id}`}>{String(e.data.name ?? 'Własne zasady')}</option>)}
+              {lib.docs('rules').map((e) => <option key={e.id} value={`doc:${e.id}`}>{String(e.data.name ?? t('cogitaViewsStats.sess.ownRules'))}</option>)}
             </select>
           </label>
         )}
         {kind === 'live' && <p className="wk-hint">{(preset.startsWith('doc:') ? [] : PRESETS.find((p) => p.id === preset)?.says ?? '')}</p>}
-        {kind === 'async' && <label className="wk-field"><span>Do kiedy</span><input type="datetime-local" value={ends} onChange={(e) => setEnds(e.target.value)} /></label>}
+        {kind === 'async' && <label className="wk-field"><span>{t('cogitaViewsStats.sess.until')}</span><input type="datetime-local" value={ends} onChange={(e) => setEnds(e.target.value)} /></label>}
         {(kind === 'live' || kind === 'story' || kind === 'game') && (
           <div className="cg-row">
-            <label className="pe-check"><input type="checkbox" checked={link} onChange={(e) => setLink(e.target.checked)} /><span>link z kodem QR (każdy, kto go ma, dołącza i widzi pytania)</span></label>
-            <label className="pe-check"><input type="checkbox" checked={code} onChange={(e) => setCode(e.target.checked)} /><span>kod do wpisania</span></label>
+            <label className="pe-check"><input type="checkbox" checked={link} onChange={(e) => setLink(e.target.checked)} /><span>{t('cogitaViewsStats.sess.qrLink')}</span></label>
+            <label className="pe-check"><input type="checkbox" checked={code} onChange={(e) => setCode(e.target.checked)} /><span>{t('cogitaViewsStats.sess.typedCode')}</span></label>
           </div>
         )}
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
           const keys = await myEpochKeys(me.ring, areaId);
           const epoch = Math.max(...keys.keys());
           const areaKey = keys.get(epoch);
-          if (areaKey === undefined) throw new Error('Nie masz klucza tego obszaru.');
+          if (areaKey === undefined) throw new Error(t('cogitaViewsStats.sess.noAreaKey'));
           const rules = preset.startsWith('doc:') ? readRules(lib.docs('rules').find((e) => `doc:${e.id}` === preset)?.data.rules) : PRESETS.find((p) => p.id === preset)?.rules ?? DEFAULT_RULES;
           const made = await createSession({
             areaId, libraryId: lib.libraryId, kind, epoch, title: title.trim() || SESSION_KIND_LABEL[kind], hostRoleId: host.id,
@@ -193,7 +196,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
             { eventId: newId(), kind: 'meta', epoch, plain: JSON.stringify({ revision: config.revisionId ?? null, flow: config.flowId ?? null, library: lib.libraryId }) }
           ]);
           onMade(made.session.sessionId);
-        })}>{busy ? 'Tworzenie…' : 'Utwórz sesję'}</button>
+        })}>{busy ? t('cogitaViewsStats.sess.creating') : t('cogitaViewsStats.sess.create')}</button>
         {failed !== null && <p className="wk-error">{failed}</p>}
       </div>
     </details>
@@ -245,6 +248,7 @@ function bodies<T>(opened: readonly Opened[], kind: string): { body: T; event: S
 /* -- Der Gastgeber ---------------------------------------------------------------------------- */
 
 function SessionHost({ session, title, screen, onBack }: { session: SessionRow; title: string; screen: boolean; onBack: () => void }) {
+  const t = useT();
   const { lib, me, href } = useCtx();
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [intakeKey, setIntakeKey] = useState<Uint8Array | null>(null);
@@ -261,7 +265,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       setKeys(out);
       void deliverSessionKeys(session.sessionId, out, session.hostRoleId).catch(() => undefined);
       try { setIntakeKey(await openIntakeKey(await loadIntake(session.areaId), me.ring)); }
-      catch { setProblem('Nie masz klucza przyjęć tego obszaru — odpowiedzi uczestników z kodem nie da się otworzyć. Odpowiedzi w obszarze odczyta ten, kto prowadzi przyjęcia.'); }
+      catch { setProblem(t('cogitaViewsStats.sess.noIntake')); }
     })();
   }, [me, session.areaId, session.sessionId, session.hostRoleId]);
 
@@ -287,15 +291,15 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
   const head = (
     <div className="cg-row-between">
       <span className="cg-row">
-        <button type="button" className="wk-link-btn" onClick={onBack}>← sesje</button>
+        <button type="button" className="wk-link-btn" onClick={onBack}>{t('cogitaViewsStats.sess.back')}</button>
         <strong>{title}</strong>
         <span className="cg-tag">{SESSION_KIND_LABEL[session.kind]}</span>
-        <span className={`cg-tag${live ? ' is-ok' : ''}`}>{live ? 'na żywo' : 'odświeżanie co 2 s'}</span>
+        <span className={`cg-tag${live ? ' is-ok' : ''}`}>{live ? t('cogitaViewsStats.sess.live') : t('cogitaViewsStats.sess.polling')}</span>
       </span>
       <span className="cg-row">
-        {session.kind === 'live' && <a className="wk-link-btn" href={href('sesje', session.sessionId, 'ekran')} target="_blank" rel="noreferrer">Ekran dla sali ↗</a>}
-        {session.state !== 'closed' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'closed'))}>Zamknij sesję</button>}
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć sesję z wynikami?')) void run(async () => { await deleteSession(session.sessionId); onBack(); }); }}>Usuń</button>
+        {session.kind === 'live' && <a className="wk-link-btn" href={href('sesje', session.sessionId, 'ekran')} target="_blank" rel="noreferrer">{t('cogitaViewsStats.sess.screen')}</a>}
+        {session.state !== 'closed' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'closed'))}>{t('cogitaViewsStats.sess.close')}</button>}
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText(t('cogitaViewsStats.sess.removeAsk'))) void run(async () => { await deleteSession(session.sessionId); onBack(); }); }}>{t('common.delete')}</button>
       </span>
     </div>
   );
@@ -305,15 +309,15 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       {!screen && head}
       {!screen && (session.joinCode !== null || link !== null) && (
         <div className="cg-row">
-          {session.joinCode !== null && <div className="cg-card"><span className="cg-muted">Kod</span><span className="cg-live-code">{session.joinCode}</span></div>}
-          {link !== null && <div className="cg-card"><span className="cg-muted">Link z kluczem</span><div className="cg-qr"><QRCodeSVG value={link} size={150} /></div><button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(link)}>Kopiuj link</button></div>}
-          {link === null && secret !== null && <p className="wk-hint">Żeby dołączać linkiem, ustaw w Ustawieniach bazy wiedzy stronę dołączania (z modułem „Dołącz do sesji").</p>}
+          {session.joinCode !== null && <div className="cg-card"><span className="cg-muted">{t('cogitaViewsStats.sess.codeLabel')}</span><span className="cg-live-code">{session.joinCode}</span></div>}
+          {link !== null && <div className="cg-card"><span className="cg-muted">{t('cogitaViewsStats.sess.keyLink')}</span><div className="cg-qr"><QRCodeSVG value={link} size={150} /></div><button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(link)}>{t('cogitaViewsStats.sess.copyLink')}</button></div>}
+          {link === null && secret !== null && <p className="wk-hint">{t('cogitaViewsStats.sess.joinPageHint')}</p>}
         </div>
       )}
       {!screen && session.state !== 'closed' && session.state !== 'finished' && <PlanInCalendar session={session} title={title} link={link} />}
       {problem !== null && !screen && <p className="wk-warn">{problem}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {config === null ? <Loading label="Wczytywanie sesji…" />
+      {config === null ? <Loading label={t('cogitaViewsStats.sess.loading')} />
         : session.kind === 'live' ? <LiveHost session={session} config={config} opened={opened} post={post} screen={screen} />
         : session.kind === 'game' ? <GameHostPanel session={session} config={config} raw={raw} />
         : <ResultsTable session={session} opened={opened} config={config} />}
@@ -327,6 +331,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
  * kann ihn, wer den Bereich liest — dieselben, die mitmachen dürfen.
  */
 function PlanInCalendar({ session, title, link }: { session: SessionRow; title: string; link: string | null }) {
+  const t = useT();
   const { me } = useCtx();
   const { busy, failed, run } = useBusy();
   const [date, setDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
@@ -336,23 +341,23 @@ function PlanInCalendar({ session, title, link }: { session: SessionRow; title: 
   if (me === null) return null;
   return (
     <details className="cg-card">
-      <summary>Zaplanuj w kalendarzu</summary>
+      <summary>{t('cogitaViewsStats.sess.plan')}</summary>
       <div className="cg-row">
-        <input type="date" value={date} aria-label="Dzień" onChange={(e) => setDate(e.target.value)} />
-        <input type="time" value={time} aria-label="Godzina" onChange={(e) => setTime(e.target.value)} />
-        <label className="cg-row"><span className="cg-muted">minut</span>
+        <input type="date" value={date} aria-label={t('cogitaViewsStats.sess.day')} onChange={(e) => setDate(e.target.value)} />
+        <input type="time" value={time} aria-label={t('cogitaViewsStats.sess.hour')} onChange={(e) => setTime(e.target.value)} />
+        <label className="cg-row"><span className="cg-muted">{t('cogitaViewsStats.sess.minutes')}</span>
           <input type="number" min={5} max={600} value={minutes} style={{ width: '5em' }} onChange={(e) => setMinutes(Math.max(5, Math.min(600, Number(e.target.value) || 45)))} /></label>
         <button type="button" className="wk-btn" disabled={busy || date === ''} onClick={() => void run(async () => {
           await saveEvent(me.ring, {
-            title, location: '', notes: session.joinCode === null ? '' : `Kod sesji: ${session.joinCode}`,
-            ...(link === null ? {} : { link, linkLabel: 'Dołącz do sesji' }),
+            title, location: '', notes: session.joinCode === null ? '' : t('cogitaViewsStats.sess.calNotes', { code: session.joinCode }),
+            ...(link === null ? {} : { link, linkLabel: t('cogitaViewsStats.sess.joinLabel') }),
             areaId: session.areaId, ownerRoleId: me.person.id,
             date, time, minutes, allDay: false, repeat: 'none', every: 1, weekdays: 0, until: null, count: null
           });
-          setSaid(`Termin ${date} ${time} jest w kalendarzu obszaru${link === null ? '' : ' — z linkiem do dołączenia'}.`);
-        })}>Dodaj termin</button>
+          setSaid(link === null ? t('cogitaViewsStats.sess.planned', { date, time }) : t('cogitaViewsStats.sess.plannedLink', { date, time }));
+        })}>{t('cogitaViewsStats.sess.addAppointment')}</button>
       </div>
-      <p className="wk-hint">Widzą go wszyscy, którzy czytają ten obszar{link === null ? (session.joinCode === null ? '.' : ' — z kodem sesji.') : '; link otwiera sesję od razu.'}</p>
+      <p className="wk-hint">{link === null ? (session.joinCode === null ? t('cogitaViewsStats.sess.seenBy') : t('cogitaViewsStats.sess.seenByCode')) : t('cogitaViewsStats.sess.seenByLink')}</p>
       {said !== null && <p className="wk-done" role="status">{said}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </details>
@@ -360,6 +365,7 @@ function PlanInCalendar({ session, title, link }: { session: SessionRow; title: 
 }
 
 function GameHostPanel({ session, config, raw }: { session: SessionRow; config: Config; raw: readonly SessionEvent[] }) {
+  const t = useT();
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
   const entry = config.flowId === undefined ? undefined : lib.docs('flow').find((e) => e.id === config.flowId);
@@ -368,14 +374,14 @@ function GameHostPanel({ session, config, raw }: { session: SessionRow; config: 
     <div className="cg">
       {session.state !== 'running' ? (
         <div className="cg-card">
-          <p>Gra „{String(entry?.data.name ?? 'Przebieg')}": {rules.zones.length} stref, {rules.triggers.length} wyzwalaczy.</p>
-          <p className="wk-hint">Start pokazuje usłudze strefy i wyzwalacze (bez tekstów). Położenia graczy widzisz tylko Ty; po końcu gry znikają.</p>
-          <button type="button" className="wk-btn" disabled={busy || rules.zones.length === 0} onClick={() => void run(async () => { await startGame(session.sessionId, rules); await setSessionState(session.sessionId, 'running'); })}>Rozpocznij grę</button>
+          <p>{t('cogitaViewsStats.sess.game', { name: String(entry?.data.name ?? t('cogitaViewsStats.sess.flow')), zones: rules.zones.length, triggers: rules.triggers.length })}</p>
+          <p className="wk-hint">{t('cogitaViewsStats.sess.gameHint')}</p>
+          <button type="button" className="wk-btn" disabled={busy || rules.zones.length === 0} onClick={() => void run(async () => { await startGame(session.sessionId, rules); await setSessionState(session.sessionId, 'running'); })}>{t('cogitaViewsStats.sess.startGame')}</button>
         </div>
       ) : (
         <>
           <GameHost sessionId={session.sessionId} cred={{}} events={raw} />
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'finished'))}>Zakończ grę (położenia znikną)</button>
+          <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'finished'))}>{t('cogitaViewsStats.sess.endGame')}</button>
         </>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -385,23 +391,24 @@ function GameHostPanel({ session, config, raw }: { session: SessionRow; config: 
 
 /** Wyniki sesji bez taktu (asynchroniczna, opowieść): odpowiedzi i próby uczestników. */
 function ResultsTable({ session, opened, config }: { session: SessionRow; opened: readonly Opened[]; config: Config }) {
+  const t = useT();
   const joins = new Map(bodies<Join>(opened, 'join').map((j) => [j.body.participant, j.body]));
   const answers = bodies<Answer>(opened, 'answer').map((a) => a.body);
   const by = new Map<string, Answer[]>();
   for (const a of answers) by.set(a.participant, [...(by.get(a.participant) ?? []), a]);
   return (
     <div className="cg">
-      <p className="cg-muted">{session.kind === 'async' ? 'Każdy powtarza we własnym tempie; postępy członków grupy widać też w zakładce Postępy.' : `Opowieść: ${config.title}`}{session.endsAt !== null ? ` · do ${new Date(session.endsAt).toLocaleString('pl-PL')}` : ''}</p>
-      {by.size === 0 ? <p className="wk-empty">Nikt jeszcze nie odpowiedział.</p> : (
+      <p className="cg-muted">{session.kind === 'async' ? t('cogitaViewsStats.sess.asyncHint') : t('cogitaViewsStats.sess.story', { title: config.title })}{session.endsAt !== null ? t('cogitaViewsStats.sess.endsAt', { date: fmtDate(new Date(session.endsAt), { dateStyle: 'short', timeStyle: 'short' }, t.lang) }) : ''}</p>
+      {by.size === 0 ? <p className="wk-empty">{t('cogitaViewsStats.sess.nobody')}</p> : (
         <table className="cg-table">
-          <thead><tr><th>Uczestnik</th><th>Odpowiedzi</th><th>Dobrze</th><th>Ostatnio</th></tr></thead>
+          <thead><tr><th>{t('cogitaViewsStats.sess.th.participant')}</th><th>{t('cogitaViewsStats.sess.th.answers')}</th><th>{t('cogitaViewsStats.sess.th.right')}</th><th>{t('cogitaViewsStats.sess.th.last')}</th></tr></thead>
           <tbody>
             {[...by.entries()].map(([p, list]) => (
               <tr key={p}>
                 <td>{joins.get(p)?.name ?? p.slice(-6)}{joins.get(p)?.team ? ` (${joins.get(p)?.team})` : ''}</td>
                 <td>{list.length}</td>
                 <td>{list.filter((a) => (a.correctness ?? 0) >= 0.999).length}</td>
-                <td>{new Date(Math.max(...list.map((a) => a.at))).toLocaleTimeString('pl-PL')}</td>
+                <td>{fmtDate(new Date(Math.max(...list.map((a) => a.at))), { hour: '2-digit', minute: '2-digit', second: '2-digit' }, t.lang)}</td>
               </tr>
             ))}
           </tbody>
@@ -414,12 +421,13 @@ function ResultsTable({ session, opened, config }: { session: SessionRow; opened
 /* -- Live: der Gastgeber zählt ------------------------------------------------------------------- */
 
 function LiveHost({ session, config, opened, post, screen }: { session: SessionRow; config: Config; opened: readonly Opened[]; post: (kind: string, body: unknown, plain?: unknown) => Promise<void>; screen: boolean }) {
+  const t = useT();
   const { lib } = useCtx();
   const [cards, setCards] = useState<readonly Card[] | null>(null);
   const [now, setNow] = useState(Date.now());
   const { busy, failed, run } = useBusy();
   const rules = config.rules;
-  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(t); }, []);
+  useEffect(() => { const tm = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(tm); }, []);
   useEffect(() => {
     if (config.revisionId === undefined) { setCards([]); return; }
     void planFor(lib, config.revisionId, null, `live:${session.sessionId}`).then((p) => {
@@ -472,8 +480,8 @@ function LiveHost({ session, config, opened, post, screen }: { session: SessionR
   const lastReveal = last(reveals);
   useEffect(() => {
     if (!revealed || rules.nextQuestion.mode !== 'timer' || cards === null || current === null) return undefined;
-    const t = window.setTimeout(() => { if (!acted.current.has(`next:${current.index}`)) { acted.current.add(`next:${current.index}`); void ask(current.index + 1); } }, rules.nextQuestion.seconds * 1000);
-    return () => window.clearTimeout(t);
+    const tm = window.setTimeout(() => { if (!acted.current.has(`next:${current.index}`)) { acted.current.add(`next:${current.index}`); void ask(current.index + 1); } }, rules.nextQuestion.seconds * 1000);
+    return () => window.clearTimeout(tm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, lastReveal?.index]);
 
@@ -511,45 +519,45 @@ function LiveHost({ session, config, opened, post, screen }: { session: SessionR
   });
 
   const left = deadline === null ? null : Math.max(0, Math.ceil((deadline.at - now) / 1000));
-  if (cards === null) return <p className="wk-hint">Przygotowywanie pytań…</p>;
+  if (cards === null) return <p className="wk-hint">{t('cogitaViewsStats.sess.preparing')}</p>;
 
   if (screen) return <Screen config={config} current={current} reveal={revealed ? reveals.find((r) => r.index === current!.index) ?? null : null} answered={firstPer.size} joined={joins.size} left={left} finished={finished} scores={lastScores} />;
 
   return (
     <div className="cg-split">
       <div className="cg">
-        {finished ? <p className="wk-lede">Sesja zakończona.</p>
+        {finished ? <p className="wk-lede">{t('cogitaViewsStats.sess.finished')}</p>
           : current === null ? (
             <div className="cg-card">
-              <strong>Czeka {joins.size} uczestników · {cards.length} pytań</strong>
+              <strong>{t('cogitaViewsStats.sess.waiting', { joined: joins.size, count: cards.length })}</strong>
               <ul className="cg-muted">{describeRules(rules).map((l, i) => <li key={i}>{l}</li>)}</ul>
-              <button type="button" className="wk-btn" disabled={busy || cards.length === 0} onClick={() => void ask(0)}>Zaczynamy — pierwsze pytanie</button>
+              <button type="button" className="wk-btn" disabled={busy || cards.length === 0} onClick={() => void ask(0)}>{t('cogitaViewsStats.sess.start')}</button>
             </div>
           ) : (
             <div className="cg-card">
-              <div className="cg-row-between"><strong>Pytanie {current.index + 1} z {current.total}</strong>{left !== null && <span className="cg-timer">{left}</span>}</div>
+              <div className="cg-row-between"><strong>{t('cogitaViewsStats.sess.questionOf', { n: current.index + 1, total: current.total })}</strong>{left !== null && <span className="cg-timer">{left}</span>}</div>
               <p className="cg-prompt"><PromptLine card={cards[current.index]} /></p>
-              <p className="cg-muted">Odpowiedzi: {firstPer.size} z {joins.size}{revealed && cards[current.index] !== undefined ? <> · poprawnie: <TexText text={answerText(cards[current.index]!)} /></> : ''}</p>
+              <p className="cg-muted">{t('cogitaViewsStats.sess.answered', { count: firstPer.size, total: joins.size })}{revealed && cards[current.index] !== undefined ? <>{t('cogitaViewsStats.sess.correctIs')}<TexText text={answerText(cards[current.index]!)} /></> : ''}</p>
               <div className="cg-row">
-                {!revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void reveal(false)}>Pokaż wynik</button>}
-                {revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void ask(current.index + 1)}>{current.index + 1 >= cards.length ? 'Zakończ' : 'Następne pytanie'}</button>}
+                {!revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void reveal(false)}>{t('cogitaViewsStats.sess.showResult')}</button>}
+                {revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void ask(current.index + 1)}>{current.index + 1 >= cards.length ? t('cogitaViewsStats.sess.end') : t('cogitaViewsStats.sess.next')}</button>}
               </div>
             </div>
           )}
         {failed !== null && <p className="wk-error">{failed}</p>}
         {waiting.length > 0 && (
           <div className="cg-card">
-            <strong>Nowe urządzenie u uczestnika — zatwierdzić?</strong>
+            <strong>{t('cogitaViewsStats.sess.newDevice')}</strong>
             {waiting.map((w) => (
               <span key={`${w.p}:${w.d}`} className="cg-row">{joins.get(w.p)?.name ?? w.p.slice(-6)}
-                <button type="button" className="wk-link-btn" onClick={() => void post('approve', { participant: w.p, device: w.d })}>zatwierdź</button>
+                <button type="button" className="wk-link-btn" onClick={() => void post('approve', { participant: w.p, device: w.d })}>{t('cogitaViewsStats.sess.approve')}</button>
               </span>
             ))}
           </div>
         )}
       </div>
       <aside className="cg">
-        <h3>Wyniki</h3>
+        <h3>{t('cogitaViewsStats.sess.results')}</h3>
         <ol className="cg-scores">
           {(lastScores.length > 0 ? lastScores : [...joins.values()].map((j) => ({ participant: j.participant, name: j.name, team: j.team, total: 0, last: null }))).map((s) => (
             <li key={s.participant}><span>{s.name}{s.team ? <span className="cg-muted"> · {s.team}</span> : null}</span><strong>{s.total}</strong></li>
@@ -557,7 +565,7 @@ function LiveHost({ session, config, opened, post, screen }: { session: SessionR
         </ol>
         {(last(reveals)?.teams.length ?? 0) > 0 && (
           <>
-            <h3>Drużyny</h3>
+            <h3>{t('cogitaViewsStats.sess.teams')}</h3>
             <ol className="cg-scores">{last(reveals)!.teams.map((t: { team: string; total: number }) => <li key={t.team}><span>{t.team}</span><strong>{t.total}</strong></li>)}</ol>
           </>
         )}
@@ -570,6 +578,7 @@ function LiveHost({ session, config, opened, post, screen }: { session: SessionR
 function Screen({ config, current, reveal, answered, joined, left, finished, scores }: {
   config: Config; current: Question | null; reveal: Reveal | null; answered: number; joined: number; left: number | null; finished: boolean; scores: readonly Score[];
 }) {
+  const t = useT();
   useEffect(() => {
     let lock: { release: () => Promise<void> } | null = null;
     void (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined);
@@ -580,14 +589,14 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
       <div className="cg-live-screen">
         <h1>{config.title}</h1>
         {finished ? <ol className="cg-scores">{scores.slice(0, 10).map((s) => <li key={s.participant}><span>{s.name}</span><strong>{s.total}</strong></li>)}</ol>
-          : <p className="cg-muted">Dołączyło: {joined}</p>}
+          : <p className="cg-muted">{t('cogitaViewsStats.sess.joined', { count: joined })}</p>}
       </div>
     );
   }
   const a = current.card.answer;
   return (
     <div className="cg-live-screen">
-      <span className="cg-muted">Pytanie {current.index + 1} z {current.total}</span>
+      <span className="cg-muted">{t('cogitaViewsStats.sess.questionOf', { n: current.index + 1, total: current.total })}</span>
       <div className="cg-prompt"><PromptLine card={current.card} /></div>
       {(a.form === 'one' || a.form === 'many') && (
         <div className="cg-live-buttons">{a.options.map((o, i) => <button key={i} type="button" className={reveal !== null && reveal.card.answer.form === a.form && (reveal.card.answer.form === 'one' ? reveal.card.answer.correct === i : reveal.card.answer.form === 'many' && reveal.card.answer.correct.includes(i)) ? 'is-on' : ''}><TexText text={o} /></button>)}</div>
@@ -595,7 +604,7 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
       {reveal === null ? <span className="cg-timer">{left === null ? `${answered}/${joined}` : `${left} s · ${answered}/${joined}`}</span>
         : (
           <>
-            <strong>Poprawnie: <TexText text={answerText(reveal.card)} /> · dobrze {reveal.correct} z {reveal.answered}</strong>
+            <strong>{rich(t('cogitaViewsStats.sess.screenCorrect', { answer: answerText(reveal.card), count: reveal.correct, total: reveal.answered }), { b: () => <TexText text={answerText(reveal.card)} /> })}</strong>
             <ol className="cg-scores">{reveal.scores.slice(0, 8).map((s) => <li key={s.participant}><span>{s.name}</span><strong>{s.total}</strong></li>)}</ol>
           </>
         )}
@@ -607,6 +616,7 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
 
 /** Ein Mitglied des Bereichs öffnet eine Sitzung, die es nicht führt — mit seinem Konto. */
 function SessionJoinAsMember({ session, title, onBack }: { session: SessionRow; title: string; onBack: () => void }) {
+  const t = useT();
   const { me } = useCtx();
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array> | null>(null);
   useEffect(() => {
@@ -617,11 +627,11 @@ function SessionJoinAsMember({ session, title, onBack }: { session: SessionRow; 
       setKeys(out);
     }, () => setKeys(new Map()));
   }, [me, session.areaId, session.sessionId]);
-  if (me === null || keys === null) return <p className="wk-hint">Otwieranie sesji…</p>;
+  if (me === null || keys === null) return <p className="wk-hint">{t('cogitaViewsStats.sess.opening')}</p>;
   return (
     <div className="cg">
-      <button type="button" className="wk-link-btn" onClick={onBack}>← sesje</button>
-      <SessionPlay session={session} title={title} cred={{}} keys={keys} participant={me.person.id} name={me.names.get(me.person.id) ?? 'Uczestnik'} learnerRole={me.person.id} />
+      <button type="button" className="wk-link-btn" onClick={onBack}>{t('cogitaViewsStats.sess.back')}</button>
+      <SessionPlay session={session} title={title} cred={{}} keys={keys} participant={me.person.id} name={me.names.get(me.person.id) ?? t('cogitaViewsStats.sess.participant')} learnerRole={me.person.id} />
     </div>
   );
 }
@@ -640,6 +650,7 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
   learner?: Learner | null;
   learnerRole?: string;
 }) {
+  const t = useT();
   const [name, setName] = useState(given ?? '');
   const [team, setTeam] = useState('');
   const [joined, setJoined] = useState(false);
@@ -658,7 +669,7 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
   const seal = async (eventId: string, body: unknown): Promise<{ sealed: string; epoch: number }> => {
     if (intake !== null) return { sealed: await sealForIntake(intake, eventId, body), epoch: 0 };
     if (key !== undefined) return { sealed: await sealForSession(key, eventId, body), epoch };
-    throw new Error('Tej sesji nie da się tu otworzyć.');
+    throw new Error(t('cogitaViewsStats.sess.cannotOpen'));
   };
   const send = (kind: 'join' | 'answer', body: unknown) => run(async () => {
     const eventId = newId();
@@ -695,11 +706,11 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
 
   if (!joined) {
     return (
-      <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); void send('join', { participant, name: name.trim() || 'Uczestnik', team: team.trim() || null, device } satisfies Join).then(() => setJoined(true)); }}>
+      <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); void send('join', { participant, name: name.trim() || t('cogitaViewsStats.sess.participant'), team: team.trim() || null, device } satisfies Join).then(() => setJoined(true)); }}>
         <h2 className="wk-h2">{title}</h2>
-        <label className="wk-field"><span>Jak się przedstawisz</span><input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} /></label>
-        <label className="wk-field"><span>Drużyna (jeśli gracie w drużynach)</span><input value={team} onChange={(e) => setTeam(e.target.value)} maxLength={40} /></label>
-        <button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>Dołącz</button>
+        <label className="wk-field"><span>{t('cogitaViewsStats.sess.yourName')}</span><input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} /></label>
+        <label className="wk-field"><span>{t('cogitaViewsStats.sess.team')}</span><input value={team} onChange={(e) => setTeam(e.target.value)} maxLength={40} /></label>
+        <button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>{t('cogitaViewsStats.sess.join')}</button>
         {failed !== null && <p className="wk-error">{failed}</p>}
       </form>
     );
@@ -729,13 +740,13 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
     if (libraryId != null) return <PageRevisionRun libraryId={libraryId} revisionId={asyncRevision} learner={learner ?? null} title={title} via={session.sessionId} onAnswer={report} />;
   }
 
-  if (finished) return <div className="cg-live-screen"><h2>Koniec</h2>{mine !== null && <p className="cg-live-code">{mine.total}</p>}</div>;
-  if (index < 0) return <div className="cg-live-screen"><h2>{title}</h2><p className="cg-muted">Za chwilę pierwsze pytanie…</p>{mine !== null && <p>Punkty: {mine.total}</p>}</div>;
+  if (finished) return <div className="cg-live-screen"><h2>{t('cogitaViewsStats.sess.theEnd')}</h2>{mine !== null && <p className="cg-live-code">{mine.total}</p>}</div>;
+  if (index < 0) return <div className="cg-live-screen"><h2>{title}</h2><p className="cg-muted">{t('cogitaViewsStats.sess.soon')}</p>{mine !== null && <p>{t('cogitaViewsStats.sess.points', { count: mine.total })}</p>}</div>;
 
   const answered = sent.has(index);
   return (
     <div className="cg-live-screen">
-      <span className="cg-muted">Pytanie {index + 1}{current !== null ? ` z ${current.total}` : ''}{mine !== null ? ` · ${mine.total} pkt` : ''}</span>
+      <span className="cg-muted">{t('cogitaViewsStats.sess.q', { n: index + 1 })}{current !== null ? t('cogitaViewsStats.sess.qOf', { total: current.total }) : ''}{mine !== null ? t('cogitaViewsStats.sess.pts', { count: mine.total }) : ''}</span>
       {current !== null && reveal === null && !answered && (
         <section className="cg-face">
           <div className="cg-prompt"><PromptLine card={current.card} /></div>
@@ -746,14 +757,14 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
         <div className="cg-live-buttons">
           {Array.from({ length: slot.form === 'truefalse' ? 2 : Math.max(1, slot.count) }, (_, i) => (
             <button key={i} type="button" onClick={() => { const v = slot.form === 'truefalse' ? i === 0 : i; setSent((m) => new Map(m).set(index, v)); void send('answer', { participant, device, index, given: v, at: Date.now() } satisfies Answer); }}>
-              {slot.form === 'truefalse' ? (i === 0 ? 'Prawda' : 'Fałsz') : String.fromCharCode(65 + i)}
+              {slot.form === 'truefalse' ? (i === 0 ? t('cogitaViewsStats.sess.true') : t('cogitaViewsStats.sess.false')) : String.fromCharCode(65 + i)}
             </button>
           ))}
         </div>
       )}
-      {answered && reveal === null && <p className="cg-muted">Wysłano — czekamy na innych.</p>}
+      {answered && reveal === null && <p className="cg-muted">{t('cogitaViewsStats.sess.sent')}</p>}
       {reveal !== null && (
-        <Verdict card={reveal.card} outcome={checkCard(reveal.card, sent.get(index))} given={sent.get(index)} extra={mine?.last != null ? <span>+{mine.last.total} pkt</span> : null} />
+        <Verdict card={reveal.card} outcome={checkCard(reveal.card, sent.get(index))} given={sent.get(index)} extra={mine?.last != null ? <span>{t('cogitaViewsStats.sess.plusPts', { count: mine.last.total })}</span> : null} />
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
@@ -774,15 +785,16 @@ function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
   onAnswer: (step: string, correctness: number, given: unknown) => void;
   game: { cred: Credentials; player: string; team: string | null; onOpen: (step: string) => void } | null;
 }) {
+  const t = useT();
   const libraryId = meta?.library ?? session.libraryId ?? '';
   const flowId = meta?.flow ?? null;
   const { lib, ctx } = usePageBase(libraryId);
   const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
   const content = useMemo(() => (lib == null || cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
   const flow = content === null || flowId === null ? undefined : content.flow(flowId);
-  if (lib === undefined || (lib !== null && content === null)) return <Loading label="Wczytywanie…" />;
-  if (lib === null || ctx === null || content === null) return <p className="wk-error">Tej bazy wiedzy nie możesz czytać — przebieg bez konta działa w bazie z obszaru publicznego (albo z linkiem do niego).</p>;
-  if (flow === undefined) return <p className="wk-error">Tego przebiegu nie ma w bazie wiedzy.</p>;
+  if (lib === undefined || (lib !== null && content === null)) return <Loading label={t('cogitaViewsStats.sess.loadingBase')} />;
+  if (lib === null || ctx === null || content === null) return <p className="wk-error">{t('cogitaViewsStats.sess.cannotRead')}</p>;
+  if (flow === undefined) return <p className="wk-error">{t('cogitaViewsStats.sess.noFlow')}</p>;
   return (
     <CogitaContext.Provider value={ctx}>
       <div className="cg">

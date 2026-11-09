@@ -9,7 +9,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../areas/area';
 import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
-import { plural } from '../core/plural';
+import { fmtDate, useT } from '../core/i18n';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadSeats } from '../seats/seat';
 import type { Card } from './cardBasics';
@@ -44,6 +44,7 @@ export function summarize(cards: readonly Card[], marks: (card: Card) => ReturnT
 }
 
 export function OwnProgress({ learner, cards }: { learner: Learner | null; cards: readonly Card[] | null }) {
+  const t = useT();
   const { lib, who } = useCtx();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const [tick, setTick] = useState(0);
@@ -58,8 +59,8 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   const byCard = useMemo(() => (learner === null ? null : answerIndex(learner.progress, rename)), [learner, rename, answered]);
   /* 2026-11-01 — die Mapy postępów: die Widoki der Baza im Modus „Mapa postępów" (ohne solchen Widok nichts). */
   const quilts = useQuiltViews();
-  if (cards === null) return <p className="wk-hint">Liczenie kart…</p>;
-  if (learner === null) return <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce — zaloguj się, żeby je zachować.</p>;
+  if (cards === null) return <p className="wk-hint">{t('cogitaViewsStats.progress.countingCards')}</p>;
+  if (learner === null) return <p className="wk-hint">{t('cogitaViewsStats.progress.noAccount')}</p>;
   const marks = (card: Card) => learner.marks(card.key, card.fingerprint, rename);
   /* 2026-11-04 (Prompt 15) — die Abstände, die für ihn gelten. */
   const sp = spacingFor(lib, learner);
@@ -69,22 +70,22 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   return (
     <div className="cg">
       <div className="cg-card">
-        <strong>Całość: {percent(all.knowness)}</strong>
+        <strong>{t('cogitaViewsStats.progress.overall', { pct: percent(all.knowness) })}</strong>
         <Bar value={all.knowness} />
-        <span className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${all.levels[l]}`).join(' · ')} · odpowiedzi: {learner.progress.answers.size}</span>
-        {learner.waiting > 0 && <span className="wk-note">{learner.waiting} pakietów czeka na internet.</span>}
+        <span className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => t('cogitaViewsStats.progress.levelCount', { level: LEVEL_LABEL[l], count: all.levels[l] })).join(' · ')} · {t('cogitaViewsStats.progress.answersCount', { count: learner.progress.answers.size })}</span>
+        {learner.waiting > 0 && <span className="wk-note">{t('cogitaViewsStats.progress.waiting', { count: learner.waiting })}</span>}
       </div>
       {/* 2026-11-01 — die Mapa postępów: jede Idee eine Kachel; ein Klick — lesen, die Fragen, „Ćwicz to". */}
       {quilts.length > 0 && byCard !== null && (
         <details className="cg-card" open data-own-quilt="">
-          <summary>Mapa postępów</summary>
+          <summary>{t('cogitaViewsStats.progress.quilt')}</summary>
           <QuiltMaps cards={cards} answers={byCard} learner={learner} spacing={sp} />
         </details>
       )}
       {/* 2026-10-31 — Statystyki: wo die Karten stehen, Tag für Tag, was fällig wird, Themen, Rodzaje pytań, das Schwerste. */}
       {byCard !== null && (
         <details className="cg-card" open data-own-stats="">
-          <summary>Statystyki — wykresy znajomości</summary>
+          <summary>{t('cogitaViewsStats.progress.stats')}</summary>
           <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={sp} />
         </details>
       )}
@@ -93,18 +94,18 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
           <div key={k.id} className="cg-card">
             <strong>{k.name}</strong>
             <Bar value={s.knowness} label={k.name} />
-            <span className="cg-muted">{n} kart · umiem {s.levels.known}</span>
+            <span className="cg-muted">{t('cogitaViewsStats.progress.kindLine', { count: n, known: s.levels.known })}</span>
           </div>
         ))}
       </div>
       {/* 2026-10-27 — Pytanie po pytaniu: ile razy, jak dobrze, jak długo, jak trwale — po wybranym sposobie liczenia. */}
       <details className="cg-card" data-own-questions="">
-        <summary>Moje pytania — co umiem, ile to trwało, jak długo zostanie</summary>
+        <summary>{t('cogitaViewsStats.progress.myQuestions')}</summary>
         <Stats cards={cards} progress={learner.progress} />
       </details>
       {/* 2026-10-30 — die Kenntnis gehört dem Eintrag: aus seinen Karten (gewogen), dazu, was auf ihm aufbaut. */}
       <details className="cg-card" data-own-items="">
-        <summary>Moje wpisy — znajomość wpisu z jego kart</summary>
+        <summary>{t('cogitaViewsStats.progress.myItems')}</summary>
         <ItemTable cards={cards} learner={learner} rename={rename} />
       </details>
       {lib.collections().length > 0 && (
@@ -112,30 +113,30 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
           {lib.collections().map((c) => {
             const members = lib.members(c.id) ?? new Set<string>();
             const s = summarize(cards.filter((card) => card.entity !== undefined && members.has(card.entity)), marks, Date.now(), sp);
-            return <div key={c.id} className="cg-card"><strong>{c.name}</strong><Bar value={s.knowness} /><span className="cg-muted">umiem {s.levels.known}</span></div>;
+            return <div key={c.id} className="cg-card"><strong>{c.name}</strong><Bar value={s.knowness} /><span className="cg-muted">{t('cogitaViewsStats.progress.iKnow', { count: s.levels.known })}</span></div>;
           })}
         </div>
       )}
       {suspended.length > 0 && (
         <details className="cg-card">
-          <summary>Karty, o które nie pytać ({suspended.length})</summary>
-          <ul>{suspended.map((key) => <li key={key} className="cg-row"><code>{key.slice(0, 40)}</code><button type="button" className="wk-link-btn" onClick={() => void learner.suspend(key, false)}>przywróć</button></li>)}</ul>
+          <summary>{t('cogitaViewsStats.progress.suspended', { count: suspended.length })}</summary>
+          <ul>{suspended.map((key) => <li key={key} className="cg-row"><code>{key.slice(0, 40)}</code><button type="button" className="wk-link-btn" onClick={() => void learner.suspend(key, false)}>{t('cogitaViewsStats.progress.restore')}</button></li>)}</ul>
         </details>
       )}
       {local !== undefined && local !== null && local.length > 0 && (
         <div className="cg-card">
-          <strong>W tej przeglądarce są postępy bez konta</strong>
+          <strong>{t('cogitaViewsStats.progress.localTitle')}</strong>
           {local.map((l) => (
-            <span key={l.key} className="cg-row">{l.answers} odpowiedzi
-              <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { await adoptLocal(l.key, learner); setTick((n) => n + 1); })}>Przenieś do konta</button>
+            <span key={l.key} className="cg-row">{t('cogitaViewsStats.progress.localAnswers', { count: l.answers })}
+              <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { await adoptLocal(l.key, learner); setTick((n) => n + 1); })}>{t('cogitaViewsStats.progress.adopt')}</button>
             </span>
           ))}
         </div>
       )}
       {offline !== undefined && offline !== null && offline.length > 0 && (
         <details className="cg-card">
-          <summary>Na tym urządzeniu bez internetu ({offline.length})</summary>
-          <ul>{offline.map((o) => <li key={`${o.libraryId}:${o.revisionId}`} className="cg-row">{new Date(o.savedAt).toLocaleString('pl-PL')}<button type="button" className="wk-link-btn" onClick={() => { if (account !== null) void dropOffline(account, o.libraryId, o.revisionId).then(() => setTick((n) => n + 1)); }}>usuń</button></li>)}</ul>
+          <summary>{t('cogitaViewsStats.progress.offline', { count: offline.length })}</summary>
+          <ul>{offline.map((o) => <li key={`${o.libraryId}:${o.revisionId}`} className="cg-row">{fmtDate(new Date(o.savedAt), { dateStyle: 'short', timeStyle: 'short' }, t.lang)}<button type="button" className="wk-link-btn" onClick={() => { if (account !== null) void dropOffline(account, o.libraryId, o.revisionId).then(() => setTick((n) => n + 1)); }}>{t('cogitaViewsStats.progress.remove')}</button></li>)}</ul>
         </details>
       )}
       {/* 2026-10-29 — die eigenen Antworten als JSON („recreatio/learn-progress"). */}
@@ -152,6 +153,7 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
  * den Ustawienia der Baza. Wer keinen davon führt und die Baza nicht schreibt, sieht hier nichts.
  */
 export function LearnersProgress({ cards, chosen }: { cards: readonly Card[] | null; chosen: string | null }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const found = useAsync(() => loadAnswerAreas(lib.libraryId).then((r) => r.areas, () => [] as readonly AnswerArea[]), [lib.libraryId]);
   const mine = useAsync(() => loadAreas().then((r) => r.areas, () => [] as readonly AreaRow[]), []);
@@ -168,16 +170,16 @@ export function LearnersProgress({ cards, chosen }: { cards: readonly Card[] | n
   const fallback = writes ? storage ?? lib.areaId : null;
   const area = options.find((o) => same(o, picked)) ?? options[0] ?? fallback;
   if (area === null) return null;
-  const nameOf = (id: string) => mine.find((a) => same(a.areaId, id))?.name ?? 'obszar';
+  const nameOf = (id: string) => mine.find((a) => same(a.areaId, id))?.name ?? t('cogitaViewsStats.progress.area');
   const countOf = (id: string) => found.find((a) => same(a.areaId, id))?.learners ?? 0;
   return (
     <details className="cg-card" open={chosen !== null || storage !== null || found.length > 0 || undefined} data-office-fold="">
-      <summary>Postępy uczących się (dla nauczyciela)</summary>
+      <summary>{t('cogitaViewsStats.progress.learners')}</summary>
       {options.length > 1 && (
         <label className="wk-field cg-office-area">
-          <span>Uczący się z obszaru</span>
+          <span>{t('cogitaViewsStats.progress.fromArea')}</span>
           <select value={area} onChange={(e) => setPicked(e.target.value)} data-office-area="">
-            {options.map((id) => <option key={id} value={id}>{nameOf(id)} — {countOf(id)} {plural(countOf(id), 'uczący się', 'uczących się', 'uczących się')}</option>)}
+            {options.map((id) => <option key={id} value={id}>{t('cogitaViewsStats.progress.areaOption', { name: nameOf(id), count: countOf(id) })}</option>)}
           </select>
         </label>
       )}
@@ -188,6 +190,7 @@ export function LearnersProgress({ cards, chosen }: { cards: readonly Card[] | n
 
 /** Für die Lehrerin: alle Lernenden eines Bereichs — mit dem Schlüssel der Annahme, den sie hält. */
 export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null; area: string }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const [rows, setRows] = useState<readonly LearnerProgress[] | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
@@ -229,7 +232,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
         for (const r of me.roles) if (me.names.has(r.id)) named.set(`r:${r.id}`, me.names.get(r.id)!);
         if (alive) { setRows(found); setNames(named); }
       } catch {
-        if (alive) setFailed('Postępy w tym obszarze czyta ten, kto ma klucz jego przyjęć (Annahme). Obszar może nie mieć jeszcze przyjęć.');
+        if (alive) setFailed(t('cogitaViewsStats.progress.noIntake'));
       }
     })();
     return () => { alive = false; };
@@ -237,7 +240,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   const scope = useScope(cards);
   const [model, setModel] = useModel();
   const [open, setOpen] = useState<string | null>(null);
-  const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`);
+  const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? t('cogitaViewsStats.progress.person', { id: r.seatId.slice(-4) }) : t('cogitaViewsStats.progress.person', { id: r.roleId?.slice(-4) ?? '' }));
   /* 2026-10-31 — jeder Uczący się mit seinen Antworten nach Karte geordnet: für die Diagramme aller und jedes Einzelnen. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename), spacing: spacingFor(lib, r) })), [rows, names, rename, lib, lib.revision]);
@@ -246,8 +249,8 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   /* 2026-11-05 (Prompt 17) — die Nagrody der Nauka: „Odznaki i poziomy" jedes Uczący się. */
   const rewards = useBaseRewards();
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
-  if (rows === null || cards === null) return <p className="wk-hint">Otwieranie postępów…</p>;
-  if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
+  if (rows === null || cards === null) return <p className="wk-hint">{t('cogitaViewsStats.progress.opening')}</p>;
+  if (rows.length === 0) return <p className="wk-empty">{t('cogitaViewsStats.progress.nobody')}</p>;
   const now = Date.now();
   const shown = scope.cards ?? cards;
   const statsFor = (progress: Answers) => cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), now, spacingFor(lib, { progress }));
@@ -259,19 +262,19 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
       {/* 2026-11-01 — wer was kann, auf der Karte des Kurses (Ideen unter Lektionen): alle zusammen, oder eine Person. */}
       {quilts.length > 0 && (
         <details className="cg-card" open data-class-quilt-fold="">
-          <summary>Mapa postępów klasy — kto co umie</summary>
+          <summary>{t('cogitaViewsStats.progress.classQuilt')}</summary>
           <ClassMaps cards={cards} learners={learners} />
         </details>
       )}
       {/* 2026-11-01 — je Frage über alle: wo die Klasse scheitert, wie viele Versuche, Podpowiedzi, die häufigste falsche Antwort. */}
       <details className="cg-card" data-class-questions-fold="">
-        <summary>Pytania — gdzie klasa się myli</summary>
+        <summary>{t('cogitaViewsStats.progress.classQuestions')}</summary>
         <ClassQuestions cards={shown} learners={learners} />
       </details>
-      <span className="cg-muted">Kliknij imię — zobaczysz odpowiedzi tej osoby, pytanie po pytaniu, i jej wykresy.</span>
+      <span className="cg-muted">{t('cogitaViewsStats.progress.clickName')}</span>
       <div className="cg-table-wrap">
         <table className="cg-table cg-stats-table">
-          <thead><tr><th>Uczący się</th><th>Umie</th><th>W nauce</th><th>Jeszcze nie</th><th>Odpowiedzi</th><th>Czas nauki</th><th>Na odpowiedź</th><th>Ostatnio</th></tr></thead>
+          <thead><tr><th>{t('cogitaViewsStats.progress.th.learner')}</th><th>{t('cogitaViewsStats.progress.th.knows')}</th><th>{t('cogitaViewsStats.progress.th.learning')}</th><th>{t('cogitaViewsStats.progress.th.notYet')}</th><th>{t('cogitaViewsStats.progress.th.answers')}</th><th>{t('cogitaViewsStats.progress.th.time')}</th><th>{t('cogitaViewsStats.progress.th.perAnswer')}</th><th>{t('cogitaViewsStats.progress.th.last')}</th></tr></thead>
           <tbody>
             {rows.map((r) => {
               const all = statsOf(statsFor(r.progress));
@@ -280,13 +283,13 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                 <Fragment key={r.holder}>
                   <tr data-learner-row={r.holder}>
                     <td><button type="button" className="cg-ref" aria-expanded={open === r.holder} onClick={() => setOpen(open === r.holder ? null : r.holder)}>{nameOf(r)}</button></td>
-                    <td><Bar value={share} /> {all.known} z {all.cards}</td>
+                    <td><Bar value={share} /> {t('cogitaViewsStats.progress.ofTotal', { count: all.known, total: all.cards })}</td>
                     <td>{all.learning}</td>
                     <td>{all.unseen}</td>
                     <td>{all.answers}</td>
                     <td>{all.msTotal === 0 ? '—' : spanText(all.msTotal)}</td>
                     <td>{all.msPerAnswer === null ? '—' : spanText(all.msPerAnswer)}</td>
-                    <td>{new Date(r.lastAt).toLocaleDateString('pl-PL')}</td>
+                    <td>{fmtDate(new Date(r.lastAt), { day: '2-digit', month: '2-digit', year: 'numeric' }, t.lang)}</td>
                   </tr>
                   {open === r.holder && (
                     <tr className="cg-stats-open">
@@ -296,7 +299,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                         {/* 2026-11-01 — und seine Mapa postępów (ohne „Ćwicz to" — üben kann nur er selbst). */}
                         {quilts.length > 0 && (
                           <details className="cg-card" open data-learner-quilt={r.holder}>
-                            <summary>Mapa postępów — {nameOf(r)}</summary>
+                            <summary>{t('cogitaViewsStats.progress.quiltOf', { name: nameOf(r) })}</summary>
                             <QuiltMaps cards={cards} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} spacing={spacingFor(lib, r)} />
                           </details>
                         )}
@@ -307,7 +310,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                         </details>
                         {/* 2026-11-01 — was er geantwortet hat, Antwort für Antwort. */}
                         <details className="cg-card" open data-learner-answers={r.holder}>
-                          <summary>Odpowiedzi — co odpowiedział(a)</summary>
+                          <summary>{t('cogitaViewsStats.progress.answersOf')}</summary>
                           <AnswerLog progress={r.progress} cards={cards} shown={shown} />
                         </details>
                         <QuestionTable stats={statsFor(r.progress)} />
@@ -353,19 +356,20 @@ function useModel(): [Model, (m: Model) => void] {
 }
 
 function StatsControls({ scope, model, onModel }: { scope: Scope; model: Model; onModel: (m: Model) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const revisions = lib.docs('revision');
   return (
     <div className="cg cg-stats-controls">
       <div className="cg-row">
-        <label className="wk-field"><span>Zakres</span>
+        <label className="wk-field"><span>{t('cogitaViewsStats.progress.scope')}</span>
           <select value={scope.id} onChange={(e) => scope.set(e.target.value)} data-stats-scope="">
-            <option value="">cała baza wiedzy</option>
-            {revisions.map((r) => <option key={r.id} value={r.id}>powtórka: {String(r.data.name ?? 'Powtórka')}</option>)}
+            <option value="">{t('cogitaViewsStats.progress.wholeBase')}</option>
+            {revisions.map((r) => <option key={r.id} value={r.id}>{t('cogitaViewsStats.progress.revision', { name: String(r.data.name ?? t('cogitaViewsStats.progress.revisionDefault')) })}</option>)}
           </select>
         </label>
-        <div className="wk-field"><span>Kiedy „umie”</span>
-          <div className="cg-chips" role="radiogroup" aria-label="Sposób liczenia">
+        <div className="wk-field"><span>{t('cogitaViewsStats.progress.whenKnows')}</span>
+          <div className="cg-chips" role="radiogroup" aria-label={t('cogitaViewsStats.progress.model')}>
             {MODELS.map((m) => <button key={m.id} type="button" role="radio" aria-checked={m.id === model} className={`cg-chip${m.id === model ? ' is-on' : ''}`} data-model={m.id} onClick={() => onModel(m.id)}>{m.label}</button>)}
           </div>
         </div>
@@ -377,6 +381,7 @@ function StatsControls({ scope, model, onModel }: { scope: Scope; model: Model; 
 
 /** Für sich selbst: dieselben Zahlen, aus den eigenen Antworten. */
 function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers }) {
+  const t = useT();
   const { lib } = useCtx();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const scope = useScope(cards);
@@ -387,7 +392,7 @@ function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers 
   return (
     <div className="cg">
       <StatsControls scope={scope} model={model} onModel={setModel} />
-      <span className="cg-muted" data-own-summary={all.known}>Umiem {all.known} z {all.cards} · w nauce {all.learning} · jeszcze nie {all.unseen} · czas nauki {all.msTotal === 0 ? '—' : spanText(all.msTotal)}{all.msPerAnswer === null ? '' : ` · średnio ${spanText(all.msPerAnswer)} na odpowiedź`}</span>
+      <span className="cg-muted" data-own-summary={all.known}>{t('cogitaViewsStats.progress.summary', { known: all.known, cards: all.cards, learning: all.learning, unseen: all.unseen, time: all.msTotal === 0 ? '—' : spanText(all.msTotal) })}{all.msPerAnswer === null ? '' : t('cogitaViewsStats.progress.perAnswer', { span: spanText(all.msPerAnswer) })}</span>
       <QuestionTable stats={stats} />
     </div>
   );
@@ -398,32 +403,33 @@ function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers 
  * mit dem, co na nim buduje (A.3) — die Zahl, die widoki i powtórki widzą („Filtr znajomości"). Das Schwächste zuerst.
  */
 function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner: Learner; rename: ((key: string) => string) | undefined }) {
+  const t = useT();
   const { lib } = useCtx();
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
   const g = gaugeFromMarks(cards, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), now, undefined, spacingFor(lib, learner));
   const rows = [...g.testing.entries()].filter(([id]) => lib.entity(id) !== undefined).map(([id, tests]) => ({
-    id, own: ownKnowness(g, id), total: itemKnowness(g, id), answered: tests.filter((t) => g.states.has(t.key)).length, all: tests.length, due: itemDue(g, id)
+    id, own: ownKnowness(g, id), total: itemKnowness(g, id), answered: tests.filter((x) => g.states.has(x.key)).length, all: tests.length, due: itemDue(g, id)
   }));
   rows.sort((a, b) => (a.answered === 0 ? 1 : 0) - (b.answered === 0 ? 1 : 0) || a.total - b.total);
-  if (rows.length === 0) return <span className="cg-muted">Brak wpisów z kartami.</span>;
+  if (rows.length === 0) return <span className="cg-muted">{t('cogitaViewsStats.progress.noItems')}</span>;
   return (
     <div className="cg-table-wrap">
       <table className="cg-table cg-stats-table" data-item-stats={rows.length}>
-        <thead><tr><th>Wpis</th><th>Z jego kart</th><th>Z tym, co na nim buduje</th><th>Karty z odpowiedzią</th><th>Kiedy powtórzyć</th></tr></thead>
+        <thead><tr><th>{t('cogitaViewsStats.progress.th.entry')}</th><th>{t('cogitaViewsStats.progress.th.fromCards')}</th><th>{t('cogitaViewsStats.progress.th.withBuilt')}</th><th>{t('cogitaViewsStats.progress.th.answered')}</th><th>{t('cogitaViewsStats.progress.th.due')}</th></tr></thead>
         <tbody>
           {rows.slice(0, 300).map((r) => (
             <tr key={r.id} className={r.total >= KNOWN ? 'is-known' : r.answered > 0 ? 'is-learning' : 'is-unseen'}>
               <td className="cg-stats-q"><EntityTitle lib={lib} id={r.id} /></td>
               <td>{r.answered === 0 ? '—' : percent(shareOf(r.own))}</td>
               <td>{r.total === 0 && r.answered === 0 ? '—' : percent(shareOf(r.total))}</td>
-              <td>{r.answered} z {r.all}</td>
-              <td>{r.due === null ? '—' : new Date(r.due).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}</td>
+              <td>{t('cogitaViewsStats.progress.ofTotal', { count: r.answered, total: r.all })}</td>
+              <td>{r.due === null ? '—' : fmtDate(new Date(r.due), { dateStyle: 'short', timeStyle: 'short' }, t.lang)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {rows.length > 300 && <span className="cg-muted">Pokazano 300 najsłabszych z {rows.length}.</span>}
+      {rows.length > 300 && <span className="cg-muted">{t('cogitaViewsStats.progress.shown300', { count: rows.length })}</span>}
     </div>
   );
 }
@@ -433,15 +439,16 @@ function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner
  * hält (Trwałość) und was in einer Woche bleibt — das Schwächste zuerst.
  */
 function QuestionTable({ stats }: { stats: readonly CardStat[] }) {
+  const t = useT();
   const { lib } = useCtx();
   /* 2026-11-01 — die Frage mit ihren Wzory (der Name eines Eintrags ebenso). */
   const name = (id: string) => entityNameTex(lib, id);
   const ordered = [...stats].sort((a, b) => Number(a.known) - Number(b.known) || a.now - b.now);
-  if (ordered.length === 0) return <span className="cg-muted">Brak kart w tym zakresie.</span>;
+  if (ordered.length === 0) return <span className="cg-muted">{t('cogitaViewsStats.progress.noCards')}</span>;
   return (
     <div className="cg-table-wrap">
       <table className="cg-table cg-stats-table" data-question-stats={ordered.length}>
-        <thead><tr><th>Pytanie</th><th>Odpowiedzi</th><th>Dobrze</th><th>Na odpowiedź</th><th>Ostatnio</th><th>Teraz</th><th>Trwałość</th><th>Za tydzień</th><th>Umie</th></tr></thead>
+        <thead><tr><th>{t('cogitaViewsStats.progress.th.question')}</th><th>{t('cogitaViewsStats.progress.th.answers')}</th><th>{t('cogitaViewsStats.progress.th.right')}</th><th>{t('cogitaViewsStats.progress.th.perAnswer')}</th><th>{t('cogitaViewsStats.progress.th.last')}</th><th>{t('cogitaViewsStats.progress.th.now')}</th><th>{t('cogitaViewsStats.progress.th.holds')}</th><th>{t('cogitaViewsStats.progress.th.inWeek')}</th><th>{t('cogitaViewsStats.progress.th.knows')}</th></tr></thead>
         <tbody>
           {ordered.slice(0, 300).map((s) => (
             <tr key={s.card.key} className={s.known ? 'is-known' : s.seen ? 'is-learning' : 'is-unseen'}>
@@ -449,16 +456,16 @@ function QuestionTable({ stats }: { stats: readonly CardStat[] }) {
               <td>{s.answers}</td>
               <td>{s.answers === 0 ? '—' : `${s.right} (${percent(s.share ?? 0)})`}</td>
               <td>{s.msAvg === null ? '—' : spanText(s.msAvg)}</td>
-              <td>{s.lastAt === null ? '—' : new Date(s.lastAt).toLocaleDateString('pl-PL')}</td>
+              <td>{s.lastAt === null ? '—' : fmtDate(new Date(s.lastAt), { day: '2-digit', month: '2-digit', year: 'numeric' }, t.lang)}</td>
               <td>{s.seen ? percent(shareOf(s.now)) : '—'}</td>
               <td>{holdsText(s.holdsHours)}</td>
               <td>{s.seen ? percent(shareOf(s.inWeek)) : '—'}</td>
-              <td>{s.known ? 'tak' : s.seen ? 'jeszcze nie' : '—'}</td>
+              <td>{s.known ? t('cogitaViewsStats.progress.yes') : s.seen ? t('cogitaViewsStats.progress.notYet') : '—'}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {ordered.length > 300 && <span className="cg-muted">Pokazano 300 najsłabszych z {ordered.length}.</span>}
+      {ordered.length > 300 && <span className="cg-muted">{t('cogitaViewsStats.progress.shown300', { count: ordered.length })}</span>}
     </div>
   );
 }

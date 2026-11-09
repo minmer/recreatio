@@ -10,7 +10,7 @@
  * Die Wertung bleibt, wie sie war (`checkMany`). Die Farbe ist nie das einzige Zeichen: jeder Zustand hat sein Wort.
  */
 
-import type { Lang } from './lang';
+import { tFor, type Lang } from '../core/i18n';
 
 export type ChoiceMark = 'hit' | 'missed' | 'wrong' | 'left';
 
@@ -31,18 +31,12 @@ export const choiceSaid = (mark: ChoiceMark): boolean => mark !== 'left';
 
 /** Die Worte je Zustand, in der Sprache der Baza (`lang.ts`). */
 export function choiceWords(lang: Lang): Readonly<Record<ChoiceMark, string>> {
-  switch (lang) {
-    case 'de': return { hit: 'richtig gewählt', missed: 'übersehen — auch richtig', wrong: 'falsch gewählt', left: 'richtig weggelassen' };
-    case 'en': return { hit: 'correctly chosen', missed: 'missed — this is also true', wrong: 'wrongly chosen', left: 'correctly left out' };
-    default: return { hit: 'dobrze zaznaczone', missed: 'pominięte — to też prawda', wrong: 'źle zaznaczone', left: 'słusznie pominięte' };
-  }
+  const t = tFor(lang);
+  return { hit: t('cogitaLearn.choice.hit'), missed: t('cogitaLearn.choice.missed'), wrong: t('cogitaLearn.choice.wrong'), left: t('cogitaLearn.choice.left') };
 }
 
 /** 2026-11-05 (Durchsicht) — die Zeile unter einer Möglichkeit sagt dem Vorleser in der Sprache der Baza, ob sie stimmt. */
 export function answerWords(lang: Lang): { readonly right: string; readonly wrong: string } {
-  switch (lang) {
-    case 'de': return { right: 'richtige Antwort', wrong: 'falsche Antwort' };
-    case 'en': return { right: 'right answer', wrong: 'wrong answer' };
-    default: return { right: 'dobra odpowiedź', wrong: 'zła odpowiedź' };
-  }
+  const t = tFor(lang);
+  return { right: t('cogitaLearn.choice.right'), wrong: t('cogitaLearn.choice.wrongAnswer') };
 }

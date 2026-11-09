@@ -27,11 +27,13 @@ import { useBrokenWorldLinks } from './WorldLinks';
 import { worldWords } from './worldWords';
 import { baseLang } from './lang';
 import { cogitaPath } from './parts';
+import { useT } from '../core/i18n';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   const { lib, me, writes } = useCtx();
+  const t = useT();
   const look = lib.look;
 
   /*
@@ -86,41 +88,41 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
     <div className="cg">
       <BrokenWorldLinks pathOf={pathOf} />
       <section className="cg-card">
-        <h3>Pytania bez odpowiedzi ({openQuestions.length})</h3>
-        {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakaś wypowiedź.</span>
+        <h3>{t('cogitaLearnPath.pending.open', { n: openQuestions.length })}</h3>
+        {openQuestions.length === 0 ? <span className="cg-muted">{t('cogitaLearnPath.pending.openNone')}</span>
           : <ul>{openQuestions.slice(0, 60).map((e) => <li key={e.id}><a className="cg-ref" href={pathOf(e.id)}><TexText text={clipTex(lib.labelTex(e), 160)} /></a></li>)}</ul>}
       </section>
       <section className="cg-card">
-        <h3>Wypowiedzi bez dobrej tezy ({thesisTodo.length})</h3>
-        {thesisTodo.length === 0 ? <span className="cg-muted">Każda wypowiedź (treść w blokach) zaczyna się od krótkiego zdania — tezy.</span>
+        <h3>{t('cogitaLearnPath.pending.thesis', { n: thesisTodo.length })}</h3>
+        {thesisTodo.length === 0 ? <span className="cg-muted">{t('cogitaLearnPath.pending.thesisNone')}</span>
           : <ul>{thesisTodo.slice(0, 60).map((e) => (
             <li key={e.id}>
               <a className="cg-ref" href={pathOf(e.id)}><TexText text={clipTex(lib.labelTex(e), 120)} /></a>
-              <span className="cg-muted"> — {thesisProblem(entityBlocks(e, look)) === 'missing' ? 'nie zaczyna się od zdania' : `pierwsze zdanie ma ponad ${THESIS_LIMIT} znaków`}</span>
+              <span className="cg-muted"> — {thesisProblem(entityBlocks(e, look)) === 'missing' ? t('cogitaLearnPath.pending.noSentence') : t('cogitaLearnPath.pending.tooLong', { n: THESIS_LIMIT })}</span>
             </li>
           ))}</ul>}
       </section>
       {circles.length > 0 && (
         <section className="cg-card" data-pending-circles={circles.length}>
-          <h3>Koła w kolejności nauki ({circles.length})</h3>
-          <span className="cg-muted">Wpis wymaga czegoś, co (przez inne wpisy) wymaga jego samego. Taka zależność nie działa — popraw „Najpierw trzeba znać” w jednym z nich.</span>
+          <h3>{t('cogitaLearnPath.pending.circles', { n: circles.length })}</h3>
+          <span className="cg-muted">{t('cogitaLearnPath.pending.circlesText')}</span>
           <ul>{circles.slice(0, 60).map((d) => (
             <li key={`${d.parent}>${d.child}`}>
-              <button type="button" className="cg-ref" onClick={() => onOpen(d.child)}><TexText text={entityNameTex(lib, d.child)} /></button> wymaga <button type="button" className="cg-ref" onClick={() => onOpen(d.parent)}><TexText text={entityNameTex(lib, d.parent)} /></button>
+              <button type="button" className="cg-ref" onClick={() => onOpen(d.child)}><TexText text={entityNameTex(lib, d.child)} /></button>{t('cogitaLearnPath.pending.requires')}<button type="button" className="cg-ref" onClick={() => onOpen(d.parent)}><TexText text={entityNameTex(lib, d.parent)} /></button>
             </li>
           ))}</ul>
         </section>
       )}
       <section className="cg-card">
-        <h3>Do sprawdzenia — coś, na co wskazuje wypowiedź, zmieniło się ({stale.length})</h3>
-        {stale.length === 0 ? <span className="wk-hint">Wszystko aktualne.</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}><TexText text={clipTex(lib.labelTex(e), 120)} /></button></li>)}</ul>}
+        <h3>{t('cogitaLearnPath.pending.stale', { n: stale.length })}</h3>
+        {stale.length === 0 ? <span className="wk-hint">{t('cogitaLearnPath.pending.staleNone')}</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}><TexText text={clipTex(lib.labelTex(e), 120)} /></button></li>)}</ul>}
       </section>
       {writes && (
         <section className="cg-card">
-          <h3>Zgłoszenia uczących się ({flags.length})</h3>
+          <h3>{t('cogitaLearnPath.pending.flags', { n: flags.length })}</h3>
           {reports === undefined ? <Loading lines={2} />
-            : reports === null ? <span className="wk-hint">Zgłoszenia czyta ten, kto ma klucz przyjęć obszaru bazy wiedzy (Ustawienia → przyjęcia).</span>
-            : flags.length === 0 ? <span className="wk-hint">Brak zgłoszeń.</span>
+            : reports === null ? <span className="wk-hint">{t('cogitaLearnPath.pending.flagsKey')}</span>
+            : flags.length === 0 ? <span className="wk-hint">{t('cogitaLearnPath.pending.flagsNone')}</span>
             : <ul>{flags.slice(-60).reverse().map((f, i) => {
                 const body = isObject(f.body) ? f.body : {};
                 const question = typeof body.question === 'string' ? body.question : '';
@@ -136,17 +138,17 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
                 const expected = said('expected');
                 return (
                   <li key={i} data-report-flag>
-                    {new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}><TexText text={entityNameTex(lib, entity)} /></button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}
-                    {prompt !== null && <div className="cg-muted">Pytanie: <TexText text={clipTex(prompt, 300)} /></div>}
-                    {given !== null && <div className="cg-muted">Odpowiedź: {given.slice(0, 300)}{share}</div>}
-                    {expected !== null && <div className="cg-muted">Poprawnie: <TexText text={clipTex(expected, 300)} /></div>}
+                    {new Date(f.createdAt).toLocaleDateString(t.locale)} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}><TexText text={entityNameTex(lib, entity)} /></button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}
+                    {prompt !== null && <div className="cg-muted">{t('cogitaLearnPath.pending.question')}<TexText text={clipTex(prompt, 300)} /></div>}
+                    {given !== null && <div className="cg-muted">{t('cogitaLearnPath.pending.answer')}{given.slice(0, 300)}{share}</div>}
+                    {expected !== null && <div className="cg-muted">{t('cogitaLearnRun.card.correctIs')}<TexText text={clipTex(expected, 300)} /></div>}
                   </li>
                 );
               })}</ul>}
           {counts.length > 0 && (
             <>
-              <h4>Tu wielu się myli</h4>
-              <ul>{counts.map(([key, v]) => <li key={key}><code>{key.slice(0, 50)}</code> — {Math.round((v.wrong / v.asked) * 100)}% błędów z {v.asked}</li>)}</ul>
+              <h4>{t('cogitaLearnPath.pending.hard')}</h4>
+              <ul>{counts.map(([key, v]) => <li key={key}><code>{key.slice(0, 50)}</code> — {t('cogitaLearnPath.pending.hardLine', { pct: Math.round((v.wrong / v.asked) * 100), n: v.asked })}</li>)}</ul>
             </>
           )}
         </section>
@@ -164,10 +166,11 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
  */
 function Parallel() {
   const { lib } = useCtx();
+  const t = useT();
   const statementKinds = lib.kinds.filter(isStatementKind);
   const [into, setInto] = useState(statementKinds[0]?.id ?? '');
   const statementKind = statementKinds.find((k) => k.id === into) ?? statementKinds[0];
-  const [pattern, setPattern] = useState('Jak {e} jest pokazany w {t}?');
+  const [pattern, setPattern] = useState(() => t('cogitaLearnPath.pending.pattern'));
   const [kind, setKind] = useState(lib.kinds.find((k) => lib.ofKind(k.id).length > 0)?.id ?? 'person');
   const [about, setAbout] = useState<string | null>(null);
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
@@ -177,19 +180,19 @@ function Parallel() {
   const proposals = lib.ofKind(kind).slice(0, 40).map((e) => ({ id: e.id, text: pattern.replace('{e}', () => lib.labelTex(e)).replace('{t}', () => (target === undefined ? '…' : lib.labelTex(target))) }));
   return (
     <section className="cg-card">
-      <h3>Pytania równoległe</h3>
-      <p className="wk-hint">Jeden wzór dla każdego wpisu rodzaju — zaznacz, które pytania mają powstać. Każde staje się wypowiedzią z pytaniem jako tezą (otwartą, dopóki nic na nią nie odpowie).</p>
+      <h3>{t('cogitaLearnPath.pending.parallel')}</h3>
+      <p className="wk-hint">{t('cogitaLearnPath.pending.parallelText')}</p>
       {statementKind === undefined
-        ? <p className="wk-warn">Najpierw dodaj rodzaj z polem „Treść w blokach” (np. zaimportuj templates/cogita/komentarz.json).</p>
+        ? <p className="wk-warn">{t('cogitaLearnPath.pending.needKind')}</p>
         : statementKinds.length > 1 && (
-          <label className="wk-field"><span>Jako</span>
+          <label className="wk-field"><span>{t('cogitaLearnPath.pending.as')}</span>
             <select value={statementKind.id} onChange={(e) => setInto(e.target.value)}>{statementKinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
           </label>
         )}
       <div className="cg-row">
-        <input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label="Wzór" />
+        <input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label={t('cogitaLearnPath.pending.patternLabel')} />
         <select value={kind} onChange={(e) => setKind(e.target.value)}>{lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
-        <EntityPicker lib={lib} value={about} onPick={setAbout} placeholder="{t}: w czym (np. rozdział)" />
+        <EntityPicker lib={lib} value={about} onPick={setAbout} placeholder={t('cogitaLearnPath.pending.where')} />
       </div>
       <ul className="cg-options">
         {proposals.map((p) => (
@@ -208,7 +211,7 @@ function Parallel() {
           } });
         }
         setChosen(new Set());
-      })}>Utwórz zaznaczone pytania</button>
+      })}>{t('cogitaLearnPath.pending.create')}</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );

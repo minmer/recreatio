@@ -20,8 +20,8 @@ import { useRef, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import type { CalendarRow } from '../calendar/calendar';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
-import { plural } from '../core/plural';
 import { WorkspaceError } from '../core/session';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { loadMassesState, runMassesImport, type LoadedMasses } from './massesImport';
@@ -48,6 +48,7 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
   day: string;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [from, setFrom] = useState(day);
   const [to, setTo] = useState(() => addDays(day, 30));
   const [loaded, setLoaded] = useState<LoadedMasses | null>(null);
@@ -77,7 +78,7 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
       setFailed(null);
       void loadMassesState({ me, calendars, areas, chosen, calendarIds: wanted.calendars, from: wanted.from, to: wanted.to })
         .then((got) => { setLoaded(got); setFailed(null); })
-        .catch((e) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odczytać mszy z tego okresu.'));
+        .catch((e) => setFailed(e instanceof WorkspaceError ? e.message : t('masses.jsonPanel.loadFailed')));
     }, 0);
   };
 
@@ -95,13 +96,13 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
   function compute(value: unknown): Analysis | { error: string } {
     const read = readMassesDocument(value);
     if ('error' in read) return read;
-    if (me === null) return { error: 'Bez kluczy w tej karcie nie da się importować — zaloguj się ponownie.' };
+    if (me === null) return { error: t('masses.jsonPanel.noKeys') };
     const rows = calendars.map((c) => ({ calendarId: c.calendarId, title: c.title, areaName: c.areaName, mayWrite: c.mayWrite !== false }));
     const needs = needsOf(read.doc, rows, chosen, dayOfDate(new Date()), loaded?.state.series);
     if ('error' in needs) return needs;
     want(needs);
     if (failed !== null) return { error: failed };
-    if (loaded === null || !coversNeeds(loaded.state, needs)) return { error: 'Sprawdzanie mszy z tego okresu…' };
+    if (loaded === null || !coversNeeds(loaded.state, needs)) return { error: t('masses.jsonPanel.checking') };
     const plan = planMasses(read.doc, loaded.state, { conflicts });
     if ('error' in plan) return plan;
     return { plan, loaded, preview: { lines: plan.lines, warnings: [...read.warnings, ...plan.warnings] } };
@@ -113,10 +114,10 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
   };
 
   const run = async (value: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    if (me === null) throw new WorkspaceError('Bez kluczy w tej karcie nie da się importować — zaloguj się ponownie.');
+    if (me === null) throw new WorkspaceError(t('masses.jsonPanel.noKeys'));
     const done = analyse(value);
     if ('error' in done) throw new WorkspaceError(done.error);
-    if (done.plan.empty) return { lines: ['Nic do zmiany — wszystko z dokumentu już jest w kalendarzu.'], warnings: done.preview.warnings };
+    if (done.plan.empty) return { lines: [t('masses.jsonPanel.nothing')], warnings: done.preview.warnings };
     try {
       return await runMassesImport({ me, plan: done.plan, loaded: done.loaded, calendars, stage });
     } finally {
@@ -132,20 +133,20 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
   const rangeProblem = (() => {
     const a = readDay(from);
     const b = readDay(to);
-    if (a === null || b === null) return 'Podaj oba dni okresu.';
-    if (b < a) return 'Koniec okresu jest przed początkiem.';
-    if (daysBetween(a, b) > MAX_DAYS) return `Najwyżej ${MAX_DAYS} dni naraz.`;
+    if (a === null || b === null) return t('masses.jsonPanel.bothDays');
+    if (b < a) return t('masses.jsonPanel.endBeforeStart');
+    if (daysBetween(a, b) > MAX_DAYS) return t('masses.jsonPanel.maxDays', { max: MAX_DAYS });
     return null;
   })();
 
   const exportDoc = async (): Promise<Record<string, unknown>> => {
     if (rangeProblem !== null) throw new WorkspaceError(rangeProblem);
-    if (calendar === undefined) throw new WorkspaceError('Wybierz u góry kalendarz.');
+    if (calendar === undefined) throw new WorkspaceError(t('masses.jsonPanel.pickCalendar'));
     const got = await loadMassesState({ me, calendars, areas, chosen, calendarIds: [chosen], from, to });
     setLoaded(got);
     setNote(me === null
-      ? 'Bez kluczy w tej karcie eksport nie ma ofiarodawców, ofiar, miejsc ani imion osób.'
-      : got.unreadable > 0 ? `${got.unreadable} ${plural(got.unreadable, 'pola', 'pól', 'pól')} (ofiarodawca, ofiara) nie da się tu odczytać — w eksporcie ich nie ma.` : null);
+      ? t('masses.jsonPanel.exportNoKeys')
+      : got.unreadable > 0 ? t('masses.jsonPanel.unreadable', { count: got.unreadable }) : null);
     return exportMasses(got.state, chosen, from, to);
   };
 
@@ -156,13 +157,13 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
       const text = massesPrompt(await exportDoc());
       try {
         await navigator.clipboard.writeText(text);
-        setNote('Skopiowano — wklej do swojej rozmowy z AI razem ze zdjęciami księgi; odpowiedź wklej niżej w „Import”.');
+        setNote(t('masses.jsonPanel.copied'));
       } catch {
         setPromptText(text);
-        setNote('Schowek nie przyjął tekstu — zaznacz go niżej i skopiuj.');
+        setNote(t('masses.jsonPanel.clipboardFailed'));
       }
     } catch (e) {
-      setNote(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować promptu.');
+      setNote(e instanceof WorkspaceError ? e.message : t('masses.jsonPanel.promptFailed'));
     } finally {
       setPromptBusy(false);
     }
@@ -172,53 +173,50 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
 
   return (
     <>
-      <section className="wk-form" aria-label="Okres eksportu">
+      <section className="wk-form" aria-label={t('masses.jsonPanel.range')}>
         <div className="wk-mo-top">
           <label className="wk-field">
-            <span>Od</span>
+            <span>{t('common.from')}</span>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Do</span>
+            <span>{t('common.to')}</span>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
           <button type="button" className="wk-btn wk-btn-line" disabled={promptBusy || rangeProblem !== null} onClick={() => void copyPrompt()}>
-            {promptBusy ? 'Przygotowywanie…' : 'Skopiuj prompt dla AI (księga intencji)'}
+            {promptBusy ? t('masses.jsonPanel.preparing') : t('masses.jsonPanel.copyPrompt')}
           </button>
         </div>
         {rangeProblem !== null && <p className="wk-error">{rangeProblem}</p>}
         {note !== null && <p className="wk-note" role="status">{note}</p>}
         {promptText !== null && (
-          <textarea className="wk-json-text" readOnly rows={6} value={promptText} aria-label="Prompt dla AI" onFocus={(e) => e.currentTarget.select()} />
+          <textarea className="wk-json-text" readOnly rows={6} value={promptText} aria-label={t('masses.jsonPanel.promptLabel')} onFocus={(e) => e.currentTarget.select()} />
         )}
       </section>
 
       <JsonPanel
-        summary="Msze i intencje jako JSON"
-        lead={<>
-          Msze, nabożeństwa i spowiedź kalendarza „{calendarWord}” z intencjami — dzień po dniu, w okresie wybranym wyżej.
-          Wpis z „id” zmienia się w miejscu, bez „id” — dochodzi; najpierw widać, która msza którego dnia dostanie którą intencję. Niczego nie usuwa.
-        </>}
+        summary={t('masses.jsonPanel.summary')}
+        lead={t('masses.jsonPanel.lead', { calendar: calendarWord })}
         fileName={fileName}
         exportDoc={exportDoc}
         format={MASSES_JSON}
         open
         preview={preview}
-        importLabel="Importuj do kalendarza"
+        importLabel={t('masses.jsonPanel.importLabel')}
         onImport={run}
         options={(value) => {
           const done = analyse(value);
           if ('error' in done || done.plan.conflicts === 0) return null;
           return (
             <fieldset className="wk-field wk-json-options">
-              <legend>Msze, które w kalendarzu mają już inną intencję ({done.plan.conflicts})</legend>
+              <legend>{t('masses.jsonPanel.conflicts', { count: done.plan.conflicts })}</legend>
               <label className="wk-check">
                 <input type="radio" name="masses-conflicts" checked={conflicts === 'skip'} onChange={() => setConflicts('skip')} />
-                <span>Pomiń — nowe intencje do nich nie dojdą (ostrzeżenia wyżej mówią które)</span>
+                <span>{t('masses.jsonPanel.skip')}</span>
               </label>
               <label className="wk-check">
                 <input type="radio" name="masses-conflicts" checked={conflicts === 'add'} onChange={() => setConflicts('add')} />
-                <span>Dopisz obok istniejących — dwie pojedyncze w jednej mszy to dwóch kapłanów</span>
+                <span>{t('masses.jsonPanel.addBeside')}</span>
               </label>
             </fieldset>
           );

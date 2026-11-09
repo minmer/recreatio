@@ -377,5 +377,825 @@
     "ownClaimConfirmed": "This is your booking (confirmed). You change it where you made it.",
     "ownClaimWaiting": "This is your booking (awaiting confirmation). You change it where you made it.",
     "readOnly": "You can only view this appointment — you don't write in its calendar."
+  },
+  "pickBar": {
+    "terms": {
+      "one": "{count} appointment",
+      "other": "{count} appointments"
+    },
+    "series": {
+      "one": "{count} series",
+      "other": "{count} series"
+    },
+    "unit": {
+      "minute": {
+        "one": "minute",
+        "other": "minutes"
+      },
+      "hour": {
+        "one": "hour",
+        "other": "hours"
+      },
+      "day": {
+        "one": "day",
+        "other": "days"
+      },
+      "week": {
+        "one": "week",
+        "other": "weeks"
+      },
+      "month": {
+        "one": "month",
+        "other": "months"
+      }
+    },
+    "periodEarlier": "{span} earlier",
+    "periodLater": "{span} later",
+    "undone": "Undone.",
+    "undoFailed": "Could not undo.",
+    "skippedAllDay": " All-day ones move only by whole days — unchanged: {terms}.",
+    "moved": "Moved {terms}",
+    "copied": "Copied {terms}",
+    "partlyFailed": "{done}, failed: {failed}",
+    "failedOf": "Failed: {failed} of {total}",
+    "removeAsk": "Delete {terms}?",
+    "removeAskSeries": "Delete {terms}? From series, only these days will disappear.",
+    "removed": "Deleted {terms}.",
+    "endAsk": "End {series} before the selected day? Earlier appointments stay, single appointments disappear.",
+    "ended": "Done — the series end before the selected days.",
+    "removeSeriesAsk": "Delete {series} entirely — including appointments that already took place?",
+    "label": "Selected appointments",
+    "picked": "Selected: {terms}",
+    "cutHint": "Ctrl + X — then click a day or an hour",
+    "copyHint": "Ctrl + C — then click a day or an hour",
+    "cut": "Cut",
+    "deleteKey": "Delete",
+    "escKey": "Esc",
+    "removeOnly": "Delete only these",
+    "removeWithSeries": "Delete with series",
+    "seriesMenu": "Series…",
+    "endFollowing": "These and the following — end the series",
+    "wholeSeries": "Whole series",
+    "shiftPicked": "Move the selected",
+    "shiftMenu": "Move…",
+    "dayEarlier": "A day earlier",
+    "dayLater": "A day later",
+    "weekEarlier": "A week earlier",
+    "weekLater": "A week later",
+    "hourEarlier": "An hour earlier",
+    "hourLater": "An hour later",
+    "otherPeriod": "By another period…",
+    "copyPeriod": "Copy by a period…",
+    "shiftForm": "Move by a period",
+    "shift": "Move",
+    "by": "by",
+    "howMany": "How many",
+    "ofWhat": "Of what",
+    "earlier": "earlier",
+    "later": "later",
+    "allDayOnly": "All-day ones move only by whole days.",
+    "allDayStay": "all-day ones stay: {count}",
+    "clipCut": "To move: {terms} — click the day or hour where they should go",
+    "clipCopy": "To copy: {terms} — click the day or hour where they should go"
+  },
+  "editor": {
+    "extra": {
+      "place": "Place",
+      "notes": "Note",
+      "people": "People",
+      "link": "Link",
+      "program": "Programme"
+    },
+    "scope": {
+      "one": "This appointment",
+      "following": "This and following",
+      "all": "The whole series"
+    },
+    "newTitle": {
+      "mass": "New mass",
+      "confession": "New confession",
+      "devotion": "New service",
+      "visit": "New visit",
+      "appointment": "New appointment"
+    },
+    "needsWhen": "Enter the day and the hours.",
+    "fillIn": "Fill in: {field}.",
+    "partsFailed": "Appointment saved, but {failed} of {total} programme items could not be changed along with it.",
+    "endAsk": "End the series before this day? Earlier appointments stay.",
+    "cancelOneAsk": "Cancel only this appointment?",
+    "removeAsk": "Delete this appointment (the whole series)?",
+    "onlyMe": "Only me",
+    "youChange": "You are changing",
+    "whatChanges": "What you are changing",
+    "followingNote": "From this day on — earlier appointments stay as they were. Intentions, assignments and sign-ups move to the new hours by day.",
+    "allWarn": "You are changing the whole series — including appointments that already took place. Usually “This and following” is right.",
+    "kind": "Kind",
+    "namePublic": "Name (publicly visible)",
+    "titlePlaceholder": {
+      "mass": "Name, e.g. High Mass — empty: just the time",
+      "devotion": "Name, e.g. Rosary",
+      "confession": "Name — empty: “Confession”",
+      "other": "Title, e.g. Meeting with parents"
+    },
+    "publicHint": "The name is public — it stands in the plan and on the notice board. Place and note stay encrypted.",
+    "endDay": "End day",
+    "allDay": "All day",
+    "severalDays": "Several days",
+    "endsOtherDay": "Ends on another day",
+    "repeat": "Repeat",
+    "repeatNone": "Does not repeat",
+    "repeatWeekly": "Every week",
+    "repeatMonthly": "Every month, on day {day}",
+    "repeatYearly": "Every year, {day} {month}",
+    "repeatCustom": "Custom…",
+    "every": "every",
+    "everyHowMany": "Every how many",
+    "unit": {
+      "daily": {
+        "one": "day",
+        "other": "days"
+      },
+      "weekly": {
+        "one": "week",
+        "other": "weeks"
+      },
+      "monthly": {
+        "one": "month",
+        "other": "months"
+      },
+      "yearly": {
+        "one": "year",
+        "other": "years"
+      }
+    },
+    "until": "Until when",
+    "endsNever": "forever",
+    "endsDate": "until the day…",
+    "endsCount": "this many times…",
+    "lastDay": "Last day",
+    "howManyTimes": "How many times",
+    "times": {
+      "one": "time",
+      "other": "times"
+    },
+    "groupCalendars": "Group calendars",
+    "privateSeen": "Only you see it — encrypted with your key.",
+    "seenBy": "Seen by: <b>{who}</b>",
+    "otherThanCalendar": "— differs from the calendar",
+    "asCalendar": "as in the calendar ({who})",
+    "scheme": "Scheme",
+    "universal": "Universal",
+    "thisDay": "(this day)",
+    "bookable": "Can be booked",
+    "places": "Places",
+    "reserveAsCalendar": "who books: as in the calendar ({who})",
+    "anyoneFinds": "anyone who finds the appointment",
+    "placePlaceholder": "Place, e.g. parish hall",
+    "thisOne": "— this appointment",
+    "linkLabel": "Link to information",
+    "linkPlaceholder": "https://… or #/page on recreatio.pl",
+    "buttonText": "Button text",
+    "buttonPlaceholder": "Text: More information",
+    "linkWarn": "The link must start with https:// (or #/ for a page on recreatio.pl).",
+    "linkFailed": "Could not attach the appointment.",
+    "unlinkFailed": "Could not detach the appointment.",
+    "newPartNote": "Programme item: <b>{parent}</b> — calendar, visibility, place, link and people are shared with it. Change here only what should be different in this item.",
+    "parentFallback": "parent appointment",
+    "willDetach": "After saving, this appointment will no longer be a programme item.",
+    "partNote": "Programme item: <b>{parent}</b> — whatever it has the same as the parent changes along with it.",
+    "parentOutside": "appointment outside the view",
+    "detach": "Detach",
+    "fromChat": "From a chat — the appointment will remember which message it came from.",
+    "onlyTimeNote": "You are moving only this one appointment — the rest of the series stays as it was. Bookings move with it.",
+    "addTo": "Add to the appointment",
+    "addOne": "Add: {what}",
+    "cancelOne": "Cancel this appointment",
+    "endSeries": "End the series before this day"
+  },
+  "app": {
+    "noKey": "Without a key in this tab, the calendar is locked — sign in again or unlock the key.",
+    "loadFailed": "Could not load the calendar.",
+    "calendarFallback": "calendar",
+    "dropCopy": "Copy {terms}",
+    "dropMove": "Move {terms}",
+    "notPickable": "You can't change this appointment together with others.",
+    "clickWhere": "Click the day or hour where they should go.",
+    "loadingShort": "loading…",
+    "calendars": "Calendars",
+    "whatToShow": "What to show",
+    "toConfirm": "To confirm",
+    "mineHint": "Only appointments where you must be present (e.g. masses you celebrate)",
+    "mine": "Assigned to me",
+    "tasks": "Tasks",
+    "jsonTitle": "Appointments as JSON — {name}",
+    "taken": "taken {taken} of {capacity}",
+    "waitingCount": {
+      "one": "{count} awaiting confirmation",
+      "other": "{count} awaiting confirmation"
+    },
+    "intShort": "{count} int."
+  },
+  "grid": {
+    "hourHeight": "Hour height",
+    "zoomOut": "Zoom out",
+    "zoomOutHint": "Zoom out (Ctrl + mouse wheel)",
+    "zoomIn": "Zoom in",
+    "zoomInHint": "Zoom in (Ctrl + mouse wheel)",
+    "showMonth": "Show the whole month",
+    "showDay": "Show this day",
+    "allDay": "all day",
+    "focusEvents": "Appointments wide, tasks at the side",
+    "focusTasks": "Tasks wide, appointments at the side",
+    "tasks": "tasks",
+    "prevDay": "Previous day",
+    "prevWeek": "Previous week",
+    "nextDay": "Next day",
+    "nextWeek": "Next week",
+    "railTasks": "Tasks: {date} — show wide",
+    "tasksWide": "Tasks wide",
+    "railEvents": "Appointments: {date} — show wide",
+    "eventsWide": "Appointments wide",
+    "done": "Done",
+    "showAlso": "Also show {month}",
+    "withParts": "{title} — programme items: {count}",
+    "more": "+{count} more"
+  },
+  "list": {
+    "empty": "Nothing on these days.",
+    "taken": "{taken}/{capacity} taken",
+    "waitCount": "{count} waiting",
+    "waits": "waiting",
+    "booking": "booking",
+    "bookingAll": "bookings: every appointment · {capacity} places",
+    "bookingMarked": "bookings: marked · {capacity} places",
+    "onlyGroup": "only {who}",
+    "seenBy": "seen by: {who}",
+    "readOnly": "view only",
+    "exportJson": "Export JSON",
+    "intro": "A group has its calendar right away — and can have more (e.g. masses and meetings separately). Each one says how its appointments work: who sees them, how long they last and who can book them.",
+    "newCalendar": "+ New calendar"
+  },
+  "flow": {
+    "season": {
+      "adwent": "Advent",
+      "narodzenie": "Christmas Time",
+      "zwykly": "Ordinary Time",
+      "post": "Lent",
+      "triduum": "Easter Triduum",
+      "wielkanoc": "Easter Time"
+    },
+    "node": {
+      "day": {
+        "label": "Day",
+        "says": "Start for every day of the range."
+      },
+      "mass": {
+        "label": "Mass",
+        "says": "Start for every mass of the day (from the “Hours” node)."
+      },
+      "season": {
+        "label": "Liturgical season",
+        "says": "Works out the season, week, rank of the day and colour of the season."
+      },
+      "feasts": {
+        "label": "Feast calendar",
+        "says": "Picks the celebration of the day from the table (highest rank wins)."
+      },
+      "if": {
+        "label": "Condition",
+        "says": "Checks the day, the mass or the entry — then “yes” or “no”."
+      },
+      "set": {
+        "label": "Set",
+        "says": "Sets the title, a scheme field or a variable."
+      },
+      "slots": {
+        "label": "Mass times",
+        "says": "Says which masses there are that day (Sundays and feasts / weekdays)."
+      },
+      "record": {
+        "label": "Add entry",
+        "says": "Adds a fixed entry to the mass, e.g. the intention “For the parishioners”."
+      },
+      "skip": {
+        "label": "No mass",
+        "says": "No mass on this day (at this hour)."
+      },
+      "end": {
+        "label": "Create",
+        "says": "The mass is created with what was set along the way."
+      },
+      "record-start": {
+        "label": "New entry",
+        "says": "Start: someone adds or accepts an entry."
+      },
+      "allow": {
+        "label": "Accept",
+        "says": "The entry is accepted."
+      },
+      "wait": {
+        "label": "Waits",
+        "says": "The entry waits until the office accepts it."
+      },
+      "refuse": {
+        "label": "Refuse",
+        "says": "The entry cannot be added — with this message."
+      }
+    },
+    "dateRule": {
+      "shift": {
+        "one": "{unit} {sign}{count} day",
+        "other": "{unit} {sign}{count} days"
+      },
+      "easter": "Easter",
+      "advent": "1st Sunday of Advent",
+      "christmasSunday": "Sunday in the Christmas octave (or 30 December)",
+      "baptism": "Sunday after 6 January",
+      "last": "last",
+      "nth": "{n}.",
+      "nthEvery": "{which} {weekday} of every month",
+      "nthOf": "{which} {weekday} of {month}",
+      "sundayAfter": "first Sunday after {date}"
+    },
+    "dayShort": {
+      "d1": "Mon",
+      "d2": "Tue",
+      "d3": "Wed",
+      "d4": "Thu",
+      "d5": "Fri",
+      "d6": "Sat",
+      "d7": "Sun"
+    },
+    "test": {
+      "weekday": "weekday: {list}",
+      "slot": "mass time: {list}",
+      "timeBoth": "mass from {from} to {to}",
+      "timeFrom": "mass from {from}",
+      "timeTo": "mass until {to}",
+      "time": "mass",
+      "season": "season: {list}",
+      "week": "week {op} {n}",
+      "rank": "rank {op} {n}",
+      "celebrationAny": "there is a celebration",
+      "celebrationNone": "no celebration",
+      "celebrationName": "celebration contains “{name}”",
+      "festive": "feast day (Sunday or holy day)",
+      "sunday": "Sunday",
+      "date": "date: {rule}",
+      "between": "between {from} and {to}",
+      "varContains": "variable {name} contains “{value}”",
+      "varIs": "variable {name} {op} “{value}”",
+      "mode": "entry kind: {list}",
+      "countHere": "at this appointment",
+      "countOthers": "other appointments in the week",
+      "countWeek": "in the week",
+      "countNumber": "number",
+      "countEntries": "number of entries",
+      "countWaiting": ", including waiting",
+      "count": "{what} {where}{extra} {op} {n}",
+      "actorOffice": "added by the office",
+      "actorOutside": "added by someone outside",
+      "fieldSet": "field {key} filled in",
+      "fieldEmpty": "field {key} empty",
+      "fieldIs": "field {key} = “{value}”",
+      "unknown": "unknown condition"
+    },
+    "out": {
+      "out": "next",
+      "yes": "yes",
+      "no": "no"
+    },
+    "trace": {
+      "week": ", week {week}",
+      "colour": ", colour {colour}",
+      "noCelebration": "no celebration",
+      "title": "title",
+      "set": "{node}: {key} = “{value}”",
+      "record": "{node}: {list} “{text}”",
+      "noTest": "no condition",
+      "noMass": "no mass",
+      "mass": "mass {time}",
+      "noMassNode": "(no “Mass” node — the mass with what the day set)"
+    },
+    "problem": {
+      "badDate": "Unreadable date: {date}",
+      "noDay": "No “Day” node — the plan does not know where to start the day.",
+      "dayLoop": "Too many steps on the day path — is there a loop in the plan?",
+      "endOnDay": "“Create” on the day path — the day ends in “Mass times” or “No mass”.",
+      "notOnDay": "Node “{node}” does not belong on the day path.",
+      "dayEnds": "The day path ends at “{node}” — no “{out}” connection (no mass times).",
+      "massLoop": "Too many steps on the path of the {time} mass — is there a loop in the plan?",
+      "notOnMass": "Node “{node}” does not belong on the mass path."
+    },
+    "rule": {
+      "waits": "The entry is waiting to be accepted by the office.",
+      "refused": "This entry cannot be added.",
+      "none": "(no rule)",
+      "noStart": "(rule without a “New entry” node)",
+      "loop": "(too many steps — a loop?)",
+      "notInRule": "(node “{node}” does not belong in the rule)",
+      "endsWithout": "(the rule ends at “{node}” without a decision)",
+      "noDecision": "(rule without a decision)"
+    }
+  },
+  "flowUi": {
+    "day": {
+      "d1": "Monday",
+      "d2": "Tuesday",
+      "d3": "Wednesday",
+      "d4": "Thursday",
+      "d5": "Friday",
+      "d6": "Saturday",
+      "d7": "Sunday"
+    },
+    "rank": {
+      "r1": "Easter Triduum",
+      "r2": "Greatest days (Christmas, Epiphany, Ascension, Pentecost; Sundays of Advent, Lent, Easter; Ash Wednesday; Holy Week; Easter octave)",
+      "r3": "Solemnities of the General Calendar, All Souls",
+      "r4": "Proper solemnities (patron, title and anniversary of the church dedication)",
+      "r5": "Feasts of the Lord",
+      "r6": "Sundays of Ordinary Time and Christmas Time",
+      "r7": "Feasts of the General Calendar",
+      "r8": "Proper feasts (diocesan patron, anniversary of the cathedral dedication)",
+      "r9": "Privileged days (17–24 Dec, Christmas octave, days of Lent)",
+      "r10": "Obligatory memorials",
+      "r11": "Proper obligatory memorials",
+      "r12": "Optional memorials",
+      "r13": "Weekdays"
+    },
+    "rankShort": {
+      "r1": "Triduum",
+      "r2": "highest",
+      "r3": "solemnity",
+      "r4": "proper solemnity",
+      "r5": "feast of the Lord",
+      "r6": "Sunday",
+      "r7": "feast",
+      "r8": "proper feast",
+      "r9": "privileged day",
+      "r10": "oblig. memorial",
+      "r11": "proper memorial",
+      "r12": "optional memorial",
+      "r13": "weekday"
+    },
+    "special": {
+      "gaudete": "3rd Sunday of Advent (Gaudete)",
+      "laetare": "4th Sunday of Lent (Laetare)",
+      "palm": "Palm Sunday",
+      "goodFriday": "Good Friday",
+      "pentecost": "Pentecost"
+    },
+    "testLabel": {
+      "weekday": "Day of the week",
+      "slot": "Which mass (time key)",
+      "time": "Mass time between",
+      "season": "Liturgical season",
+      "week": "Week of the season",
+      "rank": "Rank of the day",
+      "celebration": "Celebration of the day",
+      "festive": "Sunday or holy day of obligation",
+      "sunday": "Sunday",
+      "date": "Date (rule)",
+      "between": "Between dates in the year",
+      "var": "Variable",
+      "mode": "Entry kind",
+      "count": "Number of entries",
+      "actor": "Who adds",
+      "field": "Entry field"
+    },
+    "placeholder": {
+      "celebration": "celebration of the day",
+      "title": "title of the mass (from the celebration)",
+      "sundayName": "name of the Sunday, e.g. 3rd Sunday of Advent",
+      "seasonName": "name of the season",
+      "season": "season (key)",
+      "week": "week of the season",
+      "weekRoman": "week in Roman numerals",
+      "colour": "colour",
+      "date": "date",
+      "time": "mass time",
+      "slot": "time key"
+    },
+    "easter": {
+      "om46": "Ash Wednesday",
+      "om7": "Palm Sunday",
+      "om3": "Holy Thursday",
+      "om2": "Good Friday",
+      "om1": "Holy Saturday",
+      "o0": "Easter",
+      "o1": "Easter Monday",
+      "o7": "Divine Mercy Sunday",
+      "o42": "Ascension (PL)",
+      "o49": "Pentecost",
+      "o50": "Mary, Mother of the Church",
+      "o56": "Holy Trinity",
+      "o60": "Corpus Christi",
+      "o68": "Sacred Heart of Jesus",
+      "o69": "Immaculate Heart of Mary"
+    },
+    "advent": {
+      "om7": "Christ the King",
+      "o0": "1st Sunday of Advent",
+      "o7": "2nd Sunday of Advent",
+      "o14": "3rd Sunday of Advent",
+      "o21": "4th Sunday of Advent"
+    },
+    "nth": {
+      "n1": "first",
+      "n2": "second",
+      "n3": "third",
+      "n4": "fourth",
+      "n5": "fifth",
+      "last": "last"
+    },
+    "summary": {
+      "easterShift": "Easter{shift} days",
+      "adventShift": "1st Sun. of Advent{shift} days",
+      "holyFamily": "Holy Family",
+      "baptism": "Baptism of the Lord",
+      "nthEvery": "{which} {weekday} of the month",
+      "nthOf": "{which} {weekday} {month}",
+      "sundayAfter": "Sunday after {day} {month}",
+      "pick": "— choose —",
+      "anyMode": "any",
+      "weekday": "day: {list}",
+      "slot": "mass: {list}",
+      "time": "time {from}–{to}",
+      "season": "season: {list}",
+      "week": "week {op} {n}",
+      "rank": "rank {op} {n} ({rank})",
+      "celebrationAny": "there is a celebration",
+      "celebrationNone": "no celebration",
+      "celebrationName": "celebration: “{name}”",
+      "festive": "Sunday or holy day",
+      "date": "day: {rule}",
+      "between": "from {from} to {to}",
+      "varContains": "{name} contains “{value}”",
+      "mode": "kind: {list}",
+      "countHere": "at the appointment",
+      "countOthers": "other appointments in the week with",
+      "countWeek": "in the week",
+      "countAll": "(all)",
+      "fieldSet": "field {key}: filled in",
+      "fieldEmpty": "field {key}: empty",
+      "field": "field {key}:"
+    },
+    "node": {
+      "seasonEmpty": "season, week — colours to set",
+      "seasonFilled": {
+        "one": "season, week, colour ({count} season)",
+        "other": "season, week, colour ({count} seasons)"
+      },
+      "feastsEmpty": "empty table",
+      "feasts": {
+        "one": "{count} celebration",
+        "other": "{count} celebrations"
+      },
+      "noName": "(no name)",
+      "noTest": "— condition —",
+      "field": "field “{field}”",
+      "variable": "variable {name}",
+      "slots": "Sun. and feasts: {festive} · weekdays: {weekdays}",
+      "message": "— message —",
+      "waitDefault": "The office will confirm the entry."
+    }
+  },
+  "test": {
+    "weekdays": "Days of the week",
+    "compareOf": "{label}: comparison",
+    "numberOf": "{label}: number",
+    "dayOf": "{label}: day",
+    "monthOf": "{label}: month",
+    "what": "What to check",
+    "masses": "Masses",
+    "slotKeys": "Time keys (separated by commas)",
+    "slotKeysPlaceholder": "e.g. n1213, p1800",
+    "from": "from",
+    "to": "to",
+    "fromTime": "From time",
+    "toTime": "To time",
+    "seasons": "Seasons",
+    "week": "Week",
+    "rank": "Rank",
+    "rankNote": "1 is the highest rank, 13 an ordinary weekday. “< 10” means: more important than an obligatory memorial.",
+    "celebration": "Celebration",
+    "celebrationAny": "there is a celebration from the feast calendar",
+    "celebrationNone": "no celebration (day of the season)",
+    "celebrationName": "celebration whose name contains…",
+    "celebrationNameLabel": "Name of the celebration",
+    "celebrationPlaceholder": "e.g. Our Lady",
+    "betweenNote": "Every year, both ends included (e.g. 17–24 December). A “to” earlier than “from” runs across New Year.",
+    "varName": "Variable name",
+    "varPlaceholder": "e.g. colour",
+    "compare": "Comparison",
+    "contains": "contains",
+    "value": "Value",
+    "modes": "Kinds",
+    "modeKeys": "Kinds (keys, separated by commas)",
+    "countWhere": "Where to count",
+    "countOccurrence": "entries at this appointment",
+    "countWeek": "entries this week (Mon–Sun)",
+    "countWeekOcc": "other appointments this week that have such entries",
+    "ofKind": "Of which kind",
+    "anyKind": "of any kind",
+    "which": "Which",
+    "statusLive": "accepted and celebrated",
+    "statusAll": "also waiting ones",
+    "number": "Number",
+    "actorOffice": "the office (writing in the calendar)",
+    "actorOutside": "someone outside (member, link)",
+    "field": "Field",
+    "pickField": "— choose a field —",
+    "fieldKey": "Field key",
+    "fieldTest": "Field condition",
+    "filled": "filled in",
+    "empty": "empty",
+    "equals": "equal to",
+    "fieldValue": "Field value"
+  },
+  "dateRule": {
+    "kind": {
+      "fixed": "Fixed date",
+      "easter": "Relative to Easter",
+      "advent": "Relative to the 1st Sunday of Advent",
+      "christmas-sunday": "Holy Family (Sunday in the octave)",
+      "baptism": "Baptism of the Lord (Sunday after 6 Jan)",
+      "nth-weekday": "Nth weekday of the month",
+      "sunday-after": "First Sunday after a day"
+    },
+    "knownDay": "{label}: known day",
+    "otherDay": "— another day —",
+    "daysOf": "{label}: days",
+    "days": "days",
+    "when": "When",
+    "kindOf": "{label}: kind of date",
+    "whichOf": "{label}: which",
+    "weekdayOf": "{label}: day of the week",
+    "everyMonth": "every month"
+  },
+  "season": {
+    "note": "The node works out the season, week and rank of the day (e.g. a Sunday of Advent) — anew every year, from the dates of Easter and Advent. You enter the colours.",
+    "season": "Season",
+    "colour": "Colour",
+    "colourOf": "Colour: {name}",
+    "special": "Special day"
+  },
+  "slots": {
+    "empty": "No masses.",
+    "time": "Time",
+    "minutes": "How many minutes",
+    "min": "min",
+    "remove": "Delete the {time} mass",
+    "key": "Key",
+    "keyHint": "Key — conditions and the preview recognise this mass by it",
+    "label": "Description (optional)",
+    "labelPlaceholder": "description, e.g. High Mass",
+    "days": "Days: {time}",
+    "needsKey": "The mass needs a key.",
+    "keyTaken": "This key is already used.",
+    "add": "+ Add mass",
+    "note": "On Sundays and holy days of obligation (a celebration marked “feast day”) the first list applies, on other days the second.",
+    "festive": "Sundays and feasts",
+    "weekdays": "Weekdays"
+  },
+  "feasts": {
+    "note": "Of the celebrations falling on a day, the one with the highest rank (the smallest number) wins — if it is more important than the day itself (e.g. a Sunday of Advent has rank 2). It sets the celebration, colour and feast day.",
+    "search": "Search celebrations",
+    "count": {
+      "one": "{count} celebration",
+      "other": "{count} celebrations"
+    },
+    "shown": "{shown} of {total}",
+    "empty": "The table is empty — add the first celebration.",
+    "festive": "feast day",
+    "namePlaceholder": "e.g. Solemnity of Our Lady Queen of Poland",
+    "colour": "Vestment colour",
+    "title": "Mass title (empty: name of the celebration)",
+    "festiveLong": "Feast day — masses as on Sunday",
+    "move": "When the day has a higher rank — celebrate on the next day",
+    "up": "Up",
+    "upShort": "up",
+    "down": "Down",
+    "downShort": "down",
+    "remove": "Delete celebration",
+    "add": "+ Add celebration",
+    "sort": "Sort by date"
+  },
+  "panel": {
+    "insert": "Insert into the text",
+    "setWhat": "What to set",
+    "targetTitle": "mass title",
+    "targetField": "scheme field",
+    "targetVar": "a variable (e.g. colour)",
+    "notInScheme": "{key} (not in the scheme)",
+    "fieldKey": "Scheme field key",
+    "fieldKeyPlaceholder": "e.g. kolor",
+    "valuePlaceholder": "e.g. {token}",
+    "colourNote": "The variable “colour” is the colour of the mass: it is then written into a field (e.g. “Set field Colour = {token}”).",
+    "list": "List",
+    "pickList": "— choose a list —",
+    "listKey": "List key",
+    "noKind": "— no kind —",
+    "text": "Entry text",
+    "textPlaceholder": "e.g. For the parishioners",
+    "recordNote": "The entry is created together with the mass and marked “by rule” — the office can change or delete it.",
+    "removeNode": "Delete node",
+    "messageRefuse": "Message for the person adding",
+    "message": "Message (optional)",
+    "messagePlaceholder": {
+      "refuse": "e.g. This mass already has an intention.",
+      "wait": "e.g. The office will confirm the entry.",
+      "allow": "e.g. Thank you — intention accepted."
+    }
+  },
+  "flowEditor": {
+    "group": {
+      "start": "Start",
+      "day": "Day",
+      "logic": "Logic",
+      "end": "End"
+    },
+    "missing": {
+      "day": "No “{node}” node — every day starts from it.",
+      "mass": "No “{node}” node — every mass starts from it.",
+      "record": "No “{node}” node — checking an entry starts from it."
+    },
+    "tooMany": "There are {count} “{node}” nodes — only one counts.",
+    "unreached": "not connected to the start",
+    "noYesNo": "no “yes” and “no” outputs",
+    "noYes": "no “yes” output",
+    "noNo": "no “no” output",
+    "slotFestive": "Sun {time}",
+    "slotWeekday": "wkd. {time}",
+    "addNode": "Add node",
+    "onMap": "Already on the map",
+    "settings": "Node settings",
+    "help": "Click a node to set it up. Connect an output (dot on the right) to the input of the next node (dot on the left). A new node added next to the selected one connects to its free output. Delete removes the selected node or edge.",
+    "planHelp": "For every day the path starts in “Day” and ends in “Mass times”; for every mass — it starts in “Mass” and ends in “Create” or “No mass”."
+  },
+  "tpl": {
+    "rule": {
+      "intentionWaits": "The intention is waiting to be accepted by the office.",
+      "singleAlone": "This mass already has an intention — a single intention must be the only one.",
+      "noMixed": "This mass has a single intention — a collective one cannot be added to it.",
+      "weekFull": "This week there are already two masses with collective intentions.",
+      "noPlaces": "There are no free places left.",
+      "signupWaits": "The sign-up is awaiting confirmation."
+    },
+    "field": {
+      "obchod": {
+        "label": "Celebration",
+        "says": "Celebration of the day or mass formulary (e.g. “All Saints”, “30th Sunday in Ordinary Time”) — shown in the plan and on the notice board."
+      },
+      "kolor": {
+        "label": "Vestment colour",
+        "says": "Colour of the liturgical vestments — shown in the plan as a colour mark."
+      },
+      "czytania": {
+        "label": "Readings",
+        "says": "References of the readings, e.g. “Isa 7:10-14; Ps 24; Rom 1:1-7; Matt 1:18-24” — references only, no texts."
+      }
+    },
+    "msza": {
+      "name": "Mass",
+      "says": "Mass with celebration, vestment colour, readings and intentions (with the rule for single and collective ones).",
+      "listSays": "Mass intentions: the text read at mass and on the notice board; a single one stands alone, collective ones at most at two masses a week."
+    },
+    "nabozenstwo": {
+      "name": "Service",
+      "says": "Service (Rosary, Stations of the Cross, Lenten Lamentations …) with celebration and colour."
+    },
+    "spowiedz": {
+      "name": "Confession",
+      "says": "Confession with a short public note.",
+      "fieldLabel": "For the faithful",
+      "fieldSays": "A short note in the plan, e.g. “at St Joseph’s confessional”."
+    },
+    "zapisy": {
+      "name": "Meeting with sign-ups",
+      "says": "A meeting people can sign up for (e.g. confirmation candidates choose a date).",
+      "leadLabel": "Led by",
+      "leadSays": "Who leads the meeting.",
+      "listLabel": "Sign-ups",
+      "itemLabel": "sign-up",
+      "person": "Who",
+      "yes": "I’ll come",
+      "maybe": "maybe",
+      "no": "I won’t come",
+      "notesLabel": "Notes",
+      "notesSays": "Notes on the sign-up — the office sees them.",
+      "listSays": "Sign-ups for a date: “I’ll come” counts towards the places (20, can be changed in the rule); a sign-up from outside awaits confirmation."
+    },
+    "plan": {
+      "year": {
+        "name": "Liturgical year — parish (Poland)",
+        "says": "Masses for the coming weeks following the liturgical year: the calendar of feasts in Poland, Sunday and weekday times, Triduum, Christmas midnight mass, the celebration and colour of each mass, a votive mass of Our Lady of Perpetual Help on Wednesday evening, and the intention “For the parishioners” on Sunday at 12:13."
+      },
+      "fixed": {
+        "name": "Fixed mass times",
+        "says": "Only the times: Sundays and feasts 7:30, 9:00, 10:30, 12:13, 18:00; weekdays 7:00 and 18:00 — without the calendar of feasts.",
+        "massTitle": "Holy Mass"
+      }
+    }
   }
 }

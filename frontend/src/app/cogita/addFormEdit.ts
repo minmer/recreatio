@@ -23,6 +23,7 @@ import {
 } from './addForm';
 import type { GraphNode } from './graph';
 import { rangeText, valuesOf, type Entity, type FieldDef, type GeoPoint, type Lookup, type RangeValue } from './schema';
+import { t } from '../core/i18n';
 
 /* -- Vorhandenes als Zeilen ------------------------------------------------------------------ */
 
@@ -55,7 +56,7 @@ const norm = (v: unknown): string =>
 /** Der Wert eines Feldes als Text, wie man ihn tippt — der Weg zurück von `typedValue`. */
 export function textOf(field: FieldDef, entity: Entity): string {
   const one = (v: unknown): string => {
-    if (field.type === 'bool') return v === true ? 'tak' : v === false ? 'nie' : 'nie wiadomo';
+    if (field.type === 'bool') return v === true ? 'tak' : v === false ? 'nie' : 'nie wiadomo'; // i18n-ignore: so liest es readBool (schema.ts) wieder ein
     if (field.type === 'list' && Array.isArray(v)) return v.join('; ');
     if (field.type === 'geo' && typeof v === 'object' && v !== null) return `${(v as GeoPoint).lat}, ${(v as GeoPoint).lon}`;
     if (field.type === 'range' && typeof v === 'object' && v !== null) return rangeText(v as RangeValue, field.rangeOf ?? 'number');
@@ -162,7 +163,7 @@ export function existingRows(form: AddForm, look: Lookup, pool: (kind: string) =
       .map((e): EditRow => ({ key: e.id, root: null, cells: { [g.node]: [{ id: e.id, texts: textsOf(g, e) }] } }));
     return {
       rows: sorted(rows), root: null,
-      ...(groups.length > 1 ? { note: 'Ten formularz nie ma wpisu, który łączy pola wiersza — edycja pokazuje tylko pierwszą kolumnę.' } : {})
+      ...(groups.length > 1 ? { note: t('cogitaEditForm.edit.noRoot') } : {})
     };
   }
   const rootNode = byId.get(root)!;
@@ -321,7 +322,7 @@ export function planEdit(form: AddForm, ctx: PlanCtx, top: TopChoice, shape: Edi
       const before = valuesOf(root, f).map((v) => v.value).filter((v): v is string => typeof v === 'string');
       const after = [...before.filter((id) => !removed.has(id)), ...added.filter((id) => !before.includes(id))];
       /* Ein Feld für EINEN Eintrag bleibt nicht leer: wer ihn nicht mehr will, löscht die ganze Zeile. */
-      if (!f.multi && after.length === 0) { problems.push(`„${label(row)}": ${f.label} nie może zostać puste — usuń cały wiersz.`); continue; }
+      if (!f.multi && after.length === 0) { problems.push(t('cogitaEditForm.edit.notEmpty', { row: label(row), field: f.label })); continue; }
       if (f.multi) data[f.key] = [...new Set(after)];
       else if (after.length > 0) data[f.key] = after[after.length - 1];
       else delete data[f.key];

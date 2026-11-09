@@ -25,6 +25,7 @@
 
 import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from '../areas/area';
 import { fromBase64Url } from '../core/crypto';
+import { t, texts } from '../core/i18n';
 import { fullNameOf, type IdentityRole, type OpenField } from './form';
 import { type Submission } from './submissions';
 import { readForm, type ReadForm } from './formRead';
@@ -109,7 +110,7 @@ export function numbersOf(
 export function whoIn(
   values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]
 ): { name: string; phones: readonly Numbered[] } {
-  if (values === undefined) return { name: '— zapieczętowane —', phones: [] };
+  if (values === undefined) return { name: t('forms.ext.sealedName'), phones: [] };
 
   const of = (role: IdentityRole) => {
     const field = fields.find((f) => f.identityRole === role);
@@ -245,11 +246,12 @@ export const NO_FILTER: EntryFilter = { q: '', step: '', hidden: false };
 export const isFiltered = (filter: EntryFilter): boolean => filter.q.trim() !== '' || filter.step !== '' || filter.hidden;
 
 /** Die festen Wahlen des Schrittfilters; dazu je Schritt seine eigenen (`stepKindsOf`). */
+/** Die Wahlen des Filters — Wert → SCHLÜSSEL der Beschriftung (`t(label)` beim Zeichnen). */
 export const STEP_CHOICES: readonly (readonly [string, string])[] = [
-  ['', 'wszystkie osoby'],
-  ['open', 'komuś czegoś brakuje'],
-  ['overdue', 'coś po terminie'],
-  ['done', 'wszystko zrobione']
+  ['', 'forms.ext.showAll'],
+  ['open', 'formsOffice.desk.open'],
+  ['overdue', 'formsOffice.desk.overdue'],
+  ['done', 'formsOffice.desk.done']
 ];
 
 /**
@@ -276,14 +278,14 @@ export function stepKindsIn(states: readonly StepState[]): readonly StepKind[] {
     key: st.key,
     label: st.label,
     options: st.booking !== undefined ? [
-      [`done:${st.key}`, 'ma termin'],
-      [`next:${st.key}`, 'termin dopiero będzie'],
-      [`past:${st.key}`, 'termin już był'],
-      [`wait:${st.key}`, 'termin czeka na potwierdzenie'],
-      [`todo:${st.key}`, 'bez terminu']
+      [`done:${st.key}`, t('formsOffice.desk.hasDate')],
+      [`next:${st.key}`, t('formsOffice.desk.dateNext')],
+      [`past:${st.key}`, t('formsOffice.desk.datePast')],
+      [`wait:${st.key}`, t('formsOffice.desk.dateWait')],
+      [`todo:${st.key}`, t('formsOffice.desk.noDate')]
     ] : [
-      [`done:${st.key}`, 'zrobione'],
-      [`todo:${st.key}`, 'brakuje']
+      [`done:${st.key}`, t('formsOffice.desk.stepDone')],
+      [`todo:${st.key}`, t('formsOffice.desk.stepMissing')]
     ]
   }));
 }
@@ -333,9 +335,9 @@ export const pickRows = (rows: readonly DeskRow[], filter: EntryFilter): readonl
 export function filterWords(filter: EntryFilter, kinds: readonly StepKind[]): string {
   const own = kinds.flatMap((k) => k.options.map(([value, short]) => [value, `${k.label}: ${short}`] as const));
   const step = filter.step === '' ? null
-    : STEP_CHOICES.find(([key]) => key === filter.step)?.[1]
+    : (() => { const key = STEP_CHOICES.find(([value]) => value === filter.step)?.[1]; return key === undefined ? undefined : t(key); })()
       ?? own.find(([value]) => value === filter.step)?.[1] ?? filter.step;
-  return [step, filter.q.trim() === '' ? null : `„${filter.q.trim()}"`, filter.hidden ? 'z ukrytymi' : null]
+  return [step, filter.q.trim() === '' ? null : `„${filter.q.trim()}"`, filter.hidden ? t('formsOffice.desk.withHidden') : null]
     .filter((one) => one !== null).join(' · ');
 }
 
@@ -426,15 +428,15 @@ export function withEntryQuery(hash: string, query: EntryQuery): string {
 export const PANEL_SECTIONS = ['answers', 'steps', 'extensions', 'areas', 'link', 'actions'] as const;
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
 
-export const PANEL_SECTION_LABEL: Record<PanelSection, string> = {
-  answers: 'Odpowiedzi',
-  steps: 'Kroki',
-  extensions: 'Rozszerzenia',
+export const PANEL_SECTION_LABEL: Readonly<Record<PanelSection, string>> = texts({
+  answers: 'formsOffice.section.answers',
+  steps: 'formsOffice.tab.steps',
+  extensions: 'formsOffice.section.extensions',
   /* 0120 — die Kleinbereiche dieser Person (je virtuellem Bereich des Formulars). */
-  areas: 'Obszary osoby',
-  link: 'Link osoby',
-  actions: 'Napisz, ukryj, usuń'
-};
+  areas: 'formsOffice.section.areas',
+  link: 'forms.links.title',
+  actions: 'formsOffice.section.actions'
+});
 
 /** Gespeichert als Kommaliste; leer oder unlesbar heisst: alles. */
 export function readSections(text: string): readonly PanelSection[] {
@@ -468,12 +470,12 @@ function subValue(data: ReadForm, row: DeskRow, fieldId: string): string {
  * Unterformulare (was die Person in „Cele" schrieb, die Notatka des Koordinators).
  */
 export function columnsOf(desk: Pick<EntryDesk, 'form' | 'info' | 'extData'>, chosen: string): readonly Column[] {
-  const own = (f: OpenField): Column => ({ id: f.fieldId, label: f.label ?? 'pytanie', from: null, value: (row) => row.values?.get(f.fieldId) ?? '' });
+  const own = (f: OpenField): Column => ({ id: f.fieldId, label: f.label ?? t('forms.sheet.question'), from: null, value: (row) => row.values?.get(f.fieldId) ?? '' });
   const main = desk.form.fields.map(own);
   const subs: Column[] = (desk.info?.extensions ?? []).flatMap((ext) => {
     const data = desk.extData.get(ext.moduleId);
     if (data === undefined) return [];
-    return data.fields.map((f): Column => ({ id: f.fieldId, label: f.label ?? 'pytanie', from: ext.name, value: (row) => subValue(data, row, f.fieldId) }));
+    return data.fields.map((f): Column => ({ id: f.fieldId, label: f.label ?? t('forms.sheet.question'), from: ext.name, value: (row) => subValue(data, row, f.fieldId) }));
   });
 
   if (chosen.trim() === '') return [];

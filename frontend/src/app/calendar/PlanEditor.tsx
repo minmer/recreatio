@@ -8,6 +8,7 @@
 
 import { lazy, Suspense, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
@@ -46,6 +47,7 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
   /** Ein gespeicherter Plan: gleich anwenden. */
   onApply?: (docId: string) => void;
 }) {
+  const t = useT();
   const [def, setDef] = useState<PlanDef>(doc?.def ?? start ?? { name: '', flow: { v: 1, nodes: [], edges: [] } });
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
   const patch = (next: Partial<PlanDef>) => setDef((was) => ({ ...was, ...next }));
 
   const save = async (): Promise<string | null> => {
-    if (def.name.trim() === '') { setFailed('Plan potrzebuje nazwy.'); return null; }
+    if (def.name.trim() === '') { setFailed(t('calendarData.planEditor.needsName')); return null; }
     setBusy(true);
     setFailed(null);
     try {
@@ -62,7 +64,7 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
       onSaved();
       return saved.docId;
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać planu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.planEditor.saveFailed'));
       return null;
     } finally {
       setBusy(false);
@@ -70,7 +72,7 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
   };
 
   const remove = async () => {
-    if (doc === null || !(await askText('Usunąć ten plan? Utworzone z niego terminy zostają.'))) return;
+    if (doc === null || !(await askText(t('calendarData.planEditor.confirmDelete')))) return;
     setBusy(true);
     try {
       await deleteDoc(doc.docId);
@@ -78,81 +80,81 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
       onSaved();
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć planu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.planEditor.deleteFailed'));
       setBusy(false);
     }
   };
 
   return (
-    <Fullscreen title={doc === null ? 'Nowy plan' : `Plan: ${def.name || 'bez nazwy'}`} onClose={onClose}>
+    <Fullscreen title={doc === null ? t('calendarData.planEditor.newTitle') : t('calendarData.planEditor.title', { name: def.name || t('calendarData.schemeEditor.noName') })} onClose={onClose}>
       <div className="wk-sch">
         <div className="wk-sch-head">
           <label className="wk-field">
-            <span>Nazwa</span>
-            <input value={def.name} maxLength={120} placeholder="np. Msze parafii" onChange={(e) => patch({ name: e.target.value })} />
+            <span>{t('calendarData.schemeEditor.name')}</span>
+            <input value={def.name} maxLength={120} placeholder={t('calendarData.planEditor.namePlaceholder')} onChange={(e) => patch({ name: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Schemat tworzonych terminów</span>
+            <span>{t('calendarData.planEditor.scheme')}</span>
             <select value={def.schemeId ?? ''} onChange={(e) => patch({ schemeId: e.target.value === '' ? null : e.target.value })}>
-              <option value="">Uniwersalny</option>
+              <option value="">{t('calendarDataScheme.universal.name')}</option>
               {schemes.map((s) => <option key={s.docId} value={s.docId}>{s.def.name}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Rodzaj tworzonych terminów</span>
+            <span>{t('calendarData.planEditor.kind')}</span>
             <select value={def.kind ?? scheme.def.kind ?? 'mass'} onChange={(e) => patch({ kind: e.target.value as ItemKind })}>
               {ITEM_KINDS.filter((k) => k !== 'task').map((k) => <option key={k} value={k}>{capital(ITEM_LABEL[k])}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Podgląd proponuje tygodni</span>
+            <span>{t('calendarData.planEditor.weeks')}</span>
             <input type="number" min={1} max={60} value={def.weeks ?? 8} onChange={(e) => patch({ weeks: Math.max(1, Math.min(60, Number(e.target.value) || 8)) })} />
           </label>
         </div>
         {scheme.id === UNIVERSAL_ID && def.flow.nodes.some((n) => n.type === 'set' && (n.data as { target?: string }).target === 'field') && (
-          <p className="wk-warn">Plan ustawia pola schematu, a wybrany jest schemat uniwersalny (bez pól) — te wartości nie zostaną zapisane.</p>
+          <p className="wk-warn">{t('calendarData.planEditor.universalWarn')}</p>
         )}
 
-        <Suspense fallback={<Loading label="Wczytywanie edytora…" />}>
+        <Suspense fallback={<Loading label={t('calendarData.schemeEditor.loadingEditor')} />}>
           <FlowEditor kind="plan" doc={def.flow} fields={scheme.def.fields} lists={scheme.def.lists}
             onChange={(flow: FlowDoc) => patch({ flow })}
             preview={<PlanProbe flow={def.flow} scheme={scheme.def} />} />
         </Suspense>
 
         <JsonPanel
-          summary="JSON planu — eksport i import"
-          lead="Ten plan jako JSON. Import zastępuje to, co jest w edytorze (zapisz potem przyciskiem „Zapisz plan”)."
-          fileName={`plan-${keyOf(def.name || 'plan')}.json`}
+          summary={t('calendarData.planEditor.jsonSummary')}
+          lead={t('calendarData.planEditor.jsonLead')}
+          fileName={t('calendarData.planEditor.fileName', { name: keyOf(def.name || t('calendarData.planEditor.fileFallback')) })}
           exportDoc={() => exportPlan(def)}
           format={PLAN_JSON}
           preview={(value) => {
             const warnings: string[] = [];
             const read = readPlan(value, schemes.map((s) => s.docId), warnings);
-            return read === null ? { error: warnings[0] ?? 'To nie jest plan.' }
-              : { lines: [`Plan „${read.name}”: węzłów ${read.flow.nodes.length}.`], warnings };
+            return read === null ? { error: warnings[0] ?? t('calendarData.planEditor.notPlan') }
+              : { lines: [t('calendarData.planEditor.previewLine', { name: read.name, nodes: read.flow.nodes.length })], warnings };
           }}
-          importLabel="Wczytaj do edytora"
+          importLabel={t('calendarData.schemeEditor.importLabel')}
           onImport={async (value) => {
             const warnings: string[] = [];
             const read = readPlan(value, schemes.map((s) => s.docId), warnings);
-            if (read === null) throw new WorkspaceError(warnings[0] ?? 'To nie jest plan.');
+            if (read === null) throw new WorkspaceError(warnings[0] ?? t('calendarData.planEditor.notPlan'));
             setDef(read);
-            return { lines: ['Wczytano do edytora — zapisz, aby zachować.'], warnings };
+            return { lines: [t('calendarData.schemeEditor.loaded')], warnings };
           }}
         />
 
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy} onClick={() => void save().then((id) => { if (id !== null) onClose(); })}>
-            {busy ? 'Zapisywanie…' : 'Zapisz plan'}
+            {busy ? t('common.saving') : t('calendarData.planEditor.save')}
           </button>
           {onApply !== undefined && (
             <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void save().then((id) => { if (id !== null) onApply(id); })}>
-              Zapisz i zastosuj…
+              {t('calendarData.planEditor.saveApply')}
             </button>
           )}
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
-          {doc !== null && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>Usuń plan</button>}
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
+          {doc !== null && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>{t('calendarData.planEditor.delete')}</button>}
         </div>
       </div>
     </Fullscreen>
@@ -161,20 +163,21 @@ export function PlanEditor({ me, calendar, doc, start, schemes, onClose, onSaved
 
 /** Was der Plan an einem Tag anlegen würde. */
 export function PlanProbe({ flow, scheme }: { flow: FlowDoc; scheme: SchemeDef }) {
+  const t = useT();
   const [date, setDate] = useState(nextSunday);
   let day: ReturnType<typeof planDay> | null = null;
   let broken: string | null = null;
   try {
     day = date === '' ? null : planDay(flow, date);
   } catch (e) {
-    broken = e instanceof Error ? e.message : 'Przebieg się nie liczy.';
+    broken = e instanceof Error ? e.message : t('calendarData.planEditor.flowBroken');
   }
   const label = (key: string) => scheme.fields.find((f) => f.key === key)?.label ?? key;
 
   return (
-    <div className="wk-sch-probe" aria-label="Podgląd dnia">
+    <div className="wk-sch-probe" aria-label={t('calendarData.planEditor.dayPreview')}>
       <label className="wk-field">
-        <span>Podgląd dnia</span>
+        <span>{t('calendarData.planEditor.dayPreview')}</span>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
       {broken !== null && <p className="wk-error">{broken}</p>}
@@ -183,9 +186,9 @@ export function PlanProbe({ flow, scheme }: { flow: FlowDoc; scheme: SchemeDef }
           <p className="wk-sch-day">
             <span className={`wk-lc${colourClass(day.ctx.colour) === null ? ' is-none' : ` ${colourClass(day.ctx.colour)}`}`} aria-hidden="true" />
             {day.ctx.celebration?.name ?? (day.ctx.sunday ? day.ctx.sundayName : day.ctx.seasonName)}
-            <span className="wk-row-side"> · {day.ctx.seasonName}, tydzień {day.ctx.week} · ranga {day.ctx.celebration?.rank ?? day.ctx.dayRank}</span>
+            <span className="wk-row-side"> · {t('calendarData.planEditor.dayLine', { season: day.ctx.seasonName, week: day.ctx.week, rank: day.ctx.celebration?.rank ?? day.ctx.dayRank })}</span>
           </p>
-          {day.masses.length === 0 ? <p className="wk-empty">Tego dnia plan nie tworzy terminów.</p> : (
+          {day.masses.length === 0 ? <p className="wk-empty">{t('calendarData.planEditor.noMasses')}</p> : (
             <ul className="wk-sch-masses">
               {day.masses.map((m) => (
                 <li key={m.slot.key}>

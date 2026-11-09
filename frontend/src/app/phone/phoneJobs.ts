@@ -15,6 +15,7 @@
  * eine Weile her ist — und nie zweimal zugleich.
  */
 
+import { t } from '../core/i18n';
 import { remembered, setValue } from '../core/prefs';
 import { whoIsThere, WorkspaceError, type Who } from '../core/session';
 import { archiveArea, archiveSettings } from './archiveSettings';
@@ -64,9 +65,9 @@ export function contactsNow(ctx: PhoneCtx, source: PhoneSource, again = false): 
 /** Ein Auftrag des Läufers (`runner.ts`). `locked`: ohne Schlüssel oder Sitzung — Wiederholen hilft nicht. */
 export async function runPhoneJob(job: string): Promise<Record<string, unknown>> {
   const who = await whoIsThere();
-  if (who === null) return { ok: false, locked: true, error: 'Brak sesji.' };
+  if (who === null) return { ok: false, locked: true, error: t('phone.jobs.noSession') };
   const source = bridgeSource();
-  if (source === null) return { ok: false, error: 'To nie jest wydanie SMS aplikacji.' };
+  if (source === null) return { ok: false, error: t('phone.jobs.notSms') };
   try {
     if (job === 'archive') {
       /* Von selbst erst, wenn das Archiv eingerichtet ist (Rolle gewählt oder einmal von Hand archiviert). */
@@ -79,7 +80,7 @@ export async function runPhoneJob(job: string): Promise<Record<string, unknown>>
     if (e instanceof WorkspaceError && e.verdict === LOCKED) return { ok: false, locked: true, error: e.message };
     throw e;
   }
-  return { ok: false, error: 'Nieznane zlecenie.' };
+  return { ok: false, error: t('phone.jobs.unknown') };
 }
 
 let sending: ReturnType<typeof runOutbox> | null = null;

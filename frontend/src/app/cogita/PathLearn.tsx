@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { useT } from '../core/i18n';
 
 import type { Card } from './cardBasics';
 import { readGraph } from './graph';
@@ -93,6 +94,7 @@ export function unitMembers(lib: CogitaLibrary, id: string, cards: readonly Card
 export function usePathRun(lib: CogitaLibrary | null, learner: Learner | null, cards: readonly Card[] | null, rewards?: RewardRules | null): { readonly start: (title: string, ids: readonly string[] | null) => void; readonly view: ReactNode | null } {
   const rename = useMemo(() => (lib === null ? null : renamer(lib.merges())), [lib]);
   const [run, setRun] = useState<{ title: string; ids: readonly string[] | null } | null>(null);
+  const t = useT();
   const source = useAsync(run === null || cards === null || lib === null || rename === null ? null : async () => {
     const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
     /* Ein Eintrag mit den Pytania über ihn („O czym") — sie prüfen ihn mit. */
@@ -102,8 +104,8 @@ export function usePathRun(lib: CogitaLibrary | null, learner: Learner | null, c
     return made.plan === null ? null : { plan: made.plan, cards, deps: lib.dependencies(), title: run.title };
   }, [run, cards, lib, learner]);
   const view = run === null ? null
-    : source === undefined ? <Loading label="Przygotowywanie kart…" />
-    : source === null ? <p className="cg-muted" data-path-run="empty">Do tego nie ma jeszcze pytań. <button type="button" className="wk-link-btn" onClick={() => setRun(null)}>Wróć</button></p>
+    : source === undefined ? <Loading label={t('cogitaLearnRun.run.preparing')} />
+    : source === null ? <p className="cg-muted" data-path-run="empty">{t('cogitaLearnRun.pathRun.noQuestions')} <button type="button" className="wk-link-btn" onClick={() => setRun(null)}>{t('cogitaLearnRun.run.back')}</button></p>
     : <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} rewards={rewards ?? null} />;
   return { start: (title, ids) => setRun({ title, ids }), view };
 }

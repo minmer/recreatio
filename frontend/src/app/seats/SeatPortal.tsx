@@ -24,6 +24,7 @@ import { FirstOpen } from './FirstOpen';
 import { SeatContext } from './seatContext';
 import { useSeat } from './seatView';
 import { ReviewSubmissions } from '../forms/Submission';
+import { rich, useT } from '../core/i18n';
 
 export function SeatPortal({ token, keyText, under }: {
   token: string;
@@ -33,6 +34,7 @@ export function SeatPortal({ token, keyText, under }: {
 }) {
   const { portal, failed, seat, challenge, reload } = useSeat(token, keyText);
   const seatKey = seat?.seatKey ?? null;
+  const t = useT();
 
   /* Hier gilt GENAU dieser Platz: wer seinen Link öffnet, meint ihn. */
   const seatList = useMemo(() => (seat === null ? [] : [seat]), [seat]);
@@ -42,13 +44,13 @@ export function SeatPortal({ token, keyText, under }: {
     return <FirstOpen token={token} challenge={challenge} onPassed={reload} />;
   }
 
-  if (portal === undefined) return <p className="wk-lede">Otwieranie…</p>;
+  if (portal === undefined) return <p className="wk-lede">{t('seats.page.opening')}</p>;
 
   if (portal === null) {
     return (
       <>
-        <h1 className="wk-h1">Tego miejsca nie ma</h1>
-        <p className="wk-lede">Link mógł zostać wycofany albo stracić ważność. {failed}</p>
+        <h1 className="wk-h1">{t('seats.page.noPlace')}</h1>
+        <p className="wk-lede">{t('seats.page.noPlaceText')} {failed}</p>
       </>
     );
   }
@@ -63,25 +65,17 @@ export function SeatPortal({ token, keyText, under }: {
 
       <h1 className="wk-h1">
         {/* 0097 — der Name aus seiner eigenen, versiegelten Kopie (`useSeat` öffnet sie mit seinem Schlüssel). */}
-        {seat?.recipientName ?? 'Twoje miejsce'}
+        {seat?.recipientName ?? t('seats.page.yourPlace')}
       </h1>
 
-      <p className="wk-lede">
-        Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę. Nie przekazuj go dalej.
-      </p>
+      <p className="wk-lede">{t('seats.page.isKey')}</p>
 
       {keyText === null && seatKey === null && (
-        <p className="wk-error">
-          W adresie brakuje klucza — widać, że miejsce istnieje, ale nie jego
-          treść. Otwórz pełny link, ten z drugą częścią po ukośniku.
-        </p>
+        <p className="wk-error">{t('seats.page.noKey')}</p>
       )}
 
       {keyText !== null && seatKey === null && (
-        <p className="wk-error">
-          Klucz z adresu nie pasuje do tego miejsca. Sprawdź, czy link nie
-          urwał się przy kopiowaniu.
-        </p>
+        <p className="wk-error">{t('seats.bar.locked')}</p>
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -92,18 +86,14 @@ export function SeatPortal({ token, keyText, under }: {
         <>
           <PersonalSections seat={seat} />
 
-          <p className="wk-note">
-            <strong>To jest Twoja strona.</strong> Z czasem wszystko będzie się
-            działo tutaj: terminy i spotkania, wiadomości od kancelarii, zgoda na
-            to, co udostępniasz. Wracaj pod ten sam adres — on się nie zmieni.
-          </p>
+          <p className="wk-note">{rich(t('seats.page.yourPage'), { b: (s, key) => <strong key={key}>{s}</strong> })}</p>
         </>
       )}
 
       {portal.expiresAt !== null && (
         <p className="wk-hint">
-          Link działa do {new Date(portal.expiresAt).toLocaleDateString('pl-PL',
-            { day: 'numeric', month: 'long', year: 'numeric' })}.
+          {t('seats.bar.worksUntil', { date: new Date(portal.expiresAt).toLocaleDateString(t.locale,
+            { day: 'numeric', month: 'long', year: 'numeric' }) })}
         </p>
       )}
 

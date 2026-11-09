@@ -24,6 +24,7 @@ import 'reactflow/dist/style.css';
 import type { Ring, SealedRole } from '../core/keys';
 import { addHolder, EDGE_KINDS, type EdgeKind, type RoleEdge, type RoleGraphData } from './roles';
 import { forgetKeys, keysFor } from '../core/ringOf';
+import { useT } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { VIEWS } from '../routes';
 import { Unlock } from '../shell/Unlock';
@@ -130,6 +131,7 @@ function place(roles: readonly SealedRole[], edges: readonly RoleEdge[]): Map<st
 }
 
 export function RoleGraph({ who }: { who: Who }) {
+  const t = useT();
   const [data, setData] = useState<RoleGraphData | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
@@ -148,7 +150,7 @@ export function RoleGraph({ who }: { who: Who }) {
 
       /* Das Konto heisst „Konto" — auch dort, wo es als Halter einer Person genannt wird. */
       const opened = new Map(bund === null ? [] : await bund.names());
-      if (graph.personRoleId !== null) opened.set(graph.personRoleId, 'Konto');
+      if (graph.personRoleId !== null) opened.set(graph.personRoleId, t('roles.node.kind.account'));
 
       setData(graph);
       setRing(bund);
@@ -156,9 +158,9 @@ export function RoleGraph({ who }: { who: Who }) {
       setFailed(null);
     } catch (e) {
       setData(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać ról.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('roles.common.loadFailed'));
     }
-  }, [who]);
+  }, [who, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -174,7 +176,7 @@ export function RoleGraph({ who }: { who: Who }) {
       forgetKeys();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -213,8 +215,8 @@ export function RoleGraph({ who }: { who: Who }) {
         position: standing.get(role.id) ?? kept.get(role.id) ?? computed.get(role.id) ?? { x: 40, y: 30 },
 
         data: {
-          label: role.isPersonal ? 'Konto'
-            : names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
+          label: role.isPersonal ? t('roles.node.kind.account')
+            : names.get(role.id) ?? (ring?.has(role.id) === true ? t('roles.graph.noName') : t('roles.graph.sealed')),
           /* Am Zeiger erkannt: die Wurzel des Kontos (0040). */
           kind: role.isPersonal ? 'account' : role.kind,
           personal: role.isPersonal,
@@ -222,7 +224,7 @@ export function RoleGraph({ who }: { who: Who }) {
         }
       }));
     });
-  }, [data, names, ring, who.accountId, setNodes]);
+  }, [data, names, ring, who.accountId, setNodes, t]);
 
   /*
    * Ausgewählt wird über die Eigenschaft und nicht über einen Neuaufbau: sonst
@@ -251,10 +253,10 @@ export function RoleGraph({ who }: { who: Who }) {
         targetHandle: `in-${dot.kind}`,
         animated: false,
         style: { stroke: dot.colour, strokeWidth: 2 },
-        label: dot.kind === 'holds' ? undefined : dot.name
+        label: dot.kind === 'holds' ? undefined : t(dot.name)
       };
     });
-  }, [data]);
+  }, [data, t]);
 
   /*
    * BEIM LOSLASSEN GESPEICHERT, nicht bei jedem Pixel. Ein Zug erzeugt Dutzende
@@ -277,21 +279,21 @@ export function RoleGraph({ who }: { who: Who }) {
     <PageHeader
       title={VIEWS.roles}
       actions={(
-        <MenuButton label="Więcej: Role" items={[
-          { label: 'Import i eksport (JSON)', icon: 'braces', disabled: ring === null || data == null, onSelect: () => setJson(true) }
+        <MenuButton label={t('roles.graph.more')} items={[
+          { label: t('roles.graph.json'), icon: 'braces', disabled: ring === null || data == null, onSelect: () => setJson(true) }
         ]} />
       )}
     />
   );
 
-  if (data === undefined) return <>{head}<Loading label="Wczytywanie…" /></>;
+  if (data === undefined) return <>{head}<Loading label={t('common.loading')} /></>;
 
   if (data === null) {
     return (
       <>
         {head}
         <p className="wk-error">{failed}</p>
-        <p><button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button></p>
+        <p><button type="button" className="wk-btn" onClick={() => void look()}>{t('common.retry')}</button></p>
       </>
     );
   }
@@ -320,9 +322,10 @@ export function RoleGraph({ who }: { who: Who }) {
       ? (from as EdgeKind)
       : 'holds';
 
-    const named = DOTS.find((d) => d.kind === kind)?.name ?? kind;
+    const dot = DOTS.find((d) => d.kind === kind);
+    const named = dot === undefined ? kind : t(dot.name);
 
-    void act(`Nadawanie: ${named}…`, () => addHolder(ring, c.target as string, holder, kind));
+    void act(t('roles.graph.granting', { name: named }), () => addHolder(ring, c.target as string, holder, kind));
   };
 
   /*
@@ -341,10 +344,7 @@ export function RoleGraph({ who }: { who: Who }) {
     <>
       {head}
       <p className="wk-lede">
-        Na górze jest konto — trzyma tylko osoby. Pod osobami wiszą role:
-        to, na co można przepisać odpowiedzialność. Człowiek odchodzi, urząd
-        zostaje. Strzałka prowadzi od tego, kto trzyma, do tego, co jest
-        trzymane — pociągnij ją, żeby przekazać rolę dalej.
+        {t('roles.graph.lede')}
       </p>
 
       {/*
@@ -356,10 +356,10 @@ export function RoleGraph({ who }: { who: Who }) {
         {DOTS.map((dot) => (
           <span className="wk-dot-key" key={dot.kind}>
             <i style={{ background: dot.colour }} />
-            {dot.name}
+            {t(dot.name)}
           </span>
         ))}
-        {'— pociągnij z kropki tej wysokości, którą chcesz nadać.'}
+        {t('roles.graph.legend')}
       </p>
 
       {/*
@@ -368,7 +368,7 @@ export function RoleGraph({ who }: { who: Who }) {
         Beweglichkeit eine Falle statt einer Hilfe.
       */}
       <p className="wk-hint">
-        Węzły można przesuwać — układ zostaje w tej przeglądarce.
+        {t('roles.graph.movable')}
         {' '}
         <button
           type="button"
@@ -382,14 +382,14 @@ export function RoleGraph({ who }: { who: Who }) {
             });
           }}
         >
-          Ułóż od nowa
+          {t('roles.graph.relayout')}
         </button>
       </p>
 
       {ring === null && (
         <Unlock
           who={who}
-          why="Nazwy ról są zapieczętowane."
+          why={t('roles.graph.unlock')}
           onDone={() => void look()}
         />
       )}
@@ -421,7 +421,7 @@ export function RoleGraph({ who }: { who: Who }) {
 
         <aside className="wk-side">
           {role === null ? (
-            <p className="wk-empty">Kliknij rolę, żeby zobaczyć, co można z nią zrobić.</p>
+            <p className="wk-empty">{t('roles.graph.pick')}</p>
           ) : role.isPersonal ? (
             <AccountPanel who={who} ring={ring} account={role} busy={busy !== null} onAct={act} />
           ) : (
@@ -439,7 +439,7 @@ export function RoleGraph({ who }: { who: Who }) {
       </div>
 
       {json && ring !== null && (
-        <Modal title="Role — import i eksport (JSON)" wide onClose={() => setJson(false)}>
+        <Modal title={t('roles.graph.jsonTitle')} wide onClose={() => setJson(false)}>
           <RolesJsonPanel
             ring={ring}
             graph={data}

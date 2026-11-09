@@ -87,10 +87,10 @@ export function registryDescription(): string {
     statuses: Object.keys(VISIT_LABEL).map((s) => `"${s}"`).join(' | '),
     /* Das Beispiel: polnische Adressen, wie die Zerlegung sie kennt (Daten). */
     sample: JSON.stringify({
-      format: REGISTRY_FORMAT, version: 1, areaName: 'Parafia św. Józefa',
+      format: REGISTRY_FORMAT, version: 1, areaName: 'Parafia św. Józefa', // i18n-ignore
       addresses: [
-        { address: 'ul. Długa 5/3, 31-147 Kraków', household: { family: 'Kowalscy', people: [{ name: 'Jan Kowalski' }, { name: 'Anna Kowalska' }], phone: '+48 600 000 000', tags: ['chorzy'], kolenda: { 2026: { status: 'visited', date: '2026-01-03', priest: 'ks. Adam' } } } },
-        { address: { street: 'Długa', house: '7', locality: 'Kraków', postcode: '31-147' } }
+        { address: 'ul. Długa 5/3, 31-147 Kraków', household: { family: 'Kowalscy', people: [{ name: 'Jan Kowalski' }, { name: 'Anna Kowalska' }], phone: '+48 600 000 000', tags: ['chorzy'], kolenda: { 2026: { status: 'visited', date: '2026-01-03', priest: 'ks. Adam' } } } }, // i18n-ignore
+        { address: { street: 'Długa', house: '7', locality: 'Kraków', postcode: '31-147' } } // i18n-ignore
       ]
     }, null, 2)
   });
@@ -99,11 +99,11 @@ export function registryDescription(): string {
 /** Was ein Dokument ändern würde. */
 export function planRegistryImport(doc: unknown, places: readonly Place[], households: readonly Household[]):
   { rows: PlannedRow[]; lines: string[]; warnings: string[] } | { error: string } {
-  if (typeof doc !== 'object' || doc === null) return { error: 'To nie jest dokument kartoteki.' };
+  if (typeof doc !== 'object' || doc === null) return { error: t('registry.json.plan.notDoc') };
   const d = doc as Record<string, unknown>;
-  if (d.format !== undefined && d.format !== REGISTRY_FORMAT) return { error: `Inny format: "${String(d.format)}" — oczekiwano "${REGISTRY_FORMAT}".` };
+  if (d.format !== undefined && d.format !== REGISTRY_FORMAT) return { error: t('registry.json.plan.otherFormat', { format: String(d.format), expected: REGISTRY_FORMAT }) };
   const list = Array.isArray(d.addresses) ? d.addresses : Array.isArray(doc) ? doc as unknown[] : null;
-  if (list === null) return { error: 'Brakuje listy "addresses".' };
+  if (list === null) return { error: t('registry.json.plan.noList') };
 
   const byKey = new Map(places.map((p) => [keyOf(p), p]));
   const householdOf = new Map(households.filter((h) => h.placeId !== null).map((h) => [h.placeId!, h]));
@@ -115,9 +115,9 @@ export function planRegistryImport(doc: unknown, places: readonly Place[], house
   list.forEach((one, i) => {
     const item = typeof one === 'string' ? { address: one } : (one as Record<string, unknown> | null);
     const address = addressOf(item?.address ?? item);
-    if (address === null) { warnings.push(`Pozycja ${i + 1}: brak adresu — pominięta.`); return; }
+    if (address === null) { warnings.push(t('registry.json.plan.noAddress', { n: i + 1 })); return; }
     const key = keyOf(address);
-    if (seen.has(key)) { warnings.push(`Pozycja ${i + 1}: ten sam adres drugi raz (${formatAddress(address)}) — połączona z wcześniejszą.`); }
+    if (seen.has(key)) { warnings.push(t('registry.json.plan.twice', { n: i + 1, address: formatAddress(address) })); }
     seen.add(key);
     const place = byKey.get(key) ?? null;
     if (place === null) created += 1; else known += 1;
@@ -130,10 +130,10 @@ export function planRegistryImport(doc: unknown, places: readonly Place[], house
   return {
     rows,
     lines: [
-      `Nowe adresy: ${created}`,
-      `Adresy już w kartotece: ${known}`,
-      `Nowe rodziny: ${families}`,
-      `Uzupełnione rodziny: ${updated}`
+      t('registry.json.plan.created', { count: created }),
+      t('registry.json.plan.known', { count: known }),
+      t('registry.json.plan.families', { count: families }),
+      t('registry.json.plan.updated', { count: updated })
     ],
     warnings
   };

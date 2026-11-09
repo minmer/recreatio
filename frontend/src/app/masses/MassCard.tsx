@@ -27,6 +27,7 @@
 import type { ReactNode } from 'react';
 
 import { addDays, startOfDay } from '../core/dayMath';
+import { useT } from '../core/i18n';
 import { daysToLoad, massView, type MassView } from './massShape';
 import { MassBrowser } from './MassBrowser';
 import { Glance } from './MassGlance';
@@ -64,11 +65,12 @@ export function MassCard({ title, calendar, days: wanted, size }: {
 
 /** Die kleinen: ein Blick auf JETZT, nichts zu bedienen. Nach Mitternacht beginnt er einen Tag später. */
 function Live({ shown, calendar, now }: { shown: MassView; calendar: string; now: Date }): ReactNode {
+  const t = useT();
   const from = startOfDay(now);
   const { loaded, failed } = usePlan(calendar, from, addDays(from, daysToLoad(shown)), 'live');
 
   if (loaded === null) {
-    return failed ? <p className="wk-card-muted">Planu nie udało się wczytać.</p> : <Loading />;
+    return failed ? <p className="wk-card-muted">{t('masses.card.loadFailed')}</p> : <Loading />;
   }
 
   return (

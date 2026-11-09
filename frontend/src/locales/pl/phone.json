@@ -1,0 +1,34 @@
+{
+  "ctx": {
+    "locked": "Klucz jest zamknięty — odblokuj go hasłem.",
+    "noPerson": "Konto nie prowadzi jeszcze żadnej osoby.",
+    "roleCannot": "Tą rolą nie możesz założyć obszaru — wybierz inną.",
+    "archiveArea": "Archiwum SMS",
+    "noAreaKey": "Nie masz klucza tego obszaru."
+  },
+  "reading": {
+    "copiedOne": "Skopiowano wiadomość.",
+    "copiedMany": "Skopiowano wiadomości: {count}.",
+    "copyFailed": "Nie udało się skopiować.",
+    "size": "Wielkość liter",
+    "smaller": "Mniejsze litery",
+    "larger": "Większe litery"
+  },
+  "when": {
+    "today": "dziś {time}",
+    "tomorrow": "jutro {time}"
+  },
+  "search": {
+    "people": "Osoby",
+    "peoplePh": "Szukaj osoby…",
+    "numbers": "Numery",
+    "numbersPh": "Szukaj numeru…",
+    "messages": "Wiadomości",
+    "messagesPh": "Szukaj w treści…"
+  },
+  "jobs": {
+    "noSession": "Brak sesji.",
+    "notSms": "To nie jest wydanie SMS aplikacji.",
+    "unknown": "Nieznane zlecenie."
+  }
+}

@@ -28,6 +28,7 @@ import { KEY_SIZE, fromBase64Url, seal, toBase64Url, wrapKey } from '../core/cry
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
 import { call } from '../core/session';
+import { texts } from '../core/i18n';
 import { seatOpener, type SeatEnvelope } from '../roles/memberRole';
 
 export type SubmitterLevel = 'none' | 'read' | 'write';
@@ -35,11 +36,11 @@ export type SubmitterLevel = 'none' | 'read' | 'write';
 export const SUBMITTER_LEVELS: readonly SubmitterLevel[] = ['write', 'read', 'none'];
 
 /** Was der Einsender in seinem Kleinbereich darf — in den Worten, die die Kanzlei liest. */
-export const SUBMITTER_WORDS: Readonly<Record<SubmitterLevel, string>> = {
-  write: 'osoba pisze',
-  read: 'osoba czyta',
-  none: 'osoba nie widzi'
-};
+export const SUBMITTER_WORDS: Readonly<Record<SubmitterLevel, string>> = texts({
+  write: 'formsData.va.submitterWrite',
+  read: 'formsData.va.submitterRead',
+  none: 'formsData.va.submitterNone'
+});
 
 export interface VirtualAreaRow {
   readonly areaId: string;

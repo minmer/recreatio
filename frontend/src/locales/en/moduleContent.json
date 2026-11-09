@@ -384,7 +384,7 @@
       "worldDepth": "Body thickness in metres (with density and area it gives the mass); usually 0.1",
       "worldGround": "false — no ground (a table seen from above, space)",
       "worldSpeed": "Pace of time at the start (1 — as in reality)",
-      "vars": "Values drawn at every opening (and with „New draw”) — used in expressions \"=…\" and in texts as {…} around the name",
+      "vars": "Values drawn at every opening (and with „New draw”) — used in expressions \"=…\" and in texts as \"{nazwa}\" (nazwa = the value’s name)",
       "varsName": "Name of the value",
       "varsFrom": "Minimum",
       "varsTo": "Maximum",
@@ -694,7 +694,8 @@
       "axesY": "Label of the vertical axis",
       "axesGrid": "Grid underneath",
       "clip": "frame — true: whatever leaves the frame disappears",
-      "camera": "frame — true: you can zoom (+, −, Ctrl+wheel, two fingers) and pan the view; \"view\" is then the „Fit” view"
+      "camera": "frame — true: you can zoom (+, −, Ctrl+wheel, two fingers) and pan the view; \"view\" is then the „Fit” view",
+      "typeMore": "\"group\" gathers \"children\", \"use\" inserts a part from \"symbols\", \"frame\" is a frame with a world (y upwards), \"world\" — this is where the things of \"world\" stand (in a frame)"
     },
     "motion": {
       "duration": "Duration of one run (ms)",
@@ -859,6 +860,78 @@
       "save": "true — a workshop: „Save”, „Load” (in this browser) and the layout as JSON",
       "hint": "Hint below the drawing when nothing is selected ({…} — computed)",
       "list": "true — every property that may be changed as its own slider in the panel („You set”, without selecting a thing); false — select a thing first; omitted — rows, when nothing may be added or removed and there are at most 6 of them"
+    },
+    "label": "Animation",
+    "use": "A drawing that moves or can be moved: shapes, lines, graphs, vectors — with motion, sliders, dragging and a physics simulation (e.g. a throw, a pendulum, a spring). Also the pictures of the Cogita show.",
+    "sum": {
+      "elements": {
+        "one": "{count} element",
+        "other": "{count} elements"
+      },
+      "motions": {
+        "one": "{count} motion",
+        "other": "{count} motions"
+      },
+      "vars": {
+        "one": "{count} to set",
+        "other": "{count} to set"
+      },
+      "sim": "simulation",
+      "goal": "with a goal"
+    },
+    "drawing": "Drawing",
+    "empty": "The drawing is empty.",
+    "notObject": "A drawing is one object { … }.",
+    "badJson": "This is not valid JSON: {error}",
+    "accepted": "Accepted: {sum}.",
+    "promptCopied": "AI prompt copied — paste it in your chat, and the finished JSON here.",
+    "promptFailed": "Could not copy the prompt.",
+    "alt": "Description (for screen readers)",
+    "max": "At most (rem)",
+    "fullWidth": "full width",
+    "hint": "Drawing: „size”, „elements” (rect, circle, ellipse, line, arrow, poly, plot, trace, frame, path, text, image, group, use), „symbols”; for moving: „vars”, „let”, „sim”, „controls”, „rules”, and things to build (scales, gears) — „world” with a „world” element in a frame; values can be expressions „=…”. Full description — with the page JSON import and in the AI prompt. Now: {sum}.",
+    "insertExample": "Insert an example",
+    "exampleLoaded": "Example „{title}” — check the preview and accept.",
+    "insertPhysics": "Insert a physics example…",
+    "copyPrompt": "Copy the AI prompt",
+    "json": "Drawing JSON",
+    "preview": "Drawing preview",
+    "problems": "Errors in expressions",
+    "apply": "Accept the drawing",
+    "missing": "The drawing has no element yet.",
+    "showsStrip": "Drawing ({sum}) — small, still, without controls.",
+    "showsMoving": "Drawing ({sum}) in motion, across the full width of the module.",
+    "showsLive": "Drawing ({sum}) in motion, across the full width of the module, with controls below.",
+    "lead": {
+      "type": "Type",
+      "do": "What it does with the simulation",
+      "buttonDo": "button — what it does with the simulation",
+      "motionName": "Motion word",
+      "mood": "Look of the text"
+    },
+    "let": {
+      "name": "Name of the computed value",
+      "value": "Expression (of other names)"
+    },
+    "key": {
+      "alt": "Description of the drawing for screen readers (empty — the drawing is decorative only)",
+      "question": "in a story with a knowledge base: the drawing’s goal (a rule with \"goal\": true) counts as a correct answer to this question of the base — id or @name (empty: its own goal card)",
+      "about": "in a story with a knowledge base: for which entries of the base the reached goal of the drawing counts — id or @name, each on its own line",
+      "size": "Size of the drawing in its own units: [width, height] — the drawing grows and shrinks as a whole with the module",
+      "max": "At most this width in rem (a number); omitted — the full width of the module",
+      "panel": "Where the controls go: \"below\" (below the drawing, usual) or \"side\" (beside it, when the drawing is wide; on a phone always below)",
+      "vars": "Values to set (slider, switch, dragging): [{ \"name\", \"value\", \"min\", \"max\", \"step\", \"unit\", \"label\", \"random\" }]",
+      "let": "Values computed from others, in every frame, in this order: [{ \"name\", \"value\": \"expression\" }]",
+      "sim": "Simulation (equations of motion, Runge-Kutta): { \"state\": [{ \"name\", \"value\", \"rate\" }], \"events\", \"until\", \"dt\", \"speed\", \"auto\", \"loop\", \"max\" }",
+      "controls": "Controls below the drawing: sliders, switches, choices, buttons, readouts",
+      "rules": "Rules: when a condition becomes true — a text, the goal of the task, a setting, start/pause, onwards in a presentation",
+      "predict": "Predict first, then see: the drawing stands still (simulation paused, rules silent, \"held\" = 1 in expressions — e.g. a colour that would give away the result waits) until the person clicks „Check”; \"tries\" — how many times they have checked. true or { \"start\", \"say\", \"check\", \"again\", \"hold\" }",
+      "task": "A different task every time, equally hard: draws values from \"random\" (variables, properties of things, also as expressions of them) until the conditions hold, the task is not solved at the start, and the solution can be set. { \"require\", \"solve\", \"new\", \"tries\" }",
+      "world": "A world of things to build (scales of beams and weights, gears): kinds, things at the start and what is allowed — every change goes through the rules of the world, with „Undo”; an element { \"type\": \"world\" } in a frame shows where they stand",
+      "symbols": "Reusable parts: [{ \"name\": \"fiszka\", \"shapes\": [elements] }] — an element { \"type\": \"use\", \"use\": \"fiszka\" } inserts them",
+      "symbolName": "Name of the part",
+      "symbolShapes": "Elements of the part (as in \"elements\")",
+      "elements": "Elements of the drawing, from back to front — each with position, look, motion (\"motion\") and — for moving — expressions, \"drag\", \"tap\", \"show\", \"repeat\""
     }
   }
 }

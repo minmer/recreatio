@@ -10,6 +10,8 @@
  * Tabelle der Posten und die Spenden.
  */
 
+import { appLang, localeOf, t, tIn, useT, type Lang } from '../../core/i18n';
+import { lazyPart } from './partTexts';
 import { AreaRow, asArray, asOptionalText, asRecord, asText, defineEventPart, Fieldset, ListEditor, NumberRow, TextRow } from '../event/kit';
 
 type CostItem = { label: string; suggested: number | null; actual: number | null };
@@ -28,6 +30,8 @@ function readParticipantCount(value: unknown): number | null {
   return parsed !== null && parsed >= 1 ? Math.floor(parsed) : null;
 }
 
+const DEFAULT_CURRENCY = 'PLN';
+
 function readCurrency(value: unknown): string {
   const candidate = asText(value, 'PLN').trim().toUpperCase();
   /* Ein halb getippter Code bleibt stehen; Intl.NumberFormat ist unten abgesichert. */
@@ -39,10 +43,10 @@ function sumDefined(values: Array<number | null>): { total: number | null; count
   return { total: defined.length > 0 ? defined.reduce((sum, value) => sum + value, 0) : null, count: defined.length };
 }
 
-export function formatMoney(value: number | null, currency: string): string {
-  if (value === null) return 'Do uzupełnienia';
+export function formatMoney(value: number | null, currency: string, lang: Lang = appLang()): string {
+  if (value === null) return tIn(lang, 'moduleData.costs.missing');
   try {
-    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    return new Intl.NumberFormat(localeOf(lang), { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
   } catch {
     return `${value.toFixed(2)} ${currency}`;
   }
@@ -52,17 +56,19 @@ const perPerson = (total: number | null, count: number | null): number | null =>
   total !== null && count !== null && count > 0 ? total / count : null;
 
 function Amount({ total, count, currency }: { total: number | null; count: number | null; currency: string }) {
+  const t = useT();
   const each = perPerson(total, count);
-  if (each === null) return <span className="ev-costs-lead">{formatMoney(total, currency)}</span>;
+  if (each === null) return <span className="ev-costs-lead">{formatMoney(total, currency, t.lang)}</span>;
   return (
     <>
-      <span className="ev-costs-lead is-person">{formatMoney(each, currency)}</span>
-      <span className="ev-costs-sub">na osobę · {formatMoney(total, currency)} łącznie</span>
+      <span className="ev-costs-lead is-person">{formatMoney(each, currency, t.lang)}</span>
+      <span className="ev-costs-sub">{t('moduleData.costs.perPersonTotal', { total: formatMoney(total, currency, t.lang) })}</span>
     </>
   );
 }
 
 function Costs({ config, strip }: { config: CostsConfig; strip: boolean }) {
+  const t = useT();
   const suggested = sumDefined(config.costItems.map((item) => item.suggested));
   const actual = sumDefined(config.costItems.map((item) => item.actual));
   const donations = sumDefined(config.donations.map((item) => item.amount));
@@ -73,24 +79,24 @@ function Costs({ config, strip }: { config: CostsConfig; strip: boolean }) {
     <div className="ev-costs">
       <div className="ev-costs-summary">
         <article className={hasPerPerson ? 'is-person' : ''}>
-          <span>{hasPerPerson ? 'Koszt sugerowany na osobę' : 'Koszty sugerowane'}</span>
+          <span>{hasPerPerson ? t('moduleData.costs.suggestedEach') : t('moduleData.costs.suggestedAll')}</span>
           <Amount total={suggested.total} count={count} currency={config.currency} />
         </article>
         <article className={hasPerPerson ? 'is-person' : ''}>
-          <span>{hasPerPerson ? 'Koszt rzeczywisty na osobę' : 'Koszty rzeczywiste'}</span>
+          <span>{hasPerPerson ? t('moduleData.costs.actualEach') : t('moduleData.costs.actualAll')}</span>
           <Amount total={actual.total} count={count} currency={config.currency} />
         </article>
         <article className="is-donations">
-          <span>Suma wszystkich darowizn</span>
-          <span className="ev-costs-lead">{formatMoney(donations.total, config.currency)}</span>
-          <span className="ev-costs-sub">{donations.count} uzupełnionych wpłat</span>
+          <span>{t('moduleData.costs.donationsSum')}</span>
+          <span className="ev-costs-lead">{formatMoney(donations.total, config.currency, t.lang)}</span>
+          <span className="ev-costs-sub">{t('moduleData.costs.donationsCount', { count: donations.count })}</span>
         </article>
       </div>
 
       {!strip && (
         <>
           <p className="ev-costs-count">
-            {count === null ? 'Podaj liczbę uczestników, aby zobaczyć przeliczenie.' : `Przeliczenie dla ${count} ${count === 1 ? 'osoby' : 'osób'}.`}
+            {count === null ? t('moduleData.costs.countMissing') : t('moduleData.costs.countFor', { count })}
           </p>
 
           {config.costItems.length > 0 ? (
@@ -98,9 +104,9 @@ function Costs({ config, strip }: { config: CostsConfig; strip: boolean }) {
               <table className="ev-costs-table">
                 <thead>
                   <tr>
-                    <th>Pozycja</th>
-                    <th>Sugerowane{hasPerPerson ? ' na osobę' : ''}</th>
-                    <th>Rzeczywiste{hasPerPerson ? ' na osobę' : ''}</th>
+                    <th>{t('moduleData.costs.item')}</th>
+                    <th>{hasPerPerson ? t('moduleData.costs.colSuggestedEach') : t('moduleData.costs.colSuggested')}</th>
+                    <th>{hasPerPerson ? t('moduleData.costs.colActualEach') : t('moduleData.costs.colActual')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -114,21 +120,21 @@ function Costs({ config, strip }: { config: CostsConfig; strip: boolean }) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <th scope="row">Razem</th>
+                    <th scope="row">{t('moduleData.costs.total')}</th>
                     <td><Amount total={suggested.total} count={count} currency={config.currency} /></td>
                     <td><Amount total={actual.total} count={count} currency={config.currency} /></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
-          ) : <p className="ev-note">Pozycje kosztów nie zostały jeszcze uzupełnione.</p>}
+          ) : <p className="ev-note">{t('moduleData.costs.noItems')}</p>}
 
           {config.donations.length > 0 && (
             <dl className="ev-costs-donations">
               {config.donations.map((donation, index) => (
                 <div key={`${donation.label}-${index}`}>
                   <dt>{donation.label}</dt>
-                  <dd>{formatMoney(donation.amount, config.currency)}</dd>
+                  <dd>{formatMoney(donation.amount, config.currency, t.lang)}</dd>
                 </div>
               ))}
             </dl>
@@ -141,10 +147,11 @@ function Costs({ config, strip }: { config: CostsConfig; strip: boolean }) {
   );
 }
 
-export const costsPart = defineEventPart<CostsConfig>({
+/* Die Texte der Beschreibung je Sprache (`lazyPart`): `defineEventPart` liest sie beim Anlegen. */
+export const costsPart = lazyPart(() => defineEventPart<CostsConfig>({
   kind: 'costs',
-  label: 'Koszty i darowizny',
-  use: 'Planowane i rzeczywiste koszty, przeliczenie na osobę oraz suma darowizn.',
+  label: t('moduleData.costs.label'),
+  use: t('moduleData.costs.use'),
   box: { colSpan: 6, rowSpan: 3 },
   fullscreen: true,
 
@@ -153,26 +160,26 @@ export const costsPart = defineEventPart<CostsConfig>({
     currency: 'PLN',
     participantCount: 24,
     costItems: [
-      { label: 'Nocleg', suggested: 2400, actual: 2280 },
-      { label: 'Wyżywienie', suggested: 1800, actual: 1764 },
-      { label: 'Transport bagażu i rowerów', suggested: 1200, actual: 1320 }
+      { label: t('moduleData.costs.ex.lodging'), suggested: 2400, actual: 2280 },
+      { label: t('moduleData.costs.ex.food'), suggested: 1800, actual: 1764 },
+      { label: t('moduleData.costs.ex.transport'), suggested: 1200, actual: 1320 }
     ],
-    donations: [{ label: 'Darowizny uczestników', amount: 3600 }, { label: 'Wsparcie sponsorów', amount: 1000 }],
-    note: 'Kwoty są aktualizowane przez organizatora.'
+    donations: [{ label: t('moduleData.costs.ex.donations'), amount: 3600 }, { label: t('moduleData.costs.ex.sponsors'), amount: 1000 }],
+    note: t('moduleData.costs.ex.note')
   }),
 
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
-    currency: 'Waluta — kod, np. "PLN"',
-    participantCount: 'Liczba uczestników do podziału kosztów (albo null)',
-    costItems: 'Koszty — lista',
-    'costItems[].label': 'Za co',
-    'costItems[].suggested': 'Kwota proponowana (liczba albo null)',
-    'costItems[].actual': 'Kwota rzeczywista (liczba albo null)',
-    donations: 'Wpłaty i darowizny — lista',
-    'donations[].label': 'Od kogo / na co',
-    'donations[].amount': 'Kwota (liczba albo null)',
-    note: 'Uwaga pod rozliczeniem (albo null)'
+    currency: t('moduleData.costs.k.currency'),
+    participantCount: t('moduleData.costs.k.participantCount'),
+    costItems: t('moduleData.costs.k.costItems'),
+    'costItems[].label': t('moduleData.costs.k.costLabel'),
+    'costItems[].suggested': t('moduleData.costs.k.costSuggested'),
+    'costItems[].actual': t('moduleData.costs.k.costActual'),
+    donations: t('moduleData.costs.k.donations'),
+    'donations[].label': t('moduleData.costs.k.donationLabel'),
+    'donations[].amount': t('moduleData.costs.k.donationAmount'),
+    note: t('moduleData.costs.k.note')
   },
 
   parse: (raw) => {
@@ -191,7 +198,7 @@ export const costsPart = defineEventPart<CostsConfig>({
 
   hasContent: (c) => c.costItems.some((item) => item.label !== '') || c.donations.some((item) => item.label !== ''),
 
-  shows: (_c, size) => size.height === 'strip' ? 'Trzy sumy: sugerowane, rzeczywiste, darowizny.' : 'Sumy, tabela pozycji (na osobę, jeśli podano liczbę uczestników) i darowizny.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleData.costs.showsStrip') : t('moduleData.costs.showsBlock'),
 
   Body: ({ config, ctx }) => (
     <Costs
@@ -200,50 +207,53 @@ export const costsPart = defineEventPart<CostsConfig>({
     />
   ),
 
-  Edit: ({ config, onChange }) => (
+  Edit: function CostsEdit({ config, onChange }) {
+    const t = useT();
+    return (
     <>
-      <Fieldset legend="Podstawy obliczeń">
-        <TextRow label="Waluta (kod ISO)" value={config.currency} placeholder="PLN" hint="Na przykład PLN, EUR albo USD."
+      <Fieldset legend={t('moduleData.costs.basis')}>
+        <TextRow label={t('moduleData.costs.currency')} value={config.currency} placeholder={DEFAULT_CURRENCY} hint={t('moduleData.costs.currencyHint')}
           onChange={(currency) => onChange({ ...config, currency: currency.trim().toUpperCase().slice(0, 3) || 'PLN' })} />
-        <NumberRow label="Liczba uczestników" value={config.participantCount} step={1} min={1} placeholder="Do uzupełnienia"
-          hint="Na tej podstawie liczone są koszty na osobę." onChange={(next) => onChange({ ...config, participantCount: readParticipantCount(next) })} />
+        <NumberRow label={t('moduleData.costs.participants')} value={config.participantCount} step={1} min={1} placeholder={t('moduleData.costs.missing')}
+          hint={t('moduleData.costs.participantsHint')} onChange={(next) => onChange({ ...config, participantCount: readParticipantCount(next) })} />
       </Fieldset>
 
       <ListEditor<CostItem>
-        legend="Pozycje kosztów"
+        legend={t('moduleData.costs.items')}
         items={config.costItems}
-        addLabel="Dodaj koszt"
+        addLabel={t('moduleData.costs.addCost')}
         blank={() => ({ label: '', suggested: null, actual: null })}
-        titleOf={(item, index) => item.label || `Koszt ${index + 1}`}
+        titleOf={(item, index) => item.label || t('moduleData.costs.costN', { n: index + 1 })}
         onChange={(costItems) => onChange({ ...config, costItems })}
         renderItem={(item, update) => (
           <>
-            <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
-            <NumberRow label={`Koszt sugerowany (${config.currency})`} value={item.suggested} step="0.01" min={0} placeholder="Do uzupełnienia"
+            <TextRow label={t('common.name')} value={item.label} onChange={(label) => update({ ...item, label })} />
+            <NumberRow label={t('moduleData.costs.suggestedIn', { currency: config.currency })} value={item.suggested} step="0.01" min={0} placeholder={t('moduleData.costs.missing')}
               onChange={(suggested) => update({ ...item, suggested: optionalNonNegativeNumber(suggested) })} />
-            <NumberRow label={`Koszt rzeczywisty (${config.currency})`} value={item.actual} step="0.01" min={0} placeholder="Do uzupełnienia"
+            <NumberRow label={t('moduleData.costs.actualIn', { currency: config.currency })} value={item.actual} step="0.01" min={0} placeholder={t('moduleData.costs.missing')}
               onChange={(actual) => update({ ...item, actual: optionalNonNegativeNumber(actual) })} />
           </>
         )}
       />
 
       <ListEditor<Donation>
-        legend="Darowizny"
+        legend={t('moduleData.costs.donationsLegend')}
         items={config.donations}
-        addLabel="Dodaj darowiznę"
+        addLabel={t('moduleData.costs.addDonation')}
         blank={() => ({ label: '', amount: null })}
-        titleOf={(item, index) => item.label || `Darowizna ${index + 1}`}
+        titleOf={(item, index) => item.label || t('moduleData.costs.donationN', { n: index + 1 })}
         onChange={(donations) => onChange({ ...config, donations })}
         renderItem={(item, update) => (
           <>
-            <TextRow label="Opis" value={item.label} onChange={(label) => update({ ...item, label })} />
-            <NumberRow label={`Kwota (${config.currency})`} value={item.amount} step="0.01" min={0} placeholder="Do uzupełnienia"
+            <TextRow label={t('common.description')} value={item.label} onChange={(label) => update({ ...item, label })} />
+            <NumberRow label={t('moduleData.costs.amountIn', { currency: config.currency })} value={item.amount} step="0.01" min={0} placeholder={t('moduleData.costs.missing')}
               onChange={(amount) => update({ ...item, amount: optionalNonNegativeNumber(amount) })} />
           </>
         )}
       />
 
-      <AreaRow label="Uwaga pod zestawieniem" rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
+      <AreaRow label={t('moduleData.costs.noteLabel')} rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
     </>
-  )
-});
+    );
+  }
+}));

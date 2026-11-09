@@ -27,6 +27,7 @@ import {
   addDays, firstOfMonth, fromKey, keyOf, longDate, mondayOf, monthTitle, rangeTitle, sameDay, sameMonth,
   startOfDay, WEEK_HEADS
 } from '../core/dayMath';
+import { useT } from '../core/i18n';
 import { dayKey, hour, massesOnly, type PublicMass } from './mass';
 import { MODE_WORD, nextOf, rangeOf, stepAnchor, type MassMode, type MassView } from './massShape';
 import { Glance, NextBox } from './MassGlance';
@@ -35,6 +36,7 @@ import { MonthPicker } from '../ui/MonthPicker';
 import { Loading } from '../ui/Loading';
 
 export function MassBrowser({ shown, calendar, now }: { shown: MassView; calendar: string; now: Date }) {
+  const t = useT();
   const [mode, setMode] = useState<MassMode>(shown.modes[0] ?? 'soon');
 
   /** Der gewählte Tag — `null`: heute, und in „Najbliższe" wirklich JETZT. */
@@ -68,8 +70,8 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
   const step = (direction: 1 | -1) => setAnchor(settle(mode, stepAnchor(mode, anchor, shown, now, direction)));
 
   const label = mode === 'soon'
-    ? (anchor === null ? 'Od teraz' : rangeTitle(from, to))
-    : mode === 'day' ? `${sameDay(selected, now) ? 'Dziś · ' : ''}${longDate(selected)}`
+    ? (anchor === null ? t('masses.browser.fromNow') : rangeTitle(from, to))
+    : mode === 'day' ? (sameDay(selected, now) ? t('masses.browser.todayDate', { date: longDate(selected) }) : longDate(selected))
     : mode === 'week' ? rangeTitle(from, to)
     : monthTitle(selected);
 
@@ -88,7 +90,7 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
     <div className="wk-mass-app" data-browse={shown.browse}>
       <div className="wk-mass-layout">
         {full && (
-          <aside className="wk-mass-side" aria-label="Kalendarz">
+          <aside className="wk-mass-side" aria-label={t('masses.browser.calendar')}>
             {picker}
 
             {/*
@@ -100,7 +102,7 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
               <NextBox
                 ctx={{ now, next, place: placeOf(calendar, live.loaded?.masses ?? []), shown, fold: false }}
                 next={next}
-                label="Najbliższa msza"
+                label={t('masses.browser.nextMass')}
               />
             )}
           </aside>
@@ -109,20 +111,20 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
         <div className="wk-mass-main">
           <div className="wk-mass-bar">
             <div className="wk-mass-nav">
-              <button type="button" className="wk-mass-step" aria-label="Wcześniej" onClick={() => step(-1)}>‹</button>
+              <button type="button" className="wk-mass-step" aria-label={t('masses.browser.earlier')} onClick={() => step(-1)}>‹</button>
               <button type="button" className="wk-mass-today" aria-pressed={anchor === null} onClick={() => setAnchor(null)}>
-                Dziś
+                {t('common.today')}
               </button>
-              <button type="button" className="wk-mass-step" aria-label="Później" onClick={() => step(1)}>›</button>
+              <button type="button" className="wk-mass-step" aria-label={t('masses.browser.later')} onClick={() => step(1)}>›</button>
             </div>
 
             <p className="wk-mass-range" aria-live="polite">
               {label}
-              {loading && !failed && <span className="wk-mass-loading"> · wczytywanie…</span>}
+              {loading && !failed && <span className="wk-mass-loading"> · {t('masses.browser.loading')}</span>}
             </p>
 
             {shown.modes.length > 1 && (
-              <div className="wk-seg wk-mass-modes" role="group" aria-label="Widok">
+              <div className="wk-seg wk-mass-modes" role="group" aria-label={t('masses.browser.view')}>
                 {shown.modes.map((one) => (
                   <button
                     key={one}
@@ -138,7 +140,7 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
             )}
 
             <button type="button" className="wk-mass-pickbtn" aria-expanded={picking} onClick={() => setPicking(!picking)}>
-              <CalendarIcon /> Kalendarz
+              <CalendarIcon /> {t('masses.browser.calendar')}
             </button>
           </div>
 
@@ -146,12 +148,12 @@ export function MassBrowser({ shown, calendar, now }: { shown: MassView; calenda
 
           <div className={`wk-mass-body${loading ? ' is-loading' : ''}`}>
             {loaded === null
-              ? (failed ? <p className="wk-card-muted">Planu nie udało się wczytać.</p> : <Loading />)
+              ? (failed ? <p className="wk-card-muted">{t('masses.card.loadFailed')}</p> : <Loading />)
               : <Drawn tag={loaded.tag} from={loaded.from} services={loaded.masses} shown={shown} now={now}
                   next={next} calendar={calendar} onOpen={open} onPickDay={pick} />}
           </div>
 
-          {failed && loaded !== null && <p className="wk-card-muted">Nie udało się wczytać tych dni — widać poprzednie.</p>}
+          {failed && loaded !== null && <p className="wk-card-muted">{t('masses.browser.keptOld')}</p>}
         </div>
       </div>
     </div>
@@ -205,12 +207,13 @@ function DayView({ ctx, date, services, onPick }: {
   services: readonly PublicMass[];
   onPick: (day: Date) => void;
 }) {
+  const t = useT();
   const monday = mondayOf(date);
   const list = services.filter((m) => dayKey(m.startsAt) === keyOf(date));
 
   return (
     <>
-      <div className="wk-mass-weekstrip" role="group" aria-label="Dni tygodnia">
+      <div className="wk-mass-weekstrip" role="group" aria-label={t('masses.browser.weekdays')}>
         {WEEK_HEADS.map((head, i) => {
           const day = addDays(monday, i);
           const cls = ['wk-mass-chip', sameDay(day, date) && 'is-on', sameDay(day, ctx.now) && 'is-today'].filter(Boolean).join(' ');
@@ -225,7 +228,7 @@ function DayView({ ctx, date, services, onPick }: {
       </div>
 
       {list.length === 0
-        ? <p className="wk-mass-none">Brak mszy w tym dniu.</p>
+        ? <p className="wk-mass-none">{t('masses.browser.noneThisDay')}</p>
         : <div className="wk-mass-dayview">{list.map((m) => <Row key={`${m.itemId}-${m.occurrenceAt}`} ctx={ctx} mass={m} />)}</div>}
     </>
   );
@@ -255,9 +258,6 @@ function WeekView({ ctx, from, services, onOpen }: {
 
 /* -- Ein Monat -------------------------------------------------------------------- */
 
-const masses = (n: number) =>
-  n === 1 ? '1 msza' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? `${n} msze` : `${n} mszy`;
-
 /**
  * DAS MONATSBLATT: in jedem Tag die Uhrzeiten, ohne Intentionen — für den
  * Überblick; ein Tag darin führt zu diesem Tag. Ist die Kachel schmal, steht
@@ -269,6 +269,7 @@ function MonthView({ ctx, from, services, onOpen }: {
   services: readonly PublicMass[];
   onOpen: (day: Date) => void;
 }) {
+  const t = useT();
   const month = firstOfMonth(addDays(from, 6));
   const days = everyDay(services, Array.from({ length: 42 }, (_, i) => addDays(from, i)));
 
@@ -285,7 +286,7 @@ function MonthView({ ctx, from, services, onOpen }: {
 
         return (
           <button key={one.key} type="button" className={cls}
-            aria-label={`${longDate(one.date)}: ${one.masses.length === 0 ? 'brak mszy' : masses(one.masses.length)}`}
+            aria-label={`${longDate(one.date)}: ${one.masses.length === 0 ? t('masses.browser.noMasses') : t('masses.browser.masses', { count: one.masses.length })}`}
             onClick={() => onOpen(one.date)}>
             <span className="wk-mass-cell-date">{one.date.getDate()}</span>
             {one.masses.length > 0 && (

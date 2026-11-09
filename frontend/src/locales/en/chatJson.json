@@ -246,5 +246,72 @@
   "sample": {
     "topics": "two new topics and a message in each",
     "reminder": "a reminder for tomorrow morning, without sound"
+  },
+  "dialog": {
+    "range7": "7 days",
+    "range30": "30 days",
+    "range90": "90 days",
+    "range365": "Year",
+    "rangeAll": "Everything",
+    "loadFailed": "Could not download this chat's messages.",
+    "loading": "Downloading this chat's messages — one moment…",
+    "loadingOlder": "Downloading older messages the document refers to — one moment…",
+    "stillLoading": "This chat's messages are still downloading — try again in a moment.",
+    "olderLoading": "Older messages are still downloading — try again in a moment.",
+    "period": "Export — period",
+    "topic": "Export — topic",
+    "allMessages": "All messages",
+    "closed": "(closed)",
+    "fetching": "Downloading the chat's messages…",
+    "leadImport": "Messages from the chosen period (or topic), topics, tasks and appointments — for the archive or for an AI assistant. The import tidies topics and pins and adds your new messages, marked “From an import”; it never writes in someone else's name or backwards and deletes nothing.",
+    "leadRead": "Messages from the chosen period (or topic), topics, tasks and appointments — for the archive or for an AI assistant. You only read in this chat, so there is only the export here.",
+    "importLabel": "Import into the chat",
+    "note": "New messages will go as <b>{name}</b>, marked “From an import”."
+  },
+  "run": {
+    "failed": "it didn't work.",
+    "creatingTopics": "Creating topics… {n}/{count}",
+    "newTopic": "New topic: “{title}”",
+    "newTopicClosed": "New topic: “{title}” (closed)",
+    "topicFailed": "Topic “{title}” was not created: {error}",
+    "changingTopics": "Changing topics…",
+    "closed": "Closed the topic “{title}”",
+    "reopened": "Reopened the topic “{title}”",
+    "topicError": "Topic “{title}”: {error}",
+    "lost": {
+      "one": "{count} message was not moved — its topic was not created.",
+      "other": "{count} messages were not moved — their topic was not created."
+    },
+    "sorting": "Sorting messages into topics…",
+    "moveError": "Moving to a topic: {error}",
+    "moved": {
+      "one": "Moved between topics: {count} message",
+      "other": "Moved between topics: {count} messages"
+    },
+    "notYours": {
+      "one": "{count} message of other people is moved by a leader — it stayed where it was.",
+      "other": "{count} messages of other people are moved by a leader — they stayed where they were."
+    },
+    "marking": "Pinning and saving…",
+    "pinError": "Pinning: {error}",
+    "starError": "Saving: {error}",
+    "marked": {
+      "one": "Pinned, unpinned or saved: {count} message",
+      "other": "Pinned, unpinned or saved: {count} messages"
+    },
+    "notWriting": "The new messages did not go out — you don't write in this chat.",
+    "sending": "Sending messages… {n}/{count}",
+    "noTopic": "Message {n} of {count} went without a topic — the topic was not created.",
+    "sendFailed": "Message {n} of {count} did not go out: {error}",
+    "rest": "The remaining ones ({left}) didn't either — so as not to change the order.",
+    "sent": {
+      "one": "Sent {count} message as {name}, marked “From an import”",
+      "other": "Sent {count} messages as {name}, marked “From an import”"
+    },
+    "planned": {
+      "one": "Scheduled {count} message — waiting in “Scheduled” (⋮ menu)",
+      "other": "Scheduled {count} messages — waiting in “Scheduled” (⋮ menu)"
+    },
+    "nothing": "Nothing was changed."
   }
 }

@@ -11,6 +11,9 @@
  */
 
 import { IDENTITY_LABEL, type IdentityRole } from './form';
+import { appLang, localeOf, t } from '../core/i18n';
+
+const M = 'formsEdit.fmap.';
 import type { FormGroup } from '../modules/module';
 import type { PageLogic } from '../pages/pageLogic';
 
@@ -45,7 +48,7 @@ export interface FormSection<F extends FormLike = FormLike> {
   readonly items: readonly FormItem<F>[];
 }
 
-const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'pl');
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, localeOf(appLang()));
 const byPlace = (a: FormLike, b: FormLike) =>
   (a.groupPosition ?? Number.MAX_SAFE_INTEGER) - (b.groupPosition ?? Number.MAX_SAFE_INTEGER) || byName(a, b);
 
@@ -112,7 +115,8 @@ export interface LogicNeed {
   readonly step: string | null;
 }
 
-const NEED_WORD: Record<string, string> = { registered: 'wysłany', confirmed: 'potwierdzony', answer: 'odpowiedź', mark: 'znacznik' };
+/* Das Wort je Eingang der Seitenlogik: `formsEdit.fmap.need.<art>`. */
+const NEED_KINDS: ReadonlySet<string> = new Set(['registered', 'confirmed', 'answer', 'mark']);
 
 /**
  * WELCHE BAUSTEINE UND SCHRITTE EINER SEITE VON FORMULAREN ABHÄNGEN — aus der
@@ -139,9 +143,9 @@ export function logicDependencies(pages: readonly LogicPage[]): LogicNeed[] {
         seen.add(id);
         const one = nodes.get(id);
         if (one === undefined) continue;
-        if (one.formId !== undefined && NEED_WORD[one.kind] !== undefined) {
+        if (one.formId !== undefined && NEED_KINDS.has(one.kind)) {
           const set = found.get(one.formId) ?? new Set<string>();
-          set.add(NEED_WORD[one.kind]);
+          set.add(t(`${M}need.${one.kind}`));
           found.set(one.formId, set);
         }
         queue.push(...into(id));
@@ -149,9 +153,9 @@ export function logicDependencies(pages: readonly LogicPage[]): LogicNeed[] {
       const part = node.kind === 'part' ? page.parts.find((p) => p.id === node.partId) : undefined;
       for (const [from, words] of found) {
         out.push({
-          page: page.path, from, condition: [...words].join(' i '),
+          page: page.path, from, condition: [...words].join(t(`${M}and`)),
           moduleId: part?.moduleId ?? null, partKind: part?.kind ?? null,
-          step: node.kind === 'step' ? (node.label ?? 'krok') : null
+          step: node.kind === 'step' ? (node.label ?? t(`${M}step`)) : null
         });
       }
     }
@@ -204,7 +208,8 @@ export interface MapInput<F extends FormLike = FormLike> {
   readonly focus?: string | null;
 }
 
-const REPEAT_WORD: Record<string, string> = { day: 'co dzień', week: 'co tydzień', month: 'co miesiąc', year: 'co rok' };
+/* Wie oft — dieselben Worte wie `REPEAT_LABEL` (`forms.repeat.<art>`), ohne „einmal". */
+const REPEAT_KINDS: ReadonlySet<string> = new Set(['day', 'week', 'month', 'year']);
 
 const COL_IN = 0;
 const COL_FORMS = 280;
@@ -221,10 +226,10 @@ function personLines(roles: readonly IdentityRole[]): { lines: string[]; warning
   const warnings: string[] = [];
   const named = has('given_name') && has('surname');
   const who = (['given_name', 'surname'] as const).filter(has).map((r) => IDENTITY_LABEL[r]);
-  if (named) lines.push(`osoba: ${who.join(', ')} — jej podpis w rozmowach i na listach`);
-  else warnings.push('brak pól Imię i Nazwisko — osoba nie będzie miała nazwy (rozmowy, listy)');
+  if (named) lines.push(t(`${M}personNamed`, { who: who.join(', ') }));
+  else warnings.push(t(`${M}personNameless`));
   const reach = (['phone', 'email'] as const).filter(has).map((r) => IDENTITY_LABEL[r]);
-  if (reach.length > 0) lines.push(`${reach.join(' / ')} — do wysłania linku`);
+  if (reach.length > 0) lines.push(t(`${M}reach`, { list: reach.join(' / ') }));
   return { lines, warnings };
 }
 
@@ -286,7 +291,7 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
     if (groupId !== null) {
       nodes.push({
         id: groupId, kind: 'group', label: section.group!.name,
-        lines: [`${section.items.reduce((n, i) => n + 1 + i.subs.length, 0)} formularzy`], warnings: [],
+        lines: [t(`${M}forms`, { count: section.items.reduce((n, i) => n + 1 + i.subs.length, 0) })], warnings: [],
         x: COL_FORMS - PAD, y: top, width: SUB_X + 300 + PAD * 2, height
       });
     }
@@ -301,11 +306,11 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
       const config = readConfigText(main.config);
       const lines = main.extendsId === null
         ? [
-          main.audience === 'public' ? 'po wysłaniu: link osoby' : '',
+          main.audience === 'public' ? t(`${M}afterSend`) : '',
           ...person.lines,
-          `${main.entries} ${main.entries === 1 ? 'zgłoszenie' : 'zgłoszeń'}${main.closed ? ' · zamknięty' : ''}`
+          `${t(`${M}entries`, { count: main.entries })}${main.closed ? ` · ${t('formsOffice.list.closed')}` : ''}`
         ].filter((x) => x !== '')
-        : [audienceLine(main), `${main.entries} wpisów`];
+        : [audienceLine(main), t(`${M}records`, { count: main.entries })];
       nodes.push({
         id: mainNode, kind: main.extendsId === null ? 'main' : 'sub', label: main.name, lines, warnings: person.warnings,
         ...place(0, at), parent: groupId ?? undefined, open: { form: main.moduleId }
@@ -315,33 +320,33 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
       for (const path of main.pages) {
         if (main.extendsId === null) {
           if (!inPages.has(path)) inPages.set(path, inPages.size);
-          edge(`in:${path}`, mainNode, 'stands', 'zapisy');
+          edge(`in:${path}`, mainNode, 'stands', t(`${M}stands`));
         } else {
-          edge(mainNode, outPage(path), 'filled', 'wypełniane na');
+          edge(mainNode, outPage(path), 'filled', t(`${M}filledOn`));
         }
       }
 
       /* Wohin der Link der Person führt. */
       if (main.extendsId === null && main.audience === 'public') {
         const portal = (config.portalUnder ?? '').trim();
-        if (portal !== '') edge(mainNode, outPage(portal), 'link', 'link osoby otwiera');
+        if (portal !== '') edge(mainNode, outPage(portal), 'link', t('formsEdit.map.lLink'));
       }
 
       /* Welche Rollen die Menschen bekommen (0091; 0120 mehrere). */
       for (const roleId of memberRolesOf(main)) {
         if (!roles.has(roleId)) roles.set(roleId, roles.size);
-        edge(mainNode, `role:${roleId}`, 'role', 'osoby dostają rolę');
+        edge(mainNode, `role:${roleId}`, 'role', t(`${M}getsRole`));
       }
 
       for (const [s, sub] of item.subs.entries()) {
         const subNode = `form:${sub.moduleId}`;
         formIds.add(sub.moduleId);
         nodes.push({
-          id: subNode, kind: 'sub', label: sub.name, lines: [audienceLine(sub), `${sub.entries} wpisów`], warnings: [],
+          id: subNode, kind: 'sub', label: sub.name, lines: [audienceLine(sub), t(`${M}records`, { count: sub.entries })], warnings: [],
           ...place(SUB_X, at + (lead(item) + s) * ROW), parent: groupId ?? undefined, open: { form: sub.moduleId }
         });
-        edge(mainNode, subNode, 'extends', sub.audience === 'office' ? 'notatki koordynatora' : 'uzupełnia przez swój link');
-        for (const path of sub.pages) edge(subNode, outPage(path), 'filled', 'wypełniane na');
+        edge(mainNode, subNode, 'extends', sub.audience === 'office' ? t(`${M}officeNotes`) : t(`${M}viaLink`));
+        for (const path of sub.pages) edge(subNode, outPage(path), 'filled', t(`${M}filledOn`));
       }
       at += rows[index] * ROW;
     }
@@ -354,7 +359,7 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
     const sub = everything.find((f) => f.moduleId === node.open!.form);
     if (sub?.extendsId == null || !formIds.has(sub.extendsId)) continue;
     if (edges.some((e) => e.kind === 'extends' && e.to === node.id)) continue;
-    edge(`form:${sub.extendsId}`, node.id, 'extends', sub.audience === 'office' ? 'notatki koordynatora' : 'uzupełnia przez swój link');
+    edge(`form:${sub.extendsId}`, node.id, 'extends', sub.audience === 'office' ? t(`${M}officeNotes`) : t(`${M}viaLink`));
   }
 
   /* Was auf den Seiten von Formularen abhängt (Karten der Seiten). */
@@ -362,11 +367,11 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
     if (!formIds.has(need.from)) continue;
     const from = `form:${need.from}`;
     if (need.moduleId !== null && formIds.has(need.moduleId) && need.moduleId !== need.from) {
-      edge(from, `form:${need.moduleId}`, 'logic', `pokazany, gdy ${need.condition}`);
+      edge(from, `form:${need.moduleId}`, 'logic', t(`${M}shownWhen`, { condition: need.condition }));
     } else if (need.step !== null) {
-      edge(from, outPage(need.page), 'logic', `krok „${need.step}", gdy ${need.condition}`);
+      edge(from, outPage(need.page), 'logic', t(`${M}stepWhen`, { step: need.step, condition: need.condition }));
     } else if (need.moduleId !== null) {
-      edge(from, outPage(need.page), 'logic', `„${input.moduleName(need.moduleId) ?? 'moduł'}" widać, gdy ${need.condition}`);
+      edge(from, outPage(need.page), 'logic', t(`${M}moduleWhen`, { name: input.moduleName(need.moduleId) ?? t(`${M}module`), condition: need.condition }));
     }
   }
 
@@ -378,7 +383,7 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
   }
   const below = outPages.size * ROW + 20;
   for (const [roleId, index] of roles) {
-    nodes.push({ id: `role:${roleId}`, kind: 'role', label: input.roleName(roleId) ?? 'rola uczestników', lines: ['dostęp do jej obszarów'], warnings: [], x: COL_OUT, y: below + index * ROW });
+    nodes.push({ id: `role:${roleId}`, kind: 'role', label: input.roleName(roleId) ?? t('formsEdit.map.lRole'), lines: [t(`${M}roleAccess`)], warnings: [], x: COL_OUT, y: below + index * ROW });
   }
 
   /* Was eine Kante sagt, fehlt einem Knoten ohne Kanten nicht — aber was nirgends hängt, gehört nicht auf diese Karte. */
@@ -387,7 +392,7 @@ export function formMapModel<F extends FormLike>(input: MapInput<F>): { nodes: M
 }
 
 const audienceLine = (form: FormLike): string =>
-  `${form.audience === 'office' ? 'tylko koordynator' : 'wypełnia osoba — przez swój link'}${REPEAT_WORD[form.repeat ?? ''] === undefined ? '' : ` · ${REPEAT_WORD[form.repeat ?? '']}`}`;
+  `${form.audience === 'office' ? t('forms.settings.fillsOffice') : t(`${M}fillsPerson`)}${REPEAT_KINDS.has(form.repeat ?? '') ? ` · ${t(`forms.repeat.${form.repeat ?? ''}`)}` : ''}`;
 
 /** 0120 — die Rollen eines Formulars: die Liste, sonst die eine von 0091. */
 export function memberRolesOf(form: Pick<FormLike, 'memberRoleId' | 'memberRoleIds'>): readonly string[] {

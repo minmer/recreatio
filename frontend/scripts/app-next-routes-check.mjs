@@ -56,7 +56,7 @@ export { renderToStaticMarkup } from 'react-dom/server';
   assert.equal(firstGoal.story.id, 'flow-chapter', 'saving the goal opens the first unfinished lecture');
   assert.deepEqual(saved.map((p) => p.flow), ['landscape:wpisy', 'landscape:course-map'], 'the default and saved landscapes retain the goal');
   assert.ok(saved.every((p) => p.step === 'target'), 'the goal remains the destination, not its first prerequisite');
-  assert.ok(saved.every((p) => JSON.stringify(p.visited) === JSON.stringify(['basics', 'chapter', 'target'])), 'the saved goal includes the numbered route');
+  assert.ok(saved.every((p) => p.visited.length === 0), 'the saved goal leaves its numbered way to each landscape, as a goal set on the map');
   assert.equal(learner.progress.positions.get('flow-basics').done, true, 'setting a goal preserves completed lessons');
   assert.equal(learner.progress.positions.has('flow-chapter'), false, 'setting a goal never completes its first lesson');
   await assert.rejects(m.keepStoryGoal(goalLib, [], { ...goalLearner, keepPosition: async () => { throw Error('save failed'); } }, 'target'), /save failed/, 'a failed save cannot report a successful launch');

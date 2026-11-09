@@ -11,6 +11,7 @@
 
 import { lazy, Suspense, useRef, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
@@ -33,7 +34,7 @@ const capital = (text: string) => text.replace(/^./, (c) => c.toUpperCase());
 
 /** Wahlmöglichkeiten als Zeilen: „wartość: nazwa" oder nur „nazwa". */
 const choicesText = (options: readonly SchemeChoice[] | undefined) =>
-  (options ?? []).map((o) => (o.value === o.label ? o.label : `${o.value}: ${o.label}`)).join('\n');
+  (options ?? []).map((o) => (o.value === o.label ? o.label : `${o.value}: ${o.label}`)).join('\n'); // i18n-ignore
 const choicesOf = (text: string): SchemeChoice[] =>
   text.split('\n').map((line) => line.trim()).filter((line) => line !== '').map((line) => {
     const at = line.indexOf(':');
@@ -50,6 +51,7 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [def, setDef] = useState<SchemeDef>(doc?.def ?? start ?? { name: '', fields: [], lists: [] });
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
     patch({ lists: next === null ? def.lists.filter((l) => l.key !== key) : def.lists.map((l) => (l.key === key ? next : l)) });
 
   const save = async () => {
-    if (def.name.trim() === '') { setFailed('Schemat potrzebuje nazwy.'); return; }
+    if (def.name.trim() === '') { setFailed(t('calendarData.schemeEditor.needsName')); return; }
     setBusy(true);
     setFailed(null);
     try {
@@ -69,14 +71,14 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
       onSaved();
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać schematu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.schemeEditor.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async () => {
-    if (doc === null || !(await askText('Usunąć ten schemat? Jego terminy dostaną schemat uniwersalny; wartości pól zostają w nich zapisane, ale nie będą pokazywane.'))) return;
+    if (doc === null || !(await askText(t('calendarData.schemeEditor.confirmDelete')))) return;
     setBusy(true);
     try {
       await deleteDoc(doc.docId);
@@ -84,7 +86,7 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
       onSaved();
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć schematu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.schemeEditor.deleteFailed'));
       setBusy(false);
     }
   };
@@ -92,54 +94,55 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
   const editingRule = ruleOf === null ? undefined : def.lists.find((l) => l.key === ruleOf);
 
   return (
-    <Fullscreen title={doc === null ? 'Nowy schemat' : `Schemat: ${def.name || 'bez nazwy'}`} onClose={onClose}>
+    <Fullscreen title={doc === null ? t('calendarData.schemeEditor.newTitle') : t('calendarData.schemeEditor.title', { name: def.name || t('calendarData.schemeEditor.noName') })} onClose={onClose}>
       <div className="wk-sch">
         <div className="wk-sch-head">
           <label className="wk-field">
-            <span>Nazwa</span>
-            <input value={def.name} maxLength={120} placeholder="np. Msza" onChange={(e) => patch({ name: e.target.value })} />
+            <span>{t('calendarData.schemeEditor.name')}</span>
+            <input value={def.name} maxLength={120} placeholder={t('calendarData.schemeEditor.namePlaceholder')} onChange={(e) => patch({ name: e.target.value })} />
           </label>
           <label className="wk-field">
-            <span>Rodzaj terminów</span>
+            <span>{t('calendarData.schemeEditor.kind')}</span>
             <select value={def.kind ?? 'appointment'} onChange={(e) => patch({ kind: e.target.value as ItemKind })}>
               {ITEM_KINDS.filter((k) => k !== 'task').map((k) => <option key={k} value={k}>{capital(ITEM_LABEL[k])}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Tytuł</span>
+            <span>{t('calendarData.schemeEditor.titleLabel')}</span>
             <select value={def.publicTitle === undefined ? '' : def.publicTitle ? 'yes' : 'no'}
               onChange={(e) => patch({ publicTitle: e.target.value === '' ? undefined : e.target.value === 'yes' })}>
-              <option value="">jak dotąd (jawny przy mszy, spowiedzi, nabożeństwie)</option>
-              <option value="yes">jawny (plan, gablota)</option>
-              <option value="no">zaszyfrowany</option>
+              <option value="">{t('calendarData.schemeEditor.titleDefault')}</option>
+              <option value="yes">{t('calendarData.schemeEditor.titlePublic')}</option>
+              <option value="no">{t('calendarData.schemeEditor.titleSealed')}</option>
             </select>
           </label>
         </div>
 
-        <section className="wk-sch-part" aria-label="Pola terminu">
-          <h3 className="wk-h3">Pola terminu</h3>
+        <section className="wk-sch-part" aria-label={t('calendarData.schemeEditor.fields')}>
+          <h3 className="wk-h3">{t('calendarData.schemeEditor.fields')}</h3>
           <FieldsTable fields={def.fields} onChange={(fields) => patch({ fields })} levels />
         </section>
 
-        <section className="wk-sch-part" aria-label="Listy wpisów">
-          <h3 className="wk-h3">Listy wpisów przy terminie</h3>
-          {def.lists.length === 0 && <p className="wk-empty">Bez list — np. intencji albo zapisów.</p>}
+        <section className="wk-sch-part" aria-label={t('calendarData.schemeEditor.lists')}>
+          <h3 className="wk-h3">{t('calendarData.schemeEditor.listsTitle')}</h3>
+          {def.lists.length === 0 && <p className="wk-empty">{t('calendarData.schemeEditor.noLists')}</p>}
           {def.lists.map((list) => (
             <ListCard key={list.key} list={list} onChange={(next) => setList(list.key, next)} onRemove={() => setList(list.key, null)}
               onRule={() => setRuleOf(ruleOf === list.key ? null : list.key)} ruleOpen={ruleOf === list.key} />
           ))}
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-quiet" onClick={() => {
-              const key = keyOf('Wpisy', def.lists.map((l) => l.key));
-              patch({ lists: [...def.lists, { key, label: 'Wpisy', fields: [] }] });
-            }}>+ Lista wpisów</button>
+              const label = t('calendarData.schemeEditor.newList');
+              const key = keyOf(label, def.lists.map((l) => l.key));
+              patch({ lists: [...def.lists, { key, label, fields: [] }] });
+            }}>{t('calendarData.schemeEditor.addList')}</button>
           </div>
         </section>
 
         {editingRule !== undefined && (
-          <section className="wk-sch-part wk-sch-rule" aria-label={`Reguła: ${editingRule.label}`}>
-            <h3 className="wk-h3">Reguła listy „{editingRule.label}”</h3>
-            <Suspense fallback={<Loading label="Wczytywanie edytora…" />}>
+          <section className="wk-sch-part wk-sch-rule" aria-label={t('calendarData.schemeEditor.ruleAria', { label: editingRule.label })}>
+            <h3 className="wk-h3">{t('calendarData.schemeEditor.ruleTitle', { label: editingRule.label })}</h3>
+            <Suspense fallback={<Loading label={t('calendarData.schemeEditor.loadingEditor')} />}>
               <FlowEditor kind="rule" doc={editingRule.rule ?? starterRule()} modes={editingRule.modes} fields={editingRule.fields}
                 onChange={(rule: FlowDoc) => setList(editingRule.key, { ...editingRule, rule })}
                 preview={<RuleProbe list={editingRule} />} />
@@ -148,32 +151,32 @@ export function SchemeEditor({ me, calendar, doc, start, onClose, onSaved }: {
         )}
 
         <JsonPanel
-          summary="JSON schematu — eksport i import"
-          lead="Ten schemat jako JSON. Import zastępuje to, co jest w edytorze (zapisz potem przyciskiem „Zapisz schemat”)."
-          fileName={`schemat-${keyOf(def.name || 'schemat')}.json`}
+          summary={t('calendarData.schemeEditor.jsonSummary')}
+          lead={t('calendarData.schemeEditor.jsonLead')}
+          fileName={t('calendarData.schemeEditor.fileName', { name: keyOf(def.name || t('calendarData.schemeEditor.fileFallback')) })}
           exportDoc={() => exportScheme(def)}
           format={SCHEME_JSON}
           preview={(value) => {
             const warnings: string[] = [];
             const read = readScheme(value, warnings);
-            return read === null ? { error: warnings[0] ?? 'To nie jest schemat.' }
-              : { lines: [`Schemat „${read.name}”: pól ${read.fields.length}, list ${read.lists.length}.`], warnings };
+            return read === null ? { error: warnings[0] ?? t('calendarData.schemeEditor.notScheme') }
+              : { lines: [t('calendarData.schemeEditor.previewLine', { name: read.name, fields: read.fields.length, lists: read.lists.length })], warnings };
           }}
-          importLabel="Wczytaj do edytora"
+          importLabel={t('calendarData.schemeEditor.importLabel')}
           onImport={async (value) => {
             const warnings: string[] = [];
             const read = readScheme(value, warnings);
-            if (read === null) throw new WorkspaceError(warnings[0] ?? 'To nie jest schemat.');
+            if (read === null) throw new WorkspaceError(warnings[0] ?? t('calendarData.schemeEditor.notScheme'));
             setDef(read);
-            return { lines: ['Wczytano do edytora — zapisz, aby zachować.'], warnings };
+            return { lines: [t('calendarData.schemeEditor.loaded')], warnings };
           }}
         />
 
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz schemat'}</button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
-          {doc !== null && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>Usuń schemat</button>}
+          <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()}>{busy ? t('common.saving') : t('calendarData.schemeEditor.save')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
+          {doc !== null && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>{t('calendarData.schemeEditor.delete')}</button>}
         </div>
       </div>
     </Fullscreen>
@@ -200,6 +203,7 @@ export function FieldsTable({ fields, onChange, levels = false }: {
   /** Termin oder Tag wählbar (bei Feldern eines Eintrags nicht). */
   levels?: boolean;
 }) {
+  const t = useT();
   /* Ein hier neu angelegtes Feld bekommt seinen Schlüssel aus dem Namen, solange man tippt; ein gespeichertes behält seinen. */
   const fresh = useRef(new Set<string>());
   const rename = (i: number, f: SchemeField, label: string) => {
@@ -221,61 +225,62 @@ export function FieldsTable({ fields, onChange, levels = false }: {
 
   return (
     <div className="wk-sch-fields">
-      {fields.length === 0 && <p className="wk-empty">Bez pól.</p>}
+      {fields.length === 0 && <p className="wk-empty">{t('calendarData.schemeEditor.noFields')}</p>}
       {fields.map((f, i) => (
         <div key={i} className="wk-sch-field">
           <label className="wk-field">
-            <span>Nazwa</span>
+            <span>{t('calendarData.schemeEditor.name')}</span>
             <input value={f.label} maxLength={120} onChange={(e) => rename(i, f, e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Rodzaj</span>
+            <span>{t('calendarData.schemeEditor.fieldKind')}</span>
             <select value={f.type} onChange={(e) => {
               const type = e.target.value as SchemeFieldType;
               set(i, { ...f, type, ...(type === 'colour' && f.options === undefined ? { options: LITURGICAL_COLOURS } : {}) });
             }}>
-              {SCHEME_FIELD_TYPES.map((t) => <option key={t} value={t}>{SCHEME_FIELD_LABEL[t]}</option>)}
+              {SCHEME_FIELD_TYPES.map((type) => <option key={type} value={type}>{SCHEME_FIELD_LABEL[type]}</option>)}
             </select>
           </label>
           {levels && (
             <label className="wk-field">
-              <span>Dotyczy</span>
+              <span>{t('calendarData.schemeEditor.level')}</span>
               <select value={f.level ?? 'item'} onChange={(e) => set(i, { ...f, level: e.target.value === 'day' ? 'day' : undefined })}>
-                <option value="item">całego terminu</option>
-                <option value="day">jednego dnia serii</option>
+                <option value="item">{t('calendarData.schemeEditor.levelItem')}</option>
+                <option value="day">{t('calendarData.schemeEditor.levelDay')}</option>
               </select>
             </label>
           )}
           <span className="wk-sch-checks">
-            <label className="wk-check"><input type="checkbox" checked={f.public === true} onChange={(e) => set(i, { ...f, public: e.target.checked || undefined })} /><span>jawne</span></label>
-            <label className="wk-check"><input type="checkbox" checked={f.required === true} onChange={(e) => set(i, { ...f, required: e.target.checked || undefined })} /><span>wymagane</span></label>
+            <label className="wk-check"><input type="checkbox" checked={f.public === true} onChange={(e) => set(i, { ...f, public: e.target.checked || undefined })} /><span>{t('calendarData.schemeEditor.public')}</span></label>
+            <label className="wk-check"><input type="checkbox" checked={f.required === true} onChange={(e) => set(i, { ...f, required: e.target.checked || undefined })} /><span>{t('calendarData.schemeEditor.required')}</span></label>
           </span>
           {(f.type === 'choice' || f.type === 'colour') && (
             <label className="wk-field wk-sch-wide">
-              <span>Do wyboru (jedno w wierszu; „wartość: nazwa” albo sama nazwa)</span>
+              <span>{t('calendarData.schemeEditor.options')}</span>
               <textarea rows={3} value={choicesText(f.options)} onChange={(e) => set(i, { ...f, options: choicesOf(e.target.value) })} />
             </label>
           )}
           {f.type === 'number' && (
             <label className="wk-field">
-              <span>Jednostka</span>
-              <input value={f.unit ?? ''} maxLength={20} placeholder="np. osób" onChange={(e) => set(i, { ...f, unit: e.target.value || undefined })} />
+              <span>{t('calendarData.schemeEditor.unit')}</span>
+              <input value={f.unit ?? ''} maxLength={20} placeholder={t('calendarData.schemeEditor.unitPlaceholder')} onChange={(e) => set(i, { ...f, unit: e.target.value || undefined })} />
             </label>
           )}
           <span className="wk-sch-acts">
-            <span className="wk-sch-key" title="Klucz wartości — zostaje przy zmianie nazwy">{f.key}</span>
-            <button type="button" className="wk-link-btn" aria-label="Wyżej" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-            <button type="button" className="wk-link-btn" aria-label="Niżej" disabled={i === fields.length - 1} onClick={() => move(i, 1)}>↓</button>
-            <button type="button" className="wk-link-btn wk-danger" onClick={() => set(i, null)}>Usuń</button>
+            <span className="wk-sch-key" title={t('calendarData.schemeEditor.keyHint')}>{f.key}</span>
+            <button type="button" className="wk-link-btn" aria-label={t('calendarData.schemeEditor.up')} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button type="button" className="wk-link-btn" aria-label={t('calendarData.schemeEditor.down')} disabled={i === fields.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <button type="button" className="wk-link-btn wk-danger" onClick={() => set(i, null)}>{t('common.delete')}</button>
           </span>
         </div>
       ))}
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" onClick={() => {
-          const key = keyOf('Pole', fields.map((f) => f.key));
+          const label = t('calendarData.schemeEditor.newField');
+          const key = keyOf(label, fields.map((f) => f.key));
           fresh.current.add(key);
-          onChange([...fields, { key, label: 'Pole', type: 'text' }]);
-        }}>+ Pole</button>
+          onChange([...fields, { key, label, type: 'text' }]);
+        }}>{t('calendarData.schemeEditor.addField')}</button>
       </div>
     </div>
   );
@@ -290,29 +295,30 @@ function ListCard({ list, onChange, onRemove, onRule, ruleOpen }: {
   onRule: () => void;
   ruleOpen: boolean;
 }) {
+  const t = useT();
   return (
     <div className="wk-sch-list">
       <div className="wk-sch-head">
         <label className="wk-field">
-          <span>Nazwa listy</span>
+          <span>{t('calendarData.schemeEditor.listName')}</span>
           <input value={list.label} maxLength={120} onChange={(e) => onChange({ ...list, label: e.target.value })} />
         </label>
         <label className="wk-field">
-          <span>Jeden wpis to</span>
-          <input value={list.itemLabel ?? ''} maxLength={60} placeholder="np. intencja" onChange={(e) => onChange({ ...list, itemLabel: e.target.value || undefined })} />
+          <span>{t('calendarData.schemeEditor.itemLabel')}</span>
+          <input value={list.itemLabel ?? ''} maxLength={60} placeholder={t('calendarData.schemeEditor.itemPlaceholder')} onChange={(e) => onChange({ ...list, itemLabel: e.target.value || undefined })} />
         </label>
         <label className="wk-field">
-          <span>Jawny tekst wpisu</span>
-          <input value={list.textLabel ?? ''} maxLength={120} placeholder="np. Treść intencji (puste: bez tekstu)"
+          <span>{t('calendarData.schemeEditor.textLabel')}</span>
+          <input value={list.textLabel ?? ''} maxLength={120} placeholder={t('calendarData.schemeEditor.textPlaceholder')}
             onChange={(e) => onChange({ ...list, textLabel: e.target.value || undefined })} />
         </label>
         <label className="wk-field">
-          <span>Przypięta osoba</span>
-          <input value={list.person ?? ''} maxLength={120} placeholder="np. Kto odprawia (puste: bez osoby)"
+          <span>{t('calendarData.schemeEditor.person')}</span>
+          <input value={list.person ?? ''} maxLength={120} placeholder={t('calendarData.schemeEditor.personPlaceholder')}
             onChange={(e) => onChange({ ...list, person: e.target.value || undefined })} />
         </label>
         <label className="wk-field">
-          <span>Rodzaje wpisu (jeden w wierszu)</span>
+          <span>{t('calendarData.schemeEditor.modes')}</span>
           <textarea rows={2} value={choicesText(list.modes)} onChange={(e) => {
             const modes = choicesOf(e.target.value);
             onChange({ ...list, modes: modes.length === 0 ? undefined : modes });
@@ -320,17 +326,17 @@ function ListCard({ list, onChange, onRemove, onRule, ruleOpen }: {
         </label>
         <label className="wk-check">
           <input type="checkbox" checked={list.outside === true} onChange={(e) => onChange({ ...list, outside: e.target.checked || undefined })} />
-          <span>Wpisują też osoby spoza prowadzących (wpis czeka na kancelarię)</span>
+          <span>{t('calendarData.schemeEditor.outside')}</span>
         </label>
       </div>
-      <h4 className="wk-sch-sub">Pola wpisu</h4>
+      <h4 className="wk-sch-sub">{t('calendarData.schemeEditor.entryFields')}</h4>
       <FieldsTable fields={list.fields} onChange={(fields) => onChange({ ...list, fields })} />
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" aria-expanded={ruleOpen} onClick={onRule}>
-          {ruleOpen ? 'Zamknij regułę' : list.rule ? `Reguła (${list.rule.nodes.length} węzłów)` : 'Dodaj regułę'}
+          {ruleOpen ? t('calendarData.schemeEditor.closeRule') : list.rule ? t('calendarData.schemeEditor.ruleNodes', { count: list.rule.nodes.length }) : t('calendarData.schemeEditor.addRule')}
         </button>
         <span className="wk-sch-key">{list.key}</span>
-        <button type="button" className="wk-link-btn wk-danger" onClick={onRemove}>Usuń listę</button>
+        <button type="button" className="wk-link-btn wk-danger" onClick={onRemove}>{t('calendarData.schemeEditor.deleteList')}</button>
       </div>
     </div>
   );
@@ -339,6 +345,7 @@ function ListCard({ list, onChange, onRemove, onRule, ruleOpen }: {
 /* -- Eine Probe der Regel ---------------------------------------------------------------------- */
 
 function RuleProbe({ list }: { list: RecordList }) {
+  const t = useT();
   const modes = list.modes ?? [];
   const [actor, setActor] = useState<'office' | 'outside'>('office');
   const [mode, setMode] = useState(modes[0]?.value ?? '');
@@ -354,19 +361,19 @@ function RuleProbe({ list }: { list: RecordList }) {
   const result = runRule(list.rule ?? EMPTY_FLOW, ctx);
 
   return (
-    <div className="wk-sch-probe" aria-label="Próba reguły">
-      <h4 className="wk-sch-sub">Próba</h4>
+    <div className="wk-sch-probe" aria-label={t('calendarData.schemeEditor.probeAria')}>
+      <h4 className="wk-sch-sub">{t('calendarData.schemeEditor.probe')}</h4>
       <div className="wk-sch-head">
         <label className="wk-field">
-          <span>Kto dodaje</span>
+          <span>{t('calendarData.schemeEditor.actor')}</span>
           <select value={actor} onChange={(e) => setActor(e.target.value as 'office' | 'outside')}>
-            <option value="office">kancelaria</option>
-            <option value="outside">ktoś z zewnątrz</option>
+            <option value="office">{t('calendarData.schemeEditor.actorOffice')}</option>
+            <option value="outside">{t('calendarData.schemeEditor.actorOutside')}</option>
           </select>
         </label>
         {modes.length > 0 && (
           <label className="wk-field">
-            <span>Nowy wpis</span>
+            <span>{t('calendarData.schemeEditor.newEntry')}</span>
             <select value={mode} onChange={(e) => setMode(e.target.value)}>
               {modes.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
@@ -374,17 +381,17 @@ function RuleProbe({ list }: { list: RecordList }) {
         )}
         {modes.map((m) => (
           <label key={m.value} className="wk-field">
-            <span>Już przy terminie: {m.label}</span>
+            <span>{t('calendarData.schemeEditor.already', { mode: m.label })}</span>
             <input type="number" min={0} max={20} value={here[m.value] ?? 0} onChange={(e) => setHere((was) => ({ ...was, [m.value]: Math.max(0, Number(e.target.value) || 0) }))} />
           </label>
         ))}
         <label className="wk-field">
-          <span>Inne terminy tygodnia z tym rodzajem</span>
+          <span>{t('calendarData.schemeEditor.weekOthers')}</span>
           <input type="number" min={0} max={20} value={weekOthers} onChange={(e) => setWeekOthers(Math.max(0, Number(e.target.value) || 0))} />
         </label>
       </div>
       <p className={`wk-sch-verdict is-${result.verdict}`}>
-        {result.verdict === 'allow' ? 'Przyjęty' : result.verdict === 'wait' ? 'Czeka na kancelarię' : 'Odmowa'}
+        {result.verdict === 'allow' ? t('calendarData.schemeEditor.allow') : result.verdict === 'wait' ? t('calendarData.schemeEditor.wait') : t('calendarData.schemeEditor.refuse')}
         {result.message ? ` — ${result.message}` : ''}
       </p>
       {result.trace.length > 0 && <p className="wk-sch-trace">{result.trace.join(' → ')}</p>}

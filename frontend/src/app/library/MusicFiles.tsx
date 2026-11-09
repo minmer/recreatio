@@ -14,6 +14,7 @@ import { useEffect, useId, useState } from 'react';
 import { removeFile } from '../cogita/files';
 import type { MediaRef } from '../cogita/schema';
 import { WorkspaceError } from '../core/session';
+import { useT } from '../core/i18n';
 import { ask } from '../ui/dialogs';
 import { itemsOf, TRACK_ROLES, type EntryData } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
@@ -62,6 +63,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
   readOnly: boolean;
   which: Which;
 }) {
+  const t = useT();
   const items = itemsOf(data, which);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
   };
   /** Die Liste sofort gespeichert — sonst kein Verweis auf eine Datei, die schon oben liegt. */
   const keep = async (next: readonly Record<string, unknown>[]) => {
-    if ((await commit({ [which]: next })) === null) throw new WorkspaceError('Nie udało się zapisać wpisu.');
+    if ((await commit({ [which]: next })) === null) throw new WorkspaceError(t('libraryData.music.saveFailed'));
   };
 
   /* Mehrere Dateien auf einmal: jede versiegelt hinauf und gleich gespeichert (bricht etwas ab, bleibt das schon Hochgeladene). */
@@ -91,7 +93,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
     const taken = new Set(next.map((item) => String(item.id ?? '')));
     try {
       for (const [i, file] of files.entries()) {
-        setBusy(`Szyfrowanie i wysyłanie ${i + 1} z ${files.length}: ${file.name}…`);
+        setBusy(t('libraryData.music.uploadingN', { n: i + 1, total: files.length, name: file.name }));
         const ref = await store.upload(file);
         const id = itemId(taken);
         taken.add(id);
@@ -99,7 +101,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
         if (tracks) {
           const voice = guessVoice(file.name);
           /* Eine einzige Spur, deren Name keine Stimme verrät, ist das ganze Nagranie. */
-          item = items.length === 0 && files.length === 1 && !voice.known ? { id, label: 'Całość', role: 'whole', file: ref } : { id, label: voice.label, role: voice.role, file: ref };
+          item = items.length === 0 && files.length === 1 && !voice.known ? { id, label: 'Całość', role: 'whole', file: ref } : { id, label: voice.label, role: voice.role, file: ref }; // i18n-ignore — dieselbe Bezeichnung wie VOICES (music.ts), Inhalt des Eintrags
         } else {
           item = { id, label: scoreLabel(file.name), file: ref };
         }
@@ -112,7 +114,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
         }
       }
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać pliku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.music.uploadFailed'));
     } finally {
       setBusy(null);
     }
@@ -123,7 +125,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
     setFailed(null);
     const before = mediaOf(items[index]?.file);
     try {
-      setBusy(`Szyfrowanie i wysyłanie: ${file.name}…`);
+      setBusy(t('libraryData.music.uploading', { name: file.name }));
       const ref = await store.upload(file);
       try {
         await keep(items.map((item, i) => (i === index ? { ...item, file: ref } : item)));
@@ -133,7 +135,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
       }
       if (before !== null && own(before)) await removeFile(store.libraryId, before.file).catch(() => undefined);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać pliku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.music.uploadFailed'));
     } finally {
       setBusy(null);
     }
@@ -143,21 +145,21 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
   const drop = async (index: number) => {
     const item = items[index];
     if (item === undefined) return;
-    const label = String(item.label ?? '').trim() || (tracks ? 'ścieżkę' : 'plik');
+    const label = String(item.label ?? '').trim() || (tracks ? t('libraryData.music.theTrack') : t('libraryData.music.theFile'));
     if (!(await ask({
-      title: `Usunąć „${label}”?`,
-      body: tracks ? 'Ścieżka zniknie z nagrania razem ze swoim plikiem. Tego nie da się cofnąć.' : 'Plik zniknie z tych nut. Tego nie da się cofnąć.',
-      confirm: 'Usuń',
+      title: t('libraryData.music.removeAsk', { label }),
+      body: tracks ? t('libraryData.music.removeTrackBody') : t('libraryData.music.removeFileBody'),
+      confirm: t('common.delete'),
       danger: true
     }))) return;
     const ref = mediaOf(item.file);
     setFailed(null);
-    setBusy('Usuwanie…');
+    setBusy(t('libraryData.music.removing'));
     try {
       await keep(items.filter((_, i) => i !== index));
       if (ref !== null && own(ref)) await removeFile(store.libraryId, ref.file).catch(() => undefined);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.music.removeFailed'));
     } finally {
       setBusy(null);
     }
@@ -165,14 +167,12 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
 
   return (
     <section className="lib-music" data-music-files={which}>
-      <h2 className="lib-box-h">{tracks ? 'Ścieżki nagrania' : 'Pliki nut'}{items.length > 0 && <span className="lib-count"> {items.length}</span>}</h2>
+      <h2 className="lib-box-h">{tracks ? t('libraryData.music.tracksTitle') : t('libraryData.music.filesTitle')}{items.length > 0 && <span className="lib-count"> {items.length}</span>}</h2>
       <p className="wk-hint">
-        {tracks
-          ? '„Głos albo instrument” — ścieżki, które brzmią razem (każda osobno: sopran, alt, organy…); „Całe nagranie” — gotowa całość, słuchana sama. Można dodać kilka plików naraz: nazwa pliku podpowie, czyj to głos.'
-          : 'Partytura, osobne głosy, zapis nutowy (PDF, obraz, MusicXML, MIDI).'}
-        {' '}Pliki są szyfrowane w przeglądarce, do 50 MB każdy.
+        {tracks ? t('libraryData.music.tracksHint') : t('libraryData.music.filesHint')}
+        {' '}{t('libraryData.music.encrypted')}
       </p>
-      {items.length === 0 && <p className="wk-empty">{tracks ? 'Nie ma jeszcze żadnej ścieżki.' : 'Nie ma jeszcze żadnego pliku.'}</p>}
+      {items.length === 0 && <p className="wk-empty">{tracks ? t('libraryData.music.noTracks') : t('libraryData.music.noFiles')}</p>}
       {items.length > 0 && (
         <ol className="lib-music-list">
           {items.map((item, index) => {
@@ -185,28 +185,28 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
                 <div className="lib-music-line">
                   {readOnly
                     ? <span className="lib-music-label">{label || '—'}</span>
-                    : <input className="lib-music-label" value={label} list={`${listId}-names`} disabled={locked} aria-label={tracks ? 'Głos albo instrument' : 'Co to jest'}
-                      placeholder={tracks ? 'np. Sopran' : 'np. Partytura'} onChange={(e) => change(index, { label: e.target.value })} />}
+                    : <input className="lib-music-label" value={label} list={`${listId}-names`} disabled={locked} aria-label={tracks ? t('libraryData.music.voiceLabel') : t('libraryData.music.whatLabel')}
+                      placeholder={tracks ? t('libraryData.music.voicePlaceholder') : t('libraryData.music.whatPlaceholder')} onChange={(e) => change(index, { label: e.target.value })} />}
                   {tracks && (readOnly
                     ? <span className="lib-badge">{TRACK_ROLES.find((r) => r.value === role)?.label}</span>
-                    : <select value={role} disabled={locked} aria-label="Rola ścieżki" onChange={(e) => change(index, { role: e.target.value })}>
+                    : <select value={role} disabled={locked} aria-label={t('libraryData.music.role')} onChange={(e) => change(index, { role: e.target.value })}>
                       {TRACK_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>)}
-                  <span className="lib-music-name">{ref === null ? 'bez pliku' : ref.name ?? 'plik'}</span>
+                  <span className="lib-music-name">{ref === null ? t('libraryData.music.noFile') : ref.name ?? t('libraryData.music.file')}</span>
                   {ref !== null && (
                     <button type="button" className="wk-link-btn" aria-expanded={shown === id} onClick={() => setShown(shown === id ? null : id)}>
-                      {shown === id ? 'Zwiń' : shownAs(ref) === 'audio' ? '▶ Odsłuchaj' : shownAs(ref) === 'download' ? 'Pobierz' : 'Pokaż'}
+                      {shown === id ? t('libraryData.music.collapse') : shownAs(ref) === 'audio' ? t('libraryData.music.listen') : shownAs(ref) === 'download' ? t('common.download') : t('libraryData.music.show')}
                     </button>
                   )}
                   {!readOnly && (
                     <span className="lib-music-tools">
-                      <button type="button" className="wk-link-btn" disabled={locked || index === 0} aria-label="Wyżej" onClick={() => move(index, -1)}>↑</button>
-                      <button type="button" className="wk-link-btn" disabled={locked || index === items.length - 1} aria-label="Niżej" onClick={() => move(index, 1)}>↓</button>
+                      <button type="button" className="wk-link-btn" disabled={locked || index === 0} aria-label={t('libraryData.music.up')} onClick={() => move(index, -1)}>↑</button>
+                      <button type="button" className="wk-link-btn" disabled={locked || index === items.length - 1} aria-label={t('libraryData.music.down')} onClick={() => move(index, 1)}>↓</button>
                       <label className="wk-link-btn lib-music-pick">
-                        {ref === null ? 'Dodaj plik' : 'Zamień plik'}
+                        {ref === null ? t('libraryData.music.addFile') : t('libraryData.music.replaceFile')}
                         <input type="file" accept={tracks ? AUDIO : SCORE} disabled={locked} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file !== undefined) void replace(index, file); }} />
                       </label>
-                      <button type="button" className="wk-link-btn wk-danger-link" disabled={locked} onClick={() => void drop(index)}>Usuń</button>
+                      <button type="button" className="wk-link-btn wk-danger-link" disabled={locked} onClick={() => void drop(index)}>{t('common.delete')}</button>
                     </span>
                   )}
                 </div>
@@ -220,7 +220,7 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
       {!readOnly && (
         <div className="wk-actions">
           <label className="wk-btn lib-music-pick">
-            {tracks ? '+ Dodaj ścieżki' : '+ Dodaj pliki'}
+            {tracks ? t('libraryData.music.addTracks') : t('libraryData.music.addFiles')}
             <input type="file" multiple accept={tracks ? AUDIO : SCORE} disabled={locked}
               onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length > 0) void add(files); }} />
           </label>
@@ -234,25 +234,26 @@ export function MusicFiles({ store, data, set, commit, readOnly, which }: {
 
 /** Eine Datei, geöffnet, wenn jemand sie will: hören, sehen, lesen, laden. */
 function FileView({ store, media }: { store: LibraryStore; media: MediaRef }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     store.openFile(media).then((found) => { if (alive) setUrl(found); }, () => { if (alive) setUrl(null); });
     return () => { alive = false; };
   }, [store, media.file]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (url === undefined) return <p className="lib-music-status lib-music-view" role="status">Otwieranie pliku…</p>;
-  if (url === null) return <p className="wk-error lib-music-view">Tego pliku nie da się otworzyć.</p>;
-  const name = media.name ?? 'plik';
+  if (url === undefined) return <p className="lib-music-status lib-music-view" role="status">{t('libraryData.music.opening')}</p>;
+  if (url === null) return <p className="wk-error lib-music-view">{t('libraryData.music.cannotOpen')}</p>;
+  const name = media.name ?? t('libraryData.music.file');
   switch (shownAs(media)) {
     case 'audio': return <audio className="lib-music-view" src={url} controls autoPlay preload="auto" />;
     case 'image': return <img className="lib-music-view lib-music-image" src={url} alt={name} />;
     case 'pdf':
       return (
         <div className="lib-music-view">
-          <object className="lib-music-pdf" data={url} type="application/pdf" aria-label={name}><a href={url} download={name}>Pobierz: {name}</a></object>
-          <p className="wk-actions"><a className="wk-link-btn" href={url} target="_blank" rel="noopener noreferrer">Otwórz w nowej karcie</a><a className="wk-link-btn" href={url} download={name}>Pobierz</a></p>
+          <object className="lib-music-pdf" data={url} type="application/pdf" aria-label={name}><a href={url} download={name}>{t('libraryData.music.downloadName', { name })}</a></object>
+          <p className="wk-actions"><a className="wk-link-btn" href={url} target="_blank" rel="noopener noreferrer">{t('libraryData.music.newTab')}</a><a className="wk-link-btn" href={url} download={name}>{t('common.download')}</a></p>
         </div>
       );
-    default: return <p className="lib-music-view"><a className="wk-link-btn" href={url} download={name}>Pobierz: {name}</a></p>;
+    default: return <p className="lib-music-view"><a className="wk-link-btn" href={url} download={name}>{t('libraryData.music.downloadName', { name })}</a></p>;
   }
 }

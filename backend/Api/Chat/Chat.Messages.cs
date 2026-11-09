@@ -345,8 +345,9 @@ public static partial class Chat
         string? topicText = null, Guid? authorPerson = null, Guid? waitOnlineFrom = null, bool silent = false)
     {
         /*
-         * Shared area chats and channels require a controller. Private conversations, including
-         * those started by a person with a candidate link, may send without a separate controller.
+         * 0129 — DIE ROZMOWA ALLER EINES BEREICHS und sein Kanał sammeln Daten über Menschen: ohne
+         * jemanden, der für den Bereich geradesteht, nehmen sie nichts an. Private Gespräche — auch
+         * „Napisz do nas" mit einem Menschen vom Link (seit 2026-11-08) — brauchen keinen eigenen.
          */
         if (ChatRules.RequiresController(chat.Kind) && await Controllers.OfAreaAsync(connection, chat.AreaId, ctx.RequestAborted) is null)
         {

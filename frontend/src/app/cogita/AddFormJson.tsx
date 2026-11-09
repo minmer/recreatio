@@ -13,6 +13,7 @@ import { Modal } from '../ui/Modal';
 import { WorkspaceError } from '../core/session';
 import { applyImport, exportForms, formDescription, planFormImport } from './json';
 import { useCtx } from './ui';
+import { useT } from '../core/i18n';
 
 export function FormJsonPanel({ forms, name, note, onImported, open = false }: {
   /** Was der Export enthält — ein Formular (auch ungespeichert) oder alle. */
@@ -23,17 +24,18 @@ export function FormJsonPanel({ forms, name, note, onImported, open = false }: {
   onImported?: (id: string) => void;
   open?: boolean;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const describe = useCallback(() => formDescription(lib), [lib]);
   return (
     <JsonPanel
-      summary={forms().length === 1 ? 'Formularz jako JSON' : 'Formularze dodawania jako JSON'}
-      lead={<>Formularz razem z rodzajami, których potrzebuje (i szablonami kart, jeśli dokument je ma) — do innej bazy wiedzy albo do poprawienia w tekście. Ten sam „ref” zmienia istniejący formularz, nowy — tworzy formularz. Niczego się nie usuwa.</>}
-      fileName={`formularz-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'cogita'}.json`}
+      summary={forms().length === 1 ? t('cogitaData.json.formSummary') : t('cogitaData.json.formsSummary')}
+      lead={t('cogitaData.json.formLead')}
+      fileName={t('cogitaData.json.formFile', { name: name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'cogita' })}
       exportDoc={() => exportForms(lib, forms(), name)}
       description={describe}
       preview={(doc) => { const p = planFormImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
-      importLabel="Importuj formularz"
+      importLabel={t('cogitaData.json.importForm')}
       {...(note === undefined ? {} : { note })}
       open={open}
       onImport={async (doc, stage) => {
@@ -50,11 +52,12 @@ export function FormJsonPanel({ forms, name, note, onImported, open = false }: {
 
 /** „+ Formularz → Z JSON…": ein Dialog mit demselben Fach — für ein Formular, das es hier noch nicht gibt. */
 export function FormJsonDialog({ onClose, onImported }: { onClose: () => void; onImported: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const [shown] = useState(() => lib.docs('addform').filter((e) => lib.isOwn(e.id)).map((e) => ({ id: e.id, data: e.data })));
   return (
-    <Modal title="Formularz dodawania z JSON" onClose={onClose} wide>
-      <FormJsonPanel open forms={() => shown} name="Formularze dodawania" onImported={(id) => { onImported(id); onClose(); }} />
+    <Modal title={t('cogitaData.json.formDialog')} onClose={onClose} wide>
+      <FormJsonPanel open forms={() => shown} name={t('cogitaData.json.formsName')} onImported={(id) => { onImported(id); onClose(); }} />
     </Modal>
   );
 }

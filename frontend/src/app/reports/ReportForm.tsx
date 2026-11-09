@@ -12,6 +12,8 @@ import { WorkspaceError } from '../core/session';
 import { operatorLine } from '../operator';
 import { reportStatusPath, type ReportKind } from './reportPath';
 import { KIND_WORDS, REASONS, sendReport, type ReportReason, type Sent } from './reports';
+import { t as tApp, useT } from '../core/i18n';
+
 
 /** Was gemeldet wird — und, wo es geht, was der Meldende davon sieht. */
 export interface ReportWhat {
@@ -28,7 +30,9 @@ export interface ReportWhat {
 export function whatText(what: Pick<ReportWhat, 'itemKind' | 'title' | 'path'>): string {
   const title = (what.title ?? '').trim();
   const path = (what.path ?? '').trim();
-  return `${KIND_WORDS[what.itemKind]}${title === '' ? '' : ` „${title}”`}${path === '' ? '' : ` (recreatio.pl/${path})`}`;
+  const kind = KIND_WORDS[what.itemKind];
+  const named = title === '' ? kind : tApp('reports.what.titled', { kind, title });
+  return path === '' ? named : tApp('reports.what.at', { what: named, path });
 }
 
 const say = (e: unknown, fallback: string) => (e instanceof WorkspaceError || (e instanceof Error && e.message !== '') ? e.message : fallback);
@@ -46,6 +50,7 @@ export function ReportForm({ what, onDone }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
+  const t = useT();
 
   if (sent !== null) return <Receipt sent={sent} onDone={onDone} />;
 
@@ -61,7 +66,7 @@ export function ReportForm({ what, onDone }: {
         reason, text, contact, quote
       }));
     } catch (e) {
-      setFailed(say(e, 'Nie udało się wysłać zgłoszenia.'));
+      setFailed(say(e, t('reports.form.sendFailed')));
     } finally {
       setBusy(false);
     }
@@ -69,10 +74,10 @@ export function ReportForm({ what, onDone }: {
 
   return (
     <form className="wk-form wk-report-form" data-report-form={what.itemKind} onSubmit={(e) => { e.preventDefault(); if (ready) void go(); }}>
-      <p className="wk-report-what">Zgłaszasz: <strong>{whatText(what)}</strong></p>
+      <p className="wk-report-what">{t('reports.form.reporting')} <strong>{whatText(what)}</strong></p>
 
       <fieldset className="ui-choices" disabled={busy}>
-        <legend className="wk-report-legend">Czego dotyczy zgłoszenie?</legend>
+        <legend className="wk-report-legend">{t('reports.form.reasonLegend')}</legend>
         {REASONS.map((one) => (
           <label key={one.value} className="ui-choice" data-reason={one.value}>
             <input type="radio" name="report-reason" checked={reason === one.value} onChange={() => setReason(one.value)} />
@@ -83,48 +88,45 @@ export function ReportForm({ what, onDone }: {
       </fieldset>
 
       <label className="wk-field">
-        <span>Co jest nie tak?</span>
+        <span>{t('reports.form.textLabel')}</span>
         <textarea rows={4} maxLength={5000} value={text} disabled={busy} data-report-text=""
-          placeholder="Krótko: czego dotyczy i dlaczego ta treść nie powinna tu być."
+          placeholder={t('reports.form.textPlaceholder')}
           onChange={(e) => setText(e.target.value)} />
       </label>
 
       {offered !== '' && (
         <div className="wk-field wk-report-quote">
-          <span>To, co widzisz</span>
+          <span>{t('reports.form.quoteLabel')}</span>
           {quote !== '' ? (
             <>
               <textarea rows={3} maxLength={10000} value={quote} disabled={busy} data-report-quote="" onChange={(e) => setQuote(e.target.value)} />
               <p className="wk-report-small">
-                Operator nie ma klucza do tej treści — dostanie tylko to, co tu zostawisz.{' '}
-                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setQuote('')}>Nie dołączaj</button>
+                {t('reports.form.quoteHint')}{' '}
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setQuote('')}>{t('reports.form.dontAttach')}</button>
               </p>
             </>
           ) : (
             <p className="wk-report-small">
-              Treść nie zostanie dołączona.{' '}
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setQuote(offered)}>Dołącz jednak</button>
+              {t('reports.form.notAttached')}{' '}
+              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setQuote(offered)}>{t('reports.form.attach')}</button>
             </p>
           )}
         </div>
       )}
 
       <label className="wk-field">
-        <span>Jak możemy się z Tobą skontaktować (nieobowiązkowo)</span>
+        <span>{t('reports.form.contactLabel')}</span>
         <input type="text" maxLength={300} value={contact} disabled={busy} autoComplete="email" data-report-contact=""
-          placeholder="e-mail albo telefon" onChange={(e) => setContact(e.target.value)} />
+          placeholder={t('reports.form.contactPlaceholder')} onChange={(e) => setContact(e.target.value)} />
       </label>
 
-      <p className="wk-report-small">
-        Zgłoszenie trafi zaszyfrowane do operatora serwisu: {operatorLine()}. Nie zapisujemy, kto zgłasza — operator dowie się
-        o Tobie tylko tego, co sam tu wpiszesz.
-      </p>
+      <p className="wk-report-small">{t('reports.form.privacy', { operator: operatorLine() })}</p>
 
       {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={!ready} data-report-send="">{busy ? 'Szyfrowanie i wysyłanie…' : 'Wyślij zgłoszenie'}</button>
-        {onDone !== undefined && <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onDone}>Anuluj</button>}
+        <button type="submit" className="wk-btn" disabled={!ready} data-report-send="">{busy ? t('reports.form.sending') : t('reports.form.send')}</button>
+        {onDone !== undefined && <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onDone}>{t('common.cancel')}</button>}
       </div>
     </form>
   );
@@ -134,6 +136,7 @@ export function ReportForm({ what, onDone }: {
 export function Receipt({ sent, onDone }: { sent: Sent; onDone?: () => void }) {
   const code = useRef<HTMLElement | null>(null);
   const [copied, setCopied] = useState<'yes' | 'select' | null>(null);
+  const t = useT();
 
   const copy = async () => {
     try {
@@ -155,17 +158,17 @@ export function Receipt({ sent, onDone }: { sent: Sent; onDone?: () => void }) {
 
   return (
     <div className="wk-report-sent" data-report-sent="">
-      <p className="wk-done" role="status">Zgłoszenie wysłane.</p>
-      <p>Zachowaj ten kod — tylko z nim sprawdzisz, co stało się ze zgłoszeniem:</p>
+      <p className="wk-done" role="status">{t('reports.receipt.sent')}</p>
+      <p>{t('reports.receipt.keep')}</p>
       <div className="wk-report-receipt">
         <code ref={code} data-report-receipt="">{sent.receipt}</code>
-        <button type="button" className="wk-btn wk-btn-small wk-btn-line" onClick={() => void copy()}>Kopiuj</button>
+        <button type="button" className="wk-btn wk-btn-small wk-btn-line" onClick={() => void copy()}>{t('common.copy')}</button>
       </div>
-      {copied === 'yes' && <p className="wk-done">Skopiowano.</p>}
-      {copied === 'select' && <p className="wk-report-small">Kod jest zaznaczony — skopiuj go (Ctrl+C).</p>}
+      {copied === 'yes' && <p className="wk-done">{t('reports.receipt.copied')}</p>}
+      {copied === 'select' && <p className="wk-report-small">{t('reports.receipt.selected')}</p>}
       <div className="wk-actions">
-        <a className="wk-link" href={reportStatusPath()}>Sprawdź stan zgłoszenia</a>
-        {onDone !== undefined && <button type="button" className="wk-btn wk-btn-quiet" onClick={onDone}>Zamknij</button>}
+        <a className="wk-link" href={reportStatusPath()}>{t('reports.receipt.status')}</a>
+        {onDone !== undefined && <button type="button" className="wk-btn wk-btn-quiet" onClick={onDone}>{t('common.close')}</button>}
       </div>
     </div>
   );

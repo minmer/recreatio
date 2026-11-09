@@ -1,5 +1,43 @@
 {
-  "service": { "mass": "Mass", "confession": "Confession", "devotion": "Devotion" },
+  "service": {
+    "mass": "Mass",
+    "confession": "Confession",
+    "devotion": "Devotion",
+    "loadingRole": "Loading role…",
+    "noPerson": "This account does not hold any person yet — create one under Roles.",
+    "needDate": "Enter the day and time.",
+    "needUntil": "A series needs an end — enter the last day.",
+    "added": "Created: {what} {date} {time}.",
+    "addedSeries": "Created: {what} {date} {time}, {repeat} until {until}.",
+    "addFailed": "Could not create it.",
+    "title": "Create an entry",
+    "what": "What",
+    "devotionOption": "Devotion (rosary, Way of the Cross…)",
+    "appointmentOption": "Appointment (with sign-up)",
+    "appointmentHint": "An appointment alone does not take anyone yet — open it for sign-up below, under “Dates”, with the number of places.",
+    "time": "Time",
+    "minutes": "Duration (min)",
+    "confessionHint": "On the notice board: “Confession until …” — the end follows from the duration.",
+    "name": "Name (shown on the notice board)",
+    "placeholderDevotion": "e.g. Rosary",
+    "placeholderConfession": "empty: “Confession”",
+    "placeholderMass": "e.g. Novena Mass",
+    "repeat": "Repeat",
+    "until": "Until",
+    "localHint": "The time is local — 18:00 is six in the evening in church, also after the clock change. Without chosen weekdays, the day of the first date applies. You can change everything later in “Plan and changes” or in the calendar.",
+    "areaHint": "The entry goes to the area <b>{area}</b>. It shows on the notice board only once this area's epoch is published — openness is a key, not a switch.",
+    "adding": "Creating…",
+    "add": "Create"
+  },
+  "newCalendar": {
+    "title": "Schedule of another group",
+    "noArea": "A schedule belongs to a group (area) — and you write in none. Create one in the “Areas” tab, then come back here.",
+    "defaultTitle": "Dates",
+    "opening": "Opening the schedule…",
+    "area": "Group (area)",
+    "hint": "The group decides who sees this plan. If it should be on the notice board, choose one that is public — or open it later. Each group has exactly one schedule, created by itself; times are counted in Polish time.",
+    "open": "Open schedule"
+  },
   "devotionNames": {
     "rosary": "Rosary",
     "wayOfCross": "Way of the Cross",
@@ -14,9 +52,317 @@
     "jasnaGora": "Jasna Góra Appeal",
     "vespers": "Vespers"
   },
-  "intentions": { "one": "{count} intention", "other": "{count} intentions" },
-  "kind": { "single": "single", "collective": "collective" },
-  "status": { "accepted": "accepted", "celebrated": "celebrated", "cancelled": "withdrawn" },
-  "weekdayBit": { "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun" },
-  "day": { "today": "today", "tomorrow": "tomorrow", "todayFull": "today, {date}", "tomorrowFull": "tomorrow, {date}" }
+  "intentions": {
+    "one": "{count} intention",
+    "other": "{count} intentions"
+  },
+  "kind": {
+    "single": "single",
+    "collective": "collective"
+  },
+  "status": {
+    "accepted": "accepted",
+    "celebrated": "celebrated",
+    "cancelled": "withdrawn"
+  },
+  "weekdayBit": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+  "day": {
+    "today": "today",
+    "tomorrow": "tomorrow",
+    "todayFull": "today, {date}",
+    "tomorrowFull": "tomorrow, {date}",
+    "earlier": "Earlier: {times}",
+    "none": "No Masses.",
+    "short": "{weekday} {day}/{month}",
+    "weekdayShort": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
+  },
+  "card": {
+    "loadFailed": "The plan could not be loaded."
+  },
+  "jsonPanel": {
+    "loadFailed": "Could not read the Masses of this period.",
+    "noKeys": "Without keys in this tab, nothing can be imported — sign in again.",
+    "checking": "Checking the Masses of this period…",
+    "nothing": "Nothing to change — everything in the document is already in the calendar.",
+    "bothDays": "Enter both days of the period.",
+    "endBeforeStart": "The end of the period is before its start.",
+    "maxDays": "At most {max} days at once.",
+    "pickCalendar": "Choose a calendar at the top.",
+    "exportNoKeys": "Without keys in this tab, the export has no donors, offerings, places or names of people.",
+    "unreadable": {
+      "one": "{count} field (donor, offering) cannot be read here — it is not in the export.",
+      "other": "{count} fields (donor, offering) cannot be read here — they are not in the export."
+    },
+    "copied": "Copied — paste it into your chat with the AI together with photos of the book; paste the answer below under “Import”.",
+    "clipboardFailed": "The clipboard did not take the text — select it below and copy it.",
+    "promptFailed": "Could not prepare the prompt.",
+    "range": "Export period",
+    "preparing": "Preparing…",
+    "copyPrompt": "Copy AI prompt (book of intentions)",
+    "promptLabel": "AI prompt",
+    "summary": "Masses and intentions as JSON",
+    "lead": "Masses, devotions and confession of the calendar “{calendar}” with intentions — day by day, in the period chosen above. An entry with “id” is changed in place, without “id” it is added; first you see which Mass on which day gets which intention. Nothing is deleted.",
+    "importLabel": "Import into the calendar",
+    "conflicts": "Masses that already have another intention in the calendar ({count})",
+    "skip": "Skip — the new intentions do not go to them (the warnings above say which)",
+    "addBeside": "Add next to the existing ones — two single intentions in one Mass mean two priests"
+  },
+  "terms": {
+    "loadFailed": "Could not load the dates.",
+    "removeAsk": "Remove the date {when}?",
+    "removeAskPeople": "Remove the date {when}? The people signed up ({names}) will be removed from it.",
+    "removed": "Removed the date {when}.",
+    "removedPeople": "Removed the date {when} — signed out: {names}.",
+    "removeFailed": "Could not remove the date.",
+    "adding": "Adding…",
+    "somebody": "a person",
+    "added": "Added: {name} — {when}.",
+    "addedOver": "Added: {name} — {when} (over the limit: {taken} of {capacity}).",
+    "unseatAsk": "Remove from the date: {name}?",
+    "unseatAskHost": "Remove from the date: {name}? This is the host — free places will open to everyone.",
+    "unseating": "Removing…",
+    "unseated": "Removed: {name}.",
+    "closing": "Closing…",
+    "opening": "Opening…",
+    "closedDone": "Closed the date {when} — nobody else can sign up.",
+    "openedDone": "The date {when} takes sign-ups again.",
+    "title": "Dates",
+    "noResource": "This calendar belongs to no resource — nobody can pick its dates. Create a resource in <link>Bookings</link>.",
+    "empty": "There is no date in this window. Create one above as “Appointment”.",
+    "taken": "{taken} of {capacity}",
+    "overLimit": "over the limit",
+    "closedByOffice": "closed by the office",
+    "closedByHost": "closed by the host",
+    "firstDecides": "first, decides",
+    "host": "host",
+    "addedTag": "added",
+    "addedNoLink": "added, no link",
+    "asksHost": "asks the host",
+    "waits": "waiting",
+    "unseatNamed": "Remove: {name}",
+    "unseat": "Remove from the date",
+    "hostPending": "{name} picked this date first and decides until {until} whether to invite friends. Without an answer, the date opens to everyone.",
+    "hostInviting": "The host ({name}) picks people until {until} — after that, if there are fewer than {min}, free places open to everyone. Only the host knows the code.",
+    "hostDoneFull": "The host's time ended {until} — the group is complete, the date stays theirs.",
+    "hostDoneOpen": "The host's time ended {until} — free places are open to everyone.",
+    "addPerson": "Add a person",
+    "closeTitle": "Nobody else can sign up — even when places are free",
+    "openTitle": "The date takes sign-ups again",
+    "removeTitlePeople": "The people signed up will be removed",
+    "removeTitle": "The date disappears from the list to choose from",
+    "noName": "no name",
+    "noNameSince": "no name (signed up {when})",
+    "removing": "Removing…",
+    "full": "The date is full — you will add over the limit.",
+    "searchPlaceholder": "Search for a person or type a full name",
+    "whoToAdd": "Whom to add",
+    "loadingPeople": "Loading people…",
+    "addWithoutLink": "Add “{name}” without a link"
+  },
+  "rules": {
+    "resource": "Every date here can be picked — it is the resource <link>{name}</link>.",
+    "capacity": "People per date",
+    "perPerson": "Dates per person",
+    "hours": "Host hours",
+    "minimum": "Minimum people",
+    "perPersonFree": "One person can take any number of dates.",
+    "perPersonLimit": "One person can hold {count} at once — after that they can only swap.",
+    "noHost": "No host: everyone signs up alone.",
+    "host": "The first to sign up picks the others for {hours} h — with their code or by approving requests.",
+    "afterHost": "After that, a date with at least {min} people stays with the group (the host can also close it); with fewer, free places open to everyone."
+  },
+  "entry": {
+    "saveFailed": "Could not save the intention.",
+    "markFailed": "Could not mark them.",
+    "orderFailed": "Could not change the order.",
+    "editMass": "Change Mass",
+    "markAll": "Mark as celebrated ({count})",
+    "none": "No intentions.",
+    "needPriests": {
+      "one": "{count} single — {count} priest needed.",
+      "other": "{count} single — {count} priests needed."
+    },
+    "needPriestsHave": {
+      "one": "{count} single — {count} priest needed (assigned: {have}).",
+      "other": "{count} single — {count} priests needed (assigned: {have})."
+    },
+    "placeholder": "For the late John Smith",
+    "newIntention": "New intention",
+    "newKind": "Kind of the new intention",
+    "genericSaveFailed": "Could not save.",
+    "assignFailed": "Could not assign.",
+    "deleteAsk": "Delete the intention “{text}”? This cannot be undone.",
+    "deleteFailed": "Could not delete.",
+    "up": "Up",
+    "down": "Down",
+    "text": "Intention text",
+    "kind": "Kind",
+    "status": "Status",
+    "celebrant": "Who celebrates this intention",
+    "celebrantNone": "— who celebrates —",
+    "moveTo": "Move to another Mass",
+    "moveFailed": "Could not move.",
+    "pickMass": "— choose a Mass —",
+    "moveHint": "Another date outside these two weeks: pick another day above.",
+    "delete": "Delete intention",
+    "sealedNoKeys": "The donor and the offering are encrypted — without keys in this tab they cannot be seen.",
+    "reading": "Decrypting…",
+    "noAreaKey": "You do not have this area's key — cannot save.",
+    "giver": "Requested by",
+    "giverPlaceholder": "e.g. the Smith family, phone …",
+    "offering": "Offering",
+    "offeringPlaceholder": "e.g. 50 zł",
+    "saved": "Saved.",
+    "sealedHint": "Encrypted — not on the notice board or the print."
+  },
+  "office": {
+    "loadFailed": "Could not load the plan.",
+    "failedWhat": "Failed: {what}",
+    "noKeys": "Without keys in this tab, entries cannot be changed — sign in again.",
+    "notYours": "This entry is not in your calendar — you cannot change it.",
+    "openFailed": "Could not open the entry.",
+    "entry": "entry",
+    "restoring": "Restoring…",
+    "restored": "Restored: {what} {when}.",
+    "cancelAsk": "Cancel only this date: {what} {when}? The series stays.",
+    "cancelling": "Cancelling…",
+    "cancelled": "Cancelled: {what} {when}. This can be undone — “Restore”.",
+    "noCalendar": "You have no schedule yet. A schedule holds the dates of one group (area) — pick a group and it is created.",
+    "title": "Masses, devotions and intentions",
+    "calendar": "Group schedule",
+    "day": "Day",
+    "dayInCalendar": "This day in the calendar",
+    "moreLabel": "More: Masses and intentions",
+    "json": "Import and export (JSON)",
+    "tab": {
+      "intentions": "Intentions",
+      "plan": "Plan and changes",
+      "new": "New entry",
+      "terms": "Sign-up dates",
+      "print": "Print"
+    },
+    "noMasses": "There is no Mass in the plan for the two weeks from this day. Create it under “New entry” — one repeating entry covers the whole period.",
+    "keys": "<k>Enter</k> saves and stays at this Mass · <k>Ctrl</k>+<k>Enter</k> saves and moves to the next — also to the next day · <k>Esc</k> clears the field",
+    "saved": "Changes saved.",
+    "jsonTitle": "Masses and intentions — import and export (JSON)",
+    "position": "{at} of {of}"
+  },
+  "browser": {
+    "fromNow": "From now",
+    "todayDate": "Today · {date}",
+    "calendar": "Calendar",
+    "nextMass": "Next Mass",
+    "earlier": "Earlier",
+    "later": "Later",
+    "loading": "loading…",
+    "view": "View",
+    "keptOld": "These days could not be loaded — showing the previous ones.",
+    "weekdays": "Days of the week",
+    "noneThisDay": "No Masses on this day.",
+    "noMasses": "no Masses",
+    "masses": {
+      "one": "{count} Mass",
+      "other": "{count} Masses"
+    }
+  },
+  "shape": {
+    "toolsStep": "Arrows and calendar: any day.",
+    "toolsFull": "Views: {modes}; a calendar to pick the date.",
+    "mode": {
+      "soon": "Upcoming",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "next": "The next Mass and how soon — nothing more fits in a strip.",
+    "hoursOne": "Mass times of the day; those already past are dimmed.",
+    "hoursTwo": "Mass times today and the next day.",
+    "ticker": "The next Mass with its intention, followed by the next times.",
+    "spotlight": "The next Mass with its intentions, below it the times for the next days.",
+    "day": "One day Mass by Mass, with intentions, confession and devotions; the next day in one line.",
+    "columns": {
+      "one": "{count} day side by side ({columns} columns), with intentions, confession and devotions.",
+      "other": "{count} days side by side ({columns} columns), with intentions, confession and devotions."
+    },
+    "stack": {
+      "one": "{count} day one below the other, with intentions, confession and devotions.",
+      "other": "{count} days one below the other, with intentions, confession and devotions."
+    }
+  },
+  "soon": {
+    "now": "now on",
+    "moment": "in a moment",
+    "minutes": {
+      "one": "in {count} min",
+      "other": "in {count} min"
+    },
+    "hours": {
+      "one": "in about {count} hr",
+      "other": "in about {count} hrs"
+    }
+  },
+  "glance": {
+    "noneInPlan": "No Masses in the plan.",
+    "noneSoon": "There are no more Masses in the coming days.",
+    "checkEpoch": "If Masses are entered, check that the area's epoch is published.",
+    "noneThese": "No Masses on these days.",
+    "nearest": "Next",
+    "then": "Then",
+    "collective": "collective intentions ({count})"
+  },
+  "row": {
+    "until": "until {time}",
+    "cancelledConfession": "cancelled",
+    "cancelledDevotion": "cancelled",
+    "cancelledMass": "cancelled",
+    "collective": "Collective intentions ({count})"
+  },
+  "plan": {
+    "empty": "There is no Mass, confession or devotion in these two weeks. Create them under “New entry”.",
+    "cancelledOnce": "cancelled (this date only)",
+    "moved": "moved",
+    "noIntentions": "no intentions",
+    "intentions": "Intentions",
+    "restore": "Restore",
+    "cancel": "Cancel",
+    "inCalendar": "In the calendar"
+  },
+  "people": {
+    "celebrates": "celebrant: {names}",
+    "leads": "led by: {names}",
+    "hears": "confessor: {names}",
+    "present": "present: {names}",
+    "person": "person"
+  },
+  "print": {
+    "blocked": "The print could not be opened — the browser may have blocked the new window.",
+    "failed": "The print could not be prepared.",
+    "title": "Print for the notice board",
+    "hint": "The sheet runs from Monday to Sunday — that is how it hangs on the notice board. Collective intentions get a separate page with room for additions.",
+    "print": "Print intentions (A4)",
+    "nextWeek": "next week"
+  },
+  "sheet": {
+    "range": "{from} – {to} {year}",
+    "collective": "Collective intentions",
+    "cancelled": "Mass cancelled",
+    "title": "Mass intentions",
+    "note": "A4 sheet. The name of the Sunday in the liturgical year is not kept in the system yet — add it by hand if it should be on the sheet."
+  }
 }

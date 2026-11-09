@@ -191,7 +191,7 @@ const toy = G.paletteOf('toy', [
 const ran = await G.evaluate(graph, toy, {});
 check('a node adds what arrives', ran.outputs.get('c').out, 5);
 check('a failing node keeps its own error', ran.errors.get('d'), 'Bum.');
-check('what depends on it stays quiet', ran.errors.get('e'), G.UPSTREAM);
+check('what depends on it stays quiet', ran.errors.get('e'), G.upstreamFailed());
 const withText = { nodes: [...graph.nodes, { id: 't', type: 'text', x: 0, y: 0, config: {} }], edges: graph.edges };
 check('types must fit', G.connect(withText, toy, { id: 'x', from: 'a', out: 'out', to: 't', in: 'in' }).error !== undefined, true);
 check('a circle is refused', G.connect(graph, toy, { id: 'x', from: 'c', out: 'out', to: 'c', in: 'in' }).error, 'Tak powstałoby koło — krok zależałby od samego siebie.');
@@ -2386,8 +2386,11 @@ check('goals and lines follow the one logic', [
   check('a root the budget left without steps says what is missing and how to see it — never „jeszcze bez kroków”; a root without steps still does',
     [cut.includes('▸ 2100 kroków niżej nie pokazano — otwórz wpis, żeby je zobaczyć'), (cut.match(/jeszcze bez kroków/g) ?? []).length], [true, 1]);
   truth('a classic root says its cut too', flat(draw([{ id: U(4), groups: [], cut: 2100 }], { chip: '', tie: '' })).includes('▸ 2100 wpisów niżej nie pokazano'));
+  /* 2026-11-09 — StructureView ruft useT(): als Funktion nur innerhalb eines Renderns aufrufbar. */
+  let grabbed = null;
+  UI.renderToStaticMarkup(UI.createElement(() => { grabbed = UI.StructureView({ roots: [{ id: U(5), groups: [] }, { id: U(4), groups: [] }], display: { chip: '', tie: '', order: 'tree' }, onOpen: () => undefined }); return null; }));
   check('roots are keyed by their id (and the owner’s order), not by their place in the list',
-    UI.StructureView({ roots: [{ id: U(5), groups: [] }, { id: U(4), groups: [] }], display: { chip: '', tie: '', order: 'tree' }, onOpen: () => undefined }).props.children[0].map((x) => x.key), [`${U(5)}:tree`, `${U(4)}:tree`]);
+    grabbed.props.children[0].map((x) => x.key), [`${U(5)}:tree`, `${U(4)}:tree`]);
 
   /* 2026-10-26 — „Tezy skrócone | Całe tezy": eine Teza (Bausteine) steht gekürzt wie jeder Name in Listen, oder ganz — die Wahl merkt sich der Browser. */
   const K2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

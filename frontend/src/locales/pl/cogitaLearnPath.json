@@ -1,0 +1,113 @@
+{
+  "path": {
+    "state": {
+      "known": "umiem",
+      "learning": "w nauce",
+      "fresh": "do nauki",
+      "waiting": "czeka na podstawy",
+      "order": "tylko porządkuje"
+    },
+    "counting": "Liczenie kart…",
+    "order": "Kolejność nauki",
+    "emptyText": "Ta baza nie ma jeszcze kolejności: wszystko jest pytane od razu. Kolejność bierze się z odwołań „Najpierw trzeba znać” — orbital wymaga elektronu i atomu, więc pytania o orbital przychodzą, gdy umiesz atom.",
+    "emptyKind": "W rodzaju (Schematy → Rodzaje wpisów) pole-odwołanie z ustawieniem „Kolejność nauki: najpierw trzeba znać to, na co wskazuje” (np. „Wymaga”). Gotowy rodzaj „Pojęcie” z takim polem: <c>templates/cogita/podstawy.json</c>.",
+    "emptyQuestion": "Pytanie ma pole „Najpierw trzeba znać” samo, a przez „O czym” czeka na to, co trzeba znać przed tym, o co pyta.",
+    "toSchemes": "Przejdź do Schematów",
+    "intro": "Od podstaw do szczegółów: karta przychodzi, gdy umiesz to, co trzeba znać przed nią. {levels}, {entries} w kolejności.",
+    "levels": {
+      "one": "{count} poziom",
+      "few": "{count} poziomów",
+      "many": "{count} poziomów",
+      "other": "{count} poziomów"
+    },
+    "entries": {
+      "one": "{count} wpis",
+      "few": "{count} wpisów",
+      "many": "{count} wpisów",
+      "other": "{count} wpisów"
+    },
+    "fromBasicsTitle": "Od podstaw",
+    "fromBasics": "Ucz się od podstaw",
+    "circles": "Koło w kolejności — te zależności nie działają: ",
+    "requires": "{child} wymaga {parent}",
+    "circlesFix": ". Popraw je we wpisach.",
+    "learnBasics": "Ucz się (z podstawami)",
+    "asList": "Jako lista — poziomy ({n})",
+    "outside": {
+      "one": "{count} wpis z kartami nie ma miejsca w kolejności — przychodzą razem z poziomem 1.",
+      "few": "{count} wpisów z kartami nie ma miejsca w kolejności — przychodzą razem z poziomem 1.",
+      "many": "{count} wpisów z kartami nie ma miejsca w kolejności — przychodzą razem z poziomem 1.",
+      "other": "{count} wpisów z kartami nie ma miejsca w kolejności — przychodzą razem z poziomem 1."
+    },
+    "needs": "Najpierw trzeba znać:",
+    "builds": "Na tym budują:",
+    "circle": "Koło: ",
+    "circleEnd": " — ta zależność nie działa, dopóki koło trwa."
+  },
+  "flow": {
+    "guess": "Zanim przeczytasz — jak myślisz?",
+    "recall": "Przypomnij sobie:",
+    "locked": "<b>Ta opowieść jest jeszcze zamknięta.</b> Otworzy się, gdy poznasz to, co trzeba znać przed nią — od podstaw:",
+    "weak": {
+      "one": "Wszystko, czego ta opowieść wymaga, już poznałeś — ale jedną kartę z tego warto najpierw powtórzyć.",
+      "few": "Wszystko, czego ta opowieść wymaga, już poznałeś — ale {count} kart z tego warto najpierw powtórzyć.",
+      "many": "Wszystko, czego ta opowieść wymaga, już poznałeś — ale {count} kart z tego warto najpierw powtórzyć.",
+      "other": "Wszystko, czego ta opowieść wymaga, już poznałeś — ale {count} kart z tego warto najpierw powtórzyć."
+    },
+    "reviewFirstTitle": "Najpierw powtórka: {name}",
+    "reviewFirst": "Najpierw powtórz ({n})",
+    "previewAnyway": "Podgląd mimo to",
+    "isPresentation": "Ten przebieg jest prezentacją.",
+    "openPresentation": "Otwórz prezentację",
+    "noQuestion": "Tego pytania tu nie ma.",
+    "option": "możliwość {n}",
+    "closedBecause": "Zamknięte, bo: {why}",
+    "closedUntil": "Zamknięte — otworzy się, gdy: {when}",
+    "merged": "Ukończono {merged}.",
+    "mergedNext": "Ukończono {merged} — wybierz następną (wszystkie, w dowolnej kolejności):",
+    "chapter": "Rozdział {n}",
+    "scene": "Scena prezentacji",
+    "character": "Postać"
+  },
+  "explore": {
+    "legend": "Jasne — umiesz; bladnie — zaciera się; przerywana obwódka — granica, którą możesz przekroczyć; mgła — jeszcze nieodkryte.",
+    "onMap": "Na mapie",
+    "allKinds": "wszystkie rodzaje",
+    "fog": "Jeszcze w mgle",
+    "learn": "Ucz się tego ({cards})"
+  },
+  "geo": {
+    "map": "Mapa",
+    "pick": "Mapa — dotknij, żeby wskazać miejsce",
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal"
+  },
+  "pending": {
+    "open": "Pytania bez odpowiedzi ({n})",
+    "openNone": "Na każde pytanie odpowiada jakaś wypowiedź.",
+    "thesis": "Wypowiedzi bez dobrej tezy ({n})",
+    "thesisNone": "Każda wypowiedź (treść w blokach) zaczyna się od krótkiego zdania — tezy.",
+    "noSentence": "nie zaczyna się od zdania",
+    "tooLong": "pierwsze zdanie ma ponad {n} znaków",
+    "circles": "Koła w kolejności nauki ({n})",
+    "circlesText": "Wpis wymaga czegoś, co (przez inne wpisy) wymaga jego samego. Taka zależność nie działa — popraw „Najpierw trzeba znać” w jednym z nich.",
+    "requires": " wymaga ",
+    "stale": "Do sprawdzenia — coś, na co wskazuje wypowiedź, zmieniło się ({n})",
+    "staleNone": "Wszystko aktualne.",
+    "flags": "Zgłoszenia uczących się ({n})",
+    "flagsKey": "Zgłoszenia czyta ten, kto ma klucz przyjęć obszaru bazy wiedzy (Ustawienia → przyjęcia).",
+    "flagsNone": "Brak zgłoszeń.",
+    "question": "Pytanie: ",
+    "answer": "Odpowiedź: ",
+    "hard": "Tu wielu się myli",
+    "hardLine": "{pct}% błędów z {n}",
+    "pattern": "Jak {e} jest pokazany w {t}?",
+    "parallel": "Pytania równoległe",
+    "parallelText": "Jeden wzór dla każdego wpisu rodzaju — zaznacz, które pytania mają powstać. Każde staje się wypowiedzią z pytaniem jako tezą (otwartą, dopóki nic na nią nie odpowie).",
+    "needKind": "Najpierw dodaj rodzaj z polem „Treść w blokach” (np. zaimportuj templates/cogita/komentarz.json).",
+    "as": "Jako",
+    "patternLabel": "Wzór",
+    "where": "{t}: w czym (np. rozdział)",
+    "create": "Utwórz zaznaczone pytania"
+  }
+}

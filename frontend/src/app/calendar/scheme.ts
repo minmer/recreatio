@@ -26,6 +26,7 @@
 
 import { areaKeys, newestKey } from '../chat/chat';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { appLang, localeOf, t, texts } from '../core/i18n';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { call, WorkspaceError } from '../core/session';
@@ -37,10 +38,12 @@ import type { FlowDoc } from './flow/flowModel';
 export const SCHEME_FIELD_TYPES = ['text', 'longtext', 'number', 'choice', 'colour', 'date', 'time', 'bool', 'bible', 'person', 'link'] as const;
 export type SchemeFieldType = (typeof SCHEME_FIELD_TYPES)[number];
 
-export const SCHEME_FIELD_LABEL: Record<SchemeFieldType, string> = {
-  text: 'tekst', longtext: 'dłuższy tekst', number: 'liczba', choice: 'wybór', colour: 'kolor liturgiczny',
-  date: 'data', time: 'godzina', bool: 'tak / nie', bible: 'fragment Pisma', person: 'osoba', link: 'link'
-};
+export const SCHEME_FIELD_LABEL: Readonly<Record<SchemeFieldType, string>> = texts({
+  text: 'calendarDataScheme.fieldType.text', longtext: 'calendarDataScheme.fieldType.longtext', number: 'calendarDataScheme.fieldType.number',
+  choice: 'calendarDataScheme.fieldType.choice', colour: 'calendarDataScheme.fieldType.colour', date: 'calendarDataScheme.fieldType.date',
+  time: 'calendarDataScheme.fieldType.time', bool: 'calendarDataScheme.fieldType.bool', bible: 'calendarDataScheme.fieldType.bible',
+  person: 'calendarDataScheme.fieldType.person', link: 'calendarDataScheme.fieldType.link'
+});
 
 export interface SchemeChoice {
   readonly value: string;
@@ -116,24 +119,27 @@ export interface PlanDef {
   readonly says?: string;
 }
 
-/** Die Farben der Liturgie — Wert = Wort, wie es im Aushang steht. */
+/** Eine Wahl, deren Wert Daten ist und deren Wort erst beim Lesen übersetzt wird. */
+const choice = (value: string, key: string): SchemeChoice => ({ value, get label() { return t(key); } });
+
+/** Die Farben der Liturgie — Wert = Wort, wie es gespeichert ist (polnisch); die Bezeichnung in der Sprache der Anwendung. */
 export const LITURGICAL_COLOURS: readonly SchemeChoice[] = [
-  { value: 'biały', label: 'biały' },
-  { value: 'czerwony', label: 'czerwony' },
-  { value: 'zielony', label: 'zielony' },
-  { value: 'fioletowy', label: 'fioletowy' },
-  { value: 'różowy', label: 'różowy' },
-  { value: 'czarny', label: 'czarny' },
-  { value: 'złoty', label: 'złoty' },
-  { value: 'niebieski', label: 'niebieski' }
+  choice('biały', 'calendarDataScheme.colour.white'), // i18n-ignore
+  choice('czerwony', 'calendarDataScheme.colour.red'),
+  choice('zielony', 'calendarDataScheme.colour.green'),
+  choice('fioletowy', 'calendarDataScheme.colour.violet'),
+  choice('różowy', 'calendarDataScheme.colour.rose'), // i18n-ignore
+  choice('czarny', 'calendarDataScheme.colour.black'),
+  choice('złoty', 'calendarDataScheme.colour.gold'), // i18n-ignore
+  choice('niebieski', 'calendarDataScheme.colour.blue')
 ];
 
 /** Für ein Farbfeld: die CSS-Klasse des Plättchens (`.wk-lc-…`) — fremde Wörter ohne Plättchen. */
 export const colourClass = (word: string | null | undefined): string | null => {
   const w = (word ?? '').trim().toLowerCase();
   const map: Record<string, string> = {
-    'biały': 'white', 'bialy': 'white', 'czerwony': 'red', 'zielony': 'green', 'fioletowy': 'violet',
-    'różowy': 'rose', 'rozowy': 'rose', 'czarny': 'black', 'złoty': 'gold', 'zloty': 'gold', 'niebieski': 'blue'
+    'biały': 'white', 'bialy': 'white', 'czerwony': 'red', 'zielony': 'green', 'fioletowy': 'violet', // i18n-ignore
+    'różowy': 'rose', 'rozowy': 'rose', 'czarny': 'black', 'złoty': 'gold', 'zloty': 'gold', 'niebieski': 'blue' // i18n-ignore
   };
   return map[w] === undefined ? null : `wk-lc-${map[w]}`;
 };
@@ -143,7 +149,7 @@ export const KEY_PATTERN = /^[a-z0-9_.-]{1,64}$/;
 /** Ein Schlüssel aus einer Beschriftung: „Kolor szat" → `kolor_szat`. */
 export function keyOf(label: string, taken: readonly string[] = []): string {
   const base = label.trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l') // i18n-ignore
     .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'pole';
   let key = base;
   for (let n = 2; taken.includes(key); n += 1) key = `${base}_${n}`;
@@ -155,8 +161,8 @@ export function keyOf(label: string, taken: readonly string[] = []): string {
 export const UNIVERSAL_ID = 'universal';
 
 export const INTENTION_MODES: readonly SchemeChoice[] = [
-  { value: 'single', label: 'pojedyncza' },
-  { value: 'collective', label: 'zbiorowa' }
+  choice('single', 'calendarDataScheme.universal.single'),
+  choice('collective', 'calendarDataScheme.universal.collective')
 ];
 
 /**
@@ -165,24 +171,24 @@ export const INTENTION_MODES: readonly SchemeChoice[] = [
  * versiegelt. Die Liste heisst `intencje`; „Msze i nabożeństwa" liest sie.
  */
 export const UNIVERSAL: SchemeDef = {
-  name: 'Uniwersalny',
+  get name() { return t('calendarDataScheme.universal.name'); },
   kinds: ['appointment', 'mass', 'confession', 'devotion', 'visit'],
   fields: [],
   lists: [{
     key: 'intencje',
-    label: 'Intencje',
-    itemLabel: 'intencja',
+    get label() { return t('calendarDataScheme.universal.list'); },
+    get itemLabel() { return t('calendarDataScheme.universal.item'); },
     modes: INTENTION_MODES,
-    textLabel: 'Treść intencji',
-    person: 'Kto odprawia',
+    get textLabel() { return t('calendarDataScheme.universal.text'); },
+    get person() { return t('calendarDataScheme.universal.person'); },
     fields: [
-      { key: 'giver', label: 'Ofiarodawca', type: 'text', says: 'Kto zamówił — nie jest odczytywany, zostaje w kancelarii.' },
-      { key: 'offering', label: 'Ofiara', type: 'text', says: 'Ofiara — zostaje w kancelarii.' }
+      { key: 'giver', get label() { return t('calendarDataScheme.universal.giver'); }, type: 'text', get says() { return t('calendarDataScheme.universal.giverSays'); } },
+      { key: 'offering', get label() { return t('calendarDataScheme.universal.offering'); }, type: 'text', get says() { return t('calendarDataScheme.universal.offeringSays'); } }
     ],
     onlyKinds: ['mass'],
-    says: 'Intencje mszy: treść czytana na mszy i w gablocie, rodzaj (pojedyncza / zbiorowa), kto odprawia.'
+    get says() { return t('calendarDataScheme.universal.listSays'); }
   }],
-  says: 'Schemat, który ma każdy dawny termin: wszystkie rodzaje i intencje mszy.'
+  get says() { return t('calendarDataScheme.universal.says'); }
 };
 
 /** Was an diesem Termin gilt: seine Felder und Listen, nach seiner Art gefiltert. */
@@ -200,7 +206,7 @@ export function shownValue(field: SchemeField, text: string): string {
   if ((field.type === 'choice' || field.type === 'colour') && field.options !== undefined) {
     return field.options.find((o) => o.value === text)?.label ?? text;
   }
-  if (field.type === 'bool') return text === 'tak' ? 'tak' : text === 'nie' ? 'nie' : text;
+  if (field.type === 'bool') return text === 'tak' ? t('calendarDataScheme.yes') : text === 'nie' ? t('calendarDataScheme.no') : text;
   if (field.type === 'number' && field.unit) return `${text} ${field.unit}`;
   return text;
 }
@@ -254,7 +260,7 @@ export async function openDocs(ring: Ring, calendarId: string): Promise<{
       /* Nicht lesbar — dann eben ohne. */
     }
   }
-  const byName = (a: OpenedDoc<{ name: string }>, b: OpenedDoc<{ name: string }>) => a.def.name.localeCompare(b.def.name, 'pl');
+  const byName = (a: OpenedDoc<{ name: string }>, b: OpenedDoc<{ name: string }>) => a.def.name.localeCompare(b.def.name, localeOf(appLang()));
   return { schemes: schemes.sort(byName), plans: plans.sort(byName) };
 }
 
@@ -269,7 +275,7 @@ export async function saveDoc(
   const id = docId ?? newId();
   const areaId = docAreaOf(calendar, kind);
   const newest = newestKey(await areaKeys(ring, areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+  if (newest === null) throw new WorkspaceError(t('calendarDataJson.run.noKey'));
   const sealed = toBase64Url(await sealText(newest.key, docAad(id), JSON.stringify(def)));
   return call(`/workspace/calendar/${encodeURIComponent(calendar.calendarId)}/doc`, {
     method: 'POST',

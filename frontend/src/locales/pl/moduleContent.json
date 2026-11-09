@@ -706,7 +706,8 @@
       "axesY": "Podpis osi pionowej",
       "axesGrid": "Siatka pod spodem",
       "clip": "frame — true: co wychodzi poza ramę, znika",
-      "camera": "frame — true: można przybliżać (+, −, Ctrl+kółko, dwa palce) i przesuwać widok; \"view\" to wtedy widok „Dopasuj”"
+      "camera": "frame — true: można przybliżać (+, −, Ctrl+kółko, dwa palce) i przesuwać widok; \"view\" to wtedy widok „Dopasuj”",
+      "typeMore": "\"group\" zbiera \"children\", \"use\" wstawia część z \"symbols\", \"frame\" to rama ze światem (y w górę), \"world\" — w tym miejscu stoją rzeczy z \"world\" (w ramie)"
     },
     "motion": {
       "duration": "Czas jednego przebiegu (ms)",
@@ -871,6 +872,84 @@
       "save": "true — warsztat: „Zapisz”, „Wczytaj” (w tej przeglądarce) i układ jako JSON",
       "hint": "Podpowiedź pod rysunkiem, gdy nic nie jest wybrane ({…} — liczone)",
       "list": "true — każda własność, którą wolno zmienić, jako osobny suwak w panelu („Ustawiasz”, bez wybierania rzeczy); false — najpierw wybrać rzecz; pominięte — wiersze, gdy nic nie wolno dodać ani usunąć i jest ich najwyżej 6"
+    },
+    "label": "Animacja",
+    "use": "Rysunek, który się rusza albo który można poruszać: kształty, linie, wykresy, wektory — z ruchem, suwakami, przeciąganiem i symulacją fizyki (np. rzut, wahadło, sprężyna). Także obrazy pokazu Cogita.",
+    "sum": {
+      "elements": {
+        "one": "{count} element",
+        "few": "{count} elementy",
+        "many": "{count} elementów",
+        "other": "{count} elementu"
+      },
+      "motions": {
+        "one": "{count} ruch",
+        "few": "{count} ruchy",
+        "many": "{count} ruchów",
+        "other": "{count} ruchu"
+      },
+      "vars": {
+        "one": "{count} do ustawienia",
+        "few": "{count} do ustawienia",
+        "many": "{count} do ustawienia",
+        "other": "{count} do ustawienia"
+      },
+      "sim": "symulacja",
+      "goal": "z celem"
+    },
+    "drawing": "Rysunek",
+    "empty": "Rysunek jest pusty.",
+    "notObject": "Rysunek to jeden obiekt { … }.",
+    "badJson": "To nie jest poprawny JSON: {error}",
+    "accepted": "Przyjęto: {sum}.",
+    "promptCopied": "Polecenie dla AI skopiowane — wklej je w swoim czacie, a gotowy JSON tutaj.",
+    "promptFailed": "Nie udało się skopiować polecenia.",
+    "alt": "Opis (dla czytników ekranu)",
+    "max": "Najwyżej (rem)",
+    "fullWidth": "cała szerokość",
+    "hint": "Rysunek: „size”, „elements” (rect, circle, ellipse, line, arrow, poly, plot, trace, frame, path, text, image, group, use), „symbols”; do poruszania: „vars”, „let”, „sim”, „controls”, „rules”, a rzeczy do budowania (waga, koła zębate) — „world” z elementem „world” w ramie; wartości mogą być wyrażeniami „=…”. Pełny opis — przy imporcie JSON strony i w poleceniu dla AI. Teraz: {sum}.",
+    "insertExample": "Wstaw przykład",
+    "exampleLoaded": "Przykład „{title}” — sprawdź podgląd i przyjmij.",
+    "insertPhysics": "Wstaw przykład z fizyki…",
+    "copyPrompt": "Kopiuj polecenie dla AI",
+    "json": "Rysunek JSON",
+    "preview": "Podgląd rysunku",
+    "problems": "Błędy w wyrażeniach",
+    "apply": "Przyjmij rysunek",
+    "missing": "Rysunek nie ma jeszcze żadnego elementu.",
+    "showsStrip": "Rysunek ({sum}) — mały, nieruchomy, bez sterowania.",
+    "showsMoving": "Rysunek ({sum}) w ruchu, na całą szerokość modułu.",
+    "showsLive": "Rysunek ({sum}) w ruchu, na całą szerokość modułu, ze sterowaniem pod spodem.",
+    "lead": {
+      "type": "Rodzaj",
+      "do": "Co robi z symulacją",
+      "buttonDo": "button — co robi z symulacją",
+      "motionName": "Słowo ruchu",
+      "mood": "Wygląd napisu"
+    },
+    "let": {
+      "name": "Nazwa wartości liczonej",
+      "value": "Wyrażenie (z innych nazw)"
+    },
+    "key": {
+      "alt": "Opis rysunku dla czytników ekranu (pusty — rysunek tylko ozdobny)",
+      "question": "w opowieści z bazą wiedzy: cel rysunku (reguła z \"goal\": true) liczy się jak dobra odpowiedź na to pytanie z bazy — id albo @nazwa (puste: własna karta celu)",
+      "about": "w opowieści z bazą wiedzy: dla jakich wpisów bazy liczy się osiągnięty cel rysunku — id albo @nazwa, każdy w osobnej linii",
+      "size": "Wielkość rysunku w jego jednostkach: [szerokość, wysokość] — rysunek rośnie i maleje jako całość z modułem",
+      "max": "Najwyżej tyle szerokości w rem (liczba); pominięte — cała szerokość modułu",
+      "panel": "Gdzie sterowanie: \"below\" (pod rysunkiem, zwykle) albo \"side\" (obok, gdy rysunek jest szeroki; na telefonie zawsze pod)",
+      "vars": "Wartości do ustawiania (suwak, przełącznik, przeciąganie): [{ \"name\", \"value\", \"min\", \"max\", \"step\", \"unit\", \"label\", \"random\" }]",
+      "let": "Wartości liczone z innych, w każdej klatce, w tej kolejności: [{ \"name\", \"value\": \"wyrażenie\" }]",
+      "sim": "Symulacja (równania ruchu, Runge-Kutta): { \"state\": [{ \"name\", \"value\", \"rate\" }], \"events\", \"until\", \"dt\", \"speed\", \"auto\", \"loop\", \"max\" }",
+      "controls": "Sterowanie pod rysunkiem: suwaki, przełączniki, wybór, przyciski, odczyty",
+      "rules": "Reguły: gdy warunek staje się prawdziwy — napis, cel zadania, ustawienie, start/pauza, dalej w prezentacji",
+      "predict": "Najpierw przewiduj, potem zobacz: rysunek stoi (symulacja zatrzymana, reguły milczą, w wyrażeniach \"held\" = 1 — np. kolor, który zdradza wynik, czeka), aż osoba kliknie „Sprawdź”; \"tries\" — ile razy już sprawdzała. true albo { \"start\", \"say\", \"check\", \"again\", \"hold\" }",
+      "task": "Za każdym razem inne zadanie, tak samo trudne: losuje wartości z \"random\" (zmienne, własności rzeczy, także jako wyrażenia z nich), aż obowiązują warunki, zadanie nie jest rozwiązane na starcie, a rozwiązanie da się ustawić. { \"require\", \"solve\", \"new\", \"tries\" }",
+      "world": "Świat rzeczy do budowania (waga z belek i ciężarków, koła zębate): rodzaje, rzeczy na start i co wolno — każda zmiana idzie przez reguły świata, z „Cofnij”; element { \"type\": \"world\" } w ramie pokazuje, gdzie stoją",
+      "symbols": "Części do wielokrotnego użycia: [{ \"name\": \"fiszka\", \"shapes\": [elementy] }] — wstawia je element { \"type\": \"use\", \"use\": \"fiszka\" }",
+      "symbolName": "Nazwa części",
+      "symbolShapes": "Elementy części (jak w \"elements\")",
+      "elements": "Elementy rysunku, od tyłu do przodu — każdy z położeniem, wyglądem, ruchem (\"motion\") i — do poruszania — wyrażeniami, \"drag\", \"tap\", \"show\", \"repeat\""
     }
   }
 }

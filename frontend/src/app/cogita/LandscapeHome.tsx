@@ -11,7 +11,7 @@
 import type { ReactNode } from 'react';
 
 import type { Card } from './cardBasics';
-import { baseLang } from './lang';
+import { baseLang, wordsT } from './lang';
 import type { Learner } from './learn';
 import { LiveStats } from './LiveStats';
 import { RewardBoard } from './RewardViews';
@@ -33,23 +33,18 @@ export interface HomeNumbers {
 }
 
 function homeWords(lib: CogitaLibrary) {
-  const lang = baseLang(lib);
-  const L = <T,>(pl: T, de: T, en: T): T => (lang === 'de' ? de : lang === 'en' ? en : pl);
+  const t = wordsT(baseLang(lib));
   return {
-    title: L('Twój dom', 'Dein Zuhause', 'Your home'),
-    fullTitle: L('Twoja nauka — wszystkie statystyki i nagrody', 'Dein Lernen — alle Zahlen und Auszeichnungen', 'Your learning — all statistics and awards'),
-    numbers: (n: HomeNumbers) => L(
-      `${n.land} z ${n.topics} tematów umiesz · ${n.won} z ${n.regions} obszarów zdobytych · ${n.ready} gotowych do nauki · ${n.due} kart do powtórki`,
-      `${n.land} von ${n.topics} Themen gekonnt · ${n.won} von ${n.regions} Gebieten erobert · ${n.ready} bereit · ${n.due} Karten zu wiederholen`,
-      `${n.land} of ${n.topics} topics known · ${n.won} of ${n.regions} regions won · ${n.ready} ready · ${n.due} cards to review`
-    ),
-    review: (n: number) => L(`Powtórz (${n})`, `Wiederholen (${n})`, `Review (${n})`),
-    stackLine: (n: number) => L(`po ${n} kart naraz`, `je ${n} Karten auf einmal`, `${n} cards at a time`),
-    all: L('Wszystkie statystyki i nagrody', 'Alle Zahlen und Auszeichnungen', 'All statistics and awards'),
-    hint: L('Dwuklik na dom otwiera wszystko od razu.', 'Ein Doppelklick auf das Haus öffnet gleich alles.', 'Double-click the house to open everything at once.'),
-    close: L('Zamknij', 'Schliessen', 'Close'),
-    settings: L('Jak się uczysz', 'Wie du lernst', 'How you learn'),
-    noLearner: L('Statystyki i nagrody pojawią się, gdy zaczniesz się uczyć.', 'Zahlen und Auszeichnungen erscheinen, sobald du lernst.', 'Statistics and awards appear once you start learning.')
+    title: t('cogitaLearn.home.title'),
+    fullTitle: t('cogitaLearn.home.fullTitle'),
+    numbers: (n: HomeNumbers) => t('cogitaLearn.home.numbers', { land: n.land, topics: n.topics, won: n.won, regions: n.regions, ready: n.ready, due: n.due }),
+    review: (n: number) => t('cogitaLearn.home.review', { n }),
+    stackLine: (n: number) => t('cogitaLearn.home.stackLine', { n }),
+    all: t('cogitaLearn.home.all'),
+    hint: t('cogitaLearn.home.hint'),
+    close: t('cogitaLearn.home.close'),
+    settings: t('cogitaLearn.home.settings'),
+    noLearner: t('cogitaLearn.home.noLearner')
   };
 }
 

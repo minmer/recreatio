@@ -1,0 +1,105 @@
+{
+  "path": {
+    "state": {
+      "known": "kann ich",
+      "learning": "am Lernen",
+      "fresh": "zu lernen",
+      "waiting": "wartet auf die Grundlagen",
+      "order": "ordnet nur"
+    },
+    "counting": "Karten werden gezählt…",
+    "order": "Lernreihenfolge",
+    "emptyText": "Diese Basis hat noch keine Reihenfolge: alles wird sofort gefragt. Die Reihenfolge kommt aus den Verweisen „Zuerst muss man kennen“ — ein Orbital braucht Elektron und Atom, also kommen Fragen zum Orbital, wenn du das Atom kannst.",
+    "emptyKind": "In einer Art (Schemata → Arten von Einträgen) ein Verweisfeld mit der Einstellung „Lernreihenfolge: zuerst muss man kennen, worauf es zeigt“ (z. B. „Erfordert“). Eine fertige Art „Begriff“ mit so einem Feld: <c>templates/cogita/podstawy.json</c>.",
+    "emptyQuestion": "Eine Frage hat das Feld „Zuerst muss man kennen“ selbst, und über „Worüber“ wartet sie auf das, was man vor ihrem Thema kennen muss.",
+    "toSchemes": "Zu den Schemata",
+    "intro": "Von den Grundlagen zu den Einzelheiten: eine Karte kommt, wenn du kannst, was davor nötig ist. {levels}, {entries} in der Reihenfolge.",
+    "levels": {
+      "one": "{count} Ebene",
+      "other": "{count} Ebenen"
+    },
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "fromBasicsTitle": "Von den Grundlagen",
+    "fromBasics": "Von den Grundlagen lernen",
+    "circles": "Ein Kreis in der Reihenfolge — diese Abhängigkeiten wirken nicht: ",
+    "requires": "{child} erfordert {parent}",
+    "circlesFix": ". Korrigiere sie in den Einträgen.",
+    "learnBasics": "Lernen (mit den Grundlagen)",
+    "asList": "Als Liste — Ebenen ({n})",
+    "outside": {
+      "one": "{count} Eintrag mit Karten hat keinen Platz in der Reihenfolge — er kommt mit Ebene 1.",
+      "other": "{count} Einträge mit Karten haben keinen Platz in der Reihenfolge — sie kommen mit Ebene 1."
+    },
+    "needs": "Zuerst muss man kennen:",
+    "builds": "Darauf baut auf:",
+    "circle": "Kreis: ",
+    "circleEnd": " — diese Abhängigkeit wirkt nicht, solange der Kreis besteht."
+  },
+  "flow": {
+    "guess": "Bevor du liest — was meinst du?",
+    "recall": "Erinnere dich:",
+    "locked": "<b>Diese Geschichte ist noch verschlossen.</b> Sie öffnet sich, wenn du kannst, was davor nötig ist — von den Grundlagen her:",
+    "weak": {
+      "one": "Alles, was diese Geschichte braucht, kennst du schon — aber {count} Karte davon solltest du zuerst wiederholen.",
+      "other": "Alles, was diese Geschichte braucht, kennst du schon — aber {count} Karten davon solltest du zuerst wiederholen."
+    },
+    "reviewFirstTitle": "Zuerst wiederholen: {name}",
+    "reviewFirst": "Zuerst wiederholen ({n})",
+    "previewAnyway": "Trotzdem ansehen",
+    "isPresentation": "Dieser Ablauf ist eine Präsentation.",
+    "openPresentation": "Präsentation öffnen",
+    "noQuestion": "Diese Frage gibt es hier nicht.",
+    "option": "Möglichkeit {n}",
+    "closedBecause": "Gesperrt, weil: {why}",
+    "closedUntil": "Gesperrt — öffnet sich, wenn: {when}",
+    "merged": "Erledigt: {merged}.",
+    "mergedNext": "Erledigt: {merged} — wähle den nächsten (alle, in beliebiger Reihenfolge):",
+    "chapter": "Kapitel {n}",
+    "scene": "Szene einer Präsentation",
+    "character": "Figur"
+  },
+  "explore": {
+    "legend": "Hell — kannst du; blass — verblasst; gestrichelter Rand — eine Grenze, die du überschreiten kannst; Nebel — noch unentdeckt.",
+    "onMap": "Auf der Karte",
+    "allKinds": "alle Arten",
+    "fog": "Noch im Nebel",
+    "learn": "Das lernen ({cards})"
+  },
+  "geo": {
+    "map": "Karte",
+    "pick": "Karte — tippe, um einen Ort zu zeigen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern"
+  },
+  "pending": {
+    "open": "Fragen ohne Antwort ({n})",
+    "openNone": "Auf jede Frage antwortet eine Aussage.",
+    "thesis": "Aussagen ohne gute These ({n})",
+    "thesisNone": "Jede Aussage (Inhalt in Blöcken) beginnt mit einem kurzen Satz — der These.",
+    "noSentence": "beginnt nicht mit einem Satz",
+    "tooLong": "der erste Satz hat mehr als {n} Zeichen",
+    "circles": "Kreise in der Lernreihenfolge ({n})",
+    "circlesText": "Ein Eintrag erfordert etwas, das (über andere Einträge) ihn selbst erfordert. So eine Abhängigkeit wirkt nicht — korrigiere „Zuerst muss man kennen“ in einem davon.",
+    "requires": " erfordert ",
+    "stale": "Zu prüfen — etwas, worauf eine Aussage zeigt, hat sich geändert ({n})",
+    "staleNone": "Alles aktuell.",
+    "flags": "Meldungen der Lernenden ({n})",
+    "flagsKey": "Meldungen liest, wer den Annahmeschlüssel des Bereichs der Wissensbasis hat (Einstellungen → Annahme).",
+    "flagsNone": "Keine Meldungen.",
+    "question": "Frage: ",
+    "answer": "Antwort: ",
+    "hard": "Hier irren sich viele",
+    "hardLine": "{pct} % falsch von {n}",
+    "pattern": "Wie wird {e} in {t} dargestellt?",
+    "parallel": "Parallele Fragen",
+    "parallelText": "Ein Muster für jeden Eintrag einer Art — markiere, welche Fragen entstehen sollen. Jede wird eine Aussage mit der Frage als These (offen, bis etwas darauf antwortet).",
+    "needKind": "Füge zuerst eine Art mit einem Feld „Inhalt in Blöcken“ hinzu (z. B. templates/cogita/komentarz.json importieren).",
+    "as": "Als",
+    "patternLabel": "Muster",
+    "where": "{t}: worin (z. B. Kapitel)",
+    "create": "Markierte Fragen anlegen"
+  }
+}

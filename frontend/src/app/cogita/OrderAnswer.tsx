@@ -22,6 +22,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as Rea
 import { orderMarks, type OrderMark } from './check';
 import { BuildPreview } from './BuildAnswer';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 
 interface Piece {
   readonly id: number;
@@ -119,6 +120,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
   const [picked, setPicked] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [said, setSaid] = useState('');
+  const t = useT();
   const [showCorrect, setShowCorrect] = useState(false);
   const list = useRef<HTMLOListElement | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -194,7 +196,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
     };
     drag.current.frame = requestAnimationFrame(roll);
     setDragging(id);
-    setSaid(`Podniesiono: ${pieces[from]?.text ?? ''}, pozycja ${from + 1} z ${n}.`);
+    setSaid(t('cogitaLearnRun.build.lifted', { text: pieces[from]?.text ?? '', at: from + 1, n }));
   };
 
   const finish = (drop: boolean) => {
@@ -208,12 +210,12 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
     if (!drop || d.to === d.from) {
       /* Zurück an den alten Platz — sanft. */
       for (const x of list.current?.querySelectorAll<HTMLElement>('[data-order-id]') ?? []) x.style.transform = '';
-      setSaid(drop ? 'Upuszczono na tym samym miejscu.' : 'Anulowano.');
+      setSaid(drop ? t('cogitaLearnRun.order.droppedSame') : t('cogitaLearnRun.order.cancelledShort'));
       return;
     }
     before.current = tops(list.current);
     setPieces(move(d.from, d.to));
-    setSaid(`Upuszczono na pozycji ${d.to + 1} z ${n}.`);
+    setSaid(t('cogitaLearnRun.build.dropped', { at: d.to + 1, n }));
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLLIElement>, id: number) => {
@@ -277,11 +279,11 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
       if (picked === null) {
         keyStart.current = pieces;
         setPicked(id);
-        setSaid(`Podniesiono: ${pieces[at]!.text}, pozycja ${at + 1} z ${n}. Strzałki przesuwają, spacja upuszcza, Escape anuluje.`);
+        setSaid(t('cogitaLearnRun.order.liftedKeys', { text: pieces[at]!.text, at: at + 1, n }));
       } else {
         setPicked(null);
         keyStart.current = null;
-        setSaid(`Upuszczono na pozycji ${at + 1} z ${n}.`);
+        setSaid(t('cogitaLearnRun.build.dropped', { at: at + 1, n }));
       }
       return;
     }
@@ -290,7 +292,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
       if (keyStart.current !== null) reorder(keyStart.current);
       keyStart.current = null;
       setPicked(null);
-      setSaid('Anulowano — element wrócił na swoje miejsce.');
+      setSaid(t('cogitaLearnRun.order.cancelled'));
       focusPiece(id);
       return;
     }
@@ -299,7 +301,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
       const to = e.key === 'ArrowUp' ? at - 1 : at + 1;
       if (to < 0 || to >= n) return;
       reorder(move(at, to));
-      setSaid(`Przeniesiono na pozycję ${to + 1} z ${n}.`);
+      setSaid(t('cogitaLearnRun.build.moved', { at: to + 1, n }));
       focusPiece(id);
     }
   };
@@ -308,7 +310,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
     if (locked || to < 0 || to >= n) return;
     const id = pieces[at]!.id;
     reorder(move(at, to));
-    setSaid(`Przeniesiono na pozycję ${to + 1} z ${n}.`);
+    setSaid(t('cogitaLearnRun.build.moved', { at: to + 1, n }));
     focusPiece(id);
   };
 
@@ -326,15 +328,15 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
   return (
     <div className="cg-order-wrap">
       {preview !== undefined && <BuildPreview tiles={shown.map((p) => p.text)} preview={preview} join={join} />}
-      <ol ref={list} className={`cg-order${dragging !== null ? ' is-dragging' : ''}${marks !== null ? ' is-checked' : ''}`} aria-label="Kolejność — przeciągnij albo użyj strzałek" data-order-list="">
+      <ol ref={list} className={`cg-order${dragging !== null ? ' is-dragging' : ''}${marks !== null ? ' is-checked' : ''}`} aria-label={t('cogitaLearnRun.order.list')} data-order-list="">
         {shown.map((p, at) => {
           const m = markOf(p.id);
           const state = m === null ? '' : m.mark.right ? ' is-right' : ' is-wrong';
           return (
             <li key={p.id} data-order-id={p.id} data-order-text={p.text}
               className={`cg-order-item${state}${dragging === p.id ? ' is-lifted' : ''}${picked === p.id ? ' is-picked' : ''}`}
-              tabIndex={locked ? -1 : 0} aria-roledescription="element do przeciągnięcia"
-              aria-label={`${p.text}, pozycja ${at + 1} z ${n}${m === null ? '' : m.mark.right ? ', dobrze' : `, źle — właściwa pozycja ${m.mark.place}`}`}
+              tabIndex={locked ? -1 : 0} aria-roledescription={t('cogitaLearnRun.order.itemRole')}
+              aria-label={m === null ? t('cogitaLearnRun.build.tile', { text: p.text, at: at + 1, n }) : m.mark.right ? t('cogitaLearnRun.build.tileRight', { text: p.text, at: at + 1, n }) : t('cogitaLearnRun.order.itemWrong', { text: p.text, at: at + 1, n, place: m.mark.place })}
               aria-grabbed={picked === p.id || dragging === p.id}
               onPointerDown={(e) => onPointerDown(e, p.id)} onPointerMove={onPointerMove}
               onPointerUp={(e) => onPointerUp(e)} onPointerCancel={(e) => onPointerUp(e, true)} onLostPointerCapture={(e) => { if (e.target === e.currentTarget) onPointerUp(e, true); }}
@@ -345,13 +347,13 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
               {m !== null && (
                 <span className="cg-order-mark" aria-hidden>
                   {m.mark.right ? '✓' : '✗'}
-                  {!m.mark.right && m.mark.place > 0 && <span className="cg-order-badge">{showCorrect ? `u Ciebie: ${m.at}` : `→ ${m.mark.place}`}</span>}
+                  {!m.mark.right && m.mark.place > 0 && <span className="cg-order-badge">{showCorrect ? t('cogitaLearnRun.order.yours', { at: m.at }) : `→ ${m.mark.place}`}</span>}
                 </span>
               )}
               {!locked && (
                 <span className="cg-order-arrows">
-                  <button type="button" className="wk-link-btn" aria-label={`Wyżej: ${p.text}`} disabled={at === 0} onClick={() => nudge(at, at - 1)}>↑</button>
-                  <button type="button" className="wk-link-btn" aria-label={`Niżej: ${p.text}`} disabled={at === n - 1} onClick={() => nudge(at, at + 1)}>↓</button>
+                  <button type="button" className="wk-link-btn" aria-label={t('cogitaLearnRun.order.up', { text: p.text })} disabled={at === 0} onClick={() => nudge(at, at - 1)}>↑</button>
+                  <button type="button" className="wk-link-btn" aria-label={t('cogitaLearnRun.order.down', { text: p.text })} disabled={at === n - 1} onClick={() => nudge(at, at + 1)}>↓</button>
                 </span>
               )}
             </li>
@@ -362,12 +364,12 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
       {action}
       {marks !== null && (
         <div className="cg-order-result">
-          <span className="cg-order-count" data-order-count={right}>{right} z {n} na swoim miejscu</span>
-          {right < n && n >= 3 && neighbours > 0 && <span className="cg-muted" data-order-neighbours={neighbours}>{neighbours} z {n - 1} par sąsiadów w dobrej kolejności</span>}
+          <span className="cg-order-count" data-order-count={right}>{t('cogitaLearnRun.build.inPlace', { right, n })}</span>
+          {right < n && n >= 3 && neighbours > 0 && <span className="cg-muted" data-order-neighbours={neighbours}>{t('cogitaLearnRun.order.neighbours', { k: neighbours, n: n - 1 })}</span>}
           {right < n && (
             <button type="button" className="wk-link-btn" aria-pressed={showCorrect} data-order-toggle=""
               onClick={() => { before.current = tops(list.current); setShowCorrect((x) => !x); }}>
-              {showCorrect ? 'Pokaż moją kolejność' : 'Pokaż poprawną kolejność'}
+              {showCorrect ? t('cogitaLearnRun.order.showMine') : t('cogitaLearnRun.order.showRight')}
             </button>
           )}
         </div>

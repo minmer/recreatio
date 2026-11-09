@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { useMe, useWho } from '../core/me';
 import { toast } from '../ui/dialogs';
 import { WorkspaceError } from '../core/session';
+import { t as tApp, useT } from '../core/i18n';
 import { viewPath } from '../routes';
 import { libraryKindOf, partOf, type OpenLibrary } from './library';
 import { fieldRefs, ids, str } from './libraryKinds';
@@ -26,9 +27,9 @@ import { storeOf, type Entry, type LibraryStore } from './libraryStore';
 
 /** Wer eine Bibliothek liest — in Worten. */
 export function audienceWords(library: Pick<OpenLibrary, 'areaPublic' | 'areaRuleAt'>): string {
-  if (library.areaPublic !== true) return 'członkowie jej obszaru';
-  if (library.areaRuleAt == null) return 'członkowie obszaru — obszar jest publiczny, ale biblioteka czeka na potwierdzenie w Ustawieniach';
-  return 'wszyscy — obszar jest publiczny';
+  if (library.areaPublic !== true) return tApp('library.area.members');
+  if (library.areaRuleAt == null) return tApp('library.area.waiting');
+  return tApp('library.area.everyone');
 }
 
 export function AreaBox({ store, library, entry, readOnly }: { store: LibraryStore; library: OpenLibrary; entry: Entry; readOnly: boolean }) {
@@ -39,7 +40,7 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
   const [failed, setFailed] = useState<string | null>(null);
   const [withType, setWithType] = useState(false);
   const writing = libraryKindOf(library) === 'writing';
-  const noun = writing ? 'skryptorium' : 'biblioteki';
+  const t = useT();
 
   /* Nur in einen Behälter derselben Art: Bibliothek zu Bibliothek, Skryptorium zu Skryptorium. */
   const others = (libraries ?? []).filter((l) => l.libraryId !== library.libraryId && l.writes && libraryKindOf(l) === libraryKindOf(library));
@@ -63,11 +64,11 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
       const moved = await store.moveTo(entry.id, there);
       if (moved.keyChanged) {
         /* 2026-10-22 — drüben war der Schlüssel vergeben: der neue gilt, der alte bleibt als zweiter, und Texte zeigen über die Kennung. */
-        toast(`Tam klucz „${moved.from ?? ''}” był już zajęty — wpis ma teraz klucz „${moved.entry.key ?? ''}”. Stary zostaje przy wpisie, a teksty wskazują go stałym odnośnikiem, więc nic się nie zepsuło.`);
+        toast(t('library.area.keyTaken', { from: moved.from ?? '', key: moved.entry.key ?? '' }));
       }
       window.location.hash = viewPath(partOf(chosen), chosen.libraryId, entry.id);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przenieść.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('library.area.moveFailed'));
     } finally {
       setBusy(false);
     }
@@ -75,35 +76,35 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
 
   return (
     <section className="lib-box">
-      <h2 className="lib-box-h">Kto widzi</h2>
-      <p>{writing ? 'Skryptorium' : 'Biblioteka'} „{library.name}”: {audienceWords(library)}.</p>
+      <h2 className="lib-box-h">{t('library.settings.whoSees')}</h2>
+      <p>{t(writing ? 'library.area.seenScriptorium' : 'library.area.seenLibrary', { name: library.name, who: audienceWords(library) })}</p>
       {!readOnly && others.length > 0 && (
         <details className="wk-fold">
-          <summary>Przenieś do innego {noun}</summary>
-          <p className="lib-cm-lede">Wpis zachowuje swoją kennung — odwołania i osadzenia dalej działają. Zobaczą go ci, którzy widzą tamto {writing ? 'skryptorium' : 'miejsce'}.{writing ? ' Tak tekst staje się publiczny: w skryptorium obszaru publicznego.' : ''}</p>
-          <select value={target} disabled={busy} aria-label={writing ? 'Skryptorium docelowe' : 'Biblioteka docelowa'} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">{writing ? '— wybierz skryptorium —' : '— wybierz bibliotekę —'}</option>
-            {others.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} — {l.areaPublic === true ? 'publiczna' : 'dla członków obszaru'}</option>)}
+          <summary>{t(writing ? 'library.area.moveScriptorium' : 'library.area.moveLibrary')}</summary>
+          <p className="lib-cm-lede">{t(writing ? 'library.area.moveLedeScriptorium' : 'library.area.moveLedeLibrary')}</p>
+          <select value={target} disabled={busy} aria-label={writing ? t('library.area.targetScriptorium') : t('library.area.targetLibrary')} onChange={(e) => setTarget(e.target.value)}>
+            <option value="">{writing ? t('library.pick.writing.choose') : t('library.pick.books.choose')}</option>
+            {others.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} — {l.areaPublic === true ? t('library.area.public') : t('library.area.forMembers')}</option>)}
           </select>
           {chosen !== undefined && (
             <>
-              <p>Po przeniesieniu: {audienceWords(chosen)}.</p>
+              <p>{t('library.area.after', { who: audienceWords(chosen) })}</p>
               {typeHere && type !== undefined && (
                 <label className="pe-check">
                   <input type="checkbox" checked={withType} disabled={busy} onChange={(e) => setWithType(e.target.checked)} />
-                  <span>Przenieś też rodzaj tekstu „{str(type.data, 'name')}” — bez niego czytelnicy tamtego skryptorium nie zobaczą pól tego rodzaju (inne teksty tego rodzaju dalej z niego korzystają).</span>
+                  <span>{t('library.area.withType', { name: str(type.data, 'name') })}</span>
                 </label>
               )}
               {/* 2026-10-26 — die Dateien der Musik gehen mit: drüben neu versiegelt, hier danach entfernt. */}
-              {files > 0 && <p>Pliki ({files}) przejdą razem z wpisem — zaszyfrowane kluczem tamtego obszaru; to może chwilę potrwać.</p>}
+              {files > 0 && <p>{t('library.area.files', { n: files })}</p>}
               {(refs > 0 || back > 0) && (
                 <p className="wk-warn">
-                  Kto widzi tylko jedną z bibliotek, zobaczy w miejscu odwołania „[odwołanie niedostępne]” — bez tytułu i treści.
-                  {refs > 0 ? ` Wpis odwołuje się do ${refs} innych.` : ''}{back > 0 ? ` Do niego odwołuje się ${back}.` : ''}
+                  {t('library.area.refsWarn', { unreadable: t('library.markup.unreadable') })}
+                  {refs > 0 ? ` ${t('library.area.refsOut', { n: refs })}` : ''}{back > 0 ? ` ${t('library.area.refsIn', { n: back })}` : ''}
                 </p>
               )}
               <div className="wk-actions">
-                <button type="button" className="wk-btn" disabled={busy || me == null} onClick={() => void move()}>{busy ? 'Przenoszenie…' : `Przenieś do „${chosen.name}”`}</button>
+                <button type="button" className="wk-btn" disabled={busy || me == null} onClick={() => void move()}>{busy ? t('library.area.moving') : t('library.area.moveTo', { name: chosen.name })}</button>
               </div>
             </>
           )}

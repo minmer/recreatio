@@ -22,6 +22,7 @@ import { roleLabel, useRoleNames } from '../roles/roleNames';
 import { PATH_SHAPE, pagePath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { JsonPanel } from '../ui/JsonPanel';
+import { rich, useT } from '../core/i18n';
 /*
  * Wohin eine eigene Domain zeigen muss (die Adressen von GitHub Pages) und wie ein Name aussieht — seit
  * 2026-10-29 in `addressesJson.ts`, damit Ansicht, Plan des Imports und Beschreibung dieselben Zeilen sagen.
@@ -30,7 +31,14 @@ import {
   ADDRESSES_JSON, applyAddresses, exportAddresses, HOST_SHAPE, PAGES_A, PAGES_AAAA, PAGES_CNAME, planAddresses, type AddressState
 } from './addressesJson';
 
+/** Die Auszeichnungen der erklärenden Sätze: fett und Code. */
+const TAGS = {
+  b: (s: string, k: number) => <b key={k}>{s}</b>,
+  code: (s: string, k: number) => <code key={k}>{s}</code>
+};
+
 export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onChanged: () => void }) {
+  const t = useT();
   const names = useRoleNames(who);
   /* Nur Adressen, auf denen Inhalt LIEGT, taugen als Ziel. Ein Alias auf einen
      Alias wäre eine Kette, und die liesse sich im Kreis legen. */
@@ -40,28 +48,23 @@ export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onCh
 
   return (
     <>
-      <p className="wk-lede">
-        Ta sama strona może mieć więcej niż jedno wejście: krótszy adres wewnątrz
-        recreatio.pl albo własną domenę. Treść zostaje tam, gdzie była — wejście
-        tylko na nią wskazuje.
-      </p>
+      <p className="wk-lede">{t('pagesAddresses.lede')}</p>
 
       <HowItWorks />
 
-      <h2 className="wk-h2">Aliasy</h2>
+      <h2 className="wk-h2">{t('pagesAddresses.aliases')}</h2>
 
       {aliases.length === 0 ? (
-        <p className="wk-empty">Nie masz jeszcze żadnego aliasu.</p>
+        <p className="wk-empty">{t('pagesAddresses.noAliases')}</p>
       ) : (
         <ul className="wk-list">
           {aliases.map((page) => (
             <li className="wk-row" key={page.path}>
-              <span><code>recreatio.pl/{page.path}</code></span>
+              <span><code>{`recreatio.pl/${page.path}`}</code></span>
               <span className="wk-row-side">
-                prowadzi do{' '}
-                <a className="wk-link" href={pagePath(page.aliasOf!)}>
-                  <code>{page.aliasOf}</code>
-                </a>
+                {rich(t('pagesAddresses.leadsTo', { path: page.aliasOf! }), {
+                  link: (s, k) => <a key={k} className="wk-link" href={pagePath(page.aliasOf!)}><code>{s}</code></a>
+                })}
               </span>
             </li>
           ))}
@@ -70,17 +73,17 @@ export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onCh
 
       <AliasForm desk={desk} names={names} roots={roots} onDone={onChanged} />
 
-      <h2 className="wk-h2">Własne domeny</h2>
+      <h2 className="wk-h2">{t('pagesAddresses.domains')}</h2>
 
       {bound.length === 0 ? (
-        <p className="wk-empty">Żadna domena nie jest podpięta.</p>
+        <p className="wk-empty">{t('pagesAddresses.noDomains')}</p>
       ) : (
         <ul className="wk-list">
           {bound.map((page) => (
             <li className="wk-row" key={page.path}>
               <span><code>{page.host}</code></span>
               <span className="wk-row-side">
-                pokazuje <code>recreatio.pl/{page.path}</code>
+                {rich(t('pagesAddresses.shows', { path: page.path }), TAGS)}
                 {' · '}
                 <Unbind path={page.path} onDone={onChanged} />
               </span>
@@ -106,6 +109,7 @@ export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onCh
  * ausserhalb der Plattform bleibt, sagt der Plan je neuer Domain mit.
  */
 function AddressesJson({ desk, names, onDone }: { desk: Desk; names: ReadonlyMap<string, string>; onDone: () => void }) {
+  const t = useT();
   const state: AddressState = {
     pages: desk.pages,
     roles: takers(desk.roles).map((role) => ({ id: role.id, name: roleLabel(role, names) }))
@@ -113,10 +117,10 @@ function AddressesJson({ desk, names, onDone }: { desk: Desk; names: ReadonlyMap
 
   return (
     <section aria-labelledby="addresses-json-h">
-      <h2 className="wk-h2" id="addresses-json-h">Import i eksport (JSON)</h2>
+      <h2 className="wk-h2" id="addresses-json-h">{t('pagesAddresses.json.title')}</h2>
       <JsonPanel
-        summary="Adresy i domeny jako JSON"
-        lead={<>Aliasy i własne domeny — do kopii albo do przygotowania przez AI. Import zakłada nowe aliasy oraz podpina, zamienia albo (przy <code>&quot;host&quot;: null</code>) odpina domeny; istniejących aliasów nie zmienia ani nie usuwa. Plan mówi też, co zostaje do zrobienia poza platformą.</>}
+        summary={t('pagesAddresses.json.summary')}
+        lead={<>{rich(t('pagesAddresses.json.lead'), TAGS)}</>}
         fileName="adresy-i-domeny.json"
         exportDoc={() => exportAddresses(state)}
         format={ADDRESSES_JSON}
@@ -124,7 +128,7 @@ function AddressesJson({ desk, names, onDone }: { desk: Desk; names: ReadonlyMap
           const plan = planAddresses(doc, state);
           return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
         }}
-        importLabel="Importuj adresy i domeny"
+        importLabel={t('pagesAddresses.json.import')}
         onImport={async (doc, stage) => {
           const plan = planAddresses(doc, state);
           if ('error' in plan) throw new WorkspaceError(plan.error);
@@ -140,36 +144,13 @@ function AddressesJson({ desk, names, onDone }: { desk: Desk; names: ReadonlyMap
 /* -- Was hier eigentlich passiert ------------------------------------------ */
 
 function HowItWorks() {
+  const t = useT();
   return (
     <>
-      <h2 className="wk-h2">Jak to działa</h2>
-
-      <p className="wk-note">
-        <b>Adres przejęty kodem jest korzeniem.</b> <code>parish</code> bierze się
-        raz, kodem od serwera. Wszystko, co leży pod nim —{' '}
-        <code>parish/grzegorzki</code> — otwiera już sam prowadzący, w warsztacie
-        i bez kodu. Takich tras nie da się przejąć osobno, i to celowo: inaczej
-        jeden adres miałby dwóch odpowiedzialnych, a o tym, którą stronę widzi
-        odwiedzający, decydowałaby kolejność wierszy w bazie.
-      </p>
-
-      <p className="wk-note">
-        <b>Podtrasy są lokalne.</b> Jeśli <code>cogita.pl</code> pokazuje{' '}
-        <code>recreatio.pl/cogita</code>, to strona <code>cogita/kursy</code> jest
-        pod tą domeną dostępna jako <code>cogita.pl/#/kursy</code> — bez
-        powtarzania nazwy korzenia. Dlatego odnośniki na stronie pisze się
-        lokalnie: ten sam link działa i pod recreatio.pl, i pod własną domeną.
-        Gdyby zawierał pełną ścieżkę, jedna z tych dwóch wersji zawsze byłaby
-        zepsuta.
-      </p>
-
-      <p className="wk-note">
-        <b>Alias to drugie wejście, nie druga strona.</b> Pod aliasem nic się nie
-        zapisuje — tytuł, wstęp i moduły zmieniają się tam, gdzie leży treść.
-        Usługa odmawia zapisu na alias niezależnie od tego, czy ktoś go przejął:
-        dwie wersje tej samej rzeczy oznaczałyby, że jedna z nich jest
-        nieaktualna.
-      </p>
+      <h2 className="wk-h2">{t('pagesAddresses.how.title')}</h2>
+      <p className="wk-note">{rich(t('pagesAddresses.how.root'), TAGS)}</p>
+      <p className="wk-note">{rich(t('pagesAddresses.how.local'), TAGS)}</p>
+      <p className="wk-note">{rich(t('pagesAddresses.how.alias'), TAGS)}</p>
     </>
   );
 }
@@ -182,6 +163,7 @@ function AliasForm({ desk, names, roots, onDone }: {
   roots: readonly { path: string }[];
   onDone: () => void;
 }) {
+  const t = useT();
   const [target, setTarget] = useState('');
   const [wanted, setWanted] = useState('');
   const [roleId, setRoleId] = useState(takers(desk.roles)[0]?.id ?? '');
@@ -193,18 +175,18 @@ function AliasForm({ desk, names, roots, onDone }: {
 
   const blocker =
     busy ? null
-    : roots.length === 0 ? 'Najpierw przejmij jakiś adres.'
-    : target === '' ? 'Wybierz stronę, do której alias ma prowadzić.'
-    : path === '' ? 'Wpisz adres aliasu.'
-    : !PATH_SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
+    : roots.length === 0 ? t('pagesAddresses.alias.takeFirst')
+    : target === '' ? t('pagesAddresses.alias.pickTarget')
+    : path === '' ? t('pagesAddresses.alias.enterPath')
+    : !PATH_SHAPE.test(path) ? t('pagesAddresses.alias.badPath')
     /*
      * Ein Alias auf oberster Ebene wäre ein neues Wort im gemeinsamen
      * Namensraum — das vergibt der Server mit einem Code. Hier zu prüfen heisst,
      * es zu erklären, statt eine 403 aus dem Dienst zu zeigen.
      */
-    : !path.includes('/') ? 'Alias zakłada się pod adresem, który już prowadzisz — np. parish/news.'
-    : path === target ? 'Alias nie może wskazywać na siebie.'
-    : roleId === '' ? 'Wybierz rolę.'
+    : !path.includes('/') ? t('pagesAddresses.alias.underOwn')
+    : path === target ? t('pagesAddresses.alias.self')
+    : roleId === '' ? t('pagesAddresses.alias.pickRole')
     : null;
 
   const go = async () => {
@@ -218,7 +200,7 @@ function AliasForm({ desk, names, roots, onDone }: {
       setWanted('');
       onDone();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć aliasu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesAddresses.alias.failed'));
     } finally {
       setBusy(false);
     }
@@ -230,28 +212,24 @@ function AliasForm({ desk, names, roots, onDone }: {
       onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
     >
       <label className="wk-field">
-        <span>Alias ma prowadzić do</span>
+        <span>{t('pagesAddresses.alias.target')}</span>
         <select value={target} onChange={(e) => setTarget(e.target.value)}>
-          <option value="">— wybierz —</option>
+          <option value="">{t('pages.logicEd.choose')}</option>
           {roots.map((page) => (
-            <option key={page.path} value={page.path}>recreatio.pl/{page.path}</option>
+            <option key={page.path} value={page.path}>{`recreatio.pl/${page.path}`}</option>
           ))}
         </select>
       </label>
 
       <label className="wk-field">
-        <span>Nowy adres</span>
-        <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="parish/news" />
+        <span>{t('pagesAddresses.alias.new')}</span>
+        <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder={'parish/news'} />
       </label>
 
-      <p className="wk-hint">
-        Musi leżeć pod adresem, który prowadzisz. Nazwy najwyższego poziomu —{' '}
-        <code>recreatio.pl/cogita</code> — wydaje serwer wraz z kodem, bo należą
-        do wspólnej przestrzeni nazw.
-      </p>
+      <p className="wk-hint">{rich(t('pagesAddresses.alias.hint'), TAGS)}</p>
 
       <label className="wk-field">
-        <span>Kto będzie odpowiadał</span>
+        <span>{t('pagesAddresses.tree.who')}</span>
         <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
           {takers(desk.roles).map((role) => (
             <option key={role.id} value={role.id}>{roleLabel(role, names)}</option>
@@ -261,14 +239,12 @@ function AliasForm({ desk, names, roots, onDone }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {done !== null && (
-        <p className="wk-done">
-          Alias <code>recreatio.pl/{done}</code> już działa.
-        </p>
+        <p className="wk-done">{rich(t('pagesAddresses.alias.done', { path: done }), TAGS)}</p>
       )}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={blocker !== null || busy}>
-          {busy ? 'Zakładanie…' : 'Załóż alias'}
+          {busy ? t('pagesAddresses.tree.creating') : t('pagesAddresses.alias.create')}
         </button>
         {blocker !== null && !busy && <span className="wk-blocker">{blocker}</span>}
       </div>
@@ -279,6 +255,7 @@ function AliasForm({ desk, names, roots, onDone }: {
 /* -- Eigene Domain --------------------------------------------------------- */
 
 function DomainForm({ roots, onDone }: { roots: readonly { path: string }[]; onDone: () => void }) {
+  const t = useT();
   const [path, setPath] = useState('');
   const [wanted, setWanted] = useState('');
   const [busy, setBusy] = useState(false);
@@ -289,10 +266,10 @@ function DomainForm({ roots, onDone }: { roots: readonly { path: string }[]; onD
 
   const blocker =
     busy ? null
-    : roots.length === 0 ? 'Najpierw przejmij jakiś adres.'
-    : path === '' ? 'Wybierz stronę.'
-    : host === '' ? 'Wpisz nazwę domeny.'
-    : !HOST_SHAPE.test(host) ? 'Sama nazwa domeny: małe litery, z kropką, bez http:// i bez ścieżki.'
+    : roots.length === 0 ? t('pagesAddresses.alias.takeFirst')
+    : path === '' ? t('pagesAddresses.domain.pickPage')
+    : host === '' ? t('pagesAddresses.domain.enter')
+    : !HOST_SHAPE.test(host) ? t('pagesAddresses.domain.bad')
     : null;
 
   const go = async () => {
@@ -306,7 +283,7 @@ function DomainForm({ roots, onDone }: { roots: readonly { path: string }[]; onD
       setWanted('');
       onDone();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podpiąć domeny.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesAddresses.domain.failed'));
     } finally {
       setBusy(false);
     }
@@ -318,31 +295,28 @@ function DomainForm({ roots, onDone }: { roots: readonly { path: string }[]; onD
       onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
     >
       <label className="wk-field">
-        <span>Domena pokaże stronę</span>
+        <span>{t('pagesAddresses.domain.target')}</span>
         <select value={path} onChange={(e) => setPath(e.target.value)}>
-          <option value="">— wybierz —</option>
+          <option value="">{t('pages.logicEd.choose')}</option>
           {roots.map((page) => (
-            <option key={page.path} value={page.path}>recreatio.pl/{page.path}</option>
+            <option key={page.path} value={page.path}>{`recreatio.pl/${page.path}`}</option>
           ))}
         </select>
       </label>
 
       <label className="wk-field">
-        <span>Domena</span>
-        <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="cogita.pl" />
+        <span>{t('pagesAddresses.domain.label')}</span>
+        <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder={'cogita.pl'} />
       </label>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {done !== null && (
-        <p className="wk-done">
-          <code>{done}</code> wskazuje już tę stronę. Zostały jeszcze trzy rzeczy
-          poza platformą — niżej.
-        </p>
+        <p className="wk-done">{rich(t('pagesAddresses.domain.done', { host: done }), TAGS)}</p>
       )}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={blocker !== null || busy}>
-          {busy ? 'Podpinanie…' : 'Podepnij domenę'}
+          {busy ? t('pagesAddresses.domain.binding') : t('pagesAddresses.domain.bind')}
         </button>
         {blocker !== null && !busy && <span className="wk-blocker">{blocker}</span>}
       </div>
@@ -351,6 +325,7 @@ function DomainForm({ roots, onDone }: { roots: readonly { path: string }[]; onD
 }
 
 function Unbind({ path, onDone }: { path: string; onDone: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   return (
@@ -365,7 +340,7 @@ function Unbind({ path, onDone }: { path: string; onDone: () => void }) {
         void bindDomain(path, null).then(onDone).finally(() => setBusy(false));
       }}
     >
-      {busy ? 'odpinanie…' : 'odepnij'}
+      {busy ? t('pagesAddresses.domain.unbinding') : t('pagesAddresses.domain.unbind')}
     </button>
   );
 }
@@ -373,72 +348,39 @@ function Unbind({ path, onDone }: { path: string; onDone: () => void }) {
 /* -- Was die Datenbank nicht kann ------------------------------------------ */
 
 function OutsideThePlatform() {
+  const t = useT();
   return (
     <>
-      <h2 className="wk-h2">Co trzeba zrobić poza platformą</h2>
+      <h2 className="wk-h2">{t('pagesAddresses.out.title')}</h2>
 
-      <p className="wk-note">
-        Podpięcie domeny tutaj zapisuje tylko jedno: że ta nazwa oznacza tę
-        stronę. Żeby przeglądarka w ogóle tu trafiła, trzeba jeszcze trzech
-        rzeczy, których nie ma w bazie.
-      </p>
+      <p className="wk-note">{t('pagesAddresses.out.lead')}</p>
 
-      <h3 className="wk-h3">1. DNS</h3>
+      <h3 className="wk-h3">{t('pagesAddresses.out.dns')}</h3>
 
       <ul className="wk-list">
         <li className="wk-row">
-          <span><code>A</code> dla samej domeny</span>
+          <span>{rich(t('pagesAddresses.out.a'), TAGS)}</span>
           <span className="wk-row-side"><code>{PAGES_A.join(', ')}</code></span>
         </li>
         <li className="wk-row">
-          <span><code>AAAA</code> dla samej domeny</span>
+          <span>{rich(t('pagesAddresses.out.aaaa'), TAGS)}</span>
           <span className="wk-row-side"><code>{PAGES_AAAA.join(', ')}</code></span>
         </li>
         <li className="wk-row">
-          <span><code>CNAME</code> dla <code>www</code></span>
+          <span>{rich(t('pagesAddresses.out.cname'), TAGS)}</span>
           <span className="wk-row-side"><code>{PAGES_CNAME}</code></span>
         </li>
       </ul>
 
-      <h3 className="wk-h3">2. Ta sama strona pod nową nazwą</h3>
+      <h3 className="wk-h3">{t('pagesAddresses.out.hostTitle')}</h3>
+      <p className="wk-note">{rich(t('pagesAddresses.out.host'), TAGS)}</p>
 
-      <p className="wk-note">
-        GitHub Pages przyjmuje jedną własną domenę na repozytorium, a ta jedna to
-        już <code>recreatio.pl</code>. Druga domena potrzebuje więc własnego
-        miejsca: osobnego repozytorium z własnym plikiem <code>CNAME</code> albo
-        dowolnego hostingu plików statycznych. Sam wpis w rejestrze tego nie
-        załatwi.
-      </p>
+      <h3 className="wk-h3">{t('pagesAddresses.out.originTitle')}</h3>
+      <p className="wk-note">{rich(t('pagesAddresses.out.origin'), TAGS)}</p>
 
-      <h3 className="wk-h3">3. Zgoda usługi na nową nazwę</h3>
-
-      <p className="wk-note">
-        Przeglądarka nie pozwoli stronie z <code>cogita.pl</code> czytać
-        odpowiedzi z <code>api.recreatio.pl</code>, dopóki usługa tej nazwy nie
-        wymieni (<code>Api:Origins</code>). Do tego potrzebny jest ktoś z dostępem
-        do serwera — z warsztatu się tego nie ustawia, i tak ma być: lista
-        dozwolonych nazw jest częścią zabezpieczeń, nie treści.
-      </p>
-
-      <h3 className="wk-h3">Logowanie pod własną domeną</h3>
-
-      <p className="wk-note">
-        <b>Strony publiczne działają bez logowania</b> — odwiedzający nic nie
-        potrzebuje, wystarczy punkt 3. Ale <b>zalogować się pod własną domeną jest
-        trudniej</b>: ciasteczko sesji wystawia <code>api.recreatio.pl</code>, więc
-        na <code>cogita.pl</code> jest ciasteczkiem obcym, a Safari i Firefox takie
-        blokują albo rozdzielają. Sesja po prostu nie wróci.
-      </p>
-
-      <p className="wk-note">
-        Są dwie drogi. Prostsza: pod własną domeną tylko pokazywać stronę, a
-        zarządzać nią na <code>recreatio.pl</code> — tam ciasteczko jest własne.
-        Pełna: skierować <code>api.twoja-domena</code> (rekord{' '}
-        <code>CNAME</code>) na tę samą usługę i zbudować tam oprogramowanie z{' '}
-        <code>VITE_APP_API=https://api.twoja-domena</code>. Wtedy usługa i strona
-        są pod jedną nazwą, ciasteczko jest własne i logowanie działa. Potrzebny
-        jest do tego certyfikat na tę poddomenę — to również praca na serwerze.
-      </p>
+      <h3 className="wk-h3">{t('pagesAddresses.out.loginTitle')}</h3>
+      <p className="wk-note">{rich(t('pagesAddresses.out.login'), TAGS)}</p>
+      <p className="wk-note">{rich(t('pagesAddresses.out.ways'), TAGS)}</p>
     </>
   );
 }

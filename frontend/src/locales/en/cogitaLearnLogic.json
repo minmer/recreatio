@@ -1,0 +1,174 @@
+{
+  "level": {
+    "unseen": "unknown",
+    "learning": "due for review",
+    "known": "known"
+  },
+  "dependency": {
+    "prerequisite": "First you need to know",
+    "elaboration": "Deepens",
+    "context": "Gives background"
+  },
+  "band": {
+    "known": "known",
+    "due": "due for review",
+    "ring": "ready to learn",
+    "mountain": "still beyond the mountains"
+  },
+  "landscape": {
+    "noOrder": "This base has no learning order (“First you need to know”) — everything you don't know yet stands on the plain.",
+    "cycles": "There are circles in the learning order ({n}) — each counts as one step; fix them in “To do”.",
+    "noArea": "no region"
+  },
+  "detour": {
+    "crossOptional": "A detour into another world (“{flow}”) is always optional — \"optional\": false does not apply.",
+    "noFlow": "The detour points to no story (\"flow\") — the learner will only see “Next”.",
+    "missing": "The detour points to the story “{flow}”, which is neither in the document nor in the base — the learner will only see “Next”.",
+    "self": "The detour leads to the same story {name} — a story cannot enter itself.",
+    "cycle": "The detours form a circle: {ring} — a story cannot return to itself through detours. Remove one of them.",
+    "deep": "The detours go deeper than {depth} levels: {chain} — the player will not offer the deepest one.",
+    "quoted": "“{name}”"
+  },
+  "learn": {
+    "notNeeded": "Not needed for sending."
+  },
+  "offline": {
+    "locked": "Without internet the person's private key is locked."
+  },
+  "oldCopies": {
+    "done": "Old public copies withdrawn: {withdrawn}, copies removed from entries: {stripped}, file copies withdrawn: {files}.",
+    "kept": "Copies left: {n} — they show entries that are no longer in the base (restore them from the entry history or keep the copy; while it exists, this base cannot be opened to everyone).",
+    "failed": "Could not withdraw files: {n} — try again."
+  },
+  "presentation": {
+    "noAccess": "You have no access to this knowledge base.",
+    "noWrite": "You do not write in this knowledge base — the run can be created by someone who writes in it.",
+    "name": "Presentation"
+  },
+  "worlds": {
+    "crumbs": "Where you are"
+  },
+  "python": {
+    "crashed": "Python stopped working.",
+    "unavailable": "Python is not available here.",
+    "tooLong": "Python computed for too long.",
+    "loadTooLong": "Python took too long to load — check the internet and try again.",
+    "startFailed": "Could not start Python (the first time needs the internet): {error}",
+    "loadTimeout": "The code runs too long already at start (over {s} s) — is some loop outside the function transform?",
+    "invalid": "The code did not run.",
+    "garbled": "Python answered unintelligibly.",
+    "caseTimeout": "Time exceeded ({s} s per case).",
+    "nothing": "This question has no examples or hidden cases to check.",
+    "notRun": "Not run — {why}",
+    "notRunQuestion": "Not run — error in the question (create_input/reference): {error}",
+    "questionTooLong": "create_input/reference compute for too long",
+    "questionError": "Error in the question (create_input/reference): {error}",
+    "questionFailed": "create_input/reference failed",
+    "tooManyTimeouts": "Not run — the code exceeded the time {n} times.",
+    "unknownCommand": "Unknown command for Python.",
+    "failed": "Python failed.",
+    "needTransform": "You need to define a function: def transform(x):",
+    "noTransform": "The function transform(x) is missing.",
+    "notLoaded": "The code is not loaded.",
+    "noCreate": "create_input(seed) or reference(x) is missing.",
+    "noCase": "There is no prepared case.",
+    "needRun": "The code must define a function run(*inputs)."
+  },
+  "generator": {
+    "noEntry": "“{name}”: no entry of the kind “{kind}” fits.",
+    "noEntryWhere": "“{name}”: no entry of the kind “{kind}” fits “{where}”.",
+    "tooFew": "“{name}”: {want} different entries needed, {n} fit.",
+    "overrun": "“{name}”: too much computing (lists longer than the language allows or too many steps).",
+    "unmet": "The condition “{source}” could not be met in {total} draws — widen the ranges or relax the conditions."
+  },
+  "samples": {
+    "noCardWhy": "The card was not made — an answer or options are missing.",
+    "noCard": "The card was not made.",
+    "made": "{k} of {n} succeeded.",
+    "madeTries": "{k} of {n} succeeded · on average {tries} draws per task.",
+    "madeTriesRejected": "{k} of {n} succeeded · on average {tries} draws per task ({pct}% rejected).",
+    "title": "Example tasks ({n})",
+    "other": "Other examples",
+    "drawing": "Drawing…"
+  },
+  "quilt": {
+    "label": {
+      "new": "new",
+      "learning": "learning",
+      "due": "due for review",
+      "known": "known"
+    },
+    "says": {
+      "new": "no answer yet",
+      "learning": "recently wrong or forgotten — back to learning",
+      "due": "you know it, and now it needs a review",
+      "known": "you know it — before the review date"
+    },
+    "step": {
+      "s1": "knows less than ¼",
+      "s2": "¼ – ½",
+      "s3": "½ – ¾",
+      "s4": "over ¾"
+    }
+  },
+  "quiltView": {
+    "empty": "This view has no entries.",
+    "noQuestionsYet": "This entry has no questions yet.",
+    "noQuestions": "This entry has no questions.",
+    "entry": "entry",
+    "allKnown": "You know everything ({n})",
+    "known": "You know {k} of {n}",
+    "shown": "Showing {k} of {n} entries.",
+    "shownMore": "Showing {k} of {n} entries — ",
+    "noQuestionsShort": " · no questions",
+    "notYet": "not yet",
+    "practise": "Practise this",
+    "questions": "Questions",
+    "lastAnswer": "{word} · {date} · {answers}",
+    "answers": {
+      "one": "{count} answer",
+      "other": "{count} answers"
+    },
+    "hints": " · hints: {n}",
+    "map": "Map",
+    "title": "Progress map",
+    "classSum": "Everyone knows {k} of {n} · learners: {learners}",
+    "nobody": "nobody has answered yet",
+    "knowsOf": "{k} of {n} know it",
+    "nobodyQuestions": "Nobody has answered these questions yet.",
+    "nobodyRange": "Nobody has answered in this range yet.",
+    "col": {
+      "question": {
+        "label": "Question"
+      },
+      "learners": {
+        "label": "Learners",
+        "says": "how many answered"
+      },
+      "success": {
+        "label": "Success",
+        "says": "fully correct answers (without hints)"
+      },
+      "first": {
+        "label": "First time",
+        "says": "how many answered right at once"
+      },
+      "attempts": {
+        "label": "Average attempts",
+        "says": "answers per person"
+      },
+      "hints": {
+        "label": "Hints",
+        "says": "hints revealed in total (in how many answers)"
+      },
+      "wrong": {
+        "label": "Most common wrong answer"
+      }
+    },
+    "shown300": "Showing 300 of {n}.",
+    "successNote": "Success counts only fully correct answers — a correct answer with a hint does not count towards it.",
+    "who": "Who",
+    "everyone": "everyone together",
+    "mapOf": "Map: {name}"
+  }
+}

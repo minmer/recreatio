@@ -19,6 +19,7 @@ import type { Ring } from '../core/keys';
 import { LINK_LEVELS, type LinkLevel } from '../links/linkAccess';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export const NEW_ROLE = 'new';
 
@@ -26,6 +27,7 @@ export const EMPTY_DRAFT: NewRoleDraft = { name: '', areas: [] };
 
 /** Die Rollen, die ich geben kann — einmal je Bund geladen. `null`: wird geladen. */
 export function useGivableRoles(ring: Ring | null): { roles: readonly GivableRole[] | null; failed: string | null } {
+  const t = useT();
   const [roles, setRoles] = useState<readonly GivableRole[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
@@ -33,8 +35,9 @@ export function useGivableRoles(ring: Ring | null): { roles: readonly GivableRol
     let alive = true;
     setRoles(null);
     givableRoles(ring).then((found) => { if (alive) { setRoles(found); setFailed(null); } })
-      .catch((e) => { if (alive) { setRoles([]); setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać ról.'); } });
+      .catch((e) => { if (alive) { setRoles([]); setFailed(e instanceof WorkspaceError ? e.message : t('roles.common.loadFailed')); } });
     return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ring]);
   return { roles, failed };
 }
@@ -59,6 +62,7 @@ export function CommonRoleChoice({
   leadLabel?: string;
   busy: boolean;
 }) {
+  const t = useT();
   const sorted = useMemo(() => {
     if (roles === null || focusAreaId === undefined) return roles;
     const into = (r: GivableRole) => r.areas.some((a) => a.areaId === focusAreaId);
@@ -89,9 +93,9 @@ export function CommonRoleChoice({
 
   return (
     <fieldset className="wk-role-choice" disabled={busy}>
-      <legend>{many ? 'Jakie role daje' : 'Rola'}</legend>
+      <legend>{many ? t('roles.common.givesRoles') : t('roles.common.role')}</legend>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {sorted === null ? <Loading label="Wczytywanie ról…" /> : (
+      {sorted === null ? <Loading label={t('roles.common.loading')} /> : (
         <ul>
           {sorted.map((r) => (
             <li key={r.roleId} className={picked.has(r.roleId) ? 'is-on' : undefined}>
@@ -100,7 +104,7 @@ export function CommonRoleChoice({
                   onChange={(e) => toggle(r.roleId, e.target.checked)} />
                 <span>
                   <strong>{r.name}</strong>
-                  {focusAreaId !== undefined && r.areas.some((a) => a.areaId === focusAreaId) && <span className="wk-tag wk-tag-open">ten obszar</span>}
+                  {focusAreaId !== undefined && r.areas.some((a) => a.areaId === focusAreaId) && <span className="wk-tag wk-tag-open">{t('roles.common.thisArea')}</span>}
                   <span className="wk-hint">{reachWords(r.areas)}</span>
                 </span>
               </label>
@@ -112,18 +116,18 @@ export function CommonRoleChoice({
               <input type={many ? 'checkbox' : 'radio'} name="wk-role-choice" checked={creating} disabled={possible.length === 0}
                 onChange={(e) => toggle(NEW_ROLE, e.target.checked)} />
               <span>
-                <strong>+ Nowa rola</strong>
-                <span className="wk-hint">{possible.length === 0 ? 'Nie prowadzisz obszaru, do którego mogłaby dawać dostęp.' : 'Nazwa i obszary — utworzy się przy zapisie.'}</span>
+                <strong>{t('roles.common.newRole')}</strong>
+                <span className="wk-hint">{possible.length === 0 ? t('roles.common.noPossible') : t('roles.common.newHint')}</span>
               </span>
             </label>
             {creating && (
               <div className="wk-role-new">
                 <label className="wk-field">
-                  <span>Nazwa roli</span>
-                  <input value={draft.name} placeholder="np. Uczestnicy Rocket 2026" autoComplete="off" data-role-new-name=""
+                  <span>{t('roles.common.name')}</span>
+                  <input value={draft.name} placeholder={t('roles.common.namePlaceholder')} autoComplete="off" data-role-new-name=""
                     onChange={(e) => onDraft({ ...draft, name: e.target.value })} />
                 </label>
-                <span className="wk-hint">Daje dostęp do:</span>
+                <span className="wk-hint">{t('roles.common.gives')}</span>
                 <ul className="wk-role-new-areas">
                   {possible.map((a) => {
                     const level = levels.get(a.areaId);

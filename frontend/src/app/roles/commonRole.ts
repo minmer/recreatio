@@ -16,6 +16,7 @@ import { joinArea } from '../areas/area';
 import type { Ring, SealedRole } from '../core/keys';
 import { issuerIn, type LinkArea, type LinkLevel } from '../links/linkAccess';
 import { forgetKeys } from '../core/ringOf';
+import { t, texts } from '../core/i18n';
 import { createRoleWithKeys } from './roles';
 import { call, WorkspaceError } from '../core/session';
 
@@ -49,16 +50,16 @@ export async function givableRoles(ring: Ring): Promise<GivableRole[]> {
     const name = await ring.name(one.roleId);
     /* Eine Linkrolle von früher, die der Dienst (noch) nicht als solche kennt, verrät sich am Namen. */
     if (name !== null && name.startsWith('Link: ')) continue;
-    out.push({ roleId: one.roleId, name: name ?? 'Rola bez nazwy', kind: role.kind, leads: ring.maySign(one.roleId), areas: one.areas });
+    out.push({ roleId: one.roleId, name: name ?? t('roles.common.unnamed'), kind: role.kind, leads: ring.maySign(one.roleId), areas: one.areas });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export const LEVEL_SHORT: Record<string, string> = { read: 'czyta', write: 'pisze', admin: 'prowadzi' };
+export const LEVEL_SHORT: Record<string, string> = texts({ read: 'roles.common.level.read', write: 'roles.common.level.write', admin: 'roles.common.level.admin' });
 
 /** „Rada — pisze · Ogłoszenia — czyta" — oder dass sie (noch) nirgendwohin führt. */
 export const reachWords = (areas: readonly LinkArea[]): string =>
-  areas.length === 0 ? 'jeszcze bez obszarów' : areas.map((a) => `${a.name} — ${LEVEL_SHORT[a.capability] ?? a.capability}`).join(' · ');
+  areas.length === 0 ? t('roles.common.noAreas') : areas.map((a) => `${a.name} — ${LEVEL_SHORT[a.capability] ?? a.capability}`).join(' · ');
 
 export interface NewRoleDraft {
   readonly name: string;
@@ -67,8 +68,8 @@ export interface NewRoleDraft {
 
 /** Was an einem Entwurf noch fehlt — oder \`null\`. */
 export function draftProblem(draft: NewRoleDraft): string | null {
-  if (draft.name.trim() === '') return 'Nazwij nową rolę — np. „Uczestnicy Rocket 2026".';
-  if (draft.areas.length === 0) return 'Zaznacz co najmniej jeden obszar, do którego rola daje dostęp.';
+  if (draft.name.trim() === '') return t('roles.common.needName');
+  if (draft.areas.length === 0) return t('roles.common.needArea');
   return null;
 }
 
@@ -86,14 +87,14 @@ export async function createCommonRole(
   const issuers = new Map<string, string>();
   for (const { areaId } of draft.areas) {
     const issuer = await issuerIn(ring, areaId);
-    if (issuer === null) throw new WorkspaceError('Do jednego z wybranych obszarów nie możesz nikogo wpuścić.');
+    if (issuer === null) throw new WorkspaceError(t('roles.common.cannotAdmit'));
     issuers.set(areaId, issuer);
   }
 
-  progress('Liczenie kluczy nowej roli…');
+  progress(t('roles.common.computingKeys'));
   const made = await createRoleWithKeys(ring, holder, { kind: 'group', name: draft.name.trim() });
   for (const { areaId, capability } of draft.areas) {
-    progress('Otwieranie obszarów dla roli…');
+    progress(t('roles.common.openingAreas'));
     await joinArea(ring, areaId, { id: made.id, kind: 'group', wrapPublicKey: made.wrapPublicKey }, issuers.get(areaId)!, capability);
   }
 

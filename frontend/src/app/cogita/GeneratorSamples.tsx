@@ -18,6 +18,7 @@ import { readParamsSpec, sampleInstances, type GenWorld } from './generator';
 import type { CogitaLibrary } from './store';
 import { TexText } from '../ui/tex/Tex';
 import { useAsync } from './ui';
+import { t, useT } from '../core/i18n';
 
 /** So viele Proben zeigt der Editor. */
 export const SAMPLE_COUNT = 10;
@@ -34,18 +35,21 @@ const seedsOf = (round: number): string[] => Array.from({ length: SAMPLE_COUNT }
 export function questionSamples(entity: { readonly id: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>> }, seeds: readonly string[], world?: GenWorld): Sample[] {
   return seeds.map((seed) => {
     const card = questionCards(entity, seed, world)[0] ?? null;
-    return { seed, card, problem: card === null ? generatorProblem(entity, seed, world) ?? 'Karta nie powstała — brakuje odpowiedzi albo możliwości.' : null };
+    return { seed, card, problem: card === null ? generatorProblem(entity, seed, world) ?? t('cogitaLearnLogic.samples.noCardWhy') : null };
   });
 }
 
 function SampleList({ samples, tries, lib }: { samples: readonly Sample[]; tries: number | null; lib: CogitaLibrary }) {
+  const t = useT();
   const made = samples.filter((s) => s.card !== null).length;
   const failed = samples.filter((s) => s.card === null);
   const name = (id: string) => { const e = lib.entity(id); return e === undefined ? null : lib.label(e); };
   return (
     <>
       <p className="cg-muted" data-generator-rate={`${made}/${samples.length}`}>
-        Udało się {made} z {samples.length}{tries === null ? '' : ` · średnio ${tries.toLocaleString('pl-PL', { maximumFractionDigits: 1 })} losowań na zadanie${tries > 1.05 ? ` (odrzuconych ${Math.round((1 - 1 / tries) * 100)}%)` : ''}`}.
+        {tries === null ? t('cogitaLearnLogic.samples.made', { k: made, n: samples.length })
+          : tries > 1.05 ? t('cogitaLearnLogic.samples.madeTriesRejected', { k: made, n: samples.length, tries: tries.toLocaleString(t.locale, { maximumFractionDigits: 1 }), pct: Math.round((1 - 1 / tries) * 100) })
+          : t('cogitaLearnLogic.samples.madeTries', { k: made, n: samples.length, tries: tries.toLocaleString(t.locale, { maximumFractionDigits: 1 }) })}
       </p>
       {failed.length > 0 && <p className="wk-warn" data-generator-problem="">{failed[0]!.problem}</p>}
       <ol className="cg-gen-samples" data-generator-samples={made}>
@@ -64,6 +68,7 @@ function SampleList({ samples, tries, lib }: { samples: readonly Sample[]; tries
 /** Pod pytaniem z parametrami: dziesięć przykładów, każdy z odpowiedzią i wylosowanymi wartościami. */
 export function QuestionSamples({ id, data, lib }: { id: string; data: Readonly<Record<string, unknown>>; lib: CogitaLibrary }) {
   const [round, setRound] = useState(0);
+  const t = useT();
   const text = JSON.stringify(data);
   const spec = useMemo(() => readParamsSpec(data), [text]); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,8 +84,8 @@ export function QuestionSamples({ id, data, lib }: { id: string; data: Readonly<
   return (
     <section className="cg-card cg-gen" data-generator-for="question">
       <div className="cg-row-between">
-        <strong>Przykłady zadań ({SAMPLE_COUNT})</strong>
-        <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>Inne przykłady</button>
+        <strong>{t('cogitaLearnLogic.samples.title', { n: SAMPLE_COUNT })}</strong>
+        <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>{t('cogitaLearnLogic.samples.other')}</button>
       </div>
       <SampleList samples={result.samples} tries={result.tries} lib={lib} />
     </section>
@@ -90,21 +95,22 @@ export function QuestionSamples({ id, data, lib }: { id: string; data: Readonly<
 /** Pod szablonem z generatorem albo losową wartością: dziesięć kart dla wybranego wpisu. */
 export function TemplateSamples({ make, lib, deps }: { make: (seed: string) => Promise<{ cards: readonly Card[]; problems: readonly string[] }>; lib: CogitaLibrary; deps: readonly unknown[] }) {
   const [round, setRound] = useState(0);
+  const t = useT();
   const result = useAsync(async () => {
     const samples: Sample[] = [];
     for (const seed of seedsOf(round)) {
       const done = await make(seed);
-      samples.push({ seed, card: done.cards[0] ?? null, problem: done.cards.length === 0 ? done.problems[0] ?? 'Karta nie powstała.' : null });
+      samples.push({ seed, card: done.cards[0] ?? null, problem: done.cards.length === 0 ? done.problems[0] ?? t('cogitaLearnLogic.samples.noCard') : null });
     }
     return samples;
   }, [round, ...deps]);
   return (
     <section className="cg-card cg-gen" data-generator-for="template">
       <div className="cg-row-between">
-        <strong>Przykłady zadań ({SAMPLE_COUNT})</strong>
-        <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>Inne przykłady</button>
+        <strong>{t('cogitaLearnLogic.samples.title', { n: SAMPLE_COUNT })}</strong>
+        <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>{t('cogitaLearnLogic.samples.other')}</button>
       </div>
-      {result == null ? <p className="cg-muted">Losowanie…</p> : <SampleList samples={result} tries={null} lib={lib} />}
+      {result == null ? <p className="cg-muted">{t('cogitaLearnLogic.samples.drawing')}</p> : <SampleList samples={result} tries={null} lib={lib} />}
     </section>
   );
 }

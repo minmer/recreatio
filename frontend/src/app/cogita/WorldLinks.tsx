@@ -14,6 +14,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 import './worlds.css';
 import { CogitaContext, type CogitaCtx } from './ui';
 import { cogitaPath } from './parts';
@@ -314,6 +315,7 @@ export interface CrossRunProps {
  */
 export function CrossRun({ world, name, flowId, holder, crumbs, onBack, player }: CrossRunProps) {
   const outer = useContext(CogitaContext);
+  const t = useT();
   const { learner } = useLearner(world, holder);
   const [cards, setCards] = useState<readonly Card[] | null>(null);
   useEffect(() => {
@@ -335,7 +337,7 @@ export function CrossRun({ world, name, flowId, holder, crumbs, onBack, player }
   const trail = [...crumbs, `${name}: ${flowName}`];
   return (
     <div className="cg-cross-run" data-cross-run={flowId}>
-      <nav className="cg-cross-crumbs" aria-label="breadcrumb" data-cross-crumbs={trail.join(' › ')}>
+      <nav className="cg-cross-crumbs" aria-label={t('cogitaLearnLogic.worlds.crumbs')} data-cross-crumbs={trail.join(' › ')}>
         <button type="button" className="wk-link-btn" onClick={() => onBack(false)} data-cross-back="">{W.back(crumbs[crumbs.length - 1] ?? '')}</button>
         <span className="cg-cross-trail">{trail.map((c, i) => <span key={i} className={i === trail.length - 1 ? 'is-here' : ''}>{i > 0 && <span aria-hidden="true"> › </span>}<TexText text={c} /></span>)}</span>
       </nav>

@@ -217,7 +217,7 @@ const PERSON: LibKind = {
 
 /* -- Werke (Quellen) --------------------------------------------------------------------- */
 
-/** Die Überschriften der Rodzaje in der Auswahl (2026-10-26). */
+/** Die Überschriften der Rodzaje in der Auswahl (2026-10-26) — 2026-11-09 als Schlüssel; gezeichnet übersetzt (`LibraryFields.tsx`). */
 export const TEXT_GROUP = 'libraryKinds.group.texts';
 export const MUSIC_GROUP = 'libraryKinds.group.music';
 
@@ -758,7 +758,7 @@ const TEXT_TYPE: LibKind = {
  * ('libraryKinds.…'), hier wird daraus ein Getter, der beim Lesen übersetzt — `kind.label`, `field.says`,
  * `option.label` bleiben Texte für jeden, der sie liest.
  */
-const LOCALIZED = new Set(['label', 'plural', 'says', 'hint', 'group']);
+const LOCALIZED = new Set(['label', 'plural', 'says', 'hint']);
 function localize(node: unknown, seen = new Set<object>()): void {
   if (typeof node !== 'object' || node === null || seen.has(node)) return;
   seen.add(node);

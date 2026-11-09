@@ -22,6 +22,7 @@ import { newId } from '../core/ids';
 import { createModule, loadModules, removeModule, updateModule, type FormGroup, type ModuleRow } from '../modules/module';
 import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from './rounds';
 import { formPath, formsPath } from '../routes';
+import { rich, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 
 export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged?: () => void }) {
@@ -35,6 +36,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
   const [failed, setFailed] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const [removing, setRemoving] = useState(false);
+  const t = useT();
   useEffect(() => { setRemoving(false); }, [module.moduleId]);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
 
   const mainId = module.extendsId ?? module.moduleId;
   const main = all.find((m) => m.moduleId === mainId) ?? (module.extendsId === null ? module : null);
-  const subs = all.filter((m) => m.kind === 'form' && m.extendsId === mainId).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  const subs = all.filter((m) => m.kind === 'form' && m.extendsId === mainId).sort((a, b) => a.name.localeCompare(b.name, t.locale));
   const group = groups.find((g) => g.groupId === module.groupId) ?? null;
 
   const add = async () => {
@@ -63,7 +65,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       onChanged?.();
       window.location.hash = formPath(moduleId);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć podformularza.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('formsEdit.family.addFailed'));
     } finally {
       setBusy(false);
     }
@@ -80,7 +82,7 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       onChanged?.();
       window.location.hash = formPath(module.extendsId);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć podformularza.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('formsEdit.family.removeFailed'));
     } finally {
       setBusy(false);
     }
@@ -92,24 +94,24 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
       aria-current={form.moduleId === module.moduleId ? 'page' : undefined}
       href={formPath(form.moduleId)} data-family-tab={form.moduleId}>
       {sub && <span aria-hidden="true">↳ </span>}{form.name}
-      {sub && <span className="wk-family-who"> · {form.audience === 'office' ? 'koordynator' : 'osoba'}{repeatOf(form.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(form.repeat)]}` : ''}</span>}
+      {sub && <span className="wk-family-who"> · {form.audience === 'office' ? t('formsEdit.family.coordinator') : t('formsEdit.family.person')}{repeatOf(form.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(form.repeat)]}` : ''}</span>}
     </a>
   );
 
   return (
-    <nav className="wk-family" aria-label="Formularz i podformularze" data-form-family="">
+    <nav className="wk-family" aria-label={t('formsEdit.family.nav')} data-form-family="">
       <div className="wk-family-tabs">
         {main !== null && tab(main, false)}
         {subs.map((s) => tab(s, true))}
         {main !== null && !adding && (
-          <button type="button" className="wk-family-add" data-add-sub="" onClick={() => setAdding(true)}>+ Podformularz</button>
+          <button type="button" className="wk-family-add" data-add-sub="" onClick={() => setAdding(true)}>{t('formsEdit.family.addSub')}</button>
         )}
       </div>
       <div className="wk-family-side">
-        <a className="wk-link-btn" href={formsPath(FORM_MAP, mainId)} data-family-map="">Mapa</a>
-        {group !== null && <span className="wk-tag">grupa: {group.name}</span>}
+        <a className="wk-link-btn" href={formsPath(FORM_MAP, mainId)} data-family-map="">{t('formsOffice.list.map')}</a>
+        {group !== null && <span className="wk-tag">{t('formsEdit.family.group', { name: group.name })}</span>}
         {module.extendsId !== null && !removing && (
-          <button type="button" className="wk-link-btn wk-danger-link" data-sub-remove="" onClick={() => setRemoving(true)}>Usuń podformularz</button>
+          <button type="button" className="wk-link-btn wk-danger-link" data-sub-remove="" onClick={() => setRemoving(true)}>{t('formsEdit.family.remove')}</button>
         )}
       </div>
 
@@ -118,30 +120,27 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
           {module.entries > 0 ? (
             <>
               <p>
-                Do „{module.name}" są już wpisy ({module.entries}) — należą do osób, więc podformularza nie da się usunąć.
-                Można go zamknąć w zakładce „Ustawienia": nowych wpisów już nie będzie.
+                {t('formsEdit.family.hasEntries', { name: module.name, count: module.entries })}
               </p>
               <div className="wk-actions">
-                <button type="button" className="wk-link-btn" onClick={() => setRemoving(false)}>Rozumiem</button>
+                <button type="button" className="wk-link-btn" onClick={() => setRemoving(false)}>{t('formsEdit.family.understood')}</button>
               </div>
             </>
           ) : (
             <>
               <p>
-                <strong>Usunąć podformularz „{module.name}"?</strong> Znikną jego pytania, układ i logika,
-                a osoby nie zobaczą już kroku „Uzupełnij". Tego nie da się cofnąć.
+                {rich(t('formsEdit.family.removeAsk', { name: module.name }), { b: (s, k) => <strong key={k}>{s}</strong> })}
               </p>
               {module.pages.length > 0 && (
                 <p>
-                  Stoi na {module.pages.length === 1 ? 'stronie' : 'stronach'}{' '}
-                  {module.pages.map((p) => (p === '' ? 'recreatio.pl' : p)).join(', ')} — {module.pages.length === 1 ? 'zostanie z niej zdjęty' : 'zostanie z nich zdjęty'}.
+                  {t('formsEdit.family.onPages', { count: module.pages.length, pages: module.pages.map((p) => (p === '' ? 'recreatio.pl' : p)).join(', ') })}
                 </p>
               )}
               <div className="wk-actions">
                 <button type="button" className="wk-btn wk-btn-danger" disabled={busy} data-sub-remove-go="" onClick={() => void remove()}>
-                  {busy ? 'Usuwanie…' : 'Usuń podformularz'}
+                  {busy ? t('formsOffice.deleting') : t('formsEdit.family.remove')}
                 </button>
-                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setRemoving(false)}>Anuluj</button>
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setRemoving(false)}>{t('common.cancel')}</button>
               </div>
             </>
           )}
@@ -150,18 +149,18 @@ export function FormFamily({ module, onChanged }: { module: ModuleRow; onChanged
 
       {adding && main !== null && (
         <form className="wk-inline wk-family-new" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-          <input value={name} autoFocus placeholder="np. Zadania na najbliższy czas" aria-label="Nazwa podformularza" data-sub-name=""
+          <input value={name} autoFocus placeholder={t('formsEdit.family.namePlaceholder')} aria-label={t('formsEdit.family.name')} data-sub-name=""
             disabled={busy} onChange={(e) => setName(e.target.value)} />
-          <select value={audience} aria-label="Kto wypełnia" disabled={busy} onChange={(e) => setAudience(e.target.value === 'office' ? 'office' : 'person')}>
-            <option value="person">wypełnia osoba (przez swój link)</option>
-            <option value="office">tylko koordynator</option>
+          <select value={audience} aria-label={t('forms.settings.whoFills')} disabled={busy} onChange={(e) => setAudience(e.target.value === 'office' ? 'office' : 'person')}>
+            <option value="person">{t('formsEdit.family.fillsPerson')}</option>
+            <option value="office">{t('forms.settings.fillsOffice')}</option>
           </select>
-          <select value={repeat} aria-label="Jak często" disabled={busy} onChange={(e) => setRepeat(repeatOf(e.target.value))}>
+          <select value={repeat} aria-label={t('forms.settings.howOften')} disabled={busy} onChange={(e) => setRepeat(repeatOf(e.target.value))}>
             {REPEATS.map((r) => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}
           </select>
-          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === ''} data-sub-go="">{busy ? 'Zakładanie…' : 'Dodaj'}</button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setAdding(false); setName(''); }}>Anuluj</button>
-          <span className="wk-hint">Podformularz dopisuje się do zgłoszeń z „{main.name}" — osoba wypełnia go przez swój link (albo tylko koordynator).</span>
+          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === ''} data-sub-go="">{busy ? t('forms.settings.creating') : t('common.add')}</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setAdding(false); setName(''); }}>{t('common.cancel')}</button>
+          <span className="wk-hint">{t('formsEdit.family.addHint', { name: main.name })}</span>
         </form>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -183,6 +182,7 @@ export function FormBasics({ module, busy, onAct, withName = true }: {
 }) {
   const [name, setName] = useState(module.name);
   const [groups, setGroups] = useState<readonly FormGroup[]>([]);
+  const t = useT();
   useEffect(() => { setName(module.name); }, [module.name]);
   useEffect(() => {
     let alive = true;
@@ -194,35 +194,35 @@ export function FormBasics({ module, busy, onAct, withName = true }: {
     <div className="wk-form wk-form-basics" data-form-basics="">
       {withName && <form className="wk-inline" onSubmit={(e) => {
         e.preventDefault();
-        if (name.trim() !== '' && name.trim() !== module.name) void onAct('Zmiana nazwy…', () => updateModule(module.moduleId, { name: name.trim() }, module));
+        if (name.trim() !== '' && name.trim() !== module.name) void onAct(t('formsEdit.family.renaming'), () => updateModule(module.moduleId, { name: name.trim() }, module));
       }}>
         <label className="wk-field">
-          <span>Nazwa {module.extendsId === null ? 'formularza' : 'podformularza'}</span>
+          <span>{module.extendsId === null ? t('formsEdit.family.formName') : t('formsEdit.family.name')}</span>
           <input value={name} maxLength={200} disabled={busy} data-form-name="" onChange={(e) => setName(e.target.value)} />
         </label>
-        <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === '' || name.trim() === module.name}>Zapisz nazwę</button>
+        <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === '' || name.trim() === module.name}>{t('formsEdit.family.saveName')}</button>
       </form>}
 
       <label className="wk-field">
-        <span>Grupa formularzy (folder — dla wypełniających nic się nie zmienia)</span>
+        <span>{t('formsEdit.family.groupLabel')}</span>
         <select value={module.groupId ?? ''} disabled={busy} data-form-group-select=""
-          onChange={(e) => void onAct(e.target.value === '' ? 'Wyjmowanie z grupy…' : 'Przenoszenie do grupy…',
+          onChange={(e) => void onAct(e.target.value === '' ? t('formsOffice.list.ungrouping') : t('formsOffice.list.moving'),
             () => updateModule(module.moduleId, e.target.value === '' ? { clearGroup: true } : { groupId: e.target.value }))}>
-          <option value="">bez grupy</option>
+          <option value="">{t('formsEdit.family.noGroup')}</option>
           {groups.map((g) => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}
         </select>
-        {groups.length === 0 && <span className="wk-hint">Grupę zakładasz na liście formularzy („+ Nowa grupa").</span>}
+        {groups.length === 0 && <span className="wk-hint">{t('formsEdit.family.groupHint')}</span>}
       </label>
 
       {module.extendsId !== null && (
         <label className="wk-field">
-          <span>Kto wypełnia</span>
+          <span>{t('forms.settings.whoFills')}</span>
           <select value={module.audience === 'office' ? 'office' : 'person'} disabled={busy || module.entries > 0} data-form-audience=""
-            onChange={(e) => void onAct('Zapisywanie…', () => updateModule(module.moduleId, { audience: e.target.value === 'office' ? 'office' : 'person' }))}>
-            <option value="person">osoba — przez swój link (w swoich krokach „Uzupełnij")</option>
-            <option value="office">tylko koordynator — osoba tego nie widzi</option>
+            onChange={(e) => void onAct(t('common.saving'), () => updateModule(module.moduleId, { audience: e.target.value === 'office' ? 'office' : 'person' }))}>
+            <option value="person">{t('formsEdit.family.audiencePerson')}</option>
+            <option value="office">{t('forms.audience.office')}</option>
           </select>
-          {module.entries > 0 && <span className="wk-hint">Są już wpisy — kto wypełnia, zmienia się tylko w pustym podformularzu.</span>}
+          {module.entries > 0 && <span className="wk-hint">{t('formsEdit.family.audienceLocked')}</span>}
         </label>
       )}
     </div>

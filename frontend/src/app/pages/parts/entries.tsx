@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 
-import { plural } from '../../core/plural';
+import { t, useT } from '../../core/i18n';
 import { EntryDeskPanel } from '../../forms/officeLazy';
 import {
   columnsOf, PANEL_SECTION_LABEL, PANEL_SECTIONS, pickRows, readSections, stepKindsOf,
@@ -26,22 +26,24 @@ import {
 import {
   EntryFilterBar, entryHref, herePath, OfficeGate, useEntryDesk, useEntryQuery, useEntrySubject, useOfficeRing
 } from '../../forms/entrySubject';
-import { definePart, text, type EditorProps, type PartContext, type RawConfig } from '../part';
+import { text, type EditorProps, type PartContext, type RawConfig } from '../part';
+import { field, texts, textPart, withTexts } from './partTexts';
 import { bookingTagClass, bookingTags, progressOf } from '../../steps/steps';
 
 /* -- Woran ein Mensch ist, kurz ----------------------------------------------------- */
 
 function RowTags({ row }: { row: DeskRow }) {
+  const t = useT();
   const progress = progressOf(row.states);
   return (
     <span className="wk-tags">
-      {row.s.hidden && <span className="wk-tag">ukryte</span>}
-      {row.s.withdrawnAt !== null && <span className="wk-tag">wycofane</span>}
-      {row.s.confirmedAt !== null && <span className="wk-tag wk-tag-open">dane potwierdzone</span>}
+      {row.s.hidden && <span className="wk-tag">{t('moduleData.entryList.hidden')}</span>}
+      {row.s.withdrawnAt !== null && <span className="wk-tag">{t('moduleData.entryList.withdrawn')}</span>}
+      {row.s.confirmedAt !== null && <span className="wk-tag wk-tag-open">{t('moduleData.entryList.confirmed')}</span>}
       {progress.total > 0 && (
         <span className={progress.done === progress.total ? 'wk-tag wk-tag-open' : 'wk-tag'}
-          title={row.states.filter((st) => st.status !== 'done').map((st) => st.label).join(', ') || 'Wszystko zrobione'}>
-          {progress.done}/{progress.total}{progress.overdue > 0 ? ' · po terminie!' : ''}
+          title={row.states.filter((st) => st.status !== 'done').map((st) => st.label).join(', ') || t('moduleData.entryList.allDone')}>
+          {progress.done}/{progress.total}{progress.overdue > 0 ? t('moduleData.entryList.overdue') : ''}
         </span>
       )}
       {bookingTags(row.states).map((tag) => (
@@ -62,6 +64,7 @@ interface ListConfig {
 
 
 function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
+  const t = useT();
   const { who, ring, retry } = useOfficeRing();
   const { desk, failed } = useEntryDesk(config.form, ring);
   const [query, write] = useEntryQuery();
@@ -78,10 +81,10 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
     here.current.scrollIntoView({ block: 'center' });
   });
 
-  const head = <h2 className="wk-card-title">{config.title === '' ? 'Lista osób' : config.title}</h2>;
-  if (config.form === '') return <>{head}<p className="wk-card-muted">Tu pojawi się lista osób — trzeba jeszcze wybrać formularz.</p></>;
+  const head = <h2 className="wk-card-title">{config.title === '' ? t('moduleData.entryList.label') : config.title}</h2>;
+  if (config.form === '') return <>{head}<p className="wk-card-muted">{t('moduleData.entryList.noForm')}</p></>;
 
-  const gate = OfficeGate({ who, ring, retry, desk, failed, what: 'Listę osób' });
+  const gate = OfficeGate({ who, ring, retry, desk, failed, what: t('moduleData.entryList.gateWhat') });
   if (gate !== null) return <>{head}{gate}</>;
 
   const columns = columnsOf(desk!, config.columns);
@@ -100,28 +103,28 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
       {head}
       <EntryFilterBar filter={query.filter} kinds={stepKindsOf(all!)} onChange={(filter) => write({ ...query, filter })} />
       <p className="wk-hint" role="status">
-        {shown.length === all!.length ? `${shown.length} ${plural(shown.length, 'osoba', 'osoby', 'osób')}` : `${shown.length} z ${all!.length}`}
-        {page === '' && ' · wybierz w module „Strona osoby”, żeby otwierać osobę na jej stronie'}
+        {shown.length === all!.length ? t('common.persons', { count: shown.length }) : t('moduleDataCogita.v.xOfY', { x: shown.length, y: all!.length })}
+        {page === '' && t('moduleData.entryList.pickPage')}
       </p>
 
       {all!.length === 0 ? (
-        <p className="wk-card-muted">W tym formularzu nie ma jeszcze nikogo.</p>
+        <p className="wk-card-muted">{t('moduleData.entryList.empty')}</p>
       ) : shown.length === 0 ? (
-        <p className="wk-card-muted">Nikt nie pasuje do tego filtra.</p>
+        <p className="wk-card-muted">{t('moduleData.entryList.noMatch')}</p>
       ) : wide ? (
         /* Breit: eine Tabelle — Name, Nummern, die gewählten Antworten, woran er ist. */
         <div className="wk-entry-table-wrap">
           <table className="wk-entry-table">
             <thead>
               <tr>
-                <th scope="col">Osoba</th>
-                <th scope="col">Telefon</th>
+                <th scope="col">{t('moduleData.entryList.person')}</th>
+                <th scope="col">{t('moduleData.entryList.phone')}</th>
                 {columns.map((c) => (
                   <th key={c.id} scope="col" data-column-from={c.from ?? ''}>
                     {c.label}{c.from !== null && <span className="wk-th-from">{c.from}</span>}
                   </th>
                 ))}
-                <th scope="col">Postęp</th>
+                <th scope="col">{t('moduleData.entryList.progress')}</th>
               </tr>
             </thead>
             <tbody>
@@ -156,18 +159,16 @@ function EntryListView({ config, ctx }: { config: ListConfig; ctx: PartContext }
   );
 }
 
-export const entryListPart = definePart<ListConfig>({
+export const entryListPart = textPart<ListConfig>(texts({ label: 'moduleData.entryList.label', use: 'moduleData.entryList.use' }), {
   kind: 'entry-list',
-  label: 'Lista osób',
-  use: 'Wszystkie osoby z formularza — szukanie, filtr kroków; nazwisko otwiera stronę tej osoby (z panelem). Dla koordynatorów.',
   box: { colSpan: 6, rowSpan: 5 },
 
-  example: { title: 'Kandydaci', form: '0190a0a0-0000-7000-8000-0000000000aa', page: 'parafia/bierzmowanie/kandydat', columns: '*' },
+  example: withTexts({ form: '0190a0a0-0000-7000-8000-0000000000aa', page: 'parafia/bierzmowanie/kandydat', columns: '*' }, texts({ title: 'moduleData.entryList.exTitle' })),
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Kandydaci' },
-    { key: 'form', label: 'Formularz', kind: 'form' },
-    { key: 'page', label: 'Strona osoby', kind: 'page', hint: 'np. strona kandydata (ta z jego linku) — otwarta z listy pokazuje wybraną osobę' },
-    { key: 'columns', label: 'Kolumny (na szerokim module)', kind: 'questions', of: 'form', subforms: true }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleData.entryList.titleHint' })),
+    field({ key: 'form', kind: 'form' }, texts({ label: 'moduleData.form.label' })),
+    field({ key: 'page', kind: 'page' }, texts({ label: 'moduleData.entryList.page', hint: 'moduleData.entryList.pageHint' })),
+    field({ key: 'columns', kind: 'questions', of: 'form', subforms: true }, texts({ label: 'moduleData.entryList.columns' }))
   ],
 
   read: (raw: RawConfig): ListConfig => ({
@@ -177,14 +178,14 @@ export const entryListPart = definePart<ListConfig>({
     columns: text(raw, 'columns')
   }),
   hasContent: () => true,
-  missing: (config) => (config.form === '' ? 'Wybierz formularz.'
-    : config.page === '' ? 'Wybierz stronę osoby — bez niej nazwiska nie prowadzą dalej.' : null),
+  missing: (config) => (config.form === '' ? t('moduleData.entryList.missingForm')
+    : config.page === '' ? t('moduleData.entryList.missingPage') : null),
 
-  strip: { title: 'Lista osób', open: 'Pokaż listę' },
+  strip: texts({ title: 'moduleData.entryList.label', open: 'moduleData.entryList.open' }),
   fullscreen: true,
   shows: (_config, size) => size.width === 'wide' || size.width === 'full'
-    ? 'Szukanie i filtr, potem tabela: osoba, telefon, wybrane odpowiedzi, postęp.'
-    : 'Szukanie i filtr, potem same nazwiska z postępem.',
+    ? t('moduleData.entryList.showsWide')
+    : t('moduleData.entryList.showsBlock'),
 
   View: EntryListView
 });
@@ -197,18 +198,19 @@ interface PanelConfig {
 }
 
 function EntryPanelView({ config, ctx }: { config: PanelConfig; ctx: PartContext }) {
+  const t = useT();
   const e = useEntrySubject();
   const chosen = e?.chosen ?? null;
-  const head = (name: string | null) => <h2 className="wk-card-title">{config.title !== '' ? config.title : name ?? 'Panel osoby'}</h2>;
+  const head = (name: string | null) => <h2 className="wk-card-title">{config.title !== '' ? config.title : name ?? t('moduleData.entryPanel.label')}</h2>;
 
   if (e === null) {
-    return <>{head(null)}<p className="wk-card-muted">Ta strona nie wybiera osoby — w ustawieniach strony ustaw „Wybór na stronie”: osoba z formularza.</p></>;
+    return <>{head(null)}<p className="wk-card-muted">{t('moduleData.entryPanel.noSubject')}</p></>;
   }
 
   /* Warum nichts dasteht, sagt die Leiste oben; hier nur ein Satz. */
-  if (e.desk === null || e.ring == null) return <>{head(null)}<p className="wk-card-muted">Osoba pojawi się tu po wyborze u góry strony.</p></>;
+  if (e.desk === null || e.ring == null) return <>{head(null)}<p className="wk-card-muted">{t('moduleData.entryPanel.later')}</p></>;
   if (chosen === null) {
-    return <>{head(null)}<p className="wk-card-muted">{e.desk.rows.length === 0 ? 'W formularzu nie ma jeszcze nikogo.' : 'Wybierz osobę u góry strony.'}</p></>;
+    return <>{head(null)}<p className="wk-card-muted">{e.desk.rows.length === 0 ? t('moduleData.entryPanel.empty') : t('moduleDataSeat.office.pick')}</p></>;
   }
 
   /* Ein Streifen: wer, seine Nummern, woran er ist. */
@@ -233,6 +235,7 @@ function EntryPanelView({ config, ctx }: { config: PanelConfig; ctx: PartContext
 
 /** Die Einstellungen: Überschrift und welche Teile. */
 function PanelSetup({ raw, onSet, busy }: EditorProps) {
+  const t = useT();
   const sections = readSections(raw.sections ?? '');
   const toggle = (one: PanelSection, on: boolean) => {
     const next = PANEL_SECTIONS.filter((s) => (s === one ? on : sections.includes(s)));
@@ -242,11 +245,11 @@ function PanelSetup({ raw, onSet, busy }: EditorProps) {
   return (
     <>
       <label className="wk-field">
-        <span>Nagłówek</span>
-        <input value={raw.title ?? ''} disabled={busy} placeholder="puste: imię i nazwisko osoby" onChange={(e) => onSet({ title: e.target.value })} />
+        <span>{t('moduleDataCogita.f.heading')}</span>
+        <input value={raw.title ?? ''} disabled={busy} placeholder={t('moduleData.entryPanel.titlePh')} onChange={(e) => onSet({ title: e.target.value })} />
       </label>
       <div className="wk-field">
-        <span>Co pokazuje</span>
+        <span>{t('moduleDataCogita.f.whatShows')}</span>
         <div className="wk-checks">
           {PANEL_SECTIONS.map((one) => (
             <label key={one} className="wk-inline">
@@ -257,25 +260,22 @@ function PanelSetup({ raw, onSet, busy }: EditorProps) {
           ))}
         </div>
         <span className="wk-hint">
-          Osobę wybiera się u góry strony — w ustawieniach strony „Wybór na stronie”: osoba z formularza. Kilka paneli na jednej
-          stronie pokazuje tę samą osobę: np. odpowiedzi w jednym, kroki w drugim.
+          {t('moduleData.entryPanel.hint')}
         </span>
       </div>
     </>
   );
 }
 
-export const entryPanelPart = definePart<PanelConfig>({
+export const entryPanelPart = textPart<PanelConfig>(texts({ label: 'moduleData.entryPanel.label', use: 'moduleData.entryPanel.use' }), {
   kind: 'entry-panel',
-  label: 'Panel osoby',
-  use: 'Wszystko o osobie wybranej u góry strony: odpowiedzi, kroki, rozszerzenia, link, rozmowa. Wymaga „Wyboru na stronie”: osoba z formularza.',
   box: { colSpan: 6, rowSpan: 5 },
 
-  example: { title: 'Kroki', sections: 'steps,extensions' },
+  example: withTexts({ sections: 'steps,extensions' }, texts({ title: 'moduleData.entryPanel.exTitle' })),
   fields: [],
   extra: [
-    { key: 'title', shape: 'line', says: 'nagłówek; puste — imię i nazwisko wybranej osoby' },
-    { key: 'sections', shape: 'line', says: `które części, po przecinku: ${PANEL_SECTIONS.map((one) => `"${one}" (${PANEL_SECTION_LABEL[one]})`).join(', ')}; puste — wszystkie` }
+    withTexts({ key: 'title', shape: 'line' } as const, texts({ says: 'moduleData.entryPanel.sTitle' })),
+    { key: 'sections', shape: 'line', get says() { return t('moduleData.entryPanel.sSections', { list: PANEL_SECTIONS.map((one) => `"${one}" (${PANEL_SECTION_LABEL[one]})`).join(', ') }); } }
   ],
   Editor: PanelSetup,
 
@@ -284,8 +284,8 @@ export const entryPanelPart = definePart<PanelConfig>({
 
   fullscreen: true,
   shows: (config, size) => size.height === 'strip'
-    ? 'Imię i nazwisko wybranej osoby, telefon i postęp.'
-    : `Wybrana osoba: ${config.sections.map((one) => PANEL_SECTION_LABEL[one].toLowerCase()).join(', ')}.`,
+    ? t('moduleData.entryPanel.showsStrip')
+    : t('moduleData.entryPanel.showsBlock', { list: config.sections.map((one) => PANEL_SECTION_LABEL[one].toLowerCase()).join(', ') }),
 
   View: EntryPanelView
 });

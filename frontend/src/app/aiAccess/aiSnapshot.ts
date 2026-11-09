@@ -33,7 +33,8 @@
  * gemacht ([s. 46] für einen Seitenwechsel, [^3] für einen Przypis, [?] für Unsicheres).
  */
 
-import { LITURGY_KINDS, projectLiturgyEntries } from '../library/liturgy/kinds';
+import { LITURGY_KINDS } from '../library/liturgy/kinds';
+import { projectLiturgyEntries } from '../library/liturgy/projection';
 import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
@@ -42,7 +43,8 @@ import { fieldData, textTypeKind } from '../cogita/kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, labelOf, tellOf, VALUE_STATE_LABEL, VALUE_STATES, type KindDef } from '../cogita/schema';
 import { QUESTION_TYPES } from '../cogita/questionTypes';
 import type { LibraryKind } from '../library/library';
-import { BIBLE_DOC, MARKUP_DOC } from '../library/libraryJson';
+import { bibleDoc, markupDoc } from '../library/libraryJson';
+import { t } from '../core/i18n';
 import {
   entryTitle, ids, kindOf, LIBRARY_KINDS, refTarget, shownMarkup, textTypeName, WRITING_KINDS,
   type LibEntry, type LibField, type LibKind, type Lookup
@@ -159,28 +161,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /* -- Was die Felder und die Auszeichnung bedeuten — aus dem Code, nicht daneben ----------- */
 
 /** Für eine Baza wiedzy: wie Werte aussehen (die Typen und Stände aus `cogita/schema.ts`). */
-const BASE_NOTES = (): string => `## Wpisy bazy wiedzy (Cogita)
-Wpis ma rodzaje ("kinds" — pierwszy daje nazwę) i pola w "data" według swoich rodzajów; co znaczy każde pole — w "kinds" tego zbioru.
-Typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}.
-Wartość bywa niepewna: {"value", "state", "source": {"work": id dzieła, "locator": "s. 23"}, "note"}; stany: ${VALUE_STATES.map((s) => `"${s}" (${VALUE_STATE_LABEL[s]})`).join(', ')}.
-Odwołanie to id innego wpisu (z tytułem w "refs" wpisu); odwołanie z miejscem: {"value": id, "locator": "Ps 110"}.
-Pole "blocks" to wypowiedź: akapity {"type": "paragraph", "text"}, listy {"type": "ordered"|"unordered", "items"}, tabele {"type": "table", "columns", "rows"}; komórka to lista kawałków {"text"} albo {"ref": id, "locator"}. Teza = pierwsze zdanie pierwszego akapitu.
-Pytanie: jeden rodzaj "question"; "form" (rodzaj pytania) mówi, jak się pyta: ${QUESTION_TYPES.map((t) => `"${t.form}" (${t.label})`).join(", ")}; pole z "when" należy tylko do podanych rodzajów pytań; "about" — wpisy, które pytanie sprawdza; "needs" — co trzeba umieć przed nim.
-Kolejność nauki: pole odwołania z "prerequisite": "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga”); "down" — wskazane wpisy budują na tym. Z takich pól aplikacja liczy poziomy od podstaw (poziom 1 — nic przed nim) i pyta najpierw o ogólne, potem o szczegółowe.
-Daty: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from", "to"}]}.
-Struktura (np. wywód artykułu): pole odwołania z "structure": "up" — ten wpis leży POD tym, na co wskazuje (krok pod pytaniem, odpowiedź na zarzut pod zarzutem); "structure": "down" — wskazane wpisy leżą pod nim. Korzeń (bez wartości w polu "up") to zwykle pytanie wiodące. Jego drzewo: przez MCP get_related(id korzenia, direction "in", fields: [klucz pola "up"], depth 3), potem znowu od każdego wpisu z głębokości 3 (najwyżej 60 wpisów na wywołanie; przy "truncated" krawędzie nazywają też te, które się nie zmieściły — od nich dalej); przez REST /entry/{id}: wpisy w "linkedFrom" z tym polem leżą bezpośrednio niżej — i tak dalej od każdego z nich (albo, przeglądając wszystkie wpisy: pod wpisem X leżą te, których pole "up" ma wartość X). Kolejność kroków to kolejność ich miejsc w dziele (pole odwołania z miejscem do dzieła z biblioteki). Wpisy wskazujące krok polem bez "structure" (np. komentarz: "O czym") nie należą do rekonstrukcji — to cudze lub własne uwagi.
-
-${MARKUP_DOC}`;
+const BASE_NOTES = (): string => t('aiAccess.snap.base', {
+  types: FIELD_TYPES.map((one) => `"${one}" (${FIELD_TYPE_LABEL[one]})`).join(', '),
+  states: VALUE_STATES.map((s) => `"${s}" (${VALUE_STATE_LABEL[s]})`).join(', '),
+  questions: QUESTION_TYPES.map((one) => `"${one.form}" (${one.label})`).join(', '),
+  markup: markupDoc()
+});
 
 const NOTES: Readonly<Record<LibraryKind, () => string>> = {
-  liturgy: () => `Liturgia: canonical works, editions, texts, passages, observances, templates, assignments and explicit rules. Stable canonical IDs are in data.id; references name resources, never copied daily texts. Drafts and missing dependencies are not approved liturgical content.`,
-  books: () => `## Biblioteka — źródła
-Dzieła ("work"), cytaty ("quote") i osoby ("person"); cytat wskazuje swoje dzieło, dzieło — autorów, tłumaczy, książkę albo czasopismo, w którym jest. "key" to klucz cytowania: w tekstach [@klucz, s. 23].
-${BIBLE_DOC}`,
-  writing: () => `## Skryptorium — własne teksty
-Teksty ("text": tytuł, plan, treść, dalsze informacje; rodzaj tekstu dodaje swoje pola), ich wygłoszenia ("delivery": kiedy, gdzie, co z planu powiedziano, co pominięto), projekty ("project") i rodzaje tekstów ("texttype").
-
-${MARKUP_DOC}`,
+  liturgy: () => t('aiAccess.snap.liturgy'),
+  books: () => t('aiAccess.snap.books', { bible: bibleDoc() }),
+  writing: () => t('aiAccess.snap.writing', { markup: markupDoc() }),
   knowledge: BASE_NOTES
 };
 
@@ -442,7 +433,7 @@ function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: read
  */
 export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true, setup?: SnapshotSetup): SnapshotDoc {
   const part = parts.find((p) => p.store.libraryId === libraryId);
-  if (part === undefined) throw new Error('Ten zbiór nie należy do tego dostępu.');
+  if (part === undefined) throw new Error(t('aiAccess.snap.notInAccess'));
   const bases = basesOf(parts);
   const look = scopeLookup(parts, bases);
   const lib = bases.get(libraryId);
@@ -491,7 +482,7 @@ export async function snapshotSetup(parts: readonly ScopePart[], libraryId: stri
 
 /** gzip (CompressionStream, im Browser wie in Node) — der Dienst entpackt mit einer Obergrenze. */
 export async function gzip(text: string): Promise<Uint8Array> {
-  if (typeof CompressionStream === 'undefined') throw new Error('Ta przeglądarka nie umie spakować odpisu — otwórz aplikację w nowszej.');
+  if (typeof CompressionStream === 'undefined') throw new Error(t('aiAccess.snap.noGzip'));
   const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }

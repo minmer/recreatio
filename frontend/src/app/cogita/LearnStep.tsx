@@ -28,6 +28,7 @@ import { RevisionRun } from './RevisionRun';
 import { learnedShare, seatCtx, useSeatLearner, useSeatLibrary } from './seatLearn';
 import { Bar, CogitaContext, percent } from './ui';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export interface LearnDraft {
   readonly libraryId: string;
@@ -39,6 +40,7 @@ export interface LearnDraft {
 
 export function LearnStep({ seat, registrationId, step }: { seat: SeatView; registrationId: string; step: StepState }) {
   const target = step.learn!;
+  const t = useT();
   const opened = useSeatLibrary(seat, target.libraryId ?? '');
   const { lib, name } = opened;
   const { learner, failed } = useSeatLearner(seat, lib);
@@ -78,28 +80,28 @@ export function LearnStep({ seat, registrationId, step }: { seat: SeatView; regi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.revisionId, lib, step.label, measured?.cards]);
 
-  const status = step.status === 'done' ? 'zrobione' : step.status === 'overdue' ? 'po terminie' : 'do zrobienia';
+  const status = step.status === 'done' ? t('cogitaLearnRun.step.done') : step.status === 'overdue' ? t('cogitaLearnRun.step.overdue') : t('cogitaLearnRun.step.todo');
   return (
     <>
       <div className="wk-step-head">
         <span className={`wk-step-mark is-${step.status}`} aria-hidden="true">{step.status === 'done' ? '✓' : step.status === 'overdue' ? '!' : '○'}</span>
         <div className="wk-step-text">
           <strong>{step.label}</strong>
-          <span className="wk-row-side">{' · '}{status}{step.dueAt !== null && step.status !== 'done' && ` · do ${dueText(step.dueAt)}`}</span>
+          <span className="wk-row-side">{' · '}{status}{step.dueAt !== null && step.status !== 'done' && t('cogitaLearnRun.step.until', { date: dueText(step.dueAt) })}</span>
           {step.help !== null && <p className="wk-hint">{step.help}</p>}
           <p className="wk-hint" data-learn-line="">
-            {lib === undefined ? 'Otwieranie bazy wiedzy…'
-              : lib === null ? 'Baza wiedzy kursu nie jest dostępna z tego linku — zapytaj prowadzących.'
-              : measured === null ? 'Liczenie, ile już umiesz…'
-              : measured.cards.length === 0 ? 'W tej bazie wiedzy nie ma jeszcze kart.'
-              : `Umiesz ${percent(measured.share)} — cel: ${percent(target.threshold)} · ${name}`}
+            {lib === undefined ? t('cogitaLearnRun.learnView.opening')
+              : lib === null ? t('cogitaLearnRun.step.noBase')
+              : measured === null ? t('cogitaLearnRun.step.measuring')
+              : measured.cards.length === 0 ? t('cogitaLearnRun.step.noCards')
+              : t('cogitaLearnRun.step.share', { share: percent(measured.share), goal: percent(target.threshold), name })}
           </p>
-          {measured !== null && measured.cards.length > 0 && <Bar value={measured.share} label="Ile już umiesz" />}
+          {measured !== null && measured.cards.length > 0 && <Bar value={measured.share} label={t('cogitaLearnRun.step.howMuch')} />}
           {failed !== null && <p className="wk-error">{failed}</p>}
         </div>
         {lib != null && measured !== null && measured.cards.length > 0 && (
           <button type="button" className={step.status === 'done' ? 'wk-link-btn' : 'wk-btn'} data-learn-open="" onClick={() => setOpen(!open)}>
-            {open ? 'Zwiń' : step.status === 'done' ? 'Powtórz' : 'Ucz się'}
+            {open ? t('cogitaLearnRun.step.fold') : step.status === 'done' ? t('cogitaLearnRun.step.review') : t('cogitaLearnRun.step.learn')}
           </button>
         )}
       </div>
@@ -117,6 +119,7 @@ export function LearnStep({ seat, registrationId, step }: { seat: SeatView; regi
 /** Im Reiter „Kroki": aus welcher Bibliothek, welche Powtórka (oder alle Karten), bis zu welcher Kenntnis. */
 export function PickLearn({ value, onPick }: { value: LearnDraft; onPick: (next: LearnDraft) => void }) {
   const all = useLibraries();
+  const t = useT();
   /* 0110 — nauczyć się można z bazy wiedzy, nie z biblioteki. */
   const libraries = all == null ? all : all.filter((l) => libraryKindOf(l) === 'knowledge');
   const me = useMe(useWho());
@@ -126,30 +129,30 @@ export function PickLearn({ value, onPick }: { value: LearnDraft; onPick: (next:
   return (
     <>
       <label className="wk-inline">
-        <span className="wk-hint">Z bazy wiedzy</span>
+        <span className="wk-hint">{t('cogitaLearnRun.step.fromBase')}</span>
         {libraries === undefined ? <Loading lines={1} /> : (
           <select value={value.libraryId} data-learn-library="" onChange={(e) => onPick({ ...value, libraryId: e.target.value, revisionId: '' })}>
-            <option value="">— wybierz —</option>
+            <option value="">{t('cogitaLearnRun.step.choose')}</option>
             {(libraries ?? []).map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}</option>)}
-            {value.libraryId !== '' && chosen === null && <option value={value.libraryId}>(niedostępna) {value.libraryId.slice(0, 8)}</option>}
+            {value.libraryId !== '' && chosen === null && <option value={value.libraryId}>{t('cogitaLearnRun.step.unavailable', { id: value.libraryId.slice(0, 8) })}</option>}
           </select>
         )}
       </label>
       {value.libraryId !== '' && (
         <label className="wk-inline">
-          <span className="wk-hint">Powtórka</span>
+          <span className="wk-hint">{t('cogitaLearnRun.run.revision')}</span>
           <select value={value.revisionId} data-learn-revision="" onChange={(e) => onPick({ ...value, revisionId: e.target.value })}>
-            <option value="">— wszystkie karty bazy wiedzy —</option>
-            {(revisions ?? []).map((r) => <option key={r.id} value={r.id}>{typeof r.data.name === 'string' ? r.data.name : 'Powtórka'}</option>)}
-            {value.revisionId !== '' && revisions !== null && !revisions.some((r) => r.id === value.revisionId) && <option value={value.revisionId}>(usunięta)</option>}
+            <option value="">{t('cogitaLearnRun.step.allCards')}</option>
+            {(revisions ?? []).map((r) => <option key={r.id} value={r.id}>{typeof r.data.name === 'string' ? r.data.name : t('cogitaLearnRun.run.revision')}</option>)}
+            {value.revisionId !== '' && revisions !== null && !revisions.some((r) => r.id === value.revisionId) && <option value={value.revisionId}>{t('cogitaLearnRun.step.deleted')}</option>}
           </select>
         </label>
       )}
       <label className="wk-inline">
-        <span className="wk-hint">Zrobione przy</span>
+        <span className="wk-hint">{t('cogitaLearnRun.step.doneAt')}</span>
         <input type="number" min={10} max={100} step={5} value={Math.round(value.threshold * 100)} style={{ width: '5em' }} data-learn-threshold=""
           onChange={(e) => onPick({ ...value, threshold: Math.max(0.1, Math.min(1, Number(e.target.value) / 100 || 0.8)) })} />
-        <span className="wk-hint">% znajomości</span>
+        <span className="wk-hint">{t('cogitaLearnRun.step.percent')}</span>
       </label>
     </>
   );

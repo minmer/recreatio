@@ -31,6 +31,9 @@ import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from '../core/session';
 import { SeatSteps } from '../steps/StepList';
 import { OwnSubmissions } from '../forms/Submission';
+import { rich, useT } from '../core/i18n';
+
+const bold = { b: (s: string, key: number) => <strong key={key}>{s}</strong> };
 
 /* -- Oben auf der Seite ----------------------------------------------------- */
 
@@ -54,6 +57,7 @@ import { OwnSubmissions } from '../forms/Submission';
 export function SeatBar({ path }: { path: string }) {
   const states = useSeatStates();
   const fresh = freshSeat();
+  const t = useT();
 
   const here = fresh !== null && fresh.under === path ? fresh : null;
   const state = here === null ? undefined : states.find((one) => one.token === here.token);
@@ -69,9 +73,9 @@ export function SeatBar({ path }: { path: string }) {
     [hereToken, path]);
 
   const trouble = here === null ? null
-    : here.keyless ? 'W tym linku brakuje klucza — widać stronę, ale nie Twoje dane. Otwórz pełny link, który dostałeś.'
-    : state?.state === 'gone' ? `Twojego miejsca nie ma — link mógł zostać wycofany, zastąpiony nowym albo stracić ważność. Jeśli dostałeś nowy link (np. SMS-em), otwórz go.${state.failed === null ? '' : ` ${state.failed}`}`
-    : state?.state === 'locked' ? 'Klucz z linku nie pasuje do tego miejsca. Sprawdź, czy link nie urwał się przy kopiowaniu.'
+    : here.keyless ? t('seats.bar.keyless')
+    : state?.state === 'gone' ? `${t('seats.bar.gone')}${state.failed === null ? '' : ` ${state.failed}`}`
+    : state?.state === 'locked' ? t('seats.bar.locked')
     : null;
 
   /* ERST BESTÄTIGEN (0046) — je Link, der darauf wartet. */
@@ -88,11 +92,7 @@ export function SeatBar({ path }: { path: string }) {
       */}
       {here !== null && wasReplaced(here.token) && (
         <div className="wk-note">
-          <p>
-            <strong>Zapisano. Twój link jest teraz nowy</strong> — poprzedni przestał
-            działać, na wypadek gdyby trafił pod zły numer. Na tym urządzeniu nic nie
-            musisz robić; na innych otwórz nowy link.
-          </p>
+          <p>{rich(t('seats.bar.replaced'), bold)}</p>
           <MyLink token={here.token} under={here.under} />
         </div>
       )}
@@ -119,13 +119,14 @@ export function SeatBar({ path }: { path: string }) {
  * ohne Seite (`SeatPortal`) behält ihn.
  */
 export function SeatTools({ seat }: { seat: SeatView }) {
+  const t = useT();
   return (
     <div className="wk-seat-tools">
       <BindSeat seat={seat} />
       {seat.expiresAt !== null && (
         <p className="wk-hint">
-          Link działa do {new Date(seat.expiresAt).toLocaleDateString('pl-PL',
-            { day: 'numeric', month: 'long', year: 'numeric' })}.
+          {t('seats.bar.worksUntil', { date: new Date(seat.expiresAt).toLocaleDateString(t.locale,
+            { day: 'numeric', month: 'long', year: 'numeric' }) })}
         </p>
       )}
     </div>
@@ -148,12 +149,13 @@ export function PersonalSections({ seat, chats = true }: {
   /** 0095 — ohne die Rozmowy: die Seite zeigt ihre Rozmowa schon als Baustein. */
   chats?: boolean;
 }) {
+  const t = useT();
   return (
     <>
       {seat.submitted.length > 0 && (
-        <Zone title="Twoje zgłoszenie" who="Widzisz to Ty i kancelaria, która prowadzi zapisy.">
+        <Zone title={t('seats.portal.seedTitle')} who={t('seats.zone.submissionWho')}>
           {seat.opened.length === 0 ? (
-            <p className="wk-empty">Bez klucza z adresu nie da się tego otworzyć.</p>
+            <p className="wk-empty">{t('seats.zone.noKey')}</p>
           ) : (
             <OwnSubmissions seat={seat} formId={null} show={null} />
           )}
@@ -163,19 +165,19 @@ export function PersonalSections({ seat, chats = true }: {
 
       {/* WAS ER NOCH TUN MUSS (0047) — nur, wenn es überhaupt etwas gibt. */}
       {seat.forms.some((f) => f.extensions.length > 0 || f.steps.length > 0) && (
-        <Zone title="Twoje kroki" who="Widzisz to Ty i kancelaria.">
+        <Zone title={t('seats.zone.steps')} who={t('seats.zone.stepsWho')}>
           <SeatSteps seat={seat} formId={null} />
         </Zone>
       )}
 
       {seat.shared.length > 0 && (
-        <Zone title="Wspólne dla grupy" who={`Widzą to wszyscy: ${seat.sharedNames.join(', ')}.`}>
+        <Zone title={t('seats.zone.shared')} who={t('seats.zone.sharedWho', { names: seat.sharedNames.join(', ') })}>
           <ul className="wk-tile-lines">
             {seat.shared.map((s, i) => (
               <li key={i}>
-                <strong>{new Date(s.when).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}</strong>
+                <strong>{new Date(s.when).toLocaleDateString(t.locale, { day: 'numeric', month: 'long' })}</strong>
                 {' — '}
-                {s.what ?? 'zapieczętowane'}
+                {s.what ?? t('seats.zone.sealed')}
               </li>
             ))}
           </ul>
@@ -223,6 +225,7 @@ export function Zone({ title, who, children }: { title: string; who: string; chi
  */
 export function MyLink({ token, under }: { token: string; under?: string | null }) {
   const [shown, setShown] = useState(false);
+  const t = useT();
 
   const local = linkTo(token, under);
   if (local === null) return null;
@@ -231,14 +234,11 @@ export function MyLink({ token, under }: { token: string; under?: string | null 
 
   return (
     <details className="wk-fold" onToggle={(e) => setShown(e.currentTarget.open)}>
-      <summary>Twój link</summary>
+      <summary>{t('seats.link.title')}</summary>
 
       {shown && (
         <>
-          <p className="wk-hint">
-            Tym adresem wracasz tutaj — także na innym urządzeniu. Kto go ma,
-            widzi Twoje dane, więc nie przekazuj go dalej.
-          </p>
+          <p className="wk-hint">{t('seats.link.hint')}</p>
 
           <textarea readOnly rows={3} className="wk-mono" value={full} />
         </>
@@ -263,6 +263,7 @@ export function BindSeat({ seat }: { seat: SeatView }) {
   const [bound, setBound] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const names = useRoleNames(who);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -297,7 +298,7 @@ export function BindSeat({ seat }: { seat: SeatView }) {
       await bindSeat(seat.token, seat.seatId, seat.seatKey, person);
       setBound(true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przypisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('seats.bind.failed'));
     } finally {
       setBusy(false);
     }
@@ -305,10 +306,7 @@ export function BindSeat({ seat }: { seat: SeatView }) {
 
   if (bound) {
     return (
-      <p className="wk-done">
-        Gotowe. To miejsce jest teraz przypisane do Ciebie — znajdziesz je w
-        swoim koncie, także bez tego linku.
-      </p>
+      <p className="wk-done">{t('seats.bind.done')}</p>
     );
   }
 
@@ -316,43 +314,34 @@ export function BindSeat({ seat }: { seat: SeatView }) {
 
   if (who === null) {
     return (
-      <p className="wk-hint">
-        Masz konto? Po zalogowaniu możesz przypisać to miejsce do siebie — wtedy
-        dotrzesz do niego bez linku.
-      </p>
+      <p className="wk-hint">{t('seats.bind.haveAccount')}</p>
     );
   }
 
   if (persons.length === 0) {
     return (
-      <p className="wk-hint">
-        Żeby przypisać to miejsce do siebie, potrzebujesz <strong>osoby</strong> —
-        konto to pęk kluczy, nie człowiek. Załóż ją w zakładce „Role".
-      </p>
+      <p className="wk-hint">{rich(t('seats.bind.needPerson'), bold)}</p>
     );
   }
 
   return (
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void bind(); }}>
       <label className="wk-field">
-        <span>Przypisz do siebie — kogo dotyczy to miejsce</span>
+        <span>{t('seats.bind.label')}</span>
         <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
           {persons.map((p) => (
-            <option key={p.id} value={p.id}>{names.get(p.id) ?? `Osoba · ${p.id.slice(0, 8)}`}</option>
+            <option key={p.id} value={p.id}>{names.get(p.id) ?? t('seats.bind.person', { id: p.id.slice(0, 8) })}</option>
           ))}
         </select>
       </label>
 
-      <p className="wk-hint">
-        Klucz miejsca zostanie zapakowany kluczem tej osoby. Usługa nie
-        uczestniczy w tym — dostaje gotową kopertę.
-      </p>
+      <p className="wk-hint">{t('seats.bind.hint')}</p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || chosen === ''}>
-          {busy ? 'Przypisywanie…' : 'Przypisz'}
+          {busy ? t('seats.bind.binding') : t('seats.bind.bind')}
         </button>
       </div>
     </form>

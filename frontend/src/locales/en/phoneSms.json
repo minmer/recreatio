@@ -1,0 +1,170 @@
+{
+  "sheet": {
+    "titleTo": "SMS to {to}",
+    "titleName": "SMS to: {name} ({to})",
+    "notDefault": "This app is not yet the phone's SMS app — set it in <a>SMS</a>.",
+    "fromNumber": "From number — {why}",
+    "onlyThis": "only this message",
+    "sent": "SMS sent to: {to}."
+  },
+  "compose": {
+    "readFailed": "Could not read the file.",
+    "tooBig": "A file can be at most 25 MB.",
+    "linkOnly": "Such a file can only be sent as a link.",
+    "noLink": "Cannot send a link.",
+    "sendFailed": "Could not send.",
+    "scheduled": "Scheduled: {when}.",
+    "scheduleFailed": "Could not schedule.",
+    "notDefault": "First set this app as the SMS app.",
+    "chooseTo": "Choose whom to send to.",
+    "uploading": "Sending the file… {percent}%",
+    "mmsGroup": {
+      "one": "MMS to {count} person (group)",
+      "other": "MMS to {count} people (group)"
+    },
+    "mms": "MMS",
+    "sms": "SMS",
+    "parts": "{count} SMS",
+    "left": "{left} left",
+    "unicode": " (special characters: 70 per SMS)",
+    "withLink": "with a link",
+    "removeAttachment": "Remove attachment {name}",
+    "how": "How to send the attachment",
+    "howLink": "Link — full quality",
+    "howMmsImage": "MMS — up to {size}",
+    "howMms": "MMS — at most {size}",
+    "linkDays": "How long the link works",
+    "valid": "valid {days}",
+    "body": "Message text",
+    "attach": "Attach",
+    "attachTitle": "Photo, video or file",
+    "later": "Send later",
+    "laterDots": "Send later…",
+    "uploadBar": "Uploading the file",
+    "pickFile": "Choose a file",
+    "takePhoto": "Take a photo",
+    "photos": "Photos and videos",
+    "fileAsLink": "File — I'll send it as a link",
+    "sending": "Sending",
+    "planNote": "The phone will send it at that time by itself — even without internet."
+  },
+  "title": "SMS",
+  "needsAccount": "This part needs an account — sign in when you have a connection.",
+  "backToSms": "Back to SMS",
+  "newMessage": "New message",
+  "noNumber": "No number",
+  "setup": {
+    "title": "Phone settings",
+    "notDefault": "<b>This app is not yet the phone's SMS app</b> — new messages go to another one, and you can't send from here.",
+    "makeDefault": "Set as the SMS app",
+    "appSettings": "App settings",
+    "refused": "The phone didn't allow it? On GrapheneOS and Android 13+ an app from outside the store must first get permission: App settings → ⋮ → „Allow restricted settings\", then „Set as the SMS app\" again. Before switching, turn off chat (RCS) in Google Messages.",
+    "rcs": "<b>Google Messages is also on the phone.</b> If it had chat (RCS) on, your number may still be registered for chat: messages from people who use it then arrive late or not at all. Briefly set Google Messages as the SMS app, turn off Settings → RCS chats in it, and come back here.",
+    "understood": "Got it",
+    "noContacts": "Without access to contacts, numbers stand in place of names, and contacts from recreatio won't reach the phone.",
+    "allowContacts": "Allow contacts"
+  },
+  "unsent": {
+    "askAll": "Delete unsent messages ({count})?",
+    "askHere": "Delete unsent in this conversation ({count})?",
+    "body": "Messages the phone didn't send (failed and stuck), older than 10 minutes, will be deleted. Sent ones are not affected.",
+    "deletedOne": "Deleted 1 unsent message.",
+    "deleted": "Unsent deleted: {count}.",
+    "failed": "Could not delete."
+  },
+  "list": {
+    "loadFailed": "Could not load the messages.",
+    "photo": "📷 Photo",
+    "fromNumber": "From number: {name} — {why}",
+    "unread": "{count} unread",
+    "searchIn": "Search in",
+    "more": "More: SMS",
+    "loading": "Loading messages…",
+    "searching": "Searching…",
+    "noHits": "No message contains this.",
+    "hits": "Messages found",
+    "empty": "No messages yet."
+  },
+  "check": {
+    "notDefault": "This app is not the phone's SMS app — new messages go to another one.",
+    "mmsRetried": "Checked. MMS downloaded again: {count}.",
+    "ok": "Checked — everything that reached the phone is here.",
+    "otherSms": "Google Messages is also installed: if chat (RCS) is on there, some messages go there."
+  },
+  "menu": {
+    "afterSignIn": "{label} (after signing in)",
+    "check": "Check for new messages",
+    "archive": "Archive",
+    "dropUnsent": "Delete unsent ({count})…"
+  },
+  "blocked": {
+    "title": "Blocked numbers",
+    "unblockAsk": "Unblock {number}?",
+    "unblockBody": "The phone will again accept SMS and calls from this number.",
+    "unblock": "Unblock",
+    "unblockFailed": "Could not unblock.",
+    "empty": "No blocked numbers.",
+    "notSystem": "The phone doesn't let this app block in the system (it is not the SMS app) — only the app itself blocks."
+  },
+  "thread": {
+    "loadFailed": "Could not load the conversation.",
+    "olderFailed": "Could not load earlier messages.",
+    "cancelAsk": "Cancel the scheduled message?",
+    "cancel": "Cancel",
+    "onItsWay": "This message is already on its way.",
+    "archiveOn": "This conversation will be archived — all of it, including older messages.",
+    "archiveOff": "This conversation will no longer be archived (what is already in the archive stays).",
+    "blocked": "Blocked and the conversation deleted.",
+    "blockedApp": "Blocked (in this app) and the conversation deleted.",
+    "blockedArchive": "It was also deleted from the archive.",
+    "blockFailed": "Could not block.",
+    "removeAsk": "Delete this conversation from the phone?",
+    "removeBody": "All its messages will disappear from the phone. The archive stays unchanged.",
+    "removed": "Conversation deleted from the phone.",
+    "contact": "Contact: {name}",
+    "addContact": "Add to contacts",
+    "unmute": "Turn on notifications",
+    "mute": "Mute…",
+    "archiveNotOn": "The archive is not switched on yet",
+    "archiveAll": "All conversations are archived",
+    "archiveThis": "Archive this conversation",
+    "dropUnsent": "Delete unsent in this conversation ({count})…",
+    "block": "Block (spam)…",
+    "remove": "Delete the conversation from the phone…",
+    "forward": "Forward"
+  },
+  "planned": {
+    "failed": "Not sent",
+    "failedWhy": "Not sent · {error}",
+    "sending": "Sending…",
+    "at": "Scheduled · {when}",
+    "fromBrowser": "{meta} · from the browser",
+    "hide": "Hide"
+  },
+  "sim": {
+    "in": "Received on: {line}",
+    "out": "Sent from: {line}"
+  },
+  "mms": {
+    "pending": "MMS — not downloaded yet.",
+    "downloading": "Downloading…",
+    "resend": "Send again",
+    "photoLoading": "📷 Photo…",
+    "photo": "Photo"
+  },
+  "compose2": {
+    "opening": "Opening the conversation…",
+    "to": "To",
+    "remove": "Remove {name}",
+    "nameOrNumber": "Name or number",
+    "addMore": "Add…",
+    "recipient": "Recipient",
+    "how": "How to send",
+    "separate": "Separately to each (SMS — nobody sees the others)",
+    "asGroup": "As a group (MMS — everyone sees the replies)",
+    "sentMany": {
+      "one": "Sent to {count} person.",
+      "other": "Sent to {count} people."
+    }
+  }
+}

@@ -21,6 +21,7 @@ import type { Ring, SealedRole } from '../core/keys';
 import { enrollMembers, handOverRoleKeys, loadFormMembers, setMemberRoles, type MemberState } from './memberRole';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged }: {
   partId: string;
@@ -30,6 +31,7 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
   /** Eine neue Rolle angelegt: der Bund muss neu gebaut werden (er kennt sie noch nicht). */
   onRingChanged: () => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<MemberState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -52,9 +54,9 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
       setState(now);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać ról uczestników.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('roles.member.loadFailed'));
     }
-  }, [partId]);
+  }, [partId, t]);
 
   useEffect(() => { void read(bund); }, [read, bund]);
 
@@ -63,21 +65,21 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
     setFailed(null);
     setNote(null);
     try { await todo(); } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally { setBusy(null); }
   };
 
-  const save = () => act(picked.has(NEW_ROLE) ? 'Tworzenie roli…' : 'Zapisywanie ról…', async () => {
+  const save = () => act(picked.has(NEW_ROLE) ? t('roles.member.creating') : t('roles.member.saving'), async () => {
     const roleIds = [...picked.keys()].filter((id) => id !== NEW_ROLE);
     let next = bund;
     if (picked.has(NEW_ROLE)) {
-      if (bund === null || person === null) throw new WorkspaceError('Najpierw podaj hasło.');
+      if (bund === null || person === null) throw new WorkspaceError(t('roles.member.passwordFirst'));
       const made = await createCommonRole(bund, person, draft, setBusy);
       roleIds.push(made.roleId);
       next = made.ring;
       onRingChanged();
     }
-    if (roleIds.length === 0) throw new WorkspaceError('Wybierz rolę albo utwórz nową.');
+    if (roleIds.length === 0) throw new WorkspaceError(t('roles.member.pickRole'));
     await setMemberRoles(partId, roleIds);
     setChoosing(false);
     setPicked(new Map());
@@ -85,39 +87,38 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
     setBund(next);
     await read(next);
     setNote(roleIds.length === 1
-      ? 'Zapisano. Nowe zgłoszenia od razu należą do tej roli.'
-      : 'Zapisano. Nowe zgłoszenia od razu należą do tych ról.');
+      ? t('roles.member.savedOne')
+      : t('roles.member.savedMany'));
   });
 
-  const nameOf = (roleId: string) => roles?.find((r) => r.roleId === roleId)?.name ?? 'Rola (nazwa niedostępna)';
+  const nameOf = (roleId: string) => roles?.find((r) => r.roleId === roleId)?.name ?? t('roles.member.nameUnavailable');
 
   /* Kto wysłał, a nie należy jeszcze do którejś z ról — „Przenieś" doda go do wszystkich. */
   const outside = state === null ? 0 : Math.max(0, ...state.roles.map((r) => state.seats - r.members));
 
   return (
-    <section className="wk-field wk-member-role" aria-label="Role uczestników">
-      <h3 className="wk-h2">Role uczestników</h3>
+    <section className="wk-field wk-member-role" aria-label={t('roles.member.title')}>
+      <h3 className="wk-h2">{t('roles.member.title')}</h3>
       <p className="wk-hint">
-        Każdy, kto wyśle ten formularz, należy do tych ról — i dostaje to, do czego one dają dostęp:
-        strony, kalendarze, rozmowy ich obszarów. Zmienisz obszary roli — zmienią się dla wszystkich.
+        {t('roles.member.lead')}
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {state === null ? <Loading label="Wczytywanie…" /> : (
+      {state === null ? <Loading label={t('common.loading')} /> : (
         <>
           {state.roles.length === 0 ? (
-            <p className="wk-note">Ten formularz nie daje jeszcze żadnej roli.</p>
+            <p className="wk-note">{t('roles.member.none')}</p>
           ) : state.roles.map((role) => (
             <div key={role.roleId} className="wk-member-now" data-member-role={role.roleId}>
               <p><strong>{nameOf(role.roleId)}</strong></p>
               <p className="wk-hint">{reachWords(role.areas)}</p>
               <p className="wk-hint" data-member-counts="">
-                Należy: {role.members} z {state.seats} {state.seats === 1 ? 'osoby' : 'osób'} z linkiem
-                {role.members > 0 && ` · klucz ma ${role.sealed}`}
-                {role.members - role.sealed > 0 && ` · czeka na klucz ${role.members - role.sealed}`}
+                {t('roles.member.belongs', { members: role.members, count: state.seats })}
+                {role.members > 0 && ` · ${t('roles.member.hasKey', { n: role.sealed })}`}
+                {role.members - role.sealed > 0 && ` · ${t('roles.member.waitsKey', { n: role.members - role.sealed })}`}
               </p>
               {role.members - role.sealed > 0 && !role.holdsRole && (
-                <p className="wk-note">Klucz roli przekaże ktoś, kto ją ma — automatycznie, gdy otworzy aplikację.</p>
+                <p className="wk-note">{t('roles.member.handOver')}</p>
               )}
             </div>
           ))}
@@ -125,12 +126,12 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
           <div className="wk-actions">
             {state.roles.length > 0 && outside > 0 && (
               <button type="button" className="wk-btn" disabled={busy !== null} data-member-enroll=""
-                onClick={() => void act('Przenoszenie zgłoszeń…', async () => {
+                onClick={() => void act(t('roles.member.enrolling'), async () => {
                   const { added } = await enrollMembers(partId);
                   await read(bund);
-                  setNote(added === 0 ? 'Wszyscy już należą do ról.' : `Dołączono: ${added}.`);
+                  setNote(added === 0 ? t('roles.member.allIn') : t('roles.member.added', { n: added }));
                 })}>
-                Przenieś obecne zgłoszenia ({outside})
+                {t('roles.member.enroll', { n: outside })}
               </button>
             )}
             {!choosing && (
@@ -138,17 +139,17 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
                 setPicked(new Map(state.roles.map((r) => [r.roleId, false] as const)));
                 setChoosing(true);
               }}>
-                {state.roles.length === 0 ? 'Wybierz role…' : 'Zmień role…'}
+                {state.roles.length === 0 ? t('roles.member.choose') : t('roles.member.change')}
               </button>
             )}
             {state.roles.length > 0 && !choosing && (
               <button type="button" className="wk-link-btn" disabled={busy !== null}
-                onClick={() => void act('Odłączanie ról…', async () => {
+                onClick={() => void act(t('roles.member.detaching'), async () => {
                   await setMemberRoles(partId, []);
                   await read(bund);
-                  setNote('Nowe zgłoszenia nie dostaną już ról. Kto już do nich należy, zostaje.');
+                  setNote(t('roles.member.detached'));
                 })}>
-                Bez ról
+                {t('roles.member.noRoles')}
               </button>
             )}
           </div>
@@ -157,12 +158,12 @@ export function MemberRoleSettings({ partId, ring, person, areas, onRingChanged 
             <div className="wk-member-choose">
               <CommonRoleChoice roles={roles} failed={rolesFailed} areas={areas} many busy={busy !== null}
                 picked={picked} onPicked={setPicked} draft={draft} onDraft={setDraft} />
-              <p className="wk-hint">Kto już należy do odznaczonej roli, zostaje w niej. „Przenieś obecne zgłoszenia" doda wszystkich do nowych.</p>
+              <p className="wk-hint">{t('roles.member.chooseHint')}</p>
               <div className="wk-actions">
                 <button type="button" className="wk-btn" disabled={busy !== null || picked.size === 0} data-member-save="" onClick={() => void save()}>
-                  Zapisz role
+                  {t('roles.member.save')}
                 </button>
-                <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => { setChoosing(false); setPicked(new Map()); }}>Anuluj</button>
+                <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => { setChoosing(false); setPicked(new Map()); }}>{t('common.cancel')}</button>
               </div>
             </div>
           )}

@@ -24,7 +24,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { plural } from '../core/plural';
+import { rich, t, useT } from '../core/i18n';
 import {
   filterWords, isFiltered, loadEntryDesk, neighbours, NO_FILTER, onDeskChange, pickRows, readEntryQuery,
   STEP_CHOICES, stepKindsOf, entryQueryString, withEntryQuery,
@@ -77,7 +77,7 @@ export function useEntryDesk(formId: string, ring: Ring | null | undefined): { d
     loadEntryDesk(formId, ring)
       .then((found) => { if (alive) setDesk(found.formId === formId ? found : null); })
       .catch((e: unknown) => {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć zgłoszeń tego formularza.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('formsOffice.subject.openFailed'));
       });
     return () => { alive = false; };
   }, [formId, ring, stamp]);
@@ -134,17 +134,18 @@ export function OfficeGate({ who, ring, retry, desk, failed, what }: {
   failed: string | null;
   what: string;
 }) {
-  if (who === undefined || (who !== null && ring === undefined)) return <Loading label="Wczytywanie…" />;
+  /* Auch als Funktion gerufen (`EntryBar`) — darum `t` der App, kein Hook. */
+  if (who === undefined || (who !== null && ring === undefined)) return <Loading label={t('common.loading')} />;
   if (who === null) {
     return (
       <p className="wk-hint">
-        {what} widzą tylko koordynatorzy formularza — <a className="wk-link" href={routePath('workspace')}>zaloguj się</a>.
+        {rich(t('formsOffice.subject.signIn', { what }), { a: (s, k) => <a key={k} className="wk-link" href={routePath('workspace')}>{s}</a> })}
       </p>
     );
   }
-  if (ring === null) return <Unlock who={who} why={`Bez hasła w tej karcie nie da się otworzyć zgłoszeń (${what.toLowerCase()}).`} onDone={retry} />;
+  if (ring === null) return <Unlock who={who} why={t('formsOffice.subject.noPassword', { what: what.toLowerCase() })} onDone={retry} />;
   if (failed !== null) return <p className="wk-error">{failed}</p>;
-  if (desk === null) return <p className="wk-hint" role="status">Otwieranie zgłoszeń…</p>;
+  if (desk === null) return <p className="wk-hint" role="status">{t('formsOffice.openingEntries')}</p>;
   return null;
 }
 
@@ -157,24 +158,25 @@ export function EntryFilterBar({ filter, kinds, onChange }: {
   kinds: readonly StepKind[];
   onChange: (next: EntryFilter) => void;
 }) {
+  const t = useT();
   return (
     <div className="wk-entry-filter" role="search">
       <input
-        type="search" value={filter.q} placeholder="Szukaj: imię, telefon, odpowiedź…" aria-label="Szukaj osoby"
+        type="search" value={filter.q} placeholder={t('formsOffice.subject.searchPlaceholder')} aria-label={t('formsOffice.subject.search')}
         onChange={(e) => onChange({ ...filter, q: e.target.value })}
       />
       {kinds.length > 0 && (
-        <select value={filter.step} aria-label="Filtr kroków" onChange={(e) => onChange({ ...filter, step: e.target.value })}>
-          {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        <select value={filter.step} aria-label={t('formsOffice.subject.stepFilter')} onChange={(e) => onChange({ ...filter, step: e.target.value })}>
+          {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}
           <StepOptions kinds={kinds} />
         </select>
       )}
       <label className="wk-inline">
         <input type="checkbox" checked={filter.hidden} onChange={(e) => onChange({ ...filter, hidden: e.target.checked })} />
-        <span>też ukryte</span>
+        <span>{t('formsOffice.subject.hiddenToo')}</span>
       </label>
       {isFiltered(filter) && (
-        <button type="button" className="wk-link-btn" onClick={() => onChange(NO_FILTER)}>Wyczyść</button>
+        <button type="button" className="wk-link-btn" onClick={() => onChange(NO_FILTER)}>{t('formsOffice.subject.clear')}</button>
       )}
     </div>
   );
@@ -251,7 +253,7 @@ function EntryProvider({ decl, children }: { decl: SubjectDecl; path: string; ch
   const chosen = picked ?? (shown.length === 1 ? shown[0] : null);
 
   const value = useMemo<EntrySubject>(() => ({
-    formId, who, ring, retry, desk, failed: formId === '' ? 'Ta strona wybiera osobę z formularza, ale nie wskazano formularza.' : failed,
+    formId, who, ring, retry, desk, failed: formId === '' ? t('formsOffice.subject.noForm') : failed,
     shown, chosen, filter: query.filter,
     list: query.from ?? listOf(decl),
     choose: (id) => write({ ...query, id }),
@@ -268,14 +270,15 @@ function EntryProvider({ decl, children }: { decl: SubjectDecl; path: string; ch
 function EntryBar() {
   const e = useOfficeSubject(useEntrySubject());
   const [filtering, setFiltering] = useState(false);
+  const t = useT();
   if (e === null) return null;
 
-  const gate = OfficeGate({ who: e.who, ring: e.ring, retry: e.retry, desk: e.desk, failed: e.failed, what: 'Osoby z tego formularza' });
+  const gate = OfficeGate({ who: e.who, ring: e.ring, retry: e.retry, desk: e.desk, failed: e.failed, what: t('formsOffice.subject.peopleOfForm') });
   if (gate !== null) return <div className="wk-subject-bar is-waiting">{gate}</div>;
 
   const desk = e.desk!;
   const all = desk.rows;
-  const name = desk.module?.name ?? 'formularz';
+  const name = desk.module?.name ?? t('formsOffice.subject.form');
   const id = e.chosen?.s.registrationId ?? null;
   const { prev, next, at } = neighbours(all, e.shown, id);
   const kinds = stepKindsOf(all);
@@ -286,37 +289,37 @@ function EntryBar() {
 
   return (
     <div className="wk-subject">
-      <div className="wk-subject-bar" role="navigation" aria-label="Wybór osoby">
-        {back !== null && <a className="wk-link wk-subject-back" href={back}>← lista</a>}
-        <span className="wk-subject-of" title={`Osoby z formularza „${name}"`}>{name}</span>
+      <div className="wk-subject-bar" role="navigation" aria-label={t('formsOffice.subject.choose')}>
+        {back !== null && <a className="wk-link wk-subject-back" href={back}>{t('formsOffice.subject.back')}</a>}
+        <span className="wk-subject-of" title={t('formsOffice.subject.peopleOf', { name })}>{name}</span>
 
         {all.length === 0 ? (
-          <span className="wk-hint">W tym formularzu nie ma jeszcze nikogo.</span>
+          <span className="wk-hint">{t('formsOffice.subject.empty')}</span>
         ) : (
           <>
             {/* ◀ wer ▶ — beisammen, auch wo die Zeile umbricht (ein Telefon). */}
             <span className="wk-subject-nav">
-              <button type="button" className="wk-subject-step" disabled={prev === null} aria-label={prev === null ? 'Poprzednia osoba' : `Poprzednia: ${prev.name}`}
+              <button type="button" className="wk-subject-step" disabled={prev === null} aria-label={prev === null ? t('formsOffice.subject.prev') : t('formsOffice.subject.prevName', { name: prev.name })}
                 title={prev?.name} onClick={() => prev !== null && e.choose(prev.s.registrationId)}>◀</button>
               {lone ? (
                 <strong className="wk-subject-name">{e.chosen!.name}</strong>
               ) : (
-                <select className="wk-subject-pick" value={id ?? ''} aria-label="Osoba" onChange={(ev) => e.choose(ev.target.value === '' ? null : ev.target.value)}>
-                  <option value="">— wybierz osobę —</option>
-                  {outside && <option value={id!}>{e.chosen!.name} (poza filtrem)</option>}
+                <select className="wk-subject-pick" value={id ?? ''} aria-label={t('formsOffice.subject.person')} onChange={(ev) => e.choose(ev.target.value === '' ? null : ev.target.value)}>
+                  <option value="">{t('formsOffice.subject.pick')}</option>
+                  {outside && <option value={id!}>{e.chosen!.name} {t('formsOffice.subject.outside')}</option>}
                   {e.shown.map((r) => (
-                    <option key={r.s.registrationId} value={r.s.registrationId}>{r.name}{r.s.hidden ? ' (ukryte)' : ''}</option>
+                    <option key={r.s.registrationId} value={r.s.registrationId}>{r.name}{r.s.hidden ? ` ${t('formsOffice.subject.hidden')}` : ''}</option>
                   ))}
                 </select>
               )}
-              <button type="button" className="wk-subject-step" disabled={next === null} aria-label={next === null ? 'Następna osoba' : `Następna: ${next.name}`}
+              <button type="button" className="wk-subject-step" disabled={next === null} aria-label={next === null ? t('formsOffice.subject.next') : t('formsOffice.subject.nextName', { name: next.name })}
                 title={next?.name} onClick={() => next !== null && e.choose(next.s.registrationId)}>▶</button>
             </span>
             <span className="wk-subject-at">
-              {at > 0 ? `${at} z ${e.shown.length}` : `${e.shown.length} ${plural(e.shown.length, 'osoba', 'osoby', 'osób')}`}
+              {at > 0 ? t('formsOffice.subject.at', { at, count: e.shown.length }) : t('formsOffice.subject.count', { count: e.shown.length })}
             </span>
             <button type="button" className="wk-link-btn" aria-expanded={filtering} onClick={() => setFiltering(!filtering)}>
-              {isFiltered(e.filter) ? `Filtr: ${filterWords(e.filter, kinds)}` : 'Filtr'}
+              {isFiltered(e.filter) ? t('formsOffice.subject.filterOn', { words: filterWords(e.filter, kinds) }) : t('common.filter')}
             </button>
           </>
         )}
@@ -324,7 +327,7 @@ function EntryBar() {
 
       {filtering && all.length > 0 && <EntryFilterBar filter={e.filter} kinds={kinds} onChange={e.setFilter} />}
       {all.length > 0 && e.shown.length === 0 && (
-        <p className="wk-hint">Nikt nie pasuje do tego filtra{e.chosen === null ? '' : ` — ${e.chosen.name} jest poza nim`}.</p>
+        <p className="wk-hint">{e.chosen === null ? t('formsOffice.people.noMatch') : t('formsOffice.subject.noMatchChosen', { name: e.chosen.name })}</p>
       )}
     </div>
   );
@@ -332,17 +335,18 @@ function EntryBar() {
 
 /** In den Einstellungen der Seite: welches Formular, und welche Seite die Liste ist. */
 function EntrySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: boolean; onChange: (next: SubjectDecl) => void }) {
+  const t = useT();
   return (
     <>
       <div className="wk-field">
-        <span>Formularz</span>
+        <span>{t('forms.sheet.form')}</span>
         <PickForm value={formOf(decl)} busy={busy} onPick={(form) => onChange({ ...decl, form })} />
       </div>
       <div className="wk-field">
-        <span>Strona z listą osób (nieobowiązkowo)</span>
+        <span>{t('formsOffice.subject.listPage')}</span>
         <PickPage value={typeof decl.list === 'string' ? decl.list : ''} busy={busy} onPick={(list) => onChange({ ...decl, list })} />
         <span className="wk-hint">
-          Dokąd prowadzi „← lista”, gdy ktoś otworzy tę stronę bezpośrednio. Kto przyszedł z listy (moduł „Lista osób”), wraca tam, skąd przyszedł — z tym samym filtrem.
+          {t('formsOffice.subject.listHint')}
         </span>
       </div>
     </>
@@ -351,15 +355,15 @@ function EntrySettings({ decl, busy, onChange }: { decl: SubjectDecl; busy: bool
 
 export const entrySubjectKind: SubjectKind = {
   kind: 'entry',
-  label: 'Osoba z formularza',
-  use: 'U góry strony wybór jednej osoby, która wypełniła formularz (◀ ▶ po liście, filtr); moduły „Panel osoby” pokazują wszystko o niej. Dla koordynatorów.',
+  get label() { return t('formsOffice.subject.kindLabel'); },
+  get use() { return t('formsOffice.subject.kindUse'); },
   keys: {
     kind: '"entry"',
-    form: 'identyfikator modułu „Formularz” — czyje zgłoszenia są do wyboru',
-    list: 'nieobowiązkowo: ścieżka strony z modułem „Lista osób” — dokąd prowadzi „← lista”'
+    get form() { return t('formsOffice.subject.keyForm'); },
+    get list() { return t('formsOffice.subject.keyList'); }
   },
   example: { kind: 'entry', form: '0190a0a0-0000-7000-8000-0000000000aa', list: 'parafia/bierzmowanie/kandydaci' },
-  missing: (decl) => (formOf(decl) === '' ? 'Wybierz formularz.' : null),
+  missing: (decl) => (formOf(decl) === '' ? t('formsOffice.subject.pickForm') : null),
   uses: (decl) => (formOf(decl) === '' ? [] : [formOf(decl)]),
   Provider: EntryProvider,
   Bar: EntryBar,

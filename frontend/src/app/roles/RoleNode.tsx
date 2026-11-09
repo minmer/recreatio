@@ -5,6 +5,8 @@
 import { Fragment } from 'react';
 import { Handle, type NodeProps, Position } from 'reactflow';
 
+import { texts, useT } from '../core/i18n';
+
 type Kind = 'account' | 'person' | 'role' | 'group';
 
 /**
@@ -18,12 +20,12 @@ type Kind = 'account' | 'person' | 'role' | 'group';
  * <b>Das Konto heisst immer „Konto".</b> Es hat keinen eigenen Namen: es ist
  * kein Mensch, und ein Name darüber würde genau das behaupten.
  */
-export const KIND_NAME: Record<Kind, string> = {
-  account: 'Konto',
-  person: 'Osoba',
-  role: 'Rola',
-  group: 'Grupa'
-};
+export const KIND_NAME: Record<Kind, string> = texts({
+  account: 'roles.node.kind.account',
+  person: 'roles.node.kind.person',
+  role: 'roles.node.kind.role',
+  group: 'roles.node.kind.group'
+});
 
 export interface NodeData {
   readonly label: string;
@@ -52,10 +54,11 @@ export interface NodeData {
  * der Leiter überein (3.5), und `certify` steht bewusst NICHT dabei: das ist
  * eine Sache der Bereiche, nicht der Rollen.
  */
+/** `name` ist ein Schlüssel der Texte — übersetzt beim Zeichnen. */
 export const DOTS = [
-  { kind: 'holds' as const, name: 'prowadzi', colour: '#1d4ed8' },
-  { kind: 'write' as const, name: 'pisze', colour: '#b3401f' },
-  { kind: 'read' as const, name: 'czyta', colour: '#0284c7' }
+  { kind: 'holds' as const, name: 'roles.node.dot.holds', colour: '#1d4ed8' },
+  { kind: 'write' as const, name: 'roles.node.dot.write', colour: '#b3401f' },
+  { kind: 'read' as const, name: 'roles.node.dot.read', colour: '#0284c7' }
 ];
 
 /** Der Abstand zwischen den Punkten — genug, um nicht danebenzugreifen. */
@@ -65,6 +68,7 @@ const DOT_GAP = 18;
 export const NODE_TYPES = { role: RoleNode };
 
 function RoleNode({ data, selected }: NodeProps<NodeData>) {
+  const t = useT();
   /*
    * DAS KONTO HAT KEINE EINGÄNGE und nur EINEN Ausgang (0040): niemand hält
    * es, und es führt Personen — ganz, nicht lesend. Punkte, an denen jede
@@ -90,7 +94,7 @@ function RoleNode({ data, selected }: NodeProps<NodeData>) {
                 position={Position.Left}
                 className="wk-dot"
                 style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
-                title={`${dot.name} — tu przyjmij`}
+                title={t('roles.node.dotIn', { name: t(dot.name) })}
               />
             )}
             <Handle
@@ -99,7 +103,7 @@ function RoleNode({ data, selected }: NodeProps<NodeData>) {
               position={Position.Right}
               className="wk-dot"
               style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
-              title={`${dot.name} — stąd pociągnij`}
+              title={t('roles.node.dotOut', { name: t(dot.name) })}
             />
           </Fragment>
         );

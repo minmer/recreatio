@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { PickBar, PickBox, usePicked } from './EntryPick';
 import type { Entry, LibraryStore } from './libraryStore';
 import { oldKindLabel, oldTitle } from './oldKinds';
+import { useT } from '../core/i18n';
 
 export { oldKindLabel, oldTitle } from './oldKinds';
 
@@ -30,21 +31,22 @@ export function OldEntries({ store, known, writes, where, labelOf }: {
   labelOf?: (entry: Entry) => string;
 }) {
   const { picked, toggle, set } = usePicked();
+  const t = useT();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const old = useMemo(() => oldEntriesOf(store, known).sort((a, b) => a.kind.localeCompare(b.kind) || oldTitle(a).localeCompare(oldTitle(b), 'pl')), [store, store.revision]);
+  const old = useMemo(() => oldEntriesOf(store, known).sort((a, b) => a.kind.localeCompare(b.kind) || oldTitle(a).localeCompare(oldTitle(b), t.locale)), [store, store.revision]);
 
   return (
     <section className="wk-form" data-old-entries="">
-      <h2 className="wk-h2">Stare wpisy ({old.length})</h2>
-      <p>Wpisy rodzajów, których ta wersja już nie obsługuje. {where} Można je przejrzeć i usunąć — same nie znikną.</p>
-      {old.length === 0 ? <p className="wk-empty">Nie ma starych wpisów.</p> : (
+      <h2 className="wk-h2">{t('library.old.title', { n: old.length })}</h2>
+      <p>{t('library.old.lede', { where })}</p>
+      {old.length === 0 ? <p className="wk-empty">{t('library.old.none')}</p> : (
         <ul className="lib-list">
           {old.map((entry) => (
             <li key={entry.id} className="has-pick">
               {writes && <PickBox checked={picked.has(entry.id)} label={oldTitle(entry)} onToggle={() => toggle(entry.id)} />}
               <span className="lib-row">
                 <span className="lib-row-title">{oldTitle(entry)} <span className="lib-badge is-implicit">{labelOf === undefined ? oldKindLabel(entry.kind) : labelOf(entry)}</span></span>
-                <span className="lib-row-meta">zmieniony {entry.updatedAt.slice(0, 10)}</span>
+                <span className="lib-row-meta">{t('library.old.changed', { date: entry.updatedAt.slice(0, 10) })}</span>
               </span>
             </li>
           ))}

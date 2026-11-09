@@ -34,8 +34,8 @@
  * `massesImport.ts`; nachgemessen in `scripts/app-json-masses-check.mjs`.
  */
 
+import { t } from '../core/i18n';
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
-import { plural } from '../core/plural';
 import type { Duty, RepeatKind } from '../calendar/calendar';
 import { dutyOf } from '../calendar/eventWords';
 import { CONFESSION, DEVOTION, INTENTION_STATUS_LABEL, KIND_LABEL, MASS, SERVICE_LABEL, type IntentionKind } from './mass';
@@ -73,7 +73,7 @@ const has = (o: Record<string, unknown>, key: string): boolean => Object.prototy
 
 /** Ohne Akzente, klein, „ł" als „l" — zum Vergleichen, nicht zum Anzeigen. */
 const fold = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[łŁ]/g, 'l').toLowerCase().trim();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[łŁ]/g, 'l').toLowerCase().trim(); // i18n-ignore
 
 /** Ein Text als Schlüssel: dieselbe Intention, auch anders geschrieben („Za śp. Jana" — „za sp jana"). */
 export const textKey = (s: string): string => fold(s).replace(/[^a-z0-9]+/g, ' ').trim();
@@ -132,13 +132,15 @@ export function readClock(value: unknown): string | null {
   return h > 23 || min > 59 ? null : `${two(h)}:${two(min)}`;
 }
 
-const WD_SHORT = ['nd', 'pn', 'wt', 'śr', 'czw', 'pt', 'sob'];
 const clockShort = (time: string): string => time.replace(/^0(\d)/, '$1');
+
+/* Die kurzen Namen des Plans („pn", „wt" …) — als Texte, nicht aus `Intl` („pon.") — so stehen sie in der Kanzlei. */
+const WD_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 /** „pn 2.11 7:00" — so steht ein Vorkommen in der Vorschau. */
 export const whenLabel = (day: string, time: string | null): string => {
   const d = dateOf(day);
-  return `${WD_SHORT[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}${time === null ? '' : ` ${clockShort(time)}`}`;
+  return `${t(`massesJson.wd.${WD_KEYS[d.getDay()]}`)} ${d.getDate()}.${d.getMonth() + 1}${time === null ? '' : ` ${clockShort(time)}`}`;
 };
 const dateWords = (day: string): string => {
   const d = dateOf(day);
@@ -151,7 +153,7 @@ const dateWords = (day: string): string => {
  * Wie im JSON der Termine (`calendar/appointmentsJson.ts`): „so" für Samstag.
  * Gelesen wird duldsam — „sb" wie im Formular der Kanzlei, ganze Namen, 1–7.
  */
-export const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const;
+export const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const; // i18n-ignore — Werte des Formats
 
 const WEEKDAY_OF: Readonly<Record<string, number>> = (() => {
   const out: Record<string, number> = {};
@@ -261,56 +263,42 @@ export interface MassesState {
 
 /* -- Die Beschreibung ---------------------------------------------------------------------------- */
 
-export const MASSES_TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `zawsze "${MASSES_FORMAT}"`,
-  version: `${MASSES_VERSION} (wersja formatu)`,
-  calendar: 'kalendarz (terminarz grupy): "id" z eksportu albo nazwa grupy lub kalendarza; brak — kalendarz wybrany u góry w „Msze i nabożeństwa”',
-  calendarName: 'nazwa kalendarza — tylko informacja (eksport ją wpisuje, import pomija)',
-  from: 'pierwszy dzień okresu "RRRR-MM-DD" — eksport go wpisuje; import czyta msze od tego dnia (brak: od najwcześniejszej daty w dokumencie)',
-  to: 'ostatni dzień okresu "RRRR-MM-DD", włącznie',
-  masses: 'msze, nabożeństwa i spowiedź — pojedyncze i serie (niżej); można pominąć, gdy msze już są w kalendarzu',
-  occurrences: 'msze w konkretne dni z ich intencjami (niżej) — tu wpisuje się księgę intencji'
-};
+type DescParams = Readonly<Record<string, string | number>>;
 
-export const MASS_KEYS: Readonly<Record<string, string>> = {
-  id: '"id" z eksportu — wpis zmieniany w miejscu (tylko to, co dokument podaje); bez "id" powstaje nowy',
-  key: 'krótka nazwa (litery, cyfry, - i _) — pozycje w "occurrences" wskazują wpis przez "mass": "@nazwa" (np. nowy, który nie ma jeszcze "id")',
-  calendar: 'kalendarz nowego wpisu, gdy inny niż kalendarz dokumentu (id albo nazwa); istniejący wpis zostaje w swoim',
-  kind: '"mass" — msza (domyślnie), "devotion" — nabożeństwo (różaniec, droga krzyżowa…; bez intencji), "confession" — spowiedź (bez intencji); rodzaju istniejącego wpisu import nie zmienia',
-  title: `nazwa w planie i w gablocie (jawna), np. "Msza św. z udziałem dzieci", "Różaniec"; "" — „Msza”, „Nabożeństwo”, „Spowiedź”; do ${TITLE_MAX} znaków`,
-  date: 'dzień mszy albo pierwszy dzień serii "RRRR-MM-DD" (nowy wpis: wymagany)',
-  time: 'godzina "GG:MM", czas miejscowy — 18:00 to osiemnasta także po zmianie czasu (nowy wpis: wymagana)',
-  minutes: `czas trwania w minutach, 5–1440 (domyślnie: msza ${DEFAULT_MINUTES.mass} albo jak w kalendarzu, spowiedź ${DEFAULT_MINUTES.confession}, nabożeństwo ${DEFAULT_MINUTES.devotion}); przy spowiedzi gablota pokazuje „do …”`,
-  repeat: '"none" — raz (domyślnie), "daily" — codziennie, "weekly" — w wybrane dni tygodnia, "monthly" — co miesiąc tego samego dnia ("yearly" — co rok, bywa w eksporcie)',
-  every: 'co ile dni, tygodni albo miesięcy (1–99, domyślnie 1)',
-  weekdays: `przy "weekly": dni tygodnia ${JSON.stringify([...WEEKDAY_WORDS])}; brak — dzień pierwszego terminu`,
-  until: 'ostatni dzień serii "RRRR-MM-DD"; null (albo brak w nowej serii) — bez końca; wcześniejsze "until" kończy serię',
-  place: `miejsce, np. "kaplica cmentarna" — szyfrowane jak miejsce każdego terminu (nie ma go w gablocie); "" usuwa; do ${PLACE_MAX} znaków`,
-  celebrants: `kto odprawia mszę, prowadzi nabożeństwo, spowiada — w całej serii: osoby grupy kalendarza, imię i nazwisko jak w grupie (np. "ks. Jan Kowalski") albo id osoby; [] — nikt; najwyżej ${MAX_PEOPLE}`,
-  changeFrom: 'tylko przy serii z "id": zmiana obowiązuje od tego dnia "RRRR-MM-DD" (ta i następne) — stara seria kończy się dzień wcześniej, nowa przejmuje intencje i osoby; bez "changeFrom" zmienia się cała seria, także minione msze'
-};
+/** Eine Tabelle Schlüssel → Satz, deren Sätze beim Lesen aus `massesJson.desc.<gruppe>.<schlüssel>` kommen. */
+function described(group: string, keys: readonly string[], params: () => Readonly<Record<string, DescParams>> = () => ({})): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const k of keys) Object.defineProperty(out, k, { enumerable: true, get: () => t(`massesJson.desc.${group}.${k}`, params()[k]) });
+  return out;
+}
 
-export const OCCURRENCE_KEYS: Readonly<Record<string, string>> = {
-  date: 'dzień mszy "RRRR-MM-DD" (wymagany)',
-  time: 'godzina mszy "GG:MM" — wymagana bez "mass": wtedy msza jest szukana po dniu i godzinie wśród mszy kalendarza',
-  mass: 'która msza: "id" wpisu z "masses" eksportu albo "@nazwa" z "key"; brak — po "date" i "time"',
-  calendar: 'kalendarz, gdy dokument obejmuje kilka (id albo nazwa); brak — kalendarz dokumentu',
-  free: 'true — „wolna”: msza bez intencji; import nic nie dopisuje (ostrzega, gdy w kalendarzu jednak ma intencję)',
-  collective: 'true — msza zbiorowa: wszystkie jej intencje bez własnego "kind" są zbiorowe (jeden kapłan odprawia je razem)',
-  cancelled: 'true — odwołaj tę mszę tylko w tym dniu (seria zostaje; nie, gdy ma przyjęte intencje); false — przywróć odwołaną',
-  celebrants: 'kto odprawia tę jedną mszę — osoby jak w "masses"; brak — bez zmian (jak w serii)',
-  intentions: `intencje tej mszy w kolejności czytania — tekst ("Za śp. Jana Kowalskiego") albo obiekt (niżej); najwyżej ${MAX_INTENTIONS}; dwie pojedyncze w jednej mszy to dwóch kapłanów`
-};
+export const MASSES_TOP_KEYS: Readonly<Record<string, string>> = described('top',
+  ['format', 'version', 'calendar', 'calendarName', 'from', 'to', 'masses', 'occurrences'],
+  () => ({ format: { format: MASSES_FORMAT }, version: { version: MASSES_VERSION } }));
 
-export const INTENTION_KEYS: Readonly<Record<string, string>> = {
-  id: '"id" z eksportu — intencja zmieniana w miejscu; wpisana pod inną mszą (inny dzień albo godzina) — przeniesiona tam; bez "id" — nowa, chyba że ta msza ma już tę samą treść',
-  text: `treść czytana na mszy i wywieszona w gablocie (wymagana, do ${TEXT_MAX} znaków)`,
-  kind: `"single" — ${KIND_LABEL.single} (domyślnie), "collective" — ${KIND_LABEL.collective}; przy istniejącej intencji brak znaczy: bez zmiany`,
-  status: `"accepted" — ${INTENTION_STATUS_LABEL.accepted} (domyślnie), "celebrated" — ${INTENTION_STATUS_LABEL.celebrated}, "cancelled" — ${INTENTION_STATUS_LABEL.cancelled} (znika z gabloty, zostaje w kancelarii)`,
-  giver: `kto zamówił, np. "rodzina Kowalskich, tel. 600 100 200" — szyfrowane, nie ma go w gablocie ani na wydruku; do ${GIVER_MAX} znaków; "" usuwa`,
-  offering: `ofiara, np. "50 zł" — szyfrowana jak ofiarodawca; do ${OFFERING_MAX} znaków; "" usuwa`,
-  celebrant: 'kto odprawia tę intencję — osoba grupy jak w "celebrants"; trafia też do tej mszy jako odprawiający; null albo "" — nikt'
-};
+export const MASS_KEYS: Readonly<Record<string, string>> = described('mass',
+  ['id', 'key', 'calendar', 'kind', 'title', 'date', 'time', 'minutes', 'repeat', 'every', 'weekdays', 'until', 'place', 'celebrants', 'changeFrom'],
+  () => ({
+    title: { max: TITLE_MAX },
+    minutes: { mass: DEFAULT_MINUTES.mass, confession: DEFAULT_MINUTES.confession, devotion: DEFAULT_MINUTES.devotion },
+    weekdays: { days: JSON.stringify([...WEEKDAY_WORDS]) },
+    place: { max: PLACE_MAX },
+    celebrants: { max: MAX_PEOPLE }
+  }));
+
+export const OCCURRENCE_KEYS: Readonly<Record<string, string>> = described('occurrence',
+  ['date', 'time', 'mass', 'calendar', 'free', 'collective', 'cancelled', 'celebrants', 'intentions'],
+  () => ({ intentions: { max: MAX_INTENTIONS } }));
+
+export const INTENTION_KEYS: Readonly<Record<string, string>> = described('intention',
+  ['id', 'text', 'kind', 'status', 'giver', 'offering', 'celebrant'],
+  () => ({
+    text: { max: TEXT_MAX },
+    kind: { single: KIND_LABEL.single, collective: KIND_LABEL.collective },
+    status: { accepted: INTENTION_STATUS_LABEL.accepted, celebrated: INTENTION_STATUS_LABEL.celebrated, cancelled: INTENTION_STATUS_LABEL.cancelled },
+    giver: { max: GIVER_MAX },
+    offering: { max: OFFERING_MAX }
+  }));
 
 /** Jeder beschriebene Schlüssel als Pfad (`masses[].title`, `occurrences[].intentions[].giver`) — für die Prüfung. */
 export function massesKeyPaths(): Record<string, string> {
@@ -329,24 +317,24 @@ export function bookSample(): Record<string, unknown> {
     from: '2026-11-02',
     to: '2026-11-04',
     occurrences: [
-      { date: '2026-11-02', time: '07:00', intentions: ['Za śp. Jana Kowalskiego w 1. rocznicę śmierci'] },
+      { date: '2026-11-02', time: '07:00', intentions: ['Za śp. Jana Kowalskiego w 1. rocznicę śmierci'] }, // i18n-ignore — Beispielinhalt
       {
         date: '2026-11-02', time: '18:00', collective: true,
         intentions: [
-          'Za zmarłych polecanych w wypominkach',
-          { text: 'Za śp. Annę i Józefa Nowaków', giver: 'córka Maria', offering: '50 zł' },
-          'Za śp. Stanisława Wójcika'
+          'Za zmarłych polecanych w wypominkach', // i18n-ignore
+          { text: 'Za śp. Annę i Józefa Nowaków', giver: 'córka Maria', offering: '50 zł' }, // i18n-ignore
+          'Za śp. Stanisława Wójcika' // i18n-ignore
         ]
       },
       { date: '2026-11-03', time: '07:00', free: true },
       {
         date: '2026-11-03', time: '18:00',
         intentions: [
-          { text: 'O zdrowie i Boże błogosławieństwo dla Zofii w 80. rocznicę urodzin', giver: 'wnuki' },
-          { text: 'Za śp. Henryka Lisa — od sąsiadów', celebrant: 'ks. Marek Nowak' }
+          { text: 'O zdrowie i Boże błogosławieństwo dla Zofii w 80. rocznicę urodzin', giver: 'wnuki' }, // i18n-ignore
+          { text: 'Za śp. Henryka Lisa — od sąsiadów', celebrant: 'ks. Marek Nowak' } // i18n-ignore
         ]
       },
-      { date: '2026-11-04', time: '07:00', intentions: [{ text: 'Dziękczynna za 25 lat małżeństwa Ewy i Piotra', status: 'accepted' }] }
+      { date: '2026-11-04', time: '07:00', intentions: [{ text: 'Dziękczynna za 25 lat małżeństwa Ewy i Piotra', status: 'accepted' }] } // i18n-ignore
     ]
   };
 }
@@ -358,62 +346,37 @@ export function seriesSample(): Record<string, unknown> {
     version: MASSES_VERSION,
     masses: [
       {
-        key: 'rano', kind: 'mass', title: 'Msza św.', date: '2026-11-02', time: '07:00',
-        repeat: 'weekly', weekdays: ['pn', 'wt', 'śr', 'cz', 'pt', 'so'], until: '2027-06-30', celebrants: ['ks. Jan Kowalski']
+        key: 'rano', kind: 'mass', title: 'Msza św.', date: '2026-11-02', time: '07:00', // i18n-ignore — Beispielinhalt
+        repeat: 'weekly', weekdays: ['pn', 'wt', 'śr', 'cz', 'pt', 'so'], until: '2027-06-30', celebrants: ['ks. Jan Kowalski'] // i18n-ignore
       },
       {
-        key: 'dzieci', kind: 'mass', title: 'Msza św. z udziałem dzieci', date: '2026-11-08', time: '10:00', minutes: 60,
+        key: 'dzieci', kind: 'mass', title: 'Msza św. z udziałem dzieci', date: '2026-11-08', time: '10:00', minutes: 60, // i18n-ignore
         repeat: 'weekly', weekdays: ['nd'], every: 1, until: null
       },
-      { kind: 'devotion', title: 'Różaniec', date: '2026-11-02', time: '17:30', minutes: 30, repeat: 'daily', until: '2026-11-30', place: 'kaplica MB Częstochowskiej' },
+      { kind: 'devotion', title: 'Różaniec', date: '2026-11-02', time: '17:30', minutes: 30, repeat: 'daily', until: '2026-11-30', place: 'kaplica MB Częstochowskiej' }, // i18n-ignore
       { kind: 'confession', title: '', date: '2026-11-06', time: '17:00', minutes: 60, repeat: 'weekly', weekdays: ['pt'], until: '2026-12-31', celebrants: ['ks. Marek Nowak'] }
     ],
     occurrences: [
-      { date: '2026-11-02', mass: '@rano', intentions: ['Za śp. Jana Kowalskiego'] },
+      { date: '2026-11-02', mass: '@rano', intentions: ['Za śp. Jana Kowalskiego'] }, // i18n-ignore
       { date: '2026-11-11', mass: '@rano', cancelled: true, celebrants: ['ks. Marek Nowak'] },
-      { date: '2026-11-08', mass: '@dzieci', collective: true, intentions: ['Za dzieci przygotowujące się do I Komunii Świętej', { text: 'Za katechetów i rodziców', kind: 'collective' }] }
+      { date: '2026-11-08', mass: '@dzieci', collective: true, intentions: ['Za dzieci przygotowujące się do I Komunii Świętej', { text: 'Za katechetów i rodziców', kind: 'collective' }] } // i18n-ignore
     ]
   };
 }
 
-const INTRO = (): string => `Msze, nabożeństwa i spowiedź jednego kalendarza (terminarza grupy) z intencjami mszy — dzień po dniu. Import pokazuje najpierw listę zmian: która msza którego dnia dostaje którą intencję; zapisuje dopiero „Importuj”.
-Co robi import (Msze i nabożeństwa → „Więcej” → „Import i eksport (JSON)”):
-- Wpis z "id" z eksportu jest zmieniany w miejscu — tylko to, co dokument podaje; czego nie podaje, zostaje. Wpis bez "id" w "masses" powstaje nowy (pojedynczy albo seria).
-- Intencja należy do mszy w KONKRETNYM DNIU. Taka msza jest szukana po "mass" (id z eksportu albo "@nazwa" z "masses") i "date" — albo po "date" i "time" wśród mszy kalendarza.
-- Intencja bez "id" dochodzi do swojej mszy, chyba że ta msza ma już tę samą treść — wtedy niczego nie dubluje.
-- Msza, która w kalendarzu ma już INNĄ intencję niż w dokumencie, to konflikt: domyślnie nowe intencje do niej nie dochodzą (ostrzeżenie mówi które); w podglądzie można wybrać „dopisz obok”.
-- Niczego nie usuwa. Intencję wycofuje "status": "cancelled", serię kończy "until", mszę w jednym dniu odwołuje "cancelled": true.
-- Ofiarodawca i ofiara są szyfrowane w tej przeglądarce kluczem grupy kalendarza, miejsce — kluczem grupy, która widzi msze (jak przy każdym terminie). Treść intencji i nazwa mszy są jawne: czyta się je na mszy i wiszą w gablocie.
-Zwróć JEDEN obiekt JSON, bez komentarzy: najwyżej ${MAX_MASSES} wpisów w "masses", ${MAX_OCCURRENCES} pozycji w "occurrences", ${MAX_INTENTIONS} intencji przy jednej mszy, okres do ${MAX_DAYS} dni.
+const INTRO = (): string => t('massesJson.desc.intro', {
+  masses: MAX_MASSES, occurrences: MAX_OCCURRENCES, intentions: MAX_INTENTIONS, days: MAX_DAYS, keys: keyLines(MASSES_TOP_KEYS)
+});
 
-Dokument:
-${keyLines(MASSES_TOP_KEYS)}`;
+const MASS_TEXT = (): string => t('massesJson.desc.massText', { keys: keyLines(MASS_KEYS) });
 
-const MASS_TEXT = (): string => `Wpis w "masses" — msza, nabożeństwo albo spowiedź; jeden raz albo seria:
-${keyLines(MASS_KEYS)}
-Nazwy nabożeństw, jak się je zwykle pisze: Różaniec, Droga Krzyżowa, Gorzkie Żale, Nabożeństwo majowe, Koronka do Miłosierdzia Bożego, Adoracja Najświętszego Sakramentu, Nieszpory.`;
+const OCCURRENCE_TEXT = (): string => t('massesJson.desc.occurrenceText', { keys: keyLines(OCCURRENCE_KEYS) });
 
-const OCCURRENCE_TEXT = (): string => `Pozycja w "occurrences" — jedna msza jednego dnia, tak jak wiersz w księdze intencji:
-${keyLines(OCCURRENCE_KEYS)}
-Ta sama msza drugi raz w dokumencie jest łączona z pierwszą (z ostrzeżeniem).`;
+const INTENTION_TEXT = (): string => t('massesJson.desc.intentionText', { keys: keyLines(INTENTION_KEYS) });
 
-const INTENTION_TEXT = (): string => `Intencja w "intentions" — sam tekst ("Za śp. Jana Kowalskiego") albo obiekt:
-${keyLines(INTENTION_KEYS)}
-Treść „wolna” zamiast intencji znaczy "free": true.`;
+const BOOK_TEXT = (): string => t('massesJson.desc.bookText', { sample: pretty(bookSample()) });
 
-const BOOK_TEXT = (): string => `Najczęstsza praca: kancelaria przepisuje miesiąc z księgi intencji (np. AI ze zdjęcia stron).
-1. Najprościej zacząć od eksportu tego miesiąca: każda msza stoi w "occurrences" z "date", "time" i "mass" — z intencjami, które już są, albo z "free": true. Wpisz intencje do tych pozycji (zamiast "free": true — "intentions"); pozycji nie dopisuj ani nie usuwaj.
-2. Bez eksportu: jedna pozycja na każdą mszę z księgi, z "date" i "time" (msza musi już być w kalendarzu albo w "masses" tego dokumentu).
-3. „wolna” → "free": true. Kilka intencji przy jednej mszy → kilka pozycji w "intentions", w kolejności z księgi. Msza zbiorowa → "collective": true i wszystkie jej intencje.
-4. Treść przepisuj dokładnie jak w księdze („Za śp. …”, „O zdrowie i Boże błogosławieństwo dla …”), bez numerów porządkowych. Nieczytelne słowo: najlepsze odczytanie i „[?]” na końcu treści — kancelaria poprawi.
-5. Ofiarodawcę i ofiarę wpisz tylko, gdy są w księdze ("giver", "offering"); nie zgaduj.
-6. Ta sama treść przy tej samej mszy nie zostanie dodana drugi raz. Inna treść przy mszy, która ma już intencję, to konflikt — podgląd go pokaże, zanim cokolwiek się zapisze.
-Przykład — msze 7:00 i 18:00 już są w kalendarzu:
-${pretty(bookSample())}`;
-
-const SERIES_TEXT = (): string => `Nowe msze i nabożeństwa razem z intencjami — nowa seria nie ma jeszcze "id", więc pozycje wskazują ją przez "@nazwa":
-${pretty(seriesSample())}
-Zmiana godzin od wybranego dnia (np. msza wieczorna od 1 grudnia o 17:00): wpis z "id" z eksportu, "time": "17:00", "changeFrom": "2026-12-01".`;
+const SERIES_TEXT = (): string => t('massesJson.desc.seriesText', { sample: pretty(seriesSample()) });
 
 /*
  * 2026-10-30 — WAS DIE APP MIT MESSEN UND INTENTIONEN TUT: Termine wie jeder andere (`CalendarApp.tsx`: „N int.",
@@ -422,32 +385,25 @@ Zmiana godzin od wybranego dnia (np. msza wieczorna od 1 grudnia o 17:00): wpis 
  * Zurückgezogenes; `MassParts.tsx`, `Widget.tsx`) und der Bogen daraus (`PrintSheet.tsx`, `sheet.ts`); „odprawiona" nur
  * von Hand (`IntentionEntry.tsx`); das Mitwandern nach dem Tag (`Mass.Carry.cs`); keine Erinnerung, kein Push (`Push.cs`).
  */
-const USAGE_TEXT = (): string => `- Msze, nabożeństwa i spowiedź to terminy kalendarza: stoją w Kalendarzu (przy mszy liczba intencji, np. „2 int.”) i w „Teraz” u każdego, kto ma klucz obszaru, który widzi kalendarz. Osoby z "celebrants" i "celebrant" mają je pod „Przypisane do mnie”.
-- Kancelaria pracuje na nich w „Msze i nabożeństwa”: Intencje, Plan i zmiany (dwa tygodnie), Wydruk.
-- Jawny plan — moduł strony „Msze i nabożeństwa” (także jako widżet na innej witrynie) — pokazuje bez konta godzinę, nazwę, odwołanie, jawne pola schematu i treści intencji (zbiorowe zwinięte, z liczbą). Bierze msze tylko z kalendarzy, które widzi obszar jawny („każdy czyta”).
-- Wydruk do gabloty (Wydruk → „Drukuj intencje (A4)”) to tydzień mszy z tego samego jawnego planu.
-- Do planu i na wydruk nie trafiają nigdy: ofiarodawca, ofiara, miejsce ani celebrans; intencje wycofane ("cancelled") też nie — zostają w kancelarii.
-- „Odprawiona” nie ustawia się sama: zaznacza ją kancelaria po mszy („Oznacz jako odprawione”) albo import ("status": "celebrated").
-- Gdy msza dostaje inną godzinę, jej intencje zostają przy tym samym dniu; gdyby zniknął dzień z przyjętymi intencjami, zmiana nie zostanie zapisana.
-- O mszach aplikacja nie przypomina, a import nikogo nie powiadamia — jego intencje mają od razu swój "status" i nie czekają w „Wpisy do przyjęcia”.`;
+const USAGE_TEXT = (): string => t('massesJson.desc.usage');
 
 /** 2026-10-29 — DIE MESSEN ALS JSON: der Baum, aus dem die Beschreibung neben dem Import (und für MCP) entsteht. */
 export const MASSES_JSON: JsonNode = {
   key: 'masses',
-  title: `Msze i intencje jako JSON ("${MASSES_FORMAT}", wersja ${MASSES_VERSION})`,
-  short: 'Msze i intencje',
+  get title() { return t('massesJson.desc.title', { format: MASSES_FORMAT, version: MASSES_VERSION }); },
+  get short() { return t('massesJson.desc.short'); },
   text: INTRO,
   inside: () => [
-    textNode('masses.usage', 'Jak aplikacja używa tych danych', USAGE_TEXT),
-    textNode('masses.mass', 'Msza, nabożeństwo, spowiedź ("masses")', MASS_TEXT),
-    textNode('masses.occurrence', 'Msza w danym dniu ("occurrences")', OCCURRENCE_TEXT),
-    textNode('masses.intention', 'Intencja ("intentions")', INTENTION_TEXT),
-    textNode('masses.book', 'Księga intencji — miesiąc w JSON', BOOK_TEXT),
-    textNode('masses.series', 'Przykład: nowe msze z intencjami', SERIES_TEXT)
+    textNode('masses.usage', t('massesJson.desc.section.usage'), USAGE_TEXT),
+    textNode('masses.mass', t('massesJson.desc.section.mass'), MASS_TEXT),
+    textNode('masses.occurrence', t('massesJson.desc.section.occurrence'), OCCURRENCE_TEXT),
+    textNode('masses.intention', t('massesJson.desc.section.intention'), INTENTION_TEXT),
+    textNode('masses.book', t('massesJson.desc.section.book'), BOOK_TEXT),
+    textNode('masses.series', t('massesJson.desc.section.series'), SERIES_TEXT)
   ],
   samples: () => [
-    { label: 'księga intencji: trzy dni (msze już są w kalendarzu)', doc: bookSample },
-    { label: 'nowe msze, różaniec i spowiedź z intencjami', doc: seriesSample }
+    { label: t('massesJson.desc.sampleBook'), doc: bookSample },
+    { label: t('massesJson.desc.sampleSeries'), doc: seriesSample }
   ]
 };
 
@@ -461,14 +417,14 @@ export const massesDescription = (): string => describe(MASSES_JSON);
  */
 export function massesPrompt(exported: unknown): string {
   return [
-    'Przepisz intencje mszalne z załączonych zdjęć księgi intencji do JSON w formacie "recreatio/masses" (opis niżej).',
-    'Niżej jest też eksport kalendarza parafii na ten okres: wszystkie msze z "date", "time" i "mass" — z intencjami, które już są, albo z "free": true.',
-    'Zwróć JEDEN obiekt JSON (bez komentarzy): ten eksport z intencjami z księgi wpisanymi do właściwych pozycji. Pozycji nie dopisuj i nie usuwaj; mszę z księgi, której nie ma w eksporcie, opisz osobno, poza JSON-em.',
-    'Treść przepisuj dokładnie; nieczytelne słowo — najlepsze odczytanie i „[?]” na końcu treści. Ofiarodawcę i ofiarę wpisz tylko, gdy są w księdze.',
+    t('massesJson.prompt.task'),
+    t('massesJson.prompt.export'),
+    t('massesJson.prompt.answer'),
+    t('massesJson.prompt.exact'),
     '',
     massesDescription(),
     '',
-    'Eksport kalendarza:',
+    t('massesJson.prompt.exportHead'),
     pretty(exported)
   ].join('\n');
 }
@@ -546,16 +502,16 @@ const STATUS_OF: Readonly<Record<string, IntentionStatus>> = {
 const FREE_WORDS = new Set(['wolna', 'wolne', 'wolny', 'free']);
 
 function unknownKeys(o: Record<string, unknown>, known: Readonly<Record<string, string>>, where: string, warnings: string[]): void {
-  for (const key of Object.keys(o)) if (!has(known, key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
+  for (const key of Object.keys(o)) if (!has(known, key)) warnings.push(t('massesJson.read.unknownKey', { where, key }));
 }
 
 /** Ein Text bis zur Grenze — was darüber geht, wird abgeschnitten und gesagt. */
 function readText(value: unknown, max: number, where: string, what: string, warnings: string[]): string | undefined {
   if (value === undefined) return undefined;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  if (typeof value !== 'string') { warnings.push(`${where}: "${what}" to nie tekst — pominięte.`); return undefined; }
+  if (typeof value !== 'string') { warnings.push(t('massesJson.read.notText', { where, what })); return undefined; }
   const text = value.trim().replace(/\s+/g, ' ');
-  if (text.length > max) { warnings.push(`${where}: "${what}" dłuższe niż ${max} znaków — skrócone.`); return text.slice(0, max); }
+  if (text.length > max) { warnings.push(t('massesJson.read.tooLong', { where, what, max })); return text.slice(0, max); }
   return text;
 }
 
@@ -563,71 +519,71 @@ function readPeopleList(value: unknown, where: string, warnings: string[]): read
   if (value === undefined) return undefined;
   if (value === null) return [];
   const list = typeof value === 'string' ? [value] : Array.isArray(value) ? value : null;
-  if (list === null) { warnings.push(`${where}: "celebrants" to lista osób — pominięte.`); return undefined; }
+  if (list === null) { warnings.push(t('massesJson.read.celebrantsList', { where })); return undefined; }
   const out: string[] = [];
   for (const one of list) {
-    if (typeof one === 'string' && one.trim() !== '') { if (!out.includes(one.trim())) out.push(one.trim()); } else warnings.push(`${where}: osoba ${cut(JSON.stringify(one) ?? '?', 30)} to nie imię ani id — pominięta.`);
+    if (typeof one === 'string' && one.trim() !== '') { if (!out.includes(one.trim())) out.push(one.trim()); } else warnings.push(t('massesJson.read.notPerson', { where, value: cut(JSON.stringify(one) ?? '?', 30) }));
   }
   return out;
 }
 
 function readMass(raw: unknown, n: number, warnings: string[]): MassDoc | null {
-  if (!isObject(raw)) { warnings.push(`Msza ${n}: to nie obiekt — pominięta.`); return null; }
+  if (!isObject(raw)) { warnings.push(t('massesJson.read.massNotObject', { n })); return null; }
   const named = [typeof raw.title === 'string' ? raw.title.trim() : '', typeof raw.time === 'string' ? raw.time.trim() : ''].filter((s) => s !== '').join(' ');
-  const where = named === '' ? `Msza ${n}` : `Msza ${n} (${cut(named, 40)})`;
+  const where = named === '' ? t('massesJson.read.massAt', { n }) : t('massesJson.read.massAtNamed', { n, name: cut(named, 40) });
   unknownKeys(raw, MASS_KEYS, where, warnings);
 
   let id: string | null = null;
   if (raw.id !== undefined && raw.id !== null) {
     if (typeof raw.id === 'string' && raw.id.trim() !== '') id = raw.id.trim().toLowerCase();
-    else warnings.push(`${where}: "id" to tekst z eksportu — bez "id" (nowy wpis).`);
+    else warnings.push(t('massesJson.read.massId', { where }));
   }
   let key: string | null = null;
   if (raw.key !== undefined) {
     const wanted = typeof raw.key === 'string' ? raw.key.trim().replace(/^@/, '') : '';
-    if (KEY.test(wanted)) key = wanted; else warnings.push(`${where}: "key" to krótka nazwa (litery, cyfry, - i _) — bez nazwy.`);
+    if (KEY.test(wanted)) key = wanted; else warnings.push(t('massesJson.read.massKey', { where }));
   }
   const calendar = typeof raw.calendar === 'string' && raw.calendar.trim() !== '' ? raw.calendar.trim() : null;
-  if (raw.calendar !== undefined && raw.calendar !== null && calendar === null) warnings.push(`${where}: "calendar" to id albo nazwa kalendarza — pominięte.`);
+  if (raw.calendar !== undefined && raw.calendar !== null && calendar === null) warnings.push(t('massesJson.read.calendar', { where }));
 
   let kind: ServiceKind | undefined;
   if (raw.kind !== undefined) {
     kind = typeof raw.kind === 'string' ? KIND_OF[fold(raw.kind)] : undefined;
-    if (kind === undefined) warnings.push(`${where}: "kind" to "mass", "devotion" albo "confession" — ${String(raw.kind)} pominięte.`);
+    if (kind === undefined) warnings.push(t('massesJson.read.kind', { where, value: String(raw.kind) }));
   }
   const title = readText(raw.title, TITLE_MAX, where, 'title', warnings);
   const date = raw.date === undefined ? undefined : readDay(raw.date) ?? undefined;
-  if (raw.date !== undefined && date === undefined) warnings.push(`${where}: "date" to "RRRR-MM-DD" (dzień, który istnieje) — pominięte.`);
+  if (raw.date !== undefined && date === undefined) warnings.push(t('massesJson.read.date', { where }));
   const time = raw.time === undefined ? undefined : readClock(raw.time) ?? undefined;
-  if (raw.time !== undefined && time === undefined) warnings.push(`${where}: "time" to "GG:MM" — pominięte.`);
+  if (raw.time !== undefined && time === undefined) warnings.push(t('massesJson.read.time', { where }));
 
   let minutes: number | undefined;
   if (raw.minutes !== undefined) {
     const value = typeof raw.minutes === 'string' ? Number(raw.minutes) : raw.minutes;
     if (typeof value === 'number' && Number.isInteger(value) && value >= 5 && value <= 1440) minutes = value;
-    else warnings.push(`${where}: "minutes" to liczba minut 5–1440 — pominięte.`);
+    else warnings.push(t('massesJson.read.minutes', { where }));
   }
   let repeat: SeriesRepeat | undefined;
   if (raw.repeat !== undefined) {
     repeat = typeof raw.repeat === 'string' ? REPEAT_OF[fold(raw.repeat)] : undefined;
-    if (repeat === undefined) warnings.push(`${where}: "repeat" to "none", "daily", "weekly" albo "monthly" — pominięte.`);
+    if (repeat === undefined) warnings.push(t('massesJson.read.repeat', { where }));
   }
   let every: number | undefined;
   if (raw.every !== undefined) {
     if (typeof raw.every === 'number' && Number.isInteger(raw.every) && raw.every >= 1 && raw.every <= 99) every = raw.every;
-    else warnings.push(`${where}: "every" to liczba 1–99 — pominięte.`);
+    else warnings.push(t('massesJson.read.every', { where }));
   }
   let weekdays: number | undefined;
   if (raw.weekdays !== undefined) {
     const list = typeof raw.weekdays === 'string' ? raw.weekdays.split(/[,\s]+/) : Array.isArray(raw.weekdays) ? raw.weekdays : null;
-    if (list === null) warnings.push(`${where}: "weekdays" to lista dni, np. ["pn","śr"] — pominięte.`);
+    if (list === null) warnings.push(t('massesJson.read.weekdays', { where }));
     else {
       let bits = 0;
       for (const one of list) {
         const word = fold(String(one)).replace(/\.$/, '');
         if (word === '') continue;
         const at = WEEKDAY_OF[word];
-        if (at === undefined) warnings.push(`${where}: dzień ${quote(String(one))} — dni to ${WEEKDAY_WORDS.join(', ')}.`); else bits |= 1 << at;
+        if (at === undefined) warnings.push(t('massesJson.read.weekday', { where, day: quote(String(one)), days: WEEKDAY_WORDS.join(', ') })); else bits |= 1 << at;
       }
       weekdays = bits;
     }
@@ -637,7 +593,7 @@ function readMass(raw: unknown, n: number, warnings: string[]): MassDoc | null {
     if (raw.until === null || raw.until === '') until = null;
     else {
       until = readDay(raw.until) ?? undefined;
-      if (until === undefined) warnings.push(`${where}: "until" to "RRRR-MM-DD" albo null (bez końca) — pominięte.`);
+      if (until === undefined) warnings.push(t('massesJson.read.until', { where }));
     }
   }
   const place = readText(raw.place, PLACE_MAX, where, 'place', warnings);
@@ -645,7 +601,7 @@ function readMass(raw: unknown, n: number, warnings: string[]): MassDoc | null {
   let changeFrom: string | undefined;
   if (raw.changeFrom !== undefined && raw.changeFrom !== null) {
     changeFrom = readDay(raw.changeFrom) ?? undefined;
-    if (changeFrom === undefined) warnings.push(`${where}: "changeFrom" to "RRRR-MM-DD" — pominięte.`);
+    if (changeFrom === undefined) warnings.push(t('massesJson.read.changeFrom', { where }));
   }
   return { label: where, id, key, calendar, kind, title, date, time, minutes, repeat, every, weekdays, until, place, celebrants, changeFrom };
 }
@@ -653,31 +609,31 @@ function readMass(raw: unknown, n: number, warnings: string[]): MassDoc | null {
 function readIntention(raw: unknown, where: string, warnings: string[]): IntentionDoc | 'free' | null {
   if (typeof raw === 'string') {
     const text = raw.trim().replace(/\s+/g, ' ');
-    if (text === '') { warnings.push(`${where}: pusta intencja — pominięta.`); return null; }
+    if (text === '') { warnings.push(t('massesJson.read.emptyIntention', { where })); return null; }
     if (FREE_WORDS.has(textKey(text))) return 'free';
-    if (text.length > TEXT_MAX) warnings.push(`${where}: intencja ${quote(cut(text))} dłuższa niż ${TEXT_MAX} znaków — skrócona.`);
+    if (text.length > TEXT_MAX) warnings.push(t('massesJson.read.intentionTooLong', { where, text: quote(cut(text)), max: TEXT_MAX }));
     return { id: null, text: text.slice(0, TEXT_MAX), kind: undefined, status: undefined, giver: undefined, offering: undefined, celebrant: undefined };
   }
-  if (!isObject(raw)) { warnings.push(`${where}: intencja to tekst albo obiekt — ${cut(JSON.stringify(raw) ?? '?', 30)} pominięte.`); return null; }
+  if (!isObject(raw)) { warnings.push(t('massesJson.read.intentionShape', { where, value: cut(JSON.stringify(raw) ?? '?', 30) })); return null; }
   const text = readText(raw.text, TEXT_MAX, where, 'text', warnings);
   const label = `${where}${text === undefined || text === '' ? '' : `, ${quote(cut(text, 40))}`}`;
   unknownKeys(raw, INTENTION_KEYS, label, warnings);
-  if (text === undefined || text === '') { warnings.push(`${where}: intencja bez "text" — pominięta.`); return null; }
+  if (text === undefined || text === '') { warnings.push(t('massesJson.read.intentionNoText', { where })); return null; }
   if (FREE_WORDS.has(textKey(text)) && raw.id === undefined) return 'free';
   let id: string | null = null;
   if (raw.id !== undefined && raw.id !== null) {
     if (typeof raw.id === 'string' && raw.id.trim() !== '') id = raw.id.trim().toLowerCase();
-    else warnings.push(`${label}: "id" to tekst z eksportu — jak nowa.`);
+    else warnings.push(t('massesJson.read.intentionId', { where: label }));
   }
   let kind: IntentionKind | undefined;
   if (raw.kind !== undefined) {
     kind = typeof raw.kind === 'string' ? INTENTION_KIND_OF[fold(raw.kind)] : undefined;
-    if (kind === undefined) warnings.push(`${label}: "kind" to "single" albo "collective" — pominięte.`);
+    if (kind === undefined) warnings.push(t('massesJson.read.intentionKind', { where: label }));
   }
   let status: IntentionStatus | undefined;
   if (raw.status !== undefined) {
     status = typeof raw.status === 'string' ? STATUS_OF[fold(raw.status)] : undefined;
-    if (status === undefined) warnings.push(`${label}: "status" to "accepted", "celebrated" albo "cancelled" — pominięte.`);
+    if (status === undefined) warnings.push(t('massesJson.read.intentionStatus', { where: label }));
   }
   const giver = readText(raw.giver, GIVER_MAX, label, 'giver', warnings);
   const offering = readText(raw.offering, OFFERING_MAX, label, 'offering', warnings);
@@ -685,13 +641,13 @@ function readIntention(raw: unknown, where: string, warnings: string[]): Intenti
   if (raw.celebrant !== undefined) {
     if (raw.celebrant === null || (typeof raw.celebrant === 'string' && raw.celebrant.trim() === '')) celebrant = null;
     else if (typeof raw.celebrant === 'string') celebrant = raw.celebrant.trim();
-    else warnings.push(`${label}: "celebrant" to imię i nazwisko albo id osoby — pominięte.`);
+    else warnings.push(t('massesJson.read.intentionCelebrant', { where: label }));
   }
   return { id, text, kind, status, giver, offering, celebrant };
 }
 
 function readOccurrence(raw: unknown, n: number, warnings: string[]): OccurrenceDoc | null {
-  if (!isObject(raw)) { warnings.push(`Pozycja ${n}: to nie obiekt — pominięta.`); return null; }
+  if (!isObject(raw)) { warnings.push(t('massesJson.read.slotNotObject', { n })); return null; }
   /* Duldsam: „2026-11-02T07:00" trägt Tag und Stunde zugleich. */
   let dateText = typeof raw.date === 'string' ? raw.date.trim() : '';
   let timeFromDate: string | undefined;
@@ -699,25 +655,25 @@ function readOccurrence(raw: unknown, n: number, warnings: string[]): Occurrence
   if (joined !== null) { dateText = joined[1]; timeFromDate = readClock(joined[2]) ?? undefined; }
   const date = readDay(dateText);
   const timeRaw = typeof raw.time === 'string' ? raw.time.trim() : '';
-  const where = `Pozycja ${n}${date === null ? '' : ` (${whenLabel(date, readClock(timeRaw) ?? timeFromDate ?? null)})`}`;
+  const where = date === null ? t('massesJson.read.slotAt', { n }) : t('massesJson.read.slotAtWhen', { n, when: whenLabel(date, readClock(timeRaw) ?? timeFromDate ?? null) });
   unknownKeys(raw, OCCURRENCE_KEYS, where, warnings);
-  if (date === null) { warnings.push(`${where}: "date" to "RRRR-MM-DD" (dzień, który istnieje) — pominięta.`); return null; }
+  if (date === null) { warnings.push(t('massesJson.read.slotDate', { where })); return null; }
   let time = timeFromDate;
   if (raw.time !== undefined) {
     time = readClock(raw.time) ?? undefined;
-    if (time === undefined) warnings.push(`${where}: "time" to "GG:MM" — pominięte.`);
+    if (time === undefined) warnings.push(t('massesJson.read.time', { where }));
   }
   let mass: string | undefined;
   if (raw.mass !== undefined && raw.mass !== null) {
     if (typeof raw.mass === 'string' && raw.mass.trim() !== '') mass = raw.mass.trim();
-    else warnings.push(`${where}: "mass" to "id" albo "@nazwa" — pominięte.`);
+    else warnings.push(t('massesJson.read.slotMass', { where }));
   }
   const calendar = typeof raw.calendar === 'string' && raw.calendar.trim() !== '' ? raw.calendar.trim() : null;
   const flag = (key: 'free' | 'collective' | 'cancelled'): boolean | undefined => {
     const value = raw[key];
     if (value === undefined || value === null) return undefined;
     if (typeof value === 'boolean') return value;
-    warnings.push(`${where}: "${key}" to true albo false — pominięte.`);
+    warnings.push(t('massesJson.read.flag', { where, key }));
     return undefined;
   };
   let free = flag('free') === true;
@@ -728,47 +684,47 @@ function readOccurrence(raw: unknown, n: number, warnings: string[]): Occurrence
   const intentions: IntentionDoc[] = [];
   if (raw.intentions !== undefined && raw.intentions !== null) {
     const list = typeof raw.intentions === 'string' ? [raw.intentions] : Array.isArray(raw.intentions) ? raw.intentions : null;
-    if (list === null) warnings.push(`${where}: "intentions" to lista — pominięte.`);
+    if (list === null) warnings.push(t('massesJson.read.intentionsList', { where }));
     else {
       for (const one of list) {
         const read = readIntention(one, where, warnings);
-        if (read === 'free') { if (list.length > 1) warnings.push(`${where}: „wolna” obok innych intencji — pominięta.`); else free = true; continue; }
+        if (read === 'free') { if (list.length > 1) warnings.push(t('massesJson.read.freeAmong', { where })); else free = true; continue; }
         if (read === null) continue;
-        if (intentions.length >= MAX_INTENTIONS) { warnings.push(`${where}: najwyżej ${MAX_INTENTIONS} intencji przy jednej mszy — reszta pominięta.`); break; }
+        if (intentions.length >= MAX_INTENTIONS) { warnings.push(t('massesJson.read.maxIntentions', { where, max: MAX_INTENTIONS })); break; }
         intentions.push(read);
       }
     }
   }
-  if (free && intentions.length > 0) { warnings.push(`${where}: "free": true i intencje naraz — liczą się intencje.`); free = false; }
+  if (free && intentions.length > 0) { warnings.push(t('massesJson.read.freeAndIntentions', { where })); free = false; }
   return { label: where, date, time, mass, calendar, free, collective, cancelled, celebrants, intentions };
 }
 
 /** Das Dokument duldsam lesen — was nicht passt, fällt mit einem Wort weg. */
 export function readMassesDocument(value: unknown): { doc: MassesDoc; warnings: string[] } | { error: string } {
-  if (!isObject(value)) return { error: Array.isArray(value) ? 'To lista — dokument mszy to obiekt z "masses" i "occurrences".' : 'To nie jest dokument mszy.' };
-  if (value.format !== undefined && value.format !== MASSES_FORMAT) return { error: `Inny format: "${String(value.format)}" — oczekiwano "${MASSES_FORMAT}".` };
-  if (value.masses === undefined && value.occurrences === undefined) return { error: 'Dokument nie ma ani "masses", ani "occurrences" — nie ma czego importować.' };
+  if (!isObject(value)) return { error: Array.isArray(value) ? t('massesJson.read.isList') : t('massesJson.read.notDocument') };
+  if (value.format !== undefined && value.format !== MASSES_FORMAT) return { error: t('massesJson.read.otherFormat', { format: String(value.format), expected: MASSES_FORMAT }) };
+  if (value.masses === undefined && value.occurrences === undefined) return { error: t('massesJson.read.nothing') };
   const warnings: string[] = [];
-  if (value.version !== undefined && value.version !== MASSES_VERSION) warnings.push(`"version": ${String(value.version)} — znam wersję ${MASSES_VERSION}; czytam, co rozumiem.`);
-  unknownKeys(value, MASSES_TOP_KEYS, 'Dokument', warnings);
+  if (value.version !== undefined && value.version !== MASSES_VERSION) warnings.push(t('massesJson.read.version', { version: String(value.version), known: MASSES_VERSION }));
+  unknownKeys(value, MASSES_TOP_KEYS, t('massesJson.read.document'), warnings);
 
   const calendar = typeof value.calendar === 'string' && value.calendar.trim() !== '' ? value.calendar.trim() : null;
-  if (value.calendar !== undefined && value.calendar !== null && calendar === null) warnings.push('"calendar" to id albo nazwa kalendarza — pominięte.');
+  if (value.calendar !== undefined && value.calendar !== null && calendar === null) warnings.push(t('massesJson.read.docCalendar'));
   const day = (key: 'from' | 'to'): string | null => {
     if (value[key] === undefined || value[key] === null) return null;
     const read = readDay(value[key]);
-    if (read === null) warnings.push(`"${key}" to "RRRR-MM-DD" — pominięte.`);
+    if (read === null) warnings.push(t('massesJson.read.docDay', { key }));
     return read;
   };
   let from = day('from');
   let to = day('to');
-  if (from !== null && to !== null && to < from) { warnings.push('"to" przed "from" — zamienione.'); [from, to] = [to, from]; }
+  if (from !== null && to !== null && to < from) { warnings.push(t('massesJson.read.swapped')); [from, to] = [to, from]; }
 
   const list = (key: 'masses' | 'occurrences', max: number): readonly unknown[] => {
     const raw = value[key];
     if (raw === undefined || raw === null) return [];
-    if (!Array.isArray(raw)) { warnings.push(`"${key}" to lista — pominięte.`); return []; }
-    if (raw.length > max) { warnings.push(`"${key}": najwyżej ${max} pozycji — reszta pominięta.`); return raw.slice(0, max); }
+    if (!Array.isArray(raw)) { warnings.push(t('massesJson.read.notList', { key })); return []; }
+    if (raw.length > max) { warnings.push(t('massesJson.read.maxList', { key, max })); return raw.slice(0, max); }
     return raw;
   };
   const masses = list('masses', MAX_MASSES).map((one, i) => readMass(one, i + 1, warnings)).filter((m): m is MassDoc => m !== null);
@@ -805,27 +761,27 @@ const personKey = (s: string): string => textKey(s).split(' ').filter((w) => w !
  * der falsche Priester an der Messe.
  */
 export function findPerson(ref: string, people: readonly Person[], pinned: ReadonlySet<string>): { roleId: string } | { problem: string } {
-  const t = ref.trim();
-  if (UUID.test(t)) {
-    const id = t.toLowerCase();
-    return people.some((p) => p.roleId === id) || pinned.has(id) ? { roleId: id } : { problem: `${quote(t)} — takiej osoby nie ma w grupie kalendarza` };
+  const said = ref.trim();
+  if (UUID.test(said)) {
+    const id = said.toLowerCase();
+    return people.some((p) => p.roleId === id) || pinned.has(id) ? { roleId: id } : { problem: t('massesJson.person.noSuchId', { who: quote(said) }) };
   }
   const named = people.filter((p) => p.name !== '');
-  const exact = named.filter((p) => textKey(p.name) === textKey(t));
+  const exact = named.filter((p) => textKey(p.name) === textKey(said));
   if (exact.length === 1) return { roleId: exact[0].roleId };
-  const bare = personKey(t);
+  const bare = personKey(said);
   if (bare !== '') {
     const same = named.filter((p) => personKey(p.name) === bare);
     if (same.length === 1) return { roleId: same[0].roleId };
-    if (same.length > 1) return { problem: `${quote(t)} — kilka osób o tym imieniu i nazwisku; podaj id` };
+    if (same.length > 1) return { problem: t('massesJson.person.sameName', { who: quote(said) }) };
     const words = bare.split(' ');
     if (words.length === 1) {
       const surname = named.filter((p) => personKey(p.name).split(' ').includes(words[0]));
       if (surname.length === 1) return { roleId: surname[0].roleId };
-      if (surname.length > 1) return { problem: `${quote(t)} — pasuje kilka osób (${surname.map((p) => p.name).join(', ')})` };
+      if (surname.length > 1) return { problem: t('massesJson.person.several', { who: quote(said), names: surname.map((p) => p.name).join(', ') }) };
     }
   }
-  return { problem: `${quote(t)} — nie znam takiej osoby w grupie kalendarza` };
+  return { problem: t('massesJson.person.unknown', { who: quote(said) }) };
 }
 
 /**
@@ -920,27 +876,33 @@ const defOf = (s: SeriesNow): SeriesDef => ({
   every: s.every, weekdays: s.weekdays, until: s.until, place: s.place ?? ''
 });
 
-const serviceName = (kind: string, title: string): string => title || SERVICE_LABEL[kind] || 'Wpis';
+const serviceName = (kind: string, title: string): string => title || SERVICE_LABEL[kind] || t('massesJson.plan.entry');
 
 /** Wie der Plan der Kanzlei sagt, wer da ist (`MassPlan.PeopleLine`): „odprawia", „prowadzi", „spowiada". */
 const dutyWord = (kind: string): string =>
-  kind === MASS ? 'odprawia' : kind === DEVOTION ? 'prowadzi' : kind === CONFESSION ? 'spowiada' : 'obecni';
+  t(kind === MASS ? 'massesJson.plan.duty.celebrates' : kind === DEVOTION ? 'massesJson.plan.duty.leads' : kind === CONFESSION ? 'massesJson.plan.duty.hears' : 'massesJson.plan.duty.present');
 
 function patternText(def: SeriesDef): string {
   const time = clockShort(def.time);
   const every = Math.max(1, def.every);
   switch (def.repeat) {
     case 'none': return `${dateWords(def.date)} ${time}`;
-    case 'daily': return `${every === 1 ? 'codziennie' : `co ${every} dni`} ${time}`;
-    case 'weekly': return `${every === 1 ? 'co tydzień' : `co ${every} ${plural(every, 'tydzień', 'tygodnie', 'tygodni')}`} (${weekdayWords(def.weekdays).join(', ')}) ${time}`;
-    case 'monthly': return `${every === 1 ? 'co miesiąc' : `co ${every} ${plural(every, 'miesiąc', 'miesiące', 'miesięcy')}`} (${dateOf(def.date).getDate()}.) ${time}`;
-    case 'yearly': return `co rok ${time}`;
+    case 'daily': return every === 1 ? t('massesJson.plan.pattern.daily', { time }) : t('massesJson.plan.pattern.dailyEvery', { count: every, time });
+    case 'weekly': return every === 1
+      ? t('massesJson.plan.pattern.weekly', { days: weekdayWords(def.weekdays).join(', '), time })
+      : t('massesJson.plan.pattern.weeklyEvery', { count: every, days: weekdayWords(def.weekdays).join(', '), time });
+    case 'monthly': return every === 1
+      ? t('massesJson.plan.pattern.monthly', { day: dateOf(def.date).getDate(), time })
+      : t('massesJson.plan.pattern.monthlyEvery', { count: every, day: dateOf(def.date).getDate(), time });
+    case 'yearly': return t('massesJson.plan.pattern.yearly', { time });
     default: return time;
   }
 }
 
 const spanText = (def: SeriesDef): string =>
-  def.repeat === 'none' ? '' : `, od ${dateWords(def.date)}${def.until === null ? ', bez końca' : ` do ${dateWords(def.until)}`}`;
+  def.repeat === 'none' ? '' : def.until === null
+    ? t('massesJson.plan.spanForever', { from: dateWords(def.date) })
+    : t('massesJson.plan.span', { from: dateWords(def.date), until: dateWords(def.until) });
 
 /* -- Der Plan ------------------------------------------------------------------------------------ */
 
@@ -1064,7 +1026,7 @@ export function needsOf(
   ].sort();
   const from = days[0] ?? today;
   const to = days.length > 0 ? days[days.length - 1] : addDays(from, 31);
-  if (daysBetween(from, to) > MAX_DAYS) return { error: `Za długi okres: ${dateWords(from)} – ${dateWords(to)}; jeden dokument obejmuje najwyżej ${MAX_DAYS} dni.` };
+  if (daysBetween(from, to) > MAX_DAYS) return { error: t('massesJson.plan.tooLong', { from: dateWords(from), to: dateWords(to), max: MAX_DAYS }) };
   return { calendars: [...ids], from, to };
 }
 
@@ -1101,28 +1063,28 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
   let home: CalendarNow | undefined;
   if (doc.calendar !== null) {
     const found = findCalendar(doc.calendar, state.calendars);
-    if (found === null) return { error: `Nie znam kalendarza ${quote(doc.calendar)} — wybierz go u góry albo usuń "calendar" z dokumentu.` };
+    if (found === null) return { error: t('massesJson.plan.unknownCalendar', { name: quote(doc.calendar) }) };
     home = found;
   } else {
     home = state.calendars.find((c) => c.calendarId === state.chosen);
-    if (home === undefined) return { error: 'Wybierz u góry kalendarz, do którego ma iść import.' };
+    if (home === undefined) return { error: t('massesJson.plan.pickCalendar') };
   }
-  if (!home.mayWrite) return { error: `W kalendarzu ${quote(calendarName(home))} możesz tylko czytać — import niczego by nie zapisał.` };
+  if (!home.mayWrite) return { error: t('massesJson.plan.readOnly', { name: quote(calendarName(home)) }) };
   const homeCalendar = home;
 
   const calendarOf = (ref: string | null, where: string): CalendarNow | null => {
     if (ref === null) return homeCalendar;
     const found = findCalendar(ref, state.calendars);
-    if (found === null) { warnings.push(`${where}: nie znam kalendarza ${quote(ref)} (albo jest kilka o tej nazwie) — pominięte.`); return null; }
-    if (!found.mayWrite) { warnings.push(`${where}: w kalendarzu ${quote(calendarName(found))} możesz tylko czytać — pominięte.`); return null; }
-    if (!state.loaded.includes(found.calendarId)) { warnings.push(`${where}: kalendarz ${quote(calendarName(found))} nie jest wczytany — pominięte.`); return null; }
+    if (found === null) { warnings.push(t('massesJson.plan.calendarUnknown', { where, name: quote(ref) })); return null; }
+    if (!found.mayWrite) { warnings.push(t('massesJson.plan.calendarReadOnly', { where, name: quote(calendarName(found)) })); return null; }
+    if (!state.loaded.includes(found.calendarId)) { warnings.push(t('massesJson.plan.calendarNotLoaded', { where, name: quote(calendarName(found)) })); return null; }
     return found;
   };
   const peopleOf = (calendarId: string): readonly Person[] => state.people.get(calendarId) ?? [];
   const nameOf = (roleId: string, calendarId: string): string =>
-    peopleOf(calendarId).find((p) => p.roleId === roleId)?.name || `osoba ${short(roleId)}`;
+    peopleOf(calendarId).find((p) => p.roleId === roleId)?.name || t('massesJson.plan.personId', { id: short(roleId) });
   const namesOf = (list: readonly PinnedNow[], calendarId: string): string =>
-    list.length === 0 ? 'nikt' : list.map((p) => nameOf(p.roleId, calendarId)).join(', ');
+    list.length === 0 ? t('massesJson.plan.nobody') : list.map((p) => nameOf(p.roleId, calendarId)).join(', ');
 
   /** Personen eines Dokuments → Kennungen. Kennt sie einer nicht, bleibt alles, wie es ist. */
   const resolvePeople = (refs: readonly string[], calendarId: string, pinned: ReadonlySet<string>, where: string): string[] | null => {
@@ -1133,8 +1095,8 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       if ('problem' in found) problems.push(found.problem);
       else if (!ids.includes(found.roleId)) ids.push(found.roleId);
     }
-    if (problems.length > 0) { warnings.push(`${where}: ${problems.join('; ')} — osoby bez zmian.`); return null; }
-    if (ids.length > MAX_PEOPLE) { warnings.push(`${where}: najwyżej ${MAX_PEOPLE} osób przy jednym terminie — osoby bez zmian.`); return null; }
+    if (problems.length > 0) { warnings.push(t('massesJson.plan.peopleProblems', { where, problems: problems.join('; ') })); return null; }
+    if (ids.length > MAX_PEOPLE) { warnings.push(t('massesJson.plan.maxPeople', { where, max: MAX_PEOPLE })); return null; }
     return ids;
   };
   /** Die neue Liste: wer eine andere Aufgabe hat, bleibt; die mit dieser Aufgabe sind die genannten. */
@@ -1160,7 +1122,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
 
   const nameKey = (key: string | null, ref: MassRef, where: string) => {
     if (key === null) return;
-    if (refs.has(key)) { warnings.push(`${where}: nazwa "@${key}" już jest — bez nazwy.`); return; }
+    if (refs.has(key)) { warnings.push(t('massesJson.plan.keyTaken', { where, key })); return; }
     refs.set(key, ref);
   };
 
@@ -1168,40 +1130,40 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     const where = m.label;
     if (m.id !== null) {
       const s = state.series.get(m.id);
-      if (s === undefined) { warnings.push(`${where}: nie znam wpisu o tym "id" (${short(m.id)}) w tym okresie — pominięty; bez "id" powstałby nowy.`); continue; }
-      if (seen.has(s.itemId)) { warnings.push(`${where}: ten sam wpis drugi raz — liczy się pierwszy.`); continue; }
+      if (s === undefined) { warnings.push(t('massesJson.plan.unknownId', { where, id: short(m.id) })); continue; }
+      if (seen.has(s.itemId)) { warnings.push(t('massesJson.plan.sameTwice', { where })); continue; }
       seen.add(s.itemId);
       nameKey(m.key, { existing: s.itemId }, where);
       const calendar = state.calendars.find((c) => c.calendarId === s.calendarId);
       if (m.calendar !== null) {
         const named = findCalendar(m.calendar, state.calendars);
-        if (named?.calendarId !== s.calendarId) warnings.push(`${where}: wpis należy do kalendarza ${quote(calendar === undefined ? '?' : calendarName(calendar))} — tam zostaje.`);
+        if (named?.calendarId !== s.calendarId) warnings.push(t('massesJson.plan.staysInCalendar', { where, name: quote(calendar === undefined ? '?' : calendarName(calendar)) }));
       }
-      if (calendar === undefined || !calendar.mayWrite || !s.editable) { warnings.push(`${where}: tego wpisu nie możesz zmieniać — pominięty.`); continue; }
-      if (m.kind !== undefined && m.kind !== s.kind) warnings.push(`${where}: rodzaju istniejącego wpisu import nie zmienia (zostaje: ${SERVICE_LABEL[s.kind] ?? s.kind}).`);
+      if (calendar === undefined || !calendar.mayWrite || !s.editable) { warnings.push(t('massesJson.plan.notEditable', { where })); continue; }
+      if (m.kind !== undefined && m.kind !== s.kind) warnings.push(t('massesJson.plan.kindStays', { where, kind: SERVICE_LABEL[s.kind] ?? s.kind }));
 
       const change: { -readonly [K in keyof SeriesDef]?: SeriesDef[K] } = {};
       const said: string[] = [];
-      if (m.title !== undefined && m.title !== s.title) { change.title = m.title; said.push(`nazwa ${quote(serviceName(s.kind, m.title))}`); }
-      if (m.date !== undefined && m.date !== s.date && m.changeFrom === undefined) { change.date = m.date; said.push(`początek ${dateWords(s.date)} → ${dateWords(m.date)}`); }
-      if (m.date !== undefined && m.date !== s.date && m.changeFrom !== undefined) warnings.push(`${where}: przy "changeFrom" nowa seria zaczyna się od tego dnia — "date" pominięte.`);
-      if (m.time !== undefined && m.time !== s.time) { change.time = m.time; said.push(`godzina ${clockShort(s.time)} → ${clockShort(m.time)}`); }
-      if (m.minutes !== undefined && m.minutes !== s.minutes) { change.minutes = m.minutes; said.push(`czas ${s.minutes} → ${m.minutes} min`); }
-      if (m.repeat !== undefined && m.repeat !== s.repeat) { change.repeat = m.repeat; said.push(`powtarzanie ${m.repeat}`); }
+      if (m.title !== undefined && m.title !== s.title) { change.title = m.title; said.push(t('massesJson.plan.said.title', { name: quote(serviceName(s.kind, m.title)) })); }
+      if (m.date !== undefined && m.date !== s.date && m.changeFrom === undefined) { change.date = m.date; said.push(t('massesJson.plan.said.start', { from: dateWords(s.date), to: dateWords(m.date) })); }
+      if (m.date !== undefined && m.date !== s.date && m.changeFrom !== undefined) warnings.push(t('massesJson.plan.dateWithChangeFrom', { where }));
+      if (m.time !== undefined && m.time !== s.time) { change.time = m.time; said.push(t('massesJson.plan.said.time', { from: clockShort(s.time), to: clockShort(m.time) })); }
+      if (m.minutes !== undefined && m.minutes !== s.minutes) { change.minutes = m.minutes; said.push(t('massesJson.plan.said.minutes', { from: s.minutes, to: m.minutes })); }
+      if (m.repeat !== undefined && m.repeat !== s.repeat) { change.repeat = m.repeat; said.push(t('massesJson.plan.said.repeat', { repeat: m.repeat })); }
       const repeat = change.repeat ?? s.repeat;
-      if (m.every !== undefined && repeat !== 'none' && m.every !== s.every) { change.every = m.every; said.push(`co ${m.every}`); }
+      if (m.every !== undefined && repeat !== 'none' && m.every !== s.every) { change.every = m.every; said.push(t('massesJson.plan.said.every', { every: m.every })); }
       if (repeat === 'weekly') {
         const wanted = m.weekdays !== undefined && m.weekdays !== 0 ? m.weekdays : s.weekdays !== 0 ? s.weekdays : 1 << weekdayIndex(change.date ?? s.date);
-        if (wanted !== s.weekdays) { change.weekdays = wanted; said.push(`dni ${weekdayWords(wanted).join(', ')}`); }
-      } else if (m.weekdays !== undefined && m.weekdays !== 0) warnings.push(`${where}: "weekdays" tylko przy "weekly" — pominięte.`);
+        if (wanted !== s.weekdays) { change.weekdays = wanted; said.push(t('massesJson.plan.said.days', { days: weekdayWords(wanted).join(', ') })); }
+      } else if (m.weekdays !== undefined && m.weekdays !== 0) warnings.push(t('massesJson.plan.weekdaysOnlyWeekly', { where }));
       if (m.until !== undefined && repeat !== 'none') {
         const until = m.until === null ? null : untilOf(change.date ?? s.date, m.until);
-        if (until !== s.until) { change.until = until; said.push(until === null ? 'bez końca' : `do ${dateWords(until)}`); }
+        if (until !== s.until) { change.until = until; said.push(until === null ? t('massesJson.plan.said.forever') : t('massesJson.plan.said.until', { until: dateWords(until) })); }
       }
       if (m.place !== undefined && m.place !== s.place) {
         change.place = m.place;
-        said.push(m.place === '' ? 'bez miejsca' : `miejsce ${quote(m.place)}`);
-        if (s.place === null) warnings.push(`${where}: obecnego miejsca nie da się tu odczytać — zostanie zastąpione.`);
+        said.push(m.place === '' ? t('massesJson.plan.said.noPlace') : t('massesJson.plan.said.place', { place: quote(m.place) }));
+        if (s.place === null) warnings.push(t('massesJson.plan.placeUnreadable', { where }));
       }
       const duty = dutyOf(s.kind);
       let people: PinnedNow[] | null = null;
@@ -1213,20 +1175,20 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         }
       }
       const next: SeriesDef = { ...defOf(s), ...change };
-      if (next.repeat !== 'none' && next.until !== null && next.until < next.date) { warnings.push(`${where}: "until" przed początkiem serii — pominięty.`); continue; }
+      if (next.repeat !== 'none' && next.until !== null && next.until < next.date) { warnings.push(t('massesJson.plan.untilBeforeStart', { where })); continue; }
       const label = `${serviceName(s.kind, next.title)} — ${patternText(defOf(s))}`;
 
       /* „Ta i następne": die alte Reihe endet am Vortag, eine neue übernimmt (0079). */
       if (m.changeFrom !== undefined && s.repeat !== 'none' && m.changeFrom > s.date) {
-        if (s.until !== null && m.changeFrom > s.until) { warnings.push(`${where}: seria kończy się ${dateWords(s.until)}, przed "changeFrom" — pominięty.`); continue; }
+        if (s.until !== null && m.changeFrom > s.until) { warnings.push(t('massesJson.plan.endsBeforeChange', { where, until: dateWords(s.until) })); continue; }
         if (said.length === 0) { unchangedMasses++; continue; }
         /* Der Takt der alten Reihe (Monatstag, „co 2 tygodnie") — die neue beginnt am ersten Tag ab dann. */
         const first = firstDayFrom({ ...next, date: s.date }, m.changeFrom);
-        if (first === null) { warnings.push(`${where}: od ${dateWords(m.changeFrom)} ta seria nie ma już żadnego dnia — pominięty.`); continue; }
+        if (first === null) { warnings.push(t('massesJson.plan.noDayFrom', { where, from: dateWords(m.changeFrom) })); continue; }
         const def: SeriesDef = { ...next, date: first, until: next.until };
         const lost = (occurrencesOf.get(s.itemId) ?? []).filter((o) => o.addressDate >= m.changeFrom! && hasLive(o) && !seriesHas(def, o.addressDate));
         if (lost.length > 0) {
-          warnings.push(`${where}: po zmianie te msze z przyjętymi intencjami nie byłyby w planie: ${lost.slice(0, 4).map((o) => whenLabel(o.date, o.time)).join(', ')}${lost.length > 4 ? ' …' : ''} — zmiana pominięta; przenieś najpierw te intencje.`);
+          warnings.push(t('massesJson.plan.wouldLose', { where, list: `${lost.slice(0, 4).map((o) => whenLabel(o.date, o.time)).join(', ')}${lost.length > 4 ? ' …' : ''}` }));
           continue;
         }
         const fresh = creates.length;
@@ -1237,31 +1199,33 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         });
         handovers.set(s.itemId, { fresh, from: m.changeFrom });
         if (people !== null) repeopled.set(s.itemId, { was: s.people, now: people });
-        massLines.push(`Zmiana od ${dateWords(m.changeFrom)} (ta i następne): ${label}: ${said.join('; ')}.`);
+        massLines.push(t('massesJson.plan.lineChangeFrom', { from: dateWords(m.changeFrom), label, said: said.join('; ') }));
         continue;
       }
-      if (m.changeFrom !== undefined && s.repeat === 'none') warnings.push(`${where}: to nie seria — "changeFrom" pominięte.`);
+      if (m.changeFrom !== undefined && s.repeat === 'none') warnings.push(t('massesJson.plan.notSeries', { where }));
       if (said.length === 0) { unchangedMasses++; continue; }
       const days = change.date !== undefined || change.repeat !== undefined || change.every !== undefined || change.weekdays !== undefined || change.until !== undefined;
       if (days) {
         const lost = (occurrencesOf.get(s.itemId) ?? []).filter((o) => hasLive(o) && !seriesHas(next, o.addressDate));
         if (lost.length > 0) {
-          warnings.push(`${where}: po zmianie te msze z przyjętymi intencjami nie byłyby w planie: ${lost.slice(0, 4).map((o) => whenLabel(o.date, o.time)).join(', ')}${lost.length > 4 ? ' …' : ''} — zmiana pominięta; przenieś najpierw te intencje albo podaj "changeFrom".`);
+          warnings.push(t('massesJson.plan.wouldLoseOrChangeFrom', { where, list: `${lost.slice(0, 4).map((o) => whenLabel(o.date, o.time)).join(', ')}${lost.length > 4 ? ' …' : ''}` }));
           continue;
         }
       }
       if (days || change.time !== undefined) reshaped.set(s.itemId, next);
       if (people !== null) repeopled.set(s.itemId, { was: s.people, now: people });
       updates.push({ itemId: s.itemId, calendarId: s.calendarId, change, people, label });
-      massLines.push(`Zmiana: ${label}: ${said.join('; ')}${m.changeFrom !== undefined && s.repeat !== 'none' ? ' (od początku serii — cała seria)' : ''}.`);
+      massLines.push(m.changeFrom !== undefined && s.repeat !== 'none'
+        ? t('massesJson.plan.lineChangeWhole', { label, said: said.join('; ') })
+        : t('massesJson.plan.lineChange', { label, said: said.join('; ') }));
       continue;
     }
 
     /* Neu. */
     const calendar = calendarOf(m.calendar, where);
     if (calendar === null) continue;
-    if (m.date === undefined || m.time === undefined) { warnings.push(`${where}: nowy wpis potrzebuje "date" i "time" — pominięty.`); continue; }
-    if (m.changeFrom !== undefined) warnings.push(`${where}: "changeFrom" tylko przy wpisie z "id" — pominięte.`);
+    if (m.date === undefined || m.time === undefined) { warnings.push(t('massesJson.plan.newNeedsDate', { where })); continue; }
+    if (m.changeFrom !== undefined) warnings.push(t('massesJson.plan.changeFromOnlyId', { where }));
     const kind: ServiceKind = m.kind ?? MASS;
     const repeat = m.repeat ?? 'none';
     const def: SeriesDef = {
@@ -1272,8 +1236,8 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       until: repeat === 'none' ? null : m.until ?? null,
       place: m.place ?? ''
     };
-    if (def.until !== null && def.until < def.date) { warnings.push(`${where}: "until" przed "date" — pominięty.`); continue; }
-    if (repeat === 'none' && m.weekdays !== undefined && m.weekdays !== 0) warnings.push(`${where}: "weekdays" tylko przy "weekly" — pominięte.`);
+    if (def.until !== null && def.until < def.date) { warnings.push(t('massesJson.plan.untilBeforeDate', { where })); continue; }
+    if (repeat === 'none' && m.weekdays !== undefined && m.weekdays !== 0) warnings.push(t('massesJson.plan.weekdaysOnlyWeekly', { where }));
     let people: PinnedNow[] | null = null;
     if (m.celebrants !== undefined && m.celebrants.length > 0) {
       const ids = resolvePeople(m.celebrants, calendar.calendarId, new Set(), where);
@@ -1282,12 +1246,15 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     /* Dieselbe Stunde an denselben Tagen schon im Kalender? Dann ist es wohl dieselbe Messe — gesagt, nicht verhindert. */
     const twin = [...state.series.values()].find((s) => s.calendarId === calendar.calendarId && s.kind === kind && s.time === def.time
       && (occurrencesOf.get(s.itemId) ?? []).some((o) => o.status !== 'cancelled' && seriesHas(def, o.date)));
-    if (twin !== undefined) warnings.push(`${where}: w tym kalendarzu jest już ${serviceName(twin.kind, twin.title)} o ${clockShort(def.time)} w te dni (${patternText(defOf(twin))}) — nowa będzie druga o tej samej godzinie; jeśli to ta sama, użyj jej "id".`);
+    if (twin !== undefined) warnings.push(t('massesJson.plan.twin', { where, name: serviceName(twin.kind, twin.title), time: clockShort(def.time), pattern: patternText(defOf(twin)) }));
     const fresh = creates.length;
     const label = `${serviceName(kind, def.title)} — ${patternText(def)}`;
     creates.push({ fresh, calendarId: calendar.calendarId, def, people, handover: null, label });
     nameKey(m.key, { fresh }, where);
-    massLines.push(`Nowy: ${label}${spanText(def)}${def.place === '' ? '' : `, ${def.place}`}${calendar.calendarId === homeCalendar.calendarId ? '' : ` — ${calendarName(calendar)}`}${people === null ? '' : `; ${dutyWord(kind)}: ${namesOf(people, calendar.calendarId)}`}.`);
+    const what = `${label}${spanText(def)}${def.place === '' ? '' : `, ${def.place}`}${calendar.calendarId === homeCalendar.calendarId ? '' : ` — ${calendarName(calendar)}`}`;
+    massLines.push(people === null
+      ? t('massesJson.plan.lineNew', { what })
+      : t('massesJson.plan.lineNewPeople', { what, duty: dutyWord(kind), names: namesOf(people, calendar.calendarId) }));
   }
 
   /* -- 2. Die Messen an ihren Tagen ---------------------------------------------------------- */
@@ -1317,16 +1284,16 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     if (o.mass !== undefined) {
       if (o.mass.startsWith('@')) {
         ref = refs.get(o.mass.slice(1));
-        if (ref === undefined) { warnings.push(`${where}: nie ma wpisu "${o.mass}" w "masses" — pominięta.`); return null; }
+        if (ref === undefined) { warnings.push(t('massesJson.plan.noKeyEntry', { where, mass: o.mass })); return null; }
       } else {
         const id = o.mass.toLowerCase();
-        if (!state.series.has(id) && !occurrencesOf.has(id)) { warnings.push(`${where}: nie znam mszy o "mass" ${short(id)} w tym okresie — pominięta.`); return null; }
+        if (!state.series.has(id) && !occurrencesOf.has(id)) { warnings.push(t('massesJson.plan.unknownMass', { where, id: short(id) })); return null; }
         ref = { existing: id };
       }
       if ('fresh' in ref) {
         const create = creates[ref.fresh];
-        if (!seriesHas(create.def, o.date)) { warnings.push(`${where}: nowy wpis ${quote(create.label)} nie wypada w tym dniu — pominięta.`); return null; }
-        if (o.time !== undefined && o.time !== create.def.time) warnings.push(`${where}: ten wpis jest o ${clockShort(create.def.time)} — liczy się "mass".`);
+        if (!seriesHas(create.def, o.date)) { warnings.push(t('massesJson.plan.newNotOnDay', { where, label: quote(create.label) })); return null; }
+        if (o.time !== undefined && o.time !== create.def.time) warnings.push(t('massesJson.plan.entryAtTime', { where, time: clockShort(create.def.time) }));
         return { key: slotKey(ref, o.date, null), mass: ref, calendarId: create.calendarId, date: o.date, time: create.def.time, kind: create.def.kind, existing: null, label: whenLabel(o.date, create.def.time) };
       }
       const itemId = ref.existing;
@@ -1335,31 +1302,31 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       const calendarId = s?.calendarId ?? existing?.calendarId ?? homeCalendar.calendarId;
       const kind = s?.kind ?? existing?.kind ?? MASS;
       const calendar = state.calendars.find((c) => c.calendarId === calendarId);
-      if (calendar === undefined || !calendar.mayWrite) { warnings.push(`${where}: w kalendarzu tej mszy możesz tylko czytać — pominięta.`); return null; }
+      if (calendar === undefined || !calendar.mayWrite) { warnings.push(t('massesJson.plan.massReadOnly', { where })); return null; }
       const h = handovers.get(itemId);
       let mass: MassRef = ref;
       let time: string;
       if (h !== undefined && o.date >= h.from) {
         const def = creates[h.fresh].def;
-        if (!seriesHas(def, o.date)) { warnings.push(`${where}: po zmianie od ${dateWords(h.from)} tej mszy w tym dniu nie ma — pominięta.`); return null; }
+        if (!seriesHas(def, o.date)) { warnings.push(t('massesJson.plan.goneAfterChangeFrom', { where, from: dateWords(h.from) })); return null; }
         mass = { fresh: h.fresh };
         time = def.time;
       } else if (reshaped.has(itemId)) {
         const def = reshaped.get(itemId)!;
-        if (!(existing?.moved === true) && !seriesHas(def, existing?.addressDate ?? o.date)) { warnings.push(`${where}: po zmianie serii tej mszy w tym dniu nie ma — pominięta.`); return null; }
+        if (!(existing?.moved === true) && !seriesHas(def, existing?.addressDate ?? o.date)) { warnings.push(t('massesJson.plan.goneAfterChange', { where })); return null; }
         time = existing === null ? def.time : timeAfter(existing);
       } else {
-        if (existing === null) { warnings.push(`${where}: tej mszy nie ma w planie w tym dniu — pominięta.`); return null; }
+        if (existing === null) { warnings.push(t('massesJson.plan.notOnDay', { where })); return null; }
         time = existing.time;
       }
       /* Die Stunde von jetzt (vor der Änderung der Reihe) ist kein Widerspruch — so steht sie im Export. */
-      if (o.time !== undefined && o.time !== time && o.time !== existing?.time) warnings.push(`${where}: ta msza jest o ${clockShort(time)} — liczy się "mass", nie godzina.`);
+      if (o.time !== undefined && o.time !== time && o.time !== existing?.time) warnings.push(t('massesJson.plan.massAtTime', { where, time: clockShort(time) }));
       return { key: slotKey(mass, o.date, existing), mass, calendarId, date: o.date, time, kind, existing, label: whenLabel(o.date, time) };
     }
 
     const calendar = calendarOf(o.calendar, where);
     if (calendar === null) return null;
-    if (o.time === undefined) { warnings.push(`${where}: bez "mass" potrzebna jest "time" — pominięta.`); return null; }
+    if (o.time === undefined) { warnings.push(t('massesJson.plan.needTime', { where })); return null; }
     type Found = { ref: MassRef; existing: OccurrenceNow | null; kind: string };
     const found: Found[] = [];
     const others: string[] = [];
@@ -1378,10 +1345,12 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       const f = found[0];
       return { key: slotKey(f.ref, o.date, f.existing), mass: f.ref, calendarId: calendar.calendarId, date: o.date, time: o.time, kind: f.kind, existing: f.existing, label: whenLabel(o.date, o.time) };
     }
-    if (found.length > 1) { warnings.push(`${where}: o tej godzinie jest kilka mszy — dodaj "mass" (id z eksportu); pominięta.`); return null; }
-    if (others.length > 0) { warnings.push(`${where}: o tej godzinie jest ${others[0].toLowerCase()}, nie msza — pominięta.`); return null; }
+    if (found.length > 1) { warnings.push(t('massesJson.plan.severalAtTime', { where })); return null; }
+    if (others.length > 0) { warnings.push(t('massesJson.plan.otherAtTime', { where, what: others[0].toLowerCase() })); return null; }
     const times = [...new Set(state.occurrences.filter((one) => one.calendarId === calendar.calendarId && one.date === o.date && one.kind === MASS).map(timeAfter))].sort();
-    warnings.push(`${where}: w tym dniu nie ma mszy o ${clockShort(o.time)}${times.length === 0 ? ' (nie ma żadnej)' : ` (są: ${times.map(clockShort).join(', ')})`} — pominięta; dopisz ją w "masses" albo popraw godzinę.`);
+    warnings.push(times.length === 0
+      ? t('massesJson.plan.noMassAtNone', { where, time: clockShort(o.time) })
+      : t('massesJson.plan.noMassAt', { where, time: clockShort(o.time), times: times.map(clockShort).join(', ') }));
     return null;
   };
 
@@ -1390,7 +1359,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     if (at === null) { skippedSlots++; continue; }
     const known = slots.get(at.key);
     if (known !== undefined) {
-      warnings.push(`${o.label}: ta sama msza (${known.label}) drugi raz — połączone z wcześniejszą pozycją.`);
+      warnings.push(t('massesJson.plan.slotTwice', { where: o.label, label: known.label }));
       known.free = known.free && o.free && known.intentions.length === 0 && o.intentions.length === 0;
       known.collective = known.collective || o.collective;
       known.cancelled = o.cancelled ?? known.cancelled;
@@ -1408,7 +1377,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
   for (const slot of slots.values()) {
     for (const d of slot.intentions) {
       if (d.id === null || !byId.has(d.id)) continue;
-      if (target.has(d.id)) warnings.push(`${slot.label}: intencja ${quote(cut(d.text, 40))} (to samo "id") drugi raz — liczy się pierwsze miejsce.`);
+      if (target.has(d.id)) warnings.push(t('massesJson.plan.idTwice', { where: slot.label, text: quote(cut(d.text, 40)) }));
       else target.set(d.id, slot.key);
     }
   }
@@ -1426,14 +1395,14 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     const current = slot.existing === null ? [] : [...slot.existing.intentions].sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
     const isMassSlot = slot.kind === MASS;
     if (!isMassSlot && slot.intentions.length > 0) {
-      warnings.push(`${slot.label}: ${(SERVICE_LABEL[slot.kind] ?? 'ten wpis').toLowerCase()} nie ma intencji — pominięte.`);
+      warnings.push(t('massesJson.plan.noIntentionsHere', { where: slot.label, what: (SERVICE_LABEL[slot.kind] ?? t('massesJson.plan.thisEntry')).toLowerCase() }));
       slot.intentions.length = 0;
     }
     const celebrantOf = (ref: string | null | undefined, where: string): string | null | undefined => {
       if (ref === undefined) return undefined;
       if (ref === null) return null;
       const found = findPerson(ref, peopleOf(slot.calendarId), new Set(slot.existing?.people.map((p) => p.roleId) ?? []));
-      if ('problem' in found) { warnings.push(`${slot.label}, ${where}: ${found.problem} — bez zmiany osoby.`); return undefined; }
+      if ('problem' in found) { warnings.push(t('massesJson.plan.celebrantProblem', { where: slot.label, text: where, problem: found.problem })); return undefined; }
       return found.roleId;
     };
 
@@ -1447,7 +1416,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       let from: OccurrenceNow | null = null;
       if (d.id !== null) {
         const known = byId.get(d.id);
-        if (known === undefined) warnings.push(`${slot.label}: nie znam intencji o "id" ${short(d.id)} — będzie nowa.`);
+        if (known === undefined) warnings.push(t('massesJson.plan.unknownIntention', { where: slot.label, id: short(d.id) }));
         else if (target.get(d.id) !== slot.key) continue;
         else {
           match = known.intention;
@@ -1488,14 +1457,14 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       if (single) {
         count.conflicts++;
         if (options.conflicts === 'skip') {
-          warnings.push(`${slot.label}: ma już intencję ${listed}; w dokumencie inna: ${addsNow().map((e) => quote(cut(e.add.text, 50))).join(', ')} — nie dopisuję (zaznacz niżej „dopisz obok”, jeśli to dodatkowa intencja).`);
+          warnings.push(t('massesJson.plan.conflictSkip', { where: slot.label, listed, other: addsNow().map((e) => quote(cut(e.add.text, 50))).join(', ') }));
           entries = entries.filter((e) => e.type !== 'add');
-        } else warnings.push(`${slot.label}: ma już intencję ${listed} — nowe dopisane obok (dwie pojedyncze to dwóch kapłanów).`);
-      } else warnings.push(`${slot.label}: w kalendarzu są też ${listed}, których nie ma w dokumencie — zostają; nowe zbiorowe dochodzą.`);
+        } else warnings.push(t('massesJson.plan.conflictAdd', { where: slot.label, listed }));
+      } else warnings.push(t('massesJson.plan.alsoCollective', { where: slot.label, listed }));
     } else if (unaccounted.length > 0 && (slot.free || slot.intentions.length > 0)) {
       warnings.push(slot.free
-        ? `${slot.label}: w dokumencie wolna, a w kalendarzu ma intencję ${listed} — zostaje.`
-        : `${slot.label}: w kalendarzu jest też ${listed}, czego nie ma w dokumencie — zostaje bez zmian.`);
+        ? t('massesJson.plan.freeButHas', { where: slot.label, listed })
+        : t('massesJson.plan.alsoStays', { where: slot.label, listed }));
     }
     if (slot.free && slot.intentions.length === 0) count.free++;
 
@@ -1504,10 +1473,10 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     let restore = false;
     if (slot.cancelled === false && offNow) {
       if (slot.existing!.skipped) restore = true;
-      else warnings.push(`${slot.label}: odwołana jest cała msza (nie tylko ten dzień) — przywróć ją w kalendarzu.`);
+      else warnings.push(t('massesJson.plan.wholeCancelled', { where: slot.label }));
     }
     if (offNow && !restore && entries.some((e) => e.type === 'add' || e.from !== null)) {
-      warnings.push(`${slot.label}: msza jest odwołana — intencje do niej pominięte (przywróć ją: "cancelled": false).`);
+      warnings.push(t('massesJson.plan.massCancelled', { where: slot.label }));
       entries = entries.filter((e): e is Have => e.type === 'have' && e.from === null);
     }
     const finalOf = (e: Have) => ({
@@ -1518,7 +1487,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     let cancel = false;
     if (slot.cancelled === true && !offNow) {
       const stays = unaccounted.length + entries.filter((e) => (e.type === 'add' ? e.add.status : finalOf(e).status) !== 'cancelled').length;
-      if (stays > 0) warnings.push(`${slot.label}: nie odwołuję — msza ma przyjęte intencje; przenieś je najpierw na inną mszę.`);
+      if (stays > 0) warnings.push(t('massesJson.plan.notCancelling', { where: slot.label }));
       else cancel = true;
     }
 
@@ -1530,7 +1499,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         if (e.type === 'add') {
           if (e.add.kind !== 'single' || e.add.status === 'cancelled' || e.add.celebrant === null) continue;
           if (!taken.has(e.add.celebrant)) { taken.add(e.add.celebrant); continue; }
-          warnings.push(`${slot.label}: ${nameOf(e.add.celebrant, slot.calendarId)} ma już pojedynczą intencję przy tej mszy — ${quote(cut(e.add.text, 40))} bez odprawiającego.`);
+          warnings.push(t('massesJson.plan.priestTaken', { where: slot.label, name: nameOf(e.add.celebrant, slot.calendarId), text: quote(cut(e.add.text, 40)) }));
           e.add.celebrant = null;
           continue;
         }
@@ -1538,7 +1507,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         if (f.kind !== 'single' || f.status === 'cancelled' || f.celebrant === null) continue;
         if (!taken.has(f.celebrant)) { taken.add(f.celebrant); continue; }
         if (e.change.celebrant !== undefined) {
-          warnings.push(`${slot.label}: ${nameOf(f.celebrant, slot.calendarId)} ma już pojedynczą intencję przy tej mszy — ${quote(cut(e.text, 40))} bez zmiany odprawiającego.`);
+          warnings.push(t('massesJson.plan.priestTakenChange', { where: slot.label, name: nameOf(f.celebrant, slot.calendarId), text: quote(cut(e.text, 40)) }));
           delete e.change.celebrant;
         }
       }
@@ -1561,7 +1530,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     }
 
     /* Was der Import an dieser Messe tut — in der Reihenfolge des Vorlesens. */
-    const said: string[] = restore ? ['przywrócona'] : [];
+    const said: string[] = restore ? [t('massesJson.plan.said.restored')] : [];
     const adds: IntentionAdd[] = [];
     const changes: IntentionChange[] = [];
     for (const e of entries) {
@@ -1571,30 +1540,32 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         const details = [
           a.kind === 'collective' ? KIND_LABEL.collective : '',
           a.status === 'accepted' ? '' : INTENTION_STATUS_LABEL[a.status],
-          a.giver === '' ? '' : 'ofiarodawca',
-          a.offering === '' ? '' : 'ofiara',
-          a.celebrant === null ? '' : `odprawia ${nameOf(a.celebrant, slot.calendarId)}`
+          a.giver === '' ? '' : t('massesJson.plan.said.giver'),
+          a.offering === '' ? '' : t('massesJson.plan.said.offering'),
+          a.celebrant === null ? '' : t('massesJson.plan.said.celebrant', { name: nameOf(a.celebrant, slot.calendarId) })
         ].filter((s) => s !== '');
-        said.push(`nowa ${quote(a.text)}${details.length === 0 ? '' : ` (${details.join(', ')})`}`);
+        said.push(details.length === 0
+          ? t('massesJson.plan.said.new', { text: quote(a.text) })
+          : t('massesJson.plan.said.newDetails', { text: quote(a.text), details: details.join(', ') }));
         continue;
       }
       const c = e.change;
       if (Object.keys(c).length > 0) changes.push({ id: e.intention.id, ...c });
       const bits = [
-        c.move === true && e.from !== null ? `przeniesiona tu (z ${whenLabel(e.from.date, e.from.time)})` : '',
-        c.text === undefined ? '' : `treść ${quote(cut(e.intention.text, 40))} → ${quote(cut(c.text, 40))}`,
+        c.move === true && e.from !== null ? t('massesJson.plan.said.movedHere', { from: whenLabel(e.from.date, e.from.time) }) : '',
+        c.text === undefined ? '' : t('massesJson.plan.said.text', { from: quote(cut(e.intention.text, 40)), to: quote(cut(c.text, 40)) }),
         c.kind === undefined ? '' : KIND_LABEL[c.kind],
         c.status === undefined ? '' : INTENTION_STATUS_LABEL[c.status],
-        c.giver === undefined ? '' : c.giver === '' ? 'bez ofiarodawcy' : 'ofiarodawca',
-        c.offering === undefined ? '' : c.offering === '' ? 'bez ofiary' : 'ofiara',
-        c.celebrant === undefined ? '' : c.celebrant === '' ? 'bez odprawiającego' : `odprawia ${nameOf(c.celebrant, slot.calendarId)}`
+        c.giver === undefined ? '' : c.giver === '' ? t('massesJson.plan.said.noGiver') : t('massesJson.plan.said.giver'),
+        c.offering === undefined ? '' : c.offering === '' ? t('massesJson.plan.said.noOffering') : t('massesJson.plan.said.offering'),
+        c.celebrant === undefined ? '' : c.celebrant === '' ? t('massesJson.plan.said.noCelebrant') : t('massesJson.plan.said.celebrant', { name: nameOf(c.celebrant, slot.calendarId) })
       ].filter((s) => s !== '');
       if (bits.length === 0) { count.unchanged++; continue; }
       said.push(`${quote(cut(e.text, 60))}: ${bits.join(', ')}`);
       if (c.move === true) count.moved++; else count.changed++;
     }
-    if (reordered) said.push('nowa kolejność czytania');
-    if (cancel) said.push('odwołana (tylko ten dzień)');
+    if (reordered) said.push(t('massesJson.plan.said.reordered'));
+    if (cancel) said.push(t('massesJson.plan.said.cancelled'));
     count.added += adds.length;
     if (restore) count.restores++;
     if (cancel) count.cancels++;
@@ -1619,7 +1590,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     const peopleNow = slot.existing?.people ?? base;
     let people: PinnedNow[] | null = null;
     if (!samePeople(next, peopleNow)) {
-      if (next.length > MAX_PEOPLE) warnings.push(`${slot.label}: najwyżej ${MAX_PEOPLE} osób przy jednym terminie — osoby bez zmian.`);
+      if (next.length > MAX_PEOPLE) warnings.push(t('massesJson.plan.maxPeople', { where: slot.label, max: MAX_PEOPLE }));
       else { people = next; said.push(`${dutyWord(slot.kind)}: ${namesOf(next.filter((p) => p.duty === duty || readers.has(p.roleId)), slot.calendarId)}`); count.people++; }
     }
 
@@ -1629,13 +1600,13 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         + entries.filter((e) => (e.type === 'add'
           ? e.add.kind === 'single' && e.add.status !== 'cancelled'
           : finalOf(e).kind === 'single' && finalOf(e).status !== 'cancelled')).length;
-      if (singles > 1) warnings.push(`${slot.label}: ${singles} intencje pojedyncze — potrzeba ${singles} kapłanów (koncelebra).`);
+      if (singles > 1) warnings.push(t('massesJson.plan.concelebration', { where: slot.label, count: singles }));
     }
 
     if (adds.length === 0 && changes.length === 0 && !restore && !cancel && people === null) continue;
     const calendar = state.calendars.find((c) => c.calendarId === slot.calendarId);
     const where = calendar === undefined || slot.calendarId === homeCalendar.calendarId ? '' : ` (${calendarName(calendar)})`;
-    const newMass = 'fresh' in slot.mass && creates[slot.mass.fresh].handover === null ? ' [nowa msza]' : '';
+    const newMass = 'fresh' in slot.mass && creates[slot.mass.fresh].handover === null ? ` ${t('massesJson.plan.newMassTag')}` : '';
     slotLines.push(`${slot.label}${where}${newMass} — ${said.join('; ')}`);
     plans.push({
       mass: slot.mass, calendarId: slot.calendarId, date: slot.date, label: slot.label,
@@ -1649,16 +1620,19 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
   for (const u of updates) calendars.add(u.calendarId);
   for (const p of plans) calendars.add(p.calendarId);
   const empty = creates.length === 0 && updates.length === 0 && plans.length === 0;
-  const lines: string[] = [`Kalendarz: ${calendarName(homeCalendar)}${calendars.size > 1 ? ` (i ${calendars.size - 1} inne)` : ''}.`];
+  const lines: string[] = [calendars.size > 1
+    ? t('massesJson.plan.lineCalendarMore', { name: calendarName(homeCalendar), more: calendars.size - 1 })
+    : t('massesJson.plan.lineCalendar', { name: calendarName(homeCalendar) })];
   if (doc.masses.length > 0) {
     const fresh = creates.filter((c) => c.handover === null).length;
-    lines.push(`Msze i nabożeństwa: nowe ${fresh}, zmienione ${updates.length + creates.length - fresh}, bez zmian ${unchangedMasses}.`);
+    lines.push(t('massesJson.plan.lineMasses', { fresh, changed: updates.length + creates.length - fresh, same: unchangedMasses }));
   }
   if (doc.occurrences.length > 0) {
-    lines.push(`Intencje: nowe ${count.added}, zmienione ${count.changed}, przeniesione ${count.moved}, bez zmian ${count.unchanged}; msze wolne: ${count.free}${skippedSlots > 0 ? `; pozycje pominięte: ${skippedSlots}` : ''}.`);
+    const params = { added: count.added, changed: count.changed, moved: count.moved, same: count.unchanged, free: count.free, skipped: skippedSlots };
+    lines.push(skippedSlots > 0 ? t('massesJson.plan.lineIntentionsSkipped', params) : t('massesJson.plan.lineIntentions', params));
   }
-  if (count.cancels + count.restores > 0) lines.push(`Odwołane w jednym dniu: ${count.cancels}, przywrócone: ${count.restores}.`);
-  if (empty) lines.push('Bez zmian — wszystko z dokumentu już jest w kalendarzu.');
+  if (count.cancels + count.restores > 0) lines.push(t('massesJson.plan.lineCancels', { cancels: count.cancels, restores: count.restores }));
+  if (empty) lines.push(t('massesJson.plan.lineEmpty'));
   lines.push(...massLines, ...slotLines);
 
   const range = needsOf(doc, state.calendars, state.chosen, state.today);

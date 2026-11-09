@@ -258,5 +258,84 @@
   "sample": {
     "topics": "dwa nowe tematy i wiadomość w każdym",
     "reminder": "przypomnienie na jutro rano, bez dźwięku"
+  },
+  "dialog": {
+    "range7": "7 dni",
+    "range30": "30 dni",
+    "range90": "90 dni",
+    "range365": "Rok",
+    "rangeAll": "Całość",
+    "loadFailed": "Nie udało się pobrać wiadomości tej rozmowy.",
+    "loading": "Pobieram wiadomości tej rozmowy — chwilę…",
+    "loadingOlder": "Pobieram starsze wiadomości, których dotyczy dokument — chwilę…",
+    "stillLoading": "Wiadomości tej rozmowy jeszcze się pobierają — spróbuj za chwilę.",
+    "olderLoading": "Starsze wiadomości jeszcze się pobierają — spróbuj za chwilę.",
+    "period": "Eksport — okres",
+    "topic": "Eksport — temat",
+    "allMessages": "Wszystkie wiadomości",
+    "closed": "(zamknięty)",
+    "fetching": "Pobieranie wiadomości rozmowy…",
+    "leadImport": "Wiadomości z wybranego okresu (albo tematu), tematy, zadania i terminy — do archiwum albo dla asystenta AI. Import porządkuje tematy i przypięcia i dodaje Twoje nowe wiadomości, oznaczone „Z importu”; nigdy nie pisze w czyimś imieniu ani wstecz i niczego nie usuwa.",
+    "leadRead": "Wiadomości z wybranego okresu (albo tematu), tematy, zadania i terminy — do archiwum albo dla asystenta AI. W tej rozmowie tylko czytasz, więc jest tu sam eksport.",
+    "importLabel": "Importuj do rozmowy",
+    "note": "Nowe wiadomości pójdą jako <b>{name}</b>, oznaczone „Z importu”."
+  },
+  "run": {
+    "failed": "nie udało się.",
+    "creatingTopics": "Zakładanie tematów… {n}/{count}",
+    "newTopic": "Nowy temat: „{title}”",
+    "newTopicClosed": "Nowy temat: „{title}” (zamknięty)",
+    "topicFailed": "Temat „{title}” nie powstał: {error}",
+    "changingTopics": "Zmiany tematów…",
+    "closed": "Zamknięto temat „{title}”",
+    "reopened": "Otwarto ponownie temat „{title}”",
+    "topicError": "Temat „{title}”: {error}",
+    "lost": {
+      "one": "{count} wiadomość nie przeniesiono — ich temat nie powstał.",
+      "few": "{count} wiadomości nie przeniesiono — ich temat nie powstał.",
+      "many": "{count} wiadomości nie przeniesiono — ich temat nie powstał.",
+      "other": "{count} wiadomości nie przeniesiono — ich temat nie powstał."
+    },
+    "sorting": "Porządkowanie wiadomości w tematy…",
+    "moveError": "Przenoszenie do tematu: {error}",
+    "moved": {
+      "one": "Przeniesiono między tematami: {count} wiadomość",
+      "few": "Przeniesiono między tematami: {count} wiadomości",
+      "many": "Przeniesiono między tematami: {count} wiadomości",
+      "other": "Przeniesiono między tematami: {count} wiadomości"
+    },
+    "notYours": {
+      "one": "{count} wiadomość innych osób przenosi prowadzący — zostały, gdzie były.",
+      "few": "{count} wiadomości innych osób przenosi prowadzący — zostały, gdzie były.",
+      "many": "{count} wiadomości innych osób przenosi prowadzący — zostały, gdzie były.",
+      "other": "{count} wiadomości innych osób przenosi prowadzący — zostały, gdzie były."
+    },
+    "marking": "Przypinanie i zapisywanie…",
+    "pinError": "Przypięcie: {error}",
+    "starError": "Zapisanie: {error}",
+    "marked": {
+      "one": "Przypięte, odpięte albo zapisane: {count} wiadomość",
+      "few": "Przypięte, odpięte albo zapisane: {count} wiadomości",
+      "many": "Przypięte, odpięte albo zapisane: {count} wiadomości",
+      "other": "Przypięte, odpięte albo zapisane: {count} wiadomości"
+    },
+    "notWriting": "Nowe wiadomości nie wyszły — w tej rozmowie nie piszesz.",
+    "sending": "Wysyłanie wiadomości… {n}/{count}",
+    "noTopic": "Wiadomość {n} z {count} poszła bez tematu — temat nie powstał.",
+    "sendFailed": "Wiadomość {n} z {count} nie wyszła: {error}",
+    "rest": "Pozostałe ({left}) też nie — żeby nie zmienić kolejności.",
+    "sent": {
+      "one": "Wysłano {count} wiadomość jako {name}, oznaczone „Z importu”",
+      "few": "Wysłano {count} wiadomości jako {name}, oznaczone „Z importu”",
+      "many": "Wysłano {count} wiadomości jako {name}, oznaczone „Z importu”",
+      "other": "Wysłano {count} wiadomości jako {name}, oznaczone „Z importu”"
+    },
+    "planned": {
+      "one": "Zaplanowano {count} wiadomość — czekają w „Zaplanowanych” (menu ⋮)",
+      "few": "Zaplanowano {count} wiadomości — czekają w „Zaplanowanych” (menu ⋮)",
+      "many": "Zaplanowano {count} wiadomości — czekają w „Zaplanowanych” (menu ⋮)",
+      "other": "Zaplanowano {count} wiadomości — czekają w „Zaplanowanych” (menu ⋮)"
+    },
+    "nothing": "Nic nie zmieniono."
   }
 }

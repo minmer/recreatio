@@ -19,13 +19,13 @@ import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '.
 import { viewPath } from '../routes';
 import { Unlock } from '../shell/Unlock';
 import { Loading } from '../ui/Loading';
-import { useT } from '../core/i18n';
+import { appLang, localeOf, rich, t as tApp, useT } from '../core/i18n';
 import {
   aiSecretOf, approveConnect, createAiAccess, denyConnect, loadAiAccess, loadConnectRequest,
   type AiAccessRow, type ConnectRequest
 } from './aiAccess';
 
-const PART_NAME: Readonly<Record<LibraryKind, string>> = { books: 'Biblioteka', writing: 'Skryptorium', knowledge: 'Baza wiedzy', liturgy: 'Liturgia' };
+/* Der Name eines Teils: `aiAccess.part.<kind>`. */
 
 interface AreaLinks {
   readonly area: AreaRow;
@@ -34,8 +34,8 @@ interface AreaLinks {
   readonly containers: readonly { readonly libraryId: string; readonly kind: LibraryKind; readonly name: string }[];
 }
 
-const said = (e: unknown): string => (e instanceof WorkspaceError || e instanceof Error) && e.message !== '' ? e.message : 'Nie udało się.';
-const day = (iso: string): string => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
+const said = (e: unknown): string => (e instanceof WorkspaceError || e instanceof Error) && e.message !== '' ? e.message : tApp('common.failed');
+const day = (iso: string): string => new Date(iso).toLocaleDateString(localeOf(appLang()), { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }) {
   const t = useT();
@@ -51,7 +51,7 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
     let alive = true;
     void (async () => {
       try {
-        if (grantId === null || grantId === '') throw new WorkspaceError('W tym adresie brakuje prośby o połączenie.');
+        if (grantId === null || grantId === '') throw new WorkspaceError(t('aiAccess.connect.noRequest'));
         const found = await loadConnectRequest(grantId);
         if (alive) setRequest(found);
       } catch (e) {
@@ -86,22 +86,22 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
     return () => { alive = false; };
   }, [grantId, who, tick]);
 
-  if (request === undefined) return <Loading label="Sprawdzanie prośby o połączenie…" />;
+  if (request === undefined) return <Loading label={t('aiAccess.connect.checking')} />;
   if (request === null) {
     return (
       <>
-        <h1 className="wk-h1">Połączenie z asystentem AI</h1>
+        <h1 className="wk-h1">{t('aiAccess.connect.connection')}</h1>
         <p className="wk-error">{failed}</p>
       </>
     );
   }
 
-  const nameOf = (entry: AreaLinks, libraryId: string, kind: LibraryKind) => entry.containers.find((c) => c.libraryId === libraryId)?.name ?? PART_NAME[kind];
+  const nameOf = (entry: AreaLinks, libraryId: string, kind: LibraryKind) => entry.containers.find((c) => c.libraryId === libraryId)?.name ?? t(`aiAccess.part.${kind}`);
   const flip = (id: string) => setChosen((was) => { const next = new Set(was); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const approve = async () => {
     if (ring === null || ring === undefined || areas === null) return;
-    setBusy('Łączenie…');
+    setBusy(t('aiAccess.connect.connecting'));
     setFailed(null);
     try {
       const secrets: string[] = [];
@@ -109,7 +109,7 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
         for (const row of entry.links) {
           if (!chosen.has(row.id)) continue;
           const secret = await aiSecretOf(ring, entry.area.areaId, row);
-          if (secret === null) throw new WorkspaceError(`Nie da się otworzyć linku w obszarze „${entry.area.name}” na tym urządzeniu.`);
+          if (secret === null) throw new WorkspaceError(t('aiAccess.connect.cannotOpen', { area: entry.area.name }));
           secrets.push(secret);
         }
       }
@@ -122,7 +122,7 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
   };
 
   const deny = async () => {
-    setBusy('Odmawianie…');
+    setBusy(t('aiAccess.connect.denying'));
     try {
       const { redirect } = await denyConnect(request.id);
       window.location.href = redirect;
@@ -134,13 +134,13 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
 
   const create = async (entry: AreaLinks) => {
     if (ring === null || ring === undefined) return;
-    setBusy('Tworzę link i przygotowuję odpisy…');
+    setBusy(t('aiAccess.connect.creating'));
     setFailed(null);
     try {
       const made = await createAiAccess(ring, entry.area.areaId, entry.containers.map((c) => c.libraryId), 90,
-        (done, total) => setBusy(`Przygotowuję odpisy… ${done}/${total}`));
+        (done, total) => setBusy(t('aiAccess.connect.snapshots', { done, total })));
       setChosen((was) => new Set([...was, made.id]));
-      setTick((t) => t + 1);
+      setTick((n) => n + 1);
     } catch (e) {
       setFailed(said(e));
     } finally {
@@ -150,52 +150,48 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
 
   return (
     <>
-      <h1 className="wk-h1">Połącz z asystentem AI</h1>
+      <h1 className="wk-h1">{t('aiAccess.connect.title')}</h1>
       <p className="wk-lede">
-        <strong>{request.client}</strong> chce czytać wybrane zbiory Recreatio — tylko czytać. Po zgodzie wrócisz do <strong>{request.redirectHost}</strong>.
+        {rich(t('aiAccess.connect.lede', { client: request.client, host: request.redirectHost }), { b: (s, key) => <strong key={key}>{s}</strong> })}
       </p>
-      <p className="wk-note">
-        Asystent dostanie wyłącznie zaznaczone poniżej linki dostępu dla AI: przeczyta ich bibliotekę, skryptorium i bazy wiedzy,
-        nic poza nimi, i niczego nie zmieni. To, co przeczyta, trafia do jego dostawcy. Odłączysz go, usuwając link
-        (Obszar → Dostęp → Dostęp dla AI) — działa to od razu.
-      </p>
+      <p className="wk-note">{t('aiAccess.connect.note')}</p>
       {/* 0138 — die Verbindung bekommt später weitere Bereiche, ohne neue Anmeldung. */}
       <p className="wk-hint">{t('aiAccess.connectLater')} <a href={viewPath('account', 'dostep-ai')}>{t('aiAccess.manage')}</a></p>
 
       {ring === undefined ? (
         <Loading lines={2} />
       ) : ring === null ? (
-        <Unlock who={who} why="Linki otwierają się tylko u Ciebie — podaj hasło." onDone={() => { forgetKeys(); setTick((t) => t + 1); }} />
+        <Unlock who={who} why={t('aiAccess.connect.unlockWhy')} onDone={() => { forgetKeys(); setTick((n) => n + 1); }} />
       ) : areas === null ? (
         failed === null ? <Loading lines={2} /> : null
       ) : areas.length === 0 ? (
-        <p className="wk-empty">Nie prowadzisz żadnego obszaru z biblioteką, skryptorium albo bazą wiedzy. <a href={viewPath('areas')}>Obszary</a></p>
+        <p className="wk-empty">{t('aiAccess.connect.noAreas')} <a href={viewPath('areas')}>{t('aiAccess.connect.areas')}</a></p>
       ) : (
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void approve(); }}>
           {areas.map((entry) => (
             <fieldset key={entry.area.areaId} className="wk-field">
-              <legend>{entry.area.personal === true ? 'Tylko Ty' : entry.area.name}</legend>
+              <legend>{entry.area.personal === true ? t('aiAccess.onlyYou') : entry.area.name}</legend>
               {entry.links.map((row) => (
                 <label key={row.id} className="wk-check">
                   <input type="checkbox" checked={chosen.has(row.id)} onChange={() => flip(row.id)} disabled={busy !== null} />
                   <span>
-                    {row.parts.map((p) => nameOf(entry, p.libraryId, p.kind)).join(', ') || 'Link dla AI'}{row.wholeArea === true ? ' — cały obszar, także nowe zbiory' : ''}
-                    {' '}<span className="wk-tag">ważny do {day(row.expiresAt)}</span>
+                    {row.parts.map((p) => nameOf(entry, p.libraryId, p.kind)).join(', ') || t('aiAccess.connect.linkForAi')}{row.wholeArea === true ? ` ${t('aiAccess.connect.wholeArea')}` : ''}
+                    {' '}<span className="wk-tag">{t('aiAccess.connect.validUntil', { date: day(row.expiresAt) })}</span>
                   </span>
                 </label>
               ))}
               {entry.links.length === 0 && entry.containers.length > 0 && (
                 <div className="wk-actions">
                   <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => void create(entry)}>
-                    Utwórz link dla AI ({entry.containers.map((c) => c.name).join(', ')})
+                    {t('aiAccess.connect.createLink', { names: entry.containers.map((c) => c.name).join(', ') })}
                   </button>
                 </div>
               )}
             </fieldset>
           ))}
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy !== null || chosen.size === 0}>Zezwól</button>
-            <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => void deny()}>Odmów</button>
+            <button type="submit" className="wk-btn" disabled={busy !== null || chosen.size === 0}>{t('aiAccess.connect.allow')}</button>
+            <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => void deny()}>{t('aiAccess.connect.deny')}</button>
           </div>
         </form>
       )}

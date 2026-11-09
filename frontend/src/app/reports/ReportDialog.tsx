@@ -6,10 +6,12 @@
 
 import { Modal } from '../ui/Modal';
 import { ReportForm, type ReportWhat } from './ReportForm';
+import { useT } from '../core/i18n';
 
 export function ReportDialog({ what, onClose }: { what: ReportWhat; onClose: () => void }) {
+  const t = useT();
   return (
-    <Modal title="Zgłoś treść" onClose={onClose}>
+    <Modal title={t('reports.reportContent')} onClose={onClose}>
       <ReportForm what={what} onDone={onClose} />
     </Modal>
   );

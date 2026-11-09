@@ -14,7 +14,7 @@ import { viewPath } from '../routes';
 import { containerPath } from '../library/library';
 import type { OpenLibrary } from '../library/library';
 import { bibliography, segText, workBehind } from '../library/libraryCite';
-import { MARKUP_DOC } from '../library/libraryJson';
+import { markupDoc } from '../library/libraryJson';
 import { type EntryData, type LibEntry, type OutlineItem, TEXT_STATUS, ids, num, refTarget, str, wordCount } from '../library/libraryKinds';
 import { citedKeys } from '../library/libraryMarkup';
 import { FieldList } from '../library/LibraryFields';
@@ -93,7 +93,7 @@ export function TextForm({ store, entry, data, set, readOnly, typeFields }: {
 
       <details className="wk-fold">
         <summary>{t('scriptorium.text.howToWrite')}</summary>
-        <pre className="wk-json-pre">{MARKUP_DOC}</pre>
+        <pre className="wk-json-pre">{markupDoc()}</pre>
       </details>
     </>
   );

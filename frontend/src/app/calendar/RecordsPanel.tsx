@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { dayKey } from '../masses/mass';
@@ -63,6 +64,7 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
   writer: boolean;
   onChanged?: () => void;
 }) {
+  const t = useT();
   const o = item.occurrence;
   const [records, setRecords] = useState<readonly OpenRecord[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -76,9 +78,9 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
       setRecords(await recordsAt(me.ring, o.itemId, o.occurrenceAt));
     } catch (e) {
       setRecords([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wpisów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.records.loadFailed'));
     }
-  }, [me.ring, o.itemId, o.occurrenceAt]);
+  }, [me.ring, o.itemId, o.occurrenceAt, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -90,7 +92,7 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
       await load();
       onChanged?.();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.records.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -107,7 +109,7 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
       actor: writer ? 'office' : 'outside', mode: draft.mode || null,
       values: Object.fromEntries(values.map((v) => [v.key, v.text]))
     });
-    if (verdict.verdict === 'refuse') throw new WorkspaceError(verdict.message ?? 'Tego wpisu nie da się dodać.');
+    if (verdict.verdict === 'refuse') throw new WorkspaceError(verdict.message ?? t('calendarData.records.cannotAdd'));
     await addRecord(me.ring, o.itemId, sealArea, {
       occurrenceAt: o.occurrenceAt, listKey: list.key, mode: draft.mode || null,
       textPublic: list.textLabel !== undefined ? draft.text : null,
@@ -125,7 +127,7 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
         actor: 'office', mode: record.mode, except: record.recordId,
         values: Object.fromEntries([...record.values].map(([k, v]) => [k, v.text]))
       });
-      if (verdict.verdict === 'refuse') throw new WorkspaceError(verdict.message ?? 'Reguła listy nie pozwala przyjąć tego wpisu.');
+      if (verdict.verdict === 'refuse') throw new WorkspaceError(verdict.message ?? t('calendarData.records.ruleRefuses'));
     }
     await updateRecord(me.ring, record, sealArea, { status });
   });
@@ -150,7 +152,7 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
   });
 
   const remove = async (record: OpenRecord) => {
-    if (!(await askText('Usunąć ten wpis?'))) return;
+    if (!(await askText(t('calendarData.records.confirmDelete')))) return;
     void run(() => deleteRecord(record.recordId));
   };
 
@@ -167,47 +169,47 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
           <section key={list.key} className="wk-rec" aria-label={list.label}>
             <h3 className="wk-rec-head">{list.label}{live > 0 && <span className="wk-row-side"> · {live}</span>}</h3>
 
-            {records === null ? <Loading label="Wczytywanie wpisów…" /> : mine.length === 0 ? (
-              <p className="wk-empty">Bez wpisów.</p>
+            {records === null ? <Loading label={t('calendarData.records.loading')} /> : mine.length === 0 ? (
+              <p className="wk-empty">{t('calendarData.records.empty')}</p>
             ) : (
               <ol className="wk-rec-list">
                 {mine.map((r, i) => editing?.id === r.recordId ? (
                   <li key={r.recordId} className="wk-rec-row is-editing">
                     <RecordForm list={list} fields={list.fields} draft={editing.draft} people={people} writer busy={busy}
                       onChange={(d) => setEditing({ id: r.recordId, draft: d })}
-                      onSubmit={() => void saveEdit(list, r, editing.draft)} onCancel={() => setEditing(null)} submit="Zapisz" />
+                      onSubmit={() => void saveEdit(list, r, editing.draft)} onCancel={() => setEditing(null)} submit={t('common.save')} />
                   </li>
                 ) : (
                   <li key={r.recordId} className={`wk-rec-row is-${r.status}`}>
                     <div className="wk-rec-main">
-                      <span className="wk-rec-text">{r.textPublic || (list.itemLabel ?? 'wpis')}</span>
+                      <span className="wk-rec-text">{r.textPublic || (list.itemLabel ?? t('calendarData.records.entry'))}</span>
                       <span className="wk-rec-meta">
                         {r.mode !== null && <span>{list.modes?.find((m) => m.value === r.mode)?.label ?? r.mode}</span>}
-                        {r.roleId !== null && list.person !== undefined && <span>{list.person}: {r.roleId === me.person.id ? 'Ty' : nameOfPinned(me, people, r.roleId)}</span>}
+                        {r.roleId !== null && list.person !== undefined && <span>{list.person}: {r.roleId === me.person.id ? t('calendarData.records.you') : nameOfPinned(me, people, r.roleId)}</span>}
                         {list.fields.filter((f) => r.values.has(f.key)).map((f) => (
                           <span key={f.key}>{f.label}: <SchemeValue field={f} text={shownValue(f, r.values.get(f.key)!.text)} /></span>
                         ))}
-                        {r.origin === 'rule' && <span>z reguły</span>}
+                        {r.origin === 'rule' && <span>{t('calendarData.records.fromRule')}</span>}
                         {r.status !== 'accepted' && <span className={`wk-rec-status is-${r.status}`}>{statusWord(list.key, r.status)}</span>}
                       </span>
                     </div>
                     {writer ? (
                       <div className="wk-rec-acts">
-                        <button type="button" className="wk-link-btn" disabled={busy || i === 0} aria-label="Wyżej" onClick={() => void move(list, r, -1)}>↑</button>
-                        <button type="button" className="wk-link-btn" disabled={busy || i === mine.length - 1} aria-label="Niżej" onClick={() => void move(list, r, 1)}>↓</button>
-                        {r.status === 'waiting' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'accepted')}>Przyjmij</button>}
-                        {r.status === 'waiting' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'declined')}>Odrzuć</button>}
-                        {r.status === 'accepted' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'celebrated')}>{list.key === 'intencje' ? 'Odprawiona' : 'Odbyty'}</button>}
+                        <button type="button" className="wk-link-btn" disabled={busy || i === 0} aria-label={t('calendarData.schemeEditor.up')} onClick={() => void move(list, r, -1)}>↑</button>
+                        <button type="button" className="wk-link-btn" disabled={busy || i === mine.length - 1} aria-label={t('calendarData.schemeEditor.down')} onClick={() => void move(list, r, 1)}>↓</button>
+                        {r.status === 'waiting' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'accepted')}>{t('calendarData.records.accept')}</button>}
+                        {r.status === 'waiting' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'declined')}>{t('calendarData.records.decline')}</button>}
+                        {r.status === 'accepted' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'celebrated')}>{list.key === 'intencje' ? t('calendarData.records.celebrated') : t('calendarData.records.held')}</button>}
                         {(r.status === 'celebrated' || r.status === 'cancelled' || r.status === 'declined') && (
-                          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'accepted')}>Przywróć</button>
+                          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'accepted')}>{t('calendarData.records.restore')}</button>
                         )}
-                        {r.status === 'accepted' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'cancelled')}>Wycofaj</button>}
-                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setEditing({ id: r.recordId, draft: draftOfRecord(r) })}>Zmień</button>
-                        {r.status !== 'celebrated' && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove(r)}>Usuń</button>}
+                        {r.status === 'accepted' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setStatus(list, r, 'cancelled')}>{t('calendarData.records.withdraw')}</button>}
+                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setEditing({ id: r.recordId, draft: draftOfRecord(r) })}>{t('common.change')}</button>
+                        {r.status !== 'celebrated' && <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove(r)}>{t('common.delete')}</button>}
                       </div>
                     ) : r.mine && (r.status === 'waiting' || r.status === 'accepted') ? (
                       <div className="wk-rec-acts">
-                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => updateRecord(me.ring, r, null, { status: 'cancelled' }))}>Wycofaj</button>
+                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => updateRecord(me.ring, r, null, { status: 'cancelled' }))}>{t('calendarData.records.withdraw')}</button>
                       </div>
                     ) : null}
                   </li>
@@ -218,12 +220,12 @@ export function RecordsPanel({ me, item, start, calendar, lists, writer, onChang
             {(writer || list.outside === true) && item.occurrence.status !== 'cancelled' && (
               <RecordForm list={list} fields={fieldsHere} draft={draft} people={people} writer={writer} busy={busy}
                 onChange={(d) => setAdding((was) => ({ ...was, [list.key]: d }))}
-                onSubmit={() => void add(list)} submit={writer ? 'Dodaj' : 'Zgłoś'} />
+                onSubmit={() => void add(list)} submit={writer ? t('common.add') : t('calendarData.records.submit')} />
             )}
 
             {list.key === 'intencje' && writer && calendar !== undefined && (
               <a className="wk-link wk-rec-office" href={viewPath('masses', calendar.calendarId, dayKey(start.toISOString()), o.itemId)}>
-                Otwórz w „Msze i nabożeństwa”
+                {t('calendarData.records.openMasses')}
               </a>
             )}
           </section>
@@ -246,6 +248,7 @@ function RecordForm({ list, fields, draft, people, writer, busy, onChange, onSub
   onCancel?: () => void;
   submit: string;
 }) {
+  const t = useT();
   /* Leer ist ein Eintrag ohne alles: ein gewählter Rodzaj („będę") reicht, und wer sich von aussen
      in eine Liste mit Person einträgt, ist selbst der Inhalt. */
   const empty = draft.mode === ''
@@ -255,7 +258,7 @@ function RecordForm({ list, fields, draft, people, writer, busy, onChange, onSub
   return (
     <form className="wk-rec-form" onSubmit={(e) => { e.preventDefault(); if (!empty) onSubmit(); }}>
       {list.modes !== undefined && list.modes.length > 0 && (
-        <div className="wk-seg" role="group" aria-label="Rodzaj">
+        <div className="wk-seg" role="group" aria-label={t('calendarData.records.mode')}>
           {list.modes.map((m) => (
             <button key={m.value} type="button" aria-pressed={draft.mode === m.value}
               className={draft.mode === m.value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
@@ -281,8 +284,8 @@ function RecordForm({ list, fields, draft, people, writer, busy, onChange, onSub
         </label>
       ))}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn wk-btn-small" disabled={busy || empty}>{busy ? 'Zapisywanie…' : submit}</button>
-        {onCancel !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>Anuluj</button>}
+        <button type="submit" className="wk-btn wk-btn-small" disabled={busy || empty}>{busy ? t('common.saving') : submit}</button>
+        {onCancel !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>{t('common.cancel')}</button>}
       </div>
     </form>
   );

@@ -24,6 +24,7 @@
  */
 
 import { levelOfKnowness } from './knowness';
+import { t, texts } from '../core/i18n';
 
 /* -- Werte, Vergleich, Tore — für alle ------------------------------------------- */
 
@@ -32,10 +33,11 @@ export type Value = string | boolean;
 export const COMPARE_OPS = ['eq', 'ne', 'gt', 'ge', 'lt', 'le', 'contains', 'filled', 'empty'] as const;
 export type CompareOp = (typeof COMPARE_OPS)[number];
 
-export const COMPARE_LABEL: Record<CompareOp, string> = {
-  eq: '=', ne: '≠', gt: '>', ge: '≥', lt: '<', le: '≤',
-  contains: 'zawiera', filled: 'wypełnione', empty: 'puste'
-};
+export const COMPARE_LABEL: Readonly<Record<CompareOp, string>> = texts({
+  eq: 'cogitaData.logic.compare.eq', ne: 'cogitaData.logic.compare.ne', gt: 'cogitaData.logic.compare.gt', ge: 'cogitaData.logic.compare.ge',
+  lt: 'cogitaData.logic.compare.lt', le: 'cogitaData.logic.compare.le',
+  contains: 'cogitaData.logic.compare.contains', filled: 'cogitaData.logic.compare.filled', empty: 'cogitaData.logic.compare.empty'
+});
 
 /** Die Vergleiche, die nur EINEN Eingang brauchen. */
 export const UNARY: readonly CompareOp[] = ['filled', 'empty'];
@@ -142,32 +144,32 @@ export interface Facts {
 export const RELATIONS = ['self', 'cards', 'before', 'up', 'chain', 'core'] as const;
 export type Relation = (typeof RELATIONS)[number];
 
-export const RELATION_LABEL: Record<Relation, string> = {
-  self: 'ten wpis',
-  cards: 'jego karty',
-  before: 'to, co trzeba znać wcześniej',
-  up: 'to, pod czym leży w strukturze',
+export const RELATION_LABEL: Readonly<Record<Relation, string>> = texts({
+  self: 'cogitaData.logic.relation.self',
+  cards: 'cogitaData.logic.relation.cards',
+  before: 'cogitaData.logic.relation.before',
+  up: 'cogitaData.logic.relation.up',
   /*
    * 2026-11-03 — DIE GANZE KETTE DAVOR (Krajobraz, `knowing.ts`): die schon beantworteten Karten aller Einträge, die
    * (über Stufen, auch durch Einträge ohne Karten und durch Kreise) vorher zu können sind. Nie gefragte zählen nicht.
    * „Każda znana" — die Sperre des Krajobraz: erst wiederholen, was in der Kette verblasst oder falsch war.
    */
-  chain: 'już pytane karty całej drogi przed nim',
+  chain: 'cogitaData.logic.relation.chain',
   /* 2026-11-05 (Prompt 23, C3) — die Kernfragen (`"core": true`) des Themas (bei einer Karte: der Themen ihres „O czym"). */
-  core: 'pytania kluczowe tematu'
-};
+  core: 'cogitaData.logic.relation.core'
+});
 
 /** Eine Beziehung in Worten — `field`: der Name eines Feldes. */
 export function relationText(rel: string, each: 'all' | 'any' | undefined, field: (key: string) => string = (key) => key): string {
-  const any = each === 'any';
+  const how = each === 'any' ? 'any' : 'all';
   switch (rel) {
-    case 'self': return 'tego wpisu';
-    case 'cards': return any ? 'którejś z jego kart' : 'każdej z jego kart';
-    case 'before': return any ? 'czegoś z tego, co trzeba znać wcześniej' : 'tego, co trzeba znać wcześniej';
-    case 'up': return any ? 'czegoś, pod czym leży' : 'tego, pod czym leży';
-    case 'chain': return any ? 'którejś z już pytanych kart całej drogi przed nim' : 'każdej już pytanej karty całej drogi przed nim';
-    case 'core': return any ? 'któregoś z pytań kluczowych tematu' : 'każdego pytania kluczowego tematu';
-    default: return `${any ? 'czegoś, na co wskazuje' : 'tego, na co wskazuje'} pole „${field(rel)}”`;
+    case 'self': return t('cogitaData.logic.of.self');
+    case 'cards':
+    case 'before':
+    case 'up':
+    case 'chain':
+    case 'core': return t(`cogitaData.logic.of.${rel}.${how}`);
+    default: return t(`cogitaData.logic.of.field.${how}`, { field: field(rel) });
   }
 }
 
@@ -179,12 +181,12 @@ export function relationText(rel: string, each: 'all' | 'any' | undefined, field
 export const KNOWNESS_BANDS = ['learned', 'known', 'due', 'unknown'] as const;
 export type KnownessBand = (typeof KNOWNESS_BANDS)[number];
 
-export const KNOWNESS_BAND_LABEL: Record<KnownessBand, string> = {
-  learned: 'poznane (do powtórki albo znane)',
-  known: 'znane',
-  due: 'do powtórki',
-  unknown: 'nieznane'
-};
+export const KNOWNESS_BAND_LABEL: Readonly<Record<KnownessBand, string>> = texts({
+  learned: 'cogitaData.logic.band.learned',
+  known: 'cogitaData.logic.band.known',
+  due: 'cogitaData.logic.band.due',
+  unknown: 'cogitaData.logic.band.unknown'
+});
 
 /** Liegt eine Kenntnis in dem Band? */
 export function inBand(knowness: number, band: KnownessBand): boolean {
@@ -204,10 +206,12 @@ export const NO_FACTS: Facts = {
 export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
 export type ConditionType = (typeof CONDITION_TYPES)[number];
 
-export const CONDITION_LABEL: Record<ConditionType, string> = {
-  value: 'Wartość', knowness: 'Znajomość', answered: 'Odpowiedź', visited: 'Odwiedzone', flow: 'Przebieg',
-  time: 'Czas', place: 'Miejsce', zone: 'Strefa', and: 'I', or: 'LUB', not: 'NIE', xor: 'ALBO'
-};
+export const CONDITION_LABEL: Readonly<Record<ConditionType, string>> = texts({
+  value: 'cogitaData.logic.condition.value', knowness: 'cogitaData.logic.condition.knowness', answered: 'cogitaData.logic.condition.answered',
+  visited: 'cogitaData.logic.condition.visited', flow: 'cogitaData.logic.condition.flow', time: 'cogitaData.logic.condition.time',
+  place: 'cogitaData.logic.condition.place', zone: 'cogitaData.logic.condition.zone', and: 'cogitaData.logic.condition.and',
+  or: 'cogitaData.logic.condition.or', not: 'cogitaData.logic.condition.not', xor: 'cogitaData.logic.condition.xor'
+});
 
 /** 2026-11-03 (G) — was über eine Erzählung bekannt ist: begonnen, zu Ende (ein Ende erreicht), welche Ziele erreicht. */
 export interface FlowFacts {
@@ -219,7 +223,7 @@ export interface FlowFacts {
 /** 2026-11-03 (G) — was eine Bedingung „Przebieg" prüft: begonnen, zu Ende, ein Ziel (ohne `goal`: irgendeins) erreicht. */
 export const FLOW_CHECKS = ['started', 'done', 'goal'] as const;
 export type FlowCheck = (typeof FLOW_CHECKS)[number];
-export const FLOW_CHECK_LABEL: Record<FlowCheck, string> = { started: 'rozpoczęty', done: 'ukończony', goal: 'cel osiągnięty' };
+export const FLOW_CHECK_LABEL: Readonly<Record<FlowCheck, string>> = texts({ started: 'cogitaData.logic.flowCheck.started', done: 'cogitaData.logic.flowCheck.done', goal: 'cogitaData.logic.flowCheck.goal' });
 
 /**
  * EINE BEDINGUNG als kleiner Baum — so steht sie in einem Ablauf, an einer
@@ -335,19 +339,21 @@ const minutesOf = (hhmm: string | undefined): number | null => {
 export function conditionText(c: Condition, name: (id: string) => string = (id) => id, field: (key: string) => string = (key) => key): string {
   const op = c.op === undefined ? '≥' : COMPARE_LABEL[c.op];
   switch (c.type) {
-    case 'value': return `wartość „${c.value ?? '?'}" ${op} ${c.than ?? 0}`;
+    case 'value': return t('cogitaData.logic.text.value', { value: c.value ?? '?', op, than: c.than ?? 0 });
     case 'knowness': {
-      const who = c.rel !== undefined ? relationText(c.rel, c.each, field) : `„${name(c.of ?? '')}"`;
-      return c.band !== undefined ? `znajomość ${who}: ${KNOWNESS_BAND_LABEL[c.band]}` : `znajomość ${who} ${op} ${c.than ?? 1}`;
+      const who = c.rel !== undefined ? relationText(c.rel, c.each, field) : t('cogitaData.logic.text.quoted', { name: name(c.of ?? '') });
+      return c.band !== undefined ? t('cogitaData.logic.text.knownessBand', { who, band: KNOWNESS_BAND_LABEL[c.band] }) : t('cogitaData.logic.text.knowness', { who, op, than: c.than ?? 1 });
     }
-    case 'answered': return c.correct === true ? `dobrze odpowiedziano na „${name(c.of ?? '')}"` : c.correct === false ? `źle odpowiedziano na „${name(c.of ?? '')}"` : `odpowiedziano na „${name(c.of ?? '')}"`;
-    case 'visited': return `widziano krok „${name(c.of ?? '')}"`;
-    case 'flow': return c.state === 'goal' ? (c.goal === undefined ? `w przebiegu „${name(c.flow ?? '')}" osiągnięto cel` : `w przebiegu „${name(c.flow ?? '')}" osiągnięto cel „${c.goal}"`) : `przebieg „${name(c.flow ?? '')}" ${FLOW_CHECK_LABEL[c.state ?? 'done']}`;
-    case 'time': return ['czas', c.after === undefined ? '' : `od ${c.after}`, c.before === undefined ? '' : `do ${c.before}`, c.from === undefined ? '' : `godz. ${c.from}–${c.to ?? '24:00'}`].filter(Boolean).join(' ');
-    case 'place': return `w promieniu ${c.radius ?? 50} m od ${c.lat ?? '?'}, ${c.lon ?? '?'}`;
-    case 'zone': return `w strefie „${name(c.of ?? '')}"`;
-    case 'not': return `NIE (${c.items?.[0] === undefined ? '…' : conditionText(c.items[0], name, field)})`;
-    default: return (c.items ?? []).map((i) => `(${conditionText(i, name, field)})`).join(c.type === 'and' ? ' I ' : c.type === 'or' ? ' LUB ' : ' ALBO ') || CONDITION_LABEL[c.type];
+    case 'answered': return t(c.correct === true ? 'cogitaData.logic.text.answeredRight' : c.correct === false ? 'cogitaData.logic.text.answeredWrong' : 'cogitaData.logic.text.answered', { name: name(c.of ?? '') });
+    case 'visited': return t('cogitaData.logic.text.visited', { name: name(c.of ?? '') });
+    case 'flow': return c.state === 'goal'
+      ? (c.goal === undefined ? t('cogitaData.logic.text.flowGoal', { name: name(c.flow ?? '') }) : t('cogitaData.logic.text.flowGoalNamed', { name: name(c.flow ?? ''), goal: c.goal }))
+      : t('cogitaData.logic.text.flowState', { name: name(c.flow ?? ''), state: FLOW_CHECK_LABEL[c.state ?? 'done'] });
+    case 'time': return [t('cogitaData.logic.text.time'), c.after === undefined ? '' : t('cogitaData.logic.text.timeAfter', { at: c.after }), c.before === undefined ? '' : t('cogitaData.logic.text.timeBefore', { at: c.before }), c.from === undefined ? '' : t('cogitaData.logic.text.timeHours', { from: c.from, to: c.to ?? '24:00' })].filter(Boolean).join(' ');
+    case 'place': return t('cogitaData.logic.text.place', { radius: c.radius ?? 50, lat: c.lat ?? '?', lon: c.lon ?? '?' });
+    case 'zone': return t('cogitaData.logic.text.zone', { name: name(c.of ?? '') });
+    case 'not': return t('cogitaData.logic.text.not', { inner: c.items?.[0] === undefined ? '…' : conditionText(c.items[0], name, field) });
+    default: return (c.items ?? []).map((i) => `(${conditionText(i, name, field)})`).join(` ${CONDITION_LABEL[c.type]} `) || CONDITION_LABEL[c.type];
   }
 }
 

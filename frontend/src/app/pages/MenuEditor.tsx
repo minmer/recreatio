@@ -31,6 +31,7 @@ import { imageUrl } from './slides/slideLook';
 import { WorkspaceError } from '../core/session';
 import { askText, toast } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { rich, useT } from '../core/i18n';
 
 interface Draft {
   readonly id: number;
@@ -91,13 +92,14 @@ const at = (list: readonly Draft[], path: Path): Draft | undefined =>
 const depthOf = (draft: Draft): number => 1 + Math.max(0, ...draft.children.map(depthOf));
 
 const KINDS: readonly { value: MenuItem['kind']; label: string; hint: string }[] = [
-  { value: 'rel', label: 'Względem tej strony', hint: 'np. oaza, ./terminy, ../kontakt' },
-  { value: 'abs', label: 'Strona w serwisie', hint: 'np. parish/grzegorzki/oaza' },
-  { value: 'url', label: 'Adres zewnętrzny', hint: 'https://…, mailto:…, tel:…' },
-  { value: 'none', label: 'Tylko nagłówek', hint: '' }
+  { value: 'rel', label: 'pagesMenu.kind.rel', hint: 'pagesMenu.hint.rel' },
+  { value: 'abs', label: 'pagesMenu.kind.abs', hint: 'pagesMenu.hint.abs' },
+  { value: 'url', label: 'pagesMenu.kind.url', hint: 'pagesMenu.hint.url' },
+  { value: 'none', label: 'pagesMenu.kind.none', hint: '' }
 ];
 
 export function MenuEditor({ path }: { path: string }) {
+  const t = useT();
   const [items, setItems] = useState<Draft[] | null>(null);
   const [own, setOwn] = useState(false);
   const [uses, setUses] = useState<{ from: string; items: readonly MenuItem[] | null } | null>(null);
@@ -121,13 +123,13 @@ export function MenuEditor({ path }: { path: string }) {
       setFailed(null);
     } catch (e) {
       setItems([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać menu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesMenu.loadFailed'));
     }
   }, [path]);
 
   useEffect(() => { void look(); }, [look]);
 
-  if (items === null) return <Loading label="Wczytywanie menu…" />;
+  if (items === null) return <Loading label={t('pagesMenu.loading')} />;
 
   const change = (next: Draft[]) => { setItems(next); setDirty(true); };
 
@@ -137,9 +139,9 @@ export function MenuEditor({ path }: { path: string }) {
     try {
       await saveMenu(path, toItems(items));
       await look();
-      toast('Menu zapisane.', { kind: 'ok' });
+      toast(t('pagesMenu.saved'), { kind: 'ok' });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać menu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesMenu.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -152,9 +154,9 @@ export function MenuEditor({ path }: { path: string }) {
     try {
       await adoptMenuOf(path, from);
       await look();
-      toast('Menu zapisane.', { kind: 'ok' });
+      toast(t('pagesMenu.saved'), { kind: 'ok' });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wziąć tego menu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesMenu.takeFailed'));
     } finally {
       setBusy(false);
     }
@@ -168,7 +170,7 @@ export function MenuEditor({ path }: { path: string }) {
       await saveMenu(path, []);
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć menu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pagesMenu.releaseFailed'));
     } finally {
       setBusy(false);
     }
@@ -188,33 +190,33 @@ export function MenuEditor({ path }: { path: string }) {
         <div className="wk-menued-row" style={{ paddingLeft: `${(depth - 1) * 1.5}rem` }}>
           {/* 2026-10-21 — ein Logo statt des Namens: das Bildchen öffnet die Auswahl. */}
           <button type="button" className={`wk-menued-btn wk-menued-logo${image === null ? '' : ' is-set'}`}
-            aria-label={image === null ? 'Obraz zamiast nazwy (logo)' : 'Zmień obraz pozycji'} aria-expanded={picking === draft.id}
-            title={image === null ? 'Obraz zamiast nazwy (logo)' : 'Obraz zamiast nazwy — zmień albo usuń'}
+            aria-label={t(image === null ? 'pagesMenu.imageInstead' : 'pagesMenu.imageChange')} aria-expanded={picking === draft.id}
+            title={t(image === null ? 'pagesMenu.imageInstead' : 'pagesMenu.imageChangeTitle')}
             onClick={() => setPicking(picking === draft.id ? null : draft.id)}>
             {image === null ? '▣' : <img src={imageUrl(image)} alt="" />}
           </button>
-          <input className="wk-menued-label" value={draft.label} placeholder={image === null ? 'Nazwa' : 'Nazwa (opis obrazu)'} aria-label="Nazwa pozycji" maxLength={80}
+          <input className="wk-menued-label" value={draft.label} placeholder={t(image === null ? 'pagesMenu.name' : 'pagesMenu.nameImage')} aria-label={t('pagesMenu.nameAria')} maxLength={80}
             onChange={(e) => set({ label: e.target.value })} />
-          <select value={draft.kind} aria-label="Rodzaj celu" onChange={(e) => set({ kind: e.target.value as MenuItem['kind'] })}>
-            {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+          <select value={draft.kind} aria-label={t('pagesMenu.targetKind')} onChange={(e) => set({ kind: e.target.value as MenuItem['kind'] })}>
+            {KINDS.map((k) => <option key={k.value} value={k.value}>{t(k.label)}</option>)}
           </select>
           {draft.kind !== 'none' && (
-            <input className="wk-menued-target" value={draft.target} placeholder={kind.hint} aria-label="Cel" maxLength={400}
+            <input className="wk-menued-target" value={draft.target} placeholder={kind.hint === '' ? '' : t(kind.hint)} aria-label={t('pagesMenu.target')} maxLength={400}
               onChange={(e) => set({ target: e.target.value })} />
           )}
           <span className="wk-menued-tools">
-            <button type="button" className="wk-menued-btn" aria-label="W górę" disabled={index === 0}
+            <button type="button" className="wk-menued-btn" aria-label={t('pagesMenu.up')} disabled={index === 0}
               onClick={() => change(update(items, where, (list, i) => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; return list; }))}>↑</button>
-            <button type="button" className="wk-menued-btn" aria-label="W dół" disabled={index === siblings.length - 1}
+            <button type="button" className="wk-menued-btn" aria-label={t('pagesMenu.down')} disabled={index === siblings.length - 1}
               onClick={() => change(update(items, where, (list, i) => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; return list; }))}>↓</button>
-            <button type="button" className="wk-menued-btn" aria-label="Wsuń pod poprzednią pozycję"
+            <button type="button" className="wk-menued-btn" aria-label={t('pagesMenu.indent')}
               disabled={index === 0 || depth + depthOf(draft) - 1 >= MAX_DEPTH}
               onClick={() => change(update(items, where, (list, i) => {
                 const [moved] = list.splice(i, 1);
                 list[i - 1] = { ...list[i - 1], children: [...list[i - 1].children, moved] };
                 return list;
               }))}>→</button>
-            <button type="button" className="wk-menued-btn" aria-label="Wysuń poziom wyżej" disabled={where.length === 1}
+            <button type="button" className="wk-menued-btn" aria-label={t('pagesMenu.outdent')} disabled={where.length === 1}
               onClick={() => {
                 const parentPath = where.slice(0, -1);
                 let moved: Draft | null = null;
@@ -222,9 +224,9 @@ export function MenuEditor({ path }: { path: string }) {
                 next = update(next, parentPath, (list, i) => { list.splice(i + 1, 0, moved!); return list; });
                 change(next);
               }}>←</button>
-            <button type="button" className="wk-menued-btn" aria-label="Dodaj podpozycję" disabled={depth >= MAX_DEPTH}
+            <button type="button" className="wk-menued-btn" aria-label={t('pagesMenu.addChild')} disabled={depth >= MAX_DEPTH}
               onClick={() => set({ children: [...draft.children, blank()] })}>+</button>
-            <button type="button" className="wk-menued-btn wk-danger" aria-label="Usuń pozycję"
+            <button type="button" className="wk-menued-btn wk-danger" aria-label={t('pagesMenu.removeItem')}
               onClick={() => change(update(items, where, (list, i) => { list.splice(i, 1); return list; }))}>×</button>
           </span>
           {href !== null && draft.target.trim() !== '' && (
@@ -236,13 +238,13 @@ export function MenuEditor({ path }: { path: string }) {
           <div className={`wk-menued-image is-depth-${depth}`}>
             <ImagePicker path={path} value={draft.image} busy={busy} onPick={(url) => set({ image: url })} />
             <label className="se-inline">
-              <span>Adres obrazu</span>
-              <input value={draft.image} maxLength={400} placeholder="wybierz powyżej albo /logo.svg, https://…" aria-invalid={draft.image.trim() !== '' && image === null}
+              <span>{t('pagesMenu.imageAddress')}</span>
+              <input value={draft.image} maxLength={400} placeholder={t('pagesMenu.imagePlaceholder')} aria-invalid={draft.image.trim() !== '' && image === null}
                 onChange={(e) => set({ image: e.target.value })} />
             </label>
             <div className="wk-actions">
-              {draft.image !== '' && <button type="button" className="wk-link-btn" onClick={() => set({ image: '' })}>Bez obrazu — sama nazwa</button>}
-              <button type="button" className="wk-link-btn" onClick={() => setPicking(null)}>Gotowe</button>
+              {draft.image !== '' && <button type="button" className="wk-link-btn" onClick={() => set({ image: '' })}>{t('pagesMenu.noImage')}</button>}
+              <button type="button" className="wk-link-btn" onClick={() => setPicking(null)}>{t('pagesMenu.done')}</button>
             </div>
           </div>
         )}
@@ -261,10 +263,9 @@ export function MenuEditor({ path }: { path: string }) {
       {uses !== null ? (
         <div className="wk-menued-source">
           <p className="wk-note">
-            To menu jest ze strony <code>{shownPath(uses.from)}</code>
-            {uses.items === null
-              ? <> — a tamta strona nie ma już własnego menu, więc tutaj nie pokazuje się nic.</>
-              : <> ({uses.items.length} poz.). Zmiany tam pokazują się także tutaj.</>}
+            {rich(uses.items === null
+              ? t('pagesMenu.fromGone', { page: shownPath(uses.from) })
+              : t('pagesMenu.fromPage', { page: shownPath(uses.from), count: uses.items.length }), { code: (s, k) => <code key={k}>{s}</code> })}
           </p>
 
           {uses.items !== null && (
@@ -277,44 +278,39 @@ export function MenuEditor({ path }: { path: string }) {
             {uses.items !== null && (
               <button type="button" className="wk-link-btn" disabled={busy}
                 onClick={() => change(toDraft(absolutise(uses.items!, uses.from)))}>
-                Skopiuj je tutaj i zmień
+                {t('pagesMenu.copyHere')}
               </button>
             )}
             <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void release()}>
-              Odłącz
+              {t('pagesMenu.release')}
             </button>
           </div>
         </div>
       ) : !own && items.length === 0 ? (
         <div className="wk-menued-source">
-          <p className="wk-hint">
-            Ta strona nie ma menu — i nie dostaje go sama od strony wyżej. Dodaj pozycje albo użyj menu innej strony.
-          </p>
+          <p className="wk-hint">{t('pagesMenu.none')}</p>
 
           {/* 0058 — die Seite darüber hat eines: als Vorschlag, nicht von selbst. */}
           {inherited !== null && (
             <div className="wk-actions">
               <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void take(pickPath(inherited.from))}>
-                Użyj menu strony {shownPath(inherited.from)}
+                {t('pagesMenu.useParent', { page: shownPath(inherited.from) })}
               </button>
-              <span className="wk-hint">({inherited.items.length} poz.; zmiany tam pokażą się także tutaj)</span>
+              <span className="wk-hint">{t('pagesMenu.useParentHint', { count: inherited.items.length })}</span>
             </div>
           )}
 
           {/* Ein Menü, das es schon gibt, statt eines zweiten daneben. */}
           {usable.length > 0 && (
             <label className="wk-field">
-              <span>Albo weź menu z innej swojej strony</span>
+              <span>{t('pagesMenu.takeOther')}</span>
               <select value="" disabled={busy} onChange={(e) => { if (e.target.value !== '') void take(e.target.value); }}>
-                <option value="">— wybierz stronę —</option>
+                <option value="">{t('pages.pick.choose')}</option>
                 {usable.map((one) => (
-                  <option key={one.path} value={pickPath(one.path)}>{shownPath(one.path)} ({one.items} poz.)</option>
+                  <option key={one.path} value={pickPath(one.path)}>{t('pagesMenu.pageOption', { page: shownPath(one.path), count: one.items })}</option>
                 ))}
               </select>
-              <span className="wk-hint">
-                Ta sama belka na obu stronach: co dopiszesz tam, pojawi się i tutaj. Ścieżki względne liczą się
-                dalej od tamtej strony.
-              </span>
+              <span className="wk-hint">{t('pagesMenu.takeOtherHint')}</span>
             </label>
           )}
         </div>
@@ -324,36 +320,29 @@ export function MenuEditor({ path }: { path: string }) {
            niemand davon — die Auswahl steht auf der ANDEREN Seite, und wer
            dieses Menü gebaut hat, kommt dort nie vorbei.
         */
-        <p className="wk-hint">
-          To menu może pokazywać także inna Twoja strona — wybiera je u siebie, w swoim edytorze menu.
-          Żeby zamiast tego wziąć menu skądinąd, usuń najpierw to.
-        </p>
+        <p className="wk-hint">{t('pagesMenu.shareable')}</p>
       )}
 
       {items.length > 0 && <ul className="wk-menued-list">{items.map((one, i) => row(one, [i], 1))}</ul>}
 
-      <p className="wk-hint">
-        Ścieżka względna liczy się od tej strony (<code>{path}</code>): „oaza" to <code>{path}/oaza</code>, „../" to strona wyżej.
-        Menu pokazuje się tylko na tej stronie — podstrony go same nie dostają. Inne Twoje strony (także podstrony)
-        mogą je u siebie wybrać w swoim edytorze menu; wtedy wszystkie pokazują to samo.
-      </p>
+      <p className="wk-hint">{rich(t('pagesMenu.pathsHint', { path }), { code: (s, k) => <code key={k}>{s}</code> })}</p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => change([...items, blank()])}>+ Pozycja</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => change([...items, blank()])}>{t('pagesMenu.addItem')}</button>
         {!own && inherited !== null && items.length === 0 && (
           <button type="button" className="wk-link-btn" onClick={() => change(toDraft(absolutise(inherited.items, inherited.from)))}>
-            Skopiuj menu strony wyżej i zmień
+            {t('pagesMenu.copyParent')}
           </button>
         )}
         <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>
-          {busy ? 'Zapisywanie…' : 'Zapisz menu'}
+          {busy ? t('pages.editor.saving') : t('pagesMenu.save')}
         </button>
         {own && (
           <button type="button" className="wk-link-btn wk-danger" disabled={busy}
-            onClick={async () => { if (await askText('Usunąć własne menu tej strony?')) { setItems([]); setDirty(true); void saveMenu(path, []).then(look); } }}>
-            Usuń menu
+            onClick={async () => { if (await askText(t('pagesMenu.removeAsk'))) { setItems([]); setDirty(true); void saveMenu(path, []).then(look); } }}>
+            {t('pagesMenu.remove')}
           </button>
         )}
       </div>

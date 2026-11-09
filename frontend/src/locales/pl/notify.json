@@ -1,0 +1,113 @@
+{
+  "ring": {
+    "newMessage": "Nowa wiadomość",
+    "newMessages": "Nowe wiadomości: {count}",
+    "moreElsewhere": "{chat} · i {count} w innych rozmowach",
+    "newEntry": "Nowe zgłoszenie",
+    "newEntries": "Nowe zgłoszenia: {count}",
+    "someoneFilled": "Ktoś wypełnił formularz.",
+    "joined": "Ktoś dołączył przez link",
+    "joinedBody": "Zobacz linki dostępu w Obszarach.",
+    "learn": "Powtórka czeka",
+    "learnBody": {
+      "one": "{count} karta do powtórzenia",
+      "few": "{count} kart do powtórzenia",
+      "many": "{count} kart do powtórzenia",
+      "other": "{count} kart do powtórzenia"
+    }
+  },
+  "chat": {
+    "seat": "Rozmowa z: {name}",
+    "channel": "Kanał: {name}",
+    "self": "Notatki",
+    "formPerson": "osobą z formularza"
+  },
+  "deviceLabel": "Telefon (aplikacja)",
+  "line": {
+    "cannotOpen": "Wiadomość, której to urządzenie nie może otworzyć",
+    "photo": "Zdjęcie",
+    "voice": "Wiadomość głosowa",
+    "video": "Film",
+    "file": "Plik: {name}",
+    "withFiles": "{text} (załączniki: {count})",
+    "empty": "Pusta wiadomość",
+    "forwarded": "Przekazane: {text}"
+  },
+  "renewFailed": "Nie udało się przedłużyć dostępu.",
+  "reminder": {
+    "start": "Czas zacząć",
+    "middle": "Połowa czasu minęła",
+    "end": "Zbliża się koniec",
+    "task": "Zadanie"
+  },
+  "reply": {
+    "session": "Sesja wygasła — otwórz aplikację i zaloguj się.",
+    "noKey": "Klucz nie jest zachowany na tym urządzeniu — odpowiedz w aplikacji.",
+    "empty": "Pusta odpowiedź.",
+    "you": "Ty",
+    "needPerson": "Do rozmowy potrzebna jest osoba — załóż ją w aplikacji.",
+    "readOnly": "W tej rozmowie tylko czytasz.",
+    "noPerson": "Konto nie prowadzi jeszcze żadnej osoby."
+  },
+  "look": {
+    "title": "Powiadomienia",
+    "waiting": "Co czeka na Ciebie",
+    "waitingHint": "Co pokazuje dzwonek i strona Teraz — w tej kolejności. Wyłączone nie liczą się do liczby przy dzwonku.",
+    "device": "Na tym urządzeniu"
+  },
+  "bell": {
+    "labelNew": "Powiadomienia: {count} nowych",
+    "checking": "Sprawdzanie…",
+    "nothing": "Nic nowego — wszystko przejrzane.",
+    "markAll": "Oznacz wszystko jako przejrzane",
+    "settings": "Ustawienia"
+  },
+  "push": {
+    "notBuilt": "Natychmiastowe powiadomienia: ta wersja aplikacji ich nie obsługuje — nowości przychodzą przy sprawdzaniu w tle.",
+    "notServer": "Natychmiastowe powiadomienia: serwer jeszcze ich nie wysyła — nowości przychodzą przy sprawdzaniu w tle.",
+    "notPhone": "Natychmiastowe powiadomienia: telefon jeszcze się nie zgłosił (potrzebny internet i usługi Google). Spróbuj ponownie uruchomić aplikację.",
+    "lastError": "Ostatni błąd: {error}.",
+    "on": "Natychmiastowe powiadomienia: włączone — nowa wiadomość budzi telefon od razu; sprawdzanie w tle to tylko zabezpieczenie."
+  },
+  "background": {
+    "m0": "nigdy",
+    "m15": "co 15 min (więcej baterii)",
+    "m30": "co 30 min",
+    "m60": "co godzinę",
+    "m180": "co 3 godziny (najmniej baterii)"
+  },
+  "content": {
+    "notKept": "Gdy aplikacja jest otwarta, treść widać zawsze. Żeby widzieć ją i odpowiadać także przy zamkniętej aplikacji, włącz Konto → Klucz: Zachowany na tym telefonie. Bez tego przy zamkniętej aplikacji przychodzi tylko liczba nowości.",
+    "when": "(ostatnio {date})",
+    "session": "Sesja na tym telefonie wygasła — zaloguj się ponownie, żeby treść wracała do powiadomień{when}.",
+    "key": "Telefon nie mógł otworzyć klucza — otwórz aplikację raz z hasłem{when}.",
+    "failed": "Ostatnie otwieranie treści nie powiodło się{when}; spróbujemy przy następnej nowości.",
+    "ok": "Treść jest odszyfrowywana tylko na tym telefonie — Firebase przenosi wyłącznie pusty sygnał. Na odpowiedź z powiadomienia wystarczy wpisać tekst{when}."
+  },
+  "settings": {
+    "backgroundOff": "Sprawdzanie w tle wyłączone.",
+    "saveFailed": "Nie udało się zapisać ustawień urządzenia.",
+    "label": "Ustawienia powiadomień",
+    "denied": "Android nie pozwolił. Włącz powiadomienia dla recreatio w ustawieniach telefonu (Aplikacje → recreatio → Powiadomienia).",
+    "enable": "Włącz powiadomienia na tym urządzeniu",
+    "noBrowser": "Ta przeglądarka nie pokazuje powiadomień — nowości widać w dzwonku.",
+    "about": "Powiadamiaj o",
+    "chats": "nowych wiadomościach",
+    "forms": "nowych zgłoszeniach z formularzy",
+    "links": "dołączeniach przez linki dostępu",
+    "reminders": "przypomnieniach o zadaniach",
+    "contentTitle": "Treść w powiadomieniach",
+    "contents": "pokazuj, kto pisze i co, nazwiska ze zgłoszeń i tytuły zadań — z odpowiedzią prosto z powiadomienia",
+    "lockScreen": "Na zablokowanym ekranie Android pokazuje tylko „Nowa wiadomość\", jeśli tak ustawiono ukrywanie poufnych treści w ustawieniach telefonu.",
+    "whenClosed": "Gdy aplikacja jest zamknięta, sprawdzaj",
+    "phoneHint": "Telefon sprawdza tylko liczby (bez treści), tylko z internetem i gdy bateria nie jest na wyczerpaniu. Przypomnienia o zadaniach przychodzą o czasie także bez tego.",
+    "browserHint": "W przeglądarce: co minutę, gdy karta jest na wierzchu (nowości pokazują się wtedy na stronie), co 5 minut w tle; przy słabej baterii rzadziej. Gdy karta jest zamknięta, powiadomień nie ma — zainstaluj aplikację na telefonie, żeby dostawać je zawsze.",
+    "devices": "Urządzenia, które sprawdzają w tle",
+    "device": "Urządzenie",
+    "thisDevice": "(to urządzenie)",
+    "lastSeen": "ostatnio {when}",
+    "never": "jeszcze nigdy",
+    "push": "od razu (push)",
+    "drop": "Odłącz"
+  }
+}

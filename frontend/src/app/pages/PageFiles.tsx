@@ -16,6 +16,7 @@ import {
 import { WorkspaceError } from '../core/session';
 import { imageUrl } from './slides/slideLook';
 import { askText } from '../ui/dialogs';
+import { useT } from '../core/i18n';
 
 /** Die Dateien einer Seite — einmal geholt, danach von Hand nachgeführt. */
 function usePageFiles(path: string) {
@@ -42,6 +43,7 @@ export function ImagePicker({ path, value, busy, onPick }: {
   busy: boolean;
   onPick: (url: string) => void;
 }) {
+  const t = useT();
   const { files, setFiles } = usePageFiles(path);
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function ImagePicker({ path, value, busy, onPick }: {
       setFiles((was) => [made, ...(was ?? [])]);
       onPick(imageRef(made.id));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wgrać obrazu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.files.imageFailed'));
     } finally {
       setWorking(false);
     }
@@ -69,23 +71,23 @@ export function ImagePicker({ path, value, busy, onPick }: {
           return (
             <span key={one.id} className={`se-thumb${value === ref ? ' is-on' : ''}`}>
               <button type="button" disabled={busy} title={one.name ?? ''} onClick={() => onPick(ref)}
-                style={{ backgroundImage: `url(${JSON.stringify(imageUrl(ref))})` } as CSSProperties} aria-label={`Wybierz ${one.name ?? 'obraz'}`} />
-              <button type="button" className="se-thumb-x" disabled={busy} aria-label="Usuń obraz"
+                style={{ backgroundImage: `url(${JSON.stringify(imageUrl(ref))})` } as CSSProperties} aria-label={t('pages.files.pick', { name: one.name ?? t('pages.files.image') })} />
+              <button type="button" className="se-thumb-x" disabled={busy} aria-label={t('pages.files.removeImage')}
                 onClick={async () => {
-                  if (!(await askText('Usunąć ten obraz ze strony? Miejsca, które go używają, stracą go.'))) return;
+                  if (!(await askText(t('pages.files.removeAsk')))) return;
                   void deletePageImage(one.id).then(() => setFiles((was) => (was ?? []).filter((x) => x.id !== one.id)))
-                    .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.'));
+                    .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : t('pages.files.removeFailed')));
                 }}>×</button>
             </span>
           );
         })}
         <button type="button" className="se-thumb se-thumb-add" disabled={busy || working} onClick={() => input.current?.click()}>
-          {working ? 'Wgrywanie…' : '+ Wgraj obraz'}
+          {working ? t('pages.files.uploading') : t('pages.files.uploadImage')}
         </button>
         <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden
           onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
       </div>
-      <span className="wk-hint">Obrazy strony są publiczne jak sama strona (do 8 MB: JPEG, PNG, WebP, GIF, AVIF).</span>
+      <span className="wk-hint">{t('pages.files.imagesHint')}</span>
       {failed !== null && <span className="wk-error">{failed}</span>}
     </div>
   );
@@ -102,6 +104,7 @@ export function FilePicker({ path, value, busy, onPick }: {
   busy: boolean;
   onPick: (url: string, name: string, size: string) => void;
 }) {
+  const t = useT();
   const { files, setFiles } = usePageFiles(path);
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -112,12 +115,12 @@ export function FilePicker({ path, value, busy, onPick }: {
     setFailed(null);
     try {
       const type = typeOfFile(file);
-      if (type === null) throw new WorkspaceError('Tego rodzaju pliku strona nie przyjmuje — PDF, Word, Excel, PowerPoint, OpenDocument, GPX albo obraz.');
+      if (type === null) throw new WorkspaceError(t('pages.files.badFile'));
       const made = await uploadPageFile(path, file, file.name, type);
       setFiles((was) => [made, ...(was ?? [])]);
       onPick(imageRef(made.id), file.name, describeFile(file.name, file.size));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wgrać pliku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.files.fileFailed'));
     } finally {
       setWorking(false);
     }
@@ -129,21 +132,21 @@ export function FilePicker({ path, value, busy, onPick }: {
     <div className="pe-files">
       {documents.length > 0 && (
         <select className="pe-files-pick" value={documents.some((one) => imageRef(one.id) === value) ? value : ''} disabled={busy}
-          aria-label="Plik z tej strony"
+          aria-label={t('pages.files.fromPage')}
           onChange={(e) => {
             const one = documents.find((x) => imageRef(x.id) === e.target.value);
-            if (one !== undefined) onPick(imageRef(one.id), one.name ?? 'Plik', describeFile(one.name ?? '', one.size));
+            if (one !== undefined) onPick(imageRef(one.id), one.name ?? t('pages.files.file'), describeFile(one.name ?? '', one.size));
           }}>
-          <option value="">— plik z tej strony —</option>
+          <option value="">{t('pages.files.fromPageOption')}</option>
           {documents.map((one) => <option key={one.id} value={imageRef(one.id)}>{one.name ?? one.id} · {describeFile(one.name ?? '', one.size)}</option>)}
         </select>
       )}
       <button type="button" className="wk-btn wk-btn-quiet pe-files-add" disabled={busy || working} onClick={() => input.current?.click()}>
-        {working ? 'Wgrywanie…' : 'Wgraj plik'}
+        {working ? t('pages.files.uploading') : t('pages.files.uploadFile')}
       </button>
       <input ref={input} type="file" accept={`${FILE_ACCEPT},image/*`} hidden
         onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
-      <span className="wk-hint">Pliki strony są publiczne jak sama strona i pobierają się jako plik (do 25 MB).</span>
+      <span className="wk-hint">{t('pages.files.filesHint')}</span>
       {failed !== null && <span className="wk-error">{failed}</span>}
     </div>
   );
@@ -160,6 +163,7 @@ export function MediaPicker({ path, kind, value, busy, onPick }: {
   busy: boolean;
   onPick: (url: string) => void;
 }) {
+  const t = useT();
   const { files, setFiles } = usePageFiles(path);
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -172,12 +176,12 @@ export function MediaPicker({ path, kind, value, busy, onPick }: {
     setFailed(null);
     try {
       const type = typeOfFile(file);
-      if (type === null || !fits(type)) throw new WorkspaceError(kind === 'video' ? 'Tylko filmy MP4 albo WebM.' : 'Tylko dźwięki MP3, M4A, OGG albo WAV.');
+      if (type === null || !fits(type)) throw new WorkspaceError(t(kind === 'video' ? 'pages.files.onlyVideo' : 'pages.files.onlySound'));
       const made = await uploadPageFile(path, file, file.name, type);
       setFiles((was) => [made, ...(was ?? [])]);
       onPick(imageRef(made.id));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wgrać pliku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.files.fileFailed'));
     } finally {
       setWorking(false);
     }
@@ -187,15 +191,15 @@ export function MediaPicker({ path, kind, value, busy, onPick }: {
     <div className="pe-files">
       {list.length > 0 && (
         <select className="pe-files-pick" value={list.some((one) => imageRef(one.id) === value) ? value : ''} disabled={busy}
-          aria-label={kind === 'video' ? 'Film z tej strony' : 'Dźwięk z tej strony'}
+          aria-label={t(kind === 'video' ? 'pages.files.videoFromPage' : 'pages.files.soundFromPage')}
           onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}>
-          <option value="">{kind === 'video' ? '— film z tej strony —' : '— dźwięk z tej strony —'}</option>
+          <option value="">{t(kind === 'video' ? 'pages.files.videoOption' : 'pages.files.soundOption')}</option>
           {list.map((one) => <option key={one.id} value={imageRef(one.id)}>{one.name ?? one.id} · {describeFile(one.name ?? '', one.size)}</option>)}
         </select>
       )}
       <button type="button" className="wk-btn wk-btn-quiet pe-files-add" disabled={busy || working} onClick={() => input.current?.click()}
-        title="Pliki strony są publiczne jak sama strona (do 30 MB).">
-        {working ? 'Wgrywanie…' : kind === 'video' ? 'Wgraj film (publiczny, do 30 MB)' : 'Wgraj dźwięk (publiczny, do 30 MB)'}
+        title={t('pages.files.mediaHint')}>
+        {working ? t('pages.files.uploading') : t(kind === 'video' ? 'pages.files.uploadVideo' : 'pages.files.uploadSound')}
       </button>
       <input ref={input} type="file" accept={mediaAccept(kind)} hidden
         onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />

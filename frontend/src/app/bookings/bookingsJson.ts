@@ -19,7 +19,7 @@
  */
 
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import type { EventDraft, RepeatKind } from '../calendar/agenda';
 import { KIND_LABEL, type Kind, type Mode, type OfficeClaim, type ResourceChange, type ResourceRow } from './resource';
 
@@ -47,7 +47,7 @@ const MODES: readonly Mode[] = ['offered', 'open'];
 const APPROVALS = ['none', 'office'] as const;
 const REPEATS: readonly RepeatKind[] = ['none', 'daily', 'weekly', 'monthly', 'yearly'];
 /** Dieselben Wörter wie im JSON der Termine einer Seite (`appointmentsJson.ts`): pn = Bit 0 … nd = Bit 6. */
-const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const;
+const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const; // i18n-ignore — Wörter des Formats
 
 /* -- Was der Plan kennt ----------------------------------------------------------------------------- */
 
@@ -225,7 +225,14 @@ function intOf(value: unknown): number | null {
 }
 
 const lower = (text: string): string => text.trim().toLowerCase();
-const quote = (text: string): string => `„${text}”`;
+const quote = (text: string): string => t('bookings.plan.quote', { text });
+
+/** Sätze, die erst beim Lesen übersetzt werden (Sprache der Anwendung zu diesem Zeitpunkt). */
+const lazy = (entries: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [k, read] of Object.entries(entries)) Object.defineProperty(out, k, { get: read, enumerable: true });
+  return out;
+};
 
 /* -- Die Gestalt eines Termins ---------------------------------------------------------------------- */
 
@@ -280,19 +287,20 @@ export function slotWhen(f: SlotFields): string {
   if (day === null) return f.date;
   const end = endText(f);
   const at = f.allDay
-    ? `${f.date} (${weekdayWord(day)})${end === null ? ', cały dzień' : ` – ${end}`}`
+    ? `${f.date} (${weekdayWord(day)})${end === null ? t('bookings.format.when.allDay') : ` – ${end}`}`
     : `${f.date} (${weekdayWord(day)}) ${f.time}–${end ?? '?'}`;
   return f.repeat === 'none' ? at : `${at}, ${repeatWords(f)}`;
 }
 
 function repeatWords(f: SlotFields): string {
   const n = f.every;
-  const how = f.repeat === 'daily' ? (n === 1 ? 'codziennie' : `co ${n} dni`)
-    : f.repeat === 'weekly' ? `${n === 1 ? 'co tydzień' : `co ${n} ${plural(n, 'tydzień', 'tygodnie', 'tygodni')}`} (${weekdayWords(f.weekdays).join(', ')})`
-    : f.repeat === 'monthly' ? (n === 1 ? 'co miesiąc' : `co ${n} ${plural(n, 'miesiąc', 'miesiące', 'miesięcy')}`)
-    : (n === 1 ? 'co rok' : `co ${n} ${plural(n, 'rok', 'lata', 'lat')}`);
-  const until = f.until !== null ? ` do ${f.until}` : '';
-  const count = f.count !== null ? ` (${f.count} ${plural(f.count, 'raz', 'razy', 'razy')})` : '';
+  const days = weekdayWords(f.weekdays).join(', ');
+  const how = f.repeat === 'daily' ? (n === 1 ? t('bookings.format.repeat.daily') : t('bookings.format.repeat.days', { count: n }))
+    : f.repeat === 'weekly' ? (n === 1 ? t('bookings.format.repeat.weekly', { days }) : t('bookings.format.repeat.weeks', { count: n, days }))
+    : f.repeat === 'monthly' ? (n === 1 ? t('bookings.format.repeat.monthly') : t('bookings.format.repeat.months', { count: n }))
+    : (n === 1 ? t('bookings.format.repeat.yearly') : t('bookings.format.repeat.years', { count: n }));
+  const until = f.until !== null ? ` ${t('bookings.format.repeat.until', { until: f.until })}` : '';
+  const count = f.count !== null ? ` ${t('bookings.format.repeat.count', { count: f.count })}` : '';
   return `${how}${until}${count}`;
 }
 
@@ -382,98 +390,81 @@ export function exportBookings(state: BookingsState, only?: string | null): Reco
 
 /* -- Die Beschreibung --------------------------------------------------------------------------------- */
 
-export const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `zawsze "${BOOKINGS_FORMAT}"`,
-  version: `zawsze ${BOOKINGS_VERSION}`,
-  exported: 'kiedy powstał eksport ("RRRR-MM-DDTGG:MM") — tylko informacja, import go pomija',
-  resources: `lista zasobów (niżej), najwyżej ${MAX_RESOURCES}`
-};
+export const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => t('bookings.format.top.format', { format: BOOKINGS_FORMAT }),
+  version: () => t('bookings.format.top.version', { version: BOOKINGS_VERSION }),
+  exported: () => t('bookings.format.top.exported'),
+  resources: () => t('bookings.format.top.resources', { max: MAX_RESOURCES })
+});
 
-export const RESOURCE_KEYS: Readonly<Record<string, string>> = {
-  id: 'z eksportu: zasób jest zmieniany w miejscu — tylko klucze, które są w dokumencie; bez "id" powstaje nowy. Dokument z innego miejsca (inna parafia, szablon): usuń "id"',
-  key: 'krótka nazwa (litery, cyfry, - i _, do 32 znaków) do odwołań w tym dokumencie, np. "parent": "@dom"',
-  area: 'obszar zasobu: identyfikator z eksportu albo dokładna nazwa obszaru, w którym piszesz. Nowy zasób bez "area" idzie do obszaru wybranego przy imporcie; istniejącego nie da się przenieść',
-  areaName: 'nazwa obszaru — tylko informacja (eksport), import ją pomija',
-  name: `nazwa, 1–${MAX_NAME} znaków (wymagana przy nowym), np. „Spotkania z ks. Piotrem”, „Dom św. Józefa”`,
-  kind: `rodzaj: ${KINDS.map((k) => `"${k}" (${KIND_LABEL[k].toLowerCase()})`).join(', ')}; nowy bez niego — "other"`,
-  mode: '"offered" — kancelaria podaje terminy, a osoba wybiera jeden z nich (spotkania z księdzem); "open" — pytający sam wybiera czas (sala, dom). Nowy bez niego — "offered"',
-  parent: 'wewnątrz innego zasobu tego samego obszaru (pokój w domu): "@klucz" z tego dokumentu albo "id"; null — osobno. Kto zajmuje całość, zajmuje też części, i odwrotnie',
-  calendar: 'tylko "offered": kalendarz, w którym stoją terminy — "id" albo dokładna nazwa kalendarza w obszarze zasobu. Nowy zasób "offered" bez niego dostaje nowy kalendarz nazwany jak zasób. Każde spotkanie w tym kalendarzu jest terminem do wyboru (por. "bookableDefault")',
-  capacity: `"offered": ile osób na jeden termin; "open": ile grup naraz (1–${MAX_CAPACITY}); nowy bez niego — 1`,
-  approval: '"none" — kto się zmieści, ma; "office" — kancelaria potwierdza każdą prośbę osobno. Nowy bez niego — "none"',
-  perPerson: 'ile terminów naraz może mieć jedna osoba; 0 — bez limitu (0–1000)',
-  inviteHours: 'tylko "offered": przez ile godzin pierwsza zapisana osoba jest gospodarzem terminu i sama dobiera pozostałych (kodem albo zgodą); 0 — bez gospodarza (0–1440)',
-  minPersons: 'tylko "offered" z gospodarzem: od ilu osób grupa zatrzymuje termin dla siebie po czasie gospodarza (1–1000; nowy bez niego — 2)',
-  byNight: 'tylko "open": true — czas liczony w nocach (dom), false — w godzinach (sala)',
-  checkIn: 'tylko "open" w nocach: przyjazd od "GG:MM" (nowy bez niego — "16:00")',
-  checkOut: 'tylko "open" w nocach: wyjazd do "GG:MM" (nowy bez niego — "10:00")',
-  bufferBefore: 'tylko "open": minuty przygotowania przed każdą grupą (0–1440)',
-  bufferAfter: 'tylko "open": minuty sprzątania po każdej grupie (0–1440)',
-  leadDays: 'tylko "open": najmniej ile dni przed początkiem można zapytać; 0 — byle nie w przeszłości (0–3650)',
-  bookableDefault: 'tylko "offered": true — każde spotkanie w kalendarzu zasobu jest terminem do wyboru; false — tylko te z "bookable": true',
-  reserveArea: 'kto może rezerwować: identyfikator obszaru (jego osoby i obszary pod nim); null — każdy, kto znajdzie termin',
-  slots: `tylko "offered": terminy do wyboru (niżej), najwyżej ${MAX_SLOTS} w dokumencie`,
-  claims: 'tylko eksport: rezerwacje, które widzi kancelaria (niżej) — import ich nie zmienia'
-};
+export const RESOURCE_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('bookings.format.resource.id'),
+  key: () => t('bookings.format.resource.key'),
+  area: () => t('bookings.format.resource.area'),
+  areaName: () => t('bookings.format.resource.areaName'),
+  name: () => t('bookings.format.resource.name', { max: MAX_NAME }),
+  kind: () => t('bookings.format.resource.kind', { list: KINDS.map((k) => `"${k}" (${KIND_LABEL[k].toLowerCase()})`).join(', ') }),
+  mode: () => t('bookings.format.resource.mode'),
+  parent: () => t('bookings.format.resource.parent'),
+  calendar: () => t('bookings.format.resource.calendar'),
+  capacity: () => t('bookings.format.resource.capacity', { max: MAX_CAPACITY }),
+  approval: () => t('bookings.format.resource.approval'),
+  perPerson: () => t('bookings.format.resource.perPerson'),
+  inviteHours: () => t('bookings.format.resource.inviteHours'),
+  minPersons: () => t('bookings.format.resource.minPersons'),
+  byNight: () => t('bookings.format.resource.byNight'),
+  checkIn: () => t('bookings.format.resource.checkIn'),
+  checkOut: () => t('bookings.format.resource.checkOut'),
+  bufferBefore: () => t('bookings.format.resource.bufferBefore'),
+  bufferAfter: () => t('bookings.format.resource.bufferAfter'),
+  leadDays: () => t('bookings.format.resource.leadDays'),
+  bookableDefault: () => t('bookings.format.resource.bookableDefault'),
+  reserveArea: () => t('bookings.format.resource.reserveArea'),
+  slots: () => t('bookings.format.resource.slots', { max: MAX_SLOTS }),
+  claims: () => t('bookings.format.resource.claims')
+});
 
-export const SLOT_KEYS: Readonly<Record<string, string>> = {
-  id: 'z eksportu: termin (cała seria) jest zmieniany w miejscu — tylko klucze, które są w dokumencie; bez "id" powstaje nowy w kalendarzu zasobu',
-  title: `tytuł, do ${MAX_TITLE} znaków; pusty — „Termin” (wybierający widzi nazwę zasobu i czas)`,
-  start: 'początek "RRRR-MM-DDTGG:MM" w czasie lokalnym; "RRRR-MM-DD" — cały dzień. Wymagany przy nowym',
-  end: 'koniec: "GG:MM" tego samego dnia albo "RRRR-MM-DDTGG:MM"; przy całym dniu ostatni dzień "RRRR-MM-DD". Nowy bez niego trwa godzinę (cały dzień — jeden dzień); zmieniony "start" bez "end" zachowuje długość',
-  allDay: 'true — cały dzień, bez godzin',
-  repeat: '"none" (raz), "daily", "weekly", "monthly" albo "yearly"',
-  every: 'co ile dni / tygodni / miesięcy / lat (1–52); brak — 1',
-  weekdays: 'przy "weekly": dni tygodnia, np. ["wt", "cz"] — "pn", "wt", "śr", "cz", "pt", "so", "nd"; brak — dzień z "start"',
-  until: 'ostatni dzień serii "RRRR-MM-DD"; seria bez "until" i bez "count" trwa 10 lat',
-  count: 'zamiast "until": ile razy (1–1000)',
-  location: `miejsce, do ${MAX_LOCATION} znaków`,
-  notes: `notatka dla prowadzących kalendarz, do ${MAX_NOTES} znaków`,
-  link: `link do informacji ("https://…" albo "#/…"), do ${MAX_LINK} znaków`,
-  linkLabel: `napis na przycisku linku, do ${MAX_LINK_LABEL} znaków`,
-  capacity: `własna liczba miejsc tego terminu (1–${MAX_CAPACITY}); null — jak zasób`,
-  bookable: 'true — do wyboru, false — nie (zwykłe spotkanie w kalendarzu); null — jak "bookableDefault" zasobu',
-  reserveArea: 'tylko ta grupa może go zająć: identyfikator obszaru; null — jak zasób'
-};
+export const SLOT_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('bookings.format.slot.id'),
+  title: () => t('bookings.format.slot.title', { max: MAX_TITLE }),
+  start: () => t('bookings.format.slot.start'),
+  end: () => t('bookings.format.slot.end'),
+  allDay: () => t('bookings.format.slot.allDay'),
+  repeat: () => t('bookings.format.slot.repeat'),
+  every: () => t('bookings.format.slot.every'),
+  weekdays: () => t('bookings.format.slot.weekdays'),
+  until: () => t('bookings.format.slot.until'),
+  count: () => t('bookings.format.slot.count'),
+  location: () => t('bookings.format.slot.location', { max: MAX_LOCATION }),
+  notes: () => t('bookings.format.slot.notes', { max: MAX_NOTES }),
+  link: () => t('bookings.format.slot.link', { max: MAX_LINK }),
+  linkLabel: () => t('bookings.format.slot.linkLabel', { max: MAX_LINK_LABEL }),
+  capacity: () => t('bookings.format.slot.capacity', { max: MAX_CAPACITY }),
+  bookable: () => t('bookings.format.slot.bookable'),
+  reserveArea: () => t('bookings.format.slot.reserveArea')
+});
 
-export const CLAIM_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator rezerwacji',
-  slot: '"id" terminu, którego dotyczy (tryb "offered"); null — czas wybrany przez pytającego (tryb "open")',
-  start: 'początek "RRRR-MM-DDTGG:MM"',
-  end: 'koniec "RRRR-MM-DDTGG:MM"',
-  status: '"pending" — czeka, "confirmed" — potwierdzona, "declined" — odrzucona',
-  awaits: 'na kogo czeka: "office" — kancelaria, "host" — gospodarz terminu; null — na nikogo',
-  host: 'true — ta osoba jest gospodarzem terminu (dobiera pozostałych)',
-  name: 'kto: imię i nazwisko albo nazwa miejsca z linku (otwarte w tej przeglądarce); null — bez nazwy',
-  byOffice: 'true — wpisana przez kancelarię',
-  group: 'jedna prośba o kilka rzeczy naraz (np. dom i kaplica) ma ten sam "group"',
-  created: 'kiedy powstała ("RRRR-MM-DDTGG:MM")'
-};
+export const CLAIM_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('bookings.format.claim.id'),
+  slot: () => t('bookings.format.claim.slot'),
+  start: () => t('bookings.format.claim.start'),
+  end: () => t('bookings.format.claim.end'),
+  status: () => t('bookings.format.claim.status'),
+  awaits: () => t('bookings.format.claim.awaits'),
+  host: () => t('bookings.format.claim.host'),
+  name: () => t('bookings.format.claim.name'),
+  byOffice: () => t('bookings.format.claim.byOffice'),
+  group: () => t('bookings.format.claim.group'),
+  created: () => t('bookings.format.claim.created')
+});
 
-const INTRO = (): string => `Rezerwacje jednym dokumentem: zasoby (czas księdza, sala, dom) z ich zasadami i terminami do wyboru, a w eksporcie także rezerwacje, które widzi kancelaria.
-Co robi import (Rezerwacje → „Więcej” → „Import i eksport (JSON)”):
-- Najpierw pokazuje listę zmian i ostrzeżenia; zapisuje dopiero po „Importuj”.
-- Zasób albo termin z "id" z eksportu jest zmieniany w miejscu — tylko klucze, które są w dokumencie; czego nie ma, zostaje. Pusty tekst ("") czyści pole. Bez "id" powstaje nowy. "id", którego nie ma (albo termin, który już minął), jest pomijany z ostrzeżeniem.
-- Niczego nie usuwa. Rezerwacji ("claims") nie zmienia — są w eksporcie tylko do wglądu.
-- Zmieniać i zakładać można tylko w obszarach, w których piszesz; resztę eksport tylko pokazuje.
-- Tytuł, miejsce, notatka i link terminu są pieczętowane w tej przeglądarce kluczem obszaru — jak przy zapisie w kalendarzu.
-- Czy ktoś może zająć termin, rozstrzyga usługa przy każdej rezerwacji, według zasad zasobu — import tylko zapisuje zasady i terminy.
-- Zmiana czasu terminu, na który są już rezerwacje: rezerwacje przechodzą razem z nim (n-ty dzień serii na n-ty dzień nowej), a te, którym zabraknie dnia, zostają odrzucone; dni odwołane albo przesunięte pojedynczo wracają do rytmu serii. Podgląd ostrzega o każdym takim terminie, o liczbie miejsc mniejszej niż zajęte, o terminie, który przestaje być do wyboru, i o nowym terminie w czasie istniejącej rezerwacji.
-- Eksport obejmuje terminy od wczoraj na ${EXPORT_DAYS} dni naprzód (także serie, które w tym czasie trwają) i rezerwacje z tego czasu.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
+const INTRO = (): string => t('bookings.format.intro', { days: EXPORT_DAYS, top: keyLines(TOP_KEYS) });
 
-Dokument:
-${keyLines(TOP_KEYS)}`;
+const RESOURCE_TEXT = (): string => t('bookings.format.resourceText', { keys: keyLines(RESOURCE_KEYS) });
 
-const RESOURCE_TEXT = (): string => `Zasób to coś, co ktoś może zająć na czas. Tryb "offered": kancelaria podaje terminy w kalendarzu zasobu, osoba wybiera jeden z nich. Tryb "open": pytający sam wybiera czas, a usługa liczy, ile grup jest naraz (z przygotowaniem i sprzątaniem).
-${keyLines(RESOURCE_KEYS)}
-Klucze jednego trybu w zasobie drugiego trybu są pomijane z ostrzeżeniem.`;
+const SLOT_TEXT = (): string => t('bookings.format.slotText', { keys: keyLines(SLOT_KEYS) });
 
-const SLOT_TEXT = (): string => `Termin do wyboru to spotkanie w kalendarzu zasobu "offered" — pojedyncze albo seria, jak w Kalendarzu. Czas jest lokalny (jak w kalendarzu tej przeglądarki).
-${keyLines(SLOT_KEYS)}`;
-
-const CLAIM_TEXT = (): string => `Rezerwacja — tylko w eksporcie i tylko do wglądu: import ją pomija. Odpowiada się na nie w Rezerwacjach albo w Kalendarzu („Do potwierdzenia”).
-${keyLines(CLAIM_KEYS)}`;
+const CLAIM_TEXT = (): string => t('bookings.format.claimText', { keys: keyLines(CLAIM_KEYS) });
 
 /** Spotkania mit dem Priester: Termine aus dem Kalender, drei Plätze, der Erste lädt ein. */
 export function priestSample(): Record<string, unknown> {
@@ -482,7 +473,7 @@ export function priestSample(): Record<string, unknown> {
     version: BOOKINGS_VERSION,
     resources: [{
       key: 'ksiadz',
-      name: 'Spotkania z ks. Piotrem',
+      name: t('bookings.format.sample.priestName'),
       kind: 'person',
       mode: 'offered',
       capacity: 3,
@@ -491,8 +482,8 @@ export function priestSample(): Record<string, unknown> {
       inviteHours: 48,
       minPersons: 2,
       slots: [
-        { title: 'Spotkanie przed bierzmowaniem', start: '2026-11-03T17:00', end: '17:40', repeat: 'weekly', weekdays: ['wt'], until: '2026-12-15', location: 'Kancelaria parafialna' },
-        { title: 'Spotkanie przed bierzmowaniem (sobota)', start: '2026-11-07T10:00', end: '10:40', location: 'Kancelaria parafialna', capacity: 5 }
+        { title: t('bookings.format.sample.priestSlot'), start: '2026-11-03T17:00', end: '17:40', repeat: 'weekly', weekdays: ['wt'], until: '2026-12-15', location: t('bookings.format.sample.office') },
+        { title: t('bookings.format.sample.priestSlotSat'), start: '2026-11-07T10:00', end: '10:40', location: t('bookings.format.sample.office'), capacity: 5 }
       ]
     }]
   };
@@ -505,12 +496,12 @@ export function houseSample(): Record<string, unknown> {
     version: BOOKINGS_VERSION,
     resources: [
       {
-        key: 'dom', name: 'Dom rekolekcyjny św. Józefa', kind: 'house', mode: 'open',
+        key: 'dom', name: t('bookings.format.sample.house1'), kind: 'house', mode: 'open',
         byNight: true, checkIn: '16:00', checkOut: '10:00', capacity: 1, approval: 'office', perPerson: 0,
         bufferBefore: 0, bufferAfter: 120, leadDays: 2
       },
       {
-        key: 'kaplica', name: 'Kaplica domu', kind: 'room', mode: 'open', parent: '@dom',
+        key: 'kaplica', name: t('bookings.format.sample.chapel'), kind: 'room', mode: 'open', parent: '@dom',
         byNight: false, capacity: 1, approval: 'office', bufferBefore: 30, bufferAfter: 30
       }
     ]
@@ -524,32 +515,27 @@ export function houseSample(): Record<string, unknown> {
  * `alerts.ts`); Angebote im Kalender (`calendarModel.ts`), eigene Reservierungen (`Agenda.cs`); der Schritt `booking`
  * (`Form.Extension.cs`); kein Push (`Push.cs`) — die Antwort steht in der Karte (`SlotCard.tsx`).
  */
-const USAGE_TEXT = (): string => `- Zasób "offered": jego terminy to spotkania w kalendarzu zasobu. Na stronie pokazuje je moduł „Rezerwacja” (pole „Co można zarezerwować”) z przyciskiem „Wybierz ten termin”. Zasób "open": ten sam moduł pokazuje, co zajęte, i pyta o własny czas.
-- Zająć termin może osoba z własnym linkiem albo zalogowana (za kogo — wybiera u góry strony). Co wolne, a co zajęte, widzi każdy, kto widzi moduł — nigdy, kto zajął. "reserveArea" zamyka terminy dla osób spoza tej grupy (i grup pod nią).
-- Prośby czekające na kancelarię ("approval": "office") widzą ci, którzy piszą w obszarze zasobu: w Rezerwacjach („Czeka na odpowiedź”), w Kalendarzu („Do potwierdzenia”), w dzwonku i w „Czeka na Ciebie” („Rezerwacje do potwierdzenia”). Prośby o dołączenie ("inviteHours") widzi gospodarz w module „Rezerwacja”.
-- W Kalendarzu terminy do wyboru są zwykłymi terminami z liczbą zajętych miejsc („2/3”); bez tytułu noszą nazwę zasobu. Zalogowana osoba ma swoją rezerwację w swoim Kalendarzu („To Twoja rezerwacja”).
-- Krok formularza zaliczany „sam — gdy osoba wybierze termin” jest zrobiony, gdy osoba ma prośbę albo rezerwację na ten zasób.
-- Powiadomień push o rezerwacjach nie ma: odpowiedź — także odwołanie terminu — osoba widzi przy swoim terminie w module „Rezerwacja”.`;
+const USAGE_TEXT = (): string => t('bookings.format.usage');
 
-export const BOOKINGS_RESOURCE_JSON: JsonNode = { key: 'bookings.resource', title: 'Zasób ("resources[]")', short: 'Zasób', text: RESOURCE_TEXT };
-export const BOOKINGS_SLOT_JSON: JsonNode = { key: 'bookings.slot', title: 'Termin do wyboru ("slots[]")', short: 'Termin', text: SLOT_TEXT };
-export const BOOKINGS_CLAIM_JSON: JsonNode = { key: 'bookings.claim', title: 'Rezerwacja ("claims[]", tylko eksport)', short: 'Rezerwacja', text: CLAIM_TEXT };
+export const BOOKINGS_RESOURCE_JSON: JsonNode = { key: 'bookings.resource', get title() { return t('bookings.format.node.resource'); }, get short() { return t('bookings.format.node.resourceShort'); }, text: RESOURCE_TEXT };
+export const BOOKINGS_SLOT_JSON: JsonNode = { key: 'bookings.slot', get title() { return t('bookings.format.node.slot'); }, get short() { return t('bookings.format.node.slotShort'); }, text: SLOT_TEXT };
+export const BOOKINGS_CLAIM_JSON: JsonNode = { key: 'bookings.claim', get title() { return t('bookings.format.node.claim'); }, get short() { return t('bookings.format.node.claimShort'); }, text: CLAIM_TEXT };
 
 /** 2026-10-29 — DIE REZERWACJE ALS JSON: der Baum ihrer Beschreibung und die Beispiele zum Einsetzen. Ohne Ort aufrufbar. */
 export const BOOKINGS_JSON: JsonNode = {
   key: 'bookings',
-  title: `Rezerwacje jako JSON ("${BOOKINGS_FORMAT}", wersja ${BOOKINGS_VERSION})`,
-  short: 'Rezerwacje',
+  get title() { return t('bookings.format.node.root', { format: BOOKINGS_FORMAT, version: BOOKINGS_VERSION }); },
+  get short() { return t('bookings.format.node.rootShort'); },
   text: INTRO,
   inside: () => [
-    textNode('bookings.usage', 'Jak aplikacja używa tych danych', USAGE_TEXT),
+    textNode('bookings.usage', t('bookings.format.node.usage'), USAGE_TEXT),
     BOOKINGS_RESOURCE_JSON, BOOKINGS_SLOT_JSON, BOOKINGS_CLAIM_JSON,
-    textNode('bookings.example', 'Przykład: spotkania z księdzem', () => pretty(priestSample())),
-    textNode('bookings.house', 'Przykład: dom na noce i kaplica w nim', () => pretty(houseSample()))
+    textNode('bookings.example', t('bookings.format.node.priest'), () => pretty(priestSample())),
+    textNode('bookings.house', t('bookings.format.node.house'), () => pretty(houseSample()))
   ],
   samples: () => [
-    { label: 'spotkania z księdzem: terminy co tydzień i w sobotę', doc: priestSample },
-    { label: 'dom na noce i kaplica w nim', doc: houseSample }
+    { label: t('bookings.format.sample.priest'), doc: priestSample },
+    { label: t('bookings.format.sample.house'), doc: houseSample }
   ]
 };
 
@@ -557,7 +543,7 @@ export const bookingsDescription = (): string => describe(BOOKINGS_JSON);
 
 /* -- Der Plan ------------------------------------------------------------------------------------------- */
 
-const MODE_WORD: Record<Mode, string> = { offered: 'kancelaria podaje terminy', open: 'pytający wybiera czas' };
+const MODE_WORD: Record<Mode, string> = { offered: 'bookings.plan.mode.offered', open: 'bookings.plan.mode.open' };
 const OFFERED_ONLY = ['calendar', 'inviteHours', 'minPersons', 'bookableDefault', 'slots'] as const;
 const OPEN_ONLY = ['byNight', 'checkIn', 'checkOut', 'bufferBefore', 'bufferAfter', 'leadDays'] as const;
 const LIVE = (c: OfficeClaim, now: Date): boolean =>
@@ -633,33 +619,33 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     list = doc;
   } else if (isObject(doc)) {
     if (doc.format !== undefined && doc.format !== BOOKINGS_FORMAT) {
-      return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${BOOKINGS_FORMAT}".` };
+      return { error: t('bookings.plan.error.format', { format: String(doc.format), expected: BOOKINGS_FORMAT }) };
     }
     if (Array.isArray(doc.resources)) {
       list = doc.resources;
-      for (const key of Object.keys(doc)) if (TOP_KEYS[key] === undefined) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
-      if (doc.version !== undefined && doc.version !== BOOKINGS_VERSION) warnings.push(`Wersja ${String(doc.version)} — czytam jak wersję ${BOOKINGS_VERSION}.`);
+      for (const key of Object.keys(doc)) if (TOP_KEYS[key] === undefined) warnings.push(t('bookings.plan.warn.unknownTop', { key }));
+      if (doc.version !== undefined && doc.version !== BOOKINGS_VERSION) warnings.push(t('bookings.plan.warn.version', { version: String(doc.version), current: BOOKINGS_VERSION }));
     } else if (doc.resources !== undefined) {
-      return { error: '"resources" musi być listą zasobów.' };
+      return { error: t('bookings.plan.error.resourcesList') };
     } else if (bareResource(doc)) {
       list = [doc];
     } else {
-      return { error: 'Brakuje listy "resources".' };
+      return { error: t('bookings.plan.error.noResources') };
     }
   } else {
-    return { error: 'To nie jest dokument rezerwacji — oczekiwano obiektu JSON.' };
+    return { error: t('bookings.plan.error.notDoc') };
   }
 
   if (list.length > MAX_RESOURCES) {
-    warnings.push(`Najwyżej ${MAX_RESOURCES} zasobów w jednym dokumencie — reszta pominięta.`);
+    warnings.push(t('bookings.plan.warn.tooManyResources', { max: MAX_RESOURCES }));
     list = list.slice(0, MAX_RESOURCES);
   }
 
   const byId = new Map(state.resources.map((r) => [lower(r.row.resourceId), r]));
   const areaOf = new Map(state.areas.map((a) => [lower(a.areaId), a]));
   const calendarOf = new Map(state.calendars.map((c) => [lower(c.calendarId), c]));
-  const areaName = (id: string) => areaOf.get(lower(id))?.name ?? 'obszar';
-  const resourceName = (id: string) => byId.get(lower(id))?.row.name ?? 'zasób';
+  const areaName = (id: string) => areaOf.get(lower(id))?.name ?? t('bookings.plan.areaFallback');
+  const resourceName = (id: string) => byId.get(lower(id))?.row.name ?? t('bookings.plan.resourceFallback');
 
   /* -- 1. Wer ist wer, und wo — bevor ein Vater auf ein anderes Ding des Dokuments zeigen kann. -- */
 
@@ -669,18 +655,18 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
   let claimsShown = 0;
 
   list.forEach((one, i) => {
-    if (!isObject(one)) { warnings.push(`Zasób ${i + 1}: to nie jest obiekt — pominięty.`); return; }
+    if (!isObject(one)) { warnings.push(t('bookings.plan.warn.notObject', { n: i + 1 })); return; }
     const named = typeof one.name === 'string' && one.name.trim() !== '' ? ` (${quote(one.name.trim())})` : '';
-    const where = `Zasób ${i + 1}${named}`;
+    const where = `${t('bookings.plan.where', { n: i + 1 })}${named}`;
     if (Array.isArray(one.claims)) claimsShown += one.claims.length;
 
     let existing: ResourceState | null = null;
     if (one.id !== undefined && one.id !== null) {
       const id = typeof one.id === 'string' ? lower(one.id) : '';
-      if (!UUID.test(id)) { warnings.push(`${where}: "id" to identyfikator z eksportu — pominięty (do odwołań służy "key").`); return; }
+      if (!UUID.test(id)) { warnings.push(t('bookings.plan.warn.badId', { where })); return; }
       existing = byId.get(id) ?? null;
-      if (existing === null) { warnings.push(`${where}: nie ma zasobu o tym "id" albo go nie widzisz — pominięty. Żeby założyć nowy, usuń "id".`); return; }
-      if (seenIds.has(id)) { warnings.push(`${where}: ten sam zasób drugi raz — pominięty.`); return; }
+      if (existing === null) { warnings.push(t('bookings.plan.warn.noSuchId', { where })); return; }
+      if (seenIds.has(id)) { warnings.push(t('bookings.plan.warn.sameTwice', { where })); return; }
       seenIds.add(id);
     }
 
@@ -691,25 +677,25 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       const byName = state.areas.filter((a) => lower(a.name) === lower(wanted));
       const found = UUID.test(wanted) ? areaOf.get(lower(wanted)) : byName.length === 1 ? byName[0] : undefined;
       if (existing !== null) {
-        if (found === undefined || lower(found.areaId) !== areaId) warnings.push(`${where}: zasobu nie da się przenieść do innego obszaru — "area" pominięte.`);
+        if (found === undefined || lower(found.areaId) !== areaId) warnings.push(t('bookings.plan.warn.cannotMove', { where }));
       } else if (found === undefined) {
-        warnings.push(`${where}: nie ma obszaru ${quote(wanted)}${byName.length > 1 ? ' (kilka o tej nazwie — podaj identyfikator)' : ''}.`);
+        warnings.push(t(byName.length > 1 ? 'bookings.plan.warn.noAreaMany' : 'bookings.plan.warn.noArea', { where, name: quote(wanted) }));
       } else {
         areaId = lower(found.areaId);
       }
     }
     if (areaId === null && options.areaId != null && options.areaId !== '') areaId = lower(options.areaId);
-    if (areaId === null) { warnings.push(`${where}: nowy zasób bez obszaru — podaj "area" albo wybierz obszar nowych zasobów przy imporcie; pominięty.`); return; }
+    if (areaId === null) { warnings.push(t('bookings.plan.warn.newWithoutArea', { where })); return; }
     if (existing === null && areaOf.get(areaId)?.mayWrite !== true) {
-      warnings.push(`${where}: w obszarze ${quote(areaName(areaId))} nie możesz zakładać zasobów — pominięty.`);
+      warnings.push(t('bookings.plan.warn.cannotCreate', { where, name: quote(areaName(areaId)) }));
       return;
     }
 
     let key: string | null = null;
     if (one.key !== undefined) {
       const wanted = typeof one.key === 'string' ? one.key.trim() : '';
-      if (!KEY.test(wanted)) warnings.push(`${where}: "key" to krótka nazwa (litery, cyfry, - i _, do 32 znaków) — bez nazwy.`);
-      else if (keyAt.has(wanted)) warnings.push(`${where}: "key" ${quote(wanted)} już jest — bez nazwy.`);
+      if (!KEY.test(wanted)) warnings.push(t('bookings.plan.warn.badKey', { where }));
+      else if (keyAt.has(wanted)) warnings.push(t('bookings.plan.warn.keyTaken', { where, key: quote(wanted) }));
       else { key = wanted; keyAt.set(wanted, heads.length); }
     }
 
@@ -738,25 +724,25 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     const before = existing === null ? null : rulesOf(existing.row);
     const r: Rules = { ...(before ?? DEFAULT_RULES) };
 
-    for (const key of Object.keys(raw)) if (RESOURCE_KEYS[key] === undefined) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
+    for (const key of Object.keys(raw)) if (RESOURCE_KEYS[key] === undefined) warnings.push(t('bookings.plan.warn.unknownKey', { where, key }));
 
     /* Der Name. */
     if (raw.name !== undefined) {
       const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-      if (name === '') warnings.push(`${where}: "name" nie może być pusty${before === null ? '' : ' — zostaje'}.`);
+      if (name === '') warnings.push(t(before === null ? 'bookings.plan.warn.emptyName' : 'bookings.plan.warn.emptyNameKept', { where }));
       else {
-        if (name.length > MAX_NAME) warnings.push(`${where}: "name" dłuższy niż ${MAX_NAME} znaków — skrócony.`);
+        if (name.length > MAX_NAME) warnings.push(t('bookings.plan.warn.nameLong', { where, max: MAX_NAME }));
         r.name = name.slice(0, MAX_NAME);
       }
     }
-    if (r.name === '') { warnings.push(`${where}: nowy zasób potrzebuje "name" — pominięty.`); continue; }
+    if (r.name === '') { warnings.push(t('bookings.plan.warn.needName', { where })); continue; }
 
     const pick = <T extends string>(key: string, allowed: readonly T[], was: T): T => {
       const value = raw[key];
       if (value === undefined) return was;
       const wanted = typeof value === 'string' ? lower(value) : '';
       if ((allowed as readonly string[]).includes(wanted)) return wanted as T;
-      warnings.push(`${where}: "${key}" to ${allowed.map((a) => `"${a}"`).join(', ')} — zostaje "${was}".`);
+      warnings.push(t('bookings.plan.warn.pick', { where, key, allowed: allowed.map((a) => `"${a}"`).join(', '), was }));
       return was;
     };
     const number = (key: string, min: number, max: number, was: number): number => {
@@ -764,14 +750,14 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       if (value === undefined) return was;
       const n = intOf(value);
       if (n !== null && n >= min && n <= max) return n;
-      warnings.push(`${where}: "${key}" to liczba całkowita ${min}–${max} — zostaje ${was}.`);
+      warnings.push(t('bookings.plan.warn.number', { where, key, min, max, was }));
       return was;
     };
     const flag = (key: string, was: boolean): boolean => {
       const value = raw[key];
       if (value === undefined) return was;
       if (typeof value === 'boolean') return value;
-      warnings.push(`${where}: "${key}" to true albo false — zostaje ${String(was)}.`);
+      warnings.push(t('bookings.plan.warn.flag', { where, key, was: String(was) }));
       return was;
     };
     const time = (key: string, was: number): number => {
@@ -779,7 +765,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       if (value === undefined) return was;
       const m = typeof value === 'string' ? CLOCK.exec(value.trim()) : null;
       if (m !== null && Number(m[1]) <= 23 && Number(m[2]) <= 59) return Number(m[1]) * 60 + Number(m[2]);
-      warnings.push(`${where}: "${key}" to godzina "GG:MM" — zostaje ${clock(was)}.`);
+      warnings.push(t('bookings.plan.warn.time', { where, key, was: clock(was) }));
       return was;
     };
 
@@ -792,7 +778,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     /* Was nur der eine Fall kennt, gilt im anderen nicht — gesagt, nicht still verworfen. */
     const other = r.mode === 'offered' ? OPEN_ONLY : OFFERED_ONLY;
     for (const key of other) {
-      if (raw[key] !== undefined) warnings.push(`${where}: "${key}" dotyczy tylko trybu "${r.mode === 'offered' ? 'open' : 'offered'}" — pominięty.`);
+      if (raw[key] !== undefined) warnings.push(t('bookings.plan.warn.otherMode', { where, key, mode: r.mode === 'offered' ? 'open' : 'offered' }));
     }
     if (r.mode === 'offered') {
       r.inviteHours = number('inviteHours', 0, 1440, r.inviteHours);
@@ -815,7 +801,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       const wanted = typeof raw.reserveArea === 'string' ? lower(raw.reserveArea) : raw.reserveArea === null ? '' : '?';
       if (wanted === '') r.reserveAreaId = null;
       else if (UUID.test(wanted) && areaOf.has(wanted)) r.reserveAreaId = wanted;
-      else warnings.push(`${where}: "reserveArea" to identyfikator obszaru, który widzisz, albo null — zostaje.`);
+      else warnings.push(t('bookings.plan.warn.reserveArea', { where }));
     }
 
     /* Der Vater — ein Ding desselben Bereichs, aus dem Dokument ("@key") oder schon da. */
@@ -827,18 +813,18 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       } else if (wanted.startsWith('@')) {
         const at = keyAt.get(wanted.slice(1));
         const target = at === undefined ? undefined : heads[at];
-        if (target === undefined) warnings.push(`${where}: "parent" ${quote(wanted)} — nie ma takiego "key" w dokumencie; zostaje.`);
-        else if (target.index === head.index) warnings.push(`${where}: zasób nie może leżeć sam w sobie — "parent" pominięte.`);
-        else if (target.areaId !== head.areaId) warnings.push(`${where}: "parent" musi być w tym samym obszarze — pominięte.`);
+        if (target === undefined) warnings.push(t('bookings.plan.warn.parentNoKey', { where, key: quote(wanted) }));
+        else if (target.index === head.index) warnings.push(t('bookings.plan.warn.parentSelf', { where }));
+        else if (target.areaId !== head.areaId) warnings.push(t('bookings.plan.warn.parentArea', { where }));
         else parent = target.existing !== null ? { to: 'id', id: lower(target.existing.row.resourceId) } : { to: 'doc', head: target.index };
       } else if (UUID.test(wanted)) {
         const target = byId.get(lower(wanted));
-        if (target === undefined) warnings.push(`${where}: "parent" — nie ma takiego zasobu; zostaje.`);
-        else if (existing !== null && lower(target.row.resourceId) === lower(existing.row.resourceId)) warnings.push(`${where}: zasób nie może leżeć sam w sobie — "parent" pominięte.`);
-        else if (lower(target.row.areaId) !== head.areaId) warnings.push(`${where}: "parent" musi być w tym samym obszarze — pominięte.`);
+        if (target === undefined) warnings.push(t('bookings.plan.warn.parentMissing', { where }));
+        else if (existing !== null && lower(target.row.resourceId) === lower(existing.row.resourceId)) warnings.push(t('bookings.plan.warn.parentSelf', { where }));
+        else if (lower(target.row.areaId) !== head.areaId) warnings.push(t('bookings.plan.warn.parentArea', { where }));
         else parent = { to: 'id', id: lower(target.row.resourceId) };
       } else {
-        warnings.push(`${where}: "parent" to "@klucz", "id" albo null — zostaje.`);
+        warnings.push(t('bookings.plan.warn.parentBad', { where }));
       }
       if (parent.to === 'id' && existing !== null && parent.id === (existing.row.parentId === null ? null : lower(existing.row.parentId))) parent = { to: 'keep' };
     }
@@ -851,9 +837,9 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       const titled = state.calendars.filter((c) => lower(c.areaId) === head.areaId && lower(c.title) === lower(wanted));
       const found = UUID.test(wanted) ? calendarOf.get(lower(wanted)) : titled.length === 1 ? titled[0] : undefined;
       if (raw.calendar === null) {
-        if (calendarId !== null) warnings.push(`${where}: zasób "offered" potrzebuje kalendarza — "calendar": null pominięte.`);
+        if (calendarId !== null) warnings.push(t('bookings.plan.warn.calendarNull', { where }));
       } else if (found === undefined || lower(found.areaId) !== head.areaId) {
-        warnings.push(`${where}: "calendar" — nie ma takiego kalendarza w obszarze zasobu; ${calendarId === null ? 'powstanie nowy' : 'zostaje dotychczasowy'}.`);
+        warnings.push(t(calendarId === null ? 'bookings.plan.warn.calendarNew' : 'bookings.plan.warn.calendarKept', { where }));
       } else {
         calendarId = lower(found.calendarId);
       }
@@ -865,15 +851,15 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     const slots: PlannedSlot[] = [];
     let unchangedSlots = 0;
     if (r.mode === 'offered' && raw.slots !== undefined) {
-      if (!Array.isArray(raw.slots)) warnings.push(`${where}: "slots" to lista terminów — pominięte.`);
+      if (!Array.isArray(raw.slots)) warnings.push(t('bookings.plan.warn.slotsList', { where }));
       else {
         const own = new Map((calendarMoves || freshCalendar ? [] : existing?.slots ?? []).map((s) => [lower(s.itemId), s]));
         raw.slots.forEach((one, j) => {
           const titled = isObject(one) && typeof one.title === 'string' && one.title.trim() !== '' ? ` (${quote(one.title.trim())})` : '';
-          const at = `${where}, termin ${j + 1}${titled}`;
-          if (!isObject(one)) { warnings.push(`${at}: to nie jest obiekt — pominięty.`); return; }
+          const at = `${t('bookings.plan.whereSlot', { where, n: j + 1 })}${titled}`;
+          if (!isObject(one)) { warnings.push(t('bookings.plan.warn.slotNotObject', { where: at })); return; }
           if (slotBudget <= 0) {
-            if (slotBudget === 0) warnings.push(`Najwyżej ${MAX_SLOTS} terminów w jednym dokumencie — reszta pominięta.`);
+            if (slotBudget === 0) warnings.push(t('bookings.plan.warn.tooManySlots', { max: MAX_SLOTS }));
             slotBudget -= 1;
             return;
           }
@@ -883,10 +869,10 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
             const id = typeof one.id === 'string' ? lower(one.id) : '';
             base = own.get(id) ?? null;
             if (base === null) {
-              warnings.push(`${at}: nie ma takiego terminu w kalendarzu zasobu (albo już minął) — pominięty. Żeby dodać nowy, usuń "id".`);
+              warnings.push(t('bookings.plan.warn.noSuchSlot', { where: at }));
               return;
             }
-            if (seenSlots.has(id)) { warnings.push(`${at}: ten sam termin drugi raz — pominięty.`); return; }
+            if (seenSlots.has(id)) { warnings.push(t('bookings.plan.warn.slotTwice', { where: at })); return; }
             seenSlots.add(id);
           }
           const was = base === null ? null : slotFieldsOf(base.draft);
@@ -894,14 +880,14 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
           if (fields === null) return;
           if (was !== null && changedKeys(was, fields).length === 0) { unchangedSlots += 1; return; }
           if (base !== null && base.readable === false) {
-            warnings.push(`${at}: nie każde zapieczętowane pole tego terminu da się otworzyć w tej przeglądarce — zmiany pominięte, żeby go nie stracić.`);
+            warnings.push(t('bookings.plan.warn.sealed', { where: at }));
             return;
           }
           slots.push({
             itemId: base === null ? null : base.itemId,
             base: base === null ? null : base.draft,
             fields,
-            label: fields.title === '' ? 'Termin' : fields.title
+            label: fields.title === '' ? t('bookings.plan.slotLabel') : fields.title
           });
         });
       }
@@ -923,7 +909,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
   for (const read of reads) {
     /* Ein Vater aus dem Dokument, der selbst übersprungen wurde, ist keiner. */
     if (read.parent.to === 'doc' && !readOfHead.has(read.parent.head)) {
-      warnings.push(`${read.head.where}: "parent" wskazuje zasób pominięty wyżej — zostaje bez zmian.`);
+      warnings.push(t('bookings.plan.warn.parentSkipped', { where: read.head.where }));
       parents.set(read.head.index, { to: 'keep' });
     } else {
       parents.set(read.head.index, read.parent);
@@ -946,7 +932,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
   };
   for (const read of reads) {
     if (parents.get(read.head.index)!.to === 'keep' || !ringed(nodeOf(read))) continue;
-    warnings.push(`${read.head.where}: "parent" zamknąłby koło (zasób leżałby sam w sobie) — pominięte.`);
+    warnings.push(t('bookings.plan.warn.parentRing', { where: read.head.where }));
     parentOf.set(nodeOf(read), read.head.existing?.row.parentId == null ? null : lower(read.head.existing.row.parentId));
     parents.set(read.head.index, { to: 'keep' });
   }
@@ -964,7 +950,7 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     const { where, existing } = head;
     const wish = parents.get(head.index) ?? { to: 'keep' };
     const label = quote(after.name);
-    const owner = `zasób ${label}`;
+    const owner = t('bookings.plan.owner', { label });
 
     const change: Record<string, unknown> = {};
     const said: string[] = [];
@@ -973,48 +959,50 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
       if (before !== null) said.push(`${word}: ${from} → ${to}`);
     };
     const yesNo = (b: boolean, yes: string, no: string) => (b ? yes : no);
-    const capWord = after.mode === 'offered' ? 'osób na termin' : 'grup naraz';
-    const area = (id: string | null) => (id === null ? 'każdy' : quote(areaName(id)));
+    const capWord = after.mode === 'offered' ? t('bookings.plan.word.capOffered') : t('bookings.plan.word.capOpen');
+    const area = (id: string | null) => (id === null ? t('bookings.plan.word.anyone') : quote(areaName(id)));
+    const office = (a: 'none' | 'office' | undefined) => (a === 'office' ? t('bookings.plan.word.office') : t('bookings.plan.word.nobody'));
+    const limit = (n: number | undefined) => (n === 0 ? t('bookings.plan.word.noLimit') : String(n));
 
-    if (before === null || before.name !== after.name) put('name', after.name, 'nazwa', quote(before?.name ?? ''), label);
-    if (before === null || before.kind !== after.kind) put('kind', after.kind, 'rodzaj', KIND_LABEL[before?.kind ?? 'other'].toLowerCase(), KIND_LABEL[after.kind].toLowerCase());
-    if (before === null || before.mode !== after.mode) put('mode', after.mode, 'czas wybiera', MODE_WORD[before?.mode ?? 'offered'], MODE_WORD[after.mode]);
+    if (before === null || before.name !== after.name) put('name', after.name, t('bookings.plan.word.name'), quote(before?.name ?? ''), label);
+    if (before === null || before.kind !== after.kind) put('kind', after.kind, t('bookings.plan.word.kind'), KIND_LABEL[before?.kind ?? 'other'].toLowerCase(), KIND_LABEL[after.kind].toLowerCase());
+    if (before === null || before.mode !== after.mode) put('mode', after.mode, t('bookings.plan.word.mode'), t(MODE_WORD[before?.mode ?? 'offered']), t(MODE_WORD[after.mode]));
     if (before === null || before.capacity !== after.capacity) put('capacity', after.capacity, capWord, String(before?.capacity), String(after.capacity));
-    if (before === null || before.approval !== after.approval) put('approval', after.approval, 'potwierdza', before?.approval === 'office' ? 'kancelaria' : 'nikt', after.approval === 'office' ? 'kancelaria' : 'nikt');
-    if (before === null || before.perPerson !== after.perPerson) put('perPerson', after.perPerson, 'terminów na osobę', before?.perPerson === 0 ? 'bez limitu' : String(before?.perPerson), after.perPerson === 0 ? 'bez limitu' : String(after.perPerson));
-    if (before === null || before.inviteHours !== after.inviteHours) put('inviteHours', after.inviteHours, 'godzin gospodarza', String(before?.inviteHours), String(after.inviteHours));
-    if (before === null || before.minPersons !== after.minPersons) put('minPersons', after.minPersons, 'grupa od', String(before?.minPersons), String(after.minPersons));
-    if (before === null || before.byNight !== after.byNight) put('byNight', after.byNight, 'czas liczony', yesNo(before?.byNight === true, 'w nocach', 'w godzinach'), yesNo(after.byNight, 'w nocach', 'w godzinach'));
-    if (before === null || before.checkInMin !== after.checkInMin) put('checkInMin', after.checkInMin, 'przyjazd od', clock(before?.checkInMin ?? 0), clock(after.checkInMin));
-    if (before === null || before.checkOutMin !== after.checkOutMin) put('checkOutMin', after.checkOutMin, 'wyjazd do', clock(before?.checkOutMin ?? 0), clock(after.checkOutMin));
-    if (before === null || before.bufferBefore !== after.bufferBefore) put('bufferBefore', after.bufferBefore, 'przygotowanie (min)', String(before?.bufferBefore), String(after.bufferBefore));
-    if (before === null || before.bufferAfter !== after.bufferAfter) put('bufferAfter', after.bufferAfter, 'sprzątanie (min)', String(before?.bufferAfter), String(after.bufferAfter));
-    if (before === null || before.leadDays !== after.leadDays) put('leadDays', after.leadDays, 'najmniej dni naprzód', String(before?.leadDays), String(after.leadDays));
-    if (before === null || before.bookableDefault !== after.bookableDefault) put('bookableDefault', after.bookableDefault, 'terminy z kalendarza', yesNo(before?.bookableDefault !== false, 'wszystkie', 'tylko oznaczone'), yesNo(after.bookableDefault, 'wszystkie', 'tylko oznaczone'));
-    if (before === null || before.reserveAreaId !== after.reserveAreaId) put('reserveAreaId', after.reserveAreaId ?? '', 'rezerwuje', area(before?.reserveAreaId ?? null), area(after.reserveAreaId));
+    if (before === null || before.approval !== after.approval) put('approval', after.approval, t('bookings.plan.word.approval'), office(before?.approval), office(after.approval));
+    if (before === null || before.perPerson !== after.perPerson) put('perPerson', after.perPerson, t('bookings.plan.word.perPerson'), limit(before?.perPerson), limit(after.perPerson));
+    if (before === null || before.inviteHours !== after.inviteHours) put('inviteHours', after.inviteHours, t('bookings.plan.word.inviteHours'), String(before?.inviteHours), String(after.inviteHours));
+    if (before === null || before.minPersons !== after.minPersons) put('minPersons', after.minPersons, t('bookings.plan.word.minPersons'), String(before?.minPersons), String(after.minPersons));
+    if (before === null || before.byNight !== after.byNight) put('byNight', after.byNight, t('bookings.plan.word.byNight'), yesNo(before?.byNight === true, t('bookings.plan.word.nights'), t('bookings.plan.word.hours')), yesNo(after.byNight, t('bookings.plan.word.nights'), t('bookings.plan.word.hours')));
+    if (before === null || before.checkInMin !== after.checkInMin) put('checkInMin', after.checkInMin, t('bookings.plan.word.checkIn'), clock(before?.checkInMin ?? 0), clock(after.checkInMin));
+    if (before === null || before.checkOutMin !== after.checkOutMin) put('checkOutMin', after.checkOutMin, t('bookings.plan.word.checkOut'), clock(before?.checkOutMin ?? 0), clock(after.checkOutMin));
+    if (before === null || before.bufferBefore !== after.bufferBefore) put('bufferBefore', after.bufferBefore, t('bookings.plan.word.bufferBefore'), String(before?.bufferBefore), String(after.bufferBefore));
+    if (before === null || before.bufferAfter !== after.bufferAfter) put('bufferAfter', after.bufferAfter, t('bookings.plan.word.bufferAfter'), String(before?.bufferAfter), String(after.bufferAfter));
+    if (before === null || before.leadDays !== after.leadDays) put('leadDays', after.leadDays, t('bookings.plan.word.leadDays'), String(before?.leadDays), String(after.leadDays));
+    if (before === null || before.bookableDefault !== after.bookableDefault) put('bookableDefault', after.bookableDefault, t('bookings.plan.word.bookableDefault'), yesNo(before?.bookableDefault !== false, t('bookings.plan.word.all'), t('bookings.plan.word.marked')), yesNo(after.bookableDefault, t('bookings.plan.word.all'), t('bookings.plan.word.marked')));
+    if (before === null || before.reserveAreaId !== after.reserveAreaId) put('reserveAreaId', after.reserveAreaId ?? '', t('bookings.plan.word.reserves'), area(before?.reserveAreaId ?? null), area(after.reserveAreaId));
 
     /* Der Vater: ein bestehender gleich, einer aus dem Dokument erst, wenn es ihn gibt. */
     let parentLater: number | null = null;
     if (wish.to === 'id') {
-      put('parentId', wish.id ?? '', 'wewnątrz', existing?.row.parentId == null ? 'osobno' : quote(resourceName(existing.row.parentId)), wish.id === null ? 'osobno' : quote(resourceName(wish.id)));
+      put('parentId', wish.id ?? '', t('bookings.plan.word.inside'), existing?.row.parentId == null ? t('bookings.plan.word.separate') : quote(resourceName(existing.row.parentId)), wish.id === null ? t('bookings.plan.word.separate') : quote(resourceName(wish.id)));
     } else if (wish.to === 'doc') {
       parentLater = wish.head;
-      if (before !== null) said.push(`wewnątrz: ${quote(readOfHead.get(wish.head)!.after.name)} (nowy)`);
+      if (before !== null) said.push(t('bookings.plan.word.insideNew', { name: quote(readOfHead.get(wish.head)!.after.name) }));
     }
 
     /* Der Kalender: ein bestehender gleich, ein neuer beim Import. */
     const calendarBefore = existing?.row.calendarId == null ? null : lower(existing.row.calendarId);
     if (after.mode === 'offered' && !calendar.fresh && calendar.id !== calendarBefore) {
-      const title = (id: string | null) => (id === null ? 'brak' : quote(calendarOf.get(id)?.title ?? 'kalendarz'));
-      put('calendarId', calendar.id ?? '', 'kalendarz', title(calendarBefore), title(calendar.id));
+      const title = (id: string | null) => (id === null ? t('bookings.plan.word.none') : quote(calendarOf.get(id)?.title ?? t('bookings.plan.calendarFallback')));
+      put('calendarId', calendar.id ?? '', t('bookings.plan.word.calendar'), title(calendarBefore), title(calendar.id));
     }
-    if (calendar.fresh && before !== null) said.push(`kalendarz: nowy ${label}`);
+    if (calendar.fresh && before !== null) said.push(t('bookings.plan.word.calendarNew', { label }));
 
     const resourceChanged = Object.keys(change).length > 0 || parentLater !== null || calendar.fresh;
 
     /* Nur lesen: was sich ändern würde, wird gesagt und nicht getan. */
     if (!read.mayWrite) {
-      if (resourceChanged || read.slots.length > 0) warnings.push(`${where}: ten zasób możesz tylko czytać — zmiany pominięte.`);
+      if (resourceChanged || read.slots.length > 0) warnings.push(t('bookings.plan.warn.readOnly', { where }));
       else unchangedResources += 1;
       unchangedSlotsAll += read.unchangedSlots;
       continue;
@@ -1030,11 +1018,12 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     if (resourceChanged) {
       changes += 1 + (calendar.fresh ? 1 : 0);
       if (before === null) {
-        lines.push(`Nowy zasób ${label} — ${KIND_LABEL[after.kind].toLowerCase()}, ${MODE_WORD[after.mode]}, obszar ${quote(areaName(head.areaId))}${parentLater !== null ? `, wewnątrz ${quote(readOfHead.get(parentLater)!.after.name)}` : ''}.`);
+        const fresh = { label, kind: KIND_LABEL[after.kind].toLowerCase(), mode: t(MODE_WORD[after.mode]), area: quote(areaName(head.areaId)) };
+        lines.push(parentLater !== null ? t('bookings.plan.line.newResourceInside', { ...fresh, parent: quote(readOfHead.get(parentLater)!.after.name) }) : t('bookings.plan.line.newResource', fresh));
       } else {
-        lines.push(`Zmiana zasobu ${label}: ${said.join('; ')}.`);
+        lines.push(t('bookings.plan.line.changeResource', { label, said: said.join('; ') }));
       }
-      if (calendar.fresh) lines.push(`Nowy kalendarz ${label} w obszarze ${quote(areaName(head.areaId))} — w nim terminy tego zasobu.`);
+      if (calendar.fresh) lines.push(t('bookings.plan.line.newCalendar', { label, area: quote(areaName(head.areaId)) }));
     } else {
       unchangedResources += 1;
     }
@@ -1042,9 +1031,9 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
     for (const slot of read.slots) {
       changes += 1;
       if (slot.itemId === null) {
-        lines.push(`Nowy termin ${quote(slot.label)} (${owner}): ${slotWhen(slot.fields)}.`);
+        lines.push(t('bookings.plan.line.newSlot', { name: quote(slot.label), owner, when: slotWhen(slot.fields) }));
       } else {
-        lines.push(`Zmiana terminu ${quote(slot.label)} (${owner}): ${slotDiff(slotFieldsOf(slot.base!), slot.fields, areaName)}.`);
+        lines.push(t('bookings.plan.line.changeSlot', { name: quote(slot.label), owner, diff: slotDiff(slotFieldsOf(slot.base!), slot.fields, areaName) }));
       }
     }
     unchangedSlotsAll += read.unchangedSlots;
@@ -1065,12 +1054,12 @@ export function planBookingsImport(doc: unknown, state: BookingsState, options: 
   }
 
   const opening = changes > 0 ? lines
-    : warnings.length === 0 ? ['Bez zmian — wszystko jest już tak, jak w dokumencie.'] : ['Nic do zapisania — zobacz ostrzeżenia.'];
+    : warnings.length === 0 ? [t('bookings.plan.line.same')] : [t('bookings.plan.line.nothing')];
   const tail = [
     unchangedResources + unchangedSlotsAll > 0 && (changes > 0 || warnings.length > 0)
-      ? `Bez zmian: ${unchangedResources} ${plural(unchangedResources, 'zasób', 'zasoby', 'zasobów')}, ${unchangedSlotsAll} ${plural(unchangedSlotsAll, 'termin', 'terminy', 'terminów')}.`
+      ? t('bookings.plan.line.unchanged', { resources: t('bookings.plan.line.resources', { count: unchangedResources }), slots: t('bookings.plan.line.slots', { count: unchangedSlotsAll }) })
       : null,
-    claimsShown > 0 ? `Rezerwacje w dokumencie: ${claimsShown} — tylko do wglądu, import ich nie zmienia.` : null
+    claimsShown > 0 ? t('bookings.plan.line.claims', { n: claimsShown }) : null
   ].filter((one): one is string => one !== null);
 
   return { resources, lines: [...opening, ...tail], warnings, changes };
@@ -1086,17 +1075,17 @@ const EMPTY_SLOT: SlotFields = {
 /** Einen Termin lesen — über dem gespeicherten (`was`) oder neu. `null`: geht nicht (gesagt in `warnings`). */
 function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields | null,
   areaOf: ReadonlyMap<string, AreaState>, warnings: string[]): SlotFields | null {
-  for (const key of Object.keys(raw)) if (SLOT_KEYS[key] === undefined) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
+  for (const key of Object.keys(raw)) if (SLOT_KEYS[key] === undefined) warnings.push(t('bookings.plan.warn.unknownKey', { where, key }));
   const f: { -readonly [K in keyof SlotFields]: SlotFields[K] } = { ...(was ?? EMPTY_SLOT) };
   const timingNotes: string[] = [];
 
   const text = (key: 'title' | 'location' | 'notes' | 'link' | 'linkLabel', max: number) => {
     const value = raw[key];
     if (value === undefined) return;
-    if (value !== null && typeof value !== 'string') { warnings.push(`${where}: "${key}" to tekst — zostaje.`); return; }
-    const t = (value ?? '').trim();
-    if (t.length > max) warnings.push(`${where}: "${key}" dłuższy niż ${max} znaków — skrócony.`);
-    f[key] = t.slice(0, max);
+    if (value !== null && typeof value !== 'string') { warnings.push(t('bookings.plan.warn.text', { where, key })); return; }
+    const v = (value ?? '').trim();
+    if (v.length > max) warnings.push(t('bookings.plan.warn.textLong', { where, key, max }));
+    f[key] = v.slice(0, max);
   };
   text('title', MAX_TITLE);
   text('location', MAX_LOCATION);
@@ -1106,13 +1095,13 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
 
   /* -- Wann: Anfang, Ende, ganztägig. -- */
   const allDayGiven = raw.allDay === undefined ? null : typeof raw.allDay === 'boolean' ? raw.allDay : null;
-  if (raw.allDay !== undefined && allDayGiven === null) warnings.push(`${where}: "allDay" to true albo false — pominięte.`);
+  if (raw.allDay !== undefined && allDayGiven === null) warnings.push(t('bookings.plan.warn.allDay', { where }));
 
   const timedBefore = !f.allDay;
   if (raw.start !== undefined) {
     const start = readWhen(raw.start, null);
     if (start === null) {
-      warnings.push(`${where}: "start" to "RRRR-MM-DDTGG:MM" albo "RRRR-MM-DD"${was === null ? ' — pominięty' : ' — zostaje'}.`);
+      warnings.push(t(was === null ? 'bookings.plan.warn.startSkipped' : 'bookings.plan.warn.startKept', { where }));
       if (was === null) return null;
     } else {
       f.date = dayText(start.day);
@@ -1120,49 +1109,50 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
       f.time = f.allDay ? '00:00' : clock(start.minute!);
     }
   } else if (was === null) {
-    warnings.push(`${where}: nowy termin potrzebuje "start" — pominięty.`);
+    warnings.push(t('bookings.plan.warn.needStart', { where }));
     return null;
   } else if (allDayGiven !== null) {
     f.allDay = allDayGiven;
   }
   const day = dayOf(f.date)!;
+  const fallback = (): string => t(was !== null ? 'bookings.plan.fallback.keep' : f.allDay ? 'bookings.plan.fallback.oneDay' : 'bookings.plan.fallback.hour');
 
   if (raw.end !== undefined) {
     const end = readWhen(raw.end, day);
-    if (end === null) warnings.push(`${where}: nieczytelne "end" — ${was === null ? (f.allDay ? 'jeden dzień' : 'godzina') : 'długość zostaje'}.`);
+    if (end === null) warnings.push(t('bookings.plan.warn.endUnreadable', { where, fallback: fallback() }));
     else if (f.allDay) {
       const days = daysBetween(day, end.day) + 1;
-      if (days < 1) warnings.push(`${where}: "end" przed "start" — ${was === null ? 'jeden dzień' : 'długość zostaje'}.`);
+      if (days < 1) warnings.push(t('bookings.plan.warn.endBeforeStart', { where, fallback: fallback() }));
       else f.minutes = days * 1440;
     } else if (end.minute === null) {
-      warnings.push(`${where}: "end" potrzebuje godziny ("GG:MM") — ${was === null ? 'godzina' : 'długość zostaje'}.`);
+      warnings.push(t('bookings.plan.warn.endNeedsTime', { where, fallback: fallback() }));
     } else {
       const minutes = Math.round((wall(end.day, end.minute).getTime() - wall(day, minuteOf(f.time)).getTime()) / 60_000);
-      if (minutes <= 0) warnings.push(`${where}: "end" nie jest po "start" — ${was === null ? 'godzina' : 'długość zostaje'}.`);
+      if (minutes <= 0) warnings.push(t('bookings.plan.warn.endNotAfter', { where, fallback: fallback() }));
       else f.minutes = minutes;
     }
   }
   /* Ganztägig hin oder zurück, ohne ein Ende: ein Tag, eine Stunde. */
   if (raw.end === undefined && f.allDay !== !timedBefore) f.minutes = f.allDay ? 1440 : 60;
   if (f.allDay && f.minutes % 1440 !== 0) f.minutes = Math.max(1, Math.round(f.minutes / 1440)) * 1440;
-  if (f.allDay && f.minutes > 60 * 1440) { warnings.push(`${where}: najwyżej 60 dni — skrócony.`); f.minutes = 60 * 1440; }
-  if (!f.allDay && f.minutes > 14 * 1440) { warnings.push(`${where}: najwyżej 14 dni — skrócony.`); f.minutes = 14 * 1440; }
+  if (f.allDay && f.minutes > 60 * 1440) { warnings.push(t('bookings.plan.warn.max60', { where })); f.minutes = 60 * 1440; }
+  if (!f.allDay && f.minutes > 14 * 1440) { warnings.push(t('bookings.plan.warn.max14', { where })); f.minutes = 14 * 1440; }
 
   /* -- Wiederholung. -- */
   if (raw.repeat !== undefined) {
     const wanted = typeof raw.repeat === 'string' ? lower(raw.repeat) : raw.repeat === null ? 'none' : '?';
     if ((REPEATS as readonly string[]).includes(wanted)) f.repeat = wanted as RepeatKind;
-    else warnings.push(`${where}: "repeat" to "none", "daily", "weekly", "monthly" albo "yearly" — zostaje "${f.repeat}".`);
+    else warnings.push(t('bookings.plan.warn.repeat', { where, was: f.repeat }));
   }
   if (f.repeat === 'none') {
     for (const key of ['every', 'weekdays', 'until', 'count']) {
-      if (raw[key] !== undefined && raw[key] !== null) warnings.push(`${where}: "${key}" dotyczy tylko terminu, który się powtarza ("repeat") — pominięty.`);
+      if (raw[key] !== undefined && raw[key] !== null) warnings.push(t('bookings.plan.warn.onlyRepeat', { where, key }));
     }
   } else {
     if (raw.every !== undefined) {
       const n = intOf(raw.every);
       if (n !== null && n >= 1 && n <= 52) f.every = n;
-      else warnings.push(`${where}: "every" to liczba 1–52 — zostaje ${f.every}.`);
+      else warnings.push(t('bookings.plan.warn.every', { where, was: f.every }));
     }
     if (f.repeat === 'weekly') {
       if (raw.weekdays !== undefined) {
@@ -1171,21 +1161,21 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
         for (const w of words) {
           const at = typeof w === 'string' ? (WEEKDAY_WORDS as readonly string[]).indexOf(lower(w)) : -1;
           if (at >= 0) mask |= 1 << at;
-          else warnings.push(`${where}: dzień ${quote(String(w))} — dni to ${WEEKDAY_WORDS.join(', ')}.`);
+          else warnings.push(t('bookings.plan.warn.weekday', { where, day: quote(String(w)), days: WEEKDAY_WORDS.join(', ') }));
         }
         if (mask !== 0) f.weekdays = mask;
       }
       if (f.weekdays === 0) f.weekdays = weekdayBit(day);
       if ((f.weekdays & weekdayBit(day)) === 0) {
-        timingNotes.push(`${where}: dzień "start" (${weekdayWord(day)}) nie jest w "weekdays" (${weekdayWords(f.weekdays).join(', ')}) — seria zacznie się w najbliższy z tych dni.`);
+        timingNotes.push(t('bookings.plan.warn.startNotInWeekdays', { where, day: weekdayWord(day), days: weekdayWords(f.weekdays).join(', ') }));
       }
     }
     if (raw.until !== undefined) {
       if (raw.until === null) f.until = null;
       else {
         const last = typeof raw.until === 'string' ? dayOf(raw.until.trim()) : null;
-        if (last === null) warnings.push(`${where}: "until" to "RRRR-MM-DD" — zostaje.`);
-        else if (last.getTime() < day.getTime()) warnings.push(`${where}: "until" przed "start" — zostaje.`);
+        if (last === null) warnings.push(t('bookings.plan.warn.until', { where }));
+        else if (last.getTime() < day.getTime()) warnings.push(t('bookings.plan.warn.untilBefore', { where }));
         else f.until = dayText(last);
       }
     }
@@ -1194,13 +1184,13 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
       else {
         const n = intOf(raw.count);
         if (n !== null && n >= 1 && n <= 1000) f.count = n;
-        else warnings.push(`${where}: "count" to liczba 1–1000 — zostaje.`);
+        else warnings.push(t('bookings.plan.warn.count', { where }));
       }
     }
     /* Eine Reihe braucht am Dienst ein Ende — „bez końca" wie im Kalender: zehn Jahre. */
     if (f.until === null && f.count === null) {
       f.until = dayText(new Date(day.getFullYear() + 10, day.getMonth(), day.getDate()));
-      timingNotes.push(`${where}: seria bez "until" i "count" — potrwa 10 lat, do ${f.until}.`);
+      timingNotes.push(t('bookings.plan.warn.tenYears', { where, until: f.until }));
     }
   }
 
@@ -1209,17 +1199,17 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
     const n = raw.capacity === null ? null : intOf(raw.capacity);
     if (raw.capacity === null) f.capacity = null;
     else if (n !== null && n >= 1 && n <= MAX_CAPACITY) f.capacity = n;
-    else warnings.push(`${where}: "capacity" to liczba 1–${MAX_CAPACITY} albo null — zostaje.`);
+    else warnings.push(t('bookings.plan.warn.capacity', { where, max: MAX_CAPACITY }));
   }
   if (raw.bookable !== undefined) {
     if (raw.bookable === null || typeof raw.bookable === 'boolean') f.bookable = raw.bookable;
-    else warnings.push(`${where}: "bookable" to true, false albo null — zostaje.`);
+    else warnings.push(t('bookings.plan.warn.bookable', { where }));
   }
   if (raw.reserveArea !== undefined) {
     const wanted = typeof raw.reserveArea === 'string' ? lower(raw.reserveArea) : raw.reserveArea === null ? '' : '?';
     if (wanted === '') f.reserveAreaId = null;
     else if (UUID.test(wanted) && areaOf.has(wanted)) f.reserveAreaId = wanted;
-    else warnings.push(`${where}: "reserveArea" to identyfikator obszaru, który widzisz, albo null — zostaje.`);
+    else warnings.push(t('bookings.plan.warn.reserveArea', { where }));
   }
 
   /* Was die Zeit einer Reihe betrifft, sagt nur, wer sie anlegt oder ändert — nicht jeder unveränderte Export. */
@@ -1232,21 +1222,21 @@ function readSlot(raw: Record<string, unknown>, where: string, was: SlotFields |
 function slotDiff(a: SlotFields, b: SlotFields, areaName: (id: string) => string): string {
   const keys = changedKeys(a, b);
   const out: string[] = [];
-  if (keys.some((k) => TIMING.includes(k))) out.push(`czas: ${slotWhen(a)} → ${slotWhen(b)}`);
+  if (keys.some((k) => TIMING.includes(k))) out.push(`${t('bookings.plan.word.time')}: ${slotWhen(a)} → ${slotWhen(b)}`);
   const text = (key: 'title' | 'location' | 'link', word: string) => {
     if (keys.includes(key)) out.push(`${word}: ${a[key] === '' ? '—' : quote(a[key])} → ${b[key] === '' ? '—' : quote(b[key])}`);
   };
-  text('title', 'tytuł');
-  text('location', 'miejsce');
-  if (keys.includes('notes')) out.push(b.notes === '' ? 'notatka usunięta' : 'notatka zmieniona');
-  text('link', 'link');
-  if (keys.includes('linkLabel')) out.push(`napis linku: ${quote(b.linkLabel)}`);
-  const own = (n: number | null) => (n === null ? 'jak zasób' : String(n));
-  if (keys.includes('capacity')) out.push(`miejsca: ${own(a.capacity)} → ${own(b.capacity)}`);
-  const choose = (v: boolean | null) => (v === null ? 'jak zasób' : v ? 'tak' : 'nie');
-  if (keys.includes('bookable')) out.push(`do wyboru: ${choose(a.bookable)} → ${choose(b.bookable)}`);
-  const who = (id: string | null) => (id === null ? 'jak zasób' : quote(areaName(id)));
-  if (keys.includes('reserveAreaId')) out.push(`rezerwuje: ${who(a.reserveAreaId)} → ${who(b.reserveAreaId)}`);
+  text('title', t('bookings.plan.word.title'));
+  text('location', t('bookings.plan.word.location'));
+  if (keys.includes('notes')) out.push(b.notes === '' ? t('bookings.plan.word.notesRemoved') : t('bookings.plan.word.notesChanged'));
+  text('link', t('bookings.plan.word.link'));
+  if (keys.includes('linkLabel')) out.push(t('bookings.plan.word.linkLabel', { label: quote(b.linkLabel) }));
+  const own = (n: number | null) => (n === null ? t('bookings.plan.word.asResource') : String(n));
+  if (keys.includes('capacity')) out.push(`${t('bookings.plan.word.places')}: ${own(a.capacity)} → ${own(b.capacity)}`);
+  const choose = (v: boolean | null) => (v === null ? t('bookings.plan.word.asResource') : v ? t('bookings.plan.word.yes') : t('bookings.plan.word.no'));
+  if (keys.includes('bookable')) out.push(`${t('bookings.plan.word.bookable')}: ${choose(a.bookable)} → ${choose(b.bookable)}`);
+  const who = (id: string | null) => (id === null ? t('bookings.plan.word.asResource') : quote(areaName(id)));
+  if (keys.includes('reserveAreaId')) out.push(`${t('bookings.plan.word.reserves')}: ${who(a.reserveAreaId)} → ${who(b.reserveAreaId)}`);
   return out.join('; ');
 }
 
@@ -1271,17 +1261,17 @@ function warnAboutClaims(input: {
   const n = claims.length;
 
   if (before.mode !== after.mode) {
-    warnings.push(`${where}: zmiana trybu — rezerwacje na przyszłość (${n}) zostają, jakie są; nowy tryb obowiązuje przy następnych prośbach.`);
+    warnings.push(t('bookings.plan.warn.modeChange', { where, n }));
   }
   if (after.mode === 'open' && before.mode === 'open') {
     const stricter = after.capacity < before.capacity || after.bufferBefore > before.bufferBefore || after.bufferAfter > before.bufferAfter
       || after.byNight !== before.byNight || after.checkInMin !== before.checkInMin || after.checkOutMin !== before.checkOutMin;
-    if (stricter) warnings.push(`${where}: nowe zasady — rezerwacje na przyszłość (${n}) zostają, jakie są; według nowych zasad usługa liczy dopiero następne prośby.`);
+    if (stricter) warnings.push(t('bookings.plan.warn.stricter', { where, n }));
     return;
   }
   if (after.mode !== 'offered' || before.mode !== 'offered') return;
   if (input.calendarMoves) {
-    warnings.push(`${where}: zmiana kalendarza — terminy z dotychczasowego przestają być do wyboru; rezerwacje na nich (${n}) zostają.`);
+    warnings.push(t('bookings.plan.warn.calendarMoves', { where, n }));
     return;
   }
 
@@ -1293,13 +1283,13 @@ function warnAboutClaims(input: {
     if (on.length === 0) continue;
     const was = slotFieldsOf(slot.draft);
     const now = planned.get(id)?.fields ?? was;
-    const name = quote(was.title === '' ? 'Termin' : was.title);
+    const name = quote(was.title === '' ? t('bookings.plan.slotLabel') : was.title);
 
     if (TIMING.some((k) => was[k] !== now[k])) {
       const days = new Set(on.map((c) => c.occurrenceAt ?? c.startsAt)).size;
       warnings.push(was.repeat === 'none' && now.repeat === 'none'
-        ? `${where}: termin ${name} (${slotWhen(was)}) zmienia czas — rezerwacje na nim (${on.length}) przejdą razem z nim na ${slotWhen(now)}.`
-        : `${where}: seria ${name} zmienia czas — rezerwacje na niej (${on.length}, dni: ${days}) przejdą na odpowiadające dni nowej serii (n-ty na n-ty); te, którym zabraknie dnia, zostaną odrzucone.`);
+        ? t('bookings.plan.warn.slotMoves', { where, name, was: slotWhen(was), n: on.length, now: slotWhen(now) })
+        : t('bookings.plan.warn.seriesMoves', { where, name, n: on.length, days }));
     }
 
     const capBefore = was.capacity ?? before.capacity;
@@ -1313,14 +1303,14 @@ function warnAboutClaims(input: {
       const over = [...taken.entries()].filter(([, k]) => k > capAfter);
       if (over.length > 0) {
         const first = on.find((c) => (c.occurrenceAt ?? c.startsAt) === over[0][0])!;
-        warnings.push(`${where}: termin ${name} — ${dayText(new Date(first.startsAt))}: zajęte ${over[0][1]} z ${capBefore}, po imporcie miejsc ${capAfter}${over.length > 1 ? ` (takich dni: ${over.length})` : ''}; nikt nie zostanie wypisany, ale nikt nowy się nie zapisze.`);
+        warnings.push(t(over.length > 1 ? 'bookings.plan.warn.overCapacityDays' : 'bookings.plan.warn.overCapacity', { where, name, day: dayText(new Date(first.startsAt)), taken: over[0][1], before: capBefore, after: capAfter, days: over.length }));
       }
     }
 
     const offeredBefore = was.bookable ?? before.bookableDefault;
     const offeredAfter = now.bookable ?? after.bookableDefault;
     if (offeredBefore && !offeredAfter) {
-      warnings.push(`${where}: termin ${name} przestaje być do wyboru — rezerwacje na nim (${on.length}) zostają.`);
+      warnings.push(t('bookings.plan.warn.notChoosable', { where, name, n: on.length }));
     }
   }
 }
@@ -1341,7 +1331,7 @@ function warnAboutOverlaps(slots: readonly PlannedSlot[], label: string, claims:
     const hit = claims.find((c) => (slot.itemId === null || c.itemId === null || lower(c.itemId) !== lower(slot.itemId))
       && new Date(c.startsAt).getTime() < to && new Date(c.endsAt).getTime() > from);
     if (hit !== undefined) {
-      warnings.push(`${slot.itemId === null ? 'Nowy termin' : 'Przesunięty termin'} ${quote(slot.label)} (${label}, ${slotWhen(f)}) nakłada się na rezerwację na innym terminie (${claimWhen(hit)}).`);
+      warnings.push(t(slot.itemId === null ? 'bookings.plan.warn.overlapNew' : 'bookings.plan.warn.overlapMoved', { name: quote(slot.label), owner: label, when: slotWhen(f), claim: claimWhen(hit) }));
     }
   }
 }

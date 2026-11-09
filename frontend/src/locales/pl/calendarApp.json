@@ -405,5 +405,859 @@
     "ownClaimConfirmed": "To Twoja rezerwacja (potwierdzona). Zmienisz ją tam, gdzie ją zrobiłeś.",
     "ownClaimWaiting": "To Twoja rezerwacja (czeka na potwierdzenie). Zmienisz ją tam, gdzie ją zrobiłeś.",
     "readOnly": "Ten termin możesz tylko oglądać — w jego kalendarzu nie piszesz."
+  },
+  "pickBar": {
+    "terms": {
+      "one": "{count} termin",
+      "few": "{count} terminy",
+      "many": "{count} terminów",
+      "other": "{count} terminu"
+    },
+    "series": {
+      "one": "{count} serię",
+      "few": "{count} serie",
+      "many": "{count} serii",
+      "other": "{count} serii"
+    },
+    "unit": {
+      "minute": {
+        "one": "minutę",
+        "few": "minuty",
+        "many": "minut",
+        "other": "minuty"
+      },
+      "hour": {
+        "one": "godzinę",
+        "few": "godziny",
+        "many": "godzin",
+        "other": "godziny"
+      },
+      "day": {
+        "one": "dzień",
+        "few": "dni",
+        "many": "dni",
+        "other": "dnia"
+      },
+      "week": {
+        "one": "tydzień",
+        "few": "tygodnie",
+        "many": "tygodni",
+        "other": "tygodnia"
+      },
+      "month": {
+        "one": "miesiąc",
+        "few": "miesiące",
+        "many": "miesięcy",
+        "other": "miesiąca"
+      }
+    },
+    "periodEarlier": "o {span} wcześniej",
+    "periodLater": "o {span} później",
+    "undone": "Cofnięto.",
+    "undoFailed": "Nie udało się cofnąć.",
+    "skippedAllDay": " Całodniowe przesuwają się tylko o pełne dni — bez zmian: {terms}.",
+    "moved": "Przeniesiono {terms}",
+    "copied": "Skopiowano {terms}",
+    "partlyFailed": "{done}, nie udało się: {failed}",
+    "failedOf": "Nie udało się: {failed} z {total}",
+    "removeAsk": "Usunąć {terms}?",
+    "removeAskSeries": "Usunąć {terms}? Z serii znikną tylko te dni.",
+    "removed": "Usunięto {terms}.",
+    "endAsk": "Zakończyć {series} przed zaznaczonym dniem? Wcześniejsze terminy zostają, pojedyncze terminy znikną.",
+    "ended": "Gotowe — serie kończą się przed zaznaczonymi dniami.",
+    "removeSeriesAsk": "Usunąć {series} w całości — także terminy, które już były?",
+    "label": "Zaznaczone terminy",
+    "picked": "Zaznaczone: {terms}",
+    "cutHint": "Ctrl + X — potem kliknij dzień albo godzinę",
+    "copyHint": "Ctrl + C — potem kliknij dzień albo godzinę",
+    "cut": "Wytnij",
+    "deleteKey": "Delete",
+    "escKey": "Esc",
+    "removeOnly": "Usuń tylko te",
+    "removeWithSeries": "Usuń z seriami",
+    "seriesMenu": "Serie…",
+    "endFollowing": "Te i następne — zakończ serie",
+    "wholeSeries": "Całe serie",
+    "shiftPicked": "Przesuń zaznaczone",
+    "shiftMenu": "Przesuń…",
+    "dayEarlier": "O dzień wcześniej",
+    "dayLater": "O dzień później",
+    "weekEarlier": "O tydzień wcześniej",
+    "weekLater": "O tydzień później",
+    "hourEarlier": "O godzinę wcześniej",
+    "hourLater": "O godzinę później",
+    "otherPeriod": "O inny okres…",
+    "copyPeriod": "Kopiuj o okres…",
+    "shiftForm": "Przesuń o okres",
+    "shift": "Przesuń",
+    "by": "o",
+    "howMany": "Ile",
+    "ofWhat": "Czego",
+    "earlier": "wcześniej",
+    "later": "później",
+    "allDayOnly": "Całodniowe przesuwają się tylko o pełne dni.",
+    "allDayStay": "całodniowe zostają: {count}",
+    "clipCut": "Do przeniesienia: {terms} — kliknij dzień albo godzinę, gdzie mają trafić",
+    "clipCopy": "Do skopiowania: {terms} — kliknij dzień albo godzinę, gdzie mają trafić"
+  },
+  "editor": {
+    "extra": {
+      "place": "Miejsce",
+      "notes": "Notatka",
+      "people": "Osoby",
+      "link": "Link",
+      "program": "Program"
+    },
+    "scope": {
+      "one": "Ten termin",
+      "following": "Ten i następne",
+      "all": "Całą serię"
+    },
+    "newTitle": {
+      "mass": "Nowa msza",
+      "confession": "Nowa spowiedź",
+      "devotion": "Nowe nabożeństwo",
+      "visit": "Nowe odwiedziny",
+      "appointment": "Nowy termin"
+    },
+    "needsWhen": "Podaj dzień i godziny.",
+    "fillIn": "Uzupełnij: {field}.",
+    "partsFailed": "Termin zapisany, ale {failed} z {total} punktów programu nie udało się zmienić razem z nim.",
+    "endAsk": "Zakończyć serię przed tym dniem? Wcześniejsze terminy zostają.",
+    "cancelOneAsk": "Odwołać tylko ten termin?",
+    "removeAsk": "Usunąć ten termin (całą serię)?",
+    "onlyMe": "Tylko ja",
+    "youChange": "Zmieniasz",
+    "whatChanges": "Co zmieniasz",
+    "followingNote": "Od tego dnia — wcześniejsze terminy zostają, jak były. Intencje, obsada i zapisy przechodzą na nowe godziny według dnia.",
+    "allWarn": "Zmieniasz całą serię — także terminy, które już były. Zwykle właściwe jest „Ten i następne”.",
+    "kind": "Rodzaj",
+    "namePublic": "Nazwa (widoczna publicznie)",
+    "titlePlaceholder": {
+      "mass": "Nazwa, np. Suma — puste: sama godzina",
+      "devotion": "Nazwa, np. Różaniec",
+      "confession": "Nazwa — puste: „Spowiedź”",
+      "other": "Tytuł, np. Spotkanie z rodzicami"
+    },
+    "publicHint": "Nazwa jest jawna — stoi w planie i w gablocie. Miejsce i notatka zostają zaszyfrowane.",
+    "endDay": "Dzień końca",
+    "allDay": "Cały dzień",
+    "severalDays": "Kilka dni",
+    "endsOtherDay": "Kończy się innego dnia",
+    "repeat": "Powtarzanie",
+    "repeatNone": "Nie powtarza się",
+    "repeatWeekly": "Co tydzień",
+    "repeatMonthly": "Co miesiąc, {day}. dnia",
+    "repeatYearly": "Co rok, {day} {month}",
+    "repeatCustom": "Inaczej…",
+    "every": "co",
+    "everyHowMany": "Co ile",
+    "unit": {
+      "daily": {
+        "one": "dzień",
+        "few": "dni",
+        "many": "dni",
+        "other": "dnia"
+      },
+      "weekly": {
+        "one": "tydzień",
+        "few": "tygodnie",
+        "many": "tygodni",
+        "other": "tygodnia"
+      },
+      "monthly": {
+        "one": "miesiąc",
+        "few": "miesiące",
+        "many": "miesięcy",
+        "other": "miesiąca"
+      },
+      "yearly": {
+        "one": "rok",
+        "few": "lata",
+        "many": "lat",
+        "other": "roku"
+      }
+    },
+    "until": "Do kiedy",
+    "endsNever": "bez końca",
+    "endsDate": "do dnia…",
+    "endsCount": "tyle razy…",
+    "lastDay": "Ostatni dzień",
+    "howManyTimes": "Ile razy",
+    "times": {
+      "one": "raz",
+      "few": "razy",
+      "many": "razy",
+      "other": "razy"
+    },
+    "groupCalendars": "Kalendarze grup",
+    "privateSeen": "Widzisz tylko Ty — zaszyfrowane Twoim kluczem.",
+    "seenBy": "Widzą: <b>{who}</b>",
+    "otherThanCalendar": "— inaczej niż kalendarz",
+    "asCalendar": "jak w kalendarzu ({who})",
+    "scheme": "Schemat",
+    "universal": "Uniwersalny",
+    "thisDay": "(ten dzień)",
+    "bookable": "Można rezerwować",
+    "places": "Miejsc",
+    "reserveAsCalendar": "rezerwuje: jak w kalendarzu ({who})",
+    "anyoneFinds": "każdy, kto znajdzie termin",
+    "placePlaceholder": "Miejsce, np. salka parafialna",
+    "thisOne": "— ten termin",
+    "linkLabel": "Link do informacji",
+    "linkPlaceholder": "https://… albo #/strona na recreatio.pl",
+    "buttonText": "Napis na przycisku",
+    "buttonPlaceholder": "Napis: Więcej informacji",
+    "linkWarn": "Link musi zaczynać się od https:// (albo #/ dla strony na recreatio.pl).",
+    "linkFailed": "Nie udało się podłączyć terminu.",
+    "unlinkFailed": "Nie udało się odłączyć terminu.",
+    "newPartNote": "Punkt programu: <b>{parent}</b> — kalendarz, widoczność, miejsce, link i osoby są wspólne z nim. Zmień tutaj tylko to, co w tym punkcie ma być inaczej.",
+    "parentFallback": "termin nadrzędny",
+    "willDetach": "Po zapisaniu ten termin nie będzie już punktem programu.",
+    "partNote": "Punkt programu: <b>{parent}</b> — to, co ma tak samo jak on, zmienia się razem z nim.",
+    "parentOutside": "termin spoza widoku",
+    "detach": "Odłącz",
+    "fromChat": "Z rozmowy — termin zapamięta, z której wiadomości powstał.",
+    "onlyTimeNote": "Przesuwasz tylko ten jeden termin — reszta serii zostaje, jak była. Rezerwacje przechodzą razem z nim.",
+    "addTo": "Dodaj do terminu",
+    "addOne": "Dodaj: {what}",
+    "cancelOne": "Odwołaj ten termin",
+    "endSeries": "Zakończ serię przed tym dniem"
+  },
+  "app": {
+    "noKey": "Bez klucza w tej karcie kalendarz jest zamknięty — zaloguj się ponownie albo odblokuj klucz.",
+    "loadFailed": "Nie udało się wczytać kalendarza.",
+    "calendarFallback": "kalendarz",
+    "dropCopy": "Kopiuj {terms}",
+    "dropMove": "Przenieś {terms}",
+    "notPickable": "Tego terminu nie zmienisz razem z innymi.",
+    "clickWhere": "Kliknij dzień albo godzinę, gdzie mają trafić.",
+    "loadingShort": "wczytywanie…",
+    "calendars": "Kalendarze",
+    "whatToShow": "Co pokazać",
+    "toConfirm": "Do potwierdzenia",
+    "mineHint": "Tylko terminy, przy których musisz być (np. msze, które odprawiasz)",
+    "mine": "Przypisane do mnie",
+    "tasks": "Zadania",
+    "jsonTitle": "Terminy jako JSON — {name}",
+    "taken": "zajęte {taken} z {capacity}",
+    "waitingCount": {
+      "one": "{count} czeka na potwierdzenie",
+      "few": "{count} czeka na potwierdzenie",
+      "many": "{count} czeka na potwierdzenie",
+      "other": "{count} czeka na potwierdzenie"
+    },
+    "intShort": "{count} int."
+  },
+  "grid": {
+    "hourHeight": "Wysokość godziny",
+    "zoomOut": "Pomniejsz",
+    "zoomOutHint": "Pomniejsz (Ctrl + kółko myszy)",
+    "zoomIn": "Powiększ",
+    "zoomInHint": "Powiększ (Ctrl + kółko myszy)",
+    "showMonth": "Pokaż cały miesiąc",
+    "showDay": "Pokaż ten dzień",
+    "allDay": "cały dzień",
+    "focusEvents": "Terminy szeroko, zadania z boku",
+    "focusTasks": "Zadania szeroko, terminy z boku",
+    "tasks": "zadania",
+    "prevDay": "Poprzedni dzień",
+    "prevWeek": "Poprzedni tydzień",
+    "nextDay": "Następny dzień",
+    "nextWeek": "Następny tydzień",
+    "railTasks": "Zadania: {date} — pokaż szeroko",
+    "tasksWide": "Zadania szeroko",
+    "railEvents": "Terminy: {date} — pokaż szeroko",
+    "eventsWide": "Terminy szeroko",
+    "done": "Zrobione",
+    "showAlso": "Pokaż też {month}",
+    "withParts": "{title} — punkty programu: {count}",
+    "more": "+{count} więcej"
+  },
+  "list": {
+    "empty": "W tych dniach nic nie ma.",
+    "taken": "{taken}/{capacity} zajęte",
+    "waitCount": "{count} czeka",
+    "waits": "czeka",
+    "booking": "rezerwacja",
+    "bookingAll": "rezerwacje: każdy termin · {capacity} miejsc",
+    "bookingMarked": "rezerwacje: oznaczone · {capacity} miejsc",
+    "onlyGroup": "tylko {who}",
+    "seenBy": "widzą: {who}",
+    "readOnly": "tylko podgląd",
+    "exportJson": "Eksport JSON",
+    "intro": "Grupa ma swój kalendarz od razu — a może mieć ich więcej (np. msze i spotkania osobno). Każdy mówi, jak działają jego terminy: kto je widzi, jak długo trwają i kto może je rezerwować.",
+    "newCalendar": "+ Nowy kalendarz"
+  },
+  "flow": {
+    "season": {
+      "adwent": "Adwent",
+      "narodzenie": "Okres Narodzenia Pańskiego",
+      "zwykly": "Okres zwykły",
+      "post": "Wielki Post",
+      "triduum": "Triduum Paschalne",
+      "wielkanoc": "Okres wielkanocny"
+    },
+    "node": {
+      "day": {
+        "label": "Dzień",
+        "says": "Początek dla każdego dnia zakresu."
+      },
+      "mass": {
+        "label": "Msza",
+        "says": "Początek dla każdej mszy dnia (z węzła „Godziny”)."
+      },
+      "season": {
+        "label": "Okres liturgiczny",
+        "says": "Liczy okres, tydzień, rangę dnia i kolor okresu."
+      },
+      "feasts": {
+        "label": "Kalendarz świąt",
+        "says": "Wybiera obchód dnia z tabeli (najwyższa ranga wygrywa)."
+      },
+      "if": {
+        "label": "Warunek",
+        "says": "Sprawdza dzień, mszę albo wpis — dalej „tak” albo „nie”."
+      },
+      "set": {
+        "label": "Ustaw",
+        "says": "Ustawia tytuł, pole schematu albo zmienną."
+      },
+      "slots": {
+        "label": "Godziny mszy",
+        "says": "Mówi, jakie msze są tego dnia (niedziele i święta / dni powszednie)."
+      },
+      "record": {
+        "label": "Dodaj wpis",
+        "says": "Dodaje do mszy stały wpis, np. intencję „Za parafian”."
+      },
+      "skip": {
+        "label": "Bez mszy",
+        "says": "Tego dnia (tej godziny) nie ma mszy."
+      },
+      "end": {
+        "label": "Utwórz",
+        "says": "Mszę tworzy się z tym, co ustawiono po drodze."
+      },
+      "record-start": {
+        "label": "Nowy wpis",
+        "says": "Początek: ktoś dodaje albo przyjmuje wpis."
+      },
+      "allow": {
+        "label": "Przyjmij",
+        "says": "Wpis zostaje przyjęty."
+      },
+      "wait": {
+        "label": "Czeka",
+        "says": "Wpis czeka, aż przyjmie go kancelaria."
+      },
+      "refuse": {
+        "label": "Odmów",
+        "says": "Wpisu nie da się dodać — z tym komunikatem."
+      }
+    },
+    "dateRule": {
+      "shift": {
+        "one": "{unit} {sign}{count} dni",
+        "few": "{unit} {sign}{count} dni",
+        "many": "{unit} {sign}{count} dni",
+        "other": "{unit} {sign}{count} dni"
+      },
+      "easter": "Wielkanoc",
+      "advent": "I Niedziela Adwentu",
+      "christmasSunday": "niedziela w oktawie Narodzenia (albo 30 grudnia)",
+      "baptism": "niedziela po 6 stycznia",
+      "last": "ostatni",
+      "nth": "{n}.",
+      "nthEvery": "{which} {weekday} każdego miesiąca",
+      "nthOf": "{which} {weekday} {month}",
+      "sundayAfter": "pierwsza niedziela po {date}"
+    },
+    "dayShort": {
+      "d1": "pn",
+      "d2": "wt",
+      "d3": "śr",
+      "d4": "czw",
+      "d5": "pt",
+      "d6": "sob",
+      "d7": "nd"
+    },
+    "test": {
+      "weekday": "dzień tygodnia: {list}",
+      "slot": "godzina mszy: {list}",
+      "timeBoth": "msza od {from} do {to}",
+      "timeFrom": "msza od {from}",
+      "timeTo": "msza do {to}",
+      "time": "msza",
+      "season": "okres: {list}",
+      "week": "tydzień {op} {n}",
+      "rank": "ranga {op} {n}",
+      "celebrationAny": "jest obchód",
+      "celebrationNone": "brak obchodu",
+      "celebrationName": "obchód zawiera „{name}”",
+      "festive": "dzień świąteczny (niedziela albo święto)",
+      "sunday": "niedziela",
+      "date": "data: {rule}",
+      "between": "między {from} a {to}",
+      "varContains": "zmienna {name} zawiera „{value}”",
+      "varIs": "zmienna {name} {op} „{value}”",
+      "mode": "rodzaj wpisu: {list}",
+      "countHere": "na tym terminie",
+      "countOthers": "innych terminów w tygodniu",
+      "countWeek": "w tygodniu",
+      "countNumber": "liczba",
+      "countEntries": "liczba wpisów",
+      "countWaiting": ", także czekające",
+      "count": "{what} {where}{extra} {op} {n}",
+      "actorOffice": "dodaje kancelaria",
+      "actorOutside": "dodaje ktoś z zewnątrz",
+      "fieldSet": "pole {key} wypełnione",
+      "fieldEmpty": "pole {key} puste",
+      "fieldIs": "pole {key} = „{value}”",
+      "unknown": "nieznany warunek"
+    },
+    "out": {
+      "out": "dalej",
+      "yes": "tak",
+      "no": "nie"
+    },
+    "trace": {
+      "week": ", tydzień {week}",
+      "colour": ", kolor {colour}",
+      "noCelebration": "bez obchodu",
+      "title": "tytuł",
+      "set": "{node}: {key} = „{value}”",
+      "record": "{node}: {list} „{text}”",
+      "noTest": "brak warunku",
+      "noMass": "brak mszy",
+      "mass": "msza {time}",
+      "noMassNode": "(brak węzła „Msza” — msza z tym, co ustawił dzień)"
+    },
+    "problem": {
+      "badDate": "Nieczytelna data: {date}",
+      "noDay": "Brak węzła „Dzień” — plan nie wie, od czego zacząć dzień.",
+      "dayLoop": "Za dużo kroków na ścieżce dnia — czy w planie jest pętla?",
+      "endOnDay": "„Utwórz” na ścieżce dnia — dzień kończy się w „Godzinach mszy” albo „Bez mszy”.",
+      "notOnDay": "Węzeł „{node}” nie należy do ścieżki dnia.",
+      "dayEnds": "Ścieżka dnia kończy się w „{node}” — brak połączenia „{out}” (bez godzin mszy).",
+      "massLoop": "Za dużo kroków na ścieżce mszy {time} — czy w planie jest pętla?",
+      "notOnMass": "Węzeł „{node}” nie należy do ścieżki mszy."
+    },
+    "rule": {
+      "waits": "Wpis czeka na przyjęcie przez kancelarię.",
+      "refused": "Tego wpisu nie można dodać.",
+      "none": "(bez reguły)",
+      "noStart": "(reguła bez węzła „Nowy wpis”)",
+      "loop": "(za dużo kroków — pętla?)",
+      "notInRule": "(węzeł „{node}” nie należy do reguły)",
+      "endsWithout": "(reguła kończy się w „{node}” bez decyzji)",
+      "noDecision": "(reguła bez decyzji)"
+    }
+  },
+  "flowUi": {
+    "day": {
+      "d1": "poniedziałek",
+      "d2": "wtorek",
+      "d3": "środa",
+      "d4": "czwartek",
+      "d5": "piątek",
+      "d6": "sobota",
+      "d7": "niedziela"
+    },
+    "rank": {
+      "r1": "Triduum Paschalne",
+      "r2": "Największe dni (Boże Narodzenie, Objawienie, Wniebowstąpienie, Zesłanie; niedziele Adwentu, Postu, Wielkanocy; Popielec; Wielki Tydzień; oktawa Wielkanocy)",
+      "r3": "Uroczystości z kalendarza ogólnego, Zaduszki",
+      "r4": "Uroczystości własne (patron, tytuł i rocznica poświęcenia kościoła)",
+      "r5": "Święta Pańskie",
+      "r6": "Niedziele zwykłe i okresu Narodzenia",
+      "r7": "Święta z kalendarza ogólnego",
+      "r8": "Święta własne (patron diecezji, rocznica poświęcenia katedry)",
+      "r9": "Dni uprzywilejowane (17–24 XII, oktawa Narodzenia, dni Wielkiego Postu)",
+      "r10": "Wspomnienia obowiązkowe",
+      "r11": "Wspomnienia obowiązkowe własne",
+      "r12": "Wspomnienia dowolne",
+      "r13": "Dni powszednie"
+    },
+    "rankShort": {
+      "r1": "Triduum",
+      "r2": "najwyższa",
+      "r3": "uroczystość",
+      "r4": "uroczystość własna",
+      "r5": "święto Pańskie",
+      "r6": "niedziela",
+      "r7": "święto",
+      "r8": "święto własne",
+      "r9": "dzień uprzywilejowany",
+      "r10": "wspomnienie obow.",
+      "r11": "wspomnienie własne",
+      "r12": "wspomnienie dowolne",
+      "r13": "dzień powszedni"
+    },
+    "special": {
+      "gaudete": "III Niedziela Adwentu (Gaudete)",
+      "laetare": "IV Niedziela Wielkiego Postu (Laetare)",
+      "palm": "Niedziela Palmowa",
+      "goodFriday": "Wielki Piątek",
+      "pentecost": "Zesłanie Ducha Świętego"
+    },
+    "testLabel": {
+      "weekday": "Dzień tygodnia",
+      "slot": "Która msza (klucz godziny)",
+      "time": "Godzina mszy między",
+      "season": "Okres liturgiczny",
+      "week": "Tydzień okresu",
+      "rank": "Ranga dnia",
+      "celebration": "Obchód dnia",
+      "festive": "Niedziela albo święto nakazane",
+      "sunday": "Niedziela",
+      "date": "Data (reguła)",
+      "between": "Między datami w roku",
+      "var": "Zmienna",
+      "mode": "Rodzaj wpisu",
+      "count": "Liczba wpisów",
+      "actor": "Kto dodaje",
+      "field": "Pole wpisu"
+    },
+    "placeholder": {
+      "celebration": "obchód dnia",
+      "title": "tytuł mszy (z obchodu)",
+      "sundayName": "nazwa niedzieli, np. III Niedziela Adwentu",
+      "seasonName": "nazwa okresu",
+      "season": "okres (klucz)",
+      "week": "tydzień okresu",
+      "weekRoman": "tydzień rzymską liczbą",
+      "colour": "kolor",
+      "date": "data",
+      "time": "godzina mszy",
+      "slot": "klucz godziny"
+    },
+    "easter": {
+      "om46": "Popielec",
+      "om7": "Niedziela Palmowa",
+      "om3": "Wielki Czwartek",
+      "om2": "Wielki Piątek",
+      "om1": "Wielka Sobota",
+      "o0": "Wielkanoc",
+      "o1": "Poniedziałek Wielkanocny",
+      "o7": "Niedziela Miłosierdzia",
+      "o42": "Wniebowstąpienie (PL)",
+      "o49": "Zesłanie Ducha Świętego",
+      "o50": "NMP Matki Kościoła",
+      "o56": "Trójcy Przenajświętszej",
+      "o60": "Boże Ciało",
+      "o68": "Najświętsze Serce Pana Jezusa",
+      "o69": "Niepokalane Serce NMP"
+    },
+    "advent": {
+      "om7": "Chrystusa Króla",
+      "o0": "I Niedziela Adwentu",
+      "o7": "II Niedziela Adwentu",
+      "o14": "III Niedziela Adwentu",
+      "o21": "IV Niedziela Adwentu"
+    },
+    "nth": {
+      "n1": "pierwszy",
+      "n2": "drugi",
+      "n3": "trzeci",
+      "n4": "czwarty",
+      "n5": "piąty",
+      "last": "ostatni"
+    },
+    "summary": {
+      "easterShift": "Wielkanoc{shift} dni",
+      "adventShift": "I Niedz. Adwentu{shift} dni",
+      "holyFamily": "Święta Rodzina",
+      "baptism": "Chrzest Pański",
+      "nthEvery": "{which} {weekday} miesiąca",
+      "nthOf": "{which} {weekday} {month}",
+      "sundayAfter": "niedziela po {day} {month}",
+      "pick": "— wybierz —",
+      "anyMode": "każdy",
+      "weekday": "dzień: {list}",
+      "slot": "msza: {list}",
+      "time": "godzina {from}–{to}",
+      "season": "okres: {list}",
+      "week": "tydzień {op} {n}",
+      "rank": "ranga {op} {n} ({rank})",
+      "celebrationAny": "jest obchód",
+      "celebrationNone": "nie ma obchodu",
+      "celebrationName": "obchód: „{name}”",
+      "festive": "niedziela albo święto",
+      "date": "dzień: {rule}",
+      "between": "od {from} do {to}",
+      "varContains": "{name} zawiera „{value}”",
+      "mode": "rodzaj: {list}",
+      "countHere": "na terminie",
+      "countOthers": "innych terminów w tygodniu z",
+      "countWeek": "w tygodniu",
+      "countAll": "(wszystkie)",
+      "fieldSet": "pole {key}: wypełnione",
+      "fieldEmpty": "pole {key}: puste",
+      "field": "pole {key}:"
+    },
+    "node": {
+      "seasonEmpty": "okres, tydzień — kolory do ustawienia",
+      "seasonFilled": {
+        "one": "okres, tydzień, kolor ({count} okresów)",
+        "few": "okres, tydzień, kolor ({count} okresów)",
+        "many": "okres, tydzień, kolor ({count} okresów)",
+        "other": "okres, tydzień, kolor ({count} okresów)"
+      },
+      "feastsEmpty": "pusta tabela",
+      "feasts": {
+        "one": "{count} obchód",
+        "few": "{count} obchody",
+        "many": "{count} obchodów",
+        "other": "{count} obchodu"
+      },
+      "noName": "(bez nazwy)",
+      "noTest": "— warunek —",
+      "field": "pole „{field}”",
+      "variable": "zmienna {name}",
+      "slots": "niedz. i święta: {festive} · powszednie: {weekdays}",
+      "message": "— komunikat —",
+      "waitDefault": "Kancelaria potwierdzi wpis."
+    }
+  },
+  "test": {
+    "weekdays": "Dni tygodnia",
+    "compareOf": "{label}: porównanie",
+    "numberOf": "{label}: liczba",
+    "dayOf": "{label}: dzień",
+    "monthOf": "{label}: miesiąc",
+    "what": "Co sprawdzić",
+    "masses": "Msze",
+    "slotKeys": "Klucze godzin (oddzielone przecinkami)",
+    "slotKeysPlaceholder": "np. n1213, p1800",
+    "from": "od",
+    "to": "do",
+    "fromTime": "Od godziny",
+    "toTime": "Do godziny",
+    "seasons": "Okresy",
+    "week": "Tydzień",
+    "rank": "Ranga",
+    "rankNote": "1 to najwyższa ranga, 13 — zwykły dzień powszedni. „< 10” znaczy: ważniejsze niż wspomnienie obowiązkowe.",
+    "celebration": "Obchód",
+    "celebrationAny": "jest obchód z kalendarza świąt",
+    "celebrationNone": "nie ma obchodu (dzień okresu)",
+    "celebrationName": "obchód o nazwie zawierającej…",
+    "celebrationNameLabel": "Nazwa obchodu",
+    "celebrationPlaceholder": "np. Matki Bożej",
+    "betweenNote": "Co roku, włącznie z obu końcami (np. 17–24 grudnia). „Do” wcześniejsze niż „od” przechodzi przez Nowy Rok.",
+    "varName": "Nazwa zmiennej",
+    "varPlaceholder": "np. colour",
+    "compare": "Porównanie",
+    "contains": "zawiera",
+    "value": "Wartość",
+    "modes": "Rodzaje",
+    "modeKeys": "Rodzaje (klucze, oddzielone przecinkami)",
+    "countWhere": "Gdzie liczyć",
+    "countOccurrence": "wpisy na tym terminie",
+    "countWeek": "wpisy w tym tygodniu (pn–nd)",
+    "countWeekOcc": "inne terminy tego tygodnia, które mają takie wpisy",
+    "ofKind": "Jakiego rodzaju",
+    "anyKind": "każdego rodzaju",
+    "which": "Które",
+    "statusLive": "przyjęte i odprawione",
+    "statusAll": "także czekające",
+    "number": "Liczba",
+    "actorOffice": "kancelaria (piszący w kalendarzu)",
+    "actorOutside": "ktoś z zewnątrz (członek, link)",
+    "field": "Pole",
+    "pickField": "— wybierz pole —",
+    "fieldKey": "Klucz pola",
+    "fieldTest": "Warunek pola",
+    "filled": "wypełnione",
+    "empty": "puste",
+    "equals": "równe",
+    "fieldValue": "Wartość pola"
+  },
+  "dateRule": {
+    "kind": {
+      "fixed": "Stała data",
+      "easter": "Względem Wielkanocy",
+      "advent": "Względem I Niedzieli Adwentu",
+      "christmas-sunday": "Święta Rodzina (niedziela w oktawie)",
+      "baptism": "Chrzest Pański (niedziela po 6 I)",
+      "nth-weekday": "N-ty dzień tygodnia w miesiącu",
+      "sunday-after": "Pierwsza niedziela po dniu"
+    },
+    "knownDay": "{label}: znany dzień",
+    "otherDay": "— inny dzień —",
+    "daysOf": "{label}: dni",
+    "days": "dni",
+    "when": "Kiedy",
+    "kindOf": "{label}: rodzaj daty",
+    "whichOf": "{label}: który",
+    "weekdayOf": "{label}: dzień tygodnia",
+    "everyMonth": "każdego miesiąca"
+  },
+  "season": {
+    "note": "Węzeł liczy okres, tydzień i rangę dnia (np. niedziela Adwentu) — co roku od nowa, z datą Wielkanocy i Adwentu. Kolory wpisujesz Ty.",
+    "season": "Okres",
+    "colour": "Kolor",
+    "colourOf": "Kolor: {name}",
+    "special": "Dzień szczególny"
+  },
+  "slots": {
+    "empty": "Brak mszy.",
+    "time": "Godzina",
+    "minutes": "Ile minut",
+    "min": "min",
+    "remove": "Usuń mszę {time}",
+    "key": "Klucz",
+    "keyHint": "Klucz — po nim warunki i podgląd rozpoznają tę mszę",
+    "label": "Opis (nieobowiązkowo)",
+    "labelPlaceholder": "opis, np. Suma",
+    "days": "Dni: {time}",
+    "needsKey": "Msza potrzebuje klucza.",
+    "keyTaken": "Ten klucz jest już użyty.",
+    "add": "+ Dodaj mszę",
+    "note": "W niedziele i święta nakazane (obchód z zaznaczonym „dzień świąteczny”) obowiązuje pierwsza lista, w pozostałe dni — druga.",
+    "festive": "Niedziele i święta",
+    "weekdays": "Dni powszednie"
+  },
+  "feasts": {
+    "note": "Z obchodów, które przypadają danego dnia, wygrywa ten o najwyższej randze (najmniejsza liczba) — jeśli jest ważniejszy niż sam dzień (np. niedziela Adwentu ma rangę 2). Ustawia obchód, kolor i dzień świąteczny.",
+    "search": "Szukaj obchodu",
+    "count": {
+      "one": "{count} obchodów",
+      "few": "{count} obchodów",
+      "many": "{count} obchodów",
+      "other": "{count} obchodów"
+    },
+    "shown": "{shown} z {total}",
+    "empty": "Tabela jest pusta — dodaj pierwszy obchód.",
+    "festive": "świąteczny",
+    "namePlaceholder": "np. Uroczystość NMP Królowej Polski",
+    "colour": "Kolor szat",
+    "title": "Tytuł mszy (puste: nazwa obchodu)",
+    "festiveLong": "Dzień świąteczny — msze jak w niedzielę",
+    "move": "Gdy dzień ma wyższą rangę — obchodzić następnego dnia",
+    "up": "Wyżej",
+    "upShort": "wyżej",
+    "down": "Niżej",
+    "downShort": "niżej",
+    "remove": "Usuń obchód",
+    "add": "+ Dodaj obchód",
+    "sort": "Uporządkuj według daty"
+  },
+  "panel": {
+    "insert": "Wstaw do tekstu",
+    "setWhat": "Co ustawić",
+    "targetTitle": "tytuł mszy",
+    "targetField": "pole schematu",
+    "targetVar": "zmienną (np. colour)",
+    "notInScheme": "{key} (nie ma w schemacie)",
+    "fieldKey": "Klucz pola schematu",
+    "fieldKeyPlaceholder": "np. kolor",
+    "valuePlaceholder": "np. {token}",
+    "colourNote": "Zmienna „colour” to kolor mszy: wpisuje się go potem do pola (np. „Ustaw pole Kolor = {token}”).",
+    "list": "Lista",
+    "pickList": "— wybierz listę —",
+    "listKey": "Klucz listy",
+    "noKind": "— bez rodzaju —",
+    "text": "Tekst wpisu",
+    "textPlaceholder": "np. Za parafian",
+    "recordNote": "Wpis powstaje razem z mszą i jest oznaczony „z reguły” — kancelaria może go zmienić albo usunąć.",
+    "removeNode": "Usuń węzeł",
+    "messageRefuse": "Komunikat dla dodającego",
+    "message": "Komunikat (nieobowiązkowo)",
+    "messagePlaceholder": {
+      "refuse": "np. Ta msza ma już intencję.",
+      "wait": "np. Kancelaria potwierdzi wpis.",
+      "allow": "np. Dziękujemy — intencja przyjęta."
+    }
+  },
+  "flowEditor": {
+    "group": {
+      "start": "Początek",
+      "day": "Dzień",
+      "logic": "Logika",
+      "end": "Koniec"
+    },
+    "missing": {
+      "day": "Brak węzła „{node}” — od niego zaczyna się każdy dzień.",
+      "mass": "Brak węzła „{node}” — od niego zaczyna się każda msza.",
+      "record": "Brak węzła „{node}” — od niego zaczyna się sprawdzanie wpisu."
+    },
+    "tooMany": "Jest {count} węzłów „{node}” — liczy się tylko jeden.",
+    "unreached": "nie łączy się z początkiem",
+    "noYesNo": "brak wyjść „tak” i „nie”",
+    "noYes": "brak wyjścia „tak”",
+    "noNo": "brak wyjścia „nie”",
+    "slotFestive": "nd {time}",
+    "slotWeekday": "pow. {time}",
+    "addNode": "Dodaj węzeł",
+    "onMap": "Już jest na mapie",
+    "settings": "Ustawienia węzła",
+    "help": "Kliknij węzeł, żeby go ustawić. Wyjście (kropka po prawej) połącz z wejściem następnego węzła (kropka po lewej). Nowy węzeł dodany przy zaznaczonym podłącza się do jego wolnego wyjścia. Zaznaczony węzeł albo krawędź usuwa Delete.",
+    "planHelp": "Dla każdego dnia ścieżka zaczyna się w „Dzień” i kończy w „Godziny mszy”; dla każdej mszy — w „Msza” i kończy w „Utwórz” albo „Bez mszy”."
+  },
+  "tpl": {
+    "rule": {
+      "intentionWaits": "Intencja czeka na przyjęcie przez kancelarię.",
+      "singleAlone": "Ta msza ma już intencję — intencja pojedyncza musi być jedyna.",
+      "noMixed": "Na tej mszy jest intencja pojedyncza — zbiorowa nie może do niej dojść.",
+      "weekFull": "W tym tygodniu są już dwie msze z intencjami zbiorowymi.",
+      "noPlaces": "Nie ma już wolnych miejsc.",
+      "signupWaits": "Zapis czeka na potwierdzenie."
+    },
+    "field": {
+      "obchod": {
+        "label": "Obchód",
+        "says": "Obchód dnia albo formularz mszy (np. „Wszystkich Świętych”, „XXX Niedziela zwykła”) — stoi w planie i w gablocie."
+      },
+      "kolor": {
+        "label": "Kolor szat",
+        "says": "Kolor szat liturgicznych — w planie jako znaczek koloru."
+      },
+      "czytania": {
+        "label": "Czytania",
+        "says": "Sigla czytań, np. „Iz 7,10-14; Ps 24; Rz 1,1-7; Mt 1,18-24” — tylko odnośniki, bez tekstów."
+      }
+    },
+    "msza": {
+      "name": "Msza",
+      "says": "Msza z obchodem, kolorem szat, czytaniami i intencjami (z regułą pojedynczych i zbiorowych).",
+      "listSays": "Intencje mszy: treść czytana na mszy i w gablocie; pojedyncza stoi sama, zbiorowych najwyżej dwie msze w tygodniu."
+    },
+    "nabozenstwo": {
+      "name": "Nabożeństwo",
+      "says": "Nabożeństwo (Różaniec, Droga Krzyżowa, Gorzkie Żale …) z obchodem i kolorem."
+    },
+    "spowiedz": {
+      "name": "Spowiedź",
+      "says": "Spowiedź z krótką jawną informacją.",
+      "fieldLabel": "Dla wiernych",
+      "fieldSays": "Krótka informacja w planie, np. „przy konfesjonale św. Józefa”."
+    },
+    "zapisy": {
+      "name": "Spotkanie z zapisami",
+      "says": "Spotkanie, na które można się zapisać (np. kandydaci do bierzmowania wybierają termin).",
+      "leadLabel": "Prowadzi",
+      "leadSays": "Kto prowadzi spotkanie.",
+      "listLabel": "Zapisy",
+      "itemLabel": "zapis",
+      "person": "Kto",
+      "yes": "będę",
+      "maybe": "może",
+      "no": "nie będę",
+      "notesLabel": "Uwagi",
+      "notesSays": "Uwagi do zapisu — widzi je kancelaria.",
+      "listSays": "Zapisy na termin: „będę” liczy się do miejsc (20, do zmiany w regule); zapis z zewnątrz czeka na potwierdzenie."
+    },
+    "plan": {
+      "year": {
+        "name": "Rok liturgiczny — parafia (Polska)",
+        "says": "Msze na kolejne tygodnie według roku liturgicznego: kalendarz świąt w Polsce, godziny niedzielne i powszednie, Triduum, Pasterka, obchód i kolor każdej mszy, w środę wieczorem msza wotywna o MB Nieustającej Pomocy, w niedzielę o 12:13 intencja „Za parafian”."
+      },
+      "fixed": {
+        "name": "Stałe godziny mszy",
+        "says": "Tylko godziny: niedziele i święta 7:30, 9:00, 10:30, 12:13, 18:00; dni powszednie 7:00 i 18:00 — bez kalendarza świąt.",
+        "massTitle": "Msza święta"
+      }
+    }
   }
 }

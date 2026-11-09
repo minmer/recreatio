@@ -142,7 +142,7 @@ function ImageEditor({ raw, onSet, ctx, busy }: EditorProps) {
       {config.fit === 'cover' && (
         <label className="se-inline">
           <span>{t('moduleContent.image.at')}</span>
-          <input value={raw.at ?? ''} disabled={busy} placeholder="center, top, 57% 50%" maxLength={40} onChange={(e) => onSet({ at: e.target.value })} />
+          <input value={raw.at ?? ''} disabled={busy} placeholder="center, top, 57% 50%" /* i18n-ignore */ maxLength={40} onChange={(e) => onSet({ at: e.target.value })} />
         </label>
       )}
       {/* 2026-10-19 — ein kurzer Film ohne Ton in Schleife; das Bild oben ist sein Plakat. */}

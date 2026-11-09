@@ -17,6 +17,7 @@ import { usePageBase } from './pageBase';
 import { RevisionRun } from './RevisionRun';
 import { CogitaContext } from './ui';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 /** Wer hier ohne Konto lernt — eine Kennung je Browser; neu gezeichnet, wenn sich sein Fortschritt ändert. */
 export function useLocalLearner(libraryId: string): Learner | null {
@@ -45,11 +46,12 @@ export function PageRevisionRun({ libraryId, revisionId, learner, title, via, on
   onAnswer?: (card: Card, correctness: number, given: unknown) => void;
 }) {
   const { lib, ctx } = usePageBase(libraryId);
-  if (lib === undefined) return <Loading label="Wczytywanie powtórki…" />;
-  if (lib === null || ctx === null) return <p className="wk-error">Tej bazy wiedzy nie możesz czytać — powtórka bez konta działa w bazie z obszaru publicznego (albo z linkiem do niego).</p>;
+  const t = useT();
+  if (lib === undefined) return <Loading label={t('cogitaLearnRun.public.loading')} />;
+  if (lib === null || ctx === null) return <p className="wk-error">{t('cogitaLearnRun.public.noRead')}</p>;
   const doc = lib.docs('revision').find((e) => e.id === revisionId);
-  if (doc === undefined) return <p className="wk-error">Tej powtórki nie ma w bazie wiedzy.</p>;
-  const name = title ?? (typeof doc.data.name === 'string' ? doc.data.name : 'Powtórka');
+  if (doc === undefined) return <p className="wk-error">{t('cogitaLearnRun.public.noRevision')}</p>;
+  const name = title ?? (typeof doc.data.name === 'string' ? doc.data.name : t('cogitaLearnRun.run.revision'));
   return (
     <CogitaContext.Provider value={ctx}>
       <RevisionRun lib={lib} learner={learner} source={{ revisionId, title: name }} onClose={onClose} via={via} onAnswer={onAnswer} />

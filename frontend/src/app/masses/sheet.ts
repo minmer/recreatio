@@ -32,17 +32,8 @@
  * aus wie einer, der greift.
  */
 
+import { appLang, fmtDate, tIn, type Lang } from '../core/i18n';
 import { byDay, hour, massesOnly, type PublicMass } from './mass';
-
-const WEEKDAYS = [
-  'niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'
-];
-
-/** Genitiv — „31 sierpnia", nicht „31 sierpień". */
-const MONTHS = [
-  'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
-  'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'
-];
 
 /**
  * Der Zeitraum wie in der Überschrift: „31 sierpnia – 6 września 2026 roku".
@@ -51,7 +42,7 @@ const MONTHS = [
  * ein anderer ist als beim zweiten — „1 – 6 września" liest sich besser als
  * „1 września – 6 września", und genau so steht es auf der Vorlage.
  */
-export function sheetRange(from: Date, to: Date): string {
+export function sheetRange(from: Date, to: Date, lang: Lang = appLang()): string {
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return '';
 
   const sameMonth = from.getFullYear() === to.getFullYear()
@@ -59,17 +50,18 @@ export function sheetRange(from: Date, to: Date): string {
 
   const sameYear = from.getFullYear() === to.getFullYear();
 
+  /* Monatsnamen aus `Intl` — im Polnischen im Genitiv („31 sierpnia"). */
   const left = sameMonth
     ? `${from.getDate()}`
-    : `${from.getDate()} ${MONTHS[from.getMonth()]}${sameYear ? '' : ` ${from.getFullYear()}`}`;
+    : fmtDate(from, sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' }, lang);
 
-  return `${left} – ${to.getDate()} ${MONTHS[to.getMonth()]} ${to.getFullYear()} roku`;
+  return tIn(lang, 'masses.sheet.range', { from: left, to: fmtDate(to, { day: 'numeric', month: 'long' }, lang), year: to.getFullYear() });
 }
 
 /** Der Name des Wochentags, wie auf der Vorlage. */
-export function sheetDay(iso: string): string {
+export function sheetDay(iso: string, lang: Lang = appLang()): string {
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? '' : WEEKDAYS[at.getDay()];
+  return Number.isNaN(at.getTime()) ? '' : fmtDate(at, { weekday: 'long' }, lang);
 }
 
 /** Zeichen, die in HTML etwas anderes heissen als in einem Namen. */
@@ -97,8 +89,8 @@ const collective = (mass: PublicMass) => mass.intentions.filter((i) => i.kind ==
  * zbiorowe" — zu raten, jede zusammengelegte sei eine Novene, hiesse, eine
  * fremde Messe nicht bei ihrem Namen zu nennen.
  */
-const collectiveName = (mass: PublicMass) =>
-  (mass.title ?? '').trim() === '' ? 'Intencje zbiorowe' : (mass.title ?? '').trim();
+const collectiveName = (mass: PublicMass, lang: Lang) =>
+  (mass.title ?? '').trim() === '' ? tIn(lang, 'masses.sheet.collective') : (mass.title ?? '').trim();
 
 /**
  * Die Intentionen einer Messe — auf der ERSTEN Seite.
@@ -106,10 +98,10 @@ const collectiveName = (mass: PublicMass) =>
  * Eine steht ohne Nummer, mehrere bekommen „1)", „2)". Eine Messe ohne
  * Intention verschwindet nicht: die Uhrzeit bleibt, denn die Messe findet statt.
  */
-function intentionsOf(mass: PublicMass): string {
+function intentionsOf(mass: PublicMass, lang: Lang): string {
   /* 0079 — eine abgesagte Messe steht da, als abgesagt: wer den Bogen liest, sucht sie sonst. */
-  if (mass.status === 'cancelled') return '<div class="one"><em>msza odwołana</em></div>';
-  return feastOf(mass) + listOf(mass);
+  if (mass.status === 'cancelled') return `<div class="one"><em>${esc(tIn(lang, 'masses.sheet.cancelled'))}</em></div>`;
+  return feastOf(mass) + listOf(mass, lang);
 }
 
 /** 0132 — was das Schema offen sagt (Obchód, Kolor szat), in einer Zeile über den Intentionen. */
@@ -118,14 +110,14 @@ function feastOf(mass: PublicMass): string {
   return values.length === 0 ? '' : `<div class="feast"><em>${esc(values.map((v) => v.value).join(' · '))}</em></div>`;
 }
 
-function listOf(mass: PublicMass): string {
+function listOf(mass: PublicMass, lang: Lang): string {
 
   const ones = single(mass).map((i) => i.text);
   const many = collective(mass);
 
   const pointer = many.length === 0
     ? ''
-    : `<div class="pointer">${esc(collectiveName(mass))}</div>`;
+    : `<div class="pointer">${esc(collectiveName(mass, lang))}</div>`;
 
   if (ones.length === 0) return pointer;
   if (ones.length === 1) return `<div class="one">${esc(ones[0])}</div>${pointer}`;
@@ -141,13 +133,13 @@ function listOf(mass: PublicMass): string {
  * So sieht dieses Blatt in der Kanzlei aus: vier gedruckte Zeilen und eine
  * fünfte mit Kugelschreiber.
  */
-function collectiveSheets(masses: readonly PublicMass[]): string {
+function collectiveSheets(masses: readonly PublicMass[], lang: Lang): string {
   return masses
     .filter((mass) => collective(mass).length > 0)
     .map((mass) => `
       <div class="sheet collective">
-        <h1>${esc(collectiveName(mass))}</h1>
-        <p class="range">${esc(sheetDay(mass.startsAt))}, ${esc(hour(mass.startsAt))}</p>
+        <h1>${esc(collectiveName(mass, lang))}</h1>
+        <p class="range">${esc(sheetDay(mass.startsAt, lang))}, ${esc(hour(mass.startsAt))}</p>
         ${numbered(collective(mass).map((i) => i.text))}
       </div>`)
     .join('');
@@ -160,7 +152,7 @@ function collectiveSheets(masses: readonly PublicMass[]): string {
  * einen Druck mit zwölf Messen sieht sich niemand zwölfmal an.
  */
 export function intentionsSheetHtml(
-  masses: readonly PublicMass[], from: Date, to: Date
+  masses: readonly PublicMass[], from: Date, to: Date, lang: Lang = appLang()
 ): string {
   const onlyMasses = massesOnly(masses);
 
@@ -168,22 +160,22 @@ export function intentionsSheetHtml(
     const rows = group.masses.map((mass) => `
         <div class="mass">
           <div class="hour">${esc(hour(mass.startsAt))}</div>
-          <div class="what">${intentionsOf(mass)}</div>
+          <div class="what">${intentionsOf(mass, lang)}</div>
         </div>`).join('');
 
     return `
       <section class="day">
-        <h2>${esc(sheetDay(group.masses[0].startsAt))}</h2>
+        <h2>${esc(sheetDay(group.masses[0].startsAt, lang))}</h2>
         ${rows}
       </section>`;
   }).join('');
 
   return `<!doctype html>
-<html lang="pl">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Intencje mszalne</title>
+<title>${esc(tIn(lang, 'masses.sheet.title'))}</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -315,17 +307,16 @@ export function intentionsSheetHtml(
 </head>
 <body>
 <div class="note">
-  <p>Arkusz A4. Nazwa niedzieli w roku liturgicznym nie jest jeszcze
-  prowadzona w systemie — dopisz ją ręcznie, jeśli ma być na kartce.</p>
+  <p>${esc(tIn(lang, 'masses.sheet.note'))}</p>
 </div>
 
 <div class="sheet">
-  <h1>Intencje mszalne</h1>
-  <p class="range">${esc(sheetRange(from, to))}</p>
+  <h1>${esc(tIn(lang, 'masses.sheet.title'))}</h1>
+  <p class="range">${esc(sheetRange(from, to, lang))}</p>
   ${days}
 </div>
 
-${collectiveSheets(onlyMasses)}
+${collectiveSheets(onlyMasses, lang)}
 
 <script>window.addEventListener('load', function () { window.print(); });</script>
 </body>
@@ -340,13 +331,13 @@ ${collectiveSheets(onlyMasses)}
  * zu schweigen.
  */
 export function printIntentions(
-  masses: readonly PublicMass[], from: Date, to: Date
+  masses: readonly PublicMass[], from: Date, to: Date, lang: Lang = appLang()
 ): boolean {
   const opened = globalThis.open('about:blank', '_blank');
   if (opened === null) return false;
 
   opened.document.open();
-  opened.document.write(intentionsSheetHtml(masses, from, to));
+  opened.document.write(intentionsSheetHtml(masses, from, to, lang));
   opened.document.close();
   return true;
 }

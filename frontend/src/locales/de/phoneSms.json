@@ -1,0 +1,170 @@
+{
+  "sheet": {
+    "titleTo": "SMS an {to}",
+    "titleName": "SMS an: {name} ({to})",
+    "notDefault": "Diese App ist noch nicht die SMS-App des Telefons — stell sie unter <a>SMS</a> ein.",
+    "fromNumber": "Von Nummer — {why}",
+    "onlyThis": "nur diese Nachricht",
+    "sent": "SMS gesendet an: {to}."
+  },
+  "compose": {
+    "readFailed": "Die Datei ließ sich nicht lesen.",
+    "tooBig": "Eine Datei darf höchstens 25 MB groß sein.",
+    "linkOnly": "So eine Datei kann nur als Link gesendet werden.",
+    "noLink": "Ein Link lässt sich nicht senden.",
+    "sendFailed": "Senden fehlgeschlagen.",
+    "scheduled": "Geplant: {when}.",
+    "scheduleFailed": "Planen fehlgeschlagen.",
+    "notDefault": "Stell diese App zuerst als SMS-App ein.",
+    "chooseTo": "Wähle, an wen gesendet wird.",
+    "uploading": "Datei wird gesendet… {percent} %",
+    "mmsGroup": {
+      "one": "MMS an {count} Person (Gruppe)",
+      "other": "MMS an {count} Personen (Gruppe)"
+    },
+    "mms": "MMS",
+    "sms": "SMS",
+    "parts": "{count} SMS",
+    "left": "noch {left}",
+    "unicode": " (Sonderzeichen: 70 pro SMS)",
+    "withLink": "mit Link",
+    "removeAttachment": "Anhang {name} entfernen",
+    "how": "Wie der Anhang gesendet wird",
+    "howLink": "Link — volle Qualität",
+    "howMmsImage": "MMS — bis {size}",
+    "howMms": "MMS — höchstens {size}",
+    "linkDays": "Wie lange der Link gilt",
+    "valid": "gültig {days}",
+    "body": "Nachrichtentext",
+    "attach": "Anhängen",
+    "attachTitle": "Foto, Video oder Datei",
+    "later": "Später senden",
+    "laterDots": "Später senden…",
+    "uploadBar": "Datei wird hochgeladen",
+    "pickFile": "Datei wählen",
+    "takePhoto": "Foto aufnehmen",
+    "photos": "Fotos und Videos",
+    "fileAsLink": "Datei — als Link senden",
+    "sending": "Senden",
+    "planNote": "Das Telefon sendet sie zu dieser Zeit selbst — auch ohne Internet."
+  },
+  "title": "SMS",
+  "needsAccount": "Dieser Teil braucht ein Konto — melde dich an, wenn eine Verbindung besteht.",
+  "backToSms": "Zurück zu SMS",
+  "newMessage": "Neue Nachricht",
+  "noNumber": "Ohne Nummer",
+  "setup": {
+    "title": "Einstellungen des Telefons",
+    "notDefault": "<b>Diese App ist noch nicht die SMS-App des Telefons</b> — neue Nachrichten gehen in eine andere, und von hier lässt sich nicht senden.",
+    "makeDefault": "Als SMS-App festlegen",
+    "appSettings": "App-Einstellungen",
+    "refused": "Das Telefon hat es nicht erlaubt? Auf GrapheneOS und Android 13+ braucht eine App außerhalb des Stores erst eine Erlaubnis: App-Einstellungen → ⋮ → „Eingeschränkte Einstellungen zulassen\", dann noch einmal „Als SMS-App festlegen\". Schalte vor dem Wechsel den Chat (RCS) in Google Messages aus.",
+    "rcs": "<b>Auf dem Telefon ist auch Google Messages.</b> War dort der Chat (RCS) an, ist deine Nummer vielleicht noch für den Chat angemeldet: Nachrichten von Leuten, die ihn nutzen, kommen dann verspätet oder gar nicht. Stell Google Messages kurz als SMS-App ein, schalte dort Einstellungen → RCS-Chats aus und komm hierher zurück.",
+    "understood": "Verstanden",
+    "noContacts": "Ohne Zugriff auf die Kontakte stehen statt Namen Nummern, und Kontakte aus recreatio kommen nicht ins Telefon.",
+    "allowContacts": "Kontakte erlauben"
+  },
+  "unsent": {
+    "askAll": "Nicht gesendete Nachrichten löschen ({count})?",
+    "askHere": "Nicht gesendete in diesem Gespräch löschen ({count})?",
+    "body": "Gelöscht werden Nachrichten, die das Telefon nicht gesendet hat (fehlgeschlagen und hängend), älter als 10 Minuten. Gesendete sind nicht betroffen.",
+    "deletedOne": "1 nicht gesendete Nachricht gelöscht.",
+    "deleted": "Nicht gesendete gelöscht: {count}.",
+    "failed": "Löschen fehlgeschlagen."
+  },
+  "list": {
+    "loadFailed": "Die Nachrichten ließen sich nicht laden.",
+    "photo": "📷 Foto",
+    "fromNumber": "Von Nummer: {name} — {why}",
+    "unread": "{count} ungelesen",
+    "searchIn": "Suchen in",
+    "more": "Mehr: SMS",
+    "loading": "Nachrichten werden geladen…",
+    "searching": "Suche…",
+    "noHits": "Keine Nachricht enthält das.",
+    "hits": "Gefundene Nachrichten",
+    "empty": "Noch keine Nachrichten."
+  },
+  "check": {
+    "notDefault": "Diese App ist nicht die SMS-App des Telefons — neue Nachrichten gehen in eine andere.",
+    "mmsRetried": "Geprüft. MMS erneut geladen: {count}.",
+    "ok": "Geprüft — alles, was das Telefon erreicht hat, ist hier.",
+    "otherSms": "Es gibt auch Google Messages: Ist dort der Chat (RCS) an, landen manche Nachrichten dort."
+  },
+  "menu": {
+    "afterSignIn": "{label} (nach der Anmeldung)",
+    "check": "Nach neuen Nachrichten sehen",
+    "archive": "Archiv",
+    "dropUnsent": "Nicht gesendete löschen ({count})…"
+  },
+  "blocked": {
+    "title": "Blockierte Nummern",
+    "unblockAsk": "{number} entsperren?",
+    "unblockBody": "Das Telefon nimmt von dieser Nummer wieder SMS und Anrufe an.",
+    "unblock": "Entsperren",
+    "unblockFailed": "Entsperren fehlgeschlagen.",
+    "empty": "Keine blockierten Nummern.",
+    "notSystem": "Das Telefon lässt diese App nicht systemweit blockieren (sie ist nicht die SMS-App) — blockiert wird nur in ihr selbst."
+  },
+  "thread": {
+    "loadFailed": "Das Gespräch ließ sich nicht laden.",
+    "olderFailed": "Frühere Nachrichten ließen sich nicht laden.",
+    "cancelAsk": "Die geplante Nachricht zurückziehen?",
+    "cancel": "Zurückziehen",
+    "onItsWay": "Diese Nachricht ist schon unterwegs.",
+    "archiveOn": "Dieses Gespräch wird archiviert — ganz, auch ältere Nachrichten.",
+    "archiveOff": "Dieses Gespräch wird nicht mehr archiviert (was schon im Archiv ist, bleibt).",
+    "blocked": "Blockiert und das Gespräch gelöscht.",
+    "blockedApp": "Blockiert (in dieser App) und das Gespräch gelöscht.",
+    "blockedArchive": "Es wurde auch aus dem Archiv gelöscht.",
+    "blockFailed": "Blockieren fehlgeschlagen.",
+    "removeAsk": "Dieses Gespräch vom Telefon löschen?",
+    "removeBody": "Alle seine Nachrichten verschwinden vom Telefon. Das Archiv bleibt unverändert.",
+    "removed": "Gespräch vom Telefon gelöscht.",
+    "contact": "Kontakt: {name}",
+    "addContact": "Zu den Kontakten hinzufügen",
+    "unmute": "Benachrichtigungen einschalten",
+    "mute": "Stummschalten…",
+    "archiveNotOn": "Das Archiv ist noch nicht eingeschaltet",
+    "archiveAll": "Alle Gespräche werden archiviert",
+    "archiveThis": "Dieses Gespräch archivieren",
+    "dropUnsent": "Nicht gesendete in diesem Gespräch löschen ({count})…",
+    "block": "Blockieren (Spam)…",
+    "remove": "Gespräch vom Telefon löschen…",
+    "forward": "Weiterleiten"
+  },
+  "planned": {
+    "failed": "Nicht gesendet",
+    "failedWhy": "Nicht gesendet · {error}",
+    "sending": "Wird gesendet…",
+    "at": "Geplant · {when}",
+    "fromBrowser": "{meta} · aus dem Browser",
+    "hide": "Ausblenden"
+  },
+  "sim": {
+    "in": "Empfangen auf: {line}",
+    "out": "Gesendet von: {line}"
+  },
+  "mms": {
+    "pending": "MMS — noch nicht geladen.",
+    "downloading": "Wird geladen…",
+    "resend": "Erneut senden",
+    "photoLoading": "📷 Foto…",
+    "photo": "Foto"
+  },
+  "compose2": {
+    "opening": "Gespräch wird geöffnet…",
+    "to": "An",
+    "remove": "{name} entfernen",
+    "nameOrNumber": "Name oder Nummer",
+    "addMore": "Hinzufügen…",
+    "recipient": "Empfänger",
+    "how": "Wie senden",
+    "separate": "Einzeln an jeden (SMS — niemand sieht die anderen)",
+    "asGroup": "Als Gruppe (MMS — Antworten sehen alle)",
+    "sentMany": {
+      "one": "An {count} Person gesendet.",
+      "other": "An {count} Personen gesendet."
+    }
+  }
+}

@@ -103,16 +103,17 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
 
 function fromLibrary(f: LibField): FieldDef {
   const type = TYPE_OF[f.type];
+  /* 2026-11-09 — Bezeichnungen der Bibliothek sind übersetzt (Getter): erst beim Lesen holen, nie beim Laden des Moduls. */
   return {
     key: f.key,
-    label: f.label,
+    get label() { return f.label; },
     type,
     multi: f.type === 'refs',
     uncertain: false,
-    options: type === 'choice' ? (f.options ?? []).map((o) => ({ value: o.value, label: o.label })) : undefined,
+    options: type === 'choice' ? (f.options ?? []).map((o) => ({ value: o.value, get label() { return o.label; } })) : undefined,
     to: type === 'ref' ? [...(f.to ?? [])] : undefined,
     role: f.key,
-    says: f.says
+    get says() { return f.says; }
   };
 }
 
@@ -136,7 +137,7 @@ function builtin(id: string): KindDef {
   const more: readonly FieldDef[] = [];
   return {
     id,
-    name: lib.label,
+    get name() { return lib.label; },
     label: PATTERNS[id]?.label ?? `{${fields[0]?.key ?? 'title'}}`,
     tells: PATTERNS[id]?.tells,
     fields: [...fields, ...more.filter((m) => !fields.some((f) => f.key === m.key))],

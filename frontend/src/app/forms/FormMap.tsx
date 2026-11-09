@@ -31,6 +31,7 @@ import { myRoleNames } from '../roles/roleNames';
 import { pageSteps, viewPath, formPath, formsPath } from '../routes';
 import { whoIsThere, WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 interface World {
   readonly modules: readonly ModuleRow[];
@@ -40,15 +41,13 @@ interface World {
   readonly roles: ReadonlyMap<string, string>;
 }
 
-const KIND_WORD: Record<MapNode['kind'], string> = {
-  group: 'grupa', main: 'formularz', sub: 'podformularz', page: 'strona', role: 'rola'
-};
-
+/* Das Wort je Art steht in `formsEdit.map.kind.<art>`. */
 function Box({ data }: NodeProps<MapNode>) {
+  const t = useT();
   return (
     <div className={`wk-fmap-node is-${data.kind}`} data-fmap-node={data.id}>
       <Handle type="target" position={Position.Left} />
-      <span className="wk-dep-kind">{KIND_WORD[data.kind]}</span>
+      <span className="wk-dep-kind">{t(`formsEdit.map.kind.${data.kind}`)}</span>
       <strong>{data.label}</strong>
       {data.lines.map((line) => <span key={line} className="wk-dep-sub">{line}</span>)}
       {data.warnings.map((line) => <span key={line} className="wk-fmap-warn">⚠ {line}</span>)}
@@ -58,9 +57,10 @@ function Box({ data }: NodeProps<MapNode>) {
 }
 
 function GroupBox({ data }: NodeProps<MapNode>) {
+  const t = useT();
   return (
     <div className="wk-fmap-group" data-fmap-node={data.id}>
-      <span className="wk-dep-kind">grupa formularzy</span>
+      <span className="wk-dep-kind">{t('formsEdit.map.formGroup')}</span>
       <strong>{data.label}</strong>
     </div>
   );
@@ -74,6 +74,7 @@ const EDGE_CLASS: Record<MapEdgeKind, string> = {
 
 export function FormMap({ focus = null }: { focus?: string | null }) {
   const [world, setWorld] = useState<World | null>(null);
+  const t = useT();
   const [failed, setFailed] = useState<string | null>(null);
   const [only, setOnly] = useState<string>(focus ?? '');
 
@@ -115,7 +116,7 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
         const roles = who === null ? new Map<string, string>() : await myRoleNames(who).catch(() => new Map<string, string>());
         if (alive) setWorld({ modules, groups, identity, pages, roles });
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać formularzy.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('formsEdit.map.loadFailed'));
       }
     })();
     return () => { alive = false; };
@@ -153,28 +154,28 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
   })), [model]);
 
   if (failed !== null) return <p className="wk-error">{failed}</p>;
-  if (world === null || model === null) return <Loading label="Wczytywanie mapy formularzy…" />;
+  if (world === null || model === null) return <Loading label={t('formsEdit.map.loading')} />;
 
-  const mains = world.modules.filter((m) => m.kind === 'form').sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  const mains = world.modules.filter((m) => m.kind === 'form').sort((a, b) => a.name.localeCompare(b.name, t.locale));
 
   return (
     <div className="wk-dep wk-fmap" data-form-map="">
       <div className="wk-fmap-head">
         <label className="wk-inline">
-          <span>Pokaż</span>
+          <span>{t('formsEdit.map.show')}</span>
           <select value={only} data-fmap-focus="" onChange={(e) => setOnly(e.target.value)}>
-            <option value="">wszystkie formularze</option>
+            <option value="">{t('formsEdit.map.allForms')}</option>
             {mains.map((m) => <option key={m.moduleId} value={m.moduleId}>{m.extendsId === null ? m.name : `↳ ${m.name}`}</option>)}
           </select>
         </label>
-        <a className="wk-link-btn" href={formsPath()}>‹ Lista formularzy</a>
+        <a className="wk-link-btn" href={formsPath()}>{t('formsEdit.map.backToList')}</a>
       </div>
-      <ul className="wk-fmap-legend" aria-label="Legenda">
-        <li className="is-stands">strona z formularzem</li>
-        <li className="is-extends">podformularz (uzupełnia przez link osoby)</li>
-        <li className="is-link">link osoby otwiera</li>
-        <li className="is-logic">zależy od formularza (mapa logiki strony)</li>
-        <li className="is-role">rola uczestników</li>
+      <ul className="wk-fmap-legend" aria-label={t('formsEdit.map.legend')}>
+        <li className="is-stands">{t('formsEdit.map.lStands')}</li>
+        <li className="is-extends">{t('formsEdit.map.lExtends')}</li>
+        <li className="is-link">{t('formsEdit.map.lLink')}</li>
+        <li className="is-logic">{t('formsEdit.map.lLogic')}</li>
+        <li className="is-role">{t('formsEdit.map.lRole')}</li>
       </ul>
       <div className="wk-dep-canvas wk-fmap-canvas">
         <ReactFlow
@@ -195,8 +196,8 @@ export function FormMap({ focus = null }: { focus?: string | null }) {
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
-      {model.nodes.length === 0 && <p className="wk-empty">Nie ma tu jeszcze formularzy.</p>}
-      <p className="wk-hint">Kliknij formularz albo stronę, żeby ją otworzyć. Grupy zmieniasz na liście formularzy.</p>
+      {model.nodes.length === 0 && <p className="wk-empty">{t('formsEdit.map.empty')}</p>}
+      <p className="wk-hint">{t('formsEdit.map.hint')}</p>
     </div>
   );
 }

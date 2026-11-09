@@ -1,6 +1,9 @@
 import type { AreaRow } from '../areas/area';
 
-/** A reply area has its own readers; its parent supplies the data controller, not chat membership. */
+/**
+ * 2026-11-08 — WELCHER BEREICH ÜBER DEM DER ANTWORTENDEN STEHEN KANN: einer, den ich leite (nicht der eigene, kein
+ * privater, kein Gespräch, nichts darunter). Er gibt nur den Verantwortlichen (0129) — wer antwortet, bleibt.
+ */
 export function askParents(areas: readonly AreaRow[], replyArea: string | null): AreaRow[] {
   const byId = new Map(areas.map((a) => [a.areaId, a]));
   return areas.filter((area) => {
@@ -16,7 +19,7 @@ export function askParents(areas: readonly AreaRow[], replyArea: string | null):
   });
 }
 
-/** Reused modules may belong to several pages: suggest a parent only when those pages agree. */
+/** Ein Modul auf mehreren Seiten: vorgeschlagen wird nur, worin alle seine Seiten übereinstimmen — sonst nichts. */
 export function suggestedAskParent(choices: readonly AreaRow[], pageAreas: readonly (string | null | undefined)[]): string {
   const ids = [...new Set(pageAreas.filter((id): id is string => id != null))];
   return pageAreas.every((id) => id != null) && ids.length === 1 && choices.some((a) => a.areaId === ids[0]) ? ids[0] : '';

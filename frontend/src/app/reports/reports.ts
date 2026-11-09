@@ -20,35 +20,41 @@ import { GENESIS_HASH, nowSeconds, takedownCanon, takedownHash, type TakedownAct
 import type { Ring } from '../core/keys';
 import { call } from '../core/session';
 import type { ReportKind } from './reportPath';
+import { t, texts } from '../core/i18n';
 
 /* -- Worte ---------------------------------------------------------------------- */
 
 export type ReportReason = 'data' | 'illegal' | 'other';
 
+/** Bezeichnung und Erklärung erst beim Lesen übersetzt: `reports.reason.<value>.label|says`. */
+const reasonOf = (value: ReportReason) => ({
+  value,
+  get label() { return t(`reports.reason.${value}.label`); },
+  get says() { return t(`reports.reason.${value}.says`); }
+});
+
 export const REASONS: readonly { readonly value: ReportReason; readonly label: string; readonly says: string }[] = [
-  { value: 'data', label: 'Moje dane osobowe', says: 'Ktoś pokazuje albo zbiera dane o mnie (albo o kimś, za kogo odpowiadam) bez podstawy.' },
-  { value: 'illegal', label: 'Treść niezgodna z prawem', says: 'Na przykład naruszenie dóbr osobistych, praw autorskich, groźby.' },
-  { value: 'other', label: 'Coś innego', says: 'Opisz, o co chodzi.' }
+  reasonOf('data'), reasonOf('illegal'), reasonOf('other')
 ];
 
-export const KIND_WORDS: Record<ReportKind, string> = {
-  page: 'Strona', part: 'Moduł strony', file: 'Plik strony', form: 'Formularz', message: 'Wiadomość',
-  entry: 'Wpis biblioteki', item: 'Termin', share: 'Plik przez link', link: 'Link z dostępem', event: 'Wydarzenie'
-};
+export const KIND_WORDS: Record<ReportKind, string> = texts({
+  page: 'reports.kind.page', part: 'reports.kind.part', file: 'reports.kind.file', form: 'reports.kind.form', message: 'reports.kind.message',
+  entry: 'reports.kind.entry', item: 'reports.kind.item', share: 'reports.kind.share', link: 'reports.kind.link', event: 'reports.kind.event'
+});
 
 export type ReportState = 'received' | 'blocked' | 'objected' | 'deleted' | 'restored' | 'rejected';
 
-export const STATE_WORDS: Record<ReportState, string> = {
-  received: 'Nowe — czeka na decyzję', blocked: 'Zablokowane', objected: 'Autor się odwołał',
-  deleted: 'Usunięte na zawsze', restored: 'Przywrócone', rejected: 'Odrzucone — treść zostaje'
-};
+export const STATE_WORDS: Record<ReportState, string> = texts({
+  received: 'reports.state.received', blocked: 'reports.state.blocked', objected: 'reports.state.objected',
+  deleted: 'reports.state.deleted', restored: 'reports.state.restored', rejected: 'reports.state.rejected'
+});
 
 /** Warum der Betreiber sperrt — das Wort, das der Verfasser liest. */
 export type DecisionReason = 'personal-data' | 'illegal' | 'rights' | 'other';
 
-export const DECISION_REASONS: Record<DecisionReason, string> = {
-  'personal-data': 'dane osobowe bez podstawy', illegal: 'treść niezgodna z prawem', rights: 'naruszenie cudzych praw', other: 'inny powód'
-};
+export const DECISION_REASONS: Record<DecisionReason, string> = texts({
+  'personal-data': 'reports.decision.personalData', illegal: 'reports.decision.illegal', rights: 'reports.decision.rights', other: 'reports.decision.other'
+});
 
 /* -- Was gemeldet werden kann ------------------------------------------------------ */
 
@@ -242,7 +248,7 @@ export async function openLetter(ring: Ring, operatorRoleId: string, row: QueueR
   const letter = await openForOperator(await ring.wrapPrivate(operatorRoleId), 'report', row.id, row.sealed, row.sealedKey) as ReportLetter;
   /* Die offene Zeile und der versiegelte Brief nennen dieselbe Sache — sonst wäre über etwas anderes zu entscheiden, als gemeldet ist. */
   if (letter.reportId !== row.id || letter.itemId !== row.itemId || letter.itemKind !== row.itemKind) {
-    throw new Error('Treść zgłoszenia nie pasuje do jego numeru.');
+    throw new Error(t('reports.letterMismatch'));
   }
   return letter;
 }
@@ -266,9 +272,9 @@ export function actionsFor(row: QueueRow, now: Date = new Date()): readonly Take
   return [];
 }
 
-export const ACTION_WORDS: Record<TakedownAction, string> = {
-  block: 'Zablokuj', restore: 'Przywróć', delete: 'Usuń na zawsze', reject: 'Odrzuć zgłoszenie'
-};
+export const ACTION_WORDS: Record<TakedownAction, string> = texts({
+  block: 'reports.action.block', restore: 'reports.action.restore', delete: 'reports.action.delete', reject: 'reports.action.reject'
+});
 
 /**
  * Entscheiden: mit dem Geheimnis aus der versiegelten Meldung und einem Schritt
@@ -340,16 +346,16 @@ export async function checkLedger(entries: readonly LedgerRow[], signPublicKey: 
   let before: LedgerRow | null = null;
   for (const row of rows) {
     const facts = factsOf(row);
-    if (await takedownHash(facts) !== row.entryHash) return { checked: rows.indexOf(row), broken: `Wpis ${row.sequence}: skrót się nie zgadza.` };
+    if (await takedownHash(facts) !== row.entryHash) return { checked: rows.indexOf(row), broken: t('reports.chain.hash', { n: row.sequence }) };
     if (before !== null && (row.sequence !== before.sequence + 1 || row.previousHash !== before.entryHash)) {
-      return { checked: rows.indexOf(row), broken: `Wpis ${row.sequence} nie wisi na wpisie ${before.sequence}.` };
+      return { checked: rows.indexOf(row), broken: t('reports.chain.link', { n: row.sequence, before: before.sequence }) };
     }
     if (before === null && row.sequence === 1 && row.previousHash !== GENESIS_HASH) {
-      return { checked: 0, broken: 'Pierwszy wpis nie zaczyna łańcucha.' };
+      return { checked: 0, broken: t('reports.chain.first') };
     }
     const ok = await crypto.subtle.verify({ name: 'RSA-PSS', saltLength: 32 }, key,
       fromBase64Url(row.signature) as BufferSource, new TextEncoder().encode(serialize(takedownCanon(facts))) as BufferSource);
-    if (!ok) return { checked: rows.indexOf(row), broken: `Wpis ${row.sequence}: podpis się nie zgadza.` };
+    if (!ok) return { checked: rows.indexOf(row), broken: t('reports.chain.signature', { n: row.sequence }) };
     before = row;
   }
   return { checked: rows.length, broken: null };

@@ -15,6 +15,7 @@
  * strengen Betrieb (`tab`) behält das Gerät nichts — dort lebt nicht einmal der Schlüssel länger als der Tab.
  */
 
+import { t } from '../core/i18n';
 import { awayKeyOf, copyPrefix, copySlot, dropAwayIfEmpty, keepAway } from '../core/away';
 import { aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, toBase64Url } from '../core/crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
@@ -99,7 +100,7 @@ export function holderOfCopy(copy: OfflineRevision): Holder | null {
   if (copy.holder === null) return null;
   return {
     kind: 'role', roleId: copy.holder.roleId, wrapPublicKey: fromBase64Url(copy.holder.wrapPublicKey),
-    wrapPrivate: () => Promise.reject(new Error('Bez internetu klucz prywatny osoby jest zamknięty.'))
+    wrapPrivate: () => Promise.reject(new Error(t('cogitaLearnLogic.offline.locked')))
   };
 }
 

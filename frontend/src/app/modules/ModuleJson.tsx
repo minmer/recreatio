@@ -23,8 +23,9 @@ import { carriesForm, formWishPreview, readModuleWish, type ModuleWish } from '.
 import { documentKind, exportModule, replacing } from '../pages/pageJson';
 import { moduleFormat } from '../pages/pageJsonText';
 import { partLabel } from '../pages/parts/registry';
-import { asRecord, asText, count } from '../pages/event/kit';
+import { asRecord, asText } from '../pages/event/kit';
 import type { Who } from '../core/session';
+import { t as tApp, useT } from '../core/i18n';
 
 /**
  * Wohin die Antworten neuer Fragen gehen, und ob Fragen und Wymagania
@@ -44,20 +45,21 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
     return () => { live = false; };
   }, []);
   const usable = (areas ?? []).filter((a) => a.heldEpochs > 0);
+  const t = useT();
   return (
     <div className="wk-json-options">
       <label className="wk-field">
-        <span>Odpowiedzi nowych pytań trafiają do obszaru</span>
+        <span>{t('modules.json.answersTo')}</span>
         <AreaPick
-          label="Odpowiedzi nowych pytań trafiają do obszaru" value={answersTo} onChange={onAnswersTo} disabled={areas === null}
+          label={t('modules.json.answersTo')} value={answersTo} onChange={onAnswersTo} disabled={areas === null}
           areas={areas ?? []} only={usable}
-          extras={[{ value: '', label: areas === null ? 'Wczytywanie…' : '— jak podano w pytaniu / obszar formularza —' }]}
+          extras={[{ value: '', label: areas === null ? t('common.loading') : t('modules.json.asGiven') }]}
         />
       </label>
-      <p className="wk-hint">Kto ma klucz tego obszaru, czyta odpowiedzi. Formularz bez własnego obszaru dostaje ten obszar.</p>
+      <p className="wk-hint">{t('modules.json.answersHint')}</p>
       <label className="pe-check">
         <input type="checkbox" checked={replace} onChange={(e) => onReplace(e.target.checked)} />
-        <span>Usuń pytania i wymagania, których nie ma w dokumencie (pytania z odpowiedziami zostaną tylko zdjęte z formularza — ich odpowiedzi zostają; pytań włączonych wymagań nie da się usunąć)</span>
+        <span>{t('modules.json.replace')}</span>
       </label>
     </div>
   );
@@ -67,9 +69,9 @@ export function QuestionOptions({ answersTo, onAnswersTo, replace, onReplace }: 
 function contentOf(doc: unknown, kind: string): ModuleWish | { error: string } {
   const root = asRecord(doc);
   const said = documentKind(doc);
-  if (said === 'page' || said === 'legacy') return { error: 'To dokument całej strony — importuj go w edytorze strony.' };
+  if (said === 'page' || said === 'legacy') return { error: tApp('modules.json.wholePage') };
   const docKind = asText(root.kind);
-  if (docKind !== '' && docKind !== kind) return { error: `To moduł rodzaju „${partLabel(docKind)}”, a otwarty jest „${partLabel(kind)}”.` };
+  if (docKind !== '' && docKind !== kind) return { error: tApp('modules.json.otherKind', { doc: partLabel(docKind), open: partLabel(kind) }) };
   const wish = readModuleWish(root);
   /* Ohne "config" und ohne Schlüssel eines Formulars ist das ganze Dokument der Inhalt. */
   const wrapped = Object.prototype.hasOwnProperty.call(root, 'config');
@@ -80,29 +82,33 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
   const form = row.kind === 'form';
   const [replace, setReplace] = useState(false);
   const [answersTo, setAnswersTo] = useState(row.areaId ?? '');
+  const t = useT();
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const content = contentOf(doc, row.kind);
     if ('error' in content) return content;
     const lines: string[] = [];
     const warnings: string[] = [];
-    if (content.name !== undefined && content.name !== row.name) lines.push(`Nazwa: „${content.name}”.`);
+    if (content.name !== undefined && content.name !== row.name) lines.push(t('modules.imp.named', { name: content.name }));
     if (content.config !== undefined) {
       const have = readConfig(row.config);
       const patch = replacing(have, wantedConfig(row.kind, have, content.config));
-      lines.push(Object.keys(patch).length === 0 ? 'Treść: bez zmian.' : `Treść: ${count(Object.keys(patch).length, 'zmieniony klucz', 'zmienione klucze', 'zmienionych kluczy')} — na ${row.usedOnPages === 1 ? 'jednej stronie' : `${row.usedOnPages} stronach`}.`);
+      lines.push(Object.keys(patch).length === 0 ? t('modules.json.contentSame') : t('modules.json.contentChanged', {
+        keys: t('modules.json.keys', { count: Object.keys(patch).length }),
+        pages: row.usedOnPages === 1 ? t('modules.json.onePage') : t('modules.json.pages', { count: row.usedOnPages })
+      }));
     }
     const more = formWishPreview(row, content, { replace });
     lines.push(...more.lines);
     warnings.push(...more.warnings);
     /* 2026-10-24 — ein Formular ohne Bereich: ohne Wahl entstünden neue Fragen (auch die der Wymagania) nicht. */
     if (form && row.areaId === null && answersTo === '' && (content.questions !== undefined || content.needs !== undefined)) {
-      warnings.push('Wybierz obszar, do którego trafiają odpowiedzi — formularz nie ma jeszcze własnego, a bez niego nowe pytania i wymagania nie powstaną.');
+      warnings.push(t('modules.json.pickArea'));
     }
     if (asText(asRecord(doc).id) !== '' && asText(asRecord(doc).id) !== row.moduleId) {
-      warnings.push('Dokument pochodzi z innego modułu — jego treść zostanie przeniesiona tutaj.');
+      warnings.push(t('modules.json.otherModule'));
     }
-    if (lines.length === 0) lines.push('Nic do zmiany.');
+    if (lines.length === 0) lines.push(t('account.json.plan.nothing'));
     return { lines, warnings };
   };
 
@@ -111,14 +117,14 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
     if ('error' in content) throw new Error(content.error);
     const done = await applyModuleWish(who, row, content, { replace, answersTo: answersTo === '' ? null : answersTo, stage });
     await onDone();
-    return { lines: done.lines.length === 0 ? ['Nic się nie zmieniło.'] : done.lines, warnings: done.warnings };
+    return { lines: done.lines.length === 0 ? [t('modules.json.nothingChanged')] : done.lines, warnings: done.warnings };
   };
 
   return (
     <JsonPanel
-      summary="JSON modułu — eksport i import"
-      lead={<>Nazwa i treść tego modułu{form ? ', jego pytania, układ i wymagania' : ''} jako JSON. Import zmienia ten moduł na każdej stronie, na której stoi — bez tworzenia go od nowa.</>}
-      fileName={`modul-${row.kind}-${row.moduleId.slice(0, 8)}.json`}
+      summary={t('modules.json.summary')}
+      lead={<>{t(form ? 'modules.json.leadForm' : 'modules.json.lead')}</>}
+      fileName={t('modules.json.fileName', { kind: row.kind, id: row.moduleId.slice(0, 8) })}
       exportDoc={async () => exportModule(
         {
           moduleId: row.moduleId, kind: row.kind, name: row.name, config: readConfig(row.config), extendsId: row.extendsId, audience: row.audience, repeat: repeatOf(row.repeat), memberRoles: memberRolesOf(row),
@@ -134,7 +140,7 @@ export function ModuleJson({ row, who, onDone }: { row: ModuleRow; who: Who; onD
         if (!form || 'error' in content || (content.questions === undefined && content.needs === undefined)) return null;
         return <QuestionOptions answersTo={answersTo} onAnswersTo={setAnswersTo} replace={replace} onReplace={setReplace} />;
       }}
-      importLabel="Importuj i zapisz"
+      importLabel={t('modules.json.importLabel')}
       onImport={run}
     />
   );

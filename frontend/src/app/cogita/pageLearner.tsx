@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useT } from '../core/i18n';
 
 import { useMe, useWho } from '../core/me';
 import { WorkspaceError } from '../core/session';
@@ -134,6 +135,7 @@ export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (t
   const [surname, setSurname] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
   const join = async () => {
     setBusy(true);
     setFailed(null);
@@ -141,21 +143,21 @@ export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (t
       const made = await createLinkPerson(link, given, surname, parsePath(window.location.hash).page ?? null);
       onDone(made.token);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się — spróbuj jeszcze raz.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('cogitaLearnRun.intro.failed'));
     } finally {
       setBusy(false);
     }
   };
   return (
     <form className="wk-form cg-learn-intro" data-learn-introduce="" onSubmit={(e) => { e.preventDefault(); void join(); }}>
-      <p className="wk-card-muted">Przedstaw się, a Twoje postępy zobaczy prowadzący kurs („{link.label}”) — i będą na Ciebie czekać także na innym urządzeniu z tym linkiem.</p>
+      <p className="wk-card-muted">{t('cogitaLearnRun.intro.text', { course: link.label })}</p>
       <div className="cg-row">
-        <label className="wk-field"><span>Imię</span><input value={given} maxLength={80} autoComplete="given-name" data-learn-given="" onChange={(e) => setGiven(e.target.value)} /></label>
-        <label className="wk-field"><span>Nazwisko</span><input value={surname} maxLength={100} autoComplete="family-name" data-learn-surname="" onChange={(e) => setSurname(e.target.value)} /></label>
+        <label className="wk-field"><span>{t('cogitaLearnRun.intro.given')}</span><input value={given} maxLength={80} autoComplete="given-name" data-learn-given="" onChange={(e) => setGiven(e.target.value)} /></label>
+        <label className="wk-field"><span>{t('cogitaLearnRun.intro.surname')}</span><input value={surname} maxLength={100} autoComplete="family-name" data-learn-surname="" onChange={(e) => setSurname(e.target.value)} /></label>
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" data-learn-go="" disabled={busy || given.trim() === '' || surname.trim() === ''}>{busy ? 'Chwila…' : 'Przedstaw się i ucz się'}</button>
+        <button type="submit" className="wk-btn" data-learn-go="" disabled={busy || given.trim() === '' || surname.trim() === ''}>{busy ? t('cogitaLearnRun.intro.busy') : t('cogitaLearnRun.intro.go')}</button>
       </div>
     </form>
   );
@@ -166,14 +168,15 @@ export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (t
  * in einen Bereich mit Przyjęcia, dann sieht es, wer ihn prowadzi; sonst bleiben sie beim Konto.
  */
 export function LearnerLine({ learner, lib }: { learner: PageLearner; lib: CogitaLibrary }) {
+  const t = useT();
   if (learner.as === null) return null;
-  const who = learner.name ?? (learner.as === 'seat' ? 'osoba z linku' : 'Ty');
+  const who = learner.name ?? (learner.as === 'seat' ? t('cogitaLearnRun.intro.linkPerson') : t('cogitaLearnRun.intro.you'));
   const target = learner.learner?.target ?? null;
   const office = target !== null ? target.own !== true && (target.intake !== null || target.areaKey !== undefined) : learner.as === 'seat' || lib.settings().storageAreaId !== undefined;
   return (
     <p className="wk-card-muted" data-learner-as={learner.as} data-learner-office={office ? '' : undefined}>
-      {learner.as === 'local' ? 'Bez konta postępy zostają w tej przeglądarce.'
-        : office ? `Uczysz się jako ${who} — postępy widzi też prowadzący kurs.` : `Uczysz się jako ${who} — postępy zostają na Twoim koncie.`}
+      {learner.as === 'local' ? t('cogitaLearnRun.run.noAccount')
+        : office ? t('cogitaLearnRun.intro.asOffice', { who }) : t('cogitaLearnRun.intro.asOwn', { who })}
     </p>
   );
 }

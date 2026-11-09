@@ -8,6 +8,7 @@
 
 import { DayChips } from './EditTest';
 import type { SlotRow, SlotsData, Weekday } from './flowModel';
+import { useT } from '../../core/i18n';
 
 const WORKDAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6];
 
@@ -28,6 +29,7 @@ function SlotTable({ title, rows, prefix, withDays, taken, onChange, disabled }:
   onChange: (rows: readonly SlotRow[]) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const patch = (i: number, change: Partial<SlotRow>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const add = () => {
     const last = rows[rows.length - 1];
@@ -38,39 +40,39 @@ function SlotTable({ title, rows, prefix, withDays, taken, onChange, disabled }:
   return (
     <section className="wk-flow-stack" aria-label={title}>
       <h4 className="wk-flow-sub">{title}</h4>
-      {rows.length === 0 && <p className="wk-empty">Brak mszy.</p>}
+      {rows.length === 0 && <p className="wk-empty">{t('calendarApp.slots.empty')}</p>}
       <ul className="wk-flow-slots">
         {rows.map((row, i) => (
           <li key={i} className="wk-flow-slot">
             <span className="wk-flow-inline">
-              <input type="time" value={row.time} disabled={disabled} aria-label="Godzina" step={60}
+              <input type="time" value={row.time} disabled={disabled} aria-label={t('calendarApp.slots.time')} step={60}
                 onChange={(e) => patch(i, { time: e.target.value })} />
-              <input type="number" min={5} max={600} value={row.minutes} disabled={disabled} aria-label="Ile minut" className="wk-flow-num"
+              <input type="number" min={5} max={600} value={row.minutes} disabled={disabled} aria-label={t('calendarApp.slots.minutes')} className="wk-flow-num"
                 onChange={(e) => patch(i, { minutes: Math.max(5, Math.min(600, Math.round(Number(e.target.value)) || 60)) })} />
-              <span className="wk-flow-unit">min</span>
+              <span className="wk-flow-unit">{t('calendarApp.slots.min')}</span>
               {!disabled && (
-                <button type="button" className="wk-link-btn wk-danger" aria-label={`Usuń mszę ${row.time}`}
-                  onClick={() => onChange(rows.filter((_, j) => j !== i))}>Usuń</button>
+                <button type="button" className="wk-link-btn wk-danger" aria-label={t('calendarApp.slots.remove', { time: row.time })}
+                  onClick={() => onChange(rows.filter((_, j) => j !== i))}>{t('common.delete')}</button>
               )}
             </span>
             <span className="wk-flow-inline">
-              <input value={row.key} disabled={disabled} aria-label="Klucz" className="wk-flow-key" title="Klucz — po nim warunki i podgląd rozpoznają tę mszę"
+              <input value={row.key} disabled={disabled} aria-label={t('calendarApp.slots.key')} className="wk-flow-key" title={t('calendarApp.slots.keyHint')}
                 onChange={(e) => patch(i, { key: e.target.value.trim().replace(/[^A-Za-z0-9_.-]/g, '') })} />
-              <input value={row.label ?? ''} disabled={disabled} aria-label="Opis (nieobowiązkowo)" placeholder="opis, np. Suma"
+              <input value={row.label ?? ''} disabled={disabled} aria-label={t('calendarApp.slots.label')} placeholder={t('calendarApp.slots.labelPlaceholder')}
                 onChange={(e) => patch(i, { label: e.target.value === '' ? undefined : e.target.value })} />
             </span>
             {withDays && (
-              <DayChips label={`Dni: ${row.time}`} value={row.days ?? WORKDAYS} disabled={disabled}
+              <DayChips label={t('calendarApp.slots.days', { time: row.time })} value={row.days ?? WORKDAYS} disabled={disabled}
                 onChange={(days) => patch(i, { days })} />
             )}
             {/* `taken` hat die Schlüssel beider Listen, diesen eingeschlossen. */}
             {(row.key === '' || taken.filter((k) => k === row.key).length > 1) && (
-              <span className="wk-flow-problem">{row.key === '' ? 'Msza potrzebuje klucza.' : 'Ten klucz jest już użyty.'}</span>
+              <span className="wk-flow-problem">{row.key === '' ? t('calendarApp.slots.needsKey') : t('calendarApp.slots.keyTaken')}</span>
             )}
           </li>
         ))}
       </ul>
-      {!disabled && <button type="button" className="wk-btn wk-btn-quiet wk-flow-add" onClick={add}>+ Dodaj mszę</button>}
+      {!disabled && <button type="button" className="wk-btn wk-btn-quiet wk-flow-add" onClick={add}>{t('calendarApp.slots.add')}</button>}
     </section>
   );
 }
@@ -78,6 +80,7 @@ function SlotTable({ title, rows, prefix, withDays, taken, onChange, disabled }:
 export function EditSlots({ data, onChange, disabled = false }: {
   data: SlotsData; onChange: (data: SlotsData) => void; disabled?: boolean;
 }) {
+  const t = useT();
   const festive = data.festive ?? [];
   const weekdays = data.weekdays ?? [];
   const taken = [...festive, ...weekdays].map((r) => r.key);
@@ -85,11 +88,11 @@ export function EditSlots({ data, onChange, disabled = false }: {
   return (
     <div className="wk-flow-stack">
       <p className="wk-flow-note">
-        W niedziele i święta nakazane (obchód z zaznaczonym „dzień świąteczny”) obowiązuje pierwsza lista, w pozostałe dni — druga.
+        {t('calendarApp.slots.note')}
       </p>
-      <SlotTable title="Niedziele i święta" rows={festive} prefix="n" withDays={false} taken={taken} disabled={disabled}
+      <SlotTable title={t('calendarApp.slots.festive')} rows={festive} prefix="n" withDays={false} taken={taken} disabled={disabled}
         onChange={(rows) => onChange({ ...data, festive: rows })} />
-      <SlotTable title="Dni powszednie" rows={weekdays} prefix="p" withDays taken={taken} disabled={disabled}
+      <SlotTable title={t('calendarApp.slots.weekdays')} rows={weekdays} prefix="p" withDays taken={taken} disabled={disabled}
         onChange={(rows) => onChange({ ...data, weekdays: rows })} />
     </div>
   );

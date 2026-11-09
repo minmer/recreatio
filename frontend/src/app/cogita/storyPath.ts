@@ -20,6 +20,7 @@
  * Ein Teil endet, wo sich die Art ändert, der Weg sich gabelt oder zusammenkommt. Rein; die Karte zeichnet `PathMap`.
  */
 
+import { t } from '../core/i18n';
 import { exitsOf, follow, STEP_LABEL, type Flow } from './flow';
 import type { GraphNode } from './graph';
 import { countsAsStep, pathModel, type PartKind, type PathFork, type PathMarks, type PathModel, type PathState } from './pathLayout';
@@ -97,9 +98,16 @@ export interface StoryWords {
   readonly step?: (type: string) => string | undefined;
 }
 
+/** 2026-11-05 — die Worte der Ścieżka in der Sprache der Anwendung (`words(lang).partNames` für eine Baza). */
 export const STORY_WORDS: StoryWords = {
-  start: 'Początek', end: 'Koniec', review: 'Przegląd', choice: 'Wybór', chapters: 'Rozdziały', questions: 'Pytania',
-  questionsOf: (x) => `Pytania — ${x}`, choiceOn: (x) => `Wybór: ${x}`
+  get start() { return t('cogitaLearn.words.partNames.start'); },
+  get end() { return t('cogitaLearn.words.partNames.end'); },
+  get review() { return t('cogitaLearn.words.partNames.review'); },
+  get choice() { return t('cogitaLearn.words.partNames.choice'); },
+  get chapters() { return t('cogitaLearn.words.partNames.chapters'); },
+  get questions() { return t('cogitaLearn.words.partNames.questions'); },
+  questionsOf: (x) => t('cogitaLearn.words.partNames.questionsOf', { x }),
+  choiceOn: (x) => t('cogitaLearn.words.partNames.choiceOn', { x })
 };
 
 export interface StoryPathOptions {

@@ -40,6 +40,7 @@ import { cardLine, shownGiven } from './AnswerLog';
 import { entityNameTex, percent, useCtx } from './ui';
 import { groupTitle, readView, viewGroups, viewList, withKnowing, type ViewDoc } from './views';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 import './quilt.css';
 
 /** Die Antworten einer Person je Karte (`answerIndex`). */
@@ -88,8 +89,9 @@ function moveFocus(e: KeyboardEvent<HTMLElement>, root: HTMLElement | null): voi
 
 /** Die Legende: Zeichen, Farbe und Wort jeder Stufe — mit der Zahl. */
 function Legend({ counts }: { counts: Readonly<Record<QuiltBand, number>> }) {
+  const t = useT();
   return (
-    <ul className="cg-quilt-legend" aria-label="Legenda">
+    <ul className="cg-quilt-legend" aria-label={t('cogitaLearn.words.legend')}>
       {QUILT_BANDS.map((b) => (
         <li key={b} title={QUILT_SAYS[b]}>
           <span className={`cg-quilt-swatch is-${b}`} aria-hidden>{QUILT_MARK[b]}</span>
@@ -140,6 +142,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
   more?: ReactNode;
 }) {
   const { lib } = useCtx();
+  const t = useT();
   const answered = useMemo(() => cards.reduce((n, c) => n + answers(c).length, 0), [cards, answers]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sp = spacing ?? spacingFor(lib, learner);
@@ -160,7 +163,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
   if (practise !== null) {
     return <RevisionRun lib={lib} learner={learner} source={{ plan: practise.plan, cards, title: practise.title }} onClose={() => setPractise(null)} />;
   }
-  if (tiles.length === 0) return <p className="cg-muted" data-quilt-empty="">W tym widoku nie ma wpisów.</p>;
+  if (tiles.length === 0) return <p className="cg-muted" data-quilt-empty="">{t('cogitaLearnLogic.quiltView.empty')}</p>;
 
   const practiseNow = (tile: QuiltTile) => {
     if (learner === null) return;
@@ -171,9 +174,9 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
       const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learnerFlows(lib, learner.progress.positions), spacingFor(lib, learner));
       const made = await planOf(practiseGraph(practiseIds(cards, tile.id), tile.band !== 'known', stackFor(lib, learner)), ctx);
       const plan = made.plan === null ? null : { ...made.plan, cards: made.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
-      if (plan === null || plan.cards.length === 0) { setNote(made.problems[0] ?? 'Do tego wpisu nie ma jeszcze pytań.'); return; }
+      if (plan === null || plan.cards.length === 0) { setNote(made.problems[0] ?? t('cogitaLearnLogic.quiltView.noQuestionsYet')); return; }
       const e = lib.entity(tile.id);
-      setPractise({ plan, title: `Ćwiczenie: ${e === undefined ? 'wpis' : lib.label(e)}` });
+      setPractise({ plan, title: t('cogitaLearnRun.run.practiceTitle', { name: e === undefined ? t('cogitaLearnLogic.quiltView.entry') : lib.label(e) }) });
     })();
   };
 
@@ -182,7 +185,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
   return (
     <div className="cg-quilt" ref={root} onKeyDown={(e) => moveFocus(e, root.current)} data-quilt={tiles.length} data-quilt-known={counts.known}>
       <div className="cg-quilt-top">
-        <span className="cg-quilt-sum" data-quilt-sum="">{counts.known === tiles.length ? `Umiesz wszystko (${tiles.length})` : `Umiesz ${counts.known} z ${tiles.length}`}</span>
+        <span className="cg-quilt-sum" data-quilt-sum="">{counts.known === tiles.length ? t('cogitaLearnLogic.quiltView.allKnown', { n: tiles.length }) : t('cogitaLearnLogic.quiltView.known', { k: counts.known, n: tiles.length })}</span>
         {!compact && <Legend counts={counts} />}
       </div>
       {groups.map((group, gi) => {
@@ -209,7 +212,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
           </section>
         );
       })}
-      {shown < tiles.length && <p className="cg-muted">Pokazano {shown} z {tiles.length} wpisów{more !== undefined ? ' — ' : '.'}{more}</p>}
+      {shown < tiles.length && <p className="cg-muted">{more !== undefined ? t('cogitaLearnLogic.quiltView.shownMore', { k: shown, n: tiles.length }) : t('cogitaLearnLogic.quiltView.shown', { k: shown, n: tiles.length })}{more}</p>}
     </div>
   );
 }
@@ -219,9 +222,10 @@ function Tile({ tile, on, onChoose }: { tile: QuiltTile; on: boolean; onChoose: 
   const e = lib.entity(tile.id);
   const plain = e === undefined ? tile.id.slice(-6) : lib.label(e);
   const known = tile.answered > 0 || tile.knowness > 0 ? ` · ${percent(shareOf(tile.knowness))}` : '';
+  const t = useT();
   return (
     <button type="button" className={`cg-quilt-tile is-${tile.band}${tile.cards === 0 ? ' is-bare' : ''}${on ? ' is-on' : ''}`} aria-pressed={on}
-      data-quilt-tile={tile.id} data-band={tile.band} aria-label={`${plain}: ${QUILT_LABEL[tile.band]}${known}${tile.cards === 0 ? ' · bez pytań' : ''}`}
+      data-quilt-tile={tile.id} data-band={tile.band} aria-label={`${plain}: ${QUILT_LABEL[tile.band]}${known}${tile.cards === 0 ? t('cogitaLearnLogic.quiltView.noQuestionsShort') : ''}`}
       title={`${plain} — ${QUILT_LABEL[tile.band]}${known}`} onClick={onChoose}>
       <span className="cg-quilt-mark" aria-hidden>{QUILT_MARK[tile.band]}</span>
       <span className="cg-quilt-label"><TexText text={e === undefined ? plain : lib.labelTex(e)} /></span>
@@ -232,10 +236,10 @@ function Tile({ tile, on, onChoose }: { tile: QuiltTile; on: boolean; onChoose: 
 /** Die letzte Antwort einer Frage, als Zeichen und Wort. */
 function lastMark(list: readonly AnswerRecord[]): { readonly glyph: string; readonly word: string; readonly state: string } {
   const last = list[list.length - 1];
-  if (last === undefined) return { glyph: '—', word: 'jeszcze nie', state: 'is-none' };
-  if (last.correctness >= 0.999) return { glyph: '✓', word: 'dobrze', state: 'is-right' };
-  if (last.correctness >= 0.5) return { glyph: '½', word: 'częściowo', state: 'is-near' };
-  return { glyph: '✗', word: 'źle', state: 'is-wrong' };
+  if (last === undefined) return { glyph: '—', word: 'cogitaLearnLogic.quiltView.notYet', state: 'is-none' };
+  if (last.correctness >= 0.999) return { glyph: '✓', word: 'cogitaLearnRun.card.right', state: 'is-right' };
+  if (last.correctness >= 0.5) return { glyph: '½', word: 'cogitaLearnRun.card.partly', state: 'is-near' };
+  return { glyph: '✗', word: 'cogitaLearnRun.card.wrong', state: 'is-wrong' };
 }
 
 /** DIE TAFEL EINER KACHEL: lesen, die Fragen mit der letzten Antwort, üben, im Buch nachschlagen. */
@@ -255,6 +259,7 @@ export function QuiltPanel({ tile, cards, answers, onClose, onPractise, onOpen, 
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { panel.current?.focus({ preventScroll: true }); panel.current?.scrollIntoView({ block: 'nearest', behavior: smooth() }); }, [tile.id]);
   const name = (id: string) => entityNameTex(lib, id);
+  const t = useT();
   return (
     <section ref={panel} className="cg-quilt-panel" data-quilt-panel={tile.id} aria-labelledby={headId} tabIndex={-1}>
       <div className="cg-quilt-panel-head">
@@ -262,17 +267,17 @@ export function QuiltPanel({ tile, cards, answers, onClose, onPractise, onOpen, 
         <span className={`cg-quilt-badge is-${tile.band}`} data-quilt-badge={tile.band}>
           <span aria-hidden>{QUILT_MARK[tile.band]}</span> {QUILT_LABEL[tile.band]}{tile.answered > 0 || tile.knowness > 0 ? ` · ${percent(shareOf(tile.knowness))}` : ''}
         </span>
-        <button type="button" className="wk-link-btn" onClick={onClose} data-quilt-close="">Zamknij</button>
+        <button type="button" className="wk-link-btn" onClick={onClose} data-quilt-close="">{t('common.close')}</button>
       </div>
       {entity !== undefined && <TopicIntro lib={lib} entity={entity} noTitle noSource />}
       <div className="cg-quilt-actions">
-        {onPractise !== undefined && about.length > 0 && <button type="button" className="wk-btn" data-quilt-practise="" onClick={() => onPractise(tile)}>Ćwicz to</button>}
+        {onPractise !== undefined && about.length > 0 && <button type="button" className="wk-btn" data-quilt-practise="" onClick={() => onPractise(tile)}>{t('cogitaLearnLogic.quiltView.practise')}</button>}
         {entity !== undefined && <SourceOpen lib={lib} entity={entity} />}
-        {onOpen !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(tile.id)}>Otwórz wpis</button>}
+        {onOpen !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(tile.id)}>{t('cogitaLearn.words.openEntry')}</button>}
       </div>
       {note !== null && <p className="wk-note" role="status">{note}</p>}
-      <h5 className="cg-quilt-sub">Pytania <span className="cg-muted">({about.length})</span></h5>
-      {about.length === 0 ? <p className="cg-muted">Do tego wpisu nie ma jeszcze pytań.</p> : (
+      <h5 className="cg-quilt-sub">{t('cogitaLearnLogic.quiltView.questions')} <span className="cg-muted">({about.length})</span></h5>
+      {about.length === 0 ? <p className="cg-muted">{t('cogitaLearnLogic.quiltView.noQuestionsYet')}</p> : (
         <ul className="cg-quilt-questions" data-quilt-questions={about.length}>
           {about.slice(0, 60).map((card) => {
             const list = answers(card);
@@ -280,11 +285,11 @@ export function QuiltPanel({ tile, cards, answers, onClose, onPractise, onOpen, 
             const last = list[list.length - 1];
             return (
               <li key={card.key} className={m.state} data-quilt-question={card.key}>
-                <span className="cg-quilt-result" aria-label={m.word}>{m.glyph}</span>
+                <span className="cg-quilt-result" aria-label={t(m.word)}>{m.glyph}</span>
                 <span className="cg-quilt-q"><TexText text={cardLine(card, name)} /></span>
                 <span className="cg-muted cg-quilt-when">
-                  {last === undefined ? 'jeszcze nie' : `${m.word} · ${new Date(last.at).toLocaleDateString('pl-PL')} · ${list.length} ${list.length === 1 ? 'odpowiedź' : 'odp.'}`}
-                  {last !== undefined && (last.hints ?? 0) > 0 ? ` · podpowiedzi: ${last.hints}` : ''}
+                  {last === undefined ? t(m.word) : t('cogitaLearnLogic.quiltView.lastAnswer', { word: t(m.word), date: new Date(last.at).toLocaleDateString(t.locale), answers: t('cogitaLearnLogic.quiltView.answers', { count: list.length }) })}
+                  {last !== undefined && (last.hints ?? 0) > 0 ? t('cogitaLearnLogic.quiltView.hints', { n: last.hints ?? 0 }) : ''}
                 </span>
               </li>
             );
@@ -302,7 +307,7 @@ export function useQuiltViews(): { readonly id: string; readonly view: ViewDoc }
   const { lib } = useCtx();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => lib.docs('view').map((e) => ({ id: e.id, view: readView(e.data) })).filter((x) => x.view.mode === 'quilt')
-    .sort((a, b) => a.view.name.localeCompare(b.view.name, 'pl', { numeric: true })), [lib, lib.revision]);
+    .sort((a, b) => a.view.name.localeCompare(b.view.name, undefined, { numeric: true })), [lib, lib.revision]);
 }
 
 /** Welcher Widok gezeigt wird — gemerkt in diesem Browser (eine Bequemlichkeit). */
@@ -316,10 +321,11 @@ function useChosenView(views: readonly { readonly id: string }[]): [string | nul
 }
 
 function ViewChooser({ views, value, onChange }: { views: readonly { readonly id: string; readonly view: ViewDoc }[]; value: string; onChange: (id: string) => void }) {
+  const t = useT();
   if (views.length < 2) return null;
   return (
     <label className="wk-field cg-quilt-choose">
-      <span>Mapa</span>
+      <span>{t('cogitaLearnLogic.quiltView.map')}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} data-quilt-view="">
         {views.map((v) => <option key={v.id} value={v.id}>{v.view.name}</option>)}
       </select>
@@ -351,12 +357,13 @@ export function QuiltMaps({ cards, answers, learner = null, onOpen, spacing }: {
 export function LearnQuilt({ cards, learner }: { cards: readonly Card[] | null; learner: Learner | null }) {
   const { lib } = useCtx();
   const views = useQuiltViews();
+  const t = useT();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const answers = useMemo<AnswersOf>(() => (learner === null ? () => [] : answerIndex(learner.progress, renamer(lib.merges()))), [learner, learner?.progress, lib]);
   if (views.length === 0 || cards === null) return null;
   return (
     <section className="cg-card" data-learn-quilt="">
-      <h3>Mapa postępów</h3>
+      <h3>{t('cogitaLearnLogic.quiltView.title')}</h3>
       <QuiltMaps cards={cards} answers={answers} learner={learner} />
     </section>
   );
@@ -392,16 +399,17 @@ export function ClassQuilt({ view, cards, learners }: { view: ViewDoc; cards: re
   const tiles = useMemo(() => classTiles(entities.map((e) => e.id), gauges.map((x) => x.g)), [entities, gauges]);
   const [chosen, setChosen] = useState<{ id: string; group: string } | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  if (entities.length === 0) return <p className="cg-muted">W tym widoku nie ma wpisów.</p>;
+  const t = useT();
+  if (entities.length === 0) return <p className="cg-muted">{t('cogitaLearnLogic.quiltView.empty')}</p>;
   const all = [...tiles.values()];
   const everybody = all.filter((t) => t.learners > 0 && t.known === t.learners).length;
   return (
     <div className="cg-quilt is-class" ref={root} onKeyDown={(e) => moveFocus(e, root.current)} data-class-quilt={learners.length}>
       <div className="cg-quilt-top">
-        <span className="cg-quilt-sum">Wszyscy umieją {everybody} z {all.length} · uczących się: {learners.length}</span>
-        <ul className="cg-quilt-legend" aria-label="Legenda">
+        <span className="cg-quilt-sum">{t('cogitaLearnLogic.quiltView.classSum', { k: everybody, n: all.length, learners: learners.length })}</span>
+        <ul className="cg-quilt-legend" aria-label={t('cogitaLearn.words.legend')}>
           {([1, 2, 3, 4] as const).map((s) => <li key={s}><span className={`cg-quilt-swatch is-c${s}`} aria-hidden />{CLASS_STEP_LABEL[s]}</li>)}
-          <li><span className="cg-quilt-swatch is-c0" aria-hidden>—</span>nikt jeszcze nie odpowiadał</li>
+          <li><span className="cg-quilt-swatch is-c0" aria-hidden>—</span>{t('cogitaLearnLogic.quiltView.nobody')}</li>
         </ul>
       </div>
       {groups.map((group, gi) => {
@@ -436,7 +444,8 @@ function ClassTileButton({ tile, on, onChoose }: { tile: ClassTile; on: boolean;
   const e = lib.entity(tile.id);
   const plain = e === undefined ? tile.id.slice(-6) : lib.label(e);
   const step = classStep(tile);
-  const words = tile.answered === 0 ? 'nikt jeszcze nie odpowiadał' : `umie ${tile.known} z ${tile.learners}`;
+  const t = useT();
+  const words = tile.answered === 0 ? t('cogitaLearnLogic.quiltView.nobody') : t('cogitaLearnLogic.quiltView.knowsOf', { k: tile.known, n: tile.learners });
   return (
     <button type="button" className={`cg-quilt-tile is-c${step}${on ? ' is-on' : ''}`} aria-pressed={on} data-quilt-tile={tile.id} data-class-step={step}
       aria-label={`${plain}: ${words}`} title={`${plain} — ${words}`} onClick={onChoose}>
@@ -461,21 +470,22 @@ function ClassPanel({ tile, cards, gauges, learners, onClose }: {
   const headId = `cg-quilt-${useId().replace(/[^A-Za-z0-9]/g, '')}`;
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { panel.current?.focus({ preventScroll: true }); panel.current?.scrollIntoView({ block: 'nearest', behavior: smooth() }); }, [tile.id]);
+  const t = useT();
   const by = QUILT_BANDS.slice().reverse().map((b) => ({ b, who: gauges.filter((x) => quiltBand(x.g, tile.id) === b).map((x) => x.l.name) }));
   return (
     <section ref={panel} className="cg-quilt-panel" data-quilt-panel={tile.id} aria-labelledby={headId} tabIndex={-1}>
       <div className="cg-quilt-panel-head">
         <h4 id={headId} className="cg-quilt-panel-title"><TexText text={entity === undefined ? tile.id : lib.labelTex(entity)} /></h4>
-        <span className="cg-muted">umie {tile.known} z {tile.learners}{tile.learners > 0 ? ` (${percent(tile.share)})` : ''}</span>
-        <button type="button" className="wk-link-btn" onClick={onClose} data-quilt-close="">Zamknij</button>
+        <span className="cg-muted">{t('cogitaLearnLogic.quiltView.knowsOf', { k: tile.known, n: tile.learners })}{tile.learners > 0 ? ` (${percent(tile.share)})` : ''}</span>
+        <button type="button" className="wk-link-btn" onClick={onClose} data-quilt-close="">{t('common.close')}</button>
       </div>
       <ul className="cg-quilt-who" data-quilt-who="">
         {by.filter((x) => x.who.length > 0).map(({ b, who }) => (
           <li key={b}><span className={`cg-quilt-badge is-${b}`}><span aria-hidden>{QUILT_MARK[b]}</span> {QUILT_LABEL[b]} ({who.length})</span> {who.join(', ')}</li>
         ))}
       </ul>
-      <h5 className="cg-quilt-sub">Pytania <span className="cg-muted">({about.length})</span></h5>
-      {stats.length === 0 ? <p className="cg-muted">{about.length === 0 ? 'Do tego wpisu nie ma pytań.' : 'Nikt jeszcze nie odpowiadał na te pytania.'}</p> : <QuestionRows stats={stats} />}
+      <h5 className="cg-quilt-sub">{t('cogitaLearnLogic.quiltView.questions')} <span className="cg-muted">({about.length})</span></h5>
+      {stats.length === 0 ? <p className="cg-muted">{about.length === 0 ? t('cogitaLearnLogic.quiltView.noQuestions') : t('cogitaLearnLogic.quiltView.nobodyQuestions')}</p> : <QuestionRows stats={stats} />}
     </section>
   );
 }
@@ -485,23 +495,25 @@ function ClassPanel({ tile, cards, gauges, learners, onClose }: {
 const pctOr = (v: number | null): string => (v === null ? '—' : percent(v));
 const num1 = (v: number | null): string => (v === null ? '—' : v.toFixed(1).replace('.', ','));
 
-const COLUMNS: readonly { readonly by: QuestionSort | null; readonly label: string; readonly says?: string }[] = [
-  { by: null, label: 'Pytanie' },
-  { by: 'learners', label: 'Uczący się', says: 'ilu odpowiadało' },
-  { by: 'success', label: 'Skuteczność', says: 'odpowiedzi całkiem dobre (bez podpowiedzi)' },
-  { by: 'first', label: 'Za pierwszym razem', says: 'ilu odpowiedziało dobrze od razu' },
-  { by: 'attempts', label: 'Średnio prób', says: 'odpowiedzi na osobę' },
-  { by: 'hints', label: 'Podpowiedzi', says: 'odsłonięte podpowiedzi razem (w ilu odpowiedziach)' },
-  { by: null, label: 'Najczęstsza zła odpowiedź' }
+/* Die Spalten: `key` — die Worte unter `cogitaLearnLogic.quiltView.col.<key>` (`label`, `says`). */
+const COLUMNS: readonly { readonly by: QuestionSort | null; readonly key: string; readonly says: boolean }[] = [
+  { by: null, key: 'question', says: false },
+  { by: 'learners', key: 'learners', says: true },
+  { by: 'success', key: 'success', says: true },
+  { by: 'first', key: 'first', says: true },
+  { by: 'attempts', key: 'attempts', says: true },
+  { by: 'hints', key: 'hints', says: true },
+  { by: null, key: 'wrong', says: false }
 ];
 
 function QuestionRows({ stats }: { stats: readonly QuestionClassStat[] }) {
   const { lib } = useCtx();
   const name = (id: string) => entityNameTex(lib, id);
+  const t = useT();
   return (
     <div className="cg-table-wrap">
       <table className="cg-table cg-stats-table" data-class-questions={stats.length}>
-        <thead><tr>{COLUMNS.map((c) => <th key={c.label} scope="col" title={c.says}>{c.label}</th>)}</tr></thead>
+        <thead><tr>{COLUMNS.map((c) => <th key={c.key} scope="col" title={c.says ? t(`cogitaLearnLogic.quiltView.col.${c.key}.says`) : undefined}>{t(`cogitaLearnLogic.quiltView.col.${c.key}.label`)}</th>)}</tr></thead>
         <tbody>
           {stats.slice(0, 300).map((s) => <QuestionRow key={s.card.key} s={s} name={name} />)}
         </tbody>
@@ -535,17 +547,18 @@ export function ClassQuestions({ cards, learners }: { cards: readonly Card[]; le
   const [sort, setSort] = useState<{ by: QuestionSort; dir: 1 | -1 }>({ by: 'success', dir: 1 });
   const sorted = useMemo(() => sortQuestions(stats, sort.by, sort.dir), [stats, sort]);
   const name = (id: string) => entityNameTex(lib, id);
-  if (stats.length === 0) return <p className="cg-muted">Nikt jeszcze nie odpowiadał w tym zakresie.</p>;
+  const t = useT();
+  if (stats.length === 0) return <p className="cg-muted">{t('cogitaLearnLogic.quiltView.nobodyRange')}</p>;
   return (
     <div className="cg-table-wrap">
       <table className="cg-table cg-stats-table" data-class-questions={stats.length}>
         <thead>
           <tr>
             {COLUMNS.map((c) => (
-              <th key={c.label} scope="col" title={c.says} aria-sort={c.by !== null && c.by === sort.by ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
-                {c.by === null ? c.label : (
+              <th key={c.key} scope="col" title={c.says ? t(`cogitaLearnLogic.quiltView.col.${c.key}.says`) : undefined} aria-sort={c.by !== null && c.by === sort.by ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
+                {c.by === null ? t(`cogitaLearnLogic.quiltView.col.${c.key}.label`) : (
                   <button type="button" data-sort={c.by} onClick={() => setSort((was) => ({ by: c.by!, dir: was.by === c.by ? (was.dir === 1 ? -1 : 1) : 1 }))}>
-                    {c.label}{c.by === sort.by ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+                    {t(`cogitaLearnLogic.quiltView.col.${c.key}.label`)}{c.by === sort.by ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
                   </button>
                 )}
               </th>
@@ -556,8 +569,8 @@ export function ClassQuestions({ cards, learners }: { cards: readonly Card[]; le
           {sorted.slice(0, 300).map((s) => <QuestionRow key={s.card.key} s={s} name={name} />)}
         </tbody>
       </table>
-      {sorted.length > 300 && <span className="cg-muted">Pokazano 300 z {sorted.length}.</span>}
-      <span className="cg-muted">Skuteczność liczy tylko odpowiedzi całkiem dobre — dobra odpowiedź z podpowiedzią się do niej nie wlicza.</span>
+      {sorted.length > 300 && <span className="cg-muted">{t('cogitaLearnLogic.quiltView.shown300', { n: sorted.length })}</span>}
+      <span className="cg-muted">{t('cogitaLearnLogic.quiltView.successNote')}</span>
     </div>
   );
 }
@@ -570,6 +583,7 @@ export function ClassMaps({ cards, learners }: { cards: readonly Card[]; learner
   const views = useQuiltViews();
   const [chosen, choose] = useChosenView(views);
   const [person, setPerson] = useState<string>('');
+  const t = useT();
   const one = views.find((v) => v.id === chosen);
   if (one === undefined) return null;
   const who = learners.find((l) => l.id === person);
@@ -578,16 +592,16 @@ export function ClassMaps({ cards, learners }: { cards: readonly Card[]; learner
       <div className="cg-row">
         <ViewChooser views={views} value={one.id} onChange={choose} />
         <label className="wk-field cg-quilt-choose">
-          <span>Kto</span>
+          <span>{t('cogitaLearnLogic.quiltView.who')}</span>
           <select value={person} onChange={(e) => setPerson(e.target.value)} data-quilt-person="">
-            <option value="">wszyscy razem</option>
+            <option value="">{t('cogitaLearnLogic.quiltView.everyone')}</option>
             {learners.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </label>
       </div>
       {who === undefined
         ? <ClassQuilt key={one.id} view={one.view} cards={cards} learners={learners} />
-        : <Fragment key={`${one.id}:${who.id}`}><p className="cg-muted">Mapa: {who.name}</p><QuiltView view={one.view} cards={cards} answers={who.answers} {...(who.spacing === undefined ? {} : { spacing: who.spacing })} /></Fragment>}
+        : <Fragment key={`${one.id}:${who.id}`}><p className="cg-muted">{t('cogitaLearnLogic.quiltView.mapOf', { name: who.name })}</p><QuiltView view={one.view} cards={cards} answers={who.answers} {...(who.spacing === undefined ? {} : { spacing: who.spacing })} /></Fragment>}
     </div>
   );
 }

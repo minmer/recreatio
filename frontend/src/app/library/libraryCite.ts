@@ -17,7 +17,8 @@
  * keine Zeichenketten: gezeichnet wird anderswo, geprüft wird hier.
  */
 
-import { UNREADABLE } from './libraryMarkup';
+import { unreadable } from './libraryMarkup';
+import { t } from '../core/i18n';
 import { entryTitle, ids, MUSIC_TYPES, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
 import { musicPeople, pieceBehind } from './music';
 
@@ -62,7 +63,7 @@ export function personSorted(person: LibEntry | undefined): string {
 
 function names(list: readonly string[], look: Lookup, form: (p: LibEntry | undefined) => string): string {
   const people = list.map((id) => form(look.get(id))).filter((n) => n !== '');
-  if (people.length > 3) return `${people[0]} i in.`;
+  if (people.length > 3) return t('libraryCite.etAl', { name: people[0]! });
   return people.join(', ');
 }
 
@@ -78,22 +79,22 @@ const join = (parts: readonly (readonly Seg[])[], separator = ', '): Seg[] => {
   return out;
 };
 
-const t = (text: string): Seg[] => (text.trim() === '' ? [] : [{ text: text.trim() }]);
+const seg = (text: string): Seg[] => (text.trim() === '' ? [] : [{ text: text.trim() }]);
 const title = (text: string): Seg[] => (text.trim() === '' ? [] : [{ text: text.trim(), italic: true }]);
 
 const placeYear = (work: LibEntry, withPublisher: boolean): Seg[] => {
   const place = str(work.data, 'place').trim();
   const year = str(work.data, 'year').trim();
   const publisher = withPublisher ? str(work.data, 'publisher').trim() : '';
-  return t([publisher, [place, year].filter(Boolean).join(' ')].filter(Boolean).join(', '));
+  return seg([publisher, [place, year].filter(Boolean).join(' ')].filter(Boolean).join(', '));
 };
 
-const volume = (work: LibEntry): Seg[] => t(str(work.data, 'volume') === '' ? '' : `t. ${str(work.data, 'volume')}`);
-const edition = (work: LibEntry): Seg[] => t(str(work.data, 'edition') === '' ? '' : `wyd. ${str(work.data, 'edition')}`);
+const volume = (work: LibEntry): Seg[] => seg(str(work.data, 'volume') === '' ? '' : t('libraryCite.volume', { n: str(work.data, 'volume') }));
+const edition = (work: LibEntry): Seg[] => seg(str(work.data, 'edition') === '' ? '' : t('libraryCite.edition', { n: str(work.data, 'edition') }));
 
 const roles = (work: LibEntry, look: Lookup): { editors: Seg[]; translators: Seg[] } => ({
-  editors: t(ids(work.data, 'editors').length === 0 ? '' : `red. ${names(ids(work.data, 'editors'), look, personShort)}`),
-  translators: t(ids(work.data, 'translators').length === 0 ? '' : `tłum. ${names(ids(work.data, 'translators'), look, personShort)}`)
+  editors: seg(ids(work.data, 'editors').length === 0 ? '' : t('libraryCite.editors', { names: names(ids(work.data, 'editors'), look, personShort) })),
+  translators: seg(ids(work.data, 'translators').length === 0 ? '' : t('libraryCite.translators', { names: names(ids(work.data, 'translators'), look, personShort) }))
 });
 
 const titleOf = (work: LibEntry): Seg[] => {
@@ -124,19 +125,19 @@ function musicSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 'bib',
   const named = str(work.data, 'title').trim() !== '' ? work : piece;
   const people = (key: string, prefix: string) => {
     const list = ids(work.data, key).length > 0 ? ids(work.data, key) : piece.id === work.id ? [] : ids(piece.data, key);
-    return t(list.length === 0 ? '' : `${prefix}${names(list, look, form)}`);
+    return seg(list.length === 0 ? '' : `${prefix}${names(list, look, form)}`);
   };
-  const where = mode === 'bib' ? [] : t(locator);
-  if (mode === 'short') return join([t(names(musicPeople(work, look), look, personShort)), shortTitle(named), t('dz. cyt.'), where]);
-  const performers = t(ids(work.data, 'performers').length === 0 ? '' : `wyk. ${names(ids(work.data, 'performers'), look, form)}`);
-  const label = t([str(work.data, 'publisher'), str(work.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', '));
+  const where = mode === 'bib' ? [] : seg(locator);
+  if (mode === 'short') return join([seg(names(musicPeople(work, look), look, personShort)), shortTitle(named), seg(t('libraryCite.opCit')), where]);
+  const performers = seg(ids(work.data, 'performers').length === 0 ? '' : t('libraryCite.performers', { names: names(ids(work.data, 'performers'), look, form) }));
+  const label = seg([str(work.data, 'publisher'), str(work.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', '));
   if (type === 'piece') {
-    return join([people('composers', ''), titleOf(work), t(str(work.data, 'catalogue')), people('lyricists', 'sł. '), people('arrangers', 'oprac. '), where]);
+    return join([people('composers', ''), titleOf(work), seg(str(work.data, 'catalogue')), people('lyricists', t('libraryCite.lyricsBy')), people('arrangers', t('libraryCite.arrangedBy')), where]);
   }
   if (type === 'score') {
     const { editors } = roles(work, look);
     return join([
-      people('composers', ''), [...titleOf(named), { text: ' [nuty]' }], t(str(work.data, 'catalogue')), people('lyricists', 'sł. '), people('arrangers', 'oprac. '),
+      people('composers', ''), [...titleOf(named), { text: t('libraryCite.score') }], seg(str(work.data, 'catalogue')), people('lyricists', t('libraryCite.lyricsBy')), people('arrangers', t('libraryCite.arrangedBy')),
       editors, volume(work), edition(work), placeYear(work, mode === 'bib'), where
     ]);
   }
@@ -145,14 +146,14 @@ function musicSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 'bib',
     const album = look.get(ids(work.data, 'album')[0] ?? '');
     const track = str(work.data, 'track').trim();
     return join([
-      [...titleOf(named), ...(composers === '' ? [] : [{ text: ` (${composers})` }])], performers, people('arrangers', 'oprac. '), t('[nagranie]'),
-      album === undefined ? [] : [{ text: 'w: ' }, ...titleOf(album)], t(track === '' ? '' : `nr ${track}`),
-      album === undefined ? label : t([str(album.data, 'publisher'), str(work.data, 'year') || str(album.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', ')),
+      [...titleOf(named), ...(composers === '' ? [] : [{ text: ` (${composers})` }])], performers, people('arrangers', t('libraryCite.arrangedBy')), seg(t('libraryCite.recording')), // i18n-ignore
+      album === undefined ? [] : [{ text: t('libraryCite.in') }, ...titleOf(album)], seg(track === '' ? '' : t('libraryCite.number', { n: track })),
+      album === undefined ? label : seg([str(album.data, 'publisher'), str(work.data, 'year') || str(album.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', ')),
       where
     ]);
   }
   /* Płyta. */
-  return join([titleOf(work), performers, t('[płyta]'), label, t(str(work.data, 'catalogue')), where]);
+  return join([titleOf(work), performers, seg(t('libraryCite.album')), label, seg(str(work.data, 'catalogue')), where]);
 }
 
 /** Die Angabe eines Werks — ganz (`full`), kurz (`short`) oder für die Bibliografie (`bib`). */
@@ -160,16 +161,16 @@ export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 
   const type = str(work.data, 'workType');
   if (MUSIC_TYPES.has(type)) return musicSegs(work, look, mode, locator);
   const authors = names(ids(work.data, 'authors'), look, mode === 'bib' ? personSorted : personShort);
-  const where = t(locator);
+  const where = seg(locator);
 
   if (type === 'bible') {
     const siglum = str(work.data, 'siglum').trim();
-    if (mode !== 'bib' && locator !== '') return t(siglum === '' ? locator : `${locator} (${siglum})`);
-    const head: Seg[] = [...titleOf(work), ...(siglum === '' ? [] : [{ text: ` (${siglum})` }])];
+    if (mode !== 'bib' && locator !== '') return seg(siglum === '' ? locator : `${locator} (${siglum})`);
+    const head: Seg[] = [...titleOf(work), ...(siglum === '' ? [] : [{ text: ` (${siglum})` }])]; // i18n-ignore
     return join([head, edition(work), placeYear(work, mode === 'bib')]);
   }
 
-  if (mode === 'short') return join([t(authors), shortTitle(work), t('dz. cyt.'), where]);
+  if (mode === 'short') return join([seg(authors), shortTitle(work), seg(t('libraryCite.opCit')), where]);
 
   const { editors, translators } = roles(work, look);
   const container = look.get(ids(work.data, 'container')[0] ?? '');
@@ -177,10 +178,10 @@ export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 
   if (type === 'chapter' && container !== undefined) {
     const host = roles(container, look);
     return join([
-      t(authors), titleOf(work),
-      [{ text: 'w: ' }, ...titleOf(container)], host.editors, volume(container),
+      seg(authors), titleOf(work),
+      [{ text: t('libraryCite.in') }, ...titleOf(container)], host.editors, volume(container),
       placeYear(container, mode === 'bib'),
-      mode === 'bib' ? t(str(work.data, 'pages') === '' ? '' : `s. ${str(work.data, 'pages')}`) : where
+      mode === 'bib' ? seg(str(work.data, 'pages') === '' ? '' : t('libraryCite.pages', { pages: str(work.data, 'pages') })) : where
     ]);
   }
 
@@ -191,28 +192,28 @@ export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 
     const issue = str(work.data, 'issue').trim();
     const host: Seg[] = journal === '' ? [] : [{ text: `„${journal}”${vol === '' ? '' : ` ${vol}`}${year === '' ? '' : ` (${year})`}` }];
     return join([
-      t(authors), titleOf(work), host, t(issue === '' ? '' : `nr ${issue}`),
-      mode === 'bib' ? t(str(work.data, 'pages') === '' ? '' : `s. ${str(work.data, 'pages')}`) : where
+      seg(authors), titleOf(work), host, seg(issue === '' ? '' : t('libraryCite.number', { n: issue })),
+      mode === 'bib' ? seg(str(work.data, 'pages') === '' ? '' : t('libraryCite.pages', { pages: str(work.data, 'pages') })) : where
     ]);
   }
 
   if (type === 'document') {
-    return join([t(authors), titleOf(work), mode === 'bib' ? placeYear(work, false) : where]);
+    return join([seg(authors), titleOf(work), mode === 'bib' ? placeYear(work, false) : where]);
   }
 
   if (type === 'web') {
     const url = str(work.data, 'url').trim();
     const accessed = str(work.data, 'accessed').trim();
     return join([
-      t(authors), titleOf(work),
+      seg(authors), titleOf(work),
       url === '' ? [] : [{ text: url, href: url }],
-      t(accessed === '' ? '' : `(dostęp: ${accessed})`),
+      seg(accessed === '' ? '' : t('libraryCite.accessed', { date: accessed })),
       mode === 'bib' ? [] : where
     ]);
   }
 
   /* Buch, Vortrag, anderes. */
-  const head = authors === '' ? [titleOf(work), editors] : [t(authors), titleOf(work), editors];
+  const head = authors === '' ? [titleOf(work), editors] : [seg(authors), titleOf(work), editors];
   return join([
     ...head, volume(work), translators, edition(work), placeYear(work, mode === 'bib'),
     mode === 'bib' ? [] : where
@@ -224,13 +225,13 @@ export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 
  * ganz, danach kurz mit „dz. cyt.", unmittelbar wiederholt „Tamże".
  */
 export function citeSegs(target: LibEntry | undefined, locator: string, look: Lookup, state: CiteState): Seg[] {
-  if (target === undefined) return t(locator === '' ? '[brak źródła]' : `[brak źródła], ${locator}`);
+  if (target === undefined) return seg(locator === '' ? t('libraryCite.missing') : t('libraryCite.missingAt', { locator }));
 
   /* Ein Zitat nennt sein Werk, an seiner Stelle (oder an der, die der Verweis sagt). */
   if (target.kind === 'quote') {
     const work = look.get(ids(target.data, 'work')[0] ?? '');
     const where = locator !== '' ? locator : str(target.data, 'locator');
-    if (work === undefined) return t(where === '' ? 'Cytat' : `Cytat, ${where}`);
+    if (work === undefined) return seg(where === '' ? t('libraryCite.quote') : t('libraryCite.quoteAt', { where }));
     return citeSegs(work, where, look, state);
   }
 
@@ -239,7 +240,7 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
       state.last = target.id;
       return workSegs(target, look, 'full', locator);
     }
-    if (state.last === target.id) return join([t('Tamże'), t(locator)]);
+    if (state.last === target.id) return join([seg(t('libraryCite.ibid')), seg(locator)]);
     const mode = state.seen.has(target.id) ? 'short' : 'full';
     state.seen.add(target.id);
     state.last = target.id;
@@ -250,10 +251,10 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
   /* 2026-10-22 — ein eigener Text kommt hier nur noch an, wenn jemand ihn ausdrücklich als Quelle nennt (Druck eines Zitats). */
   if (target.kind === 'text') {
     const date = str(target.data, 'date');
-    return join([[{ text: str(target.data, 'title') || 'Tekst', italic: true }], t(date === '' ? '' : `(${date})`), t(locator)], ' ');
+    return join([[{ text: str(target.data, 'title') || t('libraryCite.text'), italic: true }], seg(date === '' ? '' : `(${date})`), seg(locator)], ' ');
   }
-  if (target.kind === 'person') return join([t(personName(target.data)), t(locator)]);
-  return join([title(str(target.data, 'title') || str(target.data, 'name') || target.kind), t(locator)]);
+  if (target.kind === 'person') return join([seg(personName(target.data)), seg(locator)]);
+  return join([title(str(target.data, 'title') || str(target.data, 'name') || target.kind), seg(locator)]);
 }
 
 /**
@@ -263,7 +264,7 @@ export function citeSegs(target: LibEntry | undefined, locator: string, look: Lo
  */
 export function refLabel(ref: string, locator: string, look: Lookup): string {
   const target = look.get(ref);
-  if (target === undefined) return UNREADABLE;
+  if (target === undefined) return unreadable();
   if (target.kind === 'work' && str(target.data, 'workType') === 'bible' && locator !== '') return locator;
   /* Eine Aussage (2026-10-23: ein Eintrag mit Feld blocks) heisst nach ihrer Teza — das tut entryTitle. */
   const title = target.kind === 'quote' ? originOf(target, look) : entryTitle(target, look);

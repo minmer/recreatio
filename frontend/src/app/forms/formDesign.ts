@@ -27,16 +27,17 @@
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { ageOn, birthOf } from './pesel';
 import { call } from '../core/session';
+import { texts } from '../core/i18n';
 
 /* -- Der Aufbau --------------------------------------------------------------- */
 
 export type GroupKind = 'group' | 'page' | 'tab';
 
-export const GROUP_LABEL: Record<GroupKind, string> = {
-  group: 'Grupa',
-  page: 'Strona',
-  tab: 'Zakładka'
-};
+export const GROUP_LABEL: Readonly<Record<GroupKind, string>> = texts({
+  group: 'formsEdit.group.group',
+  page: 'formsEdit.group.page',
+  tab: 'formsEdit.group.tab'
+});
 
 /**
  * Eine Frage an ihrer Stelle. `print` (0087) — ob ihre Antwort auf das Blatt zum
@@ -76,20 +77,20 @@ export const NODE_KINDS = [
 ] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
-export const NODE_LABEL: Record<NodeKind, string> = {
-  answer: 'Odpowiedź',
-  const: 'Wartość',
-  age: 'Wiek',
-  compare: 'Porównanie',
-  and: 'I',
-  or: 'LUB',
-  not: 'NIE',
-  xor: 'ALBO',
-  show: 'Pokaż',
-  message: 'Komunikat',
-  label: 'Nazwa pola',
-  require: 'Wymagane'
-};
+export const NODE_LABEL: Readonly<Record<NodeKind, string>> = texts({
+  answer: 'formsEdit.node.answer',
+  const: 'formsEdit.node.const',
+  age: 'formsEdit.node.age',
+  compare: 'formsEdit.node.compare',
+  and: 'formsEdit.node.and',
+  or: 'formsEdit.node.or',
+  not: 'formsEdit.node.not',
+  xor: 'formsEdit.node.xor',
+  show: 'formsEdit.node.show',
+  message: 'formsEdit.node.message',
+  label: 'formsEdit.node.label',
+  require: 'formsEdit.node.require'
+});
 
 export type NodeRole = 'input' | 'gate' | 'output';
 

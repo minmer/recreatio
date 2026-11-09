@@ -14,6 +14,7 @@ import { EditDateRule } from './EditDateRule';
 import { ColourInput, ColourSwatch } from './EditSeason';
 import type { DateRule, FeastRow, FeastsData } from './flowModel';
 import { RANK_LABEL, RANK_SHORT, ruleSummary } from './FlowNodes';
+import { useT } from '../../core/i18n';
 
 /** Wonach „Uporządkuj" sortiert: feste Tage nach Monat und Tag, bewegliche dahinter nach ihrem Bezug. */
 function order(rule: DateRule): number {
@@ -28,11 +29,12 @@ function order(rule: DateRule): number {
   }
 }
 
-const EMPTY_ROW: FeastRow = { name: '', when: { r: 'fixed', month: 1, day: 1 }, rank: 10, colour: 'biały' };
+const EMPTY_ROW: FeastRow = { name: '', when: { r: 'fixed', month: 1, day: 1 }, rank: 10, colour: 'biały' }; // i18n-ignore — Wert der Wahl „kolor“
 
 export function EditFeasts({ data, onChange, disabled = false }: {
   data: FeastsData; onChange: (data: FeastsData) => void; disabled?: boolean;
 }) {
+  const t = useT();
   const rows = data.rows ?? [];
   const [open, setOpen] = useState<number | null>(null);
   const [filter, setFilter] = useState('');
@@ -61,62 +63,61 @@ export function EditFeasts({ data, onChange, disabled = false }: {
   return (
     <div className="wk-flow-stack">
       <p className="wk-flow-note">
-        Z obchodów, które przypadają danego dnia, wygrywa ten o najwyższej randze (najmniejsza liczba) — jeśli jest
-        ważniejszy niż sam dzień (np. niedziela Adwentu ma rangę 2). Ustawia obchód, kolor i dzień świąteczny.
+        {t('calendarApp.feasts.note')}
       </p>
       <div className="wk-flow-inline">
-        <input type="search" value={filter} placeholder="Szukaj obchodu" aria-label="Szukaj obchodu" onChange={(e) => setFilter(e.target.value)} />
-        <span className="wk-flow-unit">{needle === '' ? `${rows.length} obchodów` : `${shown.length} z ${rows.length}`}</span>
+        <input type="search" value={filter} placeholder={t('calendarApp.feasts.search')} aria-label={t('calendarApp.feasts.search')} onChange={(e) => setFilter(e.target.value)} />
+        <span className="wk-flow-unit">{needle === '' ? t('calendarApp.feasts.count', { count: rows.length }) : t('calendarApp.feasts.shown', { shown: shown.length, total: rows.length })}</span>
       </div>
 
-      {rows.length === 0 && <p className="wk-empty">Tabela jest pusta — dodaj pierwszy obchód.</p>}
+      {rows.length === 0 && <p className="wk-empty">{t('calendarApp.feasts.empty')}</p>}
 
       <ol className="wk-flow-rows">
         {shown.map(({ row, i }) => (
           <li key={i} className={`wk-flow-row${open === i ? ' is-open' : ''}`}>
             <button type="button" className="wk-flow-rowhead" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
               <ColourSwatch word={row.colour} />
-              <span className="wk-flow-rowname">{row.name.trim() || '(bez nazwy)'}</span>
-              <span className="wk-flow-rowmeta">{ruleSummary(row.when)} · {RANK_SHORT[row.rank] ?? row.rank}{row.festive ? ' · świąteczny' : ''}</span>
+              <span className="wk-flow-rowname">{row.name.trim() || t('calendarApp.flowUi.node.noName')}</span>
+              <span className="wk-flow-rowmeta">{ruleSummary(row.when)} · {RANK_SHORT[row.rank] ?? row.rank}{row.festive ? ` · ${t('calendarApp.feasts.festive')}` : ''}</span>
             </button>
             {open === i && (
               <div className="wk-flow-rowedit">
                 <label className="wk-field">
-                  <span>Nazwa obchodu</span>
-                  <input value={row.name} disabled={disabled} autoFocus={row.name === ''} placeholder="np. Uroczystość NMP Królowej Polski"
+                  <span>{t('calendarApp.test.celebrationNameLabel')}</span>
+                  <input value={row.name} disabled={disabled} autoFocus={row.name === ''} placeholder={t('calendarApp.feasts.namePlaceholder')}
                     onChange={(e) => patch(i, { name: e.target.value })} />
                 </label>
                 <div className="wk-field">
-                  <span>Kiedy</span>
-                  <EditDateRule rule={row.when} disabled={disabled} label={row.name || 'Obchód'} onChange={(when) => patch(i, { when })} />
+                  <span>{t('calendarApp.dateRule.when')}</span>
+                  <EditDateRule rule={row.when} disabled={disabled} label={row.name || t('calendarApp.test.celebration')} onChange={(when) => patch(i, { when })} />
                 </div>
                 <label className="wk-field">
-                  <span>Ranga</span>
+                  <span>{t('calendarApp.test.rank')}</span>
                   <select value={row.rank} disabled={disabled} onChange={(e) => patch(i, { rank: Number(e.target.value) })}>
                     {Object.entries(RANK_LABEL).map(([n, label]) => <option key={n} value={n}>{n}. {label}</option>)}
                   </select>
                 </label>
                 <div className="wk-field">
-                  <span>Kolor szat</span>
-                  <ColourInput label="Kolor szat" value={row.colour} disabled={disabled} onChange={(colour) => patch(i, { colour })} />
+                  <span>{t('calendarApp.feasts.colour')}</span>
+                  <ColourInput label={t('calendarApp.feasts.colour')} value={row.colour} disabled={disabled} onChange={(colour) => patch(i, { colour })} />
                 </div>
                 <label className="wk-field">
-                  <span>Tytuł mszy (puste: nazwa obchodu)</span>
+                  <span>{t('calendarApp.feasts.title')}</span>
                   <input value={row.title ?? ''} disabled={disabled} onChange={(e) => patch(i, { title: e.target.value.trim() === '' ? undefined : e.target.value })} />
                 </label>
                 <label className="wk-check">
                   <input type="checkbox" checked={row.festive === true} disabled={disabled} onChange={(e) => patch(i, { festive: e.target.checked || undefined })} />
-                  <span>Dzień świąteczny — msze jak w niedzielę</span>
+                  <span>{t('calendarApp.feasts.festiveLong')}</span>
                 </label>
                 <label className="wk-check">
                   <input type="checkbox" checked={row.moveIfImpeded === true} disabled={disabled} onChange={(e) => patch(i, { moveIfImpeded: e.target.checked || undefined })} />
-                  <span>Gdy dzień ma wyższą rangę — obchodzić następnego dnia</span>
+                  <span>{t('calendarApp.feasts.move')}</span>
                 </label>
                 {!disabled && (
                   <div className="wk-actions">
-                    <button type="button" className="wk-link-btn" disabled={i === 0} aria-label="Wyżej" onClick={() => move(i, -1)}>↑ wyżej</button>
-                    <button type="button" className="wk-link-btn" disabled={i === rows.length - 1} aria-label="Niżej" onClick={() => move(i, 1)}>↓ niżej</button>
-                    <button type="button" className="wk-link-btn wk-danger" onClick={() => remove(i)}>Usuń obchód</button>
+                    <button type="button" className="wk-link-btn" disabled={i === 0} aria-label={t('calendarApp.feasts.up')} onClick={() => move(i, -1)}>↑ {t('calendarApp.feasts.upShort')}</button>
+                    <button type="button" className="wk-link-btn" disabled={i === rows.length - 1} aria-label={t('calendarApp.feasts.down')} onClick={() => move(i, 1)}>↓ {t('calendarApp.feasts.downShort')}</button>
+                    <button type="button" className="wk-link-btn wk-danger" onClick={() => remove(i)}>{t('calendarApp.feasts.remove')}</button>
                   </div>
                 )}
               </div>
@@ -127,8 +128,8 @@ export function EditFeasts({ data, onChange, disabled = false }: {
 
       {!disabled && (
         <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={add}>+ Dodaj obchód</button>
-          {rows.length > 1 && <button type="button" className="wk-link-btn" onClick={sort}>Uporządkuj według daty</button>}
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={add}>{t('calendarApp.feasts.add')}</button>
+          {rows.length > 1 && <button type="button" className="wk-link-btn" onClick={sort}>{t('calendarApp.feasts.sort')}</button>}
         </div>
       )}
     </div>

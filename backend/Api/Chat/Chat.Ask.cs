@@ -90,7 +90,7 @@ public static partial class Chat
             to.Add(new
             {
                 areaId = Ids.ToText(area), name, chatId = chat is null ? null : Ids.ToText(chat.Value),
-                /* An existing or inherited controller is shown; a private conversation also works without one. */
+                /* 0129 — wer für die Daten geradesteht (eigener oder geerbter); seit 2026-11-08 fängt sie auch ohne ihn an. */
                 controller = Controllers.Json(await Controllers.OfAreaAsync(connection, area, ctx.RequestAborted))
             });
         }
@@ -114,7 +114,7 @@ public static partial class Chat
             return;
         }
 
-        /* The audience above authorizes this private conversation; a separate controller is optional. */
+        /* 2026-11-08 — die Audience oben erlaubt dieses private Gespräch; ein eigener Verantwortlicher ist keine Bedingung mehr. */
         var seat = found.Value.Seat;
         var had = await SeatChatAtAsync(connection, seat, areaId, ctx.RequestAborted);
         if (had is not null)

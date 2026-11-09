@@ -20,16 +20,18 @@ import { useEffect, useState } from 'react';
 import { redeemCheck } from '../forms/valueCheck';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export function Verify({ token }: { token: string | null }) {
   /** `undefined` = läuft noch, `null` = ging nicht. */
   const [done, setDone] = useState<{ at: string; again: boolean } | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     if (token === null || token.trim() === '') {
       setDone(null);
-      setFailed('W adresie brakuje części po ukośniku.');
+      setFailed(t('seats.verify.noToken'));
       return;
     }
 
@@ -40,35 +42,30 @@ export function Verify({ token }: { token: string | null }) {
       .catch((e) => {
         if (!alive) return;
         setDone(null);
-        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+        setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
       });
 
     return () => { alive = false; };
-  }, [token]);
+  }, [token, t]);
 
-  if (done === undefined) return <Loading label="Sprawdzanie…" />;
+  if (done === undefined) return <Loading label={t('seats.checking')} />;
 
   if (done === null) {
     return (
       <>
-        <h1 className="wk-h1">Ten link już nie działa</h1>
+        <h1 className="wk-h1">{t('seats.verify.dead')}</h1>
         <p className="wk-lede">{failed}</p>
-        <p className="wk-hint">
-          Napisz do kancelarii — wyśle nowy. Nic się nie stało: ten link tylko
-          potwierdzał numer i nic poza tym nie otwierał.
-        </p>
+        <p className="wk-hint">{t('seats.verify.deadHint')}</p>
       </>
     );
   }
 
   return (
     <>
-      <h1 className="wk-h1">Numer potwierdzony</h1>
+      <h1 className="wk-h1">{t('seats.verify.done')}</h1>
 
       <p className="wk-lede">
-        {done.again
-          ? 'Ten numer był już potwierdzony — wszystko jest w porządku.'
-          : 'Dziękujemy. Kancelaria widzi teraz, że ten numer działa.'}
+        {done.again ? t('seats.verify.again') : t('seats.verify.thanks')}
       </p>
 
       {/*
@@ -76,10 +73,7 @@ export function Verify({ token }: { token: string | null }) {
         aus einer SMS tippt, hat ein Recht darauf zu erfahren, was er damit
         ausgelöst hat; „potwierdzone" allein sagt es nicht.
       */}
-      <p className="wk-hint">
-        Ten link potwierdzał wyłącznie numer telefonu. Nie otwiera Twoich
-        danych, niczego nie zmienia i po użyciu nie działa dla nikogo innego.
-      </p>
+      <p className="wk-hint">{t('seats.verify.only')}</p>
     </>
   );
 }

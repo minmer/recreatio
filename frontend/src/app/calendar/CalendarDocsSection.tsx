@@ -10,6 +10,7 @@
 import { lazy, Suspense, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { ITEM_LABEL } from './calendar';
@@ -36,6 +37,7 @@ export function CalendarDocsSection({ me, areas, calendar, calendars, onChanged 
   calendars: readonly CalendarRow[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const docs = useCalendarDocs(me.ring, calendar.calendarId);
   const [open, setOpen] = useState<Open | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,13 +45,13 @@ export function CalendarDocsSection({ me, areas, calendar, calendars, onChanged 
 
   /* Ein Plan aus einer Vorlage — und, wenn er eines braucht, das Schema dazu. */
   const planFrom = async (id: string) => {
-    const template = PLAN_TEMPLATES.find((t) => t.id === id);
+    const template = PLAN_TEMPLATES.find((one) => one.id === id);
     if (template === undefined || docs === null) return;
     setBusy(true);
     setFailed(null);
     try {
       let schemeId = template.def.schemeId ?? null;
-      const needs = template.needs === undefined ? undefined : SCHEME_TEMPLATES.find((t) => t.id === template.needs);
+      const needs = template.needs === undefined ? undefined : SCHEME_TEMPLATES.find((one) => one.id === template.needs);
       if (needs !== undefined) {
         const had = docs.schemes.find((s) => s.def.name === needs.def.name);
         schemeId = had?.docId ?? (await saveDoc(me.ring, calendar, 'scheme', needs.def)).docId;
@@ -57,50 +59,50 @@ export function CalendarDocsSection({ me, areas, calendar, calendars, onChanged 
       }
       setOpen({ what: 'plan', doc: null, start: { ...template.def, schemeId } });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować szablonu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.docs.templateFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <section className="wk-calset-docs" aria-label="Schematy i plany">
-      <h3 className="wk-h3">Schematy terminów</h3>
+    <section className="wk-calset-docs" aria-label={t('calendarData.docs.aria')}>
+      <h3 className="wk-h3">{t('calendarData.docs.schemes')}</h3>
       {docs === null ? <p className="wk-empty">…</p> : docs.schemes.length === 0 ? (
-        <p className="wk-empty">Terminy tego kalendarza mają schemat uniwersalny (wszystkie rodzaje, intencje przy mszy).</p>
+        <p className="wk-empty">{t('calendarData.docs.noSchemes')}</p>
       ) : (
         <ul className="wk-calset-doclist">
           {docs.schemes.map((s) => (
             <li key={s.docId}>
               <strong>{s.def.name}</strong>
-              <span className="wk-row-side"> · {ITEM_LABEL[s.def.kind ?? 'appointment']} · pól {s.def.fields.length} · list {s.def.lists.length}</span>
-              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'scheme', doc: s })}>Zmień</button>
+              <span className="wk-row-side"> · {t('calendarData.docs.schemeLine', { kind: ITEM_LABEL[s.def.kind ?? 'appointment'], fields: s.def.fields.length, lists: s.def.lists.length })}</span>
+              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'scheme', doc: s })}>{t('common.change')}</button>
             </li>
           ))}
         </ul>
       )}
       <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy} onClick={() => setOpen({ what: 'scheme', doc: null })}>+ Nowy schemat</button>
-        <select value="" disabled={busy} aria-label="Schemat z szablonu" onChange={(e) => {
-          const t = SCHEME_TEMPLATES.find((one) => one.id === e.target.value);
-          if (t !== undefined) setOpen({ what: 'scheme', doc: null, start: t.def });
+        <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy} onClick={() => setOpen({ what: 'scheme', doc: null })}>{t('calendarData.docs.newScheme')}</button>
+        <select value="" disabled={busy} aria-label={t('calendarData.docs.schemeTemplate')} onChange={(e) => {
+          const tpl = SCHEME_TEMPLATES.find((one) => one.id === e.target.value);
+          if (tpl !== undefined) setOpen({ what: 'scheme', doc: null, start: tpl.def });
         }}>
-          <option value="">+ Z szablonu…</option>
-          {SCHEME_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.def.name}</option>)}
+          <option value="">{t('calendarData.docs.fromTemplate')}</option>
+          {SCHEME_TEMPLATES.map((one) => <option key={one.id} value={one.id}>{one.def.name}</option>)}
         </select>
       </div>
 
-      <h3 className="wk-h3">Plany</h3>
+      <h3 className="wk-h3">{t('calendarData.docs.plans')}</h3>
       {docs === null ? <p className="wk-empty">…</p> : docs.plans.length === 0 ? (
-        <p className="wk-empty">Plan tworzy terminy na wybrany okres — np. wszystkie msze z obchodem i kolorem.</p>
+        <p className="wk-empty">{t('calendarData.docs.noPlans')}</p>
       ) : (
         <ul className="wk-calset-doclist">
           {docs.plans.map((p) => (
             <li key={p.docId}>
               <strong>{p.def.name}</strong>
-              <span className="wk-row-side"> · {docs.schemes.find((s) => s.docId === p.def.schemeId)?.def.name ?? 'Uniwersalny'} · węzłów {p.def.flow.nodes.length}</span>
-              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'plan', doc: p })}>Zmień</button>
-              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'apply', planId: p.docId })}>Zastosuj…</button>
+              <span className="wk-row-side"> · {t('calendarData.docs.planLine', { scheme: docs.schemes.find((s) => s.docId === p.def.schemeId)?.def.name ?? t('calendarDataScheme.universal.name'), nodes: p.def.flow.nodes.length })}</span>
+              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'plan', doc: p })}>{t('common.change')}</button>
+              <button type="button" className="wk-link-btn" onClick={() => setOpen({ what: 'apply', planId: p.docId })}>{t('calendarData.docs.apply')}</button>
             </li>
           ))}
         </ul>
@@ -108,11 +110,11 @@ export function CalendarDocsSection({ me, areas, calendar, calendars, onChanged 
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy}
           onClick={() => setOpen({ what: 'plan', doc: null, start: { name: '', flow: { v: 1, nodes: [{ id: 'day', type: 'day', x: 0, y: 0, data: {} }, { id: 'mass', type: 'mass', x: 0, y: 260, data: {} }], edges: [] } } })}>
-          + Nowy plan
+          {t('calendarData.docs.newPlan')}
         </button>
-        <select value="" disabled={busy} aria-label="Plan z szablonu" onChange={(e) => { if (e.target.value !== '') void planFrom(e.target.value); }}>
-          <option value="">+ Z szablonu…</option>
-          {PLAN_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.def.name}</option>)}
+        <select value="" disabled={busy} aria-label={t('calendarData.docs.planTemplate')} onChange={(e) => { if (e.target.value !== '') void planFrom(e.target.value); }}>
+          <option value="">{t('calendarData.docs.fromTemplate')}</option>
+          {PLAN_TEMPLATES.map((one) => <option key={one.id} value={one.id}>{one.def.name}</option>)}
         </select>
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}

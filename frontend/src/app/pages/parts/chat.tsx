@@ -13,7 +13,9 @@
  * dann der Satz, dass es dafür einen Zugang braucht.
  */
 
-import { definePart, text, type RawConfig } from '../part';
+import { t } from '../../core/i18n';
+import { text, type RawConfig } from '../part';
+import { field, texts, textPart } from './partTexts';
 import { later } from '../../ui/later';
 import { PageChatPeek } from '../../chat/ChatPeek';
 
@@ -25,18 +27,16 @@ interface ChatConfig {
   readonly chat: string;
 }
 
-export const chatPart = definePart<ChatConfig>({
+export const chatPart = textPart<ChatConfig>(texts({ label: 'moduleData.chat.label', use: 'moduleData.chat.use' }), {
   kind: 'chat',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Rozmowa rady parafialnej', chat: '<id-rozmowy>' },
-  label: 'Rozmowa',
-  use: 'Rozmowa wybranej grupy na stronie — czyta i pisze w niej ten, kto do grupy należy albo ma swój link.',
+  example: texts({ title: 'moduleData.chat.exTitle', chat: 'moduleData.chat.exChat' }),
   box: { colSpan: 3, rowSpan: 5 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Rozmowa rady parafialnej' },
-    { key: 'chat', label: 'Która rozmowa', kind: 'chat' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleData.chat.titleHint' })),
+    field({ key: 'chat', kind: 'chat' }, texts({ label: 'moduleData.chat.which' }))
   ],
 
   read: (raw: RawConfig): ChatConfig => ({ title: text(raw, 'title'), chat: text(raw, 'chat') }),
@@ -48,19 +48,19 @@ export const chatPart = definePart<ChatConfig>({
   */
   hasContent: (config) => config.chat !== '',
   missing: (config) => config.chat === ''
-    ? 'Wybierz rozmowę — bez niej kafelek nie pojawi się na stronie.'
+    ? t('moduleData.chat.missing')
     : null,
 
   /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
-  strip: { title: 'Rozmowa', open: 'Otwórz rozmowę' },
+  strip: texts({ title: 'moduleData.chat.label', open: 'moduleDataSeat.openChat' }),
   /* 0102 — zugeklappt: wie viel Neues darin liegt (für den Platz oder das Konto, das hier schaut). */
   peek: ({ config }) => <PageChatPeek chatId={config.chat} />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
+    ? t('moduleDataSeat.chatShowsStrip')
     : size.height === 'tall'
-      ? 'Rozmowa z dłuższym widokiem wiadomości i polem do pisania.'
-      : 'Rozmowa: ostatnie wiadomości i pole do pisania.',
+      ? t('moduleData.chat.showsTall')
+      : t('moduleDataSeat.chat.showsBlock'),
 
   View: ({ config }) => <PageChatCard title={config.title} chatId={config.chat} />
 });

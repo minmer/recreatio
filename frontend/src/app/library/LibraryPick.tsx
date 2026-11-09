@@ -24,6 +24,7 @@ import { useMe, useWho } from '../core/me';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { t as tApp, useT } from '../core/i18n';
 
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
 const NAME_FIELD: Record<string, string> = { person: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
@@ -33,7 +34,7 @@ const kindWord = (entry: LibEntry): string | undefined =>
   (entry.kind === 'work' && isMusic(entry.data) ? WORK_TYPES.find((t) => t.value === entry.data.workType)?.label : undefined) ?? kindOf(entry.kind)?.label;
 
 /** 2026-10-26 — Namen von Ensembles (Wykonawcy eines Nagrania): sie sind Institutionen. */
-const ENSEMBLE = /^(?:chór|chor|schola|zespół|zespol|orkiestra|kwartet|kwintet|tercet|duet|kapela|filharmonia|sinfonietta|capella|cappella|ensemble|choir|orchestra|band|quartet|consort)(?=[\s,.]|$)/i;
+const ENSEMBLE = /^(?:chór|chor|schola|zespół|zespol|orkiestra|kwartet|kwintet|tercet|duet|kapela|filharmonia|sinfonietta|capella|cappella|ensemble|choir|orchestra|band|quartet|consort)(?=[\s,.]|$)/i; // i18n-ignore — Wörter in Namen
 
 export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith, canMake = true }: {
   store: LibraryStore;
@@ -55,6 +56,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
   const [making, setMaking] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const list = useId();
+  const t = useT();
 
   const chosen = value.map((id) => store.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined);
   const found = useMemo(() => (query.trim() === ''
@@ -82,7 +84,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
         data.personType = 'organization';
       } else if (kind === 'person') {
         const parts = name.split(/\s+/);
-        if (parts.length >= 2 && !/^(św\.|bł\.|ks\.|o\.|s\.)$/i.test(parts[0])) {
+        if (parts.length >= 2 && !/^(św\.|bł\.|ks\.|o\.|s\.)$/i.test(parts[0])) { // i18n-ignore — Titel vor Namen
           data.surname = parts[parts.length - 1];
           data.givenNames = parts.slice(0, -1).join(' ');
           delete data.name;
@@ -91,7 +93,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
       const saved = await store.save({ kind, data });
       pick(saved.id);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się utworzyć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('library.pick.createFailed'));
     } finally {
       setMaking(false);
     }
@@ -104,7 +106,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
           {chosen.map((entry) => (
             <li key={entry.id} className="lib-chip">
               <a href={containerPath((store.homeOf(entry.id) ?? store).libraryId, entry.id)}>{entryLine(entry, store)}</a>
-              <button type="button" className="lib-chip-x" aria-label={`Usuń: ${store.title(entry)}`} disabled={busy}
+              <button type="button" className="lib-chip-x" aria-label={t('library.pick.removeOne', { title: store.title(entry) })} disabled={busy}
                 onClick={() => onChange(value.filter((id) => id !== entry.id))}>×</button>
             </li>
           ))}
@@ -115,7 +117,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
           <input
             value={query}
             disabled={busy || making}
-            placeholder={placeholder ?? `Szukaj: ${kinds.map((k) => kindOf(k)?.label.toLowerCase() ?? k).join(', ')}`}
+            placeholder={placeholder ?? t('library.kindList.search', { what: kinds.map((k) => kindOf(k)?.label.toLowerCase() ?? k).join(', ') })}
             role="combobox"
             aria-expanded={open}
             aria-controls={list}
@@ -139,7 +141,7 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
               {canMake && query.trim() !== '' && kinds.length > 0 && (
                 <li>
                   <button type="button" className="lib-option-new" onMouseDown={(e) => e.preventDefault()} onClick={() => void make()} disabled={making}>
-                    + Utwórz {(kindWord({ id: '', kind: kinds[0]!, data: makeWith ?? {} }) ?? '').toLowerCase()}: „{query.trim()}”
+                    {t('library.pick.create', { kind: (kindWord({ id: '', kind: kinds[0]!, data: makeWith ?? {} }) ?? '').toLowerCase(), name: query.trim() })}
                   </button>
                 </li>
               )}
@@ -176,9 +178,9 @@ export function useLibraries(given?: Who | null): readonly OpenLibrary[] | null 
 export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: string; busy: boolean; onPick: (id: string) => void; kind?: LibraryKind }) {
   const all = useLibraries();
   const knowledge = kind === 'knowledge';
-  const words = kind === 'knowledge' ? { loading: 'Wczytywanie baz wiedzy…', id: 'kennung bazy wiedzy', choose: '— wybierz bazę wiedzy —' }
-    : kind === 'writing' ? { loading: 'Wczytywanie skryptoriów…', id: 'kennung skryptorium', choose: '— wybierz skryptorium —' }
-    : { loading: 'Wczytywanie bibliotek…', id: 'kennung biblioteki', choose: '— wybierz bibliotekę —' };
+  const t = useT();
+  const k = kind === 'knowledge' ? 'knowledge' : kind === 'writing' ? 'writing' : 'books';
+  const words = { loading: t(`library.pick.${k}.loading`), id: t(`library.pick.${k}.id`), choose: t(`library.pick.${k}.choose`) };
   if (all === undefined) return <p className="wk-hint">{words.loading}</p>;
   if (all === null) return <input value={value} disabled={busy} placeholder={words.id} onChange={(e) => onPick(e.target.value.trim())} />;
   const libraries = all.filter((one) => libraryKindOf(one) === kind);
@@ -191,9 +193,7 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
       </select>
       {libraries.length === 0 && (
         <span className="wk-hint">
-          {knowledge ? <>Nie masz jeszcze bazy wiedzy — <a href={viewPath('knowledge')}>załóż ją w Wiedzy</a>.</>
-            : kind === 'writing' ? <>Nie masz jeszcze skryptorium — <a href={viewPath('scriptorium')}>załóż je</a>.</>
-            : <>Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</>}
+          {t(`library.pick.${k}.none`)} <a href={viewPath(knowledge ? 'knowledge' : kind === 'writing' ? 'scriptorium' : 'library')}>{t(`library.pick.${k}.create`)}</a>.
         </span>
       )}
     </>
@@ -202,9 +202,9 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
 
 /** Wer liest, was dieser Baustein zeigt — kurz, hinter dem Namen in der Wahl. */
 function audienceTag(one: OpenLibrary, knowledge: boolean): string {
-  if (one.areaPublic !== true) return ' — dla członków obszaru';
-  if (one.areaRuleAt == null) return knowledge ? ' — obszar publiczny, baza jeszcze nie otwarta' : ' — obszar publiczny, czeka na potwierdzenie';
-  return knowledge ? ' — publiczna w całości' : ' — publiczna';
+  if (one.areaPublic !== true) return tApp('library.pick.tag.members');
+  if (one.areaRuleAt == null) return knowledge ? tApp('library.pick.tag.publicBaseClosed') : tApp('library.pick.tag.publicWaiting');
+  return knowledge ? tApp('library.pick.tag.publicWhole') : tApp('library.pick.tag.public');
 }
 
 interface EntryPickProps {
@@ -234,19 +234,20 @@ export function PickLibraryEntry(props: EntryPickProps) {
 export function PickLibraryEntries({ library, kinds, value, busy, onPick }: Omit<EntryPickProps, 'optional' | 'none'>) {
   const ids = value.split(',').map((x) => x.trim()).filter((x) => x !== '');
   const [adding, setAdding] = useState(false);
+  const t = useT();
   const set = (next: readonly string[]) => onPick(next.join(','));
   return (
     <div className="lib-pick-many" data-pick-entries={ids.length}>
       {ids.map((id, i) => (
         <div key={`${id}:${i}`} className="cg-row">
           <PickLibraryEntry library={library} kinds={kinds} value={id} busy={busy} onPick={(x) => set(x === '' ? ids.filter((_, j) => j !== i) : ids.map((y, j) => (j === i ? x : y)))} />
-          <button type="button" className="wk-link-btn" disabled={busy} aria-label="Usuń" onClick={() => set(ids.filter((_, j) => j !== i))} data-pick-entry-remove={i}>×</button>
+          <button type="button" className="wk-link-btn" disabled={busy} aria-label={t('common.remove')} onClick={() => set(ids.filter((_, j) => j !== i))} data-pick-entry-remove={i}>×</button>
         </div>
       ))}
       {adding ? (
-        <PickLibraryEntry library={library} kinds={kinds} value="" busy={busy} optional none="— wybierz —" onPick={(x) => { if (x !== '' && !ids.includes(x)) set([...ids, x]); setAdding(false); }} />
+        <PickLibraryEntry library={library} kinds={kinds} value="" busy={busy} optional none={t('library.pick.chooseWord')} onPick={(x) => { if (x !== '' && !ids.includes(x)) set([...ids, x]); setAdding(false); }} />
       ) : (
-        <button type="button" className="wk-link-btn" disabled={busy || library === ''} onClick={() => setAdding(true)} data-pick-entry-add="">+ Dodaj</button>
+        <button type="button" className="wk-link-btn" disabled={busy || library === ''} onClick={() => setAdding(true)} data-pick-entry-add="">{t('library.pick.add')}</button>
       )}
     </div>
   );
@@ -254,28 +255,30 @@ export function PickLibraryEntries({ library, kinds, value, busy, onPick }: Omit
 
 function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
   const { store, revision, state } = usePageLibrary(library === '' ? null : library);
+  const t = useT();
   const items = useMemo(() => (store === null ? [] : kinds.flatMap((kind) => store.ofKind(kind))
-    .sort((a, b) => (a.kind === 'text' ? -1 : 1) * entrySort(a, store).localeCompare(entrySort(b, store), 'pl'))),
+    .sort((a, b) => (a.kind === 'text' ? -1 : 1) * entrySort(a, store).localeCompare(entrySort(b, store), t.locale))),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [store, revision, kinds.join(',')]);
-  if (library === '') return <span className="wk-hint">Najpierw wybierz bibliotekę.</span>;
+  if (library === '') return <span className="wk-hint">{t('library.pick.books.first')}</span>;
   if (state === 'loading') return <Loading lines={1} />;
-  if (store === null) return <span className="wk-hint">Nie możesz czytać tej biblioteki.</span>;
+  if (store === null) return <span className="wk-hint">{t('library.pick.books.closed')}</span>;
   const label = (e: Entry) => {
     const date = str(e.data, 'date');
     return `${store.title(e).slice(0, 80)}${date === '' ? '' : ` · ${date}`}`;
   };
   return (
     <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-      <option value="">{optional === true ? '— wszystkie —' : '— wybierz —'}</option>
+      <option value="">{optional === true ? t('library.pick.dashed', { word: t('library.pick.all') }) : t('library.pick.dashed', { word: t('library.pick.chooseWord') })}</option>
       {items.map((e) => <option key={e.id} value={e.id}>{label(e)}</option>)}
-      {value !== '' && !items.some((e) => e.id === value) && <option value={value}>{store.get(value) === undefined ? '(w innej bibliotece albo niedostępny)' : label(store.get(value)!)}</option>}
+      {value !== '' && !items.some((e) => e.id === value) && <option value={value}>{store.get(value) === undefined ? t('library.pick.elsewhere') : label(store.get(value)!)}</option>}
     </select>
   );
 }
 
 function PickBaseEntry({ library, kinds, value, busy, optional, none, onPick }: EntryPickProps) {
   const [items, setItems] = useState<readonly { id: string; label: string }[] | 'closed' | null>(null);
+  const t = useT();
   useEffect(() => {
     if (library === '') { setItems([]); return undefined; }
     let alive = true;
@@ -287,17 +290,17 @@ function PickBaseEntry({ library, kinds, value, busy, optional, none, onPick }: 
     return () => { alive = false; };
   }, [library, kinds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (library === '') return <span className="wk-hint">Najpierw wybierz bazę wiedzy.</span>;
+  if (library === '') return <span className="wk-hint">{t('library.pick.knowledge.first')}</span>;
   if (items === null) return <Loading lines={1} />;
-  if (items === 'closed') return <span className="wk-hint">Nie możesz czytać tej bazy wiedzy.</span>;
+  if (items === 'closed') return <span className="wk-hint">{t('library.pick.knowledge.closed')}</span>;
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">{optional === true ? `— ${none ?? 'wszystkie'} —` : '— wybierz —'}</option>
+        <option value="">{t('library.pick.dashed', { word: optional === true ? none ?? t('library.pick.all') : t('library.pick.chooseWord') })}</option>
         {items.map((item) => <option key={item.id} value={item.id}>{item.label.slice(0, 80)}</option>)}
-        {value !== '' && !items.some((item) => item.id === value) && <option value={value}>(nie ma go w tej bazie) {value}</option>}
+        {value !== '' && !items.some((item) => item.id === value) && <option value={value}>{t('library.pick.notInBase', { id: value })}</option>}
       </select>
-      {items.length === 0 && <span className="wk-hint">W tej bazie nie ma jeszcze nic takiego.</span>}
+      {items.length === 0 && <span className="wk-hint">{t('library.pick.baseEmpty')}</span>}
     </>
   );
 }

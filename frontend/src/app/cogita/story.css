@@ -77,7 +77,7 @@
 .cg-flow-step .cg-flow-next { justify-items: stretch; }
 .cg-flow-step .cg-flow-next .cg-run-closing-h { text-align: left; }
 
-/* Continuing, optional reading, locked paths and revisiting have their own sections. */
+/* 2026-11-08 — „Co dalej": weiter, freiwillige Umwege, noch gesperrt und schon getan — je ein eigener Abschnitt. */
 .cg-flow-step .cg-flow-next { gap: var(--wk-space-4); width: 100%; max-width: 44rem; min-width: 0; }
 .cg-flow-next-intro, .cg-flow-next-group { display: grid; gap: var(--wk-space-2); min-width: 0; }
 .cg-flow-next-intro p, .cg-flow-next-group p, .cg-flow-next-group h4 { margin: 0; }

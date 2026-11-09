@@ -25,6 +25,7 @@
  */
 
 import { mathAt, texPlain } from '../core/tex';
+import { t } from '../core/i18n';
 
 export interface CiteItem {
   readonly key: string;
@@ -77,7 +78,8 @@ export function safeHref(href: string): string | null {
  * nie etwas über das Ziel (2026-10-22 aus `comment.ts` hierher: jeder Text,
  * der Verweise zeigt, sagt dasselbe).
  */
-export const UNREADABLE = '[odwołanie niedostępne]';
+/** 2026-11-09 — dasselbe in der Sprache der App. */
+export const unreadable = (): string => t('library.markup.unreadable');
 
 /* -- Inline ------------------------------------------------------------------------------- */
 

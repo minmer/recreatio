@@ -26,6 +26,7 @@ import { TaskCard } from './TaskCard';
 import { takenOf } from './taskTaken';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { fmtDate, useT, type T } from '../core/i18n';
 
 /* 0109 — „Naucz się" bringt Karten und Läufe mit: erst, wenn ein solcher Schritt dasteht. */
 const LearnStep = lazy(() => import('../cogita/LearnStep').then((m) => ({ default: m.LearnStep })));
@@ -40,14 +41,14 @@ function Mark({ status }: { status: StepState['status'] }) {
 }
 
 const STATUS_TEXT: Record<StepState['status'], string> = {
-  done: 'zrobione',
-  todo: 'do zrobienia',
-  overdue: 'po terminie'
+  done: 'steps.status.done',
+  todo: 'steps.status.todo',
+  overdue: 'steps.status.overdue'
 };
 
 /** 0102 — bei „Przeczytaj wiadomości" heisst erledigt: gelesen. */
-const statusText = (s: StepState): string =>
-  s.chat === undefined ? STATUS_TEXT[s.status] : s.status === 'done' ? 'przeczytane' : 'nieprzeczytane';
+const statusText = (s: StepState, t: T): string =>
+  s.chat === undefined ? t(STATUS_TEXT[s.status]) : s.status === 'done' ? t('steps.status.read') : t('steps.status.unread');
 
 /* -- Beim Menschen ---------------------------------------------------------------- */
 
@@ -57,6 +58,7 @@ const statusText = (s: StepState): string =>
  * @param formId Nur die Schritte dieses Formulars; `null`: aller.
  */
 export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | null }) {
+  const t = useT();
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -68,7 +70,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
   const chatRows = useSeatChatRows(reads ? [seat.token] : []);
 
   if (forms.length === 0) {
-    return <p className="wk-empty">Nie ma tu nic do zrobienia.</p>;
+    return <p className="wk-empty">{t('steps.list.nothing')}</p>;
   }
 
   const tick = async (registrationId: string, stepId: string, done: boolean) => {
@@ -79,7 +81,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
       await markOwnStep(seat.token, registrationId, stepId, done);
       seat.reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('steps.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -109,9 +111,9 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
         return (
           <div key={form.registrationId} className="wk-steps">
             <p className="wk-hint">
-              {done === total ? 'Wszystko zrobione. Dziękujemy!' : `Zrobione ${done} z ${total}.`}
+              {done === total ? t('steps.list.allDone') : t('steps.list.doneOf', { done, total })}
             </p>
-            <progress className="wk-progress" value={done} max={Math.max(total, 1)} aria-label="Postęp" />
+            <progress className="wk-progress" value={done} max={Math.max(total, 1)} aria-label={t('steps.list.progress')} />
 
             <ol className="wk-step-list">
               {states.map((s, at) => {
@@ -139,7 +141,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
 
                 /* 0109 — „Naucz się": wie weit, und „Ucz się" an Ort und Stelle; die Schwelle hakt ab. */
                 if (s.learn !== undefined) {
-                  return <li key={s.key} className={stepClass}><Suspense fallback={<Loading label="Wczytywanie…" />}><LearnStep seat={seat} registrationId={form.registrationId} step={s} /></Suspense></li>;
+                  return <li key={s.key} className={stepClass}><Suspense fallback={<Loading label={t('common.loading')} />}><LearnStep seat={seat} registrationId={form.registrationId} step={s} /></Suspense></li>;
                 }
 
                 return (
@@ -149,15 +151,15 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                       <div className="wk-step-text">
                         <strong>{s.label}</strong>
                         <span className="wk-row-side">
-                          {' · '}{STATUS_TEXT[s.status]}
-                          {s.dueAt !== null && s.status !== 'done' && ` · do ${dueText(s.dueAt)}`}
+                          {' · '}{t(STATUS_TEXT[s.status])}
+                          {s.dueAt !== null && s.status !== 'done' && ` · ${t('steps.list.due', { date: dueText(s.dueAt) })}`}
                         </span>
                         {s.help !== null && s.key !== 'confirm' && <p className="wk-hint">{s.help}</p>}
                         {s.key === 'confirm' && s.status !== 'done' && (
-                          <p className="wk-hint">Przejrzyj swoje dane w zgłoszeniu i potwierdź je.</p>
+                          <p className="wk-hint">{t('steps.list.confirmHint')}</p>
                         )}
                         {s.source === 'hand' && s.doneBy === 'office' && s.status !== 'done' && (
-                          <p className="wk-hint">Odhacza kancelaria, gdy to otrzyma.</p>
+                          <p className="wk-hint">{t('steps.list.officeTicks')}</p>
                         )}
                         {s.booking !== undefined && <BookingLine booking={s.booking} />}
                       </div>
@@ -166,14 +168,14 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                       {s.booking !== undefined && s.status !== 'done' && document.querySelector('.wk-card-slots') !== null && (
                         <button type="button" className="wk-btn" data-step-booking=""
                           onClick={() => document.querySelector('.wk-card-slots')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-                          Wybierz termin
+                          {t('steps.list.pickDate')}
                         </button>
                       )}
 
                       {/* Was der Mensch selbst tun kann — gleich hier. */}
                       {ext !== undefined && (
                         <button type="button" className={s.status === 'done' ? 'wk-link-btn' : 'wk-btn'} onClick={toggle}>
-                          {open ? 'Zwiń' : s.status === 'done' ? 'Zobacz' : 'Uzupełnij'}
+                          {open ? t('steps.list.collapse') : s.status === 'done' ? t('steps.list.view') : t('steps.list.fill')}
                         </button>
                       )}
                       {s.source === 'hand' && s.doneBy === 'person' && s.stepId !== null && (
@@ -183,7 +185,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                           disabled={busy}
                           onClick={() => void tick(form.registrationId, s.stepId!, s.status !== 'done')}
                         >
-                          {s.status === 'done' ? 'Cofnij' : 'Zrobione'}
+                          {s.status === 'done' ? t('steps.list.undo') : t('steps.list.markDone')}
                         </button>
                       )}
                     </div>
@@ -192,7 +194,7 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
                       <div className="wk-step-body">
                         {ext.registrationId === null ? (
                           ext.closed
-                            ? <p className="wk-note">Ten formularz jest już zamknięty.</p>
+                            ? <p className="wk-note">{t('steps.list.formClosed')}</p>
                             : <FormCard partId={ext.moduleId} title="" portalUnder="" seat={seat} />
                         ) : (
                           <OwnSubmissions seat={seat} formId={ext.moduleId} show={null} />
@@ -214,14 +216,15 @@ export function SeatSteps({ seat, formId }: { seat: SeatView; formId: string | n
 
 /** 0100 — „Wybierz termin": welcher Termin gewählt ist (und ob er noch auf ein Ja wartet) — oder wo man wählt. */
 function BookingLine({ booking }: { booking: NonNullable<StepState['booking']> }) {
-  const when = booking.chosen === null ? null : new Date(booking.chosen.startsAt).toLocaleString('pl-PL', {
+  const t = useT();
+  const when = booking.chosen === null ? null : fmtDate(new Date(booking.chosen.startsAt), {
     weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-  });
+  }, t.lang);
   return (
     <p className="wk-hint" data-booking-line="">
       {when === null
-        ? `Termin wybierasz w rezerwacji${booking.resourceName !== null ? ` „${booking.resourceName}"` : ''}.`
-        : `Wybrany termin: ${when}${booking.chosen!.status === 'pending' ? ' — czeka na potwierdzenie' : ''}.`}
+        ? (booking.resourceName !== null ? t('steps.booking.pickIn', { name: booking.resourceName }) : t('steps.booking.pick'))
+        : t(booking.chosen!.status === 'pending' ? 'steps.booking.chosenWaiting' : 'steps.booking.chosen', { when })}
     </p>
   );
 }
@@ -234,6 +237,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
   onChanged: () => Promise<void> | void;
   onError: (message: string | null) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   if (states.length === 0) return null;
@@ -246,7 +250,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
       await markStep(registrationId, stepId, done);
       await onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('steps.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -254,7 +258,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
 
   return (
     <div className="wk-steps">
-      <h4 className="wk-h3">Postęp</h4>
+      <h4 className="wk-h3">{t('steps.list.progress')}</h4>
       <ol className="wk-step-list">
         {states.map((s) => s.task !== undefined && s.stepId !== null ? (
           /* 0098 — eine Aufgabe: die Kanzlei trägt für den Menschen ein (er hat es gesagt, sie hat ihn gesehen). */
@@ -270,21 +274,21 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
               <div className="wk-step-text">
                 <strong>{s.label}</strong>
                 <span className="wk-row-side">
-                  {' · '}{statusText(s)}
-                  {s.doneAt !== null && ` ${new Date(s.doneAt).toLocaleDateString('pl-PL')}`}
-                  {s.dueAt !== null && s.status !== 'done' && ` · do ${dueText(s.dueAt)}`}
-                  {s.source === 'auto' ? ' · automatycznie' : s.doneBy === 'person' ? ' · odhacza osoba' : ''}
-                  {!s.visibleToPerson && ' · osoba tego nie widzi'}
+                  {' · '}{statusText(s, t)}
+                  {s.doneAt !== null && ` ${fmtDate(new Date(s.doneAt), { day: 'numeric', month: 'numeric', year: 'numeric' }, t.lang)}`}
+                  {s.dueAt !== null && s.status !== 'done' && ` · ${t('steps.list.due', { date: dueText(s.dueAt) })}`}
+                  {s.source === 'auto' ? ` · ${t('steps.list.auto')}` : s.doneBy === 'person' ? ` · ${t('steps.list.personTicks')}` : ''}
+                  {!s.visibleToPerson && ` · ${t('steps.list.hidden')}`}
                 </span>
                 {s.booking !== undefined && <BookingLine booking={s.booking} />}
                 {s.chat !== undefined && (
                   <p className="wk-hint" data-chat-line="">
-                    Nowe wiadomości {chatTargetText(s.chat)} — {s.status === 'done' ? 'wszystko przeczytane' : 'jeszcze nieprzeczytane'}.
+                    {t(s.status === 'done' ? 'steps.list.chatRead' : 'steps.list.chatUnread', { where: chatTargetText(s.chat) })}
                   </p>
                 )}
                 {s.learn !== undefined && (
                   <p className="wk-hint" data-learn-line="">
-                    Nauka do {Math.round(s.learn.threshold * 100)}% znajomości — {s.status === 'done' ? 'osiągnięte' : 'jeszcze nie'}. Postępy: Nauka → baza wiedzy → Postępy.
+                    {t(s.status === 'done' ? 'steps.list.learnReached' : 'steps.list.learnNotYet', { pct: Math.round(s.learn.threshold * 100) })}
                   </p>
                 )}
               </div>
@@ -297,7 +301,7 @@ export function PersonSteps({ registrationId, states, onChanged, onError }: {
                   disabled={busy}
                   onClick={() => void tick(s.stepId!, s.status !== 'done')}
                 >
-                  {s.status === 'done' ? 'Cofnij' : 'Odhacz'}
+                  {s.status === 'done' ? t('steps.list.undo') : t('steps.list.tick')}
                 </button>
               )}
             </div>

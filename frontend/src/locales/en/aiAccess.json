@@ -112,5 +112,114 @@
     "too_many": "This connection already reads the most areas it can (20). Remove one first.",
     "not_found": "This connection no longer exists.",
     "not_ready": "The service is not updated yet — try again later."
+  },
+  "connect": {
+    "noRequest": "This address is missing a connection request.",
+    "checking": "Checking the connection request…",
+    "connection": "Connection with an AI assistant",
+    "connecting": "Connecting…",
+    "cannotOpen": "The link in the area “{area}” can't be opened on this device.",
+    "denying": "Refusing…",
+    "creating": "Creating the link and preparing copies…",
+    "snapshots": "Preparing copies… {done}/{total}",
+    "title": "Connect with an AI assistant",
+    "lede": "<b>{client}</b> wants to read chosen Recreatio collections — only read. After consenting you'll return to <b>{host}</b>.",
+    "note": "The assistant gets only the AI access links ticked below: it reads their library, scriptorium and knowledge bases, nothing beyond them, and changes nothing. What it reads goes to its provider. You disconnect it by deleting the link (Area → Access → AI access) — that works at once.",
+    "unlockWhy": "Links open only on your device — enter your password.",
+    "noAreas": "You don't run any area with a library, scriptorium or knowledge base.",
+    "areas": "Areas",
+    "linkForAi": "Link for AI",
+    "wholeArea": "— the whole area, also new collections",
+    "validUntil": "valid until {date}",
+    "createLink": "Create a link for AI ({names})",
+    "allow": "Allow",
+    "deny": "Refuse"
+  },
+  "panel": {
+    "days": {
+      "d7": "a week",
+      "d30": "a month",
+      "d90": "3 months",
+      "d365": "a year"
+    },
+    "daysN": {
+      "one": "{count} day",
+      "other": "{count} days"
+    },
+    "refreshingAi": "Refreshing copies for AI…",
+    "refreshingAiN": "Refreshing copies for AI… {done}/{total}",
+    "askCreate": "Create a link for AI?",
+    "askCreateBody": "Whoever has this link reads the chosen collections of this area — also the AI assistant you give it to, and its provider. Nothing beyond them, and it changes nothing. You can delete the link at any time.",
+    "createLinkShort": "Create link",
+    "creating": "Creating the link…",
+    "title": "AI access",
+    "lead": "A read-only link: an AI assistant (ChatGPT, Claude…) reads the chosen collections of this area through it — library, scriptorium, knowledge bases — and nothing beyond them. It changes nothing. What it reads goes to its provider.",
+    "mcpBefore": "Permanently in ChatGPT (or another assistant with MCP): add your own MCP server",
+    "mcpAfter": "with OAuth sign-in. When connecting you'll sign in to Recreatio and choose which of these links the assistant gets.",
+    "unavailable": "AI access is unavailable right now — try later.",
+    "noContainers": "This area has no library, scriptorium or knowledge base yet.",
+    "leaderOnly": "A link for AI is created by whoever runs the area.",
+    "unlock": "Unlock the keys (password) to create links for AI.",
+    "state": {
+      "works": "works",
+      "expired": "expired",
+      "unfinished": "unfinished",
+      "broken": "doesn't work"
+    },
+    "when": {
+      "one": "from {from} · valid until {until} · used once",
+      "other": "from {from} · valid until {until} · used {count} times"
+    },
+    "whenLast": {
+      "one": "from {from} · valid until {until} · used once, last {last}",
+      "other": "from {from} · valid until {until} · used {count} times, last {last}"
+    },
+    "partFresh": {
+      "one": "{count} entry · current (from {date})",
+      "other": "{count} entries · current (from {date})"
+    },
+    "partStale": {
+      "one": "{count} entry · to refresh (from {date})",
+      "other": "{count} entries · to refresh (from {date})"
+    },
+    "creatorLeft": "Doesn't work: the person who created it no longer runs this area. Delete it and create a new one.",
+    "cannotShow": "This link can't be shown on this device (no key of this area).",
+    "showLink": "Show link",
+    "refreshing": "Refreshing copies…",
+    "refreshingN": "Refreshing copies… {done}/{total}",
+    "refreshNow": "Refresh now",
+    "extend": "Extend",
+    "collections": "Collections",
+    "askDelete": "Delete the link for AI?",
+    "askDeleteBody": "It stops working at once: an assistant that knows it won't read anything any more. The copies disappear.",
+    "deleting": "Deleting…",
+    "validFromToday": "Valid from today for:",
+    "extending": "Extending…",
+    "saveCollections": "Save collections",
+    "changing": "Changing collections…",
+    "copyLink": "Copy link",
+    "seeAsAi": "See what the AI sees",
+    "howToUse": "Paste the link in a conversation with an AI and write what you're looking for — e.g. “Read {url} and find my sermons about bread”. In ChatGPT you can add it permanently: Create a GPT → Configure → Actions → Import from URL → {url}/openapi.json. Whoever has this link reads — send it only where it should go.",
+    "createLink": "Create a link for AI",
+    "validFor": "Valid for",
+    "whatReads": "What the AI reads",
+    "wholeArea": "The whole area — also collections added later",
+    "failedSnaps": {
+      "one": "Could not prepare {count} copy. Try “Refresh now”.",
+      "other": "Could not prepare {count} copies. Try “Refresh now”."
+    },
+    "failedSnapsWhy": {
+      "one": "Could not prepare {count} copy ({reason}). Try “Refresh now”.",
+      "other": "Could not prepare {count} copies ({reason}). Try “Refresh now”."
+    },
+    "noKeyHere": "no key of this area on this device"
+  },
+  "snap": {
+    "notInAccess": "This collection doesn't belong to this access.",
+    "noGzip": "This browser can't pack the copy — open the app in a newer one.",
+    "liturgy": "Liturgy: canonical works, editions, texts, passages, observances, templates, assignments and explicit rules. Stable canonical IDs are in data.id; references name resources, never copied daily texts. Drafts and missing dependencies are not approved liturgical content.",
+    "books": "## Library — sources\nWorks (\"work\"), quotes (\"quote\") and persons (\"person\"); a quote points to its work, a work — to authors, translators, the book or journal it is in. \"key\" is the citation key: in texts [@key, p. 23].\n{bible}",
+    "writing": "## Scriptorium — own texts\nTexts (\"text\": title, plan, content, further information; the text type adds its fields), their deliveries (\"delivery\": when, where, what of the plan was said, what was left out), projects (\"project\") and text types (\"texttype\").\n\n{markup}",
+    "base": "## Knowledge base entries (Cogita)\nAn entry has kinds (\"kinds\" — the first gives the name) and fields in \"data\" according to its kinds; what each field means — in \"kinds\" of this collection.\nField types: {types}.\nA value may be uncertain: {\"value\", \"state\", \"source\": {\"work\": work id, \"locator\": \"p. 23\"}, \"note\"}; states: {states}.\nA reference is the id of another entry (with its title in the entry's \"refs\"); a reference with a place: {\"value\": id, \"locator\": \"Ps 110\"}.\nThe field \"blocks\" is a statement: paragraphs {\"type\": \"paragraph\", \"text\"}, lists {\"type\": \"ordered\"|\"unordered\", \"items\"}, tables {\"type\": \"table\", \"columns\", \"rows\"}; a cell is a list of pieces {\"text\"} or {\"ref\": id, \"locator\"}. Thesis = the first sentence of the first paragraph.\nQuestion: one kind \"question\"; \"form\" (question type) says how it asks: {questions}; a field with \"when\" belongs only to the given question types; \"about\" — entries the question tests; \"needs\" — what must be known before it.\nLearning order: a reference field with \"prerequisite\": \"up\" — what it points to must be known EARLIER (concept → “Requires”); \"down\" — the entries pointed to build on this. From such fields the app computes levels from the basics (level 1 — nothing before it) and asks the general first, then the detailed.\nDates: \"1999\", \"1999-05\", \"1999-05-03\", \"-1000\" (BC); range: {\"segments\": [{\"from\", \"to\"}]}.\nStructure (e.g. the argument of an article): a reference field with \"structure\": \"up\" — this entry lies UNDER what it points to (a step under a question, a reply under an objection); \"structure\": \"down\" — the entries pointed to lie under it. The root (no value in the \"up\" field) is usually the leading question. Its tree: via MCP get_related(root id, direction \"in\", fields: [key of the \"up\" field], depth 3), then again from every entry at depth 3 (at most 60 entries per call; with \"truncated\" the edges also name those that didn't fit — continue from them); via REST /entry/{id}: entries in \"linkedFrom\" with this field lie directly below — and so on from each of them (or, looking through all entries: under entry X lie those whose \"up\" field has value X). The order of steps is the order of their places in the work (a reference field with a place in a work from the library). Entries pointing to a step through a field without \"structure\" (e.g. a comment: \"About\") don't belong to the reconstruction — they are others' or own remarks.\n\n{markup}"
   }
 }

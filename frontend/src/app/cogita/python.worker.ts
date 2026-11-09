@@ -62,11 +62,11 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
         case 'make': result = parsed(f.make(Math.trunc(Number(message.seed) || 0) >>> 0)); break;
         case 'hidden': result = parsed(f.hidden()); break;
         case 'run': result = parsed(f.run(message.code ?? '', JSON.stringify(message.args ?? []))); break;
-        default: throw new Error('Nieznane polecenie dla Pythona.');
+        default: throw new Error('cogitaLearnLogic.python.unknownCommand');
       }
       self.postMessage({ id: message.id, ok: true, result });
     } catch (e) {
-      self.postMessage({ id: message.id, ok: false, error: e instanceof Error ? e.message : 'Python się nie powiódł.' });
+      self.postMessage({ id: message.id, ok: false, error: e instanceof Error ? e.message : 'cogitaLearnLogic.python.failed' });
     }
   })();
 });

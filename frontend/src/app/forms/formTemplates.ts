@@ -21,9 +21,12 @@ import { newId } from '../core/ids';
 import { loadModules, type ModuleRow } from '../modules/module';
 import { keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
+import { t } from '../core/i18n';
+
+const P = 'formsNeeds.apply.';
 import { openStepInfo } from './entryDesk';
 import { saveSteps, type StepDraft } from '../steps/steps';
-import { choiceWords, needOf, sameChoice, type FormNeed, type NeedChoice } from './needs';
+import { choiceWords, isNeedSigner, isNeedStep, needOf, sameChoice, type FormNeed, type NeedChoice } from './needs';
 import {
   adoptedOf, choiceOfOn, holdingOf, layoutWithout, logicWithout, needsJson, paperAfter, planNeed, readNeeds, type NeedOn
 } from './needPlan';
@@ -50,14 +53,14 @@ async function takeOff(fields: readonly string[], warnings: string[], onStage?: 
   let removed = 0;
   let kept = 0;
   for (const id of fields) {
-    onStage?.('Usuwanie pytań wymagania…');
+    onStage?.(t(`${P}removing`));
     try {
       const done = await removeField(id);
       if (done.kept === true) kept += 1; else removed += 1;
     } catch (e) {
       /* Schon von Hand entfernt — nichts zu tun. Sonst sagen, was blieb. */
       if (!(e instanceof WorkspaceError && /nie ma/i.test(e.message))) {
-        warnings.push(`Pytanie ${id.slice(0, 8)} zostaje: ${e instanceof WorkspaceError ? e.message : 'nie udało się usunąć'}.`);
+        warnings.push(t(`${P}stays`, { id: id.slice(0, 8), why: e instanceof WorkspaceError ? e.message : t('formsFormat.msg.deleteFailed') }));
       }
     }
   }
@@ -81,9 +84,9 @@ async function placeNeed(
   const row: FormModule = module.areaId !== null ? module
     : (await loadModules()).modules.find((m) => m.moduleId === module.moduleId) ?? module;
 
-  onStage?.('Czytanie formularza…');
+  onStage?.(t(`${P}reading`));
   const content = await readFormContent(who, row.moduleId);
-  if (content.unread > 0) throw new WorkspaceError('Części pytań tego formularza nie da się odczytać — wymaganie mogłoby je zdublować. Otwórz formularz z kluczem jego obszaru.');
+  if (content.unread > 0) throw new WorkspaceError(t(`${P}unread`));
 
   const plan = planNeed({ need, choice, content, now, others: before.filter((one) => one.id !== need.id) });
 
@@ -95,14 +98,14 @@ async function placeNeed(
    */
   const target = answersTo ?? row.areaId ?? content.questions.find((q) => q.answersTo !== '')?.answersTo ?? null;
   if (plan.created.length > 0 && target === null) {
-    throw new WorkspaceError('Najpierw wybierz obszar, do którego trafiają odpowiedzi — bez niego pytania wymagania nie powstaną.');
+    throw new WorkspaceError(t(`${P}noTarget`));
   }
   if (row.areaId === null && (content.questions.length > 0 || answersTo === null)) {
-    throw new WorkspaceError('Formularz nie ma jeszcze własnego obszaru — ustaw go w zakładce „Ustawienia”; pod jego kluczem leżą układ i logika wymagania.');
+    throw new WorkspaceError(t(`${P}noArea`));
   }
 
   for (const id of plan.restore) {
-    onStage?.('Przywracanie pytań…');
+    onStage?.(t(`${P}restoring`));
     await restoreField(id);
   }
 
@@ -112,14 +115,14 @@ async function placeNeed(
 
   const created = new Set(plan.created);
   const missing = plan.created.filter((id) => !written.ids.has(id)).length;
-  if (missing > 0) warnings.push(`Nie powstało pytań wymagania: ${missing} — spróbuj jeszcze raz albo dodaj je ręcznie.`);
+  if (missing > 0) warnings.push(t(`${P}missing`, { count: missing }));
   const real = (id: string): string | undefined => (created.has(id) ? written.ids.get(id) : id);
 
   const { set, paper } = paperAfter(need, plan.shape, now, config);
   const on = holdingOf(need, choice, plan, real, paper);
   set.needs = needsJson(before.some((one) => one.id === need.id) ? before.map((one) => (one.id === need.id ? on : one)) : [...before, on]);
 
-  onStage?.('Zapisywanie wymagań formularza…');
+  onStage?.(t(`${P}savingNeeds`));
   const saved = (await setPartConfig(row.moduleId, set)).config;
 
   /* Erst jetzt, ohne Sperre: was die neue Fassung nicht mehr braucht. */
@@ -128,17 +131,17 @@ async function placeNeed(
   const step = plan.shape.step;
   if (step !== undefined) {
     try {
-      onStage?.('Dodawanie kroku dla koordynatora…');
+      onStage?.(t(`${P}addingStep`));
       /* Der Bereich kann eben erst entstanden sein (das erste Wymaganie eines neuen Formulars). */
       const base = row.areaId !== null ? row : (await loadModules()).modules.find((m) => m.moduleId === row.moduleId) ?? row;
       await addOfficeStep(who, base, step);
     } catch (e) {
-      warnings.push(`Krok „${step}” nie powstał: ${e instanceof WorkspaceError ? e.message : 'nie udało się'} — dodasz go w zakładce „Znaczniki”.`);
+      warnings.push(t(`${P}stepFailed`, { step, why: e instanceof WorkspaceError ? e.message : t(`${P}failed`) }));
     }
   }
 
   const back = plan.restore.length;
-  if (back > 0) warnings.push(`Wróciły do formularza pytania zdjęte wcześniej (${back}) — razem z odpowiedziami.`);
+  if (back > 0) warnings.push(t(`${P}restored`, { count: back }));
   return { added: plan.created.length - missing, reused: plan.reused, removed: gone.removed, kept: gone.kept, warnings, config: saved };
 }
 
@@ -151,7 +154,7 @@ export async function applyNeed(
   who: Who, module: FormModule, need: FormNeed, choice: NeedChoice, answersTo: string | null,
   config: Readonly<Record<string, string>>, onStage?: (what: string) => void
 ): Promise<NeedResult> {
-  if (readNeeds(config.needs).some((one) => one.id === need.id)) throw new WorkspaceError(`„${need.label}” jest już włączone.`);
+  if (readNeeds(config.needs).some((one) => one.id === need.id)) throw new WorkspaceError(t(`${P}alreadyOn`, { need: need.label }));
   return placeNeed(who, module, need, choice, answersTo, config, null, onStage);
 }
 
@@ -165,7 +168,7 @@ export async function reshapeNeed(
 ): Promise<NeedResult> {
   const need = needOf(needId);
   const now = readNeeds(config.needs).find((one) => one.id === needId);
-  if (need === undefined || now === undefined) throw new WorkspaceError('To wymaganie nie jest włączone.');
+  if (need === undefined || now === undefined) throw new WorkspaceError(t(`${P}notOn`));
   if (sameChoice(need, choiceOfOn(now), choice)) return { added: 0, reused: 0, removed: 0, kept: 0, warnings: [], config: { ...config } };
   return placeNeed(who, module, need, choice, answersTo, config, now, onStage);
 }
@@ -193,16 +196,16 @@ export async function dropNeed(
 ): Promise<NeedDropped> {
   const before = readNeeds(config.needs);
   const gone = before.find((one) => one.id === needId);
-  if (gone === undefined) throw new WorkspaceError('To wymaganie nie jest włączone.');
+  if (gone === undefined) throw new WorkspaceError(t(`${P}notOn`));
   const rest = before.filter((one) => one.id !== needId);
 
   const set: Record<string, string> = { needs: needsJson(rest) };
   const need = needOf(needId);
   if (gone.paper === true && need !== undefined && need.papers.includes((config.paper ?? '').trim())) {
     set.paper = '';
-    if ((config.paperSigner ?? '') === (need.shape(choiceOfOn(gone)).signer ?? '')) set.paperSigner = '';
+    if ((config.paperSigner ?? '') === (need.shape(choiceOfOn(gone)).signer ?? '') || isNeedSigner(config.paperSigner ?? '')) set.paperSigner = '';
   }
-  onStage?.('Zapisywanie wymagań formularza…');
+  onStage?.(t(`${P}savingNeeds`));
   const saved = (await setPartConfig(module.moduleId, set)).config;
 
   const still = new Set(rest.flatMap((one) => one.fields));
@@ -221,7 +224,7 @@ export async function dropNeed(
       edges: logic.edges
     };
     if (JSON.stringify(design) !== JSON.stringify(now.design)) {
-      onStage?.('Zapisywanie układu…');
+      onStage?.(t('formsFormat.msg.savingLayout'));
       const written = await writeFormContent(who, { moduleId: module.moduleId, areaId: module.areaId }, { design },
         { replace: false, answersTo: null, onStage });
       warnings.push(...written.warnings);
@@ -265,8 +268,8 @@ export async function importNeeds(who: Who, module: FormModule, wishes: readonly
   /* Was dieser Import neu anlegte — nur das darf ein übernommenes Wymaganie wieder nehmen. */
   const created = new Set([...options.ids].filter(([doc, here]) => doc !== here).map(([, here]) => here));
   const summary = (done: NeedResult) => [
-    done.added > 0 ? `nowe pytania — ${done.added}` : '',
-    done.removed + done.kept > 0 ? `zdjęte — ${done.removed + done.kept}` : ''
+    done.added > 0 ? t(`${P}sumAdded`, { count: done.added }) : '',
+    done.removed + done.kept > 0 ? t(`${P}sumRemoved`, { count: done.removed + done.kept }) : ''
   ].filter((part) => part !== '').join(', ');
 
   for (const wish of wishes) {
@@ -279,21 +282,21 @@ export async function importNeeds(who: Who, module: FormModule, wishes: readonly
         const done = await placeNeed(who, module, need, wish.choice, options.answersTo, config, on, options.onStage);
         config = done.config;
         warnings.push(...done.warnings);
-        lines.push(`Wymaganie „${need.label}”: nowe ustawienia — ${choiceWords(need, wish.choice)}${summary(done) === '' ? '' : ` (${summary(done)})`}.`);
+        lines.push(`${t(`${P}reshaped`, { need: need.label, how: choiceWords(need, wish.choice) })}${summary(done) === '' ? '' : ` (${summary(done)})`}.`);
         continue;
       }
       let adopted: NeedOn | null = null;
       if (wish.holds !== undefined) {
         const content = await readFormContent(who, module.moduleId);
         adopted = adoptedOf(need, wish.holds, options.ids, created, content);
-        if (adopted === null) warnings.push(`Wymaganie „${need.label}”: tego, co trzymało ("holds"), nie ma w formularzu — dodane od nowa.`);
+        if (adopted === null) warnings.push(t(`${P}holdsGone`, { need: need.label }));
       }
       const done = await placeNeed(who, module, need, wish.choice, options.answersTo, config, adopted, options.onStage);
       config = done.config;
       warnings.push(...done.warnings);
-      lines.push(`Wymaganie „${need.label}” włączone${adopted === null ? '' : ' (z pytaniami z dokumentu)'}${summary(done) === '' ? '' : `: ${summary(done)}`}.`);
+      lines.push(`${t(adopted === null ? `${P}turnedOn` : `${P}turnedOnHolds`, { need: need.label })}${summary(done) === '' ? '' : `: ${summary(done)}`}.`);
     } catch (e) {
-      warnings.push(`Wymaganie „${need.label}”: ${e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się'}.`);
+      warnings.push(t(`${P}needFailed`, { need: need.label, why: e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : t(`${P}failed`) }));
     }
   }
 
@@ -303,9 +306,9 @@ export async function importNeeds(who: Who, module: FormModule, wishes: readonly
         const done = await dropNeed(who, module, on.id, config, options.onStage);
         config = done.config;
         warnings.push(...done.warnings);
-        lines.push(`Wymaganie „${on.label}” wyłączone.`);
+        lines.push(t(`${P}turnedOff`, { need: on.label }));
       } catch (e) {
-        warnings.push(`Wymaganie „${on.label}”: ${e instanceof WorkspaceError ? e.message : 'nie udało się wyłączyć'}.`);
+        warnings.push(t(`${P}needFailed`, { need: on.label, why: e instanceof WorkspaceError ? e.message : t(`${P}offFailed`) }));
       }
     }
   }
@@ -327,25 +330,26 @@ const localDay = (iso: string): string => {
 async function addOfficeStep(who: Who, module: FormModule, label: string): Promise<void> {
   const baseId = module.extendsId ?? module.moduleId;
   const base = module.extendsId === null ? module : (await loadModules()).modules.find((m) => m.moduleId === baseId);
-  if (base === undefined || base.areaId === null) throw new WorkspaceError('formularz główny nie ma własnego obszaru');
+  if (base === undefined || base.areaId === null) throw new WorkspaceError(t(`${P}mainNoArea`));
 
   const { ring } = await keysFor(who);
-  if (ring === null) throw new WorkspaceError('bez hasła nie da się zapieczętować kroku');
+  if (ring === null) throw new WorkspaceError(t(`${P}stepNoPassword`));
 
   const info = await openStepInfo(baseId, ring);
-  if (info.steps.some((one) => one.label === label)) return;
-  if (info.steps.some((one) => one.label === null)) throw new WorkspaceError('nie wszystkie kroki da się odczytać');
+  /* Derselbe Schritt in einer anderen Sprache ist derselbe Schritt. */
+  if (info.steps.some((one) => one.label === label || (isNeedStep(label) && isNeedStep(one.label)))) return;
+  if (info.steps.some((one) => one.label === null)) throw new WorkspaceError(t(`${P}stepsUnread`));
 
   const area = (await loadAreas()).areas.find((a) => a.areaId === base.areaId);
   const key = area === undefined ? undefined : (await myEpochKeys(ring, area.areaId)).get(area.currentEpoch);
-  if (area === undefined || key === undefined) throw new WorkspaceError('brak klucza obszaru formularza');
+  if (area === undefined || key === undefined) throw new WorkspaceError(t(`${P}noFormKey`));
 
   const drafts: StepDraft[] = [
     ...info.steps.map((one): StepDraft => ({
       stepId: one.stepId, label: one.label!, help: one.help ?? '', doneBy: one.doneBy,
       visibleToPerson: one.visibleToPerson, dueAt: one.dueAt === null ? '' : localDay(one.dueAt)
     })),
-    { stepId: newId(), label, help: 'Koordynator odhacza, gdy dostanie podpisany wydruk.', doneBy: 'office', visibleToPerson: true, dueAt: '' }
+    { stepId: newId(), label, help: t(`${P}stepHelp`), doneBy: 'office', visibleToPerson: true, dueAt: '' }
   ];
 
   await saveSteps(baseId, drafts, { areaId: area.areaId, epoch: area.currentEpoch, key });

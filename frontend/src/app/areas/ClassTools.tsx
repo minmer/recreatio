@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { rich, t as tApp, useT } from '../core/i18n';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { keysFor } from '../core/ringOf';
@@ -31,19 +32,25 @@ import { ClassJournal, type JournalLesson } from './ClassJournal';
 import { loadImportKeys, saveImportKeys, type ImportKey } from './profile';
 import {
   addLessonSeries, classesOf, lessonSeries, lessonsOf, programHome, programsIn, programsOfClass, progressLine, progressOf,
-  realizationsOf, schoolYear, setProgramClasses, WEEKDAYS
+  realizationsOf, schoolYear, setProgramClasses, WEEKDAYS, weekdayName
 } from './school';
 import './classes.css';
 
-const STUDENTS: RoleDef = { key: 'students', label: 'Uczniowie', capability: 'read', says: 'czytają kalendarz, kanał i stronę klasy', link: 'Link dla uczniów' };
-const PARENTS: RoleDef = { key: 'parents', label: 'Rodzice', capability: 'read', says: 'czytają kanał i kalendarz klasy', link: 'Link dla rodziców' };
+const STUDENTS: RoleDef = {
+  key: 'students', capability: 'read', legacy: 'Uczniowie', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasSchool.class.students'); }, get says() { return tApp('areasSchool.class.studentsSay'); }, get link() { return tApp('areasSchool.class.studentsLink'); }
+};
+const PARENTS: RoleDef = {
+  key: 'parents', capability: 'read', legacy: 'Rodzice', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasSchool.class.parents'); }, get says() { return tApp('areasSchool.class.parentsSay'); }, get link() { return tApp('areasSchool.class.parentsLink'); }
+};
 
 /** Die Fragen der Liste der Uczniowie — Telefon und E-mail sind die der Eltern, darum ohne Identität. */
-const ROSTER_QUESTIONS = [
-  { id: 'imie', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
-  { id: 'nazwisko', kind: 'line', label: 'Nazwisko', required: true, halfWidth: true, identity: 'surname' },
-  { id: 'telefon', kind: 'phone', label: 'Telefon rodzica', required: false, halfWidth: true },
-  { id: 'email', kind: 'email', label: 'E-mail rodzica', required: false, halfWidth: true }
+const rosterQuestions = () => [
+  { id: 'imie', kind: 'line', label: tApp('areasSchool.class.qGiven'), required: true, halfWidth: true, identity: 'given_name' },
+  { id: 'nazwisko', kind: 'line', label: tApp('areasSchool.class.qSurname'), required: true, halfWidth: true, identity: 'surname' },
+  { id: 'telefon', kind: 'phone', label: tApp('areasSchool.class.qPhone'), required: false, halfWidth: true },
+  { id: 'email', kind: 'email', label: tApp('areasSchool.class.qEmail'), required: false, halfWidth: true }
 ] as const;
 
 /** Unter diesen Schlüsseln merkt sich der Bereich die Liste und ihre Erweiterungen. */
@@ -52,6 +59,7 @@ const ATTENDANCE = 'obecnosc';
 const NOTES = 'uwagi';
 
 export function ClassTools({ ctx }: { ctx: Ctx }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const parentId = ctx.area.parentAreaId;
   const [ring, setRing] = useState<Ring | null | undefined>(undefined);
@@ -88,19 +96,19 @@ export function ClassTools({ ctx }: { ctx: Ctx }) {
   /* Dieselbe Frage wie `programsOfClass`, aber mit den Einträgen des Speichers (sie tragen ihre Fassung). */
   const mine = useMemo(() => programs.filter((p) => programsOfClass([p], classId).length > 0), [programs, classId]);
   const lessons = useMemo<JournalLesson[]>(() => (ready
-    ? mine.flatMap((p) => lessonsOf(p, store).map((l) => ({ ...l, programId: p.id, programTitle: str(p.data, 'title') || 'Program' })))
+    ? mine.flatMap((p) => lessonsOf(p, store).map((l) => ({ ...l, programId: p.id, programTitle: str(p.data, 'title') || t('areasSchool.program') })))
     : []), [ready, store, mine, revision]);
 
   return (
     <>
       <ProgramTool ctx={ctx} status={status} library={library ?? null} store={ready ? store : null} failed={failed} programs={programs} mine={mine} revision={revision} />
       <ScheduleTool ctx={ctx} round={round} onChanged={again} />
-      <Tool id="journal" name="Dziennik" ok={null}
-        says="Termin po terminie: temat z programu, czy lekcja się odbyła, notatka i zadanie — także dla każdej klasy inaczej.">
+      <Tool id="journal" name={t('areasSchool.class.journal')} ok={null}
+        says={t('areasSchool.class.journalSays')}>
         {status === 'wait' ? <Loading lines={2} />
-          : status === 'none' ? <p className="wk-kind-small">Dziennik prowadzą nauczyciele w skryptorium szkoły — nie ma go jeszcze albo nie masz do niego dostępu.</p>
-          : status === 'locked' ? <p className="wk-kind-small">Dziennik jest zapieczętowany — podaj hasło, żeby go otworzyć w tej karcie.</p>
-          : status === 'failed' || store === null || library === null || library === undefined ? <p className="wk-error">{failed ?? 'Nie udało się otworzyć dziennika.'}</p>
+          : status === 'none' ? <p className="wk-kind-small">{t('areasSchool.class.journalNone')}</p>
+          : status === 'locked' ? <p className="wk-kind-small">{t('areasSchool.class.journalLocked')}</p>
+          : status === 'failed' || store === null || library === null || library === undefined ? <p className="wk-error">{failed ?? t('areasSchool.class.journalFailed')}</p>
           : <ClassJournal ctx={ctx} store={store} library={library} lessons={lessons} round={round} revision={revision} />}
       </Tool>
       <StudentsTool ctx={ctx} round={round} onChanged={again} />
@@ -126,23 +134,24 @@ function ProgramTool({ ctx, status, library, store, failed, programs, mine, revi
   mine: readonly Entry[];
   revision: number;
 }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const school = ctx.area.parentAreaId;
   const lines = useMemo(() => (store === null ? [] : mine.map((p) => ({
     program: p, line: progressLine(progressOf(lessonsOf(p, store), realizationsOf(store.all(), classId)))
   }))), [store, mine, classId, revision]);
 
-  if (status === 'wait') return <Tool id="program" name="Program" ok={null}><Loading lines={1} /></Tool>;
+  if (status === 'wait') return <Tool id="program" name={t('areasSchool.program')} ok={null}><Loading lines={1} /></Tool>;
   if (status === 'locked') {
-    return <Tool id="program" name="Program" ok={null} says="Programy są zapieczętowane — podaj hasło, żeby je zobaczyć w tej karcie." />;
+    return <Tool id="program" name={t('areasSchool.program')} ok={null} says={t('areasSchool.class.programsLocked')} />;
   }
   if (status !== 'ready' || library === null || store === null) {
     return (
-      <Tool id="program" name="Program" ok={false}
-        says="Programy leżą w skryptorium szkoły — obszaru nad klasą. Nie ma go jeszcze albo nie masz do niego dostępu.">
+      <Tool id="program" name={t('areasSchool.program')} ok={false}
+        says={t('areasSchool.class.programsNone')}>
         {school !== null && (
           <div className="wk-actions">
-            <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', school, 'profil')}>Karta szkoły</a>
+            <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', school, 'profil')}>{t('areasSchool.class.schoolTab')}</a>
           </div>
         )}
         {failed !== null && <p className="wk-error">{failed}</p>}
@@ -153,19 +162,19 @@ function ProgramTool({ ctx, status, library, store, failed, programs, mine, revi
   const toggle = (program: Entry, on: boolean) => {
     const now = classesOf(program);
     const next = on ? [...now, classId.toLowerCase()] : now.filter((c) => c !== classId.toLowerCase());
-    void ctx.run('Zapisywanie programu…', on ? 'Klasa realizuje program.' : 'Klasa nie realizuje już tego programu.', async () => {
+    void ctx.run(t('areasSchool.class.savingProgram'), on ? t('areasSchool.class.programOn') : t('areasSchool.class.programOff'), async () => {
       await setProgramClasses(store, program, next);
     });
   };
 
   return (
-    <Tool id="program" name="Program" ok={mine.length > 0}
-      says={mine.length > 0 ? 'Lekcje programu są tematami w dzienniku; „Rozłóż program” wpisze je na kolejne terminy.' : 'Wybierz, który program szkoły realizuje ta klasa.'}>
+    <Tool id="program" name={t('areasSchool.program')} ok={mine.length > 0}
+      says={mine.length > 0 ? t('areasSchool.class.programSays') : t('areasSchool.class.programChoose')}>
       {lines.length > 0 && (
         <ul className="wk-class-programs">
           {lines.map(({ program, line }) => (
             <li key={program.id} data-class-program-line={program.id}>
-              <a className="wk-link" href={viewPath('scriptorium', library.libraryId, program.id)}>{str(program.data, 'title') || 'Program'}</a>
+              <a className="wk-link" href={viewPath('scriptorium', library.libraryId, program.id)}>{str(program.data, 'title') || t('areasSchool.program')}</a>
               <span className="wk-card-muted"> — {line}</span>
             </li>
           ))}
@@ -173,23 +182,23 @@ function ProgramTool({ ctx, status, library, store, failed, programs, mine, revi
       )}
       {programs.length === 0 ? (
         <p className="wk-kind-small">
-          Szkoła nie ma jeszcze programów — utworzysz je w {school !== null ? <a className="wk-link" href={viewPath('areas', school, 'profil')}>karcie szkoły</a> : 'karcie szkoły'}.
+          {rich(t('areasSchool.class.noPrograms'), { a: (s) => (school !== null ? <a className="wk-link" href={viewPath('areas', school, 'profil')}>{s}</a> : s) })}
         </p>
       ) : library.writes ? (
         <fieldset className="wk-class-checks">
-          <legend className="wk-kind-small">Realizuje program</legend>
+          <legend className="wk-kind-small">{t('areasSchool.class.delivers')}</legend>
           {programs.map((p) => {
             const on = mine.some((m) => m.id === p.id);
             return (
               <label key={p.id} className="wk-class-check">
                 <input type="checkbox" checked={on} disabled={ctx.busy} data-class-program={p.id} onChange={(e) => toggle(p, e.target.checked)} />
-                <span>{str(p.data, 'title') || 'Program'}</span>
+                <span>{str(p.data, 'title') || t('areasSchool.program')}</span>
               </label>
             );
           })}
         </fieldset>
       ) : (
-        <p className="wk-kind-small">Programy zmienia ten, kto pisze w skryptorium szkoły.</p>
+        <p className="wk-kind-small">{t('areasSchool.class.programsWriter')}</p>
       )}
     </Tool>
   );
@@ -198,6 +207,7 @@ function ProgramTool({ ctx, status, library, store, failed, programs, mine, revi
 /* -- Plan lekcji ---------------------------------------------------------------------------------- */
 
 function ScheduleTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onChanged: () => void }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const year = useMemo(() => schoolYear(new Date()), []);
   const [series, setSeries] = useState<readonly { key: string; itemId: string; label: string }[] | null>(null);
@@ -215,17 +225,17 @@ function ScheduleTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onCh
 
   const add = () => {
     const length = Number(minutes);
-    void ctx.run('Dodawanie lekcji do planu…', 'Lekcja jest w planie.', async (held) => {
+    void ctx.run(t('areasSchool.class.addingLesson'), t('areasSchool.class.lessonAdded'), async (held) => {
       await addLessonSeries(held.ring, {
-        classAreaId: classId, className: ctx.area.name, ownerRoleId: held.person.id, title: `Lekcja — ${ctx.area.name}`,
+        classAreaId: classId, className: ctx.area.name, ownerRoleId: held.person.id, title: t('areasSchool.lessonTitle', { name: ctx.area.name }),
         weekday, time, minutes: Number.isFinite(length) && length > 0 ? length : 45, from, until
       });
     }).then(onChanged);
   };
 
   return (
-    <Tool id="schedule" name="Plan lekcji" ok={series === null ? null : series.length > 0}
-      says="Lekcje w tygodniu stoją w kalendarzu klasy — widzą je uczniowie i rodzice z linkiem; z nich powstają terminy w dzienniku.">
+    <Tool id="schedule" name={t('areasSchool.class.schedule')} ok={series === null ? null : series.length > 0}
+      says={t('areasSchool.class.scheduleSays')}>
       {series === null ? <Loading lines={1} /> : series.length > 0 && (
         <ul className="wk-kind-list" data-class-schedule="">
           {series.map((s) => <li key={s.key}>{s.label || s.key}</li>)}
@@ -234,35 +244,35 @@ function ScheduleTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onCh
       <form className="wk-kind-form" data-class-schedule-form="" onSubmit={(e) => { e.preventDefault(); add(); }}>
         <div className="wk-kind-row">
           <label className="wk-field">
-            <span>Dzień</span>
+            <span>{t('areasSchool.class.day')}</span>
             <select value={weekday} disabled={ctx.busy} data-class-weekday="" onChange={(e) => setWeekday(Number(e.target.value))}>
-              {WEEKDAYS.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}
+              {WEEKDAYS.map((d, i) => <option key={d} value={i + 1}>{weekdayName(i + 1, t.lang)}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Godzina</span>
+            <span>{t('areasSchool.class.time')}</span>
             <input type="time" value={time} disabled={ctx.busy} data-class-time="" onChange={(e) => setTime(e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Minut</span>
+            <span>{t('areasSchool.class.minutes')}</span>
             <input type="number" min={5} max={600} value={minutes} disabled={ctx.busy} onChange={(e) => setMinutes(e.target.value)} />
           </label>
         </div>
         <div className="wk-kind-row">
           <label className="wk-field">
-            <span>Od</span>
+            <span>{t('common.from')}</span>
             <input type="date" value={from} disabled={ctx.busy} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Do (koniec roku szkolnego)</span>
+            <span>{t('areasSchool.class.until')}</span>
             <input type="date" value={until} min={from} disabled={ctx.busy} onChange={(e) => setUntil(e.target.value)} />
           </label>
         </div>
         <div className="wk-actions">
           <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || time === '' || from === '' || until === ''} data-class-schedule-add="">
-            Dodaj lekcję w tygodniu
+            {t('areasSchool.class.addLesson')}
           </button>
-          <a className="wk-link-btn" href={viewPath('calendar')}>Kalendarz</a>
+          <a className="wk-link-btn" href={viewPath('calendar')}>{t('areasSchool.class.calendar')}</a>
         </div>
       </form>
     </Tool>
@@ -272,6 +282,7 @@ function ScheduleTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onCh
 /* -- Uczniowie ------------------------------------------------------------------------------------ */
 
 function StudentsTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onChanged: () => void }) {
+  const t = useT();
   const classId = ctx.area.areaId;
   const [keys, setKeys] = useState<readonly ImportKey[] | null>(null);
   const [modules, setModules] = useState<readonly ModuleRow[]>([]);
@@ -288,7 +299,7 @@ function StudentsTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onCh
     return () => { alive = false; };
   }, [classId, round]);
 
-  if (keys === null) return <Tool id="students" name="Uczniowie" ok={null}><Loading lines={1} /></Tool>;
+  if (keys === null) return <Tool id="students" name={t('areasSchool.class.students')} ok={null}><Loading lines={1} /></Tool>;
 
   /* Ein Modul unter seinem Schlüssel — nur, wenn es das Modul noch gibt. */
   const moduleOf = (key: string): ModuleRow | null => {
@@ -299,59 +310,59 @@ function StudentsTool({ ctx, round, onChanged }: { ctx: Ctx; round: number; onCh
   const attendance = moduleOf(ATTENDANCE);
   const notes = moduleOf(NOTES);
 
-  const make = () => void ctx.run('Tworzenie listy uczniów…', 'Lista uczniów jest gotowa — dodaj uczniów.', async (held) => {
+  const make = () => void ctx.run(t('areasSchool.class.makingRoster'), t('areasSchool.class.rosterReady'), async (held) => {
     const name = ctx.area.name;
     /* Je Stück der Schlüssel gleich danach: bricht ein späterer Schritt ab, findet der nächste Versuch, was schon steht. */
     let formId = roster?.moduleId ?? null;
     if (formId === null) {
       formId = newId();
-      held.step('Lista uczniów…');
-      await createModule(formId, 'form', `Uczniowie — ${name}`.slice(0, 120), classId, 'person');
-      await saveImportKeys(classId, [{ kind: 'form', key: ROSTER, refId: formId, refText: 'Uczniowie' }]);
-      await writeFormContent(ctx.who, { moduleId: formId, areaId: classId }, { questions: ROSTER_QUESTIONS },
+      held.step(t('areasSchool.class.stepRoster'));
+      await createModule(formId, 'form', t('areasSchool.class.rosterName', { name }).slice(0, 120), classId, 'person');
+      await saveImportKeys(classId, [{ kind: 'form', key: ROSTER, refId: formId, refText: 'Uczniowie' }]); // i18n-ignore — gemerkter Name
+      await writeFormContent(ctx.who, { moduleId: formId, areaId: classId }, { questions: rosterQuestions() },
         { replace: false, answersTo: classId, onStage: held.step });
     }
     if (attendance === null) {
       const id = newId();
-      held.step('Obecność…');
-      await createModule(id, 'form', 'Obecność', classId, 'person', undefined, { extendsId: formId, audience: 'office', repeat: 'day' });
-      await saveImportKeys(classId, [{ kind: 'form', key: ATTENDANCE, refId: id, refText: 'Obecność' }]);
-      await writeFormContent(ctx.who, { moduleId: id, areaId: classId }, { questions: [{ id: 'obecny', kind: 'checkbox', label: 'Obecny' }] },
+      held.step(t('areasSchool.class.stepAttendance'));
+      await createModule(id, 'form', t('areasSchool.class.attendance'), classId, 'person', undefined, { extendsId: formId, audience: 'office', repeat: 'day' });
+      await saveImportKeys(classId, [{ kind: 'form', key: ATTENDANCE, refId: id, refText: 'Obecność' }]); // i18n-ignore — gemerkter Name
+      await writeFormContent(ctx.who, { moduleId: id, areaId: classId }, { questions: [{ id: 'obecny', kind: 'checkbox', label: t('areasSchool.class.present') }] },
         { replace: false, answersTo: classId, onStage: held.step });
     }
     if (notes === null) {
       const id = newId();
-      held.step('Uwagi o uczniach…');
-      await createModule(id, 'form', 'Uwagi', classId, 'person', undefined, { extendsId: formId, audience: 'office' });
+      held.step(t('areasSchool.class.stepNotes'));
+      await createModule(id, 'form', t('areasSchool.class.notes'), classId, 'person', undefined, { extendsId: formId, audience: 'office' });
       await saveImportKeys(classId, [{ kind: 'form', key: NOTES, refId: id, refText: 'Uwagi' }]);
-      await writeFormContent(ctx.who, { moduleId: id, areaId: classId }, { questions: [{ id: 'uwagi', kind: 'text', label: 'Uwagi' }] },
+      await writeFormContent(ctx.who, { moduleId: id, areaId: classId }, { questions: [{ id: 'uwagi', kind: 'text', label: t('areasSchool.class.notes') }] },
         { replace: false, answersTo: classId, onStage: held.step });
     }
   }).then(onChanged);
 
   const complete = roster !== null && attendance !== null && notes !== null;
   return (
-    <Tool id="students" name="Uczniowie" ok={roster !== null}
+    <Tool id="students" name={t('areasSchool.class.students')} ok={roster !== null}
       says={roster === null
-        ? 'Lista uczniów z obecnością (codziennie, zaznaczana przez nauczyciela) i uwagami o uczniach, które widzi tylko nauczyciel.'
-        : `Uczniów na liście: ${roster.entries}.`}>
-      {failed && <p className="wk-error">Nie udało się odczytać listy uczniów.</p>}
+        ? t('areasSchool.class.studentsSays')
+        : t('areasSchool.class.onList', { count: roster.entries })}>
+      {failed && <p className="wk-error">{t('areasSchool.class.rosterFailed')}</p>}
       {roster !== null && (
         <div className="wk-actions">
-          <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(roster.moduleId, PEOPLE_TAB)} data-class-roster-link="">Lista i dodawanie uczniów</a>
-          {attendance !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(attendance.moduleId, PEOPLE_TAB)} data-class-attendance-link="">Obecność (dziś)</a>}
-          {notes !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(notes.moduleId, PEOPLE_TAB)} data-class-notes-link="">Uwagi o uczniach</a>}
+          <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(roster.moduleId, PEOPLE_TAB)} data-class-roster-link="">{t('areasSchool.class.rosterLink')}</a>
+          {attendance !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(attendance.moduleId, PEOPLE_TAB)} data-class-attendance-link="">{t('areasSchool.class.attendanceToday')}</a>}
+          {notes !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={formPath(notes.moduleId, PEOPLE_TAB)} data-class-notes-link="">{t('areasSchool.class.notesLink')}</a>}
         </div>
       )}
       {!complete && (
         <div className="wk-actions">
           <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy} data-class-roster="" onClick={make}>
-            {roster === null ? 'Utwórz listę uczniów' : 'Dodaj obecność i uwagi'}
+            {roster === null ? t('areasSchool.class.makeRoster') : t('areasSchool.class.addAttendance')}
           </button>
         </div>
       )}
       <p className="wk-kind-small">
-        Uczniowie dodani przez nauczyciela nie mają własnego linku. Kto zapisze się sam przez formularz na stronie klasy, dostaje swój.
+        {t('areasSchool.class.linksNote')}
       </p>
     </Tool>
   );

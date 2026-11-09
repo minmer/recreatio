@@ -14,7 +14,7 @@
 import type { FieldKey } from './GraphEditor';
 import { ConfigInput } from './GraphEditor';
 import { configFields } from './nodeFields';
-import { isSource, RETIRED_STEP, RETIRED_TOPIC, SOURCE_TYPES, STEP_WORDS, type Grouping, type Step, type StepType } from './selection';
+import { isSource, RETIRED_STEP, retiredTopic, SOURCE_TYPES, STEP_WORDS, type Grouping, type Step, type StepType } from './selection';
 import type { CogitaLibrary } from './store';
 import { useState } from 'react';
 
@@ -208,7 +208,7 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
             {sources > 1 && <button type="button" className="wk-link-btn" aria-label={t('cogitaViews.steps.removeSource')} onClick={() => remove(i)}>×</button>}
           </div>
           <p className="cg-muted">{STEP_WORDS[isSource(source.type) ? source.type : 'source.all'].says}</p>
-          {source.config[RETIRED_STEP] === 'source.topic' && <p className="wk-warn">{RETIRED_TOPIC}</p>}
+          {source.config[RETIRED_STEP] === 'source.topic' && <p className="wk-warn">{retiredTopic()}</p>}
           {fields(source, i)}
         </div>
       ))}

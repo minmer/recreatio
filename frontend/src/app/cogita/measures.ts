@@ -20,14 +20,16 @@ import { gaugeFromMarks } from './knowing';
 import { DEFAULT_SPACING, dueAt, knownessOf, KNOWN, stability, type Dependency, type Mark, type Spacing } from './knowness';
 import type { AnswerRecord, Progress } from './learn';
 import { cardEntities } from './prerequisites';
+import { t } from '../core/i18n';
 
 export type Model = 'last' | 'memory' | 'hierarchy';
 
-export const MODELS: readonly { readonly id: Model; readonly label: string; readonly says: string }[] = [
-  { id: 'memory', label: 'Pamięć: odstępy i zapominanie', says: 'Umie, gdy ostatnia odpowiedź była dobra i jeszcze nie zdążył zapomnieć. Dobra odpowiedź po tygodniu przerwy utrwala bardziej niż następnego dnia; z czasem znajomość spada.' },
-  { id: 'hierarchy', label: 'Z hierarchią', says: 'Jak „Pamięć” — a do tego kto umie rzeczy szczegółowe, umie też ogólne, na których one stoją (kolejność nauki: „Najpierw trzeba znać”).' },
-  { id: 'last', label: 'Ostatnia odpowiedź', says: 'Umie, gdy ostatnia odpowiedź była dobra — bez względu na to, kiedy to było.' }
-];
+/* 2026-11-09 — Name und Erklärung in der Sprache der Anwendung (`cogitaData.model.<id>.*`), beim Lesen geholt. */
+export const MODELS: readonly { readonly id: Model; readonly label: string; readonly says: string }[] = (['memory', 'hierarchy', 'last'] as const).map((id) => ({
+  id,
+  get label() { return t(`cogitaData.model.${id}.label`); },
+  get says() { return t(`cogitaData.model.${id}.says`); }
+}));
 
 const HOUR = 3_600_000;
 const WEEK = 7 * 24 * HOUR;

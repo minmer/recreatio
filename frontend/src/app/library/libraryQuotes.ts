@@ -30,6 +30,7 @@
  */
 
 import { workLocatorKey } from './locations';
+import { t, texts } from '../core/i18n';
 import { isUuid } from './library';
 import { citeSegs, newCiteState, segText } from './libraryCite';
 import { ids, kindOf, slug, str, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
@@ -99,12 +100,12 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 const line = (value: unknown): string => (typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '');
 
 /** Felder älterer Fassungen, die nicht mehr gespeichert werden — mit dem Grund. */
-const DROPPED: Readonly<Record<string, string>> = {
-  topics: 'tematów już nie ma',
-  comment: 'komentarze są teraz własnym rodzajem w Wiedzy',
-  description: 'komentarze są teraz własnym rodzajem w Wiedzy',
-  notes: 'komentarze są teraz własnym rodzajem w Wiedzy'
-};
+const DROPPED: Readonly<Record<string, string>> = texts({
+  topics: 'libraryData.quotesImport.noTopics',
+  comment: 'libraryData.quotesImport.noComments',
+  description: 'libraryData.quotesImport.noComments',
+  notes: 'libraryData.quotesImport.noComments'
+});
 
 /**
  * Was ein Dokument für dieses Buch bedeuten würde. Nimmt das eigene Format,
@@ -119,15 +120,15 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
     : typeof root.text === 'string' ? [root]
     : [];
   if (root.format !== undefined && root.format !== QUOTES_FORMAT && root.format !== 'recreatio/library') {
-    return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${QUOTES_FORMAT}".` };
+    return { error: t('libraryData.patch.otherFormat', { given: String(root.format), format: QUOTES_FORMAT }) };
   }
-  if (list.length === 0) return { error: 'Brak cytatów — dokument powinien mieć listę "quotes".' };
+  if (list.length === 0) return { error: t('libraryData.quotesImport.none') };
 
   const warnings: string[] = [];
   const meant = asRecord(root.work);
   const meantTitle = line(meant.title);
   if (meantTitle !== '' && fold(meantTitle) !== fold(str(work.data, 'title')) && !fold(str(work.data, 'title')).startsWith(fold(meantTitle).slice(0, 20))) {
-    warnings.push(`Dokument był pisany dla „${meantTitle}” — cytaty trafią do tej książki („${str(work.data, 'title')}”).`);
+    warnings.push(t('libraryData.quotesImport.otherBook', { meant: meantTitle, title: str(work.data, 'title') }));
   }
 
   const mine = base.all().filter((e) => e.kind === 'quote' && ids(e.data, 'work').includes(work.id));
@@ -138,7 +139,7 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
   list.forEach((one, index) => {
     const raw = asRecord(one);
     const text = cleanQuote(line(raw.text));
-    if (text === '') { warnings.push(`Cytat ${index + 1}: bez tekstu — pominięty.`); return; }
+    if (text === '') { warnings.push(t('libraryData.quotesImport.noText', { n: index + 1 })); return; }
     const givenId = line(raw.id);
     const existing = givenId === '' ? undefined : base.get(givenId);
     const update = existing !== undefined && existing.kind === 'quote' && ids(existing.data, 'work').includes(work.id) ? existing : undefined;
@@ -167,9 +168,9 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
     });
   });
 
-  for (const [old, count] of dropped) warnings.push(`„${old}” (${count}×) nie jest już zapisywane — ${DROPPED[old]}.`);
+  for (const [old, count] of dropped) warnings.push(t('libraryData.quotesImport.dropped', { field: old, count, why: DROPPED[old] ?? '' }));
   const doubled = items.filter((i) => i.duplicateOf !== undefined).length;
-  if (doubled > 0) warnings.push(`${doubled} z nich już jest w tej książce — odznaczone (można zaznaczyć mimo to).`);
+  if (doubled > 0) warnings.push(t('libraryData.quotesImport.doubled', { n: doubled }));
   return { items, warnings };
 }
 
@@ -240,63 +241,34 @@ const workSummary = (work: LibEntry): Record<string, string> => {
 
 /* -- Die Beschreibung und das Polecenie ------------------------------------------------------- */
 
-const EXTRA_SAYS: readonly [string, string][] = [
-  ['check', 'Co sprawdzić przed zapisem (niepewne słowo, strona, granica zaznaczenia; odręczny dopisek czytelnika przy fragmencie) — widać to tylko przy przeglądaniu, nie jest zapisywane'],
-  ['page', 'Strona, np. "23" albo "23–24" — zamiast "locator" (staje się „s. 23”)'],
-  ['uncertain', 'true, gdy odczyt słowa, strona albo granica zaznaczenia jest niepewna (do sprawdzenia przed zapisem)'],
-  ['id', 'Tylko przy poprawianiu wyeksportowanych cytatów: ich "id" — wtedy cytat jest zmieniany, nie dodawany']
-];
+const EXTRA_SAYS: readonly string[] = ['check', 'page', 'uncertain', 'id'];
 
+/* Beispieldaten (ein echtes Zitat) — wie die Beispiele der Arten nicht übersetzt. */
 const QUOTE_EXAMPLE = {
-  text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.',
+  text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.', // i18n-ignore
   page: '168',
-  check: 'Dopisek ołówkiem: „do kazania na XVII niedzielę”.'
+  check: 'Dopisek ołówkiem: „do kazania na XVII niedzielę”.' // i18n-ignore
 };
 
 /** Was ein Zitat im Dokument haben kann — aus den Feldern der Art „Cytat" (ohne „work": das ist das Buch). */
 export function quoteFieldsDoc(): string {
   const def = kindOf('quote')!;
   const own = def.fields.filter((f) => f.key !== 'work').map((f) => `  "${f.key}" — ${f.label}: ${f.says}`);
-  const extra = EXTRA_SAYS.map(([k, s]) => `  "${k}" — ${s}`);
+  const extra = EXTRA_SAYS.map((k) => `  "${k}" — ${t(`libraryData.quotesDoc.extra.${k}`)}`);
   return [...own, ...extra].join('\n');
 }
 
 /** 2026-10-30 — am Ende „Jak aplikacja używa tych danych": wo die Zitate danach stehen und wer sie liest. */
 export function quotesDescription(work: LibEntry): string {
   const summary = workSummary(work);
-  const key = `${work.key ?? 'klucz'}-1`;
-  return `# Cytaty jednej książki jako JSON ("${QUOTES_FORMAT}", wersja ${QUOTES_VERSION})
-
-Co robi import (na stronie książki „${summary.title}”):
-- Każdy cytat staje się wpisem „Cytat” z tą książką jako źródłem; klucz cytowania nadaje się sam (${work.key ?? 'klucz'}-1, ${work.key ?? 'klucz'}-2, …).
-- Przed zapisem widać listę: każdy cytat można poprawić albo odznaczyć.
-- Cytat, który już jest w tej książce (ten sam tekst), jest odznaczony. Cytat z "id" z eksportu jest zmieniany w miejscu.
-- Cytaty trafiają do biblioteki tej książki — widzą je ci, którzy widzą jej obszar. Biblioteka trzyma tylko źródła: cytaty nie mają tematów ani komentarzy (własne myśli to rodzaj w Wiedzy).
-- Starsze pola ("topics", "comment", "description", "notes") są tylko pokazywane przy sprawdzaniu — nie są zapisywane.
-- Nic nie jest usuwane.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-{
-  "format": "${QUOTES_FORMAT}",
-  "version": ${QUOTES_VERSION},
-  "work": ${JSON.stringify(summary)},
-  "quotes": [ { … }, … ]
-}
-
-## Pola cytatu ("quotes": lista)
+  const stem = work.key ?? t('libraryData.quotesDoc.keyWord');
+  const key = `${stem}-1`;
+  return `${t('libraryData.quotesDoc.head', { format: QUOTES_FORMAT, version: QUOTES_VERSION, title: summary.title, key: stem, summary: JSON.stringify(summary) })}
 ${quoteFieldsDoc()}
-"text" jest wymagany. Akapity w "text" oddziel pustą linią.
-
-Przykład:
+${t('libraryData.quotesDoc.afterFields')}
 ${JSON.stringify({ format: QUOTES_FORMAT, version: QUOTES_VERSION, work: summary, quotes: [QUOTE_EXAMPLE] }, null, 2)}
 
-## Jak aplikacja używa tych danych
-- Cytaty stoją na stronie książki („Cytaty z tej książki”) w kolejności miejsc w dziele (strony jak liczby, Pismo Święte według kanonu) i w zakładce „Cytaty” biblioteki.
-- [@${key}] w tekście Skryptorium albo we wpisie bazy wiedzy daje przypis do tej książki z miejscem cytatu; ![@${key}] wstawia cały cytat jako blok z podpisem, skąd pochodzi (także jako punkt planu).
-- Moduł strony „Zbiór cytatów” pokazuje cytaty biblioteki albo tylko tej książki: „myśl dnia” (co dzień inna, dla wszystkich ta sama) albo zbiór z wyszukiwaniem.
-- Gdy czytający może otworzyć pełny tekst tej książki, a miejsce cytatu w nim jest, pod cytatem stoi „pokaż w tekście”.
-- Baza wiedzy, która ma tę bibliotekę wśród źródeł, może robić z cytatów karty i powtórki; nic nie jest kopiowane. Wpis w Wiedzy, który wskazuje cytat (np. własny komentarz), widać przy cytacie w „Powiązaniach”.
-- Cytaty są zapieczętowane w przeglądarce kluczem obszaru biblioteki. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje tę bibliotekę, daje asystentowi cytaty do wyszukania i czytania; asystent niczego nie zmienia.
+${t('libraryData.quotesDoc.use', { key })}
 `;
 }
 
@@ -311,20 +283,12 @@ const bookLineFor = (work: LibEntry, look: Lookup): string => segText(citeSegs(w
  */
 export function quotesPrompt(work: LibEntry, look: QuoteBase, mode: MarkMode): string {
   const what = mode === 'marked'
-    ? `Czytelnik zaznaczył w książce ołówkiem fragmenty, które chce zachować: podkreślenia, pionowe kreski albo nawiasy na marginesie, wykrzykniki, haczyki. Przepisz KAŻDY zaznaczony fragment jako osobny cytat. Tekstu niezaznaczonego nie przepisuj.`
-    : `Każde zdjęcie pokazuje fragment do zachowania. Przepisz cały tekst główny z każdego zdjęcia jako cytat (bez żywej paginy, numeru strony i przypisów u dołu strony).`;
-  return `Na zdjęciach są strony książki: ${bookLineFor(work, look)}.
+    ? t('libraryData.quotesPrompt.marked')
+    : t('libraryData.quotesPrompt.whole');
+  return `${t('libraryData.quotesPrompt.intro', { book: bookLineFor(work, look) })}
 ${what}
 
-Zasady:
-- Przepisuj słowo w słowo, jak w druku: pisownia, interpunkcja, cudzysłowy. Niczego nie poprawiaj, nie streszczaj, nie tłumacz.
-- Wyrazy podzielone na końcu wiersza złącz („modli-” + „twa” → „modlitwa”). Wewnątrz akapitu bez przejść do nowej linii; akapity oddziel pustą linią.
-- Jeśli zaznaczenie zaczyna się albo kończy w środku zdania, przepisz dokładnie zaznaczony zakres. Pominięty środek oznacz „[…]”.
-- Fragment, który przechodzi na następną stronę, to JEDEN cytat — "page": "23–24".
-- Numer strony bierz z nadrukowanej paginy tej strony. Gdy go nie widać, zostaw "page" puste i ustaw "uncertain": true.
-- Odręczny dopisek czytelnika przy fragmencie przepisz w "check" (sam fragment bez dopisku).
-- Gdy nie masz pewności co do słowa albo granic zaznaczenia: "uncertain": true i krótko w "check", co sprawdzić.
-- Kolejność cytatów: według stron.
+${t('libraryData.quotesPrompt.rules')}
 
 ${quotesDescription(work)}`;
 }

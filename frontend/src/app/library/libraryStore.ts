@@ -80,7 +80,7 @@ export function cleanData(data: EntryData): EntryData {
   return out;
 }
 
-const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /*
  * 0109 — DIE VERSIEGELTE ABSCHRIFT EINER BIBLIOTHEK im Browser [N2]. Eine
@@ -626,7 +626,7 @@ export class LibraryStore implements Lookup {
           saved.push(await this.write(input, newest));
         } catch (e) {
           if (e instanceof WorkspaceError && e.verdict === 'stale') stale = true;
-          failed.push({ id: input.id ?? '', error: e instanceof Error && e.message !== '' ? e.message : 'Nie udało się zapisać.' });
+          failed.push({ id: input.id ?? '', error: e instanceof Error && e.message !== '' ? e.message : t('libraryData.catalog.saveFailed') });
         }
         done += 1;
         progress?.(done, inputs.length);
@@ -655,9 +655,9 @@ export class LibraryStore implements Lookup {
   }
 
   private async writeKey(): Promise<{ epoch: number; key: Uint8Array }> {
-    if (this.ring === null) throw new WorkspaceError('Tę bibliotekę można tu tylko czytać.');
+    if (this.ring === null) throw new WorkspaceError(t('libraryData.store.readOnly'));
     const newest = newestKey(await areaKeys(this.ring, this.areaId, true));
-    if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+    if (newest === null) throw new WorkspaceError(t('libraryData.store.noKey'));
     return newest;
   }
 
@@ -677,7 +677,7 @@ export class LibraryStore implements Lookup {
     const thin = this.heavyRows.get(id);
     const before: Pick<Entry, 'key' | 'data' | 'version' | 'createdAt' | 'publishedAt' | 'publishedAs'> | undefined = this.entries.get(id) ?? this.heavyOpen.get(id)
       ?? (thin === undefined ? undefined : { data: {}, version: thin.version, createdAt: thin.createdAt, publishedAt: null, publishedAs: null });
-    if (before === undefined && (this.get(id) !== undefined || this.peers().some((p) => p.ownsHeavy(id)))) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
+    if (before === undefined && (this.get(id) !== undefined || this.peers().some((p) => p.ownsHeavy(id)))) throw new WorkspaceError(t('libraryData.store.otherLibraryChange'));
     /* 2026-10-22 — im Speicher stehen Kennungen: ein Schlüssel im Zapis, der aufgeht, wird die Kennung seines Eintrags. */
     const data: EntryData = { ...storedMarkup(input.kind, cleanData(input.data), this) };
     const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key, reserved);
@@ -719,13 +719,13 @@ export class LibraryStore implements Lookup {
    */
   async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void, remove: readonly string[] = []): Promise<Entry[]> {
     if (inputs.length === 0 && remove.length === 0) return [];
-    if (inputs.length + remove.length > SAVE_ALL_MAX) throw new WorkspaceError(`Nic nie zapisano: ${inputs.length + remove.length} elementów to za dużo na jeden zapis (najwyżej ${SAVE_ALL_MAX}) — podziel plik na mniejsze części.`);
+    if (inputs.length + remove.length > SAVE_ALL_MAX) throw new WorkspaceError(t('libraryData.store.tooMany', { n: inputs.length + remove.length, max: SAVE_ALL_MAX }));
     /* 2026-11-03 — was derselbe Zapis löscht: nur eigene Einträge, mit dem Stand, den dieser Browser kennt. */
     const gone: { entryId: string; version: number }[] = [];
     for (const id of remove) {
       const version = this.entries.get(id)?.version ?? this.heavyRows.get(id)?.version;
-      if (version === undefined) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} do usunięcia nie należy do tej biblioteki.`);
-      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} jest i do zapisania, i do usunięcia.`);
+      if (version === undefined) throw new WorkspaceError(t('libraryData.store.removeForeign', { id }));
+      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(t('libraryData.store.saveAndRemove', { id }));
       gone.push({ entryId: id, version });
     }
     const goneFiles = remove.flatMap((id) => this.ownFiles(this.entries.get(id)));
@@ -736,10 +736,10 @@ export class LibraryStore implements Lookup {
     let size = 0;
     for (const input of inputs) {
       const one = await this.prepare(input.id === undefined ? { ...input, id: newId() } : input, newest, reserved);
-      if (seen.has(one.row.entryId)) throw new WorkspaceError(`Nic nie zapisano: element ${one.row.entryId} stoi w zapisie dwa razy.`);
+      if (seen.has(one.row.entryId)) throw new WorkspaceError(t('libraryData.store.twice', { id: one.row.entryId }));
       seen.add(one.row.entryId);
       size += one.row.sealed.length;
-      if (size > SAVE_ALL_BYTES) throw new WorkspaceError(`Nic nie zapisano: ten zapis jest za duży (ponad ${Math.round(SAVE_ALL_BYTES / (1024 * 1024))} MB) — podziel plik na mniejsze części.`);
+      if (size > SAVE_ALL_BYTES) throw new WorkspaceError(t('libraryData.store.tooBig', { mb: Math.round(SAVE_ALL_BYTES / (1024 * 1024)) }));
       ready.push(one);
       progress?.(ready.length, inputs.length);
     }
@@ -753,7 +753,7 @@ export class LibraryStore implements Lookup {
     const at = new Map(done.entries.map((d) => [d.entryId.toLowerCase(), d]));
     const saved = ready.map((r) => {
       const d = at.get(r.row.entryId.toLowerCase());
-      if (d === undefined) throw new WorkspaceError(`Usługa nie potwierdziła zapisu ${r.row.entryId}.`);
+      if (d === undefined) throw new WorkspaceError(t('libraryData.store.notConfirmed', { id: r.row.entryId }));
       return this.land(r, d);
     });
     for (const id of remove) this.drop(id);
@@ -817,7 +817,7 @@ export class LibraryStore implements Lookup {
     try {
       for (const ref of own) {
         const url = await this.openFile(ref);
-        if (url === null) throw new WorkspaceError(`Pliku „${ref.name ?? 'plik'}” nie da się otworzyć — wpis zostaje tutaj.`);
+        if (url === null) throw new WorkspaceError(t('libraryData.store.fileUnopenable', { name: ref.name ?? t('libraryData.music.file') }));
         const blob = await (await fetch(url)).blob();
         const copy = await target.upload(new File([blob], ref.name ?? 'plik', { type: ref.mime ?? blob.type }));
         made.push(copy);
@@ -879,12 +879,12 @@ export class LibraryStore implements Lookup {
    * werden drüben Kennungen wie bei jedem Speichern.
    */
   async moveTo(id: string, target: LibraryStore, as?: { readonly kind: string; readonly data: EntryData }): Promise<{ entry: Entry; keyChanged: boolean; from?: string; pinned: number }> {
-    if (this.entries.get(id) === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
+    if (this.entries.get(id) === undefined) throw new WorkspaceError(t('libraryData.store.otherLibrary'));
     if (target === this) return { entry: this.entries.get(id)!, keyChanged: false, pinned: 0 };
     /* Erst die Texte, die ihn noch über den Schlüssel nennen, auf seine Kennung — drüben könnte der Schlüssel einem anderen gehören. */
     const { pinned } = await this.pinCitations(id);
     const entry = this.entries.get(id);
-    if (entry === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
+    if (entry === undefined) throw new WorkspaceError(t('libraryData.store.otherLibrary'));
     const newest = await target.writeKey();
     const kind = as?.kind ?? entry.kind;
     /* 2026-10-26 — die eigenen Dateien ziehen mit (die Musik): drüben neu versiegelt, hier nach dem Umzug entfernt. */
@@ -1038,7 +1038,7 @@ export function useLibraryStore(ring: Ring | null, library: Pick<LibraryRow, 'li
     const off = store.subscribe(() => setTick((n) => n + 1));
     let alive = true;
     store.sync().then(() => { if (alive) { setFailed(null); setTick((n) => n + 1); } }, (e: unknown) => {
-      if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać biblioteki.');
+      if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.store.loadFailed'));
     });
     const again = () => { if (document.visibilityState === 'visible') void store.sync().catch(() => undefined); };
     document.addEventListener('visibilitychange', again);

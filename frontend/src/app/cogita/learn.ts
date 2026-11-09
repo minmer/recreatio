@@ -19,6 +19,7 @@
  * ins Konto mit [L6, I13].
  */
 
+import { t } from '../core/i18n';
 import { aad, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
@@ -163,7 +164,7 @@ const holderAad = (batchId: string) => aad('cogita', 'learn_key', `${batchId}.ho
 const areaAad = (batchId: string) => aad('cogita', 'learn_key', `${batchId}.area`, Field.LearnKey, 1);
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const clip = (text: string, n: number) => (text.length <= n ? text : `${text.slice(0, n - 1)}…`);
+const clip = (text: string, n: number) => (text.length <= n ? text : `${text.slice(0, n - 1)}…`); // i18n-ignore
 
 function readAnswer(raw: unknown): AnswerRecord | null {
   if (!isObject(raw)) return null;
@@ -523,7 +524,7 @@ export async function flushWaiting(): Promise<number> {
   }
   let sent = 0;
   for (const roleId of roles) {
-    const holder: Holder = { kind: 'role', roleId, wrapPublicKey: new Uint8Array(0), wrapPrivate: () => Promise.reject(new Error('Nie jest potrzebny do wysłania.')) };
+    const holder: Holder = { kind: 'role', roleId, wrapPublicKey: new Uint8Array(0), wrapPrivate: () => Promise.reject(new Error(t('cogitaLearnLogic.learn.notNeeded'))) };
     try { sent += await flushOutbox(holder); } catch { /* später */ }
   }
   return sent;

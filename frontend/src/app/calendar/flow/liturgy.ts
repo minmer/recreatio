@@ -18,6 +18,8 @@
  */
 
 import { SEASON_LABEL, type DateRule, type Season, type Weekday } from './flowModel';
+import { fmtDate, t } from '../../core/i18n';
+import { monthOfName } from '../../core/dayMath';
 
 /* -- Tage ------------------------------------------------------------------------------ */
 
@@ -30,7 +32,7 @@ export const ymd = (year: number, month: number, day: number): string => `${Stri
 
 const parts = (date: string): [number, number, number] => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (m === null) throw new Error(`Nieczytelna data: ${date}`);
+  if (m === null) throw new Error(t('calendarApp.flow.problem.badDate', { date }));
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 };
 
@@ -147,12 +149,12 @@ export function roman(n: number): string {
 
 /** Montag … Sonntag, wie am Anfang eines Satzes. */
 export const WEEKDAY_NAME: Record<Weekday, string> = {
-  1: 'Poniedziałek', 2: 'Wtorek', 3: 'Środa', 4: 'Czwartek', 5: 'Piątek', 6: 'Sobota', 7: 'Niedziela'
+  1: 'Poniedziałek', 2: 'Wtorek', 3: 'Środa', 4: 'Czwartek', 5: 'Piątek', 6: 'Sobota', 7: 'Niedziela' // i18n-ignore — polnische liturgische Namen (Inhalt)
 };
 
-const MONTH_OF = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+const MONTH_OF = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia']; // i18n-ignore — polnische liturgische Namen (Inhalt)
 
-const OCTAVE_DAY = ['', 'Pierwszy', 'Drugi', 'Trzeci', 'Czwarty', 'Piąty', 'Szósty', 'Siódmy', 'Ósmy'];
+const OCTAVE_DAY = ['', 'Pierwszy', 'Drugi', 'Trzeci', 'Czwarty', 'Piąty', 'Szósty', 'Siódmy', 'Ósmy']; // i18n-ignore — polnische liturgische Namen (Inhalt)
 
 const infoCache = new Map<string, DayInfo>();
 
@@ -207,32 +209,32 @@ function computeDayInfo(date: string): DayInfo {
     if (sunday) {
       dayRank = 6;
       sundayName = inOctave
-        ? 'Niedziela w oktawie Narodzenia Pańskiego'
-        : diffDays(date, baptism) === 0 ? 'Niedziela Chrztu Pańskiego'
-          : day <= 5 ? 'II Niedziela po Narodzeniu Pańskim' : 'Niedziela okresu Narodzenia Pańskiego';
+        ? 'Niedziela w oktawie Narodzenia Pańskiego' // i18n-ignore — polnische liturgische Namen (Inhalt)
+        : diffDays(date, baptism) === 0 ? 'Niedziela Chrztu Pańskiego' // i18n-ignore — polnische liturgische Namen (Inhalt)
+          : day <= 5 ? 'II Niedziela po Narodzeniu Pańskim' : 'Niedziela okresu Narodzenia Pańskiego'; // i18n-ignore — polnische liturgische Namen (Inhalt)
       dayName = sundayName;
     } else {
       dayRank = inOctave ? 9 : 13;
-      if (month === 12) dayName = `${OCTAVE_DAY[day - 24]} dzień w oktawie Narodzenia Pańskiego`;
-      else if (day === 1) dayName = 'Ósmy dzień w oktawie Narodzenia Pańskiego';
+      if (month === 12) dayName = `${OCTAVE_DAY[day - 24]} dzień w oktawie Narodzenia Pańskiego`; // i18n-ignore — polnische liturgische Namen (Inhalt)
+      else if (day === 1) dayName = 'Ósmy dzień w oktawie Narodzenia Pańskiego'; // i18n-ignore — polnische liturgische Namen (Inhalt)
       else if (day <= 5) dayName = `${day} stycznia`;
       else if (day === 6) dayName = '6 stycznia';
-      else dayName = `${name} po Objawieniu Pańskim`;
+      else dayName = `${name} po Objawieniu Pańskim`; // i18n-ignore — polnische liturgische Namen (Inhalt)
     }
   } else if (diffDays(date, ashWednesday) < 0) {
     /* Die Zeit im Jahreskreis vor der Fastenzeit: Woche 1 beginnt am Montag nach der Taufe. */
     season = 'zwykly';
     week = Math.floor(diffDays(date, baptism) / 7) + 1;
     dayRank = sunday ? 6 : 13;
-    if (sunday) sundayName = `${roman(week)} Niedziela zwykła`;
-    dayName = sunday ? sundayName : `${name} ${roman(week)} tygodnia zwykłego`;
+    if (sunday) sundayName = `${roman(week)} Niedziela zwykła`; // i18n-ignore — polnische liturgische Namen (Inhalt)
+    dayName = sunday ? sundayName : `${name} ${roman(week)} tygodnia zwykłego`; // i18n-ignore — polnische liturgische Namen (Inhalt)
   } else if (fromEaster < -3) {
     /* Fastenzeit: Aschermittwoch bis Mittwoch der Karwoche. */
     season = 'post';
     week = fromEaster < -42 ? 0 : Math.floor((fromEaster + 42) / 7) + 1;
     if (sunday) {
       dayRank = 2;
-      if (week === 6) { sundayName = 'Niedziela Palmowa Męki Pańskiej'; special = 'palm'; }
+      if (week === 6) { sundayName = 'Niedziela Palmowa Męki Pańskiej'; special = 'palm'; } // i18n-ignore — polnische liturgische Namen (Inhalt)
       else {
         sundayName = `${roman(week)} Niedziela Wielkiego Postu`;
         if (week === 4) special = 'laetare';
@@ -240,14 +242,14 @@ function computeDayInfo(date: string): DayInfo {
       dayName = sundayName;
     } else if (fromEaster === -46) {
       dayRank = 2;
-      dayName = 'Środa Popielcowa';
+      dayName = 'Środa Popielcowa'; // i18n-ignore — polnische liturgische Namen (Inhalt)
     } else if (week === 0) {
       dayRank = 9;
       dayName = `${name} po Popielcu`;
     } else if (week === 6) {
       /* Montag bis Mittwoch der Karwoche. */
       dayRank = 2;
-      dayName = weekday === 1 ? 'Wielki Poniedziałek' : weekday === 2 ? 'Wielki Wtorek' : 'Wielka Środa';
+      dayName = weekday === 1 ? 'Wielki Poniedziałek' : weekday === 2 ? 'Wielki Wtorek' : 'Wielka Środa'; // i18n-ignore — polnische liturgische Namen (Inhalt)
     } else {
       dayRank = 9;
       dayName = `${name} ${roman(week)} tygodnia Wielkiego Postu`;
@@ -257,7 +259,7 @@ function computeDayInfo(date: string): DayInfo {
     season = 'triduum';
     week = 6;
     dayRank = 1;
-    dayName = fromEaster === -3 ? 'Wielki Czwartek' : fromEaster === -2 ? 'Wielki Piątek' : 'Wielka Sobota';
+    dayName = fromEaster === -3 ? 'Wielki Czwartek' : fromEaster === -2 ? 'Wielki Piątek' : 'Wielka Sobota'; // i18n-ignore — polnische liturgische Namen (Inhalt)
     if (fromEaster === -2) special = 'goodFriday';
   } else if (fromEaster <= 49) {
     /* Osterzeit: die Oktav ist Woche 1; Pfingsten bleibt in Woche 7. */
@@ -265,16 +267,16 @@ function computeDayInfo(date: string): DayInfo {
     week = Math.min(7, Math.floor(fromEaster / 7) + 1);
     if (fromEaster === 0) {
       dayRank = 1;
-      sundayName = 'Niedziela Zmartwychwstania Pańskiego';
+      sundayName = 'Niedziela Zmartwychwstania Pańskiego'; // i18n-ignore — polnische liturgische Namen (Inhalt)
       dayName = sundayName;
     } else if (fromEaster === 49) {
       dayRank = 2;
-      sundayName = 'Niedziela Zesłania Ducha Świętego';
+      sundayName = 'Niedziela Zesłania Ducha Świętego'; // i18n-ignore — polnische liturgische Namen (Inhalt)
       dayName = sundayName;
       special = 'pentecost';
     } else if (sunday) {
       dayRank = 2;
-      sundayName = week === 2 ? 'II Niedziela Wielkanocna, czyli Miłosierdzia Bożego' : `${roman(week)} Niedziela Wielkanocna`;
+      sundayName = week === 2 ? 'II Niedziela Wielkanocna, czyli Miłosierdzia Bożego' : `${roman(week)} Niedziela Wielkanocna`; // i18n-ignore — polnische liturgische Namen (Inhalt)
       dayName = sundayName;
     } else if (fromEaster <= 7) {
       dayRank = 2;
@@ -288,8 +290,8 @@ function computeDayInfo(date: string): DayInfo {
     season = 'zwykly';
     week = 34 - Math.floor(diffDays(christKing, sundayOnOrBefore(date)) / 7);
     dayRank = sunday ? 6 : 13;
-    if (sunday) sundayName = `${roman(week)} Niedziela zwykła`;
-    dayName = sunday ? sundayName : `${name} ${roman(week)} tygodnia zwykłego`;
+    if (sunday) sundayName = `${roman(week)} Niedziela zwykła`; // i18n-ignore — polnische liturgische Namen (Inhalt)
+    dayName = sunday ? sundayName : `${name} ${roman(week)} tygodnia zwykłego`; // i18n-ignore — polnische liturgische Namen (Inhalt)
   }
 
   return { season, week, sunday, weekday, dayRank, seasonName: SEASON_LABEL[season], sundayName, dayName, special };
@@ -354,20 +356,28 @@ export function matches(rule: DateRule, date: string): boolean {
   }
 }
 
+/* Ein Tag des Jahres in Worten, in der Sprache der Anwendung: „5 października". */
+const dayWords = (month: number, day: number): string =>
+  month >= 1 && month <= 12 ? fmtDate(new Date(2000, month - 1, day), { day: 'numeric', month: 'long' }) : '?';
+
 /** Eine Regel in Worten — für Vorschau und Beschreibung. */
 export function describeDateRule(rule: DateRule): string {
-  const signed = (n: number, unit: string) => (n === 0 ? unit : `${unit} ${n > 0 ? '+' : '−'}${Math.abs(n)} dni`);
+  const signed = (n: number, unit: string) => (n === 0 ? unit
+    : t('calendarApp.flow.dateRule.shift', { unit, sign: n > 0 ? '+' : '−', count: Math.abs(n) }));
   switch (rule.r) {
-    case 'fixed': return `${rule.day} ${MONTH_OF[rule.month - 1] ?? '?'}`;
-    case 'easter': return signed(rule.offset, 'Wielkanoc');
-    case 'advent': return signed(rule.offset, 'I Niedziela Adwentu');
-    case 'christmas-sunday': return 'niedziela w oktawie Narodzenia (albo 30 grudnia)';
-    case 'baptism': return 'niedziela po 6 stycznia';
+    case 'fixed': return dayWords(rule.month, rule.day);
+    case 'easter': return signed(rule.offset, t('calendarApp.flow.dateRule.easter'));
+    case 'advent': return signed(rule.offset, t('calendarApp.flow.dateRule.advent'));
+    case 'christmas-sunday': return t('calendarApp.flow.dateRule.christmasSunday');
+    case 'baptism': return t('calendarApp.flow.dateRule.baptism');
     case 'nth-weekday': {
-      const which = rule.n === -1 ? 'ostatni' : `${rule.n}.`;
-      const where = rule.month === undefined ? 'każdego miesiąca' : MONTH_OF[rule.month - 1] ?? '?';
-      return `${which} ${WEEKDAY_NAME[rule.weekday].toLowerCase()} ${where}`;
+      const which = rule.n === -1 ? t('calendarApp.flow.dateRule.last') : t('calendarApp.flow.dateRule.nth', { n: rule.n });
+      /* 1. Januar 2024 ist ein Montag: Wochentag 1–7 → 1.–7. Januar. */
+      const weekday = fmtDate(new Date(2024, 0, rule.weekday), { weekday: 'long' }).toLowerCase();
+      return rule.month === undefined
+        ? t('calendarApp.flow.dateRule.nthEvery', { which, weekday })
+        : t('calendarApp.flow.dateRule.nthOf', { which, weekday, month: rule.month >= 1 && rule.month <= 12 ? monthOfName(new Date(2000, rule.month - 1, 15)) : '?' });
     }
-    case 'sunday-after': return `pierwsza niedziela po ${rule.day} ${MONTH_OF[rule.month - 1] ?? '?'}`;
+    case 'sunday-after': return t('calendarApp.flow.dateRule.sundayAfter', { date: dayWords(rule.month, rule.day) });
   }
 }

@@ -97,27 +97,27 @@ export function musicPeople(entry: LibEntry, look: Lookup): string[] {
 
 /* -- Namen der Spuren ------------------------------------------------------------------------- */
 
-/** Stimmen und Instrumente zur Auswahl (und was ein Dateiname meint). */
+/** Stimmen und Instrumente zur Auswahl (und was ein Dateiname meint). 2026-11-09 — Daten: die Bezeichnung wird Inhalt der Spur (`label`), nicht übersetzt. */
 export const VOICES: readonly string[] = [
   'Sopran', 'Sopran I', 'Sopran II', 'Mezzosopran', 'Alt', 'Alt I', 'Alt II', 'Tenor', 'Tenor I', 'Tenor II', 'Baryton', 'Bas', 'Bas I', 'Bas II',
-  'Solo', 'Chór', 'Organy', 'Fortepian', 'Gitara', 'Skrzypce', 'Altówka', 'Wiolonczela', 'Kontrabas', 'Flet', 'Obój', 'Klarnet', 'Fagot',
-  'Trąbka', 'Puzon', 'Róg', 'Perkusja', 'Akompaniament', 'Całość'
+  'Solo', 'Chór', 'Organy', 'Fortepian', 'Gitara', 'Skrzypce', 'Altówka', 'Wiolonczela', 'Kontrabas', 'Flet', 'Obój', 'Klarnet', 'Fagot', // i18n-ignore
+  'Trąbka', 'Puzon', 'Róg', 'Perkusja', 'Akompaniament', 'Całość' // i18n-ignore
 ];
 
 /** Wonach eine Datei der Nuty heisst. */
-export const SCORE_LABELS: readonly string[] = ['Partytura', 'Głosy', 'Sopran', 'Alt', 'Tenor', 'Bas', 'Organy', 'Tekst', 'MusicXML', 'MIDI'];
+export const SCORE_LABELS: readonly string[] = ['Partytura', 'Głosy', 'Sopran', 'Alt', 'Tenor', 'Bas', 'Organy', 'Tekst', 'MusicXML', 'MIDI']; // i18n-ignore
 
-const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /* Längere zuerst: „kontrabas" vor „bas", „mezzosopran" vor „sopran", „altowka" vor „alt", „bassoon" vor „bass". */
 const VOICE_WORDS: readonly [RegExp, string][] = [
   [/kontrabas|contrabass|double ?bass/, 'Kontrabas'], [/fagot|bassoon/, 'Fagot'], [/mezzo/, 'Mezzosopran'], [/baryton|bariton/, 'Baryton'],
-  [/sopran/, 'Sopran'], [/altowka|\bviola\b/, 'Altówka'], [/\balt(?:o|a|us)?\b/, 'Alt'], [/tenor/, 'Tenor'], [/\bbas(?:s|so|sus)?\b/, 'Bas'],
+  [/sopran/, 'Sopran'], [/altowka|\bviola\b/, 'Altówka'], [/\balt(?:o|a|us)?\b/, 'Alt'], [/tenor/, 'Tenor'], [/\bbas(?:s|so|sus)?\b/, 'Bas'], // i18n-ignore
   [/organy|\borgan\b/, 'Organy'], [/fortepian|\bpiano\b/, 'Fortepian'], [/gitara|guitar/, 'Gitara'], [/skrzypce|violin/, 'Skrzypce'],
-  [/wiolonczela|\bcello\b/, 'Wiolonczela'], [/\bflet\b|\bflute\b/, 'Flet'], [/\boboj\b|\boboe\b/, 'Obój'], [/klarnet|clarinet/, 'Klarnet'],
-  [/trabka|trumpet/, 'Trąbka'], [/puzon|trombone/, 'Puzon'], [/\brog\b|\bhorn\b/, 'Róg'], [/perkusja|percussion|\bdrums\b/, 'Perkusja'],
-  [/akompaniament|podklad|accompaniment|instrumental/, 'Akompaniament'], [/\bsolo\b/, 'Solo'], [/\bchor\b|\bchoir\b/, 'Chór'],
-  [/calosc|tutti|\bfull\b|\bmix\b|razem|wszystkie glosy/, 'Całość']
+  [/wiolonczela|\bcello\b/, 'Wiolonczela'], [/\bflet\b|\bflute\b/, 'Flet'], [/\boboj\b|\boboe\b/, 'Obój'], [/klarnet|clarinet/, 'Klarnet'], // i18n-ignore
+  [/trabka|trumpet/, 'Trąbka'], [/puzon|trombone/, 'Puzon'], [/\brog\b|\bhorn\b/, 'Róg'], [/perkusja|percussion|\bdrums\b/, 'Perkusja'], // i18n-ignore
+  [/akompaniament|podklad|accompaniment|instrumental/, 'Akompaniament'], [/\bsolo\b/, 'Solo'], [/\bchor\b|\bchoir\b/, 'Chór'], // i18n-ignore
+  [/calosc|tutti|\bfull\b|\bmix\b|razem|wszystkie glosy/, 'Całość'] // i18n-ignore
 ];
 
 /** Eine geteilte Stimme: „Sopran 2", „Tenor_II", „Alto1" — die römische Zahl nur gross („Tenor i Bas" ist keine). */
@@ -133,7 +133,7 @@ export function guessVoice(fileName: string): { label: string; role: 'part' | 'w
   const words = fold(base).replace(/[_\-.()[\]]+/g, ' ');
   for (const [pattern, label] of VOICE_WORDS) {
     if (!pattern.test(words)) continue;
-    if (label === 'Całość') return { label, role: 'whole', known: true };
+    if (label === 'Całość') return { label, role: 'whole', known: true }; // i18n-ignore
     const n = ['Sopran', 'Alt', 'Tenor', 'Bas'].includes(label) ? SPLIT.exec(base) : null;
     return { label: `${label}${n === null ? '' : n[1] === 'II' || n[1] === '2' ? ' II' : ' I'}`, role: 'part', known: true };
   }

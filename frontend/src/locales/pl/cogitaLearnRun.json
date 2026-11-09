@@ -129,5 +129,300 @@
     "publicWarn": "Ten obszar jest jawny: każdy, bez konta, przeczyta {whole} tej bazy. Jeśli coś ma zostać dla wybranych, załóż bazę w obszarze zamkniętym.",
     "creating": "Zakładanie…",
     "create": "Załóż"
+  },
+  "card": {
+    "true": "prawda",
+    "false": "fałsz",
+    "trueLabel": "Prawda",
+    "falseLabel": "Fałsz",
+    "codeAnswer": "kod, który przechodzi wszystkie przypadki",
+    "pointAnswer": "zaznaczony punkt",
+    "drawingAnswer": "cel rysunku osiągnięty",
+    "dateHint": {
+      "year": "rok, np. 1410",
+      "month": "np. 7.1410 albo lipiec 1410",
+      "day": "np. 15.07.1410 albo 15 lipca 1410"
+    },
+    "datePart": {
+      "year": "rok",
+      "month": "miesiąc",
+      "day": "dzień"
+    },
+    "none": "brak",
+    "near": "blisko · ",
+    "rightIs": "dobrze: ",
+    "number": "liczba",
+    "numberUnit": "liczba, może z jednostką",
+    "answerPlaceholder": "odpowiedź",
+    "answer": "Odpowiedź",
+    "answerHow": "Odpowiedź — {how}",
+    "check": "Sprawdź",
+    "checkSome": "Sprawdź ({k} z {n})",
+    "pairOf": "{label} — para {n}",
+    "matchHint": "Wybierz pozycję z jednej strony, potem jej parę z drugiej. Ponowne wybranie rozłącza parę.",
+    "knew": "Umiałem",
+    "partly": "Częściowo",
+    "notKnew": "Nie umiałem",
+    "showAnswer": "Pokaż odpowiedź",
+    "pointHint": "Wskaż punkt na obrazie pytania.",
+    "pairsRight": {
+      "one": "{right} z {count} pary dobrze",
+      "few": "{right} z {count} par dobrze",
+      "many": "{right} z {count} par dobrze",
+      "other": "{right} z {count} pary dobrze"
+    },
+    "right": "dobrze",
+    "wrong": "źle",
+    "noPair": "bez pary",
+    "rightHinted": "Dobrze — z podpowiedzią (<s></s>)",
+    "verdictRight": "Dobrze!",
+    "almost": "Prawie (<s></s>)",
+    "wrongShare": "Niestety nie (<s></s>).",
+    "verdictWrong": "Niestety nie.",
+    "noAnswer": "Bez odpowiedzi.",
+    "correctIs": "Poprawnie: ",
+    "also": " · także: ",
+    "yours": " · Twoja odpowiedź: ",
+    "diff": "Porównanie znak po znaku",
+    "explanation": "Wyjaśnienie",
+    "hintN": "Podpowiedź {n}",
+    "hintCost": "Każda podpowiedź obniża wynik tej odpowiedzi o {pct}%.",
+    "hintOf": "Podpowiedź {n}/{all}"
+  },
+  "code": {
+    "loading": "Uruchamianie Pythona… (za pierwszym razem pobiera się ok. 10 MB)",
+    "checking": "Sprawdzanie: przypadek {k} z {n}…",
+    "startFailed": "Nie udało się uruchomić Pythona.",
+    "examplesHead": {
+      "one": "Przykład — tak ma działać <c>transform(x)</c>:",
+      "few": "Przykłady — tak ma działać <c>transform(x)</c>:",
+      "many": "Przykłady — tak ma działać <c>transform(x)</c>:",
+      "other": "Przykłady — tak ma działać <c>transform(x)</c>:"
+    },
+    "returns": "zwraca",
+    "field": "Kod: funkcja transform(x)",
+    "nothing": "To pytanie nie ma jeszcze nic do sprawdzenia.",
+    "plan": "Sprawdzenie: {what} — na każdy {s} s. Funkcja <c>transform(x)</c> dostaje jedno wejście i zwraca wynik.",
+    "examples": {
+      "one": "{count} przykład",
+      "few": "{count} przykłady",
+      "many": "{count} przykładów",
+      "other": "{count} przykładu"
+    },
+    "hidden": {
+      "one": "{count} ukryty przypadek",
+      "few": "{count} ukryte przypadki",
+      "many": "{count} ukrytych przypadków",
+      "other": "{count} ukrytego przypadku"
+    },
+    "and": " i ",
+    "check": "Sprawdź kod",
+    "right": "dobrze",
+    "skippedBroken": "pominięty (błąd pytania)",
+    "notRun": "nie uruchomiono",
+    "broken": "błąd pytania",
+    "timeout": "przekroczony czas",
+    "error": "błąd",
+    "wrong": "źle",
+    "exampleN": "Przykład {n}",
+    "hiddenN": "Ukryty {n}",
+    "why": "Dlaczego:",
+    "errorLabel": "Błąd:",
+    "printed": "Wypisane przez print:",
+    "of": "{k} z {n}",
+    "sum": {
+      "one": "{passed} z {count} przypadku dobrze",
+      "few": "{passed} z {count} przypadków dobrze",
+      "many": "{passed} z {count} przypadków dobrze",
+      "other": "{passed} z {count} przypadku dobrze"
+    },
+    "sumParts": " (przykłady: {examples}, ukryte: {hidden})",
+    "invalid": "Kod się nie uruchomił:",
+    "tooLong": "Za długo:",
+    "note": "Uwaga:",
+    "caption": "Wyniki sprawdzenia, przypadek po przypadku",
+    "colCase": "Przypadek",
+    "colInput": "Wejście",
+    "colExpected": "Oczekiwane",
+    "colGot": "Twój wynik",
+    "colResult": "Wynik"
+  },
+  "build": {
+    "preview": "Podgląd odpowiedzi",
+    "empty": "Tu pojawi się Twoja odpowiedź.",
+    "added": "Dodano: {text}, pozycja {at}.",
+    "removed": "Zabrano: {text}.",
+    "lifted": "Podniesiono: {text}, pozycja {at} z {n}.",
+    "liftedKeys": "Podniesiono: {text}, pozycja {at} z {n}. Strzałki przesuwają, spacja upuszcza, Escape anuluje, Delete zabiera.",
+    "dropped": "Upuszczono na pozycji {at} z {n}.",
+    "cancelled": "Anulowano — kafelek wrócił na swoje miejsce.",
+    "moved": "Przeniesiono na pozycję {at} z {n}.",
+    "lineEmpty": "Twoja odpowiedź — pusta",
+    "line": {
+      "one": "Twoja odpowiedź — {count} kafelków",
+      "few": "Twoja odpowiedź — {count} kafelków",
+      "many": "Twoja odpowiedź — {count} kafelków",
+      "other": "Twoja odpowiedź — {count} kafelków"
+    },
+    "pick": "Wybieraj kafelki poniżej…",
+    "tileRole": "kafelek do przeciągnięcia",
+    "tile": "{text}, pozycja {at} z {n}",
+    "tileRight": "{text}, pozycja {at} z {n}, dobrze",
+    "tileWrong": "{text}, pozycja {at} z {n}, źle",
+    "bank": "Kafelki do wyboru",
+    "add": "Dodaj: {text}",
+    "cleared": "Wyczyszczono odpowiedź.",
+    "clear": "Wyczyść",
+    "inPlace": "{right} z {n} na swoim miejscu",
+    "showMine": "Pokaż moją odpowiedź",
+    "showSolution": "Pokaż rozwiązanie"
+  },
+  "order": {
+    "droppedSame": "Upuszczono na tym samym miejscu.",
+    "cancelledShort": "Anulowano.",
+    "liftedKeys": "Podniesiono: {text}, pozycja {at} z {n}. Strzałki przesuwają, spacja upuszcza, Escape anuluje.",
+    "cancelled": "Anulowano — element wrócił na swoje miejsce.",
+    "list": "Kolejność — przeciągnij albo użyj strzałek",
+    "itemRole": "element do przeciągnięcia",
+    "itemWrong": "{text}, pozycja {at} z {n}, źle — właściwa pozycja {place}",
+    "yours": "u Ciebie: {at}",
+    "up": "Wyżej: {text}",
+    "down": "Niżej: {text}",
+    "neighbours": "{k} z {n} par sąsiadów w dobrej kolejności",
+    "showMine": "Pokaż moją kolejność",
+    "showRight": "Pokaż poprawną kolejność"
+  },
+  "gap": {
+    "choose": "{label}: wybierz",
+    "pick": "wybierz…",
+    "label": "Luka {k} z {n}",
+    "right": {
+      "one": "{right} z {count} luki dobrze",
+      "few": "{right} z {count} luk dobrze",
+      "many": "{right} z {count} luk dobrze",
+      "other": "{right} z {count} luki dobrze"
+    }
+  },
+  "interactive": {
+    "broken": "Ten rysunek jest pusty albo nie jest poprawnym JSON.",
+    "showMine": "Pokaż moją próbę"
+  },
+  "matrix": {
+    "add": "{row} × {col}: dodaj",
+    "addHere": "Dodaj tutaj",
+    "empty": "pusto"
+  },
+  "part": {
+    "checking": "Sprawdzanie…",
+    "nothing": "Nic do powtórzenia teraz.",
+    "cards": {
+      "one": " — {count} kart",
+      "few": " — {count} kart",
+      "many": " — {count} kart",
+      "other": " — {count} kart"
+    },
+    "open": "otwórz"
+  },
+  "step": {
+    "done": "zrobione",
+    "overdue": "po terminie",
+    "todo": "do zrobienia",
+    "until": " · do {date}",
+    "noBase": "Baza wiedzy kursu nie jest dostępna z tego linku — zapytaj prowadzących.",
+    "measuring": "Liczenie, ile już umiesz…",
+    "noCards": "W tej bazie wiedzy nie ma jeszcze kart.",
+    "share": "Umiesz {share} — cel: {goal} · {name}",
+    "howMuch": "Ile już umiesz",
+    "fold": "Zwiń",
+    "review": "Powtórz",
+    "learn": "Ucz się",
+    "fromBase": "Z bazy wiedzy",
+    "choose": "— wybierz —",
+    "unavailable": "(niedostępna) {id}",
+    "allCards": "— wszystkie karty bazy wiedzy —",
+    "deleted": "(usunięta)",
+    "doneAt": "Zrobione przy",
+    "percent": "% znajomości"
+  },
+  "pathRun": {
+    "noQuestions": "Do tego nie ma jeszcze pytań."
+  },
+  "away": {
+    "opening": "Otwieranie…",
+    "checking": "Sprawdzanie urządzenia…",
+    "sealed": "Powtórki bez internetu są zapieczętowane Twoim kluczem.",
+    "title": "Nauka bez internetu",
+    "none": "Na tym urządzeniu nie ma nic do nauki bez internetu. Przygotowuje się to z siecią: zaloguj się, wybierz „Klucz zachowany na tym urządzeniu” (Konto → Bezpieczeństwo i klucze) i przejdź raz powtórkę, którą autor oznaczył „Trzymaj na urządzeniach bez internetu”. Potem zalogujesz się tutaj bez sieci.",
+    "signInFailed": "Nie udało się zalogować bez internetu.",
+    "signInTitle": "Zaloguj się bez internetu",
+    "signInLede": "Hasło sprawdza to urządzenie — bez usługi. Gdy wróci sieć, zalogujemy Cię tym samym kluczem, bez pytania o hasło.",
+    "account": "Konto",
+    "login": "Nazwa konta",
+    "password": "Hasło",
+    "computing": "Liczenie klucza…",
+    "signIn": "Zaloguj bez internetu",
+    "signedIn": "Zalogowano bez internetu: <b>{login}</b>.",
+    "signOut": "Wyloguj",
+    "here": "Na tym urządzeniu bez internetu",
+    "nothing": "Nic. Autor może oznaczyć powtórkę „Trzymaj na urządzeniach bez internetu” — wtedy po pierwszym przejściu z siecią zostanie tutaj (tylko gdy klucz jest zachowany na tym urządzeniu).",
+    "broken": "Powtórka (nie otwiera się)",
+    "saved": "zapisana {date}",
+    "waiting": {
+      "one": "{count} paczka odpowiedzi czeka na internet — wyślą się same, gdy wróci sieć i będziesz zalogowany.",
+      "few": "{count} paczki odpowiedzi czekają na internet — wyślą się same, gdy wróci sieć i będziesz zalogowany.",
+      "many": "{count} paczek odpowiedzi czeka na internet — wyślą się same, gdy wróci sieć i będziesz zalogowany.",
+      "other": "{count} paczki odpowiedzi czeka na internet — wyślą się same, gdy wróci sieć i będziesz zalogowany."
+    },
+    "openingRun": "Otwieranie powtórki…",
+    "notHere": "Tej powtórki nie ma na tym urządzeniu.",
+    "all": "Wszystkie powtórki bez internetu"
+  },
+  "lesson": {
+    "card": "Karta",
+    "mastered": "Opanowane",
+    "masteredOf": {
+      "one": "{done} z {count} karty",
+      "few": "{done} z {count} kart",
+      "many": "{done} z {count} kart",
+      "other": "{done} z {count} karty"
+    },
+    "firstTry": "Dobrze za pierwszym razem",
+    "time": "Czas nauki",
+    "practise": "Do poćwiczenia",
+    "practiseN": "Do poćwiczenia ({n})",
+    "hinted": "z podpowiedzią",
+    "again": "Ćwicz te jeszcze raz ({n})"
+  },
+  "goal": {
+    "title": "Cel dzienny",
+    "today": "Dziś {k} z {n}",
+    "reached": "cel osiągnięty",
+    "left": " · jeszcze {cards}",
+    "streak": {
+      "one": "Seria: {count} dzień z rzędu",
+      "few": "Seria: {count} dni z rzędu",
+      "many": "Seria: {count} dni z rzędu",
+      "other": "Seria: {count} dni z rzędu"
+    },
+    "week": "Ostatnie 7 dni",
+    "day": "{day}: {cards}",
+    "dayMet": "{day}: {cards} — cel osiągnięty"
+  },
+  "public": {
+    "loading": "Wczytywanie powtórki…",
+    "noRead": "Tej bazy wiedzy nie możesz czytać — powtórka bez konta działa w bazie z obszaru publicznego (albo z linkiem do niego).",
+    "noRevision": "Tej powtórki nie ma w bazie wiedzy."
+  },
+  "intro": {
+    "failed": "Nie udało się — spróbuj jeszcze raz.",
+    "text": "Przedstaw się, a Twoje postępy zobaczy prowadzący kurs („{course}”) — i będą na Ciebie czekać także na innym urządzeniu z tym linkiem.",
+    "given": "Imię",
+    "surname": "Nazwisko",
+    "busy": "Chwila…",
+    "go": "Przedstaw się i ucz się",
+    "linkPerson": "osoba z linku",
+    "you": "Ty",
+    "asOffice": "Uczysz się jako {who} — postępy widzi też prowadzący kurs.",
+    "asOwn": "Uczysz się jako {who} — postępy zostają na Twoim koncie."
   }
 }

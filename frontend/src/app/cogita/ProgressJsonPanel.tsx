@@ -12,8 +12,10 @@ import type { Card } from './cardBasics';
 import { renamer, type Learner } from './learn';
 import { applyProgress, exportProgress, planProgress, PROGRESS_JSON, type ProgressContext } from './progressJson';
 import { entityName, useCtx } from './ui';
+import { useT } from '../core/i18n';
 
 export function ProgressJsonPanel({ learner, cards }: { learner: Learner; cards: readonly Card[] }) {
+  const t = useT();
   const { lib, name } = useCtx();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
 
@@ -33,20 +35,20 @@ export function ProgressJsonPanel({ learner, cards }: { learner: Learner; cards:
   const context = (): ProgressContext => ({
     libraryId: lib.libraryId, existing: learner.progress.answers, cardKeys, ...(rename === undefined ? {} : { rename })
   });
-  const file = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-+|-+$/g, '') || 'baza';
+  const file = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-+|-+$/g, '') || t('cogitaData.json.baseFallback');
 
   return (
     <JsonPanel
-      summary="Moje postępy jako JSON"
-      lead={<>Twoje odpowiedzi w tej bazie wiedzy — karta, jak dobrze, kiedy, jak długo i co podano — do zachowania albo do analizy przez AI. Import dopisuje do Twoich postępów odpowiedzi, których jeszcze nie ma; niczego nie zmienia ani nie usuwa i nigdy nie zapisuje za kogoś innego.</>}
-      fileName={`postepy-${file}.json`}
+      summary={t('cogitaData.json.progressSummary')}
+      lead={t('cogitaData.json.progressLead')}
+      fileName={t('cogitaData.json.progressFile', { name: file })}
       exportDoc={() => exportProgress({
         libraryId: lib.libraryId, name, answers: learner.progress.answers.values(),
         textOf: (key) => texts.get(rename?.(key) ?? key)
       })}
       format={PROGRESS_JSON}
       preview={(doc) => planProgress(doc, context())}
-      importLabel="Dopisz do moich postępów"
+      importLabel={t('cogitaData.json.progressImport')}
       onImport={async (doc, stage) => {
         const plan = planProgress(doc, context());
         if ('error' in plan) throw new WorkspaceError(plan.error);

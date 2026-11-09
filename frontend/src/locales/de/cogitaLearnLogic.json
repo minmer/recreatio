@@ -1,0 +1,174 @@
+{
+  "level": {
+    "unseen": "unbekannt",
+    "learning": "zu wiederholen",
+    "known": "bekannt"
+  },
+  "dependency": {
+    "prerequisite": "Zuerst muss man kennen",
+    "elaboration": "Vertieft",
+    "context": "Gibt Hintergrund"
+  },
+  "band": {
+    "known": "kann ich",
+    "due": "zu wiederholen",
+    "ring": "bereit zum Lernen",
+    "mountain": "noch hinter den Bergen"
+  },
+  "landscape": {
+    "noOrder": "Diese Basis hat keine Lernreihenfolge („Zuerst muss man kennen“) — alles, was du noch nicht kannst, steht in der Ebene.",
+    "cycles": "In der Lernreihenfolge gibt es Kreise ({n}) — jeder zählt als ein Schritt; korrigiere sie unter „Zu erledigen“.",
+    "noArea": "ohne Gebiet"
+  },
+  "detour": {
+    "crossOptional": "Ein Abstecher in eine andere Welt („{flow}“) ist immer freiwillig — \"optional\": false gilt nicht.",
+    "noFlow": "Der Abstecher zeigt auf keine Geschichte (\"flow\") — Lernende sehen nur „Weiter“.",
+    "missing": "Der Abstecher zeigt auf die Geschichte „{flow}“, die weder im Dokument noch in der Basis ist — Lernende sehen nur „Weiter“.",
+    "self": "Der Abstecher führt in dieselbe Geschichte {name} — eine Geschichte kann nicht in sich selbst hinein.",
+    "cycle": "Die Abstecher bilden einen Kreis: {ring} — eine Geschichte kann über Abstecher nicht zu sich zurück. Entferne einen davon.",
+    "deep": "Die Abstecher gehen tiefer als {depth} Ebenen: {chain} — den tiefsten bietet der Spieler nicht an.",
+    "quoted": "„{name}“"
+  },
+  "learn": {
+    "notNeeded": "Zum Senden nicht nötig."
+  },
+  "offline": {
+    "locked": "Ohne Internet ist der private Schlüssel der Person verschlossen."
+  },
+  "oldCopies": {
+    "done": "Alte öffentliche Kopien zurückgezogen: {withdrawn}, Kopien aus Einträgen entfernt: {stripped}, Dateikopien zurückgezogen: {files}.",
+    "kept": "Übrige Kopien: {n} — sie zeigen Einträge, die es in der Basis nicht mehr gibt (stelle sie aus dem Verlauf wieder her oder behalte die Kopie; solange sie da ist, lässt sich diese Basis nicht für alle öffnen).",
+    "failed": "Dateien konnten nicht zurückgezogen werden: {n} — versuch es noch einmal."
+  },
+  "presentation": {
+    "noAccess": "Du hast keinen Zugang zu dieser Wissensbasis.",
+    "noWrite": "In dieser Wissensbasis schreibst du nicht — den Ablauf kann jemand anlegen, der darin schreibt.",
+    "name": "Präsentation"
+  },
+  "worlds": {
+    "crumbs": "Wo du bist"
+  },
+  "python": {
+    "crashed": "Python funktioniert nicht mehr.",
+    "unavailable": "Python ist hier nicht verfügbar.",
+    "tooLong": "Python hat zu lange gerechnet.",
+    "loadTooLong": "Python hat zu lange geladen — prüfe das Internet und versuch es noch einmal.",
+    "startFailed": "Python konnte nicht gestartet werden (beim ersten Mal braucht es Internet): {error}",
+    "loadTimeout": "Der Code läuft schon beim Start zu lange (über {s} s) — steht eine Schleife außerhalb der Funktion transform?",
+    "invalid": "Der Code lief nicht.",
+    "garbled": "Python hat unverständlich geantwortet.",
+    "caseTimeout": "Zeit überschritten ({s} s je Fall).",
+    "nothing": "Diese Frage hat keine Beispiele und keine verdeckten Fälle zum Prüfen.",
+    "notRun": "Nicht ausgeführt — {why}",
+    "notRunQuestion": "Nicht ausgeführt — Fehler in der Frage (create_input/reference): {error}",
+    "questionTooLong": "create_input/reference rechnen zu lange",
+    "questionError": "Fehler in der Frage (create_input/reference): {error}",
+    "questionFailed": "create_input/reference sind fehlgeschlagen",
+    "tooManyTimeouts": "Nicht ausgeführt — der Code hat {n}-mal die Zeit überschritten.",
+    "unknownCommand": "Unbekannter Befehl für Python.",
+    "failed": "Python ist fehlgeschlagen.",
+    "needTransform": "Du musst eine Funktion definieren: def transform(x):",
+    "noTransform": "Die Funktion transform(x) fehlt.",
+    "notLoaded": "Der Code ist nicht geladen.",
+    "noCreate": "create_input(seed) oder reference(x) fehlt.",
+    "noCase": "Es gibt keinen vorbereiteten Fall.",
+    "needRun": "Der Code muss eine Funktion run(*eingaben) definieren."
+  },
+  "generator": {
+    "noEntry": "„{name}“: kein Eintrag der Art „{kind}“ passt.",
+    "noEntryWhere": "„{name}“: kein Eintrag der Art „{kind}“ passt zu „{where}“.",
+    "tooFew": "„{name}“: {want} verschiedene Einträge nötig, {n} passen.",
+    "overrun": "„{name}“: zu viel Rechnen (Listen länger als erlaubt oder zu viele Schritte).",
+    "unmet": "Die Bedingung „{source}“ ließ sich in {total} Ziehungen nicht erfüllen — erweitere die Bereiche oder lockere die Bedingungen."
+  },
+  "samples": {
+    "noCardWhy": "Die Karte ist nicht entstanden — es fehlt eine Antwort oder Möglichkeiten.",
+    "noCard": "Die Karte ist nicht entstanden.",
+    "made": "{k} von {n} gelungen.",
+    "madeTries": "{k} von {n} gelungen · im Schnitt {tries} Ziehungen je Aufgabe.",
+    "madeTriesRejected": "{k} von {n} gelungen · im Schnitt {tries} Ziehungen je Aufgabe ({pct} % verworfen).",
+    "title": "Beispielaufgaben ({n})",
+    "other": "Andere Beispiele",
+    "drawing": "Wird gezogen…"
+  },
+  "quilt": {
+    "label": {
+      "new": "neu",
+      "learning": "am Lernen",
+      "due": "zu wiederholen",
+      "known": "kann ich"
+    },
+    "says": {
+      "new": "noch ohne Antwort",
+      "learning": "zuletzt falsch oder vergessen — zurück zum Lernen",
+      "due": "kannst du, und jetzt ist Wiederholen dran",
+      "known": "kannst du — vor dem Wiederholungstermin"
+    },
+    "step": {
+      "s1": "kann weniger als ¼",
+      "s2": "¼ – ½",
+      "s3": "½ – ¾",
+      "s4": "über ¾"
+    }
+  },
+  "quiltView": {
+    "empty": "Diese Ansicht hat keine Einträge.",
+    "noQuestionsYet": "Zu diesem Eintrag gibt es noch keine Fragen.",
+    "noQuestions": "Zu diesem Eintrag gibt es keine Fragen.",
+    "entry": "Eintrag",
+    "allKnown": "Du kannst alles ({n})",
+    "known": "Du kannst {k} von {n}",
+    "shown": "{k} von {n} Einträgen gezeigt.",
+    "shownMore": "{k} von {n} Einträgen gezeigt — ",
+    "noQuestionsShort": " · ohne Fragen",
+    "notYet": "noch nicht",
+    "practise": "Das üben",
+    "questions": "Fragen",
+    "lastAnswer": "{word} · {date} · {answers}",
+    "answers": {
+      "one": "{count} Antwort",
+      "other": "{count} Antworten"
+    },
+    "hints": " · Hinweise: {n}",
+    "map": "Karte",
+    "title": "Fortschrittskarte",
+    "classSum": "Alle können {k} von {n} · Lernende: {learners}",
+    "nobody": "noch niemand hat geantwortet",
+    "knowsOf": "{k} von {n} können es",
+    "nobodyQuestions": "Auf diese Fragen hat noch niemand geantwortet.",
+    "nobodyRange": "In diesem Bereich hat noch niemand geantwortet.",
+    "col": {
+      "question": {
+        "label": "Frage"
+      },
+      "learners": {
+        "label": "Lernende",
+        "says": "wie viele geantwortet haben"
+      },
+      "success": {
+        "label": "Trefferquote",
+        "says": "ganz richtige Antworten (ohne Hinweise)"
+      },
+      "first": {
+        "label": "Beim ersten Mal",
+        "says": "wie viele sofort richtig geantwortet haben"
+      },
+      "attempts": {
+        "label": "Versuche im Schnitt",
+        "says": "Antworten je Person"
+      },
+      "hints": {
+        "label": "Hinweise",
+        "says": "aufgedeckte Hinweise insgesamt (in wie vielen Antworten)"
+      },
+      "wrong": {
+        "label": "Häufigste falsche Antwort"
+      }
+    },
+    "shown300": "300 von {n} gezeigt.",
+    "successNote": "Die Trefferquote zählt nur ganz richtige Antworten — eine richtige Antwort mit Hinweis zählt nicht.",
+    "who": "Wer",
+    "everyone": "alle zusammen",
+    "mapOf": "Karte: {name}"
+  }
+}

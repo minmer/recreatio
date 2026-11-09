@@ -10,7 +10,10 @@ export type StoryGoalStep =
   | { readonly id: string; readonly kind: 'story'; readonly story: Flow }
   | { readonly id: string; readonly kind: 'review' | 'topic'; readonly cards: readonly Card[] };
 
-/** Start at the first unfinished, accessible step, including a review needed to unlock it. */
+/**
+ * 2026-11-08 — WO EIN ZIEL BEGINNT: beim ersten offenen Schritt des Weges, der jetzt geht — auch einer Powtórka, die
+ * ihn erst öffnet. Gelernte Schritte vor dem Ziel werden übersprungen; `null`: auf diesem Weg geht gerade nichts.
+ */
 export function firstStoryGoalStep(route: readonly StoryRouteStep[], cards: readonly Card[], suspended: ReadonlySet<string>): StoryGoalStep | null {
   const target = route[route.length - 1]?.id;
   for (const step of route) {
@@ -25,14 +28,17 @@ export function firstStoryGoalStep(route: readonly StoryRouteStep[], cards: read
   return null;
 }
 
-/** Save the destination and its ordered route using the landscape's existing goal format. */
+/**
+ * „Ustaw jako cel": das Ziel in jedem Krajobraz (dem der Wpisy, jedem gespeicherten Widok, jedem, der schon eines hatte)
+ * — OHNE eigenen Weg: den nummerierten Weg rechnet jeder Krajobraz beim Öffnen selbst (`LandscapeView`, 2026-11-05),
+ * so zählt die Karte dieselben Felder wie bei einem dort gesetzten Ziel. Danach: der erste Schritt, der jetzt geht.
+ */
 export async function keepStoryGoal(lib: CogitaLibrary, cards: readonly Card[], learner: Learner, target: string): Promise<StoryGoalStep | null> {
   const route = storyRoute(lib, cards, learner, target);
   if (firstStoryGoalStep(route, cards, learner.progress.suspended) === null) return null;
   const views = lib.docs('view').filter((d) => readView(d.data).mode === 'landscape');
   const keys = new Set(['landscape:wpisy', ...views.map((v) => `landscape:${v.id}`), ...[...learner.progress.positions.keys()].filter((key) => key.startsWith('landscape:'))]);
-  const visited = route.map((step) => step.id);
   const at = Date.now();
-  for (const flow of keys) await learner.keepPosition({ flow, step: target, visited, at });
+  for (const flow of keys) await learner.keepPosition({ flow, step: target, visited: [], at });
   return firstStoryGoalStep(storyRoute(lib, cards, learner, target), cards, learner.progress.suspended);
 }

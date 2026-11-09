@@ -58,6 +58,7 @@ import { EventDialog } from '../calendar/EventDialog';
 import { isMass, SERVICE_LABEL, dayKey, dayLabel, firstOnOrAfter, hour, loadOffice, positionInDay, type OfficeMass } from './mass';
 import { loadCalendars as loadAllCalendars, setOccurrence } from '../calendar/calendar';
 import { loadAreas, type AreaRow } from '../areas/area';
+import { rich, useT, type T } from '../core/i18n';
 import { useMe, type Me } from '../core/me';
 import { useAreaPeople, type Candidate } from '../calendar/PeoplePicker';
 import { viewPath } from '../routes';
@@ -94,6 +95,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
   /** Mit eigener Überschrift — im Editor einer Seite; im Arbeitsplatz steht sie schon oben. */
   heading?: boolean;
 }) {
+  const t = useT();
   const me = useMe(who);
   const wanted = { calendar: trail[0] ?? '', day: DAY.test(trail[1] ?? '') ? trail[1]! : '', item: trail[2] ?? '' };
 
@@ -164,9 +166,9 @@ export function MassOffice({ who, trail = [], heading = false }: {
       setAt((current) => Math.min(current, Math.max(0, list.length - 1)));
     } catch (e) {
       setServices([]);
-      setError(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać planu.');
+      setError(e instanceof WorkspaceError ? e.message : t('masses.office.loadFailed'));
     }
-  }, [chosen, from]);
+  }, [chosen, from]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void load(); }, [load]);
 
@@ -185,7 +187,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
       setCalendars(found.calendars.filter((c) => c.archived !== true));
       await load();
     } catch (e) {
-      setError(e instanceof WorkspaceError ? e.message : `Nie udało się: ${what}`);
+      setError(e instanceof WorkspaceError ? e.message : t('masses.office.failedWhat', { what }));
     }
   };
 
@@ -204,7 +206,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
   const edit = async (one: OfficeMass) => {
     setError(null);
     if (me == null) {
-      setError('Bez kluczy w tej karcie nie da się zmieniać wpisów — zaloguj się ponownie.');
+      setError(t('masses.office.noKeys'));
       return;
     }
 
@@ -216,31 +218,32 @@ export function MassOffice({ who, trail = [], heading = false }: {
         .find((e) => e.item?.occurrence.itemId === one.itemId && sameInstant(e.item.occurrence.occurrenceAt, one.occurrenceAt));
 
       if (event === undefined) {
-        setError('Tego wpisu nie ma w Twoim kalendarzu — nie możesz go zmieniać.');
+        setError(t('masses.office.notYours'));
         return;
       }
       setEditing(event);
     } catch (e) {
-      setError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć wpisu.');
+      setError(e instanceof WorkspaceError ? e.message : t('masses.office.openFailed'));
     }
   };
 
   /** Ein Vorkommen absagen — oder zurückholen. */
   const toggleOne = async (one: OfficeMass) => {
-    const when = `${dayLabel(one.startsAt)} ${hour(one.startsAt)}`;
+    const when = `${dayLabel(one.startsAt, new Date(), t.lang)} ${hour(one.startsAt)}`;
+    const what = SERVICE_LABEL[one.kind] ?? t('masses.office.entry');
 
     if (one.skipped === true) {
-      void act('Przywracanie…', async () => {
+      void act(t('masses.office.restoring'), async () => {
         await restoreOne(one.itemId, one.occurrenceAt);
-        setDone(`Przywrócono: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}.`);
+        setDone(t('masses.office.restored', { what, when }));
       });
       return;
     }
 
-    if (!(await askText(`Odwołać tylko ten termin: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}? Seria zostaje.`))) return;
-    void act('Odwoływanie…', async () => {
+    if (!(await askText(t('masses.office.cancelAsk', { what, when })))) return;
+    void act(t('masses.office.cancelling'), async () => {
       await setOccurrence(one.itemId, one.occurrenceAt, { cancelled: true });
-      setDone(`Odwołano: ${SERVICE_LABEL[one.kind] ?? 'wpis'} ${when}. Można to cofnąć — „Przywróć".`);
+      setDone(t('masses.office.cancelled', { what, when }));
     });
   };
 
@@ -280,7 +283,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
     if (index >= 0) { setAt(index); setTab('intentions'); }
   };
 
-  if (calendars === null) return <Loading label="Wczytywanie…" />;
+  if (calendars === null) return <Loading label={t('common.loading')} />;
 
   /*
    * Kein Kalender heisst hier nicht „leer", sondern „kein Zertyfikat auf żaden
@@ -291,8 +294,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
     return (
       <>
         <p className="wk-note">
-          Nie masz jeszcze żadnego terminarza. Terminarz to terminy jednej grupy
-          (obszaru) — wybierz grupę, a powstanie sam.
+          {t('masses.office.noCalendar')}
         </p>
         <NewCalendar areas={areas} busy={false} onAct={act} />
       </>
@@ -301,11 +303,11 @@ export function MassOffice({ who, trail = [], heading = false }: {
 
   return (
     <>
-      {heading && <h3 className="wk-h2">Msze, nabożeństwa i intencje</h3>}
+      {heading && <h3 className="wk-h2">{t('masses.office.title')}</h3>}
 
       <div className="wk-mo-top">
         <label className="wk-field">
-          <span>Terminarz grupy</span>
+          <span>{t('masses.office.calendar')}</span>
           <select value={chosen} onChange={(e) => { setChosen(e.target.value); recent.touch(e.target.value); setAt(0); }}>
             {recent.order(calendars, (c) => c.calendarId).map((c) => (
               <option key={c.calendarId} value={c.calendarId}>
@@ -318,20 +320,20 @@ export function MassOffice({ who, trail = [], heading = false }: {
         <NewCalendar areas={areas} busy={false} onAct={act} />
 
         <label className="wk-field">
-          <span>Dzień</span>
+          <span>{t('masses.office.day')}</span>
           <input type="date" value={shownDay} onChange={(e) => goToDay(e.target.value)} />
         </label>
 
         {tab === 'intentions' && masses.length > 0 && (
           <label className="wk-field">
-            <span>Msza</span>
+            <span>{t('masses.service.mass')}</span>
             {/* Alle Messen des Fensters, nicht nur die des Tages — Strg+Enter
                 geht ohnehin darüber hinaus, und eine Liste, die dazu nicht
                 passt, führt in die Irre. */}
             <select value={at} onChange={(e) => setAt(Number(e.target.value))}>
               {masses.map((m, index) => (
                 <option key={keyOf(m)} value={index}>
-                  {dayLabel(m.startsAt)} {hour(m.startsAt)}
+                  {dayLabel(m.startsAt, new Date(), t.lang)} {hour(m.startsAt)}
                   {(m.title ?? '') === '' ? '' : ` — ${m.title}`}
                 </option>
               ))}
@@ -339,19 +341,19 @@ export function MassOffice({ who, trail = [], heading = false }: {
           </label>
         )}
 
-        <a className="wk-link-btn" href={viewPath('calendar', shownDay)}>Ten dzień w kalendarzu</a>
+        <a className="wk-link-btn" href={viewPath('calendar', shownDay)}>{t('masses.office.dayInCalendar')}</a>
 
-        <MenuButton label="Więcej: msze i intencje" text="Więcej" items={[
-          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }
+        <MenuButton label={t('masses.office.moreLabel')} text={t('common.more')} items={[
+          { label: t('masses.office.json'), icon: 'braces', onSelect: () => setJson(true) }
         ]} />
       </div>
 
       <div className="wk-tabs" role="tablist">
         {([
-          ['intentions', 'Intencje'], ['plan', 'Plan i zmiany'], ['new', 'Nowy wpis'], ['terms', 'Terminy do zapisów'], ['print', 'Wydruk']
+          ['intentions', 'masses.office.tab.intentions'], ['plan', 'masses.office.tab.plan'], ['new', 'masses.office.tab.new'], ['terms', 'masses.office.tab.terms'], ['print', 'masses.office.tab.print']
         ] as const).map(([value, text]) => (
           <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'wk-tab wk-tab-on' : 'wk-tab'}
-            onClick={() => setTab(value)}>{text}</button>
+            onClick={() => setTab(value)}>{t(text)}</button>
         ))}
       </div>
 
@@ -362,8 +364,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
         <>
           {masses.length === 0 && (
             <p className="wk-note">
-              Przez najbliższe dwa tygodnie od tego dnia nie ma żadnej mszy w planie.
-              Załóż ją w „Nowy wpis" — jeden wpis powtarzający się wystarcza na cały okres.
+              {t('masses.office.noMasses')}
             </p>
           )}
 
@@ -375,7 +376,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
               masses={masses}
               candidates={candidates}
               names={names}
-              position={label(masses, at)}
+              position={label(masses, at, t)}
               /* „Weiter" endet am Rand des FENSTERS, nicht des Tages. */
               hasNext={at + 1 < masses.length}
               onNextMass={() => setAt((n) => Math.min(n + 1, masses.length - 1))}
@@ -386,9 +387,7 @@ export function MassOffice({ who, trail = [], heading = false }: {
           )}
 
           <p className="wk-mo-keys">
-            <kbd>Enter</kbd> zapisuje i zostaje przy tej mszy ·{' '}
-            <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi do następnej —
-            także na następny dzień · <kbd>Esc</kbd> czyści pole
+            {rich(t('masses.office.keys'), { k: (s) => <kbd>{s}</kbd> })}
           </p>
         </>
       )}
@@ -421,12 +420,12 @@ export function MassOffice({ who, trail = [], heading = false }: {
           me={me} areas={areas} calendars={allCalendars}
           target={{ at: 'event', event: editing }}
           onClose={() => setEditing(null)}
-          onSaved={() => { setDone('Zapisano zmiany.'); void load(); }}
+          onSaved={() => { setDone(t('masses.office.saved')); void load(); }}
         />
       )}
 
       {json && (
-        <Modal title="Msze i intencje — import i eksport (JSON)" wide onClose={() => setJson(false)}>
+        <Modal title={t('masses.office.jsonTitle')} wide onClose={() => setJson(false)}>
           <Suspense fallback={<Loading />}>
             <MassesJsonPanel
               me={me ?? null} calendars={calendars} areas={areas} chosen={chosen} day={shownDay}
@@ -440,9 +439,9 @@ export function MassOffice({ who, trail = [], heading = false }: {
 }
 
 /** „2 z 7" — im Tag gezählt, denn so viel bleibt bis zu seinem Ende. */
-function label(masses: readonly OfficeMass[], at: number): string {
+function label(masses: readonly OfficeMass[], at: number, t: T): string {
   const where = positionInDay(masses, at);
-  return `${where.at} z ${where.of}`;
+  return t('masses.office.position', { at: where.at, of: where.of });
 }
 
 /**

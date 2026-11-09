@@ -16,7 +16,7 @@
  */
 
 import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { PATH_SHAPE } from '../routes';
 import type { PageCard } from '../workspace/desk';
 
@@ -41,38 +41,45 @@ export const MAX_DOMAINS = 50;
 
 /* -- Die Sätze — eine Stelle für Beschreibung und Prüfung ------------------------------------------------- */
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${ADDRESSES_FORMAT}"`,
-  version: `${ADDRESSES_VERSION} — wersja formatu`,
-  pages: 'tylko informacja z eksportu: adresy stron, które prowadzisz — tylko one mogą być celem aliasu ("target") i stroną domeny ("path"); "" to samo recreatio.pl',
-  roles: 'tylko informacja z eksportu: Twoje role, które mogą odpowiadać za alias (niżej)',
-  aliases: `aliasy (niżej), najwyżej ${MAX_ALIASES}`,
-  domains: `własne domeny (niżej), najwyżej ${MAX_DOMAINS}`
-};
+/** Sätze, die erst beim Lesen entstehen — in der Sprache von dann (Getter, keine Übersetzung beim Laden). */
+function lazy(said: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [key, text] of Object.entries(said)) Object.defineProperty(out, key, { get: text, enumerable: true });
+  return out;
+}
 
-const ROLE_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator roli — tego używa "role" aliasu',
-  name: 'nazwa roli, jak widzisz ją w warsztacie'
-};
+const TOP_KEYS = lazy({
+  format: () => `"${ADDRESSES_FORMAT}"`,
+  version: () => t('pagesAddresses.json.key.version', { version: ADDRESSES_VERSION }),
+  pages: () => t('pagesAddresses.json.key.pages'),
+  roles: () => t('pagesAddresses.json.key.roles'),
+  aliases: () => t('pagesAddresses.json.key.aliases', { max: MAX_ALIASES }),
+  domains: () => t('pagesAddresses.json.key.domains', { max: MAX_DOMAINS })
+});
 
-const ALIAS_KEYS: Readonly<Record<string, string>> = {
-  path: 'adres aliasu bez "recreatio.pl/", np. "parafia/news": małe litery, cyfry i myślniki, części oddzielone ukośnikiem; musi leżeć POD adresem, który prowadzisz (adres najwyższego poziomu, jak "cogita", wydaje serwer z kodem); po nim import rozpoznaje alias, który już jest',
-  target: 'adres strony, na którą alias prowadzi — jeden z "pages" (nie inny alias: łańcuchów nie ma)',
-  role: 'kto odpowiada za alias: "id" z "roles"; pominięta — rola, która prowadzi stronę docelową'
-};
+const ROLE_KEYS = lazy({
+  id: () => t('pagesAddresses.json.key.roleId'),
+  name: () => t('pagesAddresses.json.key.roleName')
+});
 
-const DOMAIN_KEYS: Readonly<Record<string, string>> = {
-  path: 'strona, którą domena pokazuje — jeden z "pages" (strona ma najwyżej jedną domenę); po nim import rozpoznaje domenę, która już jest',
-  host: 'sama nazwa domeny, np. "cogita.pl": małe litery, z kropką, bez "https://" i bez ścieżki (do 200 znaków); inna niż obecna — zamienia ją; null — odpina domenę od tej strony (jedyny sposób usunięcia w tym formacie)'
-};
+const ALIAS_KEYS = lazy({
+  path: () => t('pagesAddresses.json.key.aliasPath'),
+  target: () => t('pagesAddresses.json.key.aliasTarget'),
+  role: () => t('pagesAddresses.json.key.aliasRole')
+});
+
+const DOMAIN_KEYS = lazy({
+  path: () => t('pagesAddresses.json.key.domainPath'),
+  host: () => t('pagesAddresses.json.key.domainHost')
+});
 
 /** Jeder Schlüssel als Pfad (`aliases[].path`) mit seinem Satz — für die Prüfung, dass nichts unbeschrieben bleibt. */
-export const ADDRESSES_KEYS: Readonly<Record<string, string>> = {
-  ...TOP_KEYS,
-  ...Object.fromEntries(Object.entries(ROLE_KEYS).map(([k, v]) => [`roles[].${k}`, v])),
-  ...Object.fromEntries(Object.entries(ALIAS_KEYS).map(([k, v]) => [`aliases[].${k}`, v])),
-  ...Object.fromEntries(Object.entries(DOMAIN_KEYS).map(([k, v]) => [`domains[].${k}`, v]))
-};
+export const ADDRESSES_KEYS: Readonly<Record<string, string>> = lazy({
+  ...Object.fromEntries(Object.keys(TOP_KEYS).map((k) => [k, () => TOP_KEYS[k]])),
+  ...Object.fromEntries(Object.keys(ROLE_KEYS).map((k) => [`roles[].${k}`, () => ROLE_KEYS[k]])),
+  ...Object.fromEntries(Object.keys(ALIAS_KEYS).map((k) => [`aliases[].${k}`, () => ALIAS_KEYS[k]])),
+  ...Object.fromEntries(Object.keys(DOMAIN_KEYS).map((k) => [`domains[].${k}`, () => DOMAIN_KEYS[k]]))
+});
 
 const SAMPLE_ROLE = '0190a0a0-0000-7000-8000-0000000000a1';
 
@@ -80,16 +87,16 @@ const SAMPLE = {
   format: ADDRESSES_FORMAT,
   version: ADDRESSES_VERSION,
   pages: ['parafia', 'parafia/aktualnosci', 'cogita'],
-  roles: [{ id: SAMPLE_ROLE, name: 'Kancelaria parafii (rola)' }],
+  roles: [{ id: SAMPLE_ROLE, name: 'Kancelaria parafii (rola)' }], // i18n-ignore — Beispieldaten
   aliases: [{ path: 'parafia/news', target: 'parafia/aktualnosci', role: SAMPLE_ROLE }],
   domains: [{ path: 'cogita', host: 'cogita.pl' }]
 };
 
 /** Was ausserhalb der App bleibt — in der Beschreibung und im Plan dieselben Sätze. */
-const OUTSIDE: readonly string[] = [
-  `DNS u rejestratora domeny: A dla samej domeny → ${PAGES_A.join(', ')}; AAAA → ${PAGES_AAAA.join(', ')}; CNAME dla „www” → ${PAGES_CNAME}.`,
-  'Osobne miejsce na pliki strony pod tą nazwą: GitHub Pages przyjmuje jedną własną domenę na repozytorium, a tą jest już recreatio.pl — potrzebne osobne repozytorium z plikiem CNAME albo inny hosting plików statycznych.',
-  'Zgoda usługi: nazwa domeny w „Api:Origins” usługi api.recreatio.pl — ustawia ją administrator serwera; bez tego strona pod domeną nie odczyta danych.'
+const outside = (): string[] => [
+  t('pagesAddresses.json.outside.dns', { a: PAGES_A.join(', '), aaaa: PAGES_AAAA.join(', '), cname: PAGES_CNAME }),
+  t('pagesAddresses.json.outside.host'),
+  t('pagesAddresses.json.outside.origin')
 ];
 
 /*
@@ -99,46 +106,32 @@ const OUTSIDE: readonly string[] = [
  */
 export const ADDRESSES_USAGE_JSON: JsonNode = {
   key: 'addresses.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Alias i domena to tylko drugie wejście: usługa prowadzi je do strony docelowej i stamtąd bierze wszystko — tytuł, wstęp, moduły, wygląd. Zmiana strony jest od razu widoczna pod każdym wejściem.
-- Pod własną domeną podstrony mają krótsze adresy: na cogita.pl strona cogita/kursy to #/kursy.
-- Dostęp idzie za stroną docelową: strona tylko z dostępem (także zapieczętowana) zostaje taka pod aliasem i pod domeną, a zablokowana po zgłoszeniu nie pokazuje się pod żadnym wejściem.
-- Nikt nie dostaje nowych praw: stronę edytują dalej ci, którzy prowadzą jej adres. "role" aliasu mówi tylko, kto nim zarządza — nie, kto widzi stronę.
-- Alias nie jest osobną stroną: tam, gdzie wybiera się stronę (np. przy linkach dostępu), go nie ma — wybiera się stronę docelową. Mapa zależności pokazuje domenę przy jej stronie.`
+  get title() { return t('pagesAddresses.json.usageTitle'); },
+  text: () => t('pagesAddresses.json.usage')
 };
 
 export const ADDRESSES_JSON: JsonNode = {
   key: 'addresses',
-  title: `Adresy i domeny jako JSON ("${ADDRESSES_FORMAT}", wersja ${ADDRESSES_VERSION})`,
-  short: 'Adresy i domeny',
-  text: () => `Aliasy i własne domeny stron, które prowadzi to konto (Warsztat → Ustawienia → „Adresy i domeny” → „Import i eksport (JSON)”, #/workspace/addresses). Alias to drugie wejście na stronę wewnątrz recreatio.pl (recreatio.pl/parafia/news pokazuje parafia/aktualnosci); własna domena pokazuje stronę pod inną nazwą (cogita.pl pokazuje recreatio.pl/cogita). Treść zostaje tam, gdzie leży — wejście tylko na nią wskazuje.
-Co robi import:
-- Najpierw pokazuje plan zmian z ostrzeżeniami; zapisuje dopiero po „Importuj”.
-- Alias, którego jeszcze nie ma, zakłada. Alias, który już jest, rozpoznaje po "path": ten sam cel — bez zmian; inny cel — ostrzeżenie (celu aliasu nie da się zmienić ani aliasu usunąć — także w aplikacji).
-- Domenę podpina do strony "path", zamienia na inną albo — tylko przy "host": null — odpina. Przeniesienie domeny na inną stronę: przy starej stronie "host": null (albo inna domena), przy nowej ta domena — import najpierw odpina, potem podpina.
-- Strony, których nie ma w "domains", i aliasy, których nie ma w "aliases", zostają bez zmian. Niczego innego nie usuwa.
-- Adresów nie przejmuje: adres najwyższego poziomu (np. recreatio.pl/cogita) wydaje serwer z kodem — „Strony” → „Przejmij adres”.
-Co zostaje poza aplikacją — dla każdej nowej domeny (plan przypomina o tym przy imporcie):
-${OUTSIDE.map((line, i) => `${i + 1}. ${line}`).join('\n')}
-Logowanie pod własną domeną wymaga jeszcze api.<domena> (CNAME na tę samą usługę, z certyfikatem) — to również praca na serwerze; strony publiczne działają bez tego.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
+  get title() { return t('pagesAddresses.json.formatTitle', { format: ADDRESSES_FORMAT, version: ADDRESSES_VERSION }); },
+  get short() { return t('pagesAddresses.json.short'); },
+  text: () => `${t('pagesAddresses.json.intro', { host: `<${t('pagesAddresses.json.hostWord')}>`, outside: outside().map((line, i) => `${i + 1}. ${line}`).join('\n') })}
 
-Dokument:
+${t('pagesAddresses.json.doc')}
 ${keyLines(TOP_KEYS)}
 
-Alias (wpis w "aliases"):
+${t('pagesAddresses.json.aliasEntry')}
 ${keyLines(ALIAS_KEYS)}
 
-Domena (wpis w "domains"):
+${t('pagesAddresses.json.domainEntry')}
 ${keyLines(DOMAIN_KEYS)}
 
-Rola (wpis w "roles", tylko informacja):
+${t('pagesAddresses.json.roleEntry')}
 ${keyLines(ROLE_KEYS)}
 
-Przykład:
+${t('pagesAddresses.json.example')}
 ${pretty(SAMPLE)}`,
   inside: () => [ADDRESSES_USAGE_JSON],
-  samples: () => [{ label: 'Alias i własna domena', doc: () => SAMPLE }]
+  samples: () => [{ label: t('pagesAddresses.json.sample'), doc: () => SAMPLE }]
 };
 
 /** Die Beschreibung als Text — ohne Zusammenhang aufrufbar (MCP, `import-formats.mjs`). */
@@ -213,12 +206,12 @@ const ledFrom = (parent: string, roots: readonly string[]): boolean =>
   roots.some((root) => root === '' || parent === root || parent.startsWith(`${root}/`));
 
 export function planAddresses(doc: unknown, state: AddressState): AddressPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument adresów (oczekiwano obiektu JSON).' };
-  if (doc.format !== undefined && doc.format !== ADDRESSES_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${ADDRESSES_FORMAT}".` };
+  if (!isObject(doc)) return { error: t('pagesAddresses.json.w.notDoc') };
+  if (doc.format !== undefined && doc.format !== ADDRESSES_FORMAT) return { error: t('pagesAddresses.json.w.otherFormat', { said: String(doc.format), format: ADDRESSES_FORMAT }) };
 
   const warnings: string[] = [];
-  if (doc.version !== undefined && doc.version !== ADDRESSES_VERSION) warnings.push(`Wersja ${String(doc.version)} — znam wersję ${ADDRESSES_VERSION}; czytam to, co rozpoznaję.`);
-  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
+  if (doc.version !== undefined && doc.version !== ADDRESSES_VERSION) warnings.push(t('pagesAddresses.json.w.version', { said: String(doc.version), version: ADDRESSES_VERSION }));
+  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(t('pagesAddresses.json.w.unknownKey', { key }));
 
   const roots = state.pages.filter((p) => p.aliasOf === null).map((p) => p.path);
   const page = new Map(state.pages.map((p) => [p.path, p]));
@@ -230,50 +223,50 @@ export function planAddresses(doc: unknown, state: AddressState): AddressPlan | 
   const listOf = (key: 'aliases' | 'domains', max: number): unknown[] => {
     const value = doc[key];
     if (value === undefined || value === null) return [];
-    if (!Array.isArray(value)) { warnings.push(`"${key}" musi być listą — pominięte.`); return []; }
-    if (value.length > max) warnings.push(`"${key}": ${value.length} pozycji — biorę pierwsze ${max}.`);
+    if (!Array.isArray(value)) { warnings.push(t('pagesAddresses.json.w.notList', { key })); return []; }
+    if (value.length > max) warnings.push(t('pagesAddresses.json.w.tooMany', { key, count: value.length, max }));
     return value.slice(0, max);
   };
 
   const seenAliases = new Set<string>();
   listOf('aliases', MAX_ALIASES).forEach((raw, i) => {
-    const where = `Alias ${i + 1}`;
-    if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięty.`); return; }
-    for (const key of Object.keys(raw)) if (!described(ALIAS_KEYS, key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
-    if (typeof raw.path !== 'string' || pathOf(raw.path) === '') { warnings.push(`${where}: brak "path" — pominięty.`); return; }
+    const where = t('pagesAddresses.json.w.aliasN', { n: i + 1 });
+    if (!isObject(raw)) { warnings.push(t('pagesAddresses.json.w.aliasNotObject', { where })); return; }
+    for (const key of Object.keys(raw)) if (!described(ALIAS_KEYS, key)) warnings.push(t('pagesAddresses.json.w.entryUnknownKey', { where, key }));
+    if (typeof raw.path !== 'string' || pathOf(raw.path) === '') { warnings.push(t('pagesAddresses.json.w.aliasNoPath', { where })); return; }
     const path = pathOf(raw.path);
     const named = `${where} (${path})`;
-    if (!PATH_SHAPE.test(path)) { warnings.push(`${named}: adres to małe litery, cyfry i myślniki, części oddzielone ukośnikiem — pominięty.`); return; }
-    if (seenAliases.has(path)) { warnings.push(`${named}: ten sam adres drugi raz — pominięty.`); return; }
+    if (!PATH_SHAPE.test(path)) { warnings.push(t('pagesAddresses.json.w.aliasBadPath', { named })); return; }
+    if (seenAliases.has(path)) { warnings.push(t('pagesAddresses.json.w.aliasTwice', { named })); return; }
     seenAliases.add(path);
-    if (typeof raw.target !== 'string') { warnings.push(`${named}: brak "target" — pominięty.`); return; }
+    if (typeof raw.target !== 'string') { warnings.push(t('pagesAddresses.json.w.aliasNoTarget', { named })); return; }
     const target = pathOf(raw.target);
 
     const there = page.get(path);
     if (there !== undefined) {
-      if (there.aliasOf === null) warnings.push(`${named}: to strona, nie alias — pominięty.`);
+      if (there.aliasOf === null) warnings.push(t('pagesAddresses.json.w.aliasIsPage', { named }));
       else if (there.aliasOf === target) aliasesKept += 1;
-      else warnings.push(`${named}: ten alias prowadzi do ${shown(there.aliasOf)}; celu aliasu nie da się zmienić (także w aplikacji) — zostaje, jak jest.`);
+      else warnings.push(t('pagesAddresses.json.w.aliasOtherTarget', { named, target: shown(there.aliasOf) }));
       return;
     }
 
-    if (!path.includes('/')) { warnings.push(`${named}: alias zakłada się pod adresem, który prowadzisz (np. parafia/news) — nazwy najwyższego poziomu wydaje serwer z kodem. Pominięty.`); return; }
-    if (path === 'workspace' || path.startsWith('workspace/')) { warnings.push(`${named}: adres „workspace” należy do samego warsztatu — pominięty.`); return; }
-    if (path === target) { warnings.push(`${named}: alias nie może wskazywać na siebie — pominięty.`); return; }
+    if (!path.includes('/')) { warnings.push(t('pagesAddresses.json.w.aliasTop', { named })); return; }
+    if (path === 'workspace' || path.startsWith('workspace/')) { warnings.push(t('pagesAddresses.json.w.aliasWorkspace', { named })); return; }
+    if (path === target) { warnings.push(t('pagesAddresses.json.w.aliasSelf', { named })); return; }
     const goal = page.get(target);
     if (goal === undefined || goal.aliasOf !== null) {
-      warnings.push(`${named}: cel „${target}” nie jest stroną, którą prowadzisz${goal !== undefined ? ' (to alias — łańcuchów nie ma)' : ''} — pominięty.`);
+      warnings.push(t(goal !== undefined ? 'pagesAddresses.json.w.aliasTargetAlias' : 'pagesAddresses.json.w.aliasTargetNotYours', { named, target }));
       return;
     }
     const parent = path.split('/').slice(0, -1).join('/');
-    if (!ledFrom(parent, roots)) { warnings.push(`${named}: nie prowadzisz adresu „${parent}”, więc nie założysz pod nim aliasu — pominięty.`); return; }
+    if (!ledFrom(parent, roots)) { warnings.push(t('pagesAddresses.json.w.aliasNotLed', { named, parent })); return; }
 
     let roleId = roleName.has(goal.roleId) ? goal.roleId : state.roles[0]?.id ?? '';
     if (raw.role !== undefined && raw.role !== null) {
       if (typeof raw.role === 'string' && roleName.has(raw.role)) roleId = raw.role;
-      else warnings.push(`${named}: rola „${String(raw.role)}” nie jest jedną z Twoich ról — odpowie ${roleName.get(roleId) ?? 'rola strony docelowej'}.`);
+      else warnings.push(t('pagesAddresses.json.w.aliasRole', { named, role: String(raw.role), instead: roleName.get(roleId) ?? t('pagesAddresses.json.w.targetRole') }));
     }
-    if (roleId === '') { warnings.push(`${named}: nie masz roli, która mogłaby za niego odpowiadać — pominięty.`); return; }
+    if (roleId === '') { warnings.push(t('pagesAddresses.json.w.aliasNoRole', { named })); return; }
     aliases.push({ path, target, roleId, roleName: roleName.get(roleId) ?? roleId });
   });
 
@@ -283,29 +276,29 @@ export function planAddresses(doc: unknown, state: AddressState): AddressPlan | 
   let domainsKept = 0;
   const seenDomains = new Set<string>();
   listOf('domains', MAX_DOMAINS).forEach((raw, i) => {
-    const where = `Domena ${i + 1}`;
-    if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięta.`); return; }
-    for (const key of Object.keys(raw)) if (!described(DOMAIN_KEYS, key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
-    if (typeof raw.path !== 'string') { warnings.push(`${where}: brak "path" — pominięta.`); return; }
+    const where = t('pagesAddresses.json.w.domainN', { n: i + 1 });
+    if (!isObject(raw)) { warnings.push(t('pagesAddresses.json.w.domainNotObject', { where })); return; }
+    for (const key of Object.keys(raw)) if (!described(DOMAIN_KEYS, key)) warnings.push(t('pagesAddresses.json.w.entryUnknownKey', { where, key }));
+    if (typeof raw.path !== 'string') { warnings.push(t('pagesAddresses.json.w.domainNoPath', { where })); return; }
     const path = pathOf(raw.path);
     const named = `${where} (${shown(path)})`;
     const there = page.get(path);
-    if (there === undefined) { warnings.push(`${named}: domenę podpina się do strony, którą prowadzisz — pominięta.`); return; }
-    if (seenDomains.has(path)) { warnings.push(`${named}: ta sama strona drugi raz — pominięta.`); return; }
+    if (there === undefined) { warnings.push(t('pagesAddresses.json.w.domainNotYours', { named })); return; }
+    if (seenDomains.has(path)) { warnings.push(t('pagesAddresses.json.w.domainTwice', { named })); return; }
     seenDomains.add(path);
-    if (!('host' in raw)) { warnings.push(`${named}: brak "host" (nazwa domeny albo null) — pominięta.`); return; }
+    if (!('host' in raw)) { warnings.push(t('pagesAddresses.json.w.domainNoHost', { named })); return; }
     let host: string | null = null;
     if (raw.host !== null) {
-      if (typeof raw.host !== 'string') { warnings.push(`${named}: "host" to nie tekst — pominięta.`); return; }
+      if (typeof raw.host !== 'string') { warnings.push(t('pagesAddresses.json.w.domainHostNotText', { named })); return; }
       host = hostOf(raw.host);
       if (host === '' || host.length > 200 || !HOST_SHAPE.test(host)) {
-        warnings.push(`${named}: „${raw.host}” to nie nazwa domeny (małe litery, z kropką, bez http:// i bez ścieżki) — pominięta.`);
+        warnings.push(t('pagesAddresses.json.w.domainBadHost', { named, host: raw.host }));
         return;
       }
     }
     /* Erst „wie bisher", dann die Regel: was so dasteht (auch eine Domain, die der Dienst an einem Alias hält), ist keine Änderung. */
     if (host === there.host) { domainsKept += 1; return; }
-    if (there.aliasOf !== null) { warnings.push(`${named}: domenę podpina się do strony, na której leży treść — nie do aliasu. Pominięta.`); return; }
+    if (there.aliasOf !== null) { warnings.push(t('pagesAddresses.json.w.domainOnAlias', { named })); return; }
     wishes.push({ path, host, was: there.host, where: named });
   });
 
@@ -319,10 +312,10 @@ export function planAddresses(doc: unknown, state: AddressState): AddressPlan | 
   for (const w of wishes) {
     if (w.host === null) { kept.push(w); continue; }
     const first = seenHosts.get(w.host);
-    if (first !== undefined) { warnings.push(`${w.where}: domena ${w.host} jest już w dokumencie przy ${shown(first)} — pominięta.`); after.set(w.path, w.was); continue; }
+    if (first !== undefined) { warnings.push(t('pagesAddresses.json.w.domainDouble', { where: w.where, host: w.host, page: shown(first) })); after.set(w.path, w.was); continue; }
     const now = holder.get(w.host);
     if (now !== undefined && now !== w.path && after.get(now) === w.host) {
-      warnings.push(`${w.where}: domena ${w.host} pokazuje już ${shown(now)}. Żeby ją przenieść, daj przy "${now}" "host": null (albo inną domenę). Pominięta.`);
+      warnings.push(t('pagesAddresses.json.w.domainTaken', { where: w.where, host: w.host, page: shown(now), path: now }));
       after.set(w.path, w.was);
       continue;
     }
@@ -352,24 +345,24 @@ export function planAddresses(doc: unknown, state: AddressState): AddressPlan | 
     }
     waiting = next;
   }
-  for (const w of waiting) warnings.push(`${w.where}: strony wymieniają się domenami — tego nie da się zrobić jednym importem. Najpierw odepnij ("host": null), potem podepnij. Pominięta.`);
+  for (const w of waiting) warnings.push(t('pagesAddresses.json.w.domainSwap', { where: w.where }));
 
   const domains: PlannedDomain[] = ordered.map((w) => ({ path: w.path, host: w.host, was: w.was }));
 
   /* -- Was der Plan sagt -- */
   const lines: string[] = [];
-  for (const a of aliases) lines.push(`Nowy alias: ${shown(a.path)} → ${shown(a.target)} (odpowiada: ${a.roleName})`);
+  for (const a of aliases) lines.push(t('pagesAddresses.json.line.alias', { path: shown(a.path), target: shown(a.target), role: a.roleName }));
   for (const d of domains) {
     lines.push(d.host === null
-      ? `Odepnie domenę ${d.was} od ${shown(d.path)}`
+      ? t('pagesAddresses.json.line.unbind', { host: d.was ?? '', page: shown(d.path) })
       : d.was === null
-        ? `Domena ${d.host} pokaże ${shown(d.path)}`
-        : `${shown(d.path)}: domena ${d.was} → ${d.host} (${d.was} przestanie ją pokazywać)`);
+        ? t('pagesAddresses.json.line.bind', { host: d.host, page: shown(d.path) })
+        : t('pagesAddresses.json.line.swap', { page: shown(d.path), was: d.was, host: d.host }));
   }
   if (aliasesKept + domainsKept > 0) {
-    lines.push(`Bez zmian: ${aliasesKept} ${plural(aliasesKept, 'alias', 'aliasy', 'aliasów')}, ${domainsKept} ${plural(domainsKept, 'domena', 'domeny', 'domen')}`);
+    lines.push(t('pagesAddresses.json.line.kept', { aliases: t('pagesAddresses.json.line.aliases', { count: aliasesKept }), domains: t('pagesAddresses.json.line.domains', { count: domainsKept }) }));
   }
-  if (aliases.length === 0 && domains.length === 0) lines.push('Nic do zmiany.');
+  if (aliases.length === 0 && domains.length === 0) lines.push(t('pagesAddresses.json.line.nothing'));
   lines.push(...outsideLines(domains));
   return { aliases, domains, lines, warnings };
 }
@@ -379,8 +372,8 @@ export function outsideLines(domains: readonly PlannedDomain[]): string[] {
   const fresh = domains.filter((d) => d.host !== null).map((d) => d.host!);
   if (fresh.length === 0) return [];
   return [
-    `Poza aplikacją (import tego nie zrobi) — dla ${fresh.join(', ')}:`,
-    ...OUTSIDE.map((line, i) => `${i + 1}. ${line}`)
+    t('pagesAddresses.json.line.outside', { hosts: fresh.join(', ') }),
+    ...outside().map((line, i) => `${i + 1}. ${line}`)
   ];
 }
 
@@ -392,7 +385,7 @@ export interface AddressCalls {
   readonly bindDomain: (path: string, host: string | null) => Promise<unknown>;
 }
 
-const why = (e: unknown): string => (e instanceof Error && e.message !== '' ? e.message : 'nie udało się');
+const why = (e: unknown): string => (e instanceof Error && e.message !== '' ? e.message : t('pages.run.failed'));
 
 /**
  * Was der Plan sagt, der Reihe nach. Ein Fehler hält die übrigen nicht an: jede Zeile ist für sich, und was
@@ -401,22 +394,22 @@ const why = (e: unknown): string => (e instanceof Error && e.message !== '' ? e.
 export async function applyAddresses(plan: AddressPlan, calls: AddressCalls, stage: (what: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
   const lines: string[] = [];
   const warnings: string[] = [];
-  if (plan.aliases.length > 0) stage('Zakładanie aliasów…');
+  if (plan.aliases.length > 0) stage(t('pagesAddresses.json.run.aliases'));
   let made = 0;
   for (const a of plan.aliases) {
-    try { await calls.declareAlias(a.path, a.target, a.roleId); made += 1; } catch (e) { warnings.push(`Alias ${shown(a.path)}: ${why(e)}`); }
+    try { await calls.declareAlias(a.path, a.target, a.roleId); made += 1; } catch (e) { warnings.push(t('pagesAddresses.json.run.aliasFailed', { page: shown(a.path), why: why(e) })); }
   }
-  if (plan.domains.length > 0) stage('Podpinanie domen…');
+  if (plan.domains.length > 0) stage(t('pagesAddresses.json.run.domains'));
   const bound: PlannedDomain[] = [];
   for (const d of plan.domains) {
-    try { await calls.bindDomain(d.path, d.host); bound.push(d); } catch (e) { warnings.push(`Domena ${d.host ?? d.was ?? ''} (${shown(d.path)}): ${why(e)}`); }
+    try { await calls.bindDomain(d.path, d.host); bound.push(d); } catch (e) { warnings.push(t('pagesAddresses.json.run.domainFailed', { host: d.host ?? d.was ?? '', page: shown(d.path), why: why(e) })); }
   }
-  if (made > 0) lines.push(`Założone aliasy: ${made}`);
+  if (made > 0) lines.push(t('pagesAddresses.json.run.made', { n: made }));
   const on = bound.filter((d) => d.host !== null).length;
   const off = bound.length - on;
-  if (on > 0) lines.push(`Podpięte domeny: ${on}`);
-  if (off > 0) lines.push(`Odpięte domeny: ${off}`);
-  if (lines.length === 0) lines.push('Nic nie zostało zmienione.');
+  if (on > 0) lines.push(t('pagesAddresses.json.run.on', { n: on }));
+  if (off > 0) lines.push(t('pagesAddresses.json.run.off', { n: off }));
+  if (lines.length === 0) lines.push(t('pagesAddresses.json.run.nothing'));
   lines.push(...outsideLines(bound));
   return { lines, warnings };
 }

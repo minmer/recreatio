@@ -39,19 +39,30 @@ import { useRunRewards } from './RewardsEditor';
 import { entityName, entityNameTex, originPath, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
+import { LangScope, rich, useT } from '../core/i18n';
+import { baseLang } from './lang';
 
 type State = 'known' | 'learning' | 'fresh' | 'waiting' | 'order';
 
 const STATE_LABEL: Record<State, string> = {
-  known: 'umiem',
-  learning: 'w nauce',
-  fresh: 'do nauki',
-  waiting: 'czeka na podstawy',
-  order: 'tylko porządkuje'
+  known: 'cogitaLearnPath.path.state.known',
+  learning: 'cogitaLearnPath.path.state.learning',
+  fresh: 'cogitaLearnPath.path.state.fresh',
+  waiting: 'cogitaLearnPath.path.state.waiting',
+  order: 'cogitaLearnPath.path.state.order'
 };
 
-export function LearningPath({ learner, cards, go }: { learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void }) {
+type PathProps = { learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void };
+
+/** 2026-11-05 — die Ścieżka spricht die Sprache der Baza. */
+export function LearningPath(props: PathProps) {
+  const { lib } = useCtx();
+  return <LangScope lang={baseLang(lib)}><LearningPathIn {...props} /></LangScope>;
+}
+
+function LearningPathIn({ learner, cards, go }: PathProps) {
   const { lib, writes } = useCtx();
+  const t = useT();
   /* 2026-11-02 — zählt die Nauka Punkte: auch im Lauf „Najpierw podstawy" (`RewardsEditor.tsx`). */
   const rewards = useRunRewards();
   const graph = lib.prerequisites();
@@ -60,19 +71,19 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const run = usePathRun(lib, learner, cards, rewards);
   const setRun = (r: { title: string; ids: readonly string[] | null }) => run.start(r.title, r.ids);
 
-  if (cards === null) return <Loading label="Liczenie kart…" />;
+  if (cards === null) return <Loading label={t('cogitaLearnPath.path.counting')} />;
   if (run.view !== null) return <>{run.view}</>;
 
   if (graph.edges.length === 0) {
     return (
       <section className="cg-card cg-path-empty" data-learning-path="empty">
-        <h3>Kolejność nauki</h3>
-        <p>Ta baza nie ma jeszcze kolejności: wszystko jest pytane od razu. Kolejność bierze się z odwołań „Najpierw trzeba znać” — orbital wymaga elektronu i atomu, więc pytania o orbital przychodzą, gdy umiesz atom.</p>
+        <h3>{t('cogitaLearnPath.path.order')}</h3>
+        <p>{t('cogitaLearnPath.path.emptyText')}</p>
         <ul>
-          <li>W rodzaju (Schematy → Rodzaje wpisów) pole-odwołanie z ustawieniem „Kolejność nauki: najpierw trzeba znać to, na co wskazuje” (np. „Wymaga”). Gotowy rodzaj „Pojęcie” z takim polem: <code>templates/cogita/podstawy.json</code>.</li>
-          <li>Pytanie ma pole „Najpierw trzeba znać” samo, a przez „O czym” czeka na to, co trzeba znać przed tym, o co pyta.</li>
+          <li>{rich(t('cogitaLearnPath.path.emptyKind'), { c: (s) => <code>{s}</code> })}</li>
+          <li>{t('cogitaLearnPath.path.emptyQuestion')}</li>
         </ul>
-        {writes && <button type="button" className="wk-btn wk-btn-line" onClick={() => go('schematy', 'rodzaje')}>Przejdź do Schematów</button>}
+        {writes && <button type="button" className="wk-btn wk-btn-line" onClick={() => go('schematy', 'rodzaje')}>{t('cogitaLearnPath.path.toSchemes')}</button>}
       </section>
     );
   }
@@ -117,16 +128,16 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   return (
     <div className="cg cg-path" data-learning-path={order.length}>
       <div className="cg-row-between">
-        <p className="cg-muted">Od podstaw do szczegółów: karta przychodzi, gdy umiesz to, co trzeba znać przed nią. {order.length} {order.length === 1 ? 'poziom' : 'poziomów'}, {placed.size} {placed.size === 1 ? 'wpis' : 'wpisów'} w kolejności.</p>
-        <button type="button" className="wk-btn" onClick={() => setRun({ title: 'Od podstaw', ids: null })}>Ucz się od podstaw</button>
+        <p className="cg-muted">{t('cogitaLearnPath.path.intro', { levels: t('cogitaLearnPath.path.levels', { count: order.length }), entries: t('cogitaLearnPath.path.entries', { count: placed.size }) })}</p>
+        <button type="button" className="wk-btn" onClick={() => setRun({ title: t('cogitaLearnPath.path.fromBasicsTitle'), ids: null })}>{t('cogitaLearnPath.path.fromBasics')}</button>
       </div>
       {graph.circles.length > 0 && (
         <p className="wk-warn" data-path-circles={graph.circles.length}>
-          Koło w kolejności — te zależności nie działają: <TexText text={graph.circles.slice(0, 4).map((d) => `${shown(d.child)} wymaga ${shown(d.parent)}`).join('; ')} />. Popraw je we wpisach.
+          {t('cogitaLearnPath.path.circles')}<TexText text={graph.circles.slice(0, 4).map((d) => t('cogitaLearnPath.path.requires', { child: shown(d.child), parent: shown(d.parent) })).join('; ')} />{t('cogitaLearnPath.path.circlesFix')}
         </p>
       )}
-      <PathMap model={model} marks={marks} title="Ścieżka" name={(id) => <TexText text={shown(id)} />}
-        detail={(id) => { const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
+      <PathMap model={model} marks={marks} title={t('cogitaLearn.words.pathTitle')} name={(id) => <TexText text={shown(id)} />}
+        detail={(id) => { const n = cardsAbout(cards, id).length; return n === 0 ? null : t('cogitaLearn.count.cards', { count: n }); }}
         actions={(id, state) => (
           <div className="wk-actions">
             {stageOf(id) !== null ? (
@@ -135,31 +146,31 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
               </button>
             ) : (
               <button type="button" className="wk-btn" onClick={() => setRun({ title: name(id), ids: [id] })} data-path-learn={id}>
-                {state === 'done' ? 'Powtórz' : 'Ucz się'}{state !== 'done' && (graph.needs.get(id) ?? []).length > 0 ? ' (z podstawami)' : ''}
+                {state === 'done' ? t('cogitaLearnRun.step.review') : (graph.needs.get(id) ?? []).length > 0 ? t('cogitaLearnPath.path.learnBasics') : t('cogitaLearnRun.step.learn')}
               </button>
             )}
-            {lib.origin(id) !== undefined && <a className="wk-link-btn" href={originPath(lib.origin(id)!, id, 'wpisy')}>Otwórz wpis</a>}
+            {lib.origin(id) !== undefined && <a className="wk-link-btn" href={originPath(lib.origin(id)!, id, 'wpisy')}>{t('cogitaLearn.words.openEntry')}</a>}
           </div>
         )} />
       <details className="cg-path-levels" data-path-levels="">
-        <summary>Jako lista — poziomy ({order.length})</summary>
+        <summary>{t('cogitaLearnPath.path.asList', { n: order.length })}</summary>
       {order.map((at) => (
         <section key={at} className="cg-path-level" data-path-level={at}>
           <h3>{levelLabel(at)}</h3>
           <ul className="cg-path-list">
-            {levels.get(at)!.sort((a, b) => name(a).localeCompare(name(b), 'pl', { numeric: true })).map((id) => {
+            {levels.get(at)!.sort((a, b) => name(a).localeCompare(name(b), t.locale, { numeric: true })).map((id) => {
               const { state, waits } = stateOf(id);
               const count = cardsAbout(cards, id).length;
               return (
                 <li key={id} className={`cg-path-item is-${state}`} data-path-entry={id} data-path-state={state}>
                   <span className="cg-path-name">
                     <a className="cg-ref" href={lib.origin(id) === undefined ? '#' : originPath(lib.origin(id)!, id, 'wpisy')}><TexText text={shown(id)} /></a>
-                    <span className="cg-path-state">{STATE_LABEL[state]}{state === 'waiting' ? <>: <TexText text={waits.slice(0, 3).map(shown).join(', ')} /></> : ''}</span>
+                    <span className="cg-path-state">{t(STATE_LABEL[state])}{state === 'waiting' ? <>: <TexText text={waits.slice(0, 3).map(shown).join(', ')} /></> : ''}</span>
                   </span>
                   <span className="cg-path-tools">
-                    {count > 0 && <span className="cg-muted">{count} {count === 1 ? 'karta' : 'kart'}</span>}
+                    {count > 0 && <span className="cg-muted">{t('cogitaLearn.count.cards', { count })}</span>}
                     {(count > 0 || (graph.needs.get(id) ?? []).length > 0) && (
-                      <button type="button" className="wk-link-btn" onClick={() => setRun({ title: name(id), ids: [id] })}>Ucz się{(graph.needs.get(id) ?? []).length > 0 ? ' (z podstawami)' : ''}</button>
+                      <button type="button" className="wk-link-btn" onClick={() => setRun({ title: name(id), ids: [id] })}>{(graph.needs.get(id) ?? []).length > 0 ? t('cogitaLearnPath.path.learnBasics') : t('cogitaLearnRun.step.learn')}</button>
                     )}
                   </span>
                 </li>
@@ -169,7 +180,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
         </section>
       ))}
       </details>
-      {outside > 0 && <p className="cg-muted">{outside} {outside === 1 ? 'wpis z kartami nie ma' : 'wpisów z kartami nie ma'} miejsca w kolejności — przychodzą razem z poziomem 1.</p>}
+      {outside > 0 && <p className="cg-muted">{t('cogitaLearnPath.path.outside', { count: outside })}</p>}
     </div>
   );
 }
@@ -177,6 +188,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
 /** Die Reihenfolge an einem Eintrag (Wiedza): was vor ihm kommt, was auf ihm aufbaut, ein Kreis. */
 export function EntityPrerequisites({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
   const { lib } = useCtx();
+  const t = useT();
   const graph = lib.prerequisites();
   const needs = (graph.needs.get(id) ?? []).filter((x) => lib.entity(x) !== undefined);
   const builds = (graph.builds.get(id) ?? []).filter((x) => lib.entity(x) !== undefined);
@@ -187,13 +199,13 @@ export function EntityPrerequisites({ id, onOpen }: { id: string; onOpen: (id: s
   return (
     <section className="cg-card cg-prereq" data-entity-prerequisites={id}>
       <div className="cg-row-between">
-        <strong>Kolejność nauki</strong>
+        <strong>{t('cogitaLearnPath.path.order')}</strong>
         {level !== undefined && <span className="cg-tag">{levelLabel(level)}</span>}
       </div>
-      {needs.length > 0 && <div className="cg-row"><span className="cg-muted">Najpierw trzeba znać:</span>{refs(needs)}</div>}
-      {builds.length > 0 && <div className="cg-row"><span className="cg-muted">Na tym budują:</span>{refs(builds)}</div>}
+      {needs.length > 0 && <div className="cg-row"><span className="cg-muted">{t('cogitaLearnPath.path.needs')}</span>{refs(needs)}</div>}
+      {builds.length > 0 && <div className="cg-row"><span className="cg-muted">{t('cogitaLearnPath.path.builds')}</span>{refs(builds)}</div>}
       {circles.length > 0 && (
-        <p className="wk-warn">Koło: <TexText text={circles.map((d) => `${entityNameTex(lib, d.child)} wymaga ${entityNameTex(lib, d.parent)}`).join('; ')} /> — ta zależność nie działa, dopóki koło trwa.</p>
+        <p className="wk-warn">{t('cogitaLearnPath.path.circle')}<TexText text={circles.map((d) => t('cogitaLearnPath.path.requires', { child: entityNameTex(lib, d.child), parent: entityNameTex(lib, d.parent) })).join('; ')} />{t('cogitaLearnPath.path.circleEnd')}</p>
       )}
     </section>
   );

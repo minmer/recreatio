@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar, cls, Icon, listTime, PopMenu, useButtonMenu, type MenuItem } from '../chat/ChatKit';
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
+import { rich, t, useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
 import { ask, toast } from '../ui/dialogs';
@@ -33,7 +34,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { Composer } from './Composer';
-import { contactMatches, type Contact } from './contactStore';
+import { contactMatches, phoneLabelText, type Contact } from './contactStore';
 import { chooseLine, contactsOf, lineKeyOf, lineName, lineText, useContactIndex, useLineRules, usePhoneLines, whyIcon, whyText, type LineChoice } from './lines';
 import { LinesView } from './LinesView';
 import { Phone, phoneHere, pluginSource, type Line, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
@@ -71,13 +72,14 @@ export function SmsApp({ who, trail }: { who: Who | null; trail: readonly string
 }
 
 function NeedsAccount() {
+  const t = useT();
   return (
     <>
-      <PageHeader title="SMS" />
-      <p className="wk-note">Ta część potrzebuje konta — zaloguj się, gdy będzie połączenie.</p>
+      <PageHeader title={t('phoneSms.title')} />
+      <p className="wk-note">{t('phoneSms.needsAccount')}</p>
       <div className="wk-actions">
-        <a className="wk-btn" href={viewPath('sms')}>Wróć do SMS</a>
-        <a className="wk-btn wk-btn-quiet" href="#/workspace">Zaloguj się</a>
+        <a className="wk-btn" href={viewPath('sms')}>{t('phoneSms.backToSms')}</a>
+        <a className="wk-btn wk-btn-quiet" href="#/workspace">{t('common.signIn')}</a>
       </div>
     </>
   );
@@ -163,25 +165,25 @@ const archivedIn = (settings: ArchiveSettings, key: string): boolean =>
  * angemeldet, und Nachrichten anderer RCS-Nutzer gehen dorthin statt als SMS hierher.
  */
 function Setup({ status, onChanged }: { status: PhoneStatus; onChanged: () => void }) {
+  const t = useT();
   const [asked, setAsked] = useState(false);
   const [rcsSeen, setRcsSeen] = useRemembered('sms.rcs', '');
   const rcs = status.defaultSms && status.otherSms && rcsSeen !== 'seen';
   if (status.defaultSms && status.contacts && !rcs) return null;
   return (
-    <section className="ph-setup" aria-label="Ustawienia telefonu">
+    <section className="ph-setup" aria-label={t('phoneSms.setup.title')}>
       {!status.defaultSms && (
         <>
-          <p><strong>Ta aplikacja nie jest jeszcze aplikacją SMS telefonu</strong> — nowe wiadomości trafiają do innej, a stąd nie da się wysyłać.</p>
+          <p>{rich(t('phoneSms.setup.notDefault'), { b: (s) => <strong>{s}</strong> })}</p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => void Phone.requestDefault().then((r) => { setAsked(!r.defaultSms); onChanged(); }).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Nie udało się.'))}>
-              Ustaw jako aplikację SMS
+            <button type="button" className="wk-btn" onClick={() => void Phone.requestDefault().then((r) => { setAsked(!r.defaultSms); onChanged(); }).catch((e: unknown) => toast(e instanceof Error ? e.message : t('common.failed')))}>
+              {t('phoneSms.setup.makeDefault')}
             </button>
-            {asked && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void Phone.openSettings()}>Ustawienia aplikacji</button>}
+            {asked && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void Phone.openSettings()}>{t('phoneSms.setup.appSettings')}</button>}
           </div>
           {asked && (
             <p>
-              Telefon nie pozwolił? Na GrapheneOS i Androidzie 13+ aplikacja spoza sklepu musi najpierw dostać zgodę: Ustawienia aplikacji → ⋮ →
-              „Zezwól na ustawienia z ograniczonym dostępem", potem jeszcze raz „Ustaw jako aplikację SMS". Przed zmianą wyłącz czat (RCS) w Google Messages.
+              {t('phoneSms.setup.refused')}
             </p>
           )}
         </>
@@ -189,20 +191,18 @@ function Setup({ status, onChanged }: { status: PhoneStatus; onChanged: () => vo
       {rcs && (
         <>
           <p>
-            <strong>Na telefonie jest też Google Messages.</strong> Jeśli miało włączony czat (RCS), Twój numer może być nadal zgłoszony
-            do czatu: wiadomości od osób, które go używają, dochodzą wtedy z opóźnieniem albo wcale. Ustaw na chwilę Google Messages jako
-            aplikację SMS, wyłącz w nim Ustawienia → Czaty RCS, i wróć tutaj.
+            {rich(t('phoneSms.setup.rcs'), { b: (s) => <strong>{s}</strong> })}
           </p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setRcsSeen('seen')}>Rozumiem</button>
+            <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setRcsSeen('seen')}>{t('phoneSms.setup.understood')}</button>
           </div>
         </>
       )}
       {!status.contacts && (
         <>
-          <p>Bez dostępu do kontaktów zamiast imion stoją numery, a kontakty z recreatio nie trafią do telefonu.</p>
+          <p>{t('phoneSms.setup.noContacts')}</p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void Phone.requestContacts().then(onChanged)}>Pozwól na kontakty</button>
+            <button type="button" className="wk-btn wk-btn-quiet" onClick={() => void Phone.requestContacts().then(onChanged)}>{t('phoneSms.setup.allowContacts')}</button>
           </div>
         </>
       )}
@@ -221,11 +221,11 @@ const pagesSeen = new Map<string, ThreadPage>();
 
 /** Das Bild in der Liste: eine Gruppe, eine Nummer ohne Namen (ein Mensch) — sonst die Anfangsbuchstaben. */
 const avatarIcon = (title: string, people: number): 'users' | 'user' | undefined =>
-  people > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user';
+  people > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'; // i18n-ignore
 
 /** Wie ein Gespräch heisst: die Namen aus dem Adressbuch, sonst die Nummern. */
-const titleOf = (t: NativeThread): string =>
-  t.addresses.length === 0 ? 'Bez numeru' : t.addresses.map((a, i) => t.names?.[i] ?? phoneShown(a)).join(', ');
+const titleOf = (th: NativeThread): string =>
+  th.addresses.length === 0 ? t('phoneSms.noNumber') : th.addresses.map((a, i) => th.names?.[i] ?? phoneShown(a)).join(', ');
 
 /* -- Die Gespräche --------------------------------------------------------------------------- */
 
@@ -237,18 +237,18 @@ const UNSENT_AGE = 10 * 60_000;
 /** Die nicht gesendeten (in einem Gespräch oder überall) löschen — nach einer Frage. `true`: gelöscht. */
 async function dropUnsent(count: number, threadId?: string): Promise<boolean> {
   const sure = await ask({
-    title: threadId === undefined ? `Usunąć niewysłane wiadomości (${count})?` : `Usunąć niewysłane w tej rozmowie (${count})?`,
-    body: 'Usunięte zostaną wiadomości, których telefon nie wysłał (nieudane i zawieszone), starsze niż 10 minut. Wysłanych to nie dotyczy.',
-    confirm: 'Usuń',
+    title: threadId === undefined ? t('phoneSms.unsent.askAll', { count }) : t('phoneSms.unsent.askHere', { count }),
+    body: t('phoneSms.unsent.body'),
+    confirm: t('common.delete'),
     danger: true
   });
   if (!sure) return false;
   try {
     const { deleted } = await Phone.dropUnsent({ before: Date.now() - UNSENT_AGE, ...(threadId === undefined ? {} : { threadId }) });
-    toast(deleted === 1 ? 'Usunięto 1 niewysłaną wiadomość.' : `Usunięto niewysłane: ${deleted}.`);
+    toast(deleted === 1 ? t('phoneSms.unsent.deletedOne') : t('phoneSms.unsent.deleted', { count: deleted }));
     return true;
   } catch (e) {
-    toast(e instanceof Error ? e.message : 'Nie udało się usunąć.');
+    toast(e instanceof Error ? e.message : t('phoneSms.unsent.failed'));
     return false;
   }
 }
@@ -268,6 +268,7 @@ function useUnsent(threadId?: string): [number, () => void] {
 }
 
 function Threads({ who }: { who: Who | null }) {
+  const t = useT();
   const [threads, setThreads] = useState<readonly NativeThread[] | null>(threadsSeen);
   const [failed, setFailed] = useState<string | null>(null);
   const [unsent, refreshUnsent] = useUnsent();
@@ -293,9 +294,9 @@ function Threads({ who }: { who: Who | null }) {
       setThreads(fresh);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać wiadomości.');
+      setFailed(e instanceof Error ? e.message : t('phoneSms.list.loadFailed'));
     }
-  }, []);
+  }, [t]);
   useEffect(() => { void load(); }, [load]);
   useChanged(() => { void load(); refreshMutes(); refreshUnsent(); });
 
@@ -303,10 +304,10 @@ function Threads({ who }: { who: Who | null }) {
   const lineOf = useMemo(() => {
     const out = new Map<string, { name: string; subId: number; choice: LineChoice }>();
     if (lines.length < 2) return out;
-    for (const t of threads ?? []) {
-      const choice = chooseLine({ peers: t.addresses, lines, contacts, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
+    for (const th of threads ?? []) {
+      const choice = chooseLine({ peers: th.addresses, lines, contacts, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
       if (choice.line !== null && (choice.why === 'thread' || choice.why === 'group')) {
-        out.set(t.threadId, { name: lineName(choice.line), subId: choice.line.subId, choice });
+        out.set(th.threadId, { name: lineName(choice.line), subId: choice.line.subId, choice });
       }
     }
     return out;
@@ -317,7 +318,7 @@ function Threads({ who }: { who: Who | null }) {
   useEffect(() => {
     if (threads === null || lines.length < 2) return;
     const subs: Record<string, number> = {};
-    for (const t of threads) subs[t.threadId] = lineOf.get(t.threadId)?.subId ?? -1;
+    for (const th of threads) subs[th.threadId] = lineOf.get(th.threadId)?.subId ?? -1;
     const text = JSON.stringify(subs);
     if (text === pushed.current) return;
     pushed.current = text;
@@ -326,7 +327,7 @@ function Threads({ who }: { who: Who | null }) {
 
   const q = query.trim();
   const shown = useMemo(
-    () => (threads ?? []).filter((t) => conversationMatches(mode, q, titleOf(t), t.addresses)),
+    () => (threads ?? []).filter((th) => conversationMatches(mode, q, titleOf(th), th.addresses)),
     [threads, q, mode]
   );
 
@@ -342,7 +343,7 @@ function Threads({ who }: { who: Who | null }) {
     return () => { alive = false; window.clearTimeout(timer); };
   }, [mode, q]);
 
-  const byId = useMemo(() => new Map((threads ?? []).map((t) => [t.threadId, t])), [threads]);
+  const byId = useMemo(() => new Map((threads ?? []).map((th) => [th.threadId, th])), [threads]);
 
   /*
    * SPRAWDŹ: SMS holt man nicht ab — das Netz bringt sie, und diese App schreibt sie auf. Neu
@@ -355,53 +356,53 @@ function Threads({ who }: { who: Who | null }) {
       const said = await Phone.recheck();
       await load();
       refreshStatus();
-      if (!said.defaultSms) toast('Ta aplikacja nie jest aplikacją SMS telefonu — nowe wiadomości trafiają do innej.');
+      if (!said.defaultSms) toast(t('phoneSms.check.notDefault'));
       else toast([
-        said.mmsRetried > 0 ? `Sprawdzone. Ponowne pobieranie MMS: ${said.mmsRetried}.` : 'Sprawdzone — wszystko, co dotarło do telefonu, jest tutaj.',
-        said.otherSms ? 'Jest też Google Messages: jeśli ma włączony czat (RCS), część wiadomości trafia tam.' : ''
+        said.mmsRetried > 0 ? t('phoneSms.check.mmsRetried', { count: said.mmsRetried }) : t('phoneSms.check.ok'),
+        said.otherSms ? t('phoneSms.check.otherSms') : ''
       ].filter(Boolean).join(' '));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Nie udało się.');
+      toast(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setChecking(false);
     }
   };
 
   /* Bez konta (offline, wylogowany) SMS działają — archiwum, pliki i reguły numerów dopiero po zalogowaniu. */
-  const account = who === null ? ' (po zalogowaniu)' : '';
+  const account = (label: string) => (who === null ? t('phoneSms.menu.afterSignIn', { label }) : label);
   const items: MenuItem[] = [
-    { label: 'Sprawdź nowe wiadomości', icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
-    { label: `Archiwum${account}`, icon: 'archive', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
-    { label: `Pliki przez link${account}`, icon: 'link', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } },
-    { label: `Numery i grupy${account}`, icon: 'phone', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'numery'); } },
-    { label: 'Zablokowane numery', icon: 'ban', onSelect: () => setBlockedOpen(true) },
+    { label: t('phoneSms.menu.check'), icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
+    { label: account(t('phoneSms.menu.archive')), icon: 'archive', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
+    { label: account(t('phoneShare.view.title')), icon: 'link', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } },
+    { label: account(t('phoneLines.title')), icon: 'phone', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'numery'); } },
+    { label: t('phoneSms.blocked.title'), icon: 'ban', onSelect: () => setBlockedOpen(true) },
     ...(unsent > 0 ? [{
-      label: `Usuń niewysłane (${unsent})…`, icon: 'trash' as const, danger: true,
+      label: t('phoneSms.menu.dropUnsent', { count: unsent }), icon: 'trash' as const, danger: true,
       onSelect: () => void dropUnsent(unsent).then((done) => { if (done) { refreshUnsent(); void load(); } })
     }] : [])
   ];
 
-  const row = (t: NativeThread) => {
-    const title = titleOf(t);
-    const line = lineOf.get(t.threadId);
+  const row = (th: NativeThread) => {
+    const title = titleOf(th);
+    const line = lineOf.get(th.threadId);
     return (
-      <li key={t.threadId}>
-        <a className={cls('ch-item', t.unread > 0 && 'is-unread')} href={viewPath('sms', t.threadId)}>
-          <Avatar seed={t.addresses.map(phoneKey).join(',') || t.threadId} name={title} icon={avatarIcon(title, t.addresses.length)} />
+      <li key={th.threadId}>
+        <a className={cls('ch-item', th.unread > 0 && 'is-unread')} href={viewPath('sms', th.threadId)}>
+          <Avatar seed={th.addresses.map(phoneKey).join(',') || th.threadId} name={title} icon={avatarIcon(title, th.addresses.length)} />
           <span className="ch-item-main">
             <span className="ch-item-top">
               <strong className="ch-item-title">{title}</strong>
-              <time className="ch-item-time" dateTime={new Date(t.date).toISOString()}>{listTime(new Date(t.date).toISOString())}</time>
+              <time className="ch-item-time" dateTime={new Date(th.date).toISOString()}>{listTime(new Date(th.date).toISOString())}</time>
             </span>
             <span className="ch-item-bottom">
-              <span className="ch-item-sub">{t.error ? '⚠ ' : ''}{t.attachment && t.snippet === '' ? '📷 Zdjęcie' : t.snippet}</span>
+              <span className="ch-item-sub">{th.error ? '⚠ ' : ''}{th.attachment && th.snippet === '' ? t('phoneSms.list.photo') : th.snippet}</span>
               {line !== undefined && (
-                <span className="ph-item-line" title={`Z numeru: ${line.name} — ${whyText(line.choice)}`} data-why={line.choice.why}>
+                <span className="ph-item-line" title={t('phoneSms.list.fromNumber', { name: line.name, why: whyText(line.choice) })} data-why={line.choice.why}>
                   <Icon name={whyIcon(line.choice.why)} />{line.name}
                 </span>
               )}
-              {muted[t.threadId] !== undefined && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
-              {t.unread > 0 && <span className="ch-badge" aria-label={`${t.unread} nieprzeczytanych`}>{t.unread}</span>}
+              {muted[th.threadId] !== undefined && <span className="ch-item-muted"><Icon name="bell-off" label={t('phoneChat.head.muted')} /></span>}
+              {th.unread > 0 && <span className="ch-badge" aria-label={t('phoneSms.list.unread', { count: th.unread })}>{th.unread}</span>}
             </span>
           </span>
         </a>
@@ -411,32 +412,32 @@ function Threads({ who }: { who: Who | null }) {
 
   return (
     <div className="ph-chats" style={barStyle(top)}>
-      <PageHeader title="SMS" />
+      <PageHeader title={t('phoneSms.title')} />
       {status !== null && <Setup status={status} onChanged={refreshStatus} />}
       <div className="ph-bar" role="search">
         <label className="ch-side-search ph-search-pill">
           <Icon name="search" />
-          <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
+          <select value={mode} aria-label={t('phoneSms.list.searchIn')} onChange={(e) => setModeText(e.target.value)}>
             {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
           </select>
           <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
             inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <a className="ch-icon-btn ph-bar-new" href={viewPath('sms', 'nowa')} aria-label="Nowa wiadomość" title="Nowa wiadomość"><Icon name="compose" /></a>
-        <button type="button" className="ch-icon-btn" aria-label="Więcej: SMS" title="Więcej" aria-haspopup="menu" aria-expanded={more.open !== null}
+        <a className="ch-icon-btn ph-bar-new" href={viewPath('sms', 'nowa')} aria-label={t('phoneSms.newMessage')} title={t('phoneSms.newMessage')}><Icon name="compose" /></a>
+        <button type="button" className="ch-icon-btn" aria-label={t('phoneSms.list.more')} title={t('common.more')} aria-haspopup="menu" aria-expanded={more.open !== null}
           onClick={(e) => more.toggle(e.currentTarget)}>
           <Icon name="more" />
         </button>
-        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="SMS" items={items} onClose={more.close} />}
+        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label={t('phoneSms.title')} items={items} onClose={more.close} />}
       </div>
       {failed !== null && <p className="ch-bar is-error" role="alert">{failed}</p>}
-      {threads === null && failed === null && <Loading label="Wczytywanie wiadomości…" />}
+      {threads === null && failed === null && <Loading label={t('phoneSms.list.loading')} />}
 
       {mode === 'tresc' && q.length >= 2 ? (
-        hits === null ? <Loading label="Szukanie…" lines={2} />
-          : hits.length === 0 ? <p className="wk-empty">Żadna wiadomość tego nie zawiera.</p>
+        hits === null ? <Loading label={t('phoneSms.list.searching')} lines={2} />
+          : hits.length === 0 ? <p className="wk-empty">{t('phoneSms.list.noHits')}</p>
           : (
-            <ul className="ch-list ph-chat-list" aria-label="Znalezione wiadomości">
+            <ul className="ch-list ph-chat-list" aria-label={t('phoneSms.list.hits')}>
               {hits.map((h) => {
                 const thread = byId.get(h.threadId);
                 const title = thread !== undefined ? titleOf(thread) : h.address === null ? 'MMS' : phoneShown(h.address);
@@ -459,7 +460,7 @@ function Threads({ who }: { who: Who | null }) {
           )
       ) : threads !== null && (
         shown.length === 0
-          ? <p className="wk-empty">{q === '' ? 'Nie ma jeszcze wiadomości.' : 'Nic nie pasuje.'}</p>
+          ? <p className="wk-empty">{q === '' ? t('phoneSms.list.empty') : t('phoneContacts.app.noMatch')}</p>
           : <ul className="ch-list ph-chat-list">{shown.map(row)}</ul>
       )}
 
@@ -470,30 +471,31 @@ function Threads({ who }: { who: Who | null }) {
 
 /** ZABLOKOWANE — im Telefon (auch aus der Telefon-App) und hier; einzeln wieder frei. */
 function BlockedList({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [list, setList] = useState<{ numbers: readonly string[]; system: boolean } | null>(null);
   const load = useCallback(() => { void Phone.blocked().then(setList).catch(() => setList({ numbers: [], system: false })); }, []);
   useEffect(() => { load(); }, [load]);
   const free = async (number: string) => {
-    if (!await ask({ title: `Odblokować ${phoneShown(number)}?`, body: 'Telefon znów przyjmie od tego numeru SMS i połączenia.', confirm: 'Odblokuj' })) return;
-    await Phone.unblock({ number }).catch(() => toast('Nie udało się odblokować.'));
+    if (!await ask({ title: t('phoneSms.blocked.unblockAsk', { number: phoneShown(number) }), body: t('phoneSms.blocked.unblockBody'), confirm: t('phoneSms.blocked.unblock') })) return;
+    await Phone.unblock({ number }).catch(() => toast(t('phoneSms.blocked.unblockFailed')));
     load();
   };
   return (
-    <Modal title="Zablokowane numery" onClose={onClose}>
-      {list === null && <Loading label="Wczytywanie…" lines={1} />}
-      {list !== null && list.numbers.length === 0 && <p className="wk-empty">Nie ma zablokowanych numerów.</p>}
+    <Modal title={t('phoneSms.blocked.title')} onClose={onClose}>
+      {list === null && <Loading label={t('common.loading')} lines={1} />}
+      {list !== null && list.numbers.length === 0 && <p className="wk-empty">{t('phoneSms.blocked.empty')}</p>}
       {list !== null && list.numbers.length > 0 && (
         <ul className="ph-blocked">
           {list.numbers.map((n) => (
             <li key={n}>
               <span>{phoneShown(n)}</span>
-              <button type="button" className="wk-link-btn" onClick={() => void free(n)}>Odblokuj</button>
+              <button type="button" className="wk-link-btn" onClick={() => void free(n)}>{t('phoneSms.blocked.unblock')}</button>
             </li>
           ))}
         </ul>
       )}
       {list !== null && !list.system && (
-        <p className="ch-compose-line">Telefon nie pozwala tej aplikacji blokować w systemie (nie jest aplikacją SMS) — blokuje tylko ona sama.</p>
+        <p className="ch-compose-line">{t('phoneSms.blocked.notSystem')}</p>
       )}
     </Modal>
   );
@@ -509,6 +511,7 @@ const PAGE = 60;
  * unter der Kopfleiste — kein Rand unter dem Feld für die Leiste des Telefons.
  */
 function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
+  const t = useT();
   const [page, setPage] = useState<ThreadPage | null>(pagesSeen.get(threadId) ?? null);
   /* Aus „Napisz SMS" oder einer anderen App mit Text (`?tekst=`): er steht schon im Feld. */
   const [initial] = useState(() => hashQuery().get('tekst') ?? '');
@@ -535,7 +538,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
   const messages = page?.messages ?? null;
   const peers = useMemo(() => page?.peers ?? [], [page]);
   const names = useMemo(() => new Map(Object.entries(page?.names ?? {})), [page]);
-  const title = peers.length === 0 ? (page === null ? '' : 'SMS') : peers.map((p) => nameOf(names, p)).join(', ');
+  const title = peers.length === 0 ? (page === null ? '' : t('phoneSms.title')) : peers.map((p) => nameOf(names, p)).join(', ');
   const single = peers.length === 1 ? peers[0] : null;
   const group = peers.length > 1;
   const key = conversationKey(peers);
@@ -570,9 +573,9 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
       await loadPlanned().catch(() => undefined);
       await Phone.markRead({ threadId }).catch(() => undefined);
     } catch (e) {
-      setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać rozmowy.');
+      setFailed(e instanceof Error ? e.message : t('phoneSms.thread.loadFailed'));
     }
-  }, [threadId, loadPlanned]);
+  }, [threadId, loadPlanned, t]);
 
   useEffect(() => {
     setSearch('');
@@ -594,7 +597,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
         return { ...had, messages: [...fresh.messages.filter((m) => !known.has(m.id)), ...had.messages], more: fresh.more };
       });
     } catch {
-      toast('Nie udało się wczytać wcześniejszych wiadomości.');
+      toast(t('phoneSms.thread.olderFailed'));
     } finally {
       setOlderBusy(false);
     }
@@ -615,9 +618,9 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
   const items: SmsItem[] = useMemo(() => (messages ?? []).map((m) => itemOf(m, names, group, lines, () => void load())), [messages, names, group, lines, load]);
 
   const cancelPlanned = async (id: string) => {
-    if (!await ask({ title: 'Odwołać zaplanowaną wiadomość?', confirm: 'Odwołaj', danger: true })) return;
+    if (!await ask({ title: t('phoneSms.thread.cancelAsk'), confirm: t('phoneSms.thread.cancel'), danger: true })) return;
     const { removed } = await Phone.unschedule({ id });
-    if (!removed) toast('Ta wiadomość jest już w drodze.');
+    if (!removed) toast(t('phoneSms.thread.onItsWay'));
     await loadPlanned();
   };
 
@@ -625,7 +628,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
     if (who === null) return;
     const on = !settings.chosen.includes(key);
     saveSettings({ ...settings, chosen: on ? [...settings.chosen, key] : settings.chosen.filter((k) => k !== key) });
-    toast(on ? 'Ta rozmowa będzie archiwizowana — cała, także starsze wiadomości.' : 'Ta rozmowa nie będzie już archiwizowana (to, co już jest w archiwum, zostaje).');
+    toast(on ? t('phoneSms.thread.archiveOn') : t('phoneSms.thread.archiveOff'));
     if (on) void archiveNow(who, pluginSource).catch(() => undefined);
   };
 
@@ -638,28 +641,28 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
         if (settings.chosen.includes(key)) saveSettings({ ...settings, chosen: settings.chosen.filter((k) => k !== key) });
       }
       toast([
-        done.system ? 'Zablokowano i usunięto rozmowę.' : 'Zablokowano (w tej aplikacji) i usunięto rozmowę.',
-        dropped > 0 ? 'Usunięto ją też z archiwum.' : ''
+        done.system ? t('phoneSms.thread.blocked') : t('phoneSms.thread.blockedApp'),
+        dropped > 0 ? t('phoneSms.thread.blockedArchive') : ''
       ].filter(Boolean).join(' '));
       window.location.hash = viewPath('sms');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Nie udało się zablokować.');
+      toast(e instanceof Error ? e.message : t('phoneSms.thread.blockFailed'));
     }
   };
 
   const remove = async () => {
     const yes = await ask({
-      title: 'Usunąć tę rozmowę z telefonu?',
-      body: 'Wszystkie jej wiadomości znikną z telefonu. Archiwum zostaje bez zmian.',
-      confirm: 'Usuń', danger: true
+      title: t('phoneSms.thread.removeAsk'),
+      body: t('phoneSms.thread.removeBody'),
+      confirm: t('common.delete'), danger: true
     });
     if (!yes) return;
     try {
       await Phone.deleteThread({ threadId });
-      toast('Usunięto rozmowę z telefonu.');
+      toast(t('phoneSms.thread.removed'));
       window.location.hash = viewPath('sms');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Nie udało się usunąć.');
+      toast(e instanceof Error ? e.message : t('phoneSms.unsent.failed'));
     }
   };
 
@@ -667,26 +670,26 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
     /* Kontakty z recreatio i archiwum potrzebują konta — bez niego (offline, wylogowany) tylko to, co robi telefon. */
     ...(who === null ? []
       : contact !== undefined
-        ? [{ label: `Kontakt: ${contact.name}`, icon: 'user' as const, onSelect: () => { window.location.hash = viewPath('contacts', contact.id); } }]
+        ? [{ label: t('phoneSms.thread.contact', { name: contact.name }), icon: 'user' as const, onSelect: () => { window.location.hash = viewPath('contacts', contact.id); } }]
         : single !== null && /\d/.test(single)
-          ? [{ label: 'Dodaj do kontaktów', icon: 'plus' as const, onSelect: () => { window.location.hash = `${viewPath('contacts', 'nowy')}?numer=${encodeURIComponent(single)}`; } }]
+          ? [{ label: t('phoneSms.thread.addContact'), icon: 'plus' as const, onSelect: () => { window.location.hash = `${viewPath('contacts', 'nowy')}?numer=${encodeURIComponent(single)}`; } }]
           : []),
     isMuted
-      ? { label: 'Włącz powiadomienia', icon: 'bell', onSelect: () => void Phone.mute({ threadId, until: -1 }).then(refreshMutes) }
-      : { label: 'Wycisz…', icon: 'bell-off', onSelect: () => setDialog('mute') },
+      ? { label: t('phoneSms.thread.unmute'), icon: 'bell', onSelect: () => void Phone.mute({ threadId, until: -1 }).then(refreshMutes) }
+      : { label: t('phoneSms.thread.mute'), icon: 'bell-off', onSelect: () => setDialog('mute') },
     who === null
-      ? { label: 'Archiwum (po zalogowaniu)', icon: 'archive', disabled: true, onSelect: () => undefined }
+      ? { label: t('phoneSms.menu.afterSignIn', { label: t('phoneSms.menu.archive') }), icon: 'archive', disabled: true, onSelect: () => undefined }
       : settings.areaId === null
-        ? { label: 'Archiwum nie jest jeszcze włączone', icon: 'archive', disabled: true, onSelect: () => undefined }
+        ? { label: t('phoneSms.thread.archiveNotOn'), icon: 'archive', disabled: true, onSelect: () => undefined }
         : settings.mode === 'all'
-          ? { label: 'Archiwizowane są wszystkie rozmowy', icon: 'archive', disabled: true, onSelect: () => undefined }
-          : { label: 'Archiwizuj tę rozmowę', icon: 'archive', checked: archived, onSelect: toggleArchive },
+          ? { label: t('phoneSms.thread.archiveAll'), icon: 'archive', disabled: true, onSelect: () => undefined }
+          : { label: t('phoneSms.thread.archiveThis'), icon: 'archive', checked: archived, onSelect: toggleArchive },
     ...(unsentHere > 0 ? [{
-      label: `Usuń niewysłane w tej rozmowie (${unsentHere})…`, icon: 'trash' as const, danger: true,
+      label: t('phoneSms.thread.dropUnsent', { count: unsentHere }), icon: 'trash' as const, danger: true,
       onSelect: () => void dropUnsent(unsentHere, threadId).then((done) => { if (done) { refreshUnsentHere(); void load(); } })
     }] : []),
-    { label: 'Zablokuj (spam)…', icon: 'ban', danger: true, onSelect: () => setDialog('block') },
-    { label: 'Usuń rozmowę z telefonu…', icon: 'trash', danger: true, onSelect: () => void remove() }
+    { label: t('phoneSms.thread.block'), icon: 'ban', danger: true, onSelect: () => setDialog('block') },
+    { label: t('phoneSms.thread.remove'), icon: 'trash', danger: true, onSelect: () => void remove() }
   ];
 
   const numbers = peers.some((p) => names.has(p)) ? peers.map(phoneShown).join(', ') : null;
@@ -709,15 +712,15 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
           <button type="button" className="wk-link-btn" onClick={() => {
             done();
             window.location.hash = `${viewPath('sms', 'nowa')}?tekst=${encodeURIComponent(chosen[0].body)}`;
-          }}>Przekaż</button>
+          }}>{t('phoneSms.thread.forward')}</button>
         ) : null}
         tail={planned.length === 0 ? undefined : planned.map((p) => {
           const notSent = p.state === 'failed';
-          const meta = notSent ? `Nie wysłano${p.error !== undefined ? ` · ${p.error}` : ''}` : p.state === 'sending' ? 'Wysyłanie…' : `Zaplanowana · ${aheadWhen(p.sendAt)}`;
+          const meta = notSent ? (p.error !== undefined ? t('phoneSms.planned.failedWhy', { error: p.error }) : t('phoneSms.planned.failed')) : p.state === 'sending' ? t('phoneSms.planned.sending') : t('phoneSms.planned.at', { when: aheadWhen(p.sendAt) });
           return (
-            <PlannedRow key={p.id} text={p.body} failed={notSent} meta={`${meta}${p.outboxId !== undefined ? ' · z przeglądarki' : ''}`}
-              tools={p.state === 'scheduled' ? <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancelPlanned(p.id)}>Odwołaj</button>
-                : notSent && p.outboxId === undefined ? <button type="button" className="wk-link-btn" onClick={() => void Phone.forgetScheduled({ id: p.id }).then(loadPlanned)}>Ukryj</button>
+            <PlannedRow key={p.id} text={p.body} failed={notSent} meta={p.outboxId !== undefined ? t('phoneSms.planned.fromBrowser', { meta }) : meta}
+              tools={p.state === 'scheduled' ? <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancelPlanned(p.id)}>{t('phoneSms.thread.cancel')}</button>
+                : notSent && p.outboxId === undefined ? <button type="button" className="wk-link-btn" onClick={() => void Phone.forgetScheduled({ id: p.id }).then(loadPlanned)}>{t('phoneSms.planned.hide')}</button>
                 : undefined} />
           );
         })} />
@@ -744,7 +747,7 @@ function simOf(m: NativeMessage, lines: readonly Line[]): { sim?: string; simTit
   if (lines.length < 2 || m.subId === null) return {};
   const line = lines.find((l) => l.subId === m.subId);
   if (line === undefined) return {};
-  return { sim: String(line.slot + 1), simTitle: `${m.box === 'in' ? 'Odebrano na' : 'Wysłano z'}: ${lineText(line)}` };
+  return { sim: String(line.slot + 1), simTitle: t(m.box === 'in' ? 'phoneSms.sim.in' : 'phoneSms.sim.out', { line: lineText(line) }) };
 }
 
 /** Eine Nachricht des Telefons für den Verlauf. */
@@ -766,12 +769,12 @@ function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boo
     media: !m.pending && m.parts.length > 0 ? m.parts.map((p) => <MediaPart key={p.partId} part={p} />) : undefined,
     note: m.pending ? (
       <div className="ph-note">
-        MMS — jeszcze nie pobrana.{' '}
-        <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); void Phone.retryMms({ id: m.id }).then(() => toast('Pobieranie…')); }}>Pobierz</button>
+        {t('phoneSms.mms.pending')}{' '}
+        <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); void Phone.retryMms({ id: m.id }).then(() => toast(t('phoneSms.mms.downloading'))); }}>{t('common.download')}</button>
       </div>
     ) : undefined,
     tools: failed && m.kind === 'sms'
-      ? <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>Wyślij ponownie</button>
+      ? <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>{t('phoneSms.mms.resend')}</button>
       : undefined
   };
 }
@@ -780,6 +783,7 @@ const parts = new Map<string, Promise<string | null>>();
 
 /** Ein Bild (Film, Ton) einer MMS — erst, wenn es zu sehen ist. */
 function MediaPart({ part }: { part: NativePart }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
   const visual = part.type.startsWith('image/') || part.type.startsWith('video/') || part.type.startsWith('audio/');
@@ -806,8 +810,8 @@ function MediaPart({ part }: { part: NativePart }) {
   if (!visual) return <span className="ph-media-file">📎 {part.name ?? part.type}</span>;
   return (
     <div ref={box} className="ph-media">
-      {url === null ? <span className="ph-media-file">{part.type.startsWith('image/') ? '📷 Zdjęcie…' : '🎞 …'}</span>
-        : part.type.startsWith('image/') ? <img src={url} alt={part.name ?? 'Zdjęcie'} loading="lazy" />
+      {url === null ? <span className="ph-media-file">{part.type.startsWith('image/') ? t('phoneSms.mms.photoLoading') : '🎞 …'}</span>
+        : part.type.startsWith('image/') ? <img src={url} alt={part.name ?? t('phoneSms.mms.photo')} loading="lazy" />
         : part.type.startsWith('video/') ? <video src={url} controls preload="metadata" />
         : <audio src={url} controls preload="metadata" />}
     </div>
@@ -824,6 +828,7 @@ function hashQuery(): URLSearchParams {
 }
 
 function Compose({ who }: { who: Who | null }) {
+  const t = useT();
   const query = useMemo(hashQuery, []);
   const [to, setTo] = useState<readonly string[]>(() => (query.get('do') ?? '').split(',').map((n) => n.trim()).filter(Boolean));
   /*
@@ -852,7 +857,7 @@ function Compose({ who }: { who: Who | null }) {
   const lines = usePhoneLines();
   const index = useContactIndex(who);
   const { groupRules, threadRules, setThreadRule } = useLineRules();
-  useCrumbs([{ label: 'Nowa wiadomość', href: null }]);
+  useCrumbs([{ label: t('phoneSms.newMessage'), href: null }]);
 
   useEffect(() => {
     if (who === null) return undefined;
@@ -884,24 +889,24 @@ function Compose({ who }: { who: Who | null }) {
   /* Die Karte für diese Empfänger — wie im Gespräch (eine Gruppe mit eigener Nummer zuerst). */
   const choice = chooseLine({ peers: to, lines, contacts: index, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
 
-  if (opening) return <Loading label="Otwieranie rozmowy…" />;
+  if (opening) return <Loading label={t('phoneSms.compose2.opening')} />;
   return (
     <>
-      <PageHeader title="Nowa wiadomość" />
+      <PageHeader title={t('phoneSms.newMessage')} />
       {status !== null && <Setup status={status} onChanged={() => undefined} />}
       <div className="wk-field">
         <span className="ph-to-head">
-          Do
+          {t('phoneSms.compose2.to')}
           {to.length > 0 && <LineChip lines={lines} choice={choice} onChoose={(l) => setThreadRule(to, l === null ? null : lineKeyOf(l))} />}
         </span>
         <div className="ph-to">
           {to.map((n) => (
             <span key={n} className="ph-chip">
               {names.get(n) ?? phoneShown(n)}
-              <button type="button" aria-label={`Usuń ${n}`} onClick={() => setTo(to.filter((x) => x !== n))}>×</button>
+              <button type="button" aria-label={t('phoneSms.compose2.remove', { name: n })} onClick={() => setTo(to.filter((x) => x !== n))}>×</button>
             </span>
           ))}
-          <input value={typed} inputMode="text" placeholder={to.length === 0 ? 'Imię albo numer' : 'Dodaj…'} aria-label="Odbiorca"
+          <input value={typed} inputMode="text" placeholder={to.length === 0 ? t('phoneSms.compose2.nameOrNumber') : t('phoneSms.compose2.addMore')} aria-label={t('phoneSms.compose2.recipient')}
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
               if ((e.key === 'Enter' || e.key === ',') && typed.trim() !== '') { e.preventDefault(); add(suggestions[0]?.number ?? typed); }
@@ -911,20 +916,20 @@ function Compose({ who }: { who: Who | null }) {
         </div>
       </div>
       {suggestions.length > 0 && (
-        <ul className="ph-suggest" aria-label="Kontakty">
+        <ul className="ph-suggest" aria-label={t('phoneContacts.json.short')}>
           {suggestions.map((s) => (
             <li key={`${s.name}:${s.number}`}>
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => add(s.number)}>
-                <span>{s.name}</span><small>{s.number}{s.label !== null ? ` · ${s.label}` : ''}</small>
+                <span>{s.name}</span><small>{s.number}{s.label !== null ? ` · ${phoneLabelText(s.label)}` : ''}</small>
               </button>
             </li>
           ))}
         </ul>
       )}
       {to.length > 1 && (
-        <div className="wk-field" role="radiogroup" aria-label="Jak wysłać">
-          <label className="wk-check"><input type="radio" checked={separate} onChange={() => setSeparate(true)} /><span>Osobno do każdego (SMS — nikt nie widzi pozostałych)</span></label>
-          <label className="wk-check"><input type="radio" checked={!separate} onChange={() => setSeparate(false)} /><span>Jako grupa (MMS — odpowiedzi widzą wszyscy)</span></label>
+        <div className="wk-field" role="radiogroup" aria-label={t('phoneSms.compose2.how')}>
+          <label className="wk-check"><input type="radio" checked={separate} onChange={() => setSeparate(true)} /><span>{t('phoneSms.compose2.separate')}</span></label>
+          <label className="wk-check"><input type="radio" checked={!separate} onChange={() => setSeparate(false)} /><span>{t('phoneSms.compose2.asGroup')}</span></label>
         </div>
       )}
       <div className="ph-compose-box">
@@ -932,7 +937,7 @@ function Compose({ who }: { who: Who | null }) {
           disabled={status !== null && !status.defaultSms} initial={query.get('tekst') ?? ''}
           onSent={(threadId) => {
             if (to.length > 1 && separate) {
-              toast(`Wysłano do ${to.length} osób.`);
+              toast(t('phoneSms.compose2.sentMany', { count: to.length }));
               window.location.hash = viewPath('sms');
             } else {
               window.location.hash = viewPath('sms', threadId);

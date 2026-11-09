@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { newId } from '../core/ids';
 import { WorkspaceError } from '../core/session';
+import { texts, t } from '../core/i18n';
 import { kindOf, shownMarkup, type EntryData, type LibEntry } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
 
@@ -52,14 +53,14 @@ export interface EntryDraft {
   readonly reloadTheirs: () => void;
 }
 
-const STATUS: Record<SaveState, string> = {
-  new: 'Nowy — zapisz, żeby powstał.',
-  saving: 'Zapisywanie…',
-  dirty: 'Zmiany…',
-  failed: 'Nie zapisano.',
-  stale: 'Ktoś zmienił ten wpis w międzyczasie.',
-  saved: 'Zapisane.'
-};
+const STATUS: Record<SaveState, string> = texts({
+  new: 'library.draft.new',
+  saving: 'common.saving',
+  dirty: 'library.draft.dirty',
+  failed: 'library.draft.failed',
+  stale: 'library.draft.stale',
+  saved: 'library.draft.saved'
+});
 
 export function useEntryDraft(store: LibraryStore, existing: Entry | undefined, kind: string, initial: () => EntryData, readOnly: boolean): EntryDraft {
   const [id] = useState(() => existing?.id ?? newId());
@@ -90,7 +91,7 @@ export function useEntryDraft(store: LibraryStore, existing: Entry | undefined, 
     } catch (e) {
       const stale = e instanceof WorkspaceError && e.verdict === 'stale';
       setState(stale ? 'stale' : 'failed');
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.catalog.saveFailed'));
       return null;
     }
   }, [id, kind, store]);

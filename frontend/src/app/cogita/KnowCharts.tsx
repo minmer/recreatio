@@ -22,6 +22,7 @@ import { plainOf } from './schema';
 import type { CogitaLibrary } from './store';
 import { clipTex } from './texClip';
 import { entityName, entityNameTex, percent } from './ui';
+import { fmtDate, useT, type Lang } from '../core/i18n';
 import { hasTex } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
 
@@ -51,8 +52,9 @@ function niceMax(v: number): number {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
-const DATE = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric' });
-const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
+/* Tage in der Sprache der Stelle. */
+const dateOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { day: 'numeric', month: 'numeric' }, lang);
+const dayNameOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { weekday: 'short', day: 'numeric', month: 'long' }, lang);
 
 export type TipLine = readonly [value: string, label: string];
 
@@ -76,6 +78,7 @@ function Tip({ x, y, width, lines }: { x: number; y: number; width: number; line
 
 /** Eine Figur: Titel, ein Satz dazu, das Diagramm — und seine Tabelle (dieselben Werte, ohne Zeiger). */
 export function Figure({ title, says, table, children, id }: { title: string; says?: string; table?: ReactNode; children: ReactNode; id: string }) {
+  const t = useT();
   return (
     <figure className="cg-viz" data-viz={id}>
       <figcaption className="cg-viz-head">
@@ -85,7 +88,7 @@ export function Figure({ title, says, table, children, id }: { title: string; sa
       {children}
       {table !== undefined && (
         <details className="cg-viz-table">
-          <summary>Tabela</summary>
+          <summary>{t('cogitaViewsStats.chart.table')}</summary>
           {table}
         </details>
       )}
@@ -126,10 +129,10 @@ function YAxis({ top, width, y }: { top: number; width: number; y: (v: number) =
   const ticks = top >= 2 ? [0, Math.round(top / 2), top] : [0, top];
   return (
     <g aria-hidden>
-      {ticks.map((t) => (
-        <g key={t}>
-          <line className={t === 0 ? 'cg-viz-axis' : 'cg-viz-grid'} x1={PAD_L} x2={width - PAD_R} y1={y(t)} y2={y(t)} />
-          <text className="cg-viz-tick" x={PAD_L - 6} y={y(t) + 4} textAnchor="end">{t}</text>
+      {ticks.map((v) => (
+        <g key={v}>
+          <line className={v === 0 ? 'cg-viz-axis' : 'cg-viz-grid'} x1={PAD_L} x2={width - PAD_R} y1={y(v)} y2={y(v)} />
+          <text className="cg-viz-tick" x={PAD_L - 6} y={y(v) + 4} textAnchor="end">{v}</text>
         </g>
       ))}
     </g>
@@ -310,11 +313,12 @@ export function Tiles({ tiles }: { tiles: readonly { key: string; label: string;
 
 /** Der Zeitraum über allen Diagrammen — eine Reihe, alle zeigen denselben. */
 function Range({ days, onDays }: { days: number; onDays: (d: number) => void }) {
+  const t = useT();
   return (
-    <div className="cg-chips" role="radiogroup" aria-label="Okres">
+    <div className="cg-chips" role="radiogroup" aria-label={t('cogitaViewsStats.chart.period')}>
       {[7, 30, 90].map((d) => (
         <button key={d} type="button" role="radio" aria-checked={d === days} className={`cg-chip${d === days ? ' is-on' : ''}`} data-range={d} onClick={() => onDays(d)}>
-          {d} dni
+          {t('cogitaViewsStats.chart.days', { count: d })}
         </button>
       ))}
     </div>
@@ -323,8 +327,14 @@ function Range({ days, onDays }: { days: number; onDays: (d: number) => void }) 
 
 /* -- Was eine Karte und ein Rodzaj pytania heissen ---------------------------------------------------------- */
 
-const FORM_LABEL = new Map<string, string>(QUESTION_TYPES.map((t) => [t.form, t.label]));
-const formLabel = (form: string): string => FORM_LABEL.get(form) ?? ({ flash: 'Fiszka', text: 'Wpisz odpowiedź', choice: 'Wybór' } as Record<string, string>)[form] ?? form;
+/* Die Namen der Rodzaje pytań — beim Aufruf gelesen (sie sind übersetzt). */
+const FALLBACK_FORM: Readonly<Record<string, string>> = { flash: 'cogitaViewsStats.chart.form.flash', text: 'cogitaViewsStats.chart.form.text', choice: 'cogitaViewsStats.chart.form.choice' };
+const formLabel = (form: string, tr: (key: string) => string): string => {
+  const typed = QUESTION_TYPES.find((q) => q.form === form)?.label;
+  if (typed !== undefined) return typed;
+  const key = FALLBACK_FORM[form];
+  return key === undefined ? form : tr(key);
+};
 
 /** 2026-11-01 — was eine Karte fragt, als eine Zeile MIT Wzory (für `TexText`; wie `cardLine` in AnswerLog.tsx). */
 function cardWords(lib: CogitaLibrary, card: Card): string {
@@ -336,13 +346,14 @@ function cardWords(lib: CogitaLibrary, card: Card): string {
 const pct = (v: number | null): string => (v === null ? '—' : percent(v));
 
 function HardList({ lib, hard }: { lib: CogitaLibrary; hard: readonly HardCard[] }) {
-  if (hard.length === 0) return <p className="cg-muted">Nie ma pytań, które sprawiają kłopot.</p>;
+  const t = useT();
+  if (hard.length === 0) return <p className="cg-muted">{t('cogitaViewsStats.chart.noHard')}</p>;
   return (
     <ol className="cg-hard" data-hardest={hard.length}>
       {hard.map((h) => (
         <li key={h.card.key}>
           <span className="cg-hard-q"><TexText text={cardWords(lib, h.card)} /></span>
-          <span className="cg-muted">dobrze {percent(h.accuracy)} · {h.answers} odp. · źle {h.wrong}</span>
+          <span className="cg-muted">{t('cogitaViewsStats.chart.hardLine', { accuracy: percent(h.accuracy), answers: h.answers, wrong: h.wrong })}</span>
         </li>
       ))}
     </ol>
@@ -351,7 +362,7 @@ function HardList({ lib, hard }: { lib: CogitaLibrary; hard: readonly HardCard[]
 
 /* -- Für den Lernenden ---------------------------------------------------------------------------------------- */
 
-const dayTip = (day: number): string => DAY_NAME.format(new Date(day));
+const dayTip = (day: number, lang: Lang): string => dayNameOf(day, lang);
 
 /**
  * STATYSTYKI EINES LERNENDEN über `cards` — Kacheln, wo die Karten stehen, wie viele saßen Tag für Tag, Antworten je
@@ -364,6 +375,7 @@ export function KnowledgeStats({ lib, cards, answers, spacing }: {
   /** 2026-11-04 (Prompt 15) — die Abstände dieses Lernenden (`spacingFor`); fehlt es: die der Baza. */
   spacing?: Spacing;
 }) {
+  const t = useT();
   const [days, setDays] = useState(30);
   const sp = spacing ?? spacingFor(lib, null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,39 +384,39 @@ export function KnowledgeStats({ lib, cards, answers, spacing }: {
     <section className="cg-stats" data-know-stats={s.cards}>
       <div className="cg-stats-filters">
         <Range days={days} onDays={setDays} />
-        <span className="cg-muted">Znajomość karty: świeżo po dobrej odpowiedzi „pewnie”, do terminu powtórki „umiem”, potem „do powtórki”, a gdy długo nie powtarzasz — „zapomniane”.</span>
+        <span className="cg-muted">{t('cogitaViewsStats.chart.bandsHint')}</span>
       </div>
       <OwnTiles s={s} />
-      <Figure id="bands" title="Gdzie są moje karty" says={`${s.cards} kart`}
+      <Figure id="bands" title={t('cogitaViewsStats.chart.myCards')} says={t('cogitaViewsStats.chart.cards', { count: s.cards })}
         table={<BandTable bands={s.bands} total={s.cards} />}>
-        <BandBar bands={s.bands} total={s.cards} name="Gdzie są karty" />
+        <BandBar bands={s.bands} total={s.cards} name={t('cogitaViewsStats.chart.whereCards')} />
         <BandLegend bands={s.bands} total={s.cards} />
       </Figure>
-      {s.answers === 0 ? <p className="cg-muted" data-stats-empty="">Jeszcze nie ma odpowiedzi — wykresy dnia pojawią się po pierwszej powtórce.</p> : (
+      {s.answers === 0 ? <p className="cg-muted" data-stats-empty="">{t('cogitaViewsStats.chart.noAnswers')}</p> : (
         <div className="cg-stats-grid">
-          <Figure id="known" title="Ile kart umiem — dzień po dniu" says={`koniec każdego dnia, ostatnie ${days} dni`}
+          <Figure id="known" title={t('cogitaViewsStats.chart.known')} says={t('cogitaViewsStats.chart.knownSays', { count: days })}
             table={<DayTable rows={s.days} />}>
-            <Line name="Ile kart umiem, dzień po dniu" max={s.cards}
-              points={s.days.map((d) => ({ key: String(d.day), axis: DATE.format(new Date(d.day)), value: d.known, tip: [[String(d.known), `umiem — ${dayTip(d.day)}`], [percent(d.share), 'średnia znajomość']] }))} />
+            <Line name={t('cogitaViewsStats.chart.knownName')} max={s.cards}
+              points={s.days.map((d) => ({ key: String(d.day), axis: dateOf(d.day, t.lang), value: d.known, tip: [[String(d.known), t('cogitaViewsStats.chart.knownTip', { day: dayTip(d.day, t.lang) })], [percent(d.share), t('cogitaViewsStats.chart.avgKnow')]] }))} />
           </Figure>
-          <Figure id="activity" title="Odpowiedzi dziennie" says={`dzisiaj: ${s.days[s.days.length - 1]?.answers ?? 0}`}
+          <Figure id="activity" title={t('cogitaViewsStats.chart.activity')} says={t('cogitaViewsStats.chart.today', { count: s.days[s.days.length - 1]?.answers ?? 0 })}
             table={<DayTable rows={s.days} />}>
-            <Columns name="Odpowiedzi dziennie" emphasize={s.days.length - 1}
-              points={s.days.map((d) => ({ key: String(d.day), axis: DATE.format(new Date(d.day)), value: d.answers, tip: [[String(d.answers), `odpowiedzi — ${dayTip(d.day)}`], [d.answers === 0 ? '—' : percent(d.right / d.answers), 'dobrze']] }))} />
+            <Columns name={t('cogitaViewsStats.chart.activity')} emphasize={s.days.length - 1}
+              points={s.days.map((d) => ({ key: String(d.day), axis: dateOf(d.day, t.lang), value: d.answers, tip: [[String(d.answers), t('cogitaViewsStats.chart.answersTip', { day: dayTip(d.day, t.lang) })], [d.answers === 0 ? '—' : percent(d.right / d.answers), t('cogitaViewsStats.chart.right')]] }))} />
           </Figure>
-          <Figure id="forecast" title="Do powtórki w najbliższych dniach" says={`dzisiaj ${s.forecast[0]?.due ?? 0}${s.fresh > 0 ? ` · nowych czeka ${s.fresh}` : ''}`}
+          <Figure id="forecast" title={t('cogitaViewsStats.chart.forecast')} says={s.fresh > 0 ? t('cogitaViewsStats.chart.forecastFresh', { count: s.forecast[0]?.due ?? 0, fresh: s.fresh }) : t('cogitaViewsStats.chart.forecastSays', { count: s.forecast[0]?.due ?? 0 })}
             table={<ForecastTable rows={s.forecast} />}>
-            <Columns name="Do powtórki w najbliższych dniach" emphasize={0}
-              points={s.forecast.map((f, i) => ({ key: String(f.day), axis: i === 0 ? 'dziś' : DATE.format(new Date(f.day)), value: f.due, tip: [[String(f.due), `do powtórki — ${i === 0 ? 'dziś (z zaległymi)' : dayTip(f.day)}`]] }))} />
+            <Columns name={t('cogitaViewsStats.chart.forecast')} emphasize={0}
+              points={s.forecast.map((f, i) => ({ key: String(f.day), axis: i === 0 ? t('cogitaViewsStats.chart.todayShort') : dateOf(f.day, t.lang), value: f.due, tip: [[String(f.due), t('cogitaViewsStats.chart.dueTip', { day: i === 0 ? t('cogitaViewsStats.chart.todayOverdue') : dayTip(f.day, t.lang) })]] }))} />
           </Figure>
           <TopicFigure lib={lib} topics={s.topics} />
           {s.forms.filter((f) => f.answers > 0).length > 1 && (
-            <Figure id="forms" title="Rodzaje pytań — jak mi idzie" says="średnia poprawność odpowiedzi"
-              table={<GroupTable rows={s.forms} name={formLabel} />}>
-              <HBars name="Rodzaje pytań" rows={s.forms.filter((f) => f.answers > 0).map((f) => ({ key: f.id, label: formLabel(f.id), value: f.accuracy ?? 0, text: `${pct(f.accuracy)} · ${f.answers} odp.` }))} />
+            <Figure id="forms" title={t('cogitaViewsStats.chart.forms')} says={t('cogitaViewsStats.chart.formsSays')}
+              table={<GroupTable rows={s.forms} name={(id) => formLabel(id, t)} />}>
+              <HBars name={t('cogitaViewsStats.chart.formsName')} rows={s.forms.filter((f) => f.answers > 0).map((f) => ({ key: f.id, label: formLabel(f.id, t), value: f.accuracy ?? 0, text: t('cogitaViewsStats.chart.formText', { pct: pct(f.accuracy), count: f.answers }) }))} />
             </Figure>
           )}
-          <Figure id="hardest" title="Najtrudniejsze pytania" says="najmniej dobrych odpowiedzi">
+          <Figure id="hardest" title={t('cogitaViewsStats.chart.hardest')} says={t('cogitaViewsStats.chart.hardestSays')}>
             <HardList lib={lib} hard={s.hardest} />
           </Figure>
         </div>
@@ -414,26 +426,28 @@ export function KnowledgeStats({ lib, cards, answers, spacing }: {
 }
 
 function OwnTiles({ s }: { s: KnowStats }) {
+  const t = useT();
   return (
     <Tiles tiles={[
-      { key: 'known', label: 'Umiem', value: `${s.known} z ${s.cards}`, sub: `średnia znajomość ${percent(s.share)}` },
-      { key: 'answers', label: 'Odpowiedzi', value: String(s.answers), sub: s.accuracy === null ? 'jeszcze żadnej' : `dobrze ${percent(s.accuracy)}` },
-      { key: 'streak', label: 'Dni z rzędu', value: String(s.streak), sub: `${s.activeDays} ${s.activeDays === 1 ? 'dzień' : 'dni'} nauki` },
-      { key: 'time', label: 'Czas nauki', value: s.msTotal === 0 ? '—' : spanText(s.msTotal), sub: s.lastAt === null ? undefined : `ostatnio ${new Date(s.lastAt).toLocaleDateString('pl-PL')}` },
-      { key: 'due', label: 'Na dziś', value: String(s.forecast[0]?.due ?? 0), sub: 'kart do powtórki' }
+      { key: 'known', label: t('cogitaViewsStats.chart.tile.known'), value: t('cogitaViewsStats.chart.tile.knownValue', { known: s.known, total: s.cards }), sub: t('cogitaViewsStats.chart.tile.avg', { pct: percent(s.share) }) },
+      { key: 'answers', label: t('cogitaViewsStats.chart.tile.answers'), value: String(s.answers), sub: s.accuracy === null ? t('cogitaViewsStats.chart.tile.none') : t('cogitaViewsStats.chart.tile.right', { pct: percent(s.accuracy) }) },
+      { key: 'streak', label: t('cogitaViewsStats.chart.tile.streak'), value: String(s.streak), sub: t('cogitaViewsStats.chart.tile.activeDays', { count: s.activeDays }) },
+      { key: 'time', label: t('cogitaViewsStats.chart.tile.time'), value: s.msTotal === 0 ? '—' : spanText(s.msTotal), sub: s.lastAt === null ? undefined : t('cogitaViewsStats.chart.tile.last', { date: fmtDate(new Date(s.lastAt), { day: '2-digit', month: '2-digit', year: 'numeric' }, t.lang) }) },
+      { key: 'due', label: t('cogitaViewsStats.chart.tile.due'), value: String(s.forecast[0]?.due ?? 0), sub: t('cogitaViewsStats.chart.tile.dueSub') }
     ]} />
   );
 }
 
 function TopicFigure({ lib, topics }: { lib: CogitaLibrary; topics: readonly GroupStat[] }) {
+  const t = useT();
   const [all, setAll] = useState(false);
   if (topics.length < 2) return null;
   const shown = all ? topics : topics.slice(0, 10);
   return (
-    <Figure id="topics" title="Tematy — najsłabsze najpierw" says="średnia znajomość kart tematu"
+    <Figure id="topics" title={t('cogitaViewsStats.chart.topics')} says={t('cogitaViewsStats.chart.topicsSays')}
       table={<GroupTable rows={topics} name={(id) => <TexText text={entityNameTex(lib, id)} />} />}>
-      <HBars name="Tematy" rows={shown.map((t) => ({ key: t.id, label: entityName(lib, t.id), tex: entityNameTex(lib, t.id), value: t.share, text: t.answered === 0 ? `jeszcze nie · ${t.cards} kart` : `${percent(t.share)} · umiem ${t.known} z ${t.cards}` }))} />
-      {topics.length > 10 && <button type="button" className="wk-link-btn" onClick={() => setAll((x) => !x)}>{all ? 'Pokaż 10 najsłabszych' : `Pokaż wszystkie (${topics.length})`}</button>}
+      <HBars name={t('cogitaViewsStats.chart.topicsName')} rows={shown.map((g) => ({ key: g.id, label: entityName(lib, g.id), tex: entityNameTex(lib, g.id), value: g.share, text: g.answered === 0 ? t('cogitaViewsStats.chart.topicNotYet', { count: g.cards }) : t('cogitaViewsStats.chart.topicKnown', { pct: percent(g.share), known: g.known, total: g.cards }) }))} />
+      {topics.length > 10 && <button type="button" className="wk-link-btn" onClick={() => setAll((x) => !x)}>{all ? t('cogitaViewsStats.chart.showWeakest') : t('cogitaViewsStats.chart.showAll', { count: topics.length })}</button>}
     </Figure>
   );
 }
@@ -441,32 +455,36 @@ function TopicFigure({ lib, topics }: { lib: CogitaLibrary; topics: readonly Gro
 /* -- Tabellen: dieselben Werte ohne Zeiger ---------------------------------------------------------------------- */
 
 function BandTable({ bands, total }: { bands: Readonly<Record<Band, number>>; total: number }) {
+  const t = useT();
   return (
-    <table className="cg-table"><thead><tr><th>Stan</th><th>Co to znaczy</th><th>Karty</th><th>Udział</th></tr></thead>
+    <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.state')}</th><th>{t('cogitaViewsStats.chart.th.means')}</th><th>{t('cogitaViewsStats.chart.th.cards')}</th><th>{t('cogitaViewsStats.chart.th.share')}</th></tr></thead>
       <tbody>{[...BANDS].reverse().map((b) => <tr key={b}><td>{BAND_LABEL[b]}</td><td>{BAND_SAYS[b]}</td><td>{bands[b]}</td><td>{total === 0 ? '—' : percent(bands[b] / total)}</td></tr>)}</tbody>
     </table>
   );
 }
 
 function DayTable({ rows }: { rows: KnowStats['days'] }) {
+  const t = useT();
   return (
-    <table className="cg-table"><thead><tr><th>Dzień</th><th>Odpowiedzi</th><th>Dobrze</th><th>Umiem (koniec dnia)</th><th>Średnia znajomość</th></tr></thead>
-      <tbody>{[...rows].reverse().map((d) => <tr key={d.day}><td>{dayTip(d.day)}</td><td>{d.answers}</td><td>{d.answers === 0 ? '—' : `${d.right} (${percent(d.right / d.answers)})`}</td><td>{d.known}</td><td>{percent(d.share)}</td></tr>)}</tbody>
+    <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.day')}</th><th>{t('cogitaViewsStats.chart.th.answers')}</th><th>{t('cogitaViewsStats.chart.th.right')}</th><th>{t('cogitaViewsStats.chart.th.knownEnd')}</th><th>{t('cogitaViewsStats.chart.th.avg')}</th></tr></thead>
+      <tbody>{[...rows].reverse().map((d) => <tr key={d.day}><td>{dayTip(d.day, t.lang)}</td><td>{d.answers}</td><td>{d.answers === 0 ? '—' : `${d.right} (${percent(d.right / d.answers)})`}</td><td>{d.known}</td><td>{percent(d.share)}</td></tr>)}</tbody>
     </table>
   );
 }
 
 function ForecastTable({ rows }: { rows: KnowStats['forecast'] }) {
+  const t = useT();
   return (
-    <table className="cg-table"><thead><tr><th>Dzień</th><th>Do powtórki</th></tr></thead>
-      <tbody>{rows.map((f, i) => <tr key={f.day}><td>{i === 0 ? 'dziś (z zaległymi)' : dayTip(f.day)}</td><td>{f.due}</td></tr>)}</tbody>
+    <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.day')}</th><th>{t('cogitaViewsStats.chart.th.due')}</th></tr></thead>
+      <tbody>{rows.map((f, i) => <tr key={f.day}><td>{i === 0 ? t('cogitaViewsStats.chart.todayOverdue') : dayTip(f.day, t.lang)}</td><td>{f.due}</td></tr>)}</tbody>
     </table>
   );
 }
 
 function GroupTable({ rows, name }: { rows: readonly GroupStat[]; name: (id: string) => ReactNode }) {
+  const t = useT();
   return (
-    <table className="cg-table"><thead><tr><th>Nazwa</th><th>Karty</th><th>Z odpowiedzią</th><th>Umiem</th><th>Znajomość</th><th>Odpowiedzi</th><th>Dobrze</th></tr></thead>
+    <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.name')}</th><th>{t('cogitaViewsStats.chart.th.cards')}</th><th>{t('cogitaViewsStats.chart.th.answered')}</th><th>{t('cogitaViewsStats.chart.th.known')}</th><th>{t('cogitaViewsStats.chart.th.knowness')}</th><th>{t('cogitaViewsStats.chart.th.answers')}</th><th>{t('cogitaViewsStats.chart.th.right')}</th></tr></thead>
       <tbody>{rows.map((g) => <tr key={g.id}><td>{name(g.id)}</td><td>{g.cards}</td><td>{g.answered}</td><td>{g.known}</td><td>{percent(g.share)}</td><td>{g.answers}</td><td>{pct(g.accuracy)}</td></tr>)}</tbody>
     </table>
   );
@@ -486,6 +504,7 @@ export function ClassKnowledge({ lib, cards, learners }: {
   cards: readonly Card[];
   learners: readonly { readonly id: string; readonly name: string; readonly answers: (card: Card) => readonly AnswerRecord[]; readonly spacing?: Spacing }[];
 }) {
+  const t = useT();
   const [days, setDays] = useState(30);
   const { each, all } = useMemo(() => classStats(cards, learners, Date.now(), { days }), [cards, learners, days]);
   const ordered = [...learners].sort((a, b) => (each.get(b.id)?.share ?? 0) - (each.get(a.id)?.share ?? 0));
@@ -494,13 +513,13 @@ export function ClassKnowledge({ lib, cards, learners }: {
     <section className="cg-stats" data-class-stats={learners.length}>
       <div className="cg-stats-filters"><Range days={days} onDays={setDays} /></div>
       <Tiles tiles={[
-        { key: 'learners', label: 'Uczący się', value: String(all.learners), sub: `aktywni w 7 dni: ${all.active}` },
-        { key: 'share', label: 'Średnia znajomość', value: percent(all.share), sub: 'kart, u wszystkich' },
-        { key: 'answers', label: 'Odpowiedzi', value: String(all.answers), sub: all.accuracy === null ? undefined : `dobrze ${percent(all.accuracy)}` }
+        { key: 'learners', label: t('cogitaViewsStats.chart.cls.learners'), value: String(all.learners), sub: t('cogitaViewsStats.chart.cls.active', { count: all.active }) },
+        { key: 'share', label: t('cogitaViewsStats.chart.cls.avg'), value: percent(all.share), sub: t('cogitaViewsStats.chart.cls.avgSub') },
+        { key: 'answers', label: t('cogitaViewsStats.chart.cls.answers'), value: String(all.answers), sub: all.accuracy === null ? undefined : t('cogitaViewsStats.chart.tile.right', { pct: percent(all.accuracy) }) }
       ]} />
-      <Figure id="class-bands" title="Uczący się — gdzie są ich karty" says="najlepiej znający najpierw"
+      <Figure id="class-bands" title={t('cogitaViewsStats.chart.cls.bands')} says={t('cogitaViewsStats.chart.cls.bandsSays')}
         table={(
-          <table className="cg-table"><thead><tr><th>Uczący się</th>{[...BANDS].reverse().map((b) => <th key={b}>{BAND_LABEL[b]}</th>)}<th>Średnia</th></tr></thead>
+          <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.learner')}</th>{[...BANDS].reverse().map((b) => <th key={b}>{BAND_LABEL[b]}</th>)}<th>{t('cogitaViewsStats.chart.th.avgShort')}</th></tr></thead>
             <tbody>{ordered.map((l) => { const s = each.get(l.id)!; return <tr key={l.id}><td>{l.name}</td>{[...BANDS].reverse().map((b) => <td key={b}>{s.bands[b]}</td>)}<td>{percent(s.share)}</td></tr>; })}</tbody>
           </table>
         )}>
@@ -519,42 +538,42 @@ export function ClassKnowledge({ lib, cards, learners }: {
         <BandLegend bands={sumBands([...each.values()])} total={[...each.values()].reduce((sum, s) => sum + s.cards, 0)} />
       </Figure>
       {topics.length > 0 && (
-        <Figure id="class-topics" title="Tematy × uczący się" says="średnia znajomość kart tematu; najsłabsze tematy z lewej">
+        <Figure id="class-topics" title={t('cogitaViewsStats.chart.cls.topics')} says={t('cogitaViewsStats.chart.cls.topicsSays')}>
           <div className="cg-table-wrap">
             <table className="cg-heat" data-heat={`${ordered.length}x${topics.length}`}>
-              <thead><tr><th scope="col">Uczący się</th>{topics.map((t) => <th key={t} scope="col" title={entityName(lib, t)}><span><TexText text={entityNameTex(lib, t)} /></span></th>)}</tr></thead>
+              <thead><tr><th scope="col">{t('cogitaViewsStats.chart.th.learner')}</th>{topics.map((tp) => <th key={tp} scope="col" title={entityName(lib, tp)}><span><TexText text={entityNameTex(lib, tp)} /></span></th>)}</tr></thead>
               <tbody>
                 {ordered.map((l) => (
                   <tr key={l.id}>
                     <th scope="row">{l.name}</th>
-                    {topics.map((t) => {
-                      const v = all.grid.get(t)?.get(l.id) ?? null;
-                      return <td key={t} className={v === null ? 'is-none' : `is-h${heatStep(v)}`} title={`${l.name} — ${entityName(lib, t)}: ${v === null ? 'jeszcze nie' : percent(v)}`}>{v === null ? '—' : Math.round(v * 100)}</td>;
+                    {topics.map((tp) => {
+                      const v = all.grid.get(tp)?.get(l.id) ?? null;
+                      return <td key={tp} className={v === null ? 'is-none' : `is-h${heatStep(v)}`} title={t('cogitaViewsStats.chart.cls.cell', { name: l.name, topic: entityName(lib, tp), value: v === null ? t('cogitaViewsStats.chart.cls.notYet') : percent(v) })}>{v === null ? '—' : Math.round(v * 100)}</td>;
                     })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <ul className="cg-viz-legend" aria-label="Skala">
+          <ul className="cg-viz-legend" aria-label={t('cogitaViewsStats.chart.cls.scale')}>
             {[1, 2, 3, 4, 5].map((h) => <li key={h}><span className={`cg-heat-key is-h${h}`} aria-hidden />{`${(h - 1) * 20}–${h * 20}%`}</li>)}
-            <li><span className="cg-heat-key is-none" aria-hidden />jeszcze nie</li>
+            <li><span className="cg-heat-key is-none" aria-hidden />{t('cogitaViewsStats.chart.cls.notYet')}</li>
           </ul>
-          {all.topics.length > topics.length && <span className="cg-muted">Pokazano 16 najsłabszych tematów z {all.topics.length}.</span>}
+          {all.topics.length > topics.length && <span className="cg-muted">{t('cogitaViewsStats.chart.cls.shown16', { count: all.topics.length })}</span>}
         </Figure>
       )}
       {all.answers > 0 && (
         <div className="cg-stats-grid">
-          <Figure id="class-activity" title="Odpowiedzi wszystkich dziennie" says={`ostatnie ${days} dni`}
+          <Figure id="class-activity" title={t('cogitaViewsStats.chart.cls.activity')} says={t('cogitaViewsStats.chart.cls.lastDays', { count: days })}
             table={(
-              <table className="cg-table"><thead><tr><th>Dzień</th><th>Odpowiedzi</th><th>Dobrze</th></tr></thead>
-                <tbody>{[...all.days].reverse().map((d) => <tr key={d.day}><td>{dayTip(d.day)}</td><td>{d.answers}</td><td>{d.answers === 0 ? '—' : percent(d.right / d.answers)}</td></tr>)}</tbody>
+              <table className="cg-table"><thead><tr><th>{t('cogitaViewsStats.chart.th.day')}</th><th>{t('cogitaViewsStats.chart.th.answers')}</th><th>{t('cogitaViewsStats.chart.th.right')}</th></tr></thead>
+                <tbody>{[...all.days].reverse().map((d) => <tr key={d.day}><td>{dayTip(d.day, t.lang)}</td><td>{d.answers}</td><td>{d.answers === 0 ? '—' : percent(d.right / d.answers)}</td></tr>)}</tbody>
               </table>
             )}>
-            <Columns name="Odpowiedzi wszystkich dziennie" emphasize={all.days.length - 1}
-              points={all.days.map((d) => ({ key: String(d.day), axis: DATE.format(new Date(d.day)), value: d.answers, tip: [[String(d.answers), `odpowiedzi — ${dayTip(d.day)}`], [d.answers === 0 ? '—' : percent(d.right / d.answers), 'dobrze']] }))} />
+            <Columns name={t('cogitaViewsStats.chart.cls.activity')} emphasize={all.days.length - 1}
+              points={all.days.map((d) => ({ key: String(d.day), axis: dateOf(d.day, t.lang), value: d.answers, tip: [[String(d.answers), t('cogitaViewsStats.chart.answersTip', { day: dayTip(d.day, t.lang) })], [d.answers === 0 ? '—' : percent(d.right / d.answers), t('cogitaViewsStats.chart.right')]] }))} />
           </Figure>
-          <Figure id="class-hardest" title="Najtrudniejsze pytania dla wszystkich" says="najmniej dobrych odpowiedzi">
+          <Figure id="class-hardest" title={t('cogitaViewsStats.chart.cls.hardest')} says={t('cogitaViewsStats.chart.hardestSays')}>
             <HardList lib={lib} hard={all.hardest} />
           </Figure>
         </div>
@@ -571,13 +590,14 @@ function sumBands(list: readonly KnowStats[]): Record<Band, number> {
 
 /* -- 2026-11-01 — DIE KENNTNIS EINER KARTE ÜBER DIE ZEIT (nach jeder Antwort im Lauf) --------------------------- */
 
+/* Die Namen: `cogitaViewsStats.chart.hist.range.<key>`. */
 const HISTORY_RANGES = [
-  { key: '1', days: 1, label: 'dzień' },
-  { key: '7', days: 7, label: '7 dni' },
-  { key: '30', days: 30, label: '30 dni' },
-  { key: '90', days: 90, label: '90 dni' },
-  { key: '365', days: 365, label: 'rok' },
-  { key: 'all', days: null, label: 'od początku' }
+  { key: '1', days: 1 },
+  { key: '7', days: 7 },
+  { key: '30', days: 30 },
+  { key: '90', days: 90 },
+  { key: '365', days: 365 },
+  { key: 'all', days: null }
 ] as const;
 type HistoryRange = (typeof HISTORY_RANGES)[number]['key'];
 const RANGE_KEY = 'cg-card-history-range';
@@ -599,9 +619,9 @@ const H_PAD_R = 12;
 const H_TOP = Math.log10(4);
 const H_LOW = Math.log10(HISTORY_FLOOR);
 
-const TIME = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit' });
-const MONTH_YEAR = new Intl.DateTimeFormat('pl-PL', { month: 'numeric', year: 'numeric' });
-const WHEN = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const timeOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { hour: '2-digit', minute: '2-digit' }, lang);
+const monthYearOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { month: 'numeric', year: 'numeric' }, lang);
+const whenOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }, lang);
 
 /**
  * WIE SICH DIE KENNTNIS DIESER KARTE ENTWICKELT HAT — nach jeder Antwort im Lauf. Die Achse ist logarithmisch: 10 %
@@ -609,6 +629,7 @@ const WHEN = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', h
  * lesbar. Jeder Punkt ist der Wert gleich nach einer Antwort; gestrichelt, wie es ohne Antwort weiterginge.
  */
 export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING }: { marks: readonly Mark[]; now?: number; spacing?: Spacing }) {
+  const t = useT();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks`: eine neue Antwort ist ein neues Jetzt
   const now = useMemo(() => given ?? Date.now(), [given, marks]);
   const first = useMemo(() => marks.reduce<number | null>((m, x) => (Number.isFinite(x.at) && (m === null || x.at < m) ? x.at : m), null), [marks]);
@@ -634,21 +655,21 @@ export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING 
   const x = (t: number) => H_PAD_L + (plotW * (t - from)) / Math.max(1, span);
   const y = (k: number) => PAD_T + ((H_PLOT - PAD_T) * (H_TOP - Math.log10(Math.max(HISTORY_FLOOR, Math.min(4, k))))) / (H_TOP - H_LOW);
   const path = (pts: readonly { at: number; k: number }[]) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.at).toFixed(1)},${y(p.k).toFixed(1)}`).join(' ');
-  const tickText = (t: number) => (span <= 2.5 * H_DAY ? TIME.format(new Date(t)) : span <= 500 * H_DAY ? DATE.format(new Date(t)) : MONTH_YEAR.format(new Date(t)));
+  const tickText = (at: number) => (span <= 2.5 * H_DAY ? timeOf(at, t.lang) : span <= 500 * H_DAY ? dateOf(at, t.lang) : monthYearOf(at, t.lang));
   /* Die Daten unter der Achse: vom Anfang des Zeitraums bis „teraz” (das hat seine eigene Beschriftung). */
   const tickCount = plotW < 260 ? 1 : 3;
   const ticks: number[] = plotW <= 0 ? [] : Array.from({ length: tickCount }, (_, i) => from + ((now - from) * i) / tickCount);
   const pick = (e: PointerEvent<SVGSVGElement>) => {
     if (n === 0) return;
-    const t = from + ((e.clientX - e.currentTarget.getBoundingClientRect().left - H_PAD_L) / Math.max(1, plotW)) * span;
+    const tx = from + ((e.clientX - e.currentTarget.getBoundingClientRect().left - H_PAD_L) / Math.max(1, plotW)) * span;
     let best = 0;
-    h.answers.forEach((a, i) => { if (Math.abs(a.at - t) < Math.abs(h.answers[best]!.at - t)) best = i; });
+    h.answers.forEach((a, i) => { if (Math.abs(a.at - tx) < Math.abs(h.answers[best]!.at - tx)) best = i; });
     setAt(best);
   };
   const level = h.total === 0 ? 'unseen' : levelOfKnowness(h.k);
   const says = [
-    `teraz ${kText(h.k)} — ${LEVEL_LABEL[level]}`,
-    h.dueAt !== null ? `powtórka za ${spanText(h.dueAt - now)}` : h.forgottenAt !== null ? `zapomniana za ${spanText(h.forgottenAt - now)}` : null
+    t('cogitaViewsStats.chart.hist.now', { k: kText(h.k), level: LEVEL_LABEL[level] }),
+    h.dueAt !== null ? t('cogitaViewsStats.chart.hist.dueIn', { span: spanText(h.dueAt - now) }) : h.forgottenAt !== null ? t('cogitaViewsStats.chart.hist.forgottenIn', { span: spanText(h.forgottenAt - now) }) : null
   ].filter((s): s is string => s !== null).join(' · ');
   const answer = at === null ? null : h.answers[at]!;
   const bands = [
@@ -657,26 +678,26 @@ export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING 
     { key: 'unseen', top: FORGOTTEN, bottom: HISTORY_FLOOR, label: LEVEL_LABEL.unseen }
   ] as const;
   return (
-    <Figure id="card-history" title="Znajomość tej karty" says={says}
+    <Figure id="card-history" title={t('cogitaViewsStats.chart.hist.title')} says={says}
       table={(
         <table className="cg-table">
-          <thead><tr><th>Kiedy</th><th>Odpowiedź</th><th>Znajomość przed</th><th>po</th></tr></thead>
+          <thead><tr><th>{t('cogitaViewsStats.chart.th.when')}</th><th>{t('cogitaViewsStats.chart.th.answer')}</th><th>{t('cogitaViewsStats.chart.th.before')}</th><th>{t('cogitaViewsStats.chart.th.after')}</th></tr></thead>
           <tbody>
             {[...h.answers].reverse().map((a, i) => (
-              <tr key={`${a.at}-${i}`}><td>{WHEN.format(new Date(a.at))}</td><td>{percent(a.correctness)}</td><td>{a.before === null ? '—' : kText(a.before)}</td><td>{kText(a.after)}</td></tr>
+              <tr key={`${a.at}-${i}`}><td>{whenOf(a.at, t.lang)}</td><td>{percent(a.correctness)}</td><td>{a.before === null ? '—' : kText(a.before)}</td><td>{kText(a.after)}</td></tr>
             ))}
           </tbody>
         </table>
       )}>
-      <div className="cg-chips cg-hist-ranges" role="radiogroup" aria-label="Okres">
+      <div className="cg-chips cg-hist-ranges" role="radiogroup" aria-label={t('cogitaViewsStats.chart.period')}>
         {HISTORY_RANGES.map((r) => (
-          <button key={r.key} type="button" role="radio" aria-checked={r.key === range} className={`cg-chip${r.key === range ? ' is-on' : ''}`} data-history-range={r.key} onClick={() => choose(r.key)}>{r.label}</button>
+          <button key={r.key} type="button" role="radio" aria-checked={r.key === range} className={`cg-chip${r.key === range ? ' is-on' : ''}`} data-history-range={r.key} onClick={() => choose(r.key)}>{t(`cogitaViewsStats.chart.hist.range.${r.key}`)}</button>
         ))}
       </div>
       <div className="cg-viz-plot" ref={ref} data-history-answers={n}>
         {width > 0 && (
           <svg width={width} height={H_PLOT + AXIS_H} role="img" tabIndex={0} className="cg-viz-svg cg-hist"
-            aria-label={`Znajomość tej karty: ${says}; ${n} odpowiedzi w tym okresie`}
+            aria-label={t('cogitaViewsStats.chart.hist.aria', { says, count: n })}
             onPointerMove={pick} onPointerLeave={() => setAt(null)} onBlur={() => setAt(null)}
             onKeyDown={(e) => { const next = stepKey(e, at, n); if (next !== undefined) { e.preventDefault(); setAt(next); } }}>
             {bands.map((b) => (
@@ -702,19 +723,19 @@ export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING 
             {h.total > 0 && (
               <text className="cg-viz-end" x={x(now) + 6} y={Math.max(PAD_T + 10, y(h.k) - 8)} data-history-now={Math.round(h.k * 100)}>{kText(h.k)}</text>
             )}
-            {ticks.map((t, i) => <text key={t} className="cg-viz-tick" x={x(t)} y={H_PLOT + 15} textAnchor={i === 0 ? 'start' : 'middle'}>{tickText(t)}</text>)}
-            <text className="cg-viz-tick" x={x(now)} y={H_PLOT + 15} textAnchor="middle">teraz</text>
+            {ticks.map((at, i) => <text key={at} className="cg-viz-tick" x={x(at)} y={H_PLOT + 15} textAnchor={i === 0 ? 'start' : 'middle'}>{tickText(at)}</text>)}
+            <text className="cg-viz-tick" x={x(now)} y={H_PLOT + 15} textAnchor="middle">{t('cogitaViewsStats.chart.hist.nowTick')}</text>
           </svg>
         )}
         {answer !== null && (
           <Tip x={x(answer.at)} y={y(answer.after)} width={width} lines={[
-            [WHEN.format(new Date(answer.at)), ''],
-            [percent(answer.correctness), answer.grade === 'correct' ? 'dobrze' : answer.grade === 'partly' ? 'częściowo' : 'źle'],
-            [`${answer.before === null ? 'pierwsza' : kText(answer.before)} → ${kText(answer.after)}`, 'znajomość']
+            [whenOf(answer.at, t.lang), ''],
+            [percent(answer.correctness), answer.grade === 'correct' ? t('cogitaViewsStats.chart.hist.right') : answer.grade === 'partly' ? t('cogitaViewsStats.chart.hist.partly') : t('cogitaViewsStats.chart.hist.wrong')],
+            [`${answer.before === null ? t('cogitaViewsStats.chart.hist.first') : kText(answer.before)} → ${kText(answer.after)}`, t('cogitaViewsStats.chart.hist.knowness')]
           ]} />
         )}
       </div>
-      {h.total > n && <span className="cg-muted cg-hist-note">{n === 0 ? 'W tym okresie bez odpowiedzi' : `W tym okresie ${n} z ${h.total} odpowiedzi`} — dłuższy okres pokaże wcześniejsze.</span>}
+      {h.total > n && <span className="cg-muted cg-hist-note">{n === 0 ? t('cogitaViewsStats.chart.hist.none') : t('cogitaViewsStats.chart.hist.some', { count: n, total: h.total })}</span>}
     </Figure>
   );
 }

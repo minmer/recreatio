@@ -44,6 +44,7 @@ import type { ReminderNotice } from './notifyRich';
 import { formNewsPath, viewPath, formsPath } from '../routes';
 import { toBase64Url } from '../core/crypto';
 import { openDigest } from './digestNames';
+import { t } from '../core/i18n';
 
 /*
  * 2026-10-17 — DER REICHE TEIL (Inhalte öffnen, Schlüssel übergeben) erst, wenn
@@ -467,8 +468,8 @@ function ringPlain(digest: Digest, plan: Ringing): void {
   if (newest !== undefined) {
     const more = others.reduce((n, c) => n + c.unread, 0);
     tell({
-      title: newest.unread === 1 ? 'Nowa wiadomość' : `Nowe wiadomości: ${newest.unread}`,
-      body: more === 0 ? chatLabel(newest) : `${chatLabel(newest)} · i ${more} w innych rozmowach`,
+      title: newest.unread === 1 ? t('notify.ring.newMessage') : t('notify.ring.newMessages', { count: newest.unread }),
+      body: more === 0 ? chatLabel(newest) : t('notify.ring.moreElsewhere', { chat: chatLabel(newest), count: more }),
       tag: newest.chatId,
       open: viewPath('chat', newest.chatId)
     }, 'chat');
@@ -476,14 +477,14 @@ function ringPlain(digest: Digest, plan: Ringing): void {
   if (plan.forms) {
     const form = digest.registrations.list[0];
     tell({
-      title: digest.registrations.count === 1 ? 'Nowe zgłoszenie' : `Nowe zgłoszenia: ${digest.registrations.count}`,
-      body: form === undefined ? 'Ktoś wypełnił formularz.' : form.name,
+      title: digest.registrations.count === 1 ? t('notify.ring.newEntry') : t('notify.ring.newEntries', { count: digest.registrations.count }),
+      body: form === undefined ? t('notify.ring.someoneFilled') : form.name,
       tag: 'forms',
       open: form === undefined ? formsPath() : formNewsPath(form.moduleId)
     }, 'news');
   }
   if (plan.links) {
-    tell({ title: 'Ktoś dołączył przez link', body: 'Zobacz linki dostępu w Obszarach.', tag: 'links', open: viewPath('areas') }, 'news');
+    tell({ title: t('notify.ring.joined'), body: t('notify.ring.joinedBody'), tag: 'links', open: viewPath('areas') }, 'news');
   }
   ringLearn(digest);
 }
@@ -504,12 +505,12 @@ function ringLearn(digest: Digest): void {
   } catch {
     return;
   }
-  tell({ title: 'Powtórka czeka', body: count === 1 ? '1 karta do powtórzenia' : `${count} kart do powtórzenia`, tag: 'learn', open: viewPath('learn') }, 'news');
+  tell({ title: t('notify.ring.learn'), body: t('notify.ring.learnBody', { count }), tag: 'learn', open: viewPath('learn') }, 'news');
 }
 
 /** Wie eine Rozmowa in einer Meldung heisst — der Name des Bereichs, bei einem Platz die Person. */
 export const chatLabel = (c: DigestChat): string =>
-  c.kind === 'seat' && c.seatName !== null ? `Rozmowa z: ${c.seatName}` : c.kind === 'channel' ? `Kanał: ${c.areaName}` : c.areaName;
+  c.kind === 'seat' && c.seatName !== null ? t('notify.chat.seat', { name: c.seatName }) : c.kind === 'channel' ? t('notify.chat.channel', { name: c.areaName }) : c.areaName;
 
 /* -- Gesehen (0090: für das Konto) ---------------------------------------------------- */
 
@@ -700,7 +701,7 @@ export async function applyBackground(settings: NotifySettings): Promise<void> {
   if (device === null) {
     const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
     const made = await call<{ deviceId: string }>('/workspace/notify-devices', {
-      method: 'POST', body: JSON.stringify({ token, label: 'Telefon (aplikacja)', platform: 'android' })
+      method: 'POST', body: JSON.stringify({ token, label: t('notify.deviceLabel'), platform: 'android' })
     });
     device = { deviceId: made.deviceId, token };
     localStorage.setItem(DEVICE_SLOT, JSON.stringify(device));

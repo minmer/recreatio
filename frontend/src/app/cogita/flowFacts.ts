@@ -5,6 +5,7 @@
  * Ablauf zeigt, merkt sich ihre Stelle unter `page:<seite>` mit ihrem Pfad: gefunden wird sie über ihn.
  */
 
+import { texts } from '../core/i18n';
 import { goalsReached, readFlow, type Flow, type FlowState } from './flow';
 import { positionFor, type FlowPosition } from './learn';
 import type { Facts, FlowFacts } from './logic';
@@ -105,9 +106,9 @@ export function cardOfQuestion(cards: readonly { readonly key: string; readonly 
 }
 
 /** Der eine Knopf einer Erzählung, nach ihrem Stand (er öffnet den Spieler: an der Stelle des Lernenden; „Powtórz przegląd" am Przegląd). */
-export const STORY_BUTTON: Readonly<Record<StoryStage, string>> = {
-  new: 'Zacznij opowieść', started: 'Kontynuuj opowieść', review: 'Powtórz przegląd', passed: 'Otwórz opowieść'
-};
+export const STORY_BUTTON: Readonly<Record<StoryStage, string>> = texts({
+  new: 'cogitaLearn.words.storyButton.new', started: 'cogitaLearn.words.storyButton.started', review: 'cogitaLearn.words.storyButton.review', passed: 'cogitaLearn.words.storyButton.passed'
+});
 
 /** Wohin „Powtórz przegląd" springt: der Teil des Przeglądu (`review`), sonst der Anfang (eine Präsentation: ihre erste Szene, leer). */
 export const reviewStart = (flow: Pick<Flow, 'review' | 'presentation' | 'start'>): string => flow.review ?? (flow.presentation !== undefined ? '' : flow.start ?? '');

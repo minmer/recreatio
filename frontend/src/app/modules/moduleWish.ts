@@ -19,6 +19,9 @@ import { REPEAT_LABEL, REPEATS, repeatOf, type Repeat } from '../forms/rounds';
 import { memberRolesOf } from '../forms/formGroups';
 import { asRecord, asText } from '../pages/event/kit';
 import { readConfig, type ModuleRow } from './module';
+import { t } from '../core/i18n';
+
+const audienceWord = (audience: 'person' | 'office'): string => t(audience === 'office' ? 'modules.wish.officeOnly' : 'modules.wish.personLink');
 
 export interface ModuleWish {
   readonly name?: string;
@@ -86,15 +89,15 @@ export const formPartOf = (wish: ModuleWish): ModuleWish => {
 /** Was ein Formular aus einer Seite bekommt — eine Zeile, ohne zu wissen, was es schon hat. */
 export function formWishLine(wish: ModuleWish, label: string): string | null {
   const parts: string[] = [];
-  if (wish.questions !== undefined) parts.push(`pytania: ${Array.isArray(wish.questions) ? wish.questions.length : 0}`);
-  if (wish.design !== undefined) parts.push(wish.design === null ? 'układ: zwykła lista' : 'układ i logika');
-  if (wish.needs !== undefined) parts.push(wish.needs.length === 0 ? 'wymagania: żadne' : `wymagania: ${wish.needs.map((w) => `„${needOf(w.id)?.label ?? w.id}”`).join(', ')}`);
-  if (wish.memberRoles !== undefined) parts.push(wish.memberRoles.length === 0 ? 'role uczestników: żadne' : 'role uczestników');
-  if (wish.virtualAreas !== undefined) parts.push(`obszary osób: ${wish.virtualAreas.length}`);
-  if (wish.group !== undefined) parts.push(wish.group === null ? 'bez grupy' : `grupa „${wish.group}”`);
-  if (wish.repeat !== undefined) parts.push(`powtarzanie: ${REPEAT_LABEL[wish.repeat]}`);
-  if (wish.audience !== undefined) parts.push(`wypełnia: ${wish.audience === 'office' ? 'tylko koordynator' : 'osoba przez swój link'}`);
-  return parts.length === 0 ? null : `${label}: ${parts.join('; ')}.`;
+  if (wish.questions !== undefined) parts.push(t('modules.wish.part.questions', { count: Array.isArray(wish.questions) ? wish.questions.length : 0 }));
+  if (wish.design !== undefined) parts.push(wish.design === null ? t('modules.wish.part.plainList') : t('modules.wish.part.design'));
+  if (wish.needs !== undefined) parts.push(wish.needs.length === 0 ? t('modules.wish.part.noNeeds') : t('modules.wish.part.needs', { list: wish.needs.map((w) => `„${needOf(w.id)?.label ?? w.id}”`).join(', ') }));
+  if (wish.memberRoles !== undefined) parts.push(wish.memberRoles.length === 0 ? t('modules.wish.part.noRoles') : t('modules.wish.part.roles'));
+  if (wish.virtualAreas !== undefined) parts.push(t('modules.wish.part.areas', { count: wish.virtualAreas.length }));
+  if (wish.group !== undefined) parts.push(wish.group === null ? t('modules.wish.part.noGroup') : t('modules.wish.part.group', { name: wish.group }));
+  if (wish.repeat !== undefined) parts.push(t('modules.wish.part.repeat', { repeat: REPEAT_LABEL[wish.repeat] }));
+  if (wish.audience !== undefined) parts.push(t('modules.wish.part.audience', { who: audienceWord(wish.audience) }));
+  return parts.length === 0 ? null : t('modules.wish.line', { label, parts: parts.join('; ') });
 }
 
 const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -109,32 +112,32 @@ export function formWishPreview(row: ModuleRow, wish: ModuleWish, options: { rea
   const warnings: string[] = [...wish.warnings];
   if (!form) {
     const said = formOnlyKeys(wish);
-    if (said.length > 0) warnings.push(`${said.map((k) => `"${k}"`).join(', ')} ma tylko formularz — pominięte.`);
+    if (said.length > 0) warnings.push(t('modules.wish.formOnly', { keys: said.map((k) => `"${k}"`).join(', ') }));
     return { lines, warnings };
   }
-  if (wish.questions !== undefined) lines.push(`Pytania w dokumencie: ${Array.isArray(wish.questions) ? wish.questions.length : 0}.`);
-  if (wish.design !== undefined) lines.push(wish.design === null ? 'Układ: zwykła lista.' : 'Układ i logika: z dokumentu.');
+  if (wish.questions !== undefined) lines.push(t('modules.wish.questionsInDoc', { count: Array.isArray(wish.questions) ? wish.questions.length : 0 }));
+  if (wish.design !== undefined) lines.push(wish.design === null ? t('modules.wish.plainList') : t('modules.wish.designFromDoc'));
   if (wish.needs !== undefined) {
     const said = needWishLines(wish.needs, readNeeds(readConfig(row.config).needs), options.replace);
-    lines.push(...(said.length === 0 ? ['Wymagania: bez zmian.'] : said));
+    lines.push(...(said.length === 0 ? [t('modules.wish.needsSame')] : said));
   }
   if (wish.repeat !== undefined && wish.repeat !== repeatOf(row.repeat)) {
-    if (row.extendsId === null) warnings.push('"repeat" ma tylko rozszerzenie formularza — pominięte.');
-    else if (row.entries > 0) warnings.push('To rozszerzenie ma już wpisy — "repeat" zostaje bez zmian.');
-    else lines.push(`Powtarzanie: ${REPEAT_LABEL[wish.repeat]}.`);
+    if (row.extendsId === null) warnings.push(t('modules.wish.repeatOnlyExt'));
+    else if (row.entries > 0) warnings.push(t('modules.wish.repeatHasEntries'));
+    else lines.push(t('modules.wish.repeatLine', { repeat: REPEAT_LABEL[wish.repeat] }));
   }
   if (wish.memberRoles !== undefined && !sameRoles(wish.memberRoles, memberRolesOf(row))) {
-    if (row.extendsId !== null) warnings.push('"memberRoles" mają tylko formularze (nie rozszerzenia) — pominięte.');
-    else lines.push(wish.memberRoles.length === 0 ? 'Role uczestników: żadne (kto już należy, zostaje).' : 'Role uczestników: z dokumentu — te, które masz.');
+    if (row.extendsId !== null) warnings.push(t('modules.wish.rolesOnlyForms'));
+    else lines.push(wish.memberRoles.length === 0 ? t('modules.wish.rolesNone') : t('modules.wish.rolesFromDoc'));
   }
   if (wish.virtualAreas !== undefined) {
-    if (row.extendsId !== null) warnings.push('"virtualAreas" mają tylko formularze (nie rozszerzenia) — pominięte.');
+    if (row.extendsId !== null) warnings.push(t('modules.wish.areasOnlyForms'));
     else lines.push(describeVirtualAreas(wish.virtualAreas));
   }
   if (wish.audience !== undefined && row.extendsId !== null && wish.audience !== row.audience) {
-    if (row.entries > 0) warnings.push('Ten podformularz ma już wpisy — "audience" zostaje bez zmian.');
-    else lines.push(`Kto wypełnia: ${wish.audience === 'office' ? 'tylko koordynator' : 'osoba przez swój link'}.`);
+    if (row.entries > 0) warnings.push(t('modules.wish.audienceHasEntries'));
+    else lines.push(t('modules.wish.audienceLine', { who: audienceWord(wish.audience) }));
   }
-  if (wish.group !== undefined) lines.push(wish.group === null ? 'Grupa: żadna.' : `Grupa: „${wish.group}" (jeśli jej nie ma — powstanie).`);
+  if (wish.group !== undefined) lines.push(wish.group === null ? t('modules.wish.groupNone') : t('modules.wish.groupWill', { name: wish.group }));
   return { lines, warnings };
 }

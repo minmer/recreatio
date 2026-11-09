@@ -16,6 +16,7 @@
  */
 
 import { cogitaPath } from './parts';
+import { t } from '../core/i18n';
 import { formatPlace, parsePlace, workOptions, workScheme } from '../library/locations';
 import type { CogitaLibrary } from './store';
 
@@ -42,7 +43,7 @@ export function readAnchor(id: string, data: Readonly<Record<string, unknown>>):
 /** Was ein Wejście in seinem Dokument trägt (leere Teile fallen weg). */
 export function anchorData(a: Omit<Anchor, 'id'>): Record<string, unknown> {
   return {
-    name: a.name.trim() || 'Wejście',
+    name: a.name.trim() || t('cogitaData.import.anchorDefault'),
     work: a.work,
     ...(a.locator.trim() === '' ? {} : { locator: a.locator.trim() }),
     ...(a.entry === '' ? {} : { entry: a.entry }),
@@ -67,7 +68,7 @@ export const anchorsAt = (lib: CogitaLibrary, entityId: string): Anchor[] => anc
 
 /** Die Stelle eines Wejście, einheitlich geschrieben — im Układ des Werks, wenn es lesbar ist. */
 export function anchorPlace(lib: CogitaLibrary, a: Pick<Anchor, 'work' | 'locator'>): string {
-  if (a.locator === '') return 'całe dzieło';
+  if (a.locator === '') return t('cogitaData.import.preview.wholeWork');
   const work = lib.entity(a.work);
   if (work === undefined) return a.locator;
   return formatPlace(parsePlace(a.locator, workScheme(work.data), workOptions(work.data)), a.locator);
@@ -77,17 +78,17 @@ export function anchorPlace(lib: CogitaLibrary, a: Pick<Anchor, 'work' | 'locato
 export function anchorProblems(lib: CogitaLibrary, a: Omit<Anchor, 'id'>): string[] {
   const out: string[] = [];
   const work = a.work === '' ? undefined : lib.entity(a.work);
-  if (a.work === '') out.push('Wybierz dzieło.');
-  else if (work === undefined) out.push('Tego dzieła nie ma w bibliotekach, z których korzysta ta baza (Więcej → Ustawienia → Źródła) — przycisk w Bibliotece i tak się pojawi, ale miejsca nie da się sprawdzić.');
-  else if (!work.kinds.includes('work')) out.push('To nie jest dzieło z biblioteki.');
+  if (a.work === '') out.push(t('cogitaData.anchor.chooseWork'));
+  else if (work === undefined) out.push(t('cogitaData.anchor.workMissing'));
+  else if (!work.kinds.includes('work')) out.push(t('cogitaData.anchor.notWork'));
   if (work !== undefined && a.locator !== '') {
     const place = parsePlace(a.locator, workScheme(work.data), workOptions(work.data));
-    if (place.spans.length === 0 && place.pages.length === 0) out.push(`Miejsca „${a.locator}” nie da się odczytać w układzie tego dzieła.`);
+    if (place.spans.length === 0 && place.pages.length === 0) out.push(t('cogitaData.anchor.placeUnread', { locator: a.locator }));
     /* 2026-10-25: auch ein Teil, den keine Regel liest („rozdz. 3; przypis 2"), wird genannt — er verbindet nichts. */
-    else if (/[\p{L}\p{N}]/u.test(place.rest)) out.push(`Część „${place.rest}” nie została odczytana w układzie tego dzieła — ta część niczego nie wskaże.`);
+    else if (/[\p{L}\p{N}]/u.test(place.rest)) out.push(t('cogitaData.anchor.partUnread', { part: place.rest }));
   }
-  if (a.entry === '' && a.view === '') out.push('Wskaż wpis albo sposób wyświetlania, do którego prowadzi wejście.');
-  if (a.entry !== '' && lib.entity(a.entry) === undefined) out.push('Tego wpisu już nie ma.');
-  if (a.view !== '' && !lib.docs('view').some((e) => e.id === a.view)) out.push('Tego sposobu wyświetlania już nie ma.');
+  if (a.entry === '' && a.view === '') out.push(t('cogitaData.anchor.needTarget'));
+  if (a.entry !== '' && lib.entity(a.entry) === undefined) out.push(t('cogitaData.anchor.entryGone'));
+  if (a.view !== '' && !lib.docs('view').some((e) => e.id === a.view)) out.push(t('cogitaData.anchor.viewGone'));
   return out;
 }

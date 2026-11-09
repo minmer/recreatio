@@ -59,5 +59,32 @@
     "layoutSign": "Przy \"text\": true — oświadczenie do podpisu na wydruku (np. zgoda rodzica): w formularzu do przeczytania, bez pola do zaznaczenia; na wydruku nad linią podpisu",
     "designNodes": "Węzły logiki: {\"id\",\"kind\",\"x\",\"y\", \"fieldId\"?, \"value\"?, \"op\"?, \"target\"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. \"age\" — wiek w pełnych latach z pytania z datą urodzenia albo PESEL-em (\"fieldId\"), w dniu \"value\" (RRRR-MM-DD; puste — dziś); porównany z 18 pokazuje pola dla niepełnoletnich",
     "designEdges": "Połączenia logiki: {\"id\",\"from\",\"to\",\"port\":\"a\"|\"b\"|\"in\"}"
+  },
+  "qExample": {
+    "given": "Imię",
+    "stay": "Nocleg",
+    "stayHelp": "Wybierz jedną możliwość",
+    "tent": "Namiot",
+    "school": "Szkoła",
+    "lodging": "Zakwaterowanie",
+    "consent": "Wyrażam zgodę na udział mojego dziecka."
+  },
+  "msg": {
+    "noPassword": "Bez hasła nie da się zapieczętować pytań — odblokuj klucze.",
+    "noAreaKey": "Nie masz klucza obszaru {area}.",
+    "noLabel": "Pytanie {n} nie ma treści — pominięte.",
+    "unknownKind": "Pytanie „{label}”: nieznany rodzaj „{kind}” — będzie „line”.",
+    "restoring": "Przywracanie pytania „{label}”…",
+    "restored": "„{label}” wraca do formularza — razem z dotychczasowymi odpowiedziami.",
+    "settingArea": "Ustawianie obszaru formularza…",
+    "sealedSkip": "Pytanie {id} jest zapieczętowane kluczem, którego nie masz — pominięte.",
+    "answersStay": "„{label}”: odpowiedzi zostają w dotychczasowym obszarze — przeniesienie robi się w module.",
+    "sealing": "Pieczętowanie pytania „{label}”…",
+    "noAnswerArea": "„{label}”: nie wybrano obszaru odpowiedzi — pytanie pominięte.",
+    "noPerson": "Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.",
+    "stays": "„{label}” zostaje: {why}.",
+    "deleteFailed": "nie udało się usunąć",
+    "designNeedsArea": "Układ i logika wymagają obszaru formularza — ustaw go w module i zaimportuj jeszcze raz.",
+    "savingLayout": "Zapisywanie układu…"
   }
 }

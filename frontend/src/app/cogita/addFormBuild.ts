@@ -7,6 +7,7 @@
 import { entryConfig, isTypeable, nodeLabel, pickConfig, refFields, rowOrder, type AddForm } from './addForm';
 import type { Graph, GraphEdge, GraphNode } from './graph';
 import { patternKeys, type FieldDef, type KindDef, type Lookup } from './schema';
+import { t } from '../core/i18n';
 
 /* -- Ein Formular aus einem Rodzaj ------------------------------------------------------------- */
 
@@ -76,7 +77,7 @@ export function formFromKind(root: KindDef, look: Pick<Lookup, 'kind'>, makeId: 
     /* Ein Feld, das mehrere nimmt, verbindet mindestens zwei: eine Übersetzung zwei Wörter („Word 1", „Word 2"); weitere fügt man im Editor hinzu. */
     const copies = f.multi ? 2 : 1;
     for (let n = 1; n <= copies; n += 1) {
-      const label = copies === 1 ? f.label : `${f.label} ${n}`;
+      const label = copies === 1 ? f.label : t('cogitaEditForm.build.copyN', { field: f.label, n });
       const child = add('entry', COLUMN, childY, { kind: kind.id, label, many: false, reuse: 'same', fields: fieldsOfConfig(defaultTyped(kind)) });
       childY += 220;
       link(child, rootId, f.key);

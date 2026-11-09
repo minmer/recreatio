@@ -10,10 +10,11 @@
 
 import type { OpenLibrary } from '../library/library';
 import { labelOf } from './schema';
+import { t } from '../core/i18n';
 import type { CogitaLibrary } from './store';
 
 /** Was eine öffentliche Baza zeigt — in jedem Satz, der davon spricht, dasselbe. */
-export const WHOLE_BASE = 'całą bazę: wpisy, pytania razem z odpowiedziami, szkice, powtórki i przebiegi';
+export const wholeBase = (): string => t('cogitaData.visibility.wholeBase');
 
 type Visible = Pick<OpenLibrary, 'areaPublic' | 'areaRuleAt'>;
 
@@ -22,9 +23,9 @@ export const isPublicBase = (row: Visible | undefined): boolean => row?.areaPubl
 
 /** Wer eine Baza wiedzy liest — in Worten. */
 export function audience(row: Visible | undefined): string {
-  if (row?.areaPublic !== true) return 'członkowie jej obszaru (i ci, którym dali link)';
-  if (row.areaRuleAt == null) return 'członkowie obszaru — obszar jest jawny, ale ta baza nie jest jeszcze otwarta (Ustawienia → Kto czyta)';
-  return `każdy — obszar jest jawny, więc każdy czyta ${WHOLE_BASE}`;
+  if (row?.areaPublic !== true) return t('cogitaData.visibility.members');
+  if (row.areaRuleAt == null) return t('cogitaData.visibility.membersNotOpen');
+  return t('cogitaData.visibility.everyone', { whole: wholeBase() });
 }
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -55,10 +56,7 @@ export function needsOf(lib: { readonly store: { get(id: string): { readonly kin
   return out;
 }
 
-const KIND_WORDS: Readonly<Record<string, string>> = {
-  kind: 'rodzaj', template: 'szablon', revision: 'powtórka', flow: 'przebieg', collection: 'zbiór',
-  addform: 'formularz', rules: 'zasady', values: 'wartości', look: 'wygląd', view: 'widok', reward: 'nagrody'
-};
+const KIND_WORDS: ReadonlySet<string> = new Set(['kind', 'template', 'revision', 'flow', 'collection', 'addform', 'rules', 'values', 'look', 'view', 'reward']);
 
 /** Wie ein Eintrag der Baza im Plan heisst — ein Eintrag mit seinem Etikett, ein Dokument mit Art und Namen. */
 export function nameIn(lib: CogitaLibrary, id: string): string {
@@ -66,6 +64,6 @@ export function nameIn(lib: CogitaLibrary, id: string): string {
   if (entity !== undefined) return labelOf(entity, lib.look);
   const entry = lib.store.get(id);
   const named = typeof entry?.data.name === 'string' && entry.data.name.trim() !== '' ? entry.data.name : null;
-  const word = KIND_WORDS[entry?.kind ?? ''] ?? 'wpis';
+  const word = KIND_WORDS.has(entry?.kind ?? '') ? t(`cogitaData.visibility.kind.${entry!.kind}`) : t('cogitaData.visibility.kind.entry');
   return named === null ? word : `${word}: ${named}`;
 }

@@ -1,0 +1,105 @@
+{
+  "path": {
+    "state": {
+      "known": "known",
+      "learning": "learning",
+      "fresh": "to learn",
+      "waiting": "waiting for the basics",
+      "order": "only orders"
+    },
+    "counting": "Counting cards…",
+    "order": "Learning order",
+    "emptyText": "This base has no order yet: everything is asked at once. The order comes from “First you need to know” references — an orbital requires the electron and the atom, so questions about the orbital come once you know the atom.",
+    "emptyKind": "In a kind (Schemes → Entry kinds) a reference field with the setting “Learning order: first you need to know what it points to” (e.g. “Requires”). A ready kind “Concept” with such a field: <c>templates/cogita/podstawy.json</c>.",
+    "emptyQuestion": "A question has the field “First you need to know” itself, and through “About” it waits for what has to be known before what it asks about.",
+    "toSchemes": "Go to Schemes",
+    "intro": "From basics to details: a card comes when you know what has to be known before it. {levels}, {entries} in order.",
+    "levels": {
+      "one": "{count} level",
+      "other": "{count} levels"
+    },
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "fromBasicsTitle": "From the basics",
+    "fromBasics": "Learn from the basics",
+    "circles": "A circle in the order — these dependencies do not work: ",
+    "requires": "{child} requires {parent}",
+    "circlesFix": ". Fix them in the entries.",
+    "learnBasics": "Learn (with the basics)",
+    "asList": "As a list — levels ({n})",
+    "outside": {
+      "one": "{count} entry with cards has no place in the order — it comes together with level 1.",
+      "other": "{count} entries with cards have no place in the order — they come together with level 1."
+    },
+    "needs": "First you need to know:",
+    "builds": "Built on this:",
+    "circle": "Circle: ",
+    "circleEnd": " — this dependency does not work while the circle lasts."
+  },
+  "flow": {
+    "guess": "Before you read — what do you think?",
+    "recall": "Remember:",
+    "locked": "<b>This story is still closed.</b> It opens once you know what has to be known before it — from the basics:",
+    "weak": {
+      "one": "You already know everything this story requires — but {count} card of it is worth reviewing first.",
+      "other": "You already know everything this story requires — but {count} cards of it are worth reviewing first."
+    },
+    "reviewFirstTitle": "Review first: {name}",
+    "reviewFirst": "Review first ({n})",
+    "previewAnyway": "Preview anyway",
+    "isPresentation": "This run is a presentation.",
+    "openPresentation": "Open the presentation",
+    "noQuestion": "This question is not here.",
+    "option": "option {n}",
+    "closedBecause": "Closed because: {why}",
+    "closedUntil": "Closed — opens when: {when}",
+    "merged": "Done: {merged}.",
+    "mergedNext": "Done: {merged} — choose the next one (all of them, in any order):",
+    "chapter": "Chapter {n}",
+    "scene": "Presentation scene",
+    "character": "Character"
+  },
+  "explore": {
+    "legend": "Bright — you know it; pale — fading; dashed outline — a border you can cross; fog — not discovered yet.",
+    "onMap": "On the map",
+    "allKinds": "all kinds",
+    "fog": "Still in the fog",
+    "learn": "Learn this ({cards})"
+  },
+  "geo": {
+    "map": "Map",
+    "pick": "Map — tap to mark a place",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
+  "pending": {
+    "open": "Questions without an answer ({n})",
+    "openNone": "Every question is answered by some statement.",
+    "thesis": "Statements without a good thesis ({n})",
+    "thesisNone": "Every statement (content in blocks) starts with a short sentence — the thesis.",
+    "noSentence": "does not start with a sentence",
+    "tooLong": "the first sentence has more than {n} characters",
+    "circles": "Circles in the learning order ({n})",
+    "circlesText": "An entry requires something that (through other entries) requires the entry itself. Such a dependency does not work — fix “First you need to know” in one of them.",
+    "requires": " requires ",
+    "stale": "To check — something a statement points to has changed ({n})",
+    "staleNone": "Everything up to date.",
+    "flags": "Learners' reports ({n})",
+    "flagsKey": "Reports are read by whoever holds the intake key of the knowledge base's area (Settings → intake).",
+    "flagsNone": "No reports.",
+    "question": "Question: ",
+    "answer": "Answer: ",
+    "hard": "Many get this wrong",
+    "hardLine": "{pct}% wrong of {n}",
+    "pattern": "How is {e} shown in {t}?",
+    "parallel": "Parallel questions",
+    "parallelText": "One pattern for every entry of a kind — mark which questions should be created. Each becomes a statement with the question as its thesis (open until something answers it).",
+    "needKind": "First add a kind with a field “Content in blocks” (e.g. import templates/cogita/komentarz.json).",
+    "as": "As",
+    "patternLabel": "Pattern",
+    "where": "{t}: in what (e.g. a chapter)",
+    "create": "Create the marked questions"
+  }
+}

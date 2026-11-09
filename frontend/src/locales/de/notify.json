@@ -1,0 +1,111 @@
+{
+  "ring": {
+    "newMessage": "Neue Nachricht",
+    "newMessages": "Neue Nachrichten: {count}",
+    "moreElsewhere": "{chat} · und {count} in anderen Gesprächen",
+    "newEntry": "Neue Anmeldung",
+    "newEntries": "Neue Anmeldungen: {count}",
+    "someoneFilled": "Jemand hat ein Formular ausgefüllt.",
+    "joined": "Jemand ist per Link beigetreten",
+    "joinedBody": "Sieh dir die Zugangslinks unter Bereiche an.",
+    "learn": "Wiederholung wartet",
+    "learnBody": {
+      "one": "{count} Karte zu wiederholen",
+      "other": "{count} Karten zu wiederholen"
+    }
+  },
+  "chat": {
+    "seat": "Gespräch mit: {name}",
+    "channel": "Kanal: {name}",
+    "self": "Notizen",
+    "formPerson": "der Person aus dem Formular"
+  },
+  "deviceLabel": "Telefon (App)",
+  "line": {
+    "cannotOpen": "Eine Nachricht, die dieses Gerät nicht öffnen kann",
+    "photo": "Foto",
+    "voice": "Sprachnachricht",
+    "video": "Video",
+    "file": "Datei: {name}",
+    "withFiles": "{text} (Anhänge: {count})",
+    "empty": "Leere Nachricht",
+    "forwarded": "Weitergeleitet: {text}"
+  },
+  "renewFailed": "Der Zugang konnte nicht verlängert werden.",
+  "reminder": {
+    "start": "Zeit anzufangen",
+    "middle": "Die Hälfte der Zeit ist um",
+    "end": "Das Ende naht",
+    "task": "Aufgabe"
+  },
+  "reply": {
+    "session": "Sitzung abgelaufen — öffne die App und melde dich an.",
+    "noKey": "Der Schlüssel ist auf diesem Gerät nicht verwahrt — antworte in der App.",
+    "empty": "Leere Antwort.",
+    "you": "Du",
+    "needPerson": "Für ein Gespräch braucht es eine Person — lege sie in der App an.",
+    "readOnly": "In diesem Gespräch liest du nur.",
+    "noPerson": "Das Konto führt noch keine Person."
+  },
+  "look": {
+    "title": "Benachrichtigungen",
+    "waiting": "Was auf dich wartet",
+    "waitingHint": "Was die Glocke und die Seite Jetzt zeigen — in dieser Reihenfolge. Ausgeschaltetes zählt nicht zur Zahl an der Glocke.",
+    "device": "Auf diesem Gerät"
+  },
+  "bell": {
+    "labelNew": "Benachrichtigungen: {count} neu",
+    "checking": "Wird geprüft…",
+    "nothing": "Nichts Neues — alles durchgesehen.",
+    "markAll": "Alles als durchgesehen markieren",
+    "settings": "Einstellungen"
+  },
+  "push": {
+    "notBuilt": "Sofortige Benachrichtigungen: diese Version der App unterstützt sie nicht — Neues kommt beim Prüfen im Hintergrund.",
+    "notServer": "Sofortige Benachrichtigungen: der Server sendet sie noch nicht — Neues kommt beim Prüfen im Hintergrund.",
+    "notPhone": "Sofortige Benachrichtigungen: das Telefon hat sich noch nicht gemeldet (Internet und Google-Dienste nötig). Starte die App neu.",
+    "lastError": "Letzter Fehler: {error}.",
+    "on": "Sofortige Benachrichtigungen: an — eine neue Nachricht weckt das Telefon sofort; das Prüfen im Hintergrund ist nur eine Absicherung."
+  },
+  "background": {
+    "m0": "nie",
+    "m15": "alle 15 Min. (mehr Akku)",
+    "m30": "alle 30 Min.",
+    "m60": "stündlich",
+    "m180": "alle 3 Stunden (am wenigsten Akku)"
+  },
+  "content": {
+    "notKept": "Solange die App offen ist, ist der Inhalt immer sichtbar. Um ihn auch bei geschlossener App zu sehen und zu antworten, schalte Konto → Schlüssel: Verwahrt auf diesem Telefon ein. Ohne das kommt bei geschlossener App nur die Zahl der Neuigkeiten.",
+    "when": "(zuletzt {date})",
+    "session": "Die Sitzung auf diesem Telefon ist abgelaufen — melde dich erneut an, damit der Inhalt wieder in den Benachrichtigungen steht{when}.",
+    "key": "Das Telefon konnte den Schlüssel nicht öffnen — öffne die App einmal mit dem Passwort{when}.",
+    "failed": "Das letzte Öffnen des Inhalts ist fehlgeschlagen{when}; wir versuchen es bei der nächsten Neuigkeit wieder.",
+    "ok": "Der Inhalt wird nur auf diesem Telefon entschlüsselt — Firebase trägt nur ein leeres Signal. Um aus der Benachrichtigung zu antworten, tipp einfach den Text{when}."
+  },
+  "settings": {
+    "backgroundOff": "Prüfen im Hintergrund ausgeschaltet.",
+    "saveFailed": "Die Einstellungen des Geräts konnten nicht gespeichert werden.",
+    "label": "Einstellungen der Benachrichtigungen",
+    "denied": "Android hat es nicht erlaubt. Schalte Benachrichtigungen für recreatio in den Einstellungen des Telefons ein (Apps → recreatio → Benachrichtigungen).",
+    "enable": "Benachrichtigungen auf diesem Gerät einschalten",
+    "noBrowser": "Dieser Browser zeigt keine Benachrichtigungen — Neues siehst du in der Glocke.",
+    "about": "Benachrichtigen über",
+    "chats": "neue Nachrichten",
+    "forms": "neue Anmeldungen aus Formularen",
+    "links": "Beitritte über Zugangslinks",
+    "reminders": "Erinnerungen an Aufgaben",
+    "contentTitle": "Inhalt in Benachrichtigungen",
+    "contents": "zeigen, wer was schreibt, Namen aus Anmeldungen und Titel von Aufgaben — mit Antwort direkt aus der Benachrichtigung",
+    "lockScreen": "Auf dem Sperrbildschirm zeigt Android nur „Neue Nachricht“, wenn in den Einstellungen des Telefons das Verbergen vertraulicher Inhalte eingestellt ist.",
+    "whenClosed": "Bei geschlossener App prüfen",
+    "phoneHint": "Das Telefon prüft nur Zahlen (ohne Inhalt), nur mit Internet und wenn der Akku nicht fast leer ist. Erinnerungen an Aufgaben kommen auch ohne das pünktlich.",
+    "browserHint": "Im Browser: jede Minute, solange der Tab vorne ist (Neues erscheint dann auf der Seite), alle 5 Minuten im Hintergrund; bei schwachem Akku seltener. Ist der Tab geschlossen, gibt es keine Benachrichtigungen — installiere die App auf dem Telefon, um sie immer zu bekommen.",
+    "devices": "Geräte, die im Hintergrund prüfen",
+    "device": "Gerät",
+    "thisDevice": "(dieses Gerät)",
+    "lastSeen": "zuletzt {when}",
+    "never": "noch nie",
+    "push": "sofort (Push)",
+    "drop": "Trennen"
+  }
+}

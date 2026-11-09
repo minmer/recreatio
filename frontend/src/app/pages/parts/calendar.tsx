@@ -9,7 +9,9 @@
  * die Kalender führt, trägt dort ein und ändert, ohne in den Arbeitsplatz zu wechseln.
  */
 
-import { definePart, text, type RawConfig } from '../part';
+import { t } from '../../core/i18n';
+import { text, type RawConfig } from '../part';
+import { field, texts, textPart } from './partTexts';
 import { later } from '../../ui/later';
 
 /* 2026-10-17 — die Ansicht erst, wenn sie gezeigt wird (`ui/later`): eine Seite ohne diesen Baustein lädt sie nicht. */
@@ -22,36 +24,34 @@ interface CalendarConfig {
 
 const idsOf = (value: string) => value.split(',').map((one) => one.trim()).filter((one) => one !== '');
 
-export const calendarPart = definePart<CalendarConfig>({
+export const calendarPart = textPart<CalendarConfig>(texts({ label: 'moduleData.calendar.label', use: 'moduleData.calendar.use' }), {
   kind: 'calendar',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Terminy wspólnoty', calendars: '<id-kalendarza-1>,<id-kalendarza-2>' },
-  label: 'Kalendarz',
-  use: 'Terminy wybranych kalendarzy na stronie — w pełnym ekranie osoby, które je prowadzą, mogą też dodawać i zmieniać terminy.',
+  example: texts({ title: 'moduleData.calendar.exTitle', calendars: 'moduleData.calendar.exCalendars' }),
   box: { colSpan: 4, rowSpan: 5 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Terminy wspólnoty' },
-    { key: 'calendars', label: 'Które kalendarze', kind: 'calendars' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleData.calendar.titleHint' })),
+    field({ key: 'calendars', kind: 'calendars' }, texts({ label: 'moduleData.calendar.which' }))
   ],
 
   read: (raw: RawConfig): CalendarConfig => ({ title: text(raw, 'title'), calendars: text(raw, 'calendars') }),
 
   hasContent: (config) => idsOf(config.calendars).length > 0,
   missing: (config) => idsOf(config.calendars).length === 0
-    ? 'Zaznacz co najmniej jeden kalendarz — bez tego kafelek nie pojawi się na stronie.'
+    ? t('moduleData.calendar.missing')
     : null,
 
-  strip: { title: 'Kalendarz', open: 'Otwórz kalendarz' },
+  strip: texts({ title: 'moduleData.calendar.label', open: 'moduleData.calendar.open' }),
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Najbliższy termin w jednym wierszu.'
+    ? t('moduleData.calendar.showsStrip')
     : (size.width === 'wide' || size.width === 'full') && size.height === 'tall'
-      ? 'Tydzień w siatce godzin z przewijaniem dni; do tego tydzień, miesiąc i lista.'
+      ? t('moduleData.calendar.showsWideTall')
       : size.height === 'tall'
-        ? 'Najbliższe terminy (do 12) i opis, jak działają.'
-        : 'Najbliższe terminy (do 5).',
+        ? t('moduleData.calendar.showsTall')
+        : t('moduleData.calendar.showsBlock'),
 
   View: ({ config, ctx }) => <CalendarPartView title={config.title} calendarIds={idsOf(config.calendars)} ctx={ctx} />
 });

@@ -24,6 +24,7 @@ import type { Entry, LibraryStore } from './libraryStore';
 import { viewPath } from '../routes';
 import { Scanner } from '../ui/Scanner';
 import { WorkspaceError } from '../core/session';
+import { rich, useT } from '../core/i18n';
 
 const fold = (text: string): string => slug(text).replace(/-/g, ' ').trim();
 
@@ -47,6 +48,7 @@ export function ScanBook({ store, library, onSearch }: { store: LibraryStore; li
   const [scanning, setScanning] = useState(false);
   const [found, setFound] = useState<Found | null>(null);
   const [catalog, setCatalog] = useState(false);
+  const t = useT();
 
   const go = (entry: Entry) => { window.location.hash = viewPath('library', library.libraryId, entry.id); };
 
@@ -68,13 +70,13 @@ export function ScanBook({ store, library, onSearch }: { store: LibraryStore; li
 
   return (
     <>
-      <button type="button" className="wk-btn wk-btn-line lib-scan-btn" onClick={() => setScanning(true)} title="Zeskanuj ISBN z okładki albo własny numer z etykiety">
-        <span aria-hidden="true" className="lib-scan-icon" />Skanuj kod
+      <button type="button" className="wk-btn wk-btn-line lib-scan-btn" onClick={() => setScanning(true)} title={t('libraryData.scan.buttonTitle')}>
+        <span aria-hidden="true" className="lib-scan-icon" />{t('libraryData.scan.button')}
       </button>
       {scanning && (
         <Scanner
-          title="Skanuj książkę"
-          lead="Kod kreskowy z tyłu okładki (ISBN) albo etykieta z numerem w bibliotece — trzymaj go poziomo w ramce."
+          title={t('libraryData.scan.bookTitle')}
+          lead={t('libraryData.scan.bookLead')}
           onCode={take}
           onClose={() => setScanning(false)}
         />
@@ -83,18 +85,18 @@ export function ScanBook({ store, library, onSearch }: { store: LibraryStore; li
         <div className="lib-found" role="status">
           {found.kind === 'isbn' && found.works.length === 0 && (
             <>
-              <p>Książki z ISBN <strong>{isbnDisplay(found.isbn)}</strong> nie ma jeszcze w tej bibliotece.</p>
+              <p>{rich(t('libraryData.scan.notHere', { isbn: isbnDisplay(found.isbn) }), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
               {library.writes && !catalog && (
                 <div className="wk-actions">
-                  <button type="button" className="wk-btn" onClick={() => setCatalog(true)}>Znajdź w katalogach i dodaj</button>
-                  <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'work', `isbn=${found.isbn}`)}>Dodaj ręcznie</a>
+                  <button type="button" className="wk-btn" onClick={() => setCatalog(true)}>{t('libraryData.scan.findAndAdd')}</button>
+                  <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'work', `isbn=${found.isbn}`)}>{t('libraryData.scan.addManually')}</a>
                 </div>
               )}
               {catalog && (
                 <CatalogPick
                   isbn={found.isbn}
                   people={store.ofKind('person')}
-                  applyLabel="Dodaj do biblioteki"
+                  applyLabel={t('libraryData.scan.addToLibrary')}
                   onCancel={() => setCatalog(false)}
                   onApply={async (plan) => {
                     await savePersons(store, plan);
@@ -108,7 +110,7 @@ export function ScanBook({ store, library, onSearch }: { store: LibraryStore; li
           )}
           {found.kind !== 'nothing' && found.works.length > 1 && (
             <>
-              <p>{found.kind === 'isbn' ? `ISBN ${isbnDisplay(found.isbn)}` : `Numer „${found.code}”`} mają {found.works.length} wpisy:</p>
+              <p>{t('libraryData.scan.several', { count: found.works.length, what: found.kind === 'isbn' ? `ISBN ${isbnDisplay(found.isbn)}` : t('libraryData.scan.numberQuoted', { code: found.code }) })}</p>
               <ul className="lib-rel">
                 {found.works.map((w) => <li key={w.id}><a href={viewPath('library', library.libraryId, w.id)}>{store.title(w)}</a> <span className="lib-row-meta">{str(w.data, 'year')}</span></li>)}
               </ul>
@@ -116,11 +118,11 @@ export function ScanBook({ store, library, onSearch }: { store: LibraryStore; li
           )}
           {found.kind === 'nothing' && (
             <>
-              <p>Nic nie ma pod kodem <strong>{found.code}</strong> — to nie ISBN ani numer w bibliotece.</p>
-              <div className="wk-actions"><button type="button" className="wk-link-btn" onClick={() => { onSearch(found.code); setFound(null); }}>Szukaj tego tekstu</button></div>
+              <p>{rich(t('libraryData.scan.nothing', { code: found.code }), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
+              <div className="wk-actions"><button type="button" className="wk-link-btn" onClick={() => { onSearch(found.code); setFound(null); }}>{t('libraryData.scan.searchText')}</button></div>
             </>
           )}
-          <button type="button" className="wk-link-btn lib-found-x" onClick={() => { setFound(null); setCatalog(false); }}>Zamknij</button>
+          <button type="button" className="wk-link-btn lib-found-x" onClick={() => { setFound(null); setCatalog(false); }}>{t('common.close')}</button>
         </div>
       )}
     </>
@@ -148,6 +150,7 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
   const [chosen, setChosen] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -160,7 +163,7 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
       const year = existing === undefined ? '' : str(existing, 'year');
       const same = year === '' ? -1 : found.findIndex((b) => b.year === year);
       setChosen(Math.max(0, same));
-    }, (e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapytać katalogów.'); });
+    }, (e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.catalog.queryFailed')); });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isbn]);
@@ -175,7 +178,7 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
     try {
       await onApply(plan, book);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.catalog.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -183,13 +186,13 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
 
   return (
     <div className="lib-catalog" aria-live="polite">
-      {books === null && failed === null && <p className="wk-hint">Szukanie w katalogach (Biblioteka Narodowa, e-ISBN, Open Library)…</p>}
+      {books === null && failed === null && <p className="wk-hint">{t('libraryData.catalog.searching')}</p>}
       {books !== null && books.length === 0 && (
-        <p>Żaden katalog nie zna ISBN {isbnDisplay(isbn)}.{manual !== undefined && <> <a href={manual}>Dodaj ręcznie</a>.</>}</p>
+        <p>{t('libraryData.catalog.unknown', { isbn: isbnDisplay(isbn) })}{manual !== undefined && <> <a href={manual}>{t('libraryData.scan.addManually')}</a>.</>}</p>
       )}
       {books !== null && books.length > 0 && (
         <>
-          <p className="wk-hint">{books.length === 1 ? 'Znaleziony opis:' : `Znalezione opisy (${books.length}) — wybierz wydanie, które masz w ręku:`}</p>
+          <p className="wk-hint">{books.length === 1 ? t('libraryData.catalog.foundOne') : t('libraryData.catalog.foundMany', { n: books.length })}</p>
           <ul className="lib-catalog-list">
             {books.map((b, i) => (
               <li key={b.ref}>
@@ -199,7 +202,7 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
                     <strong>{b.title}{b.subtitle === undefined ? '' : `. ${b.subtitle}`}</strong>
                     {peopleLine(b) !== '' && <span>{peopleLine(b)}</span>}
                     <span className="lib-row-meta">{bookLine(b)}</span>
-                    <span className="lib-row-meta">{SOURCE_NAME[b.source]}{b.exact ? '' : ' · ISBN podany jako inne wydanie'}</span>
+                    <span className="lib-row-meta">{SOURCE_NAME[b.source]}{b.exact ? '' : t('libraryData.catalog.otherEdition')}</span>
                   </span>
                 </label>
               </li>
@@ -208,17 +211,17 @@ export function CatalogPick({ isbn, people, existing, applyLabel, onApply, onCan
           {plan !== null && (
             <div className="lib-catalog-plan">
               {plan.filled.length === 0
-                ? <p>Wszystkie pola, które zna katalog, są już wypełnione.</p>
-                : <p>{existing === undefined ? 'Powstanie książka z polami' : 'Uzupełni puste pola'}: {plan.filled.join(', ')}.</p>}
-              {plan.persons.length > 0 && <p className="wk-hint">Nowe osoby: {plan.persons.map((p) => str(p.data, 'name') || `${str(p.data, 'givenNames')} ${str(p.data, 'surname')}`.trim()).join(', ')}.</p>}
+                ? <p>{t('libraryData.catalog.allFilled')}</p>
+                : <p>{t(existing === undefined ? 'libraryData.catalog.willCreate' : 'libraryData.catalog.willFill', { list: plan.filled.join(', ') })}</p>}
+              {plan.persons.length > 0 && <p className="wk-hint">{t('libraryData.catalog.newPeople')} {plan.persons.map((p) => str(p.data, 'name') || `${str(p.data, 'givenNames')} ${str(p.data, 'surname')}`.trim()).join(', ')}.</p>}
             </div>
           )}
         </>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        {plan !== null && plan.filled.length > 0 && <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>{busy ? 'Zapisywanie…' : applyLabel}</button>}
-        <button type="button" className="wk-link-btn" onClick={onCancel}>Anuluj</button>
+        {plan !== null && plan.filled.length > 0 && <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>{busy ? t('common.saving') : applyLabel}</button>}
+        <button type="button" className="wk-link-btn" onClick={onCancel}>{t('common.cancel')}</button>
       </div>
     </div>
   );
@@ -240,6 +243,7 @@ export function IsbnTools({ store, library, entryId, data, readOnly, onSet, onPl
   const [scanning, setScanning] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
+  const t = useT();
   const value = str(data, 'isbn');
   const problem = isbnProblem(value);
   const first = isbnsIn(value)[0];
@@ -249,28 +253,28 @@ export function IsbnTools({ store, library, entryId, data, readOnly, onSet, onPl
     <div className="lib-field-tools">
       {problem !== null && <p className="wk-warn">{problem}</p>}
       {twins.length > 0 && (
-        <p className="wk-warn">Ten ISBN ma już: {twins.map((w, i) => <span key={w.id}>{i > 0 && ', '}<a href={viewPath('library', library.libraryId, w.id)}>{store.title(w)}</a></span>)}.</p>
+        <p className="wk-warn">{t('libraryData.scan.isbnTaken')} {twins.map((w, i) => <span key={w.id}>{i > 0 && ', '}<a href={viewPath('library', library.libraryId, w.id)}>{store.title(w)}</a></span>)}.</p>
       )}
       {!readOnly && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => setScanning(true)}>Skanuj ISBN</button>
-          {first !== undefined && !catalog && <button type="button" className="wk-link-btn" onClick={() => { setCatalog(true); setSaid(null); }}>Uzupełnij z katalogu</button>}
+          <button type="button" className="wk-link-btn" onClick={() => setScanning(true)}>{t('libraryData.scan.isbnTitle')}</button>
+          {first !== undefined && !catalog && <button type="button" className="wk-link-btn" onClick={() => { setCatalog(true); setSaid(null); }}>{t('libraryData.scan.fromCatalog')}</button>}
         </div>
       )}
       {said !== null && <p className="wk-done" role="status">{said}</p>}
       {scanning && (
         <Scanner
-          title="Skanuj ISBN"
-          lead="Kod kreskowy z tyłu okładki — trzymaj go poziomo w ramce."
+          title={t('libraryData.scan.isbnTitle')}
+          lead={t('libraryData.scan.isbnLead')}
           onClose={() => setScanning(false)}
           onCode={(code) => {
             setScanning(false);
             const isbn = isbn13(code);
-            if (isbn === null) { setSaid(`To nie jest ISBN: ${code}`); return; }
+            if (isbn === null) { setSaid(t('libraryData.scan.notIsbn', { code })); return; }
             const now = isbnsIn(value);
-            if (now.includes(isbn)) { setSaid('Ten ISBN już tu jest.'); return; }
+            if (now.includes(isbn)) { setSaid(t('libraryData.scan.alreadyHere')); return; }
             onSet(value.trim() === '' || now.length === 0 ? isbnDisplay(isbn) : `${value.trim()}, ${isbnDisplay(isbn)}`);
-            setSaid(`Wpisano ISBN ${isbnDisplay(isbn)}.`);
+            setSaid(t('libraryData.scan.entered', { isbn: isbnDisplay(isbn) }));
           }}
         />
       )}
@@ -279,12 +283,12 @@ export function IsbnTools({ store, library, entryId, data, readOnly, onSet, onPl
           isbn={first}
           people={store.ofKind('person')}
           existing={data}
-          applyLabel="Uzupełnij puste pola"
+          applyLabel={t('libraryData.catalog.fillEmpty')}
           onCancel={() => setCatalog(false)}
           onApply={async (plan) => {
             await onPlan(plan);
             setCatalog(false);
-            setSaid(`Uzupełniono: ${plan.filled.join(', ')}.`);
+            setSaid(t('libraryData.catalog.filled', { list: plan.filled.join(', ') }));
           }}
         />
       )}
@@ -302,24 +306,25 @@ export function NumberTools({ store, library, entryId, value, readOnly, onSet }:
   onSet: (number: string) => void;
 }) {
   const [scanning, setScanning] = useState(false);
+  const t = useT();
   const works = store.ofKind('work');
   const twins = sameNumber(works, value, entryId);
   const next = nextLibraryNumber(works.filter((w) => w.id !== entryId));
   return (
     <div className="lib-field-tools">
       {twins.length > 0 && (
-        <p className="wk-warn">Ten numer ma już: {twins.map((w, i) => <span key={w.id}>{i > 0 && ', '}<a href={viewPath('library', library.libraryId, w.id)}>{store.title(w)}</a></span>)}.</p>
+        <p className="wk-warn">{t('libraryData.scan.numberTaken')} {twins.map((w, i) => <span key={w.id}>{i > 0 && ', '}<a href={viewPath('library', library.libraryId, w.id)}>{store.title(w)}</a></span>)}.</p>
       )}
       {!readOnly && (
         <div className="wk-actions">
-          {value.trim() === '' && <button type="button" className="wk-link-btn" onClick={() => onSet(next)}>Nadaj kolejny: {next}</button>}
-          <button type="button" className="wk-link-btn" onClick={() => setScanning(true)}>Skanuj etykietę</button>
+          {value.trim() === '' && <button type="button" className="wk-link-btn" onClick={() => onSet(next)}>{t('libraryData.scan.nextNumber', { next })}</button>}
+          <button type="button" className="wk-link-btn" onClick={() => setScanning(true)}>{t('libraryData.scan.label')}</button>
         </div>
       )}
       {scanning && (
         <Scanner
-          title="Skanuj etykietę"
-          lead="Kod z etykiety z numerem tej książki w bibliotece."
+          title={t('libraryData.scan.label')}
+          lead={t('libraryData.scan.labelLead')}
           onClose={() => setScanning(false)}
           onCode={(code) => { setScanning(false); onSet(code); }}
         />

@@ -12,7 +12,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { plural } from '../core/plural';
+import { t as tApp, useT } from '../core/i18n';
 
 import { anchorsForWork, anchorsTouching, type AnchorHit } from './anchorHits';
 import { kindOf, type LibEntry } from './libraryKinds';
@@ -31,19 +31,20 @@ function useAnchors(work: LibEntry, store: LibraryStore): AnchorHit[] {
 
 /** Wo das Wejście im Werk liegt — „s. 45–60", „I, q. 2, a. 3", „całe dzieło"; an einer anderen Ausgabe mit deren Namen. */
 function whereOf(hit: AnchorHit, store: LibraryStore): string {
-  const place = hit.place === null ? 'całe dzieło' : formatPlace(hit.place, hit.anchor.locator);
-  return hit.edition === undefined ? place : `${place} (w wydaniu: ${kindOf('work')!.title(hit.edition.data, store)})`;
+  const place = hit.place === null ? tApp('library.knowledge.wholeWork') : formatPlace(hit.place, hit.anchor.locator);
+  return hit.edition === undefined ? place : tApp('library.knowledge.inEdition', { place, edition: kindOf('work')!.title(hit.edition.data, store) });
 }
 
 export function KnowledgeBox({ store, work }: { store: LibraryStore; work: LibEntry }) {
   const [all, setAll] = useState(false);
+  const t = useT();
   const hits = useAnchors(work, store);
   if (hits.length === 0) return null;
   const shown = all ? hits : hits.slice(0, FIRST);
   const bases = [...new Set(shown.map((h) => h.libraryId))];
   return (
     <section className="lib-box" id="lib-w-wiedzy" data-knowledge-box="">
-      <h2 className="lib-box-h">W Wiedzy</h2>
+      <h2 className="lib-box-h">{t('library.knowledge.title')}</h2>
       {bases.map((base) => (
         <div key={base}>
           <p className="lib-box-sub">{shown.find((h) => h.libraryId === base)?.baseName}</p>
@@ -57,25 +58,27 @@ export function KnowledgeBox({ store, work }: { store: LibraryStore; work: LibEn
           </ul>
         </div>
       ))}
-      {hits.length > FIRST && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? 'Pokaż mniej' : `Pokaż wszystkie (${hits.length})`}</button>}
+      {hits.length > FIRST && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? t('libraryData.quotes.showLess') : t('libraryData.quotes.showAll', { n: hits.length })}</button>}
     </section>
   );
 }
 
 /** Unter dem Titel, nur wo die Kästen unter die Felder rutschen: ein Wejście führt direkt hin, mehrere zum Kasten. */
 export function KnowledgeLine({ store, work }: { store: LibraryStore; work: LibEntry }) {
+  const t = useT();
   const hits = useAnchors(work, store);
   if (hits.length === 0) return null;
-  if (hits.length === 1) return <p className="lib-knowledge-line"><a href={hits[0]!.href}>W Wiedzy: {hits[0]!.anchor.name} ›</a></p>;
+  if (hits.length === 1) return <p className="lib-knowledge-line"><a href={hits[0]!.href}>{t('library.knowledge.one', { name: hits[0]!.anchor.name })}</a></p>;
   return (
     <p className="lib-knowledge-line">
-      <button type="button" className="wk-link-btn" onClick={() => document.getElementById('lib-w-wiedzy')?.scrollIntoView({ block: 'start' })}>W Wiedzy: {hits.length} {plural(hits.length, 'wejście', 'wejścia', 'wejść')} ↓</button>
+      <button type="button" className="wk-link-btn" onClick={() => document.getElementById('lib-w-wiedzy')?.scrollIntoView({ block: 'start' })}>{t('library.knowledge.many', { count: hits.length })}</button>
     </p>
   );
 }
 
 /** Im Czytnik: die Wejścia, die den gelesenen Teil berühren (das ganze Werk immer). */
 export function ReaderAnchors({ store, work, part, scheme }: { store: LibraryStore; work: LibEntry; part: ManifestPart; scheme: SchemeId }) {
+  const t = useT();
   const hits = useAnchors(work, store);
   if (hits.length === 0) return null;
   const first = part.first === undefined ? null : parsePlace(part.first, scheme);
@@ -87,7 +90,7 @@ export function ReaderAnchors({ store, work, part, scheme }: { store: LibrarySto
   if (touching.length === 0) return null;
   return (
     <p className="lib-knowledge-line is-reader" data-reader-anchors="">
-      <span className="lib-rel-kind">W Wiedzy</span>
+      <span className="lib-rel-kind">{t('library.knowledge.title')}</span>
       {touching.map((h) => <a key={h.anchor.id} className="lib-knowledge-go" href={h.href} title={`${h.baseName} — ${whereOf(h, store)}`}>{h.anchor.name}</a>)}
     </p>
   );

@@ -66,7 +66,7 @@ export function checkText(kind: string, value: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     /* Das ł zerfällt nicht — es ist ein eigener Buchstabe, kein l mit Zeichen. */
-    .replace(/ł/g, 'l').replace(/Ł/g, 'L')
+    .replace(/ł/g, 'l').replace(/Ł/g, 'L') // i18n-ignore
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 }

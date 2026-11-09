@@ -20,6 +20,7 @@ import { AreaPick } from '../areas/AreaPick';
 import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
 import { partOf, takesEntries } from '../pages/parts/registry';
 import { modulePath } from '../routes';
+import { useT } from '../core/i18n';
 
 export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   row: ModuleRow;
@@ -37,6 +38,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   const [name, setName] = useState(row.name);
   const [areaId, setAreaId] = useState(row.areaId ?? '');
   const [forKind, setForKind] = useState<Subject>(row.forKind);
+  const t = useT();
 
   useEffect(() => {
     setName(row.name);
@@ -56,7 +58,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
     || areaId !== (row.areaId ?? '')
     || forKind !== row.forKind;
 
-  const save = () => onAct('Zapisywanie…', async () => {
+  const save = () => onAct(t('common.saving'), async () => {
     const moving = areaId !== (row.areaId ?? '');
 
     /*
@@ -78,32 +80,29 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   return (
     <section className="wk-form">
       <label className="wk-field">
-        <span>Nazwa</span>
+        <span>{t('common.name')}</span>
         <input value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
       </label>
 
       {partOf(row.kind)?.ownArea === true ? (
-        <p className="wk-hint">Obszar tego modułu to ci, którzy odpowiadają — ustawiasz ich niżej, w „Treść".</p>
+        <p className="wk-hint">{t('modules.settings.ownArea')}</p>
       ) : (
       <label className="wk-field">
-        <span>{reseal !== undefined ? 'Obszar formularza' : 'Obszar'}</span>
+        <span>{reseal !== undefined ? t('modules.settings.formArea') : t('modules.area')}</span>
         {/* Ohne Bereich hätte eine Frage keinen Schlüssel, unter dem sie liegt. */}
         <AreaPick
-          label={reseal !== undefined ? 'Obszar formularza' : 'Obszar'} value={areaId} disabled={busy || !movable} onChange={setAreaId} areas={areas}
-          extras={[{ value: '', label: '— bez obszaru —', disabled: reseal !== undefined && row.fields > 0 }]}
+          label={reseal !== undefined ? t('modules.settings.formArea') : t('modules.area')} value={areaId} disabled={busy || !movable} onChange={setAreaId} areas={areas}
+          extras={[{ value: '', label: t('modules.noArea'), disabled: reseal !== undefined && row.fields > 0 }]}
         />
         {reseal !== undefined && (
-          <span className="wk-hint">
-            Pytania są zapieczętowane kluczem tego obszaru — przeczyta je każdy, kto
-            czyta ten obszar. Odpowiedzi idą tam, dokąd kieruje je każde pytanie.
-          </span>
+          <span className="wk-hint">{t('modules.settings.sealedHint')}</span>
         )}
       </label>
       )}
 
       {asks && (
         <label className="wk-field">
-          <span>Czyj to formularz</span>
+          <span>{t('modules.settings.whose')}</span>
           <select
             value={forKind}
             disabled={busy || row.entries > 0}
@@ -117,17 +116,11 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
       )}
 
       {!movable && (
-        <p className="wk-hint">
-          Ten moduł ma już dane — obszaru nie da się zmienić. To, co
-          zapieczętowano starym kluczem, zostaje pod nim.
-        </p>
+        <p className="wk-hint">{t('modules.settings.hasData')}</p>
       )}
 
       {movable && carries && areaId !== (row.areaId ?? '') && (
-        <p className="wk-hint">
-          Przy zapisie wszystkie pytania (i układ z logiką) zostaną przepieczętowane kluczem nowego
-          obszaru. Zebrane odpowiedzi zostają tam, gdzie są.
-        </p>
+        <p className="wk-hint">{t('modules.settings.reseal')}</p>
       )}
 
       <div className="wk-actions">
@@ -136,7 +129,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
             type="button" className="wk-btn" disabled={busy || name.trim() === ''}
             onClick={() => void save()}
           >
-            Zapisz
+            {t('common.save')}
           </button>
         )}
 
@@ -145,10 +138,10 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
         {row.usedOnPages === 0 && row.entries === 0 && (
           <button
             type="button" className="wk-link-btn" disabled={busy}
-            onClick={() => void onAct('Usuwanie…', () => removeModule(row.moduleId))
+            onClick={() => void onAct(t('account.keeping.removingOne'), () => removeModule(row.moduleId))
               .then(() => { window.location.hash = modulePath(row.kind); })}
           >
-            Usuń moduł
+            {t('modules.settings.delete')}
           </button>
         )}
       </div>

@@ -19,7 +19,7 @@ import { awayAccounts, awayKeyOf, awayNow, endAway, onAway, signInAway, type Awa
 import { fromBase64Url } from '../core/crypto';
 import { idbKeys } from '../core/idb';
 import type { Me } from '../core/me';
-import { plural } from '../core/plural';
+import { rich, useT } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { viewPath } from '../routes';
 import { Unlock } from '../shell/Unlock';
@@ -61,7 +61,8 @@ function useCopyKey(who: Who | null, again: number): CopyKey | null | undefined 
 export function AwayLearn({ who, me, trail }: { who: Who | null; me: Me | null; trail: readonly string[] }) {
   const [again, setAgain] = useState(0);
   const by = useCopyKey(who, again);
-  if (by === undefined) return <Loading label="Otwieranie…" />;
+  const t = useT();
+  if (by === undefined) return <Loading label={t('cogitaLearnRun.away.opening')} />;
   if (by === null) return <AwayLogin who={who} onUnlocked={() => setAgain((n) => n + 1)} />;
   const chosen = trail[0];
   if (chosen !== undefined) return <AwayRun key={chosen} by={by} me={me} chosen={chosen} />;
@@ -78,6 +79,7 @@ function AwayLogin({ who, onUnlocked }: { who: Who | null; onUnlocked: () => voi
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
   useEffect(() => {
     let alive = true;
     void awayAccounts().then((found) => {
@@ -89,24 +91,20 @@ function AwayLogin({ who, onUnlocked }: { who: Who | null; onUnlocked: () => voi
     return () => { alive = false; };
   }, [who]);
 
-  if (accounts === null) return <Loading label="Sprawdzanie urządzenia…" />;
+  if (accounts === null) return <Loading label={t('cogitaLearnRun.away.checking')} />;
 
   if (accounts.length === 0) {
     if (who !== null) {
       return (
         <div className="cg wk-narrow">
-          <Unlock who={who} why="Powtórki bez internetu są zapieczętowane Twoim kluczem." onDone={onUnlocked} />
+          <Unlock who={who} why={t('cogitaLearnRun.away.sealed')} onDone={onUnlocked} />
         </div>
       );
     }
     return (
       <section className="wk-box wk-narrow" aria-labelledby="away-none">
-        <div className="wk-box-head"><h2 className="wk-box-title" id="away-none">Nauka bez internetu</h2></div>
-        <p className="wk-box-empty">
-          Na tym urządzeniu nie ma nic do nauki bez internetu. Przygotowuje się to z siecią: zaloguj się, wybierz
-          „Klucz zachowany na tym urządzeniu” (Konto → Bezpieczeństwo i klucze) i przejdź raz powtórkę, którą autor
-          oznaczył „Trzymaj na urządzeniach bez internetu”. Potem zalogujesz się tutaj bez sieci.
-        </p>
+        <div className="wk-box-head"><h2 className="wk-box-title" id="away-none">{t('cogitaLearnRun.away.title')}</h2></div>
+        <p className="wk-box-empty">{t('cogitaLearnRun.away.none')}</p>
       </section>
     );
   }
@@ -118,7 +116,7 @@ function AwayLogin({ who, onUnlocked }: { who: Who | null; onUnlocked: () => voi
       await signInAway(loginId, password);
       setPassword('');
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zalogować bez internetu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('cogitaLearnRun.away.signInFailed'));
     } finally {
       setBusy(false);
     }
@@ -126,32 +124,30 @@ function AwayLogin({ who, onUnlocked }: { who: Who | null; onUnlocked: () => voi
 
   return (
     <form className="wk-signin" onSubmit={(e) => { e.preventDefault(); if (!busy && password !== '') void go(); }} noValidate>
-      <h1 className="wk-h1">Zaloguj się bez internetu</h1>
-      <p className="wk-lede">
-        Hasło sprawdza to urządzenie — bez usługi. Gdy wróci sieć, zalogujemy Cię tym samym kluczem, bez pytania o hasło.
-      </p>
+      <h1 className="wk-h1">{t('cogitaLearnRun.away.signInTitle')}</h1>
+      <p className="wk-lede">{t('cogitaLearnRun.away.signInLede')}</p>
       {accounts.length > 1 ? (
         <label className="wk-field">
-          <span>Konto</span>
+          <span>{t('cogitaLearnRun.away.account')}</span>
           <select value={loginId} onChange={(e) => setLoginId(e.target.value)}>
-            <option value="">— wybierz —</option>
+            <option value="">{t('cogitaLearnRun.step.choose')}</option>
             {accounts.map((a) => <option key={a.accountId} value={a.loginId}>{a.loginId}</option>)}
           </select>
         </label>
       ) : (
         <label className="wk-field">
-          <span>Nazwa konta</span>
+          <span>{t('cogitaLearnRun.away.login')}</span>
           <input value={loginId} autoComplete="username" readOnly={accounts.length === 1} onChange={(e) => setLoginId(e.target.value)} />
         </label>
       )}
       <label className="wk-field">
-        <span>Hasło</span>
+        <span>{t('cogitaLearnRun.away.password')}</span>
         <PasswordInput value={password} autoComplete="current-password" onChange={setPassword} />
       </label>
       {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || password === '' || loginId === ''}>
-          {busy ? 'Liczenie klucza…' : 'Zaloguj bez internetu'}
+          {busy ? t('cogitaLearnRun.away.computing') : t('cogitaLearnRun.away.signIn')}
         </button>
       </div>
     </form>
@@ -169,6 +165,7 @@ interface CopyRow {
 function AwayCopies({ by, who }: { by: CopyKey; who: Who | null }) {
   const [rows, setRows] = useState<readonly CopyRow[] | null>(null);
   const [waiting, setWaiting] = useState(0);
+  const t = useT();
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -188,27 +185,24 @@ function AwayCopies({ by, who }: { by: CopyKey; who: Who | null }) {
     <div className="cg cg-overview wk-narrow">
       {who === null && away !== null && (
         <p className="wk-note">
-          Zalogowano bez internetu: <strong>{away.loginId}</strong>.{' '}
-          <button type="button" className="wk-link-btn" onClick={endAway}>Wyloguj</button>
+          {rich(t('cogitaLearnRun.away.signedIn', { login: away.loginId }), { b: (s) => <strong>{s}</strong> })}{' '}
+          <button type="button" className="wk-link-btn" onClick={endAway}>{t('cogitaLearnRun.away.signOut')}</button>
         </p>
       )}
       <section className="wk-box" aria-labelledby="away-copies">
-        <div className="wk-box-head"><h2 className="wk-box-title" id="away-copies">Na tym urządzeniu bez internetu</h2></div>
+        <div className="wk-box-head"><h2 className="wk-box-title" id="away-copies">{t('cogitaLearnRun.away.here')}</h2></div>
         {rows === null ? <div className="wk-box-body"><Loading /></div>
           : rows.length === 0 ? (
-            <p className="wk-box-empty">
-              Nic. Autor może oznaczyć powtórkę „Trzymaj na urządzeniach bez internetu” — wtedy po pierwszym przejściu
-              z siecią zostanie tutaj (tylko gdy klucz jest zachowany na tym urządzeniu).
-            </p>
+            <p className="wk-box-empty">{t('cogitaLearnRun.away.nothing')}</p>
           )
           : rows.map((r) => (
             <a key={`${r.libraryId}:${r.revisionId}`} className="wk-line" href={viewPath('learn', 'bez-sieci', `${r.libraryId}:${r.revisionId}`)}>
               <span className="wk-line-ic"><Icon name="cap" /></span>
               <span className="wk-line-text">
-                <span className="wk-line-title"><TexText text={r.copy?.name ?? 'Powtórka (nie otwiera się)'} /></span>
+                <span className="wk-line-title"><TexText text={r.copy?.name ?? t('cogitaLearnRun.away.broken')} /></span>
                 <span className="wk-line-sub">
-                  {r.copy === null ? '' : `${r.copy.cards.length} ${plural(r.copy.cards.length, 'karta', 'karty', 'kart')} · `}
-                  zapisana {new Date(r.savedAt).toLocaleDateString('pl-PL')}
+                  {r.copy === null ? '' : `${t('cogitaLearn.count.cards', { count: r.copy.cards.length })} · `}
+                  {t('cogitaLearnRun.away.saved', { date: new Date(r.savedAt).toLocaleDateString(t.locale) })}
                 </span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
@@ -217,7 +211,7 @@ function AwayCopies({ by, who }: { by: CopyKey; who: Who | null }) {
       </section>
       {waiting > 0 && (
         <p className="wk-note" role="status">
-          {waiting} {plural(waiting, 'paczka odpowiedzi czeka', 'paczki odpowiedzi czekają', 'paczek odpowiedzi czeka')} na internet — wyślą się same, gdy wróci sieć i będziesz zalogowany.
+          {t('cogitaLearnRun.away.waiting', { count: waiting })}
         </p>
       )}
     </div>
@@ -237,6 +231,7 @@ function AwayRun({ by, me, chosen }: { by: CopyKey; me: Me | null; chosen: strin
   const meNow = useRef(me);
   meNow.current = me;
   const person = me?.person.id ?? '';
+  const t = useT();
   useEffect(() => {
     const by = byNow.current;
     const me = meNow.current;
@@ -298,9 +293,9 @@ function AwayRun({ by, me, chosen }: { by: CopyKey; me: Me | null; chosen: strin
   /* Mit der Sperre „Najpierw podstawy" der Abschrift (vorher fiel sie ohne Netz weg). */
   const copy = ready?.copy ?? null;
   const source = useMemo(() => (copy === null ? null : offlineSource(copy)), [copy]);
-  if (ready === undefined) return <Loading label="Otwieranie powtórki…" />;
+  if (ready === undefined) return <Loading label={t('cogitaLearnRun.away.openingRun')} />;
   if (source === null) {
-    return <p className="wk-error">Tej powtórki nie ma na tym urządzeniu. <a className="wk-link" href={HOME}>Wszystkie powtórki bez internetu</a></p>;
+    return <p className="wk-error">{t('cogitaLearnRun.away.notHere')} <a className="wk-link" href={HOME}>{t('cogitaLearnRun.away.all')}</a></p>;
   }
   return <RevisionRun lib={null} learner={ready.learner} source={source} onClose={() => { window.location.hash = HOME.slice(1); }} />;
 }

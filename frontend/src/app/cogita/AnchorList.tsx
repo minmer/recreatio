@@ -15,6 +15,7 @@ import { anchorData, anchorPath, anchorPlace, anchorProblems, anchorsAt, anchors
 import { placeOf } from './structure';
 import { EntityPicker, useBusy, useCtx } from './ui';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 
 type Draft = Omit<Anchor, 'id'>;
 
@@ -22,6 +23,7 @@ const EMPTY: Draft = { name: '', work: '', locator: '', entry: '', view: '', not
 
 /** Ein Wejście bearbeiten — neu (ohne `id`) oder ein vorhandenes. */
 function AnchorForm({ id, initial, onDone }: { id: string | null; initial: Draft; onDone: () => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
   const [draft, setDraft] = useState<Draft>(initial);
@@ -35,33 +37,33 @@ function AnchorForm({ id, initial, onDone }: { id: string | null; initial: Draft
   });
   return (
     <form className="wk-form cg" data-anchor-form="" onSubmit={(e) => { e.preventDefault(); if (!blocking) void save(); }}>
-      <label className="wk-field"><span>Nazwa (tak wygląda przycisk w Bibliotece)</span>
-        <input value={draft.name} placeholder="np. Wywód całego artykułu · Wstęp · Zakończenie" onChange={(e) => set({ name: e.target.value })} />
+      <label className="wk-field"><span>{t('cogitaData.anchors.name')}</span>
+        <input value={draft.name} placeholder={t('cogitaData.anchors.namePlaceholder')} onChange={(e) => set({ name: e.target.value })} />
       </label>
-      <label className="wk-field"><span>Dzieło z biblioteki</span>
-        <EntityPicker lib={lib} refs kinds={['work']} value={draft.work === '' ? null : draft.work} placeholder="szukaj dzieła…" onPick={(w) => set({ work: w ?? '' })} />
+      <label className="wk-field"><span>{t('cogitaData.anchors.work')}</span>
+        <EntityPicker lib={lib} refs kinds={['work']} value={draft.work === '' ? null : draft.work} placeholder={t('cogitaData.anchors.workSearch')} onPick={(w) => set({ work: w ?? '' })} />
       </label>
-      <label className="wk-field"><span>Których części dotyczy — puste: całego dzieła</span>
-        <input value={draft.locator} placeholder="np. s. 45–60 · s. 1–3; 27–30 · I q. 2 a. 3 · rozdz. 1; rozdz. 9" onChange={(e) => set({ locator: e.target.value })} aria-label="Miejsca w dziele" />
+      <label className="wk-field"><span>{t('cogitaData.anchors.parts')}</span>
+        <input value={draft.locator} placeholder={t('cogitaData.anchors.partsPlaceholder')} onChange={(e) => set({ locator: e.target.value })} aria-label={t('cogitaData.anchors.partsLabel')} />
       </label>
-      {draft.work !== '' && <p className="cg-muted">Odczytane: {anchorPlace(lib, draft)}</p>}
-      <label className="wk-field"><span>Prowadzi do wpisu (np. pytania wiodącego)</span>
-        <EntityPicker lib={lib} value={draft.entry === '' ? null : draft.entry} placeholder="szukaj wpisu…" onPick={(x) => set({ entry: x ?? '' })} />
+      {draft.work !== '' && <p className="cg-muted">{t('cogitaData.anchors.read', { place: anchorPlace(lib, draft) })}</p>}
+      <label className="wk-field"><span>{t('cogitaData.anchors.entry')}</span>
+        <EntityPicker lib={lib} value={draft.entry === '' ? null : draft.entry} placeholder={t('cogitaData.anchors.entrySearch')} onPick={(x) => set({ entry: x ?? '' })} />
       </label>
-      <label className="wk-field"><span>W sposobie wyświetlania</span>
+      <label className="wk-field"><span>{t('cogitaData.anchors.view')}</span>
         <select value={draft.view} onChange={(e) => set({ view: e.target.value })}>
-          <option value="">— strona tego wpisu —</option>
-          {views.map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+          <option value="">{t('cogitaData.anchors.entryPage')}</option>
+          {views.map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : t('cogitaData.docKind.view')}</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>Notatka (opcjonalnie)</span>
+      <label className="wk-field"><span>{t('cogitaData.anchors.note')}</span>
         <input value={draft.note} onChange={(e) => set({ note: e.target.value })} />
       </label>
       {problems.map((p) => <p key={p} className="wk-warn">{p}</p>)}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || blocking}>{id === null ? 'Utwórz wejście' : 'Zapisz'}</button>
-        <button type="button" className="wk-link-btn" onClick={onDone}>Anuluj</button>
+        <button type="submit" className="wk-btn" disabled={busy || blocking}>{id === null ? t('cogitaData.anchors.create') : t('common.save')}</button>
+        <button type="button" className="wk-link-btn" onClick={onDone}>{t('common.cancel')}</button>
       </div>
     </form>
   );
@@ -69,6 +71,7 @@ function AnchorForm({ id, initial, onDone }: { id: string | null; initial: Draft
 
 /** Eine Zeile: Name, Werk und Stelle, wohin; Taten für Autoren. */
 function AnchorRow({ anchor, onEdit, showEntry }: { anchor: Anchor; onEdit?: () => void; showEntry: boolean }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const { busy, run } = useBusy();
   const work = lib.entity(anchor.work);
@@ -76,7 +79,7 @@ function AnchorRow({ anchor, onEdit, showEntry }: { anchor: Anchor; onEdit?: () 
   const entry = anchor.entry === '' ? undefined : lib.entity(anchor.entry);
   const view = anchor.view === '' ? undefined : lib.docs('view').find((v) => v.id === anchor.view);
   const remove = () => run(async () => {
-    if (!(await ask({ title: `Usunąć wejście „${anchor.name}”?`, body: 'Wpisy i sposób wyświetlania zostają; z Biblioteki znika tylko ten przycisk.', confirm: 'Usuń', danger: true }))) return;
+    if (!(await ask({ title: t('cogitaData.anchors.removeTitle', { name: anchor.name }), body: t('cogitaData.anchors.removeBody'), confirm: t('common.delete'), danger: true }))) return;
     await lib.remove(anchor.id);
   });
   return (
@@ -84,15 +87,15 @@ function AnchorRow({ anchor, onEdit, showEntry }: { anchor: Anchor; onEdit?: () 
       {/* 2026-11-01 — Namen (Wejście, Werk, Eintrag, Widok) mit ihren Wzory. */}
       <a className="cg-anchor-name" href={anchorPath(lib.libraryId, anchor)}><TexText text={anchor.name} /></a>
       <span className="cg-muted">
-        {work === undefined ? 'dzieło niedostępne' : workLibrary === undefined ? <TexText text={lib.labelTex(work)} /> : <a href={containerPath(workLibrary, work.id)}><TexText text={lib.labelTex(work)} /></a>}
+        {work === undefined ? t('cogitaData.import.preview.workMissing') : workLibrary === undefined ? <TexText text={lib.labelTex(work)} /> : <a href={containerPath(workLibrary, work.id)}><TexText text={lib.labelTex(work)} /></a>}
         {' · '}{anchorPlace(lib, anchor)}
         {showEntry && entry !== undefined && <> · → <TexText text={lib.labelTex(entry)} /></>}
-        {view !== undefined && <> · <TexText text={typeof view.data.name === 'string' ? view.data.name : 'Widok'} /></>}
+        {view !== undefined && <> · <TexText text={typeof view.data.name === 'string' ? view.data.name : t('cogitaData.docKind.view')} /></>}
       </span>
       {writes && (
         <span className="cg-row">
-          {onEdit !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onEdit}>Zmień</button>}
-          <button type="button" className="wk-link-btn wk-danger-link" disabled={busy} onClick={() => void remove()}>Usuń</button>
+          {onEdit !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={onEdit}>{t('common.change')}</button>}
+          <button type="button" className="wk-link-btn wk-danger-link" disabled={busy} onClick={() => void remove()}>{t('common.delete')}</button>
         </span>
       )}
     </li>
@@ -101,6 +104,7 @@ function AnchorRow({ anchor, onEdit, showEntry }: { anchor: Anchor; onEdit?: () 
 
 /** Unter einem Eintrag: die Wejścia, die bei ihm ankommen — und ein neues, mit seinem Werk und seiner Stelle als Vorschlag. */
 export function EntityAnchors({ entityId }: { entityId: string }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const [editing, setEditing] = useState<string | null>(null);
   const anchors = anchorsAt(lib, entityId);
@@ -110,8 +114,8 @@ export function EntityAnchors({ entityId }: { entityId: string }) {
   const fresh: Draft = { ...EMPTY, name: entity === undefined ? '' : lib.label(entity).slice(0, 120), work: place?.work ?? '', locator: place?.locator ?? '', entry: entityId };
   return (
     <section className="cg-card" data-entity-anchors="">
-      <h3>Wejścia z Biblioteki</h3>
-      <p className="cg-muted">Przyciski „W Wiedzy” przy dziele w Bibliotece — dla każdego, kto może czytać tę bazę. Biblioteka niczego nie zapisuje.</p>
+      <h3>{t('cogitaData.anchors.title')}</h3>
+      <p className="cg-muted">{t('cogitaData.anchors.lead')}</p>
       {anchors.length > 0 && (
         <ul className="cg-anchors">
           {anchors.map((a) => (writes && editing === a.id
@@ -121,21 +125,22 @@ export function EntityAnchors({ entityId }: { entityId: string }) {
       )}
       {writes && (editing === 'new'
         ? <AnchorForm id={null} initial={fresh} onDone={() => setEditing(null)} />
-        : <button type="button" className="wk-link-btn" onClick={() => setEditing('new')}>+ Wejście z Biblioteki</button>)}
+        : <button type="button" className="wk-link-btn" onClick={() => setEditing('new')}>{t('cogitaData.anchors.add')}</button>)}
     </section>
   );
 }
 
 /** „Więcej → Wejścia z Biblioteki": alle Wejścia dieser Baza. */
 export function AnchorsTab({ chosen }: { chosen?: string }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   /* 2026-10-25 — geöffnet wird ein Wejście zum Ändern nur für den, der hier schreibt; ein Leser sieht die Liste. */
   const [editing, setEditing] = useState<string | null>(writes ? chosen ?? null : null);
-  const anchors = anchorsOf(lib).sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }));
+  const anchors = anchorsOf(lib).sort((a, b) => a.name.localeCompare(b.name, t.locale, { numeric: true }));
   return (
     <div className="cg" data-anchors-tab="">
-      <p className="wk-hint">Wejście mówi: to dzieło z biblioteki (całe albo jego części — początek, środek, koniec, także kilka naraz) wyjaśnia ten wpis, pokazany tym sposobem wyświetlania. W Bibliotece przy dziele pojawia się przycisk „W Wiedzy” — tylko dla tych, którzy mogą czytać tę bazę.</p>
-      {anchors.length === 0 && <p className="wk-empty">Nie ma jeszcze wejść. Dodasz je tutaj albo pod wpisem (np. pod pytaniem wiodącym).</p>}
+      <p className="wk-hint">{t('cogitaData.anchors.tabHint')}</p>
+      {anchors.length === 0 && <p className="wk-empty">{t('cogitaData.anchors.empty')}</p>}
       <ul className="cg-anchors">
         {anchors.map((a) => (editing === a.id
           ? <li key={a.id}><AnchorForm id={a.id} initial={a} onDone={() => setEditing(null)} /></li>
@@ -143,7 +148,7 @@ export function AnchorsTab({ chosen }: { chosen?: string }) {
       </ul>
       {writes && (editing === 'new'
         ? <AnchorForm id={null} initial={EMPTY} onDone={() => setEditing(null)} />
-        : <button type="button" className="wk-btn" onClick={() => setEditing('new')}>+ Nowe wejście</button>)}
+        : <button type="button" className="wk-btn" onClick={() => setEditing('new')}>{t('cogitaData.anchors.new')}</button>)}
     </div>
   );
 }

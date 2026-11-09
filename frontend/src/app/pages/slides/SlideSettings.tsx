@@ -6,6 +6,7 @@ import type { DraftPart } from '../page';
 import { slideLabelOf } from './PageSlides';
 import { ALIGNS3, type Align3, COLOR_KEYS, ENTERS, ENTER_LABEL, type Enter, STAGE_FRAME, type SlideColors, type SlideLayout, type SlideLook, type StageFrame, TRANSITIONS, TRANSITION_LABEL, type Transition } from './slides';
 import { DEFAULT_THEMES, type Look, type Theme, type ThemeMode } from './slideLook';
+import { useT } from '../../core/i18n';
 
 /* -- 0084: der Wechsel, die Farben, die Bühne ------------------------------------- */
 
@@ -17,34 +18,35 @@ export function MotionEditor({ slide, first, busy, onChange }: {
   busy: boolean;
   onChange: (next: SlideLook) => void;
 }) {
+  const t = useT();
   const colors: SlideColors = slide.colors ?? { accent: null, ink: null, ground: null, muted: null };
   const setColor = (key: (typeof COLOR_KEYS)[number], value: string) => {
     const next: SlideColors = { ...colors, [key]: value.trim() === '' ? null : value };
     onChange({ ...slide, colors: COLOR_KEYS.some((k) => next[k] !== null) ? next : null });
   };
-  const COLOR_LABEL: Record<(typeof COLOR_KEYS)[number], string> = { accent: 'Akcent', ink: 'Tekst', ground: 'Tło', muted: 'Tekst drugi' };
+  const COLOR_LABEL: Record<(typeof COLOR_KEYS)[number], string> = { accent: t('pagesSlides.set.accent'), ink: t('pagesSlides.set.ink'), ground: t('pagesSlides.set.ground'), muted: t('pagesSlides.set.muted') };
 
   return (
     <div className="se-motion">
       <label className="wk-field">
-        <span>Jak ten slajd zastępuje poprzedni</span>
+        <span>{t('pagesSlides.set.transition')}</span>
         <select value={slide.transition} disabled={busy} onChange={(e) => onChange({ ...slide, transition: e.target.value as Transition })}>
-          {TRANSITIONS.map((t) => <option key={t} value={t}>{TRANSITION_LABEL[t]}</option>)}
+          {TRANSITIONS.map((one) => <option key={one} value={one}>{TRANSITION_LABEL[one]}</option>)}
         </select>
         <span className="wk-hint">
           {first
-            ? 'To pierwszy slajd — przejście zobaczysz dopiero na następnych.'
-            : 'Przejście idzie za przewijaniem: wolno przeciągnięte — wolno się dzieje, cofnięte — cofa się. Przy ustawieniu „mniej ruchu” w systemie zamienia się w przenikanie.'}
+            ? t('pagesSlides.set.firstSlide')
+            : t('pagesSlides.set.transitionHint')}
         </span>
       </label>
       <label className="wk-field">
-        <span>Jak pojawia się treść</span>
+        <span>{t('pagesSlides.set.enter')}</span>
         <select value={slide.enter} disabled={busy} onChange={(e) => onChange({ ...slide, enter: e.target.value as Enter })}>
-          {ENTERS.map((t) => <option key={t} value={t}>{ENTER_LABEL[t]}</option>)}
+          {ENTERS.map((one) => <option key={one} value={one}>{ENTER_LABEL[one]}</option>)}
         </select>
       </label>
       <div className="se-colors">
-        <span className="wk-hint">Własne kolory tego slajdu (puste — jak strona). Między slajdami kolory przechodzą płynnie, także pasek z nazwami slajdów.</span>
+        <span className="wk-hint">{t('pagesSlides.set.colorsHint')}</span>
         {COLOR_KEYS.map((key) => (
           <ColorField key={key} label={COLOR_LABEL[key]} value={colors[key] ?? ''} busy={busy} allowEmpty onChange={(v) => setColor(key, v)} />
         ))}
@@ -55,12 +57,12 @@ export function MotionEditor({ slide, first, busy, onChange }: {
 
 /** Szybkie miejsca na scenie. */
 const PLACES: readonly { label: string; frame: Partial<StageFrame> }[] = [
-  { label: 'Środek', frame: { x: 50, y: 50 } },
-  { label: 'Lewy górny', frame: { x: 18, y: 18 } },
-  { label: 'Prawy górny', frame: { x: 82, y: 18 } },
-  { label: 'Lewy dolny', frame: { x: 18, y: 82 } },
-  { label: 'Prawy dolny', frame: { x: 82, y: 82 } },
-  { label: 'Schowany', frame: { opacity: 0, scale: 0.6 } }
+  { label: 'pagesSlides.set.place.center', frame: { x: 50, y: 50 } },
+  { label: 'pagesSlides.set.place.topLeft', frame: { x: 18, y: 18 } },
+  { label: 'pagesSlides.set.place.topRight', frame: { x: 82, y: 18 } },
+  { label: 'pagesSlides.set.place.bottomLeft', frame: { x: 18, y: 82 } },
+  { label: 'pagesSlides.set.place.bottomRight', frame: { x: 82, y: 82 } },
+  { label: 'pagesSlides.set.place.hidden', frame: { opacity: 0, scale: 0.6 } }
 ];
 
 /**
@@ -75,6 +77,7 @@ export function StageEditor({ slide, deck, busy, onChange, onShow }: {
   onChange: (next: SlideLook) => void;
   onShow: (key: string) => void;
 }) {
+  const t = useT();
   const stage = slide.stage!;
   const setFrame = (key: string, frame: StageFrame | null) => {
     const frames = { ...stage.frames };
@@ -91,12 +94,9 @@ export function StageEditor({ slide, deck, busy, onChange, onShow }: {
       <label className="wk-check">
         <input type="checkbox" checked={stage.bare} disabled={busy}
           onChange={(e) => onChange({ ...slide, stage: { ...stage, bare: e.target.checked } })} />
-        <span>Bez ramki (logo, obraz, sam napis)</span>
+        <span>{t('pagesSlides.set.bare')}</span>
       </label>
-      <p className="wk-hint">
-        Miejsce na każdym slajdzie: środek modułu w procentach sceny (x — od lewej, y — od góry), szerokość w procentach
-        (na telefonie większa). Slajd bez własnego miejsca — moduł przepływa przez niego między sąsiednimi.
-      </p>
+      <p className="wk-hint">{t('pagesSlides.set.stageHint')}</p>
       <ol className="se-stage-list">
         {deck.map((one, index) => {
           const frame = stage.frames[one.key];
@@ -108,7 +108,7 @@ export function StageEditor({ slide, deck, busy, onChange, onShow }: {
                     onChange={(e) => setFrame(one.key, e.target.checked ? nearest(index) : null)} />
                   <span>{index + 1}. {one.label}</span>
                 </label>
-                <button type="button" className="wk-link-btn" onClick={() => onShow(one.key)}>pokaż</button>
+                <button type="button" className="wk-link-btn" onClick={() => onShow(one.key)}>{t('pagesSlides.set.show')}</button>
               </div>
               {frame !== undefined && (
                 <>
@@ -116,41 +116,41 @@ export function StageEditor({ slide, deck, busy, onChange, onShow }: {
                     {PLACES.map((p) => (
                       <button key={p.label} type="button" className="wk-link-btn" disabled={busy}
                         onClick={() => setFrame(one.key, { ...frame, opacity: 1, scale: frame.scale < 0.7 ? 1 : frame.scale, ...p.frame })}>
-                        {p.label}
+                        {t(p.label)}
                       </button>
                     ))}
                   </div>
                   <StageNumber label="x %" value={frame.x} min={0} max={100} step={1} busy={busy} onChange={(x) => setFrame(one.key, { ...frame, x })} />
                   <StageNumber label="y %" value={frame.y} min={0} max={100} step={1} busy={busy} onChange={(y) => setFrame(one.key, { ...frame, y })} />
-                  <StageNumber label="Szerokość %" value={frame.w} min={5} max={100} step={1} busy={busy} onChange={(w) => setFrame(one.key, { ...frame, w })} />
-                  <StageNumber label="Skala" value={frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, scale })} />
-                  <StageNumber label="Obrót °" value={frame.rotate} min={-180} max={180} step={1} busy={busy} onChange={(rotate) => setFrame(one.key, { ...frame, rotate })} />
-                  <StageNumber label="Krycie" value={frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, opacity })} />
+                  <StageNumber label={t('pagesSlides.set.widthPct')} value={frame.w} min={5} max={100} step={1} busy={busy} onChange={(w) => setFrame(one.key, { ...frame, w })} />
+                  <StageNumber label={t('pagesSlides.set.scale')} value={frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, scale })} />
+                  <StageNumber label={t('pagesSlides.set.rotate')} value={frame.rotate} min={-180} max={180} step={1} busy={busy} onChange={(rotate) => setFrame(one.key, { ...frame, rotate })} />
+                  <StageNumber label={t('pagesSlides.set.opacity')} value={frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, opacity })} />
                   <label className="se-inline">
-                    <span>Najwyżej (rem)</span>
-                    <input type="number" min={1} max={200} value={frame.max ?? ''} placeholder="bez granicy" disabled={busy}
+                    <span>{t('pagesSlides.set.max')}</span>
+                    <input type="number" min={1} max={200} value={frame.max ?? ''} placeholder={t('pagesSlides.set.noLimit')} disabled={busy}
                       onChange={(e) => {
                         const { max: _max, ...rest } = frame;
                         setFrame(one.key, e.target.value.trim() === '' ? rest : { ...rest, max: Math.min(200, Math.max(1, Number(e.target.value))) });
                       }} />
                   </label>
                   <details className="wk-fold se-stage-tall">
-                    <summary>Na telefonie{frame.tall != null ? ' (ustawione)' : ''}</summary>
+                    <summary>{frame.tall != null ? t('pagesSlides.set.phoneSet') : t('pagesSlides.set.phone')}</summary>
                     <label className="wk-check">
                       <input type="checkbox" checked={frame.tall != null} disabled={busy}
                         onChange={(e) => {
                           const { tall: _tall, ...rest } = frame;
                           setFrame(one.key, e.target.checked ? { ...rest, tall: { x: frame.x, y: frame.y, w: Math.min(92, frame.w * 1.8), scale: frame.scale } } : rest);
                         }} />
-                      <span>Inne miejsce na ekranie wyższym niż szeroki</span>
+                      <span>{t('pagesSlides.set.tallOwn')}</span>
                     </label>
                     {frame.tall != null && (
                       <>
                         <StageNumber label="x %" value={frame.tall.x ?? frame.x} min={0} max={100} step={1} busy={busy} onChange={(x) => setFrame(one.key, { ...frame, tall: { ...frame.tall, x } })} />
                         <StageNumber label="y %" value={frame.tall.y ?? frame.y} min={0} max={100} step={1} busy={busy} onChange={(y) => setFrame(one.key, { ...frame, tall: { ...frame.tall, y } })} />
-                        <StageNumber label="Szerokość %" value={frame.tall.w ?? frame.w} min={5} max={100} step={1} busy={busy} onChange={(w) => setFrame(one.key, { ...frame, tall: { ...frame.tall, w } })} />
-                        <StageNumber label="Skala" value={frame.tall.scale ?? frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, tall: { ...frame.tall, scale } })} />
-                        <StageNumber label="Krycie" value={frame.tall.opacity ?? frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, tall: { ...frame.tall, opacity } })} />
+                        <StageNumber label={t('pagesSlides.set.widthPct')} value={frame.tall.w ?? frame.w} min={5} max={100} step={1} busy={busy} onChange={(w) => setFrame(one.key, { ...frame, tall: { ...frame.tall, w } })} />
+                        <StageNumber label={t('pagesSlides.set.scale')} value={frame.tall.scale ?? frame.scale} min={0.2} max={3} step={0.05} busy={busy} onChange={(scale) => setFrame(one.key, { ...frame, tall: { ...frame.tall, scale } })} />
+                        <StageNumber label={t('pagesSlides.set.opacity')} value={frame.tall.opacity ?? frame.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setFrame(one.key, { ...frame, tall: { ...frame.tall, opacity } })} />
                       </>
                     )}
                   </details>
@@ -183,44 +183,46 @@ export function CompanionEditor({ slide, mains, busy, onChange }: {
   busy: boolean;
   onChange: (next: SlideLook) => void;
 }) {
+  const t = useT();
   const now = slide.with!;
   const set = (patch: Partial<typeof now>) => onChange({ ...slide, with: { ...now, ...patch } });
   return (
     <div className="se-companion">
       <label className="se-inline">
-        <span>Obok</span>
+        <span>{t('pagesSlides.set.besideOf')}</span>
         <select value={now.slide} disabled={busy} onChange={(e) => set({ slide: e.target.value })}>
           {mains.map((p) => <option key={p.id} value={p.id}>{slideLabelOf(p)}</option>)}
         </select>
       </label>
       <label className="se-inline">
-        <span>Z której strony</span>
+        <span>{t('pagesSlides.set.side')}</span>
         <select value={now.side} disabled={busy} onChange={(e) => set({ side: e.target.value === 'start' ? 'start' : 'end' })}>
-          <option value="end">Po prawej</option>
-          <option value="start">Po lewej</option>
+          <option value="end">{t('pagesSlides.set.right')}</option>
+          <option value="start">{t('pagesSlides.set.left')}</option>
         </select>
       </label>
       <label className="se-inline">
-        <span>Szerokość (% rzędu)</span>
+        <span>{t('pagesSlides.set.share')}</span>
         <input type="number" min={10} max={90} value={now.share} disabled={busy} onChange={(e) => set({ share: Math.min(90, Math.max(10, Number(e.target.value) || 45)) })} />
       </label>
       <label className="se-inline">
-        <span>Na telefonie</span>
+        <span>{t('pagesSlides.set.phone')}</span>
         <select value={now.tallSide} disabled={busy} onChange={(e) => set({ tallSide: e.target.value === 'start' ? 'start' : 'end' })}>
-          <option value="start">Nad nim</option>
-          <option value="end">Pod nim</option>
+          <option value="start">{t('pagesSlides.set.above')}</option>
+          <option value="end">{t('pagesSlides.set.below')}</option>
         </select>
       </label>
     </div>
   );
 }
 
-const ALIGN_LABEL: Record<Align3, string> = { start: 'Z lewej', center: 'Na środku', end: 'Z prawej' };
+const ALIGN_LABEL: Record<Align3, string> = { start: 'pagesSlides.set.align.start', center: 'pagesSlides.set.align.center', end: 'pagesSlides.set.align.end' };
 
-const VALIGN_LABEL: Record<Align3, string> = { start: 'U góry', center: 'Na środku', end: 'Na dole' };
+const VALIGN_LABEL: Record<Align3, string> = { start: 'pagesSlides.set.valign.start', center: 'pagesSlides.set.align.center', end: 'pagesSlides.set.valign.end' };
 
 /** Wo der Inhalt des Slajds steht — und auf einem hohen Schirm (Telefon). */
 export function LayoutEditor({ slide, busy, onChange }: { slide: SlideLook; busy: boolean; onChange: (next: SlideLook) => void }) {
+  const t = useT();
   const layout: SlideLayout = slide.layout ?? { align: 'center', valign: 'center', width: null, tall: null };
   const set = (patch: Partial<SlideLayout>) => {
     const next = { ...layout, ...patch };
@@ -236,30 +238,30 @@ export function LayoutEditor({ slide, busy, onChange }: { slide: SlideLook; busy
   const width = (value: string): number | null => (value.trim() === '' ? null : Math.min(100, Math.max(10, Number(value))));
   return (
     <div className="se-layout">
-      <p className="wk-hint">Gdzie stoi treść slajdu w scenie (szerokość sceny — w „Całość pokazu”). Puste — na środku, wygodna szerokość tekstu.</p>
-      <label className="se-inline"><span>W poziomie</span>
+      <p className="wk-hint">{t('pagesSlides.set.layoutHint')}</p>
+      <label className="se-inline"><span>{t('pagesSlides.set.horizontal')}</span>
         <select value={layout.align} disabled={busy} onChange={(e) => set({ align: e.target.value as Align3 })}>
-          {ALIGNS3.map((a) => <option key={a} value={a}>{ALIGN_LABEL[a]}</option>)}
+          {ALIGNS3.map((a) => <option key={a} value={a}>{t(ALIGN_LABEL[a])}</option>)}
         </select>
       </label>
-      <label className="se-inline"><span>W pionie</span>
+      <label className="se-inline"><span>{t('pagesSlides.set.vertical')}</span>
         <select value={layout.valign} disabled={busy} onChange={(e) => set({ valign: e.target.value as Align3 })}>
-          {ALIGNS3.map((a) => <option key={a} value={a}>{VALIGN_LABEL[a]}</option>)}
+          {ALIGNS3.map((a) => <option key={a} value={a}>{t(VALIGN_LABEL[a])}</option>)}
         </select>
       </label>
-      <label className="se-inline"><span>Szerokość (% sceny)</span>
-        <input type="number" min={10} max={100} value={layout.width ?? ''} placeholder="zwykła" disabled={busy} onChange={(e) => set({ width: width(e.target.value) })} />
+      <label className="se-inline"><span>{t('pagesSlides.set.widthScene')}</span>
+        <input type="number" min={10} max={100} value={layout.width ?? ''} placeholder={t('pagesSlides.set.usual')} disabled={busy} onChange={(e) => set({ width: width(e.target.value) })} />
       </label>
       <fieldset className="se-layout-tall">
-        <legend>Na telefonie (ekran wyższy niż szeroki)</legend>
-        <label className="se-inline"><span>W pionie</span>
+        <legend>{t('pagesSlides.set.phoneTall')}</legend>
+        <label className="se-inline"><span>{t('pagesSlides.set.vertical')}</span>
           <select value={tall.valign ?? ''} disabled={busy} onChange={(e) => setTall({ valign: e.target.value === '' ? undefined : e.target.value })}>
-            <option value="">jak wyżej</option>
-            {ALIGNS3.map((a) => <option key={a} value={a}>{VALIGN_LABEL[a]}</option>)}
+            <option value="">{t('pagesSlides.set.asAbove')}</option>
+            {ALIGNS3.map((a) => <option key={a} value={a}>{t(VALIGN_LABEL[a])}</option>)}
           </select>
         </label>
-        <label className="se-inline"><span>Szerokość (%)</span>
-          <input type="number" min={10} max={100} value={tall.width ?? ''} placeholder="jak wyżej" disabled={busy}
+        <label className="se-inline"><span>{t('pagesSlides.set.widthPlain')}</span>
+          <input type="number" min={10} max={100} value={tall.width ?? ''} placeholder={t('pagesSlides.set.asAbove')} disabled={busy}
             onChange={(e) => setTall({ width: e.target.value.trim() === '' ? undefined : width(e.target.value) })} />
         </label>
       </fieldset>
@@ -271,7 +273,8 @@ export function LayoutEditor({ slide, busy, onChange }: { slide: SlideLook; busy
 
 type ThemeChoice = 'auto' | ThemeMode;
 
-export function ThemeEditor({ look, busy, onChange, legend = 'Wygląd slajdów' }: { look: Look; busy: boolean; onChange: (next: Look) => void; legend?: string }) {
+export function ThemeEditor({ look, busy, onChange, legend }: { look: Look; busy: boolean; onChange: (next: Look) => void; legend?: string }) {
+  const t = useT();
   const choice: ThemeChoice = look.theme === null ? 'auto' : look.theme.mode;
 
   const pick = (next: ThemeChoice) => {
@@ -287,26 +290,26 @@ export function ThemeEditor({ look, busy, onChange, legend = 'Wygląd slajdów' 
 
   return (
     <fieldset className="se-theme">
-      <legend>{legend}</legend>
-      <div className="wk-seg" role="group" aria-label="Motyw">
-        {([['auto', 'Jak aplikacja'], ['dark', 'Ciemny'], ['light', 'Jasny']] as const).map(([value, label]) => (
+      <legend>{legend ?? t('pagesSlides.set.themeLegend')}</legend>
+      <div className="wk-seg" role="group" aria-label={t('pagesSlides.set.theme')}>
+        {([['auto', 'pagesSlides.set.themeAuto'], ['dark', 'pagesSlides.set.themeDark'], ['light', 'pagesSlides.set.themeLight']] as const).map(([value, label]) => (
           <button key={value} type="button" aria-pressed={choice === value} disabled={busy}
             className={choice === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => pick(value)}>
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
       {look.theme === null ? (
-        <p className="wk-hint">Kolory strony — jasne albo ciemne, tak jak urządzenie gościa.</p>
+        <p className="wk-hint">{t('pagesSlides.set.themeAutoHint')}</p>
       ) : (
         <div className="se-colors">
-          <ColorField label="Akcent" value={look.theme.accent} busy={busy} onChange={(v) => set('accent', v)} />
-          <ColorField label="Tekst" value={look.theme.ink} busy={busy} onChange={(v) => set('ink', v)} />
-          <ColorField label="Tło" value={look.theme.ground} busy={busy} onChange={(v) => set('ground', v)} />
-          <ColorField label="Tekst drugi" value={look.theme.muted} busy={busy} onChange={(v) => set('muted', v)} />
+          <ColorField label={t('pagesSlides.set.accent')} value={look.theme.accent} busy={busy} onChange={(v) => set('accent', v)} />
+          <ColorField label={t('pagesSlides.set.ink')} value={look.theme.ink} busy={busy} onChange={(v) => set('ink', v)} />
+          <ColorField label={t('pagesSlides.set.ground')} value={look.theme.ground} busy={busy} onChange={(v) => set('ground', v)} />
+          <ColorField label={t('pagesSlides.set.muted')} value={look.theme.muted} busy={busy} onChange={(v) => set('muted', v)} />
           <button type="button" className="wk-link-btn" disabled={busy}
             onClick={() => onChange({ ...look, theme: DEFAULT_THEMES[look.theme!.mode] })}>
-            Przywróć kolory
+            {t('pagesSlides.set.resetColors')}
           </button>
         </div>
       )}
@@ -324,12 +327,13 @@ export function ColorField({ label, value, busy, onChange, allowEmpty = false }:
   onChange: (value: string) => void;
   allowEmpty?: boolean;
 }) {
+  const t = useT();
   return (
     <label className="se-color">
       <span>{label}</span>
       <input type="color" value={isHex(value) ? value : '#000000'} disabled={busy} onChange={(e) => onChange(e.target.value)} />
       <input className="se-color-text" value={value} disabled={busy} maxLength={60}
-        placeholder={allowEmpty ? 'jak tekst' : '#000000'} onChange={(e) => onChange(e.target.value)} />
+        placeholder={allowEmpty ? t('pagesSlides.set.likeText') : '#000000'} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }

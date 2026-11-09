@@ -27,6 +27,7 @@ import { choicesOf, GAP, QUESTION_GROUPS, QUESTION_TYPES, SHOW_MAX, pairsOf, par
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 
 type Put = (key: string, value: unknown) => void;
 /** Ein gewöhnliches Feld des Rodzaj (mit dem Editor des Eintrags), auf Wunsch mit anderer Beschriftung. */
@@ -37,6 +38,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'n
 const numbers = (v: unknown): number[] => (Array.isArray(v) ? v : [v]).map((x) => (typeof x === 'number' ? x : str(x).trim() === '' ? Number.NaN : Number(str(x)))).filter((n) => Number.isInteger(n) && n >= 0);
 
 export function QuestionFields({ id, data, writes, onSet, field }: { id: string; data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put; field: Field }) {
+  const t = useT();
   const type = questionType(data.form);
   const problems = questionProblems(data);
   const switchTo = (form: string) => {
@@ -48,14 +50,14 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
   return (
     <div className="cg cg-question" data-question-editor={type.form}>
       <fieldset className="cg-qtype">
-        <legend>Rodzaj pytania</legend>
+        <legend>{t('cogitaEditQuestion.type')}</legend>
         {QUESTION_GROUPS.map((g) => (
           <div key={g.id} className="cg-qtype-group">
             <span className="cg-qtype-name">{g.label}</span>
             <div className="cg-chips">
-              {QUESTION_TYPES.filter((t) => t.group === g.id).map((t) => (
-                <button key={t.form} type="button" className={`cg-chip${t.form === type.form ? ' is-on' : ''}`} aria-pressed={t.form === type.form} disabled={!writes} data-form={t.form}
-                  onClick={() => switchTo(t.form)}>{t.label}</button>
+              {QUESTION_TYPES.filter((qt) => qt.group === g.id).map((qt) => (
+                <button key={qt.form} type="button" className={`cg-chip${qt.form === type.form ? ' is-on' : ''}`} aria-pressed={qt.form === type.form} disabled={!writes} data-form={qt.form}
+                  onClick={() => switchTo(qt.form)}>{qt.label}</button>
               ))}
             </div>
           </div>
@@ -63,11 +65,11 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
         <span className="cg-muted">{type.says}</span>
       </fieldset>
 
-      {field('prompt', { label: type.prompt, says: type.form === 'gap' ? 'Brakujące słowo w nawiasach: „Litwo! [[Ojczyzno]] moja!” — uczący się zobaczy „…” i wpisze to słowo. Kilka luk: odpowiedzią są słowa po kolei.' : undefined })}
+      {field('prompt', { label: type.prompt, says: type.form === 'gap' ? t('cogitaEditQuestion.gapSays') : undefined })}
 
       {(type.form === 'text' || type.form === 'number' || type.form === 'date' || type.form === 'gap') && (
-        <Rows label={type.form === 'gap' ? 'Inne dobre odpowiedzi (bez nich — słowo z nawiasów)' : 'Dobre odpowiedzi — pierwsza jest wzorcowa'} add="odpowiedź" values={rawList(data.answers)} writes={writes}
-          placeholder={(i) => (type.form === 'number' ? (i === 0 ? 'np. 12' : 'albo inna liczba') : type.form === 'date' ? 'np. 1410, 1410-07-15' : i === 0 ? 'odpowiedź' : 'inna dobra odpowiedź')}
+        <Rows label={type.form === 'gap' ? t('cogitaEditQuestion.answersGap') : t('cogitaEditQuestion.answers')} add={t('cogitaEditQuestion.add.answer')} values={rawList(data.answers)} writes={writes}
+          placeholder={(i) => (type.form === 'number' ? (i === 0 ? t('cogitaEditQuestion.ph.number') : t('cogitaEditQuestion.ph.otherNumber')) : type.form === 'date' ? t('cogitaEditQuestion.ph.date') : i === 0 ? t('cogitaEditQuestion.ph.answer') : t('cogitaEditQuestion.ph.otherAnswer'))}
           min={type.form === 'gap' ? 0 : 1} onChange={(v) => onSet('answers', v)} />
       )}
       {type.form === 'text' && <TextRuleChecks data={data} writes={writes} onSet={onSet} />}
@@ -78,45 +80,45 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
       {type.form === 'many' && <Sentences data={data} writes={writes} onSet={onSet} share={field('share')} />}
       {type.form === 'truefalse' && (
         <fieldset className="cg-row cg-qtruth">
-          <legend>To zdanie jest</legend>
-          <label className="pe-check"><input type="radio" name={`q-truth-${id}`} checked={data.value === true} disabled={!writes} onChange={() => onSet('value', true)} /><span>prawdziwe</span></label>
-          <label className="pe-check"><input type="radio" name={`q-truth-${id}`} checked={data.value === false} disabled={!writes} onChange={() => onSet('value', false)} /><span>fałszywe</span></label>
+          <legend>{t('cogitaEditQuestion.truth')}</legend>
+          <label className="pe-check"><input type="radio" name={`q-truth-${id}`} checked={data.value === true} disabled={!writes} onChange={() => onSet('value', true)} /><span>{t('cogitaEditQuestion.true')}</span></label>
+          <label className="pe-check"><input type="radio" name={`q-truth-${id}`} checked={data.value === false} disabled={!writes} onChange={() => onSet('value', false)} /><span>{t('cogitaEditQuestion.false')}</span></label>
         </fieldset>
       )}
       {type.form === 'match' && <Pairs data={data} writes={writes} onSet={onSet} />}
       {/* 2026-11-01 — Fassungen einer Liste mit denselben Paaren teilen ihre Antworten. */}
       {type.form === 'match' && <div className="cg-qmore">{field('share')}</div>}
-      {type.form === 'order' && <Rows label="Elementy w dobrej kolejności — uczący się zobaczy je pomieszane" add="element" values={rawList(data.items)} writes={writes} ordered min={2} placeholder={(i) => `${i + 1}.`} onChange={(v) => onSet('items', v)} />}
+      {type.form === 'order' && <Rows label={t('cogitaEditQuestion.orderItems')} add={t('cogitaEditQuestion.add.item')} values={rawList(data.items)} writes={writes} ordered min={2} placeholder={(i) => `${i + 1}.`} onChange={(v) => onSet('items', v)} />}
       {type.form === 'order' && <PreviewChoice data={data} writes={writes} onSet={onSet} optional />}
       {type.form === 'build' && <Build data={data} writes={writes} onSet={onSet} />}
-      {type.form === 'flash' && <Rows label="Odwrotna strona" add="linijka" values={rawList(data.back)} writes={writes} min={1} placeholder={() => 'co jest na odwrocie'} onChange={(v) => onSet('back', v)} />}
+      {type.form === 'flash' && <Rows label={t('cogitaEditQuestion.back')} add={t('cogitaEditQuestion.add.line')} values={rawList(data.back)} writes={writes} min={1} placeholder={() => t('cogitaEditQuestion.ph.back')} onChange={(v) => onSet('back', v)} />}
       {(type.form === 'point' || type.form === 'interactive') && type.fields.map((key) => <div key={key}>{field(key)}</div>)}
       {type.form === 'code' && (
         <>
           {['task', 'starter'].map((key) => <div key={key}>{field(key)}</div>)}
-          <JsonArea label="Przykłady widoczne dla uczącego się" value={data.tests} writes={writes} rows={5}
-            hint={'[{"input": [3, 1, 2], "output": [1, 2, 3], "note": "rosnąco"}] — transform(input) ma dać output; sprawdzane przed ukrytymi przypadkami.'}
+          <JsonArea label={t('cogitaEditQuestion.code.tests')} value={data.tests} writes={writes} rows={5}
+            hint={t('cogitaEditQuestion.code.testsHint')}
             onChange={(v) => onSet('tests', v)} />
           {['createInput', 'reference', 'cases'].map((key) => <div key={key}>{field(key)}</div>)}
         </>
       )}
 
       {/* 2026-11-01 — für jede Art: Podpowiedzi vor der Antwort, das Wyjaśnienie danach. */}
-      <Rows label="Podpowiedzi — przed odpowiedzią, od łagodnej do konkretnej (każda obniża wynik o ¼)" add="podpowiedź" values={rawList(data.hints)} writes={writes} min={0} placeholder={(i) => (i === 0 ? 'np. Pomyśl o definicji…' : 'konkretniejsza podpowiedź')} onChange={(v) => onSet('hints', v)} />
+      <Rows label={t('cogitaEditQuestion.hints')} add={t('cogitaEditQuestion.add.hint')} values={rawList(data.hints)} writes={writes} min={0} placeholder={(i) => (i === 0 ? t('cogitaEditQuestion.ph.hint') : t('cogitaEditQuestion.ph.hintMore'))} onChange={(v) => onSet('hints', v)} />
       {field('explanation')}
       <Params data={data} writes={writes} onSet={onSet} />
       {/* 2026-11-01 — die Teile der Frage mit anderen Fragen teilen (Paare und Sätze haben „share" schon oben). */}
       {type.form !== 'many' && type.form !== 'match' && (
         <details className="cg-qshare" data-question-share="" open={str(data.share).trim() !== '' || str(data.fact).trim() !== ''}>
-          <summary>Wspólne odpowiedzi z innymi pytaniami</summary>
-          <span className="cg-muted">{type.form === 'gap' ? 'Kilka luk: każde słowo jest osobną częścią. ' : ''}Pytania o tę samą część (ta sama nazwa „Wspólne części”, ten sam fakt) liczą odpowiedzi razem — jedna odpowiedź wystarczy, by obie karty wiedziały.</span>
+          <summary>{t('cogitaEditQuestion.share')}</summary>
+          <span className="cg-muted">{type.form === 'gap' ? t('cogitaEditQuestion.shareGap') : ''}{t('cogitaEditQuestion.shareHint')}</span>
           {field('share')}
           {type.form !== 'gap' && field('fact')}
         </details>
       )}
 
       {problems.length > 0 && (
-        <ul className="cg-qmissing" aria-label="Czego brakuje">
+        <ul className="cg-qmissing" aria-label={t('cogitaEditQuestion.missing')}>
           {problems.map((p) => <li key={p} className="wk-warn">{p}</li>)}
         </ul>
       )}
@@ -129,6 +131,7 @@ function Rows({ label, add, values, writes, placeholder, onChange, ordered = fal
   label: string; add: string; values: readonly string[]; writes: boolean; placeholder: (i: number) => string;
   onChange: (v: string[]) => void; ordered?: boolean; min: number;
 }) {
+  const t = useT();
   const rows = values.length >= Math.max(1, min) ? [...values] : [...values, ...Array.from({ length: Math.max(1, min) - values.length }, () => '')];
   const set = (next: string[]) => onChange(next);
   const move = (i: number, by: -1 | 1) => {
@@ -142,19 +145,20 @@ function Rows({ label, add, values, writes, placeholder, onChange, ordered = fal
       {rows.map((v, i) => (
         <div key={i} className="cg-qrow">
           {ordered && <span className="cg-qnum" aria-hidden="true">{i + 1}.</span>}
-          <input value={v} disabled={!writes} placeholder={placeholder(i)} aria-label={`${label}: ${i + 1}`} onChange={(e) => set(rows.map((x, j) => (j === i ? e.target.value : x)))} />
-          {ordered && writes && <button type="button" className="wk-link-btn" aria-label="Wyżej" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>}
-          {ordered && writes && <button type="button" className="wk-link-btn" aria-label="Niżej" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>↓</button>}
-          {writes && rows.length > Math.max(1, min) && <button type="button" className="wk-link-btn" aria-label={`Usuń: ${i + 1}`} onClick={() => set(rows.filter((_, j) => j !== i))}>×</button>}
+          <input value={v} disabled={!writes} placeholder={placeholder(i)} aria-label={t('cogitaEditQuestion.rowAria', { label, n: i + 1 })} onChange={(e) => set(rows.map((x, j) => (j === i ? e.target.value : x)))} />
+          {ordered && writes && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditQuestion.up')} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>}
+          {ordered && writes && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditQuestion.down')} disabled={i === rows.length - 1} onClick={() => move(i, 1)}>↓</button>}
+          {writes && rows.length > Math.max(1, min) && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditQuestion.removeN', { n: i + 1 })} onClick={() => set(rows.filter((_, j) => j !== i))}>×</button>}
         </div>
       ))}
-      {writes && <button type="button" className="wk-link-btn" onClick={() => set([...rows, ''])}>+ {add}</button>}
+      {writes && <button type="button" className="wk-link-btn" onClick={() => set([...rows, ''])}>{t('cogitaEditQuestion.addRow', { what: add })}</button>}
     </fieldset>
   );
 }
 
 /** Die Möglichkeiten mit ihrem Haken — die richtigen werden angeklickt, nicht als Nummern getippt. */
 function Choices({ id, data, many, writes, onSet }: { id: string; data: Readonly<Record<string, unknown>>; many: boolean; writes: boolean; onSet: Put }) {
+  const t = useT();
   const raw = rawList(data.options);
   const rows = raw.length >= 2 ? raw : [...raw, ...Array.from({ length: 2 - raw.length }, () => '')];
   const marked = numbers(data.correct).filter((i) => i < rows.length);
@@ -168,27 +172,27 @@ function Choices({ id, data, many, writes, onSet }: { id: string; data: Readonly
   };
   return (
     <fieldset className="cg cg-qrows" data-question-choices="">
-      <legend>Możliwości — zaznacz {many ? 'wszystkie dobre' : 'dobrą'}</legend>
+      <legend>{many ? t('cogitaEditQuestion.choicesMany') : t('cogitaEditQuestion.choicesOne')}</legend>
       {rows.map((v, i) => (
         <div key={i} className="cg-qrow-wrap">
           <div className="cg-qrow">
-            <input type={many ? 'checkbox' : 'radio'} name={`q-correct-${id}`} checked={marked.includes(i)} disabled={!writes} aria-label={`Możliwość ${i + 1} jest dobra`}
+            <input type={many ? 'checkbox' : 'radio'} name={`q-correct-${id}`} checked={marked.includes(i)} disabled={!writes} aria-label={t('cogitaEditQuestion.optionGood', { n: i + 1 })}
               onChange={() => write(rows, many ? (marked.includes(i) ? marked.filter((x) => x !== i) : [...marked, i]) : [i])} />
-            <input value={v} disabled={!writes} placeholder={`Możliwość ${i + 1} (wzory: $…$)`} aria-label={`Możliwość ${i + 1}`} onChange={(e) => write(rows.map((x, j) => (j === i ? e.target.value : x)), marked)} />
+            <input value={v} disabled={!writes} placeholder={t('cogitaEditQuestion.optionPh', { n: i + 1 })} aria-label={t('cogitaEditQuestion.option', { n: i + 1 })} onChange={(e) => write(rows.map((x, j) => (j === i ? e.target.value : x)), marked)} />
             {writes && rows.length > 2 && (
-              <button type="button" className="wk-link-btn" aria-label={`Usuń możliwość ${i + 1}`}
+              <button type="button" className="wk-link-btn" aria-label={t('cogitaEditQuestion.removeOption', { n: i + 1 })}
                 onClick={() => write(rows.filter((_, j) => j !== i), marked.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x)), said.filter((_, j) => j !== i))}>×</button>
             )}
           </div>
           {notes && (
-            <input className="cg-qnote" value={said[i] ?? ''} disabled={!writes} placeholder={marked.includes(i) ? 'Dlaczego dobrze — zdanie po odpowiedzi' : 'Dlaczego nie — zdanie po odpowiedzi'}
-              aria-label={`Zdanie do możliwości ${i + 1}`} onChange={(e) => write(rows, marked, said.map((x, j) => (j === i ? e.target.value : x)))} />
+            <input className="cg-qnote" value={said[i] ?? ''} disabled={!writes} placeholder={marked.includes(i) ? t('cogitaEditQuestion.whyGood') : t('cogitaEditQuestion.whyNot')}
+              aria-label={t('cogitaEditQuestion.optionNote', { n: i + 1 })} onChange={(e) => write(rows, marked, said.map((x, j) => (j === i ? e.target.value : x)))} />
           )}
         </div>
       ))}
       <div className="cg-row">
-        {writes && <button type="button" className="wk-link-btn" onClick={() => write([...rows, ''], marked, [...said, ''])}>+ możliwość</button>}
-        {!notes && writes && <button type="button" className="wk-link-btn" data-question-feedback="" onClick={() => setNotes(true)}>+ zdanie do każdej możliwości</button>}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => write([...rows, ''], marked, [...said, ''])}>{t('cogitaEditQuestion.addOption')}</button>}
+        {!notes && writes && <button type="button" className="wk-link-btn" data-question-feedback="" onClick={() => setNotes(true)}>{t('cogitaEditQuestion.addNotes')}</button>}
       </div>
     </fieldset>
   );
@@ -199,6 +203,7 @@ function Choices({ id, data, many, writes, onSet }: { id: string; data: Readonly
  * die Lücke wird getippt. Die Lücken kommen aus dem Text (`[[…]]`), in ihrer Folge.
  */
 function GapChoices({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const t = useT();
   const words = [...String(data.prompt ?? '').matchAll(GAP)].map((m) => m[1]!.trim());
   const lists = readChoices(data.choices);
   if (words.length === 0) return null;
@@ -209,37 +214,38 @@ function GapChoices({ data, writes, onSet }: { data: Readonly<Record<string, unk
   };
   return (
     <fieldset className="cg cg-qrows" data-question-gaps={words.length}>
-      <legend>Luki — do wpisania albo do wybrania</legend>
+      <legend>{t('cogitaEditQuestion.gaps')}</legend>
       {words.map((w, i) => (
         <label key={i} className="cg-qrow cg-qgap">
           <span className="cg-qnum">{i + 1}.</span>
           <span className="cg-qgap-word"><TexText text={w} /></span>
-          <input value={(lists[i] ?? []).join(' | ')} disabled={!writes} placeholder="do wpisania — albo złe możliwości: Lemma 2.1 | Satz 3.4"
-            aria-label={`Złe możliwości luki ${i + 1}`} onChange={(e) => write(i, e.target.value)} />
+          <input value={(lists[i] ?? []).join(' | ')} disabled={!writes} placeholder={t('cogitaEditQuestion.gapPh')}
+            aria-label={t('cogitaEditQuestion.gapWrong', { n: i + 1 })} onChange={(e) => write(i, e.target.value)} />
         </label>
       ))}
-      <span className="cg-muted">Luka z możliwościami jest listą do wybrania (mogą być wzory $…$); bez nich — polem do wpisania. Każda luka liczy się osobno.</span>
+      <span className="cg-muted">{t('cogitaEditQuestion.gapHint')}</span>
     </fieldset>
   );
 }
 
 /** 2026-11-01 — wie das Gelegte (Gebaute) darüber steht: als Wzór, als Text — bei „Ułóż w kolejności" auch gar nicht. */
 function PreviewChoice({ data, writes, onSet, optional = false }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put; optional?: boolean }) {
+  const t = useT();
   const value = data.preview === 'math' || data.preview === 'text' ? data.preview : optional ? '' : 'math';
   return (
     <div className="cg-qmore" data-question-preview-mode={value}>
       <label className="wk-field">
-        <span>Podgląd tego, co ułożone</span>
+        <span>{t('cogitaEditQuestion.preview')}</span>
         <select value={value} disabled={!writes} onChange={(e) => onSet('preview', e.target.value === '' ? undefined : e.target.value)}>
-          {optional && <option value="">bez podglądu</option>}
-          <option value="math">jako wzór</option>
-          <option value="text">jako tekst</option>
+          {optional && <option value="">{t('cogitaEditQuestion.previewNone')}</option>}
+          <option value="math">{t('cogitaEditQuestion.previewMath')}</option>
+          <option value="text">{t('cogitaEditQuestion.previewText')}</option>
         </select>
       </label>
       {value !== '' && (
         <label className="wk-field">
-          <span>Między elementami</span>
-          <input value={typeof data.join === 'string' ? data.join : ' '} disabled={!writes} placeholder="spacja" onChange={(e) => onSet('join', e.target.value === ' ' ? undefined : e.target.value)} />
+          <span>{t('cogitaEditQuestion.join')}</span>
+          <input value={typeof data.join === 'string' ? data.join : ' '} disabled={!writes} placeholder={t('cogitaEditQuestion.space')} onChange={(e) => onSet('join', e.target.value === ' ' ? undefined : e.target.value)} />
         </label>
       )}
     </div>
@@ -248,15 +254,16 @@ function PreviewChoice({ data, writes, onSet, optional = false }: { data: Readon
 
 /** 2026-11-01 — ZBUDUJ Z KAFELKÓW: die Kacheln der Antwort in ihrer Folge, die zu viel, andere richtige Folgen, die Vorschau. */
 function Build({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const t = useT();
   const alternatives = readAlternatives(data.alternatives);
   const [alt, setAlt] = useState(alternatives.map((a) => a.join(' | ')).join('\n'));
   useEffect(() => { setAlt(readAlternatives(data.alternatives).map((a) => a.join(' | ')).join('\n')); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [JSON.stringify(data.alternatives ?? null)]);
   return (
     <>
-      <Rows label="Kafelki dobrej odpowiedzi — w dobrej kolejności (wzory: $…$)" add="kafelek" values={rawList(data.items)} writes={writes} ordered min={1} placeholder={(i) => (i === 0 ? 'np. $\\exists a\\in A$' : `${i + 1}.`)} onChange={(v) => onSet('items', v)} />
-      <Rows label="Kafelki zbędne — do zmylenia" add="kafelek" values={rawList(data.extra)} writes={writes} min={0} placeholder={() => 'np. $\\forall a\\in A$'} onChange={(v) => onSet('extra', v)} />
+      <Rows label={t('cogitaEditQuestion.tiles')} add={t('cogitaEditQuestion.add.tile')} values={rawList(data.items)} writes={writes} ordered min={1} placeholder={(i) => (i === 0 ? t('cogitaEditQuestion.ph.tile') : `${i + 1}.`)} onChange={(v) => onSet('items', v)} />
+      <Rows label={t('cogitaEditQuestion.extraTiles')} add={t('cogitaEditQuestion.add.tile')} values={rawList(data.extra)} writes={writes} min={0} placeholder={() => t('cogitaEditQuestion.ph.extraTile')} onChange={(v) => onSet('extra', v)} />
       <label className="wk-field">
-        <span>Inne dobre kolejności — jedna w wierszu, kafelki oddzielone „|”</span>
+        <span>{t('cogitaEditQuestion.alternatives')}</span>
         <textarea rows={2} value={alt} disabled={!writes} placeholder="$B$ | $=$ | $A$" onChange={(e) => {
           setAlt(e.target.value);
           const next = readAlternatives(e.target.value);
@@ -273,6 +280,7 @@ function Build({ data, writes, onSet }: { data: Readonly<Record<string, unknown>
  * steht der Fehler darunter, und nichts ändert sich.
  */
 function JsonArea({ label, value, writes, rows = 3, hint, onChange }: { label: string; value: unknown; writes: boolean; rows?: number; hint?: string; onChange: (v: unknown) => void }) {
+  const t = useT();
   const shown = (v: unknown): string => (v === undefined || v === null ? '' : typeof v === 'string' ? v : JSON.stringify(v, null, 1).replace(/\n\s*/g, ' '));
   const [text, setText] = useState(shown(value));
   const [error, setError] = useState<string | null>(null);
@@ -282,12 +290,12 @@ function JsonArea({ label, value, writes, rows = 3, hint, onChange }: { label: s
     <label className="wk-field cg-qjson">
       <span>{label}</span>
       <textarea rows={rows} value={text} disabled={!writes} spellCheck={false} aria-invalid={error !== null || undefined} onChange={(e) => {
-        const t = e.target.value;
-        setText(t);
-        if (t.trim() === '') { setError(null); onChange(undefined); return; }
-        try { const v = JSON.parse(t) as unknown; setError(null); onChange(v); } catch (err) { setError(err instanceof Error ? err.message : 'to nie jest JSON'); }
+        const typed = e.target.value;
+        setText(typed);
+        if (typed.trim() === '') { setError(null); onChange(undefined); return; }
+        try { const v = JSON.parse(typed) as unknown; setError(null); onChange(v); } catch (err) { setError(err instanceof Error ? err.message : t('cogitaEditQuestion.json.notJson')); }
       }} />
-      {error !== null ? <span className="wk-warn" role="alert">Nie zapisano — to nie jest poprawny JSON: {error}</span> : hint !== undefined && <span className="cg-muted">{hint}</span>}
+      {error !== null ? <span className="wk-warn" role="alert">{t('cogitaEditQuestion.json.invalid', { error })}</span> : hint !== undefined && <span className="cg-muted">{hint}</span>}
     </label>
   );
 }
@@ -297,6 +305,7 @@ function JsonArea({ label, value, writes, rows = 3, hint, onChange }: { label: s
  * Bedingungen für das Ziehen — mit einem Beispiel des Zugs und dem, was nicht stimmt.
  */
 function Params({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const t = useT();
   const spec = readParamsSpec(data);
   const [round, setRound] = useState(0);
   /* 2026-11-03 — mit der Baza: auch Einträge (`entry`, `entries`) werden gezogen. */
@@ -306,18 +315,18 @@ function Params({ data, writes, onSet }: { data: Readonly<Record<string, unknown
   const problems = useMemo(() => (spec === null ? [] : paramsProblems(spec, Math.random, world)), [JSON.stringify([data.params, data.let, data.require]), cg?.lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <details className="cg-qparams" open={spec !== null} data-question-params={spec?.params.length ?? 0}>
-      <summary>Parametry — nowe zadanie przy każdym pytaniu</summary>
-      <JsonArea label="Parametry" value={data.params} writes={writes} rows={3}
-        hint={'[{"name": "a", "random": [20, 99]}, {"name": "f", "values": ["sin", "cos"]}, {"name": "kation", "entry": {"kind": "@chem/jon", "where": "it.ladunek > 0"}}, {"name": "zd", "entries": {"kind": "@hist/zdarzenie", "count": 4}}] — w tekstach {a}, {kation.symbol}; wpis ma pola (wpis.pole), id, label'}
+      <summary>{t('cogitaEditQuestion.params')}</summary>
+      <JsonArea label={t('cogitaEditQuestion.paramsLabel')} value={data.params} writes={writes} rows={3}
+        hint={t('cogitaEditQuestion.paramsHint')}
         onChange={(v) => onSet('params', v)} />
-      <JsonArea label="Wartości liczone" value={data.let} writes={writes} rows={2}
-        hint={'[{"name": "r", "value": "mod(a, n)"}, {"name": "pierwsze", "value": "minby(zd, it.data).label"}] — język wyrażeń rysunków z listami: [a, b], xs[0], filter, map, sortby, choose, gcd, lcm, sub, sup …; w tekstach {r}; lista w „options”: "{zle}" — każdy element osobno'}
+      <JsonArea label={t('cogitaEditQuestion.letLabel')} value={data.let} writes={writes} rows={2}
+        hint={t('cogitaEditQuestion.letHint')}
         onChange={(v) => onSet('let', v)} />
-      <Rows label="Warunki losowania (losuje się od nowa, aż wszystkie są spełnione — najwyżej 60 razy; inaczej karta nie powstaje)" add="warunek" values={rawList(data.require)} writes={writes} min={0} placeholder={() => 'np. a > 2*n'} onChange={(v) => onSet('require', v)} />
+      <Rows label={t('cogitaEditQuestion.require')} add={t('cogitaEditQuestion.add.condition')} values={rawList(data.require)} writes={writes} min={0} placeholder={() => t('cogitaEditQuestion.ph.require')} onChange={(v) => onSet('require', v)} />
       {sample !== null && sample.held && (
         <p className="cg-muted" data-params-sample="">
-          Przykład: {paramsText(storedValues(spec!, sample.values), (id) => { const e = cg?.lib.entity(id); return e === undefined ? null : cg!.lib.label(e); })}{' '}
-          <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>losuj jeszcze raz</button>
+          {t('cogitaEditQuestion.example')} {paramsText(storedValues(spec!, sample.values), (id) => { const e = cg?.lib.entity(id); return e === undefined ? null : cg!.lib.label(e); })}{' '}
+          <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>{t('cogitaEditQuestion.drawAgain')}</button>
         </p>
       )}
       {problems.map((p) => <p key={p} className="wk-warn">{p}</p>)}
@@ -327,6 +336,7 @@ function Params({ data, writes, onSet }: { data: Readonly<Record<string, unknown
 
 /** 2026-11-03 — wie streng ein getippter Text verglichen wird: ohne Leerzeichen, Indizes (₂, ²) wie normale Ziffern. */
 function TextRuleChecks({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const t = useT();
   const rule = data.rule !== null && typeof data.rule === 'object' && !Array.isArray(data.rule) ? (data.rule as Record<string, unknown>) : {};
   const set = (key: 'spaces' | 'scripts', on: boolean) => {
     const { [key]: _drop, ...rest } = rule;
@@ -335,9 +345,9 @@ function TextRuleChecks({ data, writes, onSet }: { data: Readonly<Record<string,
   };
   return (
     <fieldset className="cg-row cg-qrule" data-question-rule="">
-      <legend>Porównanie wpisanej odpowiedzi</legend>
-      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={!writes} onChange={(e) => set('spaces', e.target.checked)} /><span>spacje się nie liczą</span></label>
-      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={!writes} onChange={(e) => set('scripts', e.target.checked)} /><span>indeksy (₂, ²) jak zwykłe cyfry — Al2(SO4)3 = Al₂(SO₄)₃</span></label>
+      <legend>{t('cogitaEditQuestion.rule')}</legend>
+      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={!writes} onChange={(e) => set('spaces', e.target.checked)} /><span>{t('cogitaEditQuestion.spaces')}</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={!writes} onChange={(e) => set('scripts', e.target.checked)} /><span>{t('cogitaEditQuestion.scripts')}</span></label>
     </fieldset>
   );
 }
@@ -347,6 +357,7 @@ function TextRuleChecks({ data, writes, onSet }: { data: Readonly<Record<string,
  * Liste (40 Jahre und Ereignisse) zeigt je Karte nur ein paar Paare, und jedes Paar hat seine Karte.
  */
 function Pairs({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const t = useT();
   const left = rawList(data.left);
   const right = rawList(data.right);
   const rows: [string, string][] = Array.from({ length: Math.max(left.length, right.length, 2) }, (_, i) => [left[i] ?? '', right[i] ?? '']);
@@ -355,44 +366,44 @@ function Pairs({ data, writes, onSet }: { data: Readonly<Record<string, unknown>
   const parsed = useMemo(() => parsePairs(paste), [paste]);
   const count = pairsOf(data).length;
   const show = showOf(data, count);
-  const leftName = str(data.leftLabel).trim() || 'Lewa strona';
-  const rightName = str(data.rightLabel).trim() || 'Prawa strona';
+  const leftName = str(data.leftLabel).trim() || t('cogitaEditQuestion.leftSide');
+  const rightName = str(data.rightLabel).trim() || t('cogitaEditQuestion.rightSide');
   return (
     <fieldset className="cg cg-qpairs" data-question-pairs="">
-      <legend>Pary</legend>
+      <legend>{t('cogitaEditQuestion.pairs')}</legend>
       <div className="cg-qpair cg-qpair-head">
-        <input value={str(data.leftLabel)} disabled={!writes} placeholder="nagłówek, np. Rok" aria-label="Nagłówek lewej strony" onChange={(e) => onSet('leftLabel', e.target.value)} />
-        <input value={str(data.rightLabel)} disabled={!writes} placeholder="nagłówek, np. Wydarzenie" aria-label="Nagłówek prawej strony" onChange={(e) => onSet('rightLabel', e.target.value)} />
+        <input value={str(data.leftLabel)} disabled={!writes} placeholder={t('cogitaEditQuestion.leftHeadPh')} aria-label={t('cogitaEditQuestion.leftHead')} onChange={(e) => onSet('leftLabel', e.target.value)} />
+        <input value={str(data.rightLabel)} disabled={!writes} placeholder={t('cogitaEditQuestion.rightHeadPh')} aria-label={t('cogitaEditQuestion.rightHead')} onChange={(e) => onSet('rightLabel', e.target.value)} />
         <span />
       </div>
       {rows.map(([l, r], i) => (
         <div key={i} className="cg-qpair">
           <input value={l} disabled={!writes} placeholder={leftName} aria-label={`${leftName} ${i + 1}`} onChange={(e) => write(rows.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))} />
           <input value={r} disabled={!writes} placeholder={rightName} aria-label={`${rightName} ${i + 1}`} onChange={(e) => write(rows.map((x, j) => (j === i ? [x[0], e.target.value] : x)))} />
-          {writes && rows.length > 2 ? <button type="button" className="wk-link-btn" aria-label={`Usuń parę ${i + 1}`} onClick={() => write(rows.filter((_, j) => j !== i))}>×</button> : <span />}
+          {writes && rows.length > 2 ? <button type="button" className="wk-link-btn" aria-label={t('cogitaEditQuestion.removePair', { n: i + 1 })} onClick={() => write(rows.filter((_, j) => j !== i))}>×</button> : <span />}
         </div>
       ))}
-      {writes && <button type="button" className="wk-link-btn" onClick={() => write([...rows, ['', '']])}>+ para</button>}
+      {writes && <button type="button" className="wk-link-btn" onClick={() => write([...rows, ['', '']])}>{t('cogitaEditQuestion.addPair')}</button>}
       {writes && (
         <details className="cg-qpaste">
-          <summary>Wklej listę par</summary>
-          <textarea rows={5} value={paste} aria-label="Lista par" placeholder={'1410 – Bitwa pod Grunwaldem\n1569 – Unia lubelska'} onChange={(e) => setPaste(e.target.value)} />
-          <span className="cg-muted">Jedna para w wierszu. Strony oddziela tabulator (z arkusza), „ – ”, „ | ”, „;” albo „=”.</span>
+          <summary>{t('cogitaEditQuestion.paste')}</summary>
+          <textarea rows={5} value={paste} aria-label={t('cogitaEditQuestion.pasteList')} placeholder={t('cogitaEditQuestion.pastePh')} onChange={(e) => setPaste(e.target.value)} />
+          <span className="cg-muted">{t('cogitaEditQuestion.pasteHint')}</span>
           <button type="button" className="wk-btn" disabled={parsed.length === 0}
             onClick={() => { write([...rows.filter((x) => x[0].trim() !== '' || x[1].trim() !== ''), ...parsed.map((p): [string, string] => [p.left, p.right])]); setPaste(''); }}>
-            Dodaj {parsed.length} {parsed.length === 1 ? 'parę' : 'par'}
+            {t('cogitaEditQuestion.addPairs', { count: parsed.length })}
           </button>
         </details>
       )}
       <label className="wk-field cg-qshow">
-        <span>Ile par naraz na karcie</span>
-        <input type="number" min={2} max={SHOW_MAX} step={1} value={typeof data.show === 'number' ? data.show : ''} disabled={!writes} placeholder="wszystkie"
+        <span>{t('cogitaEditQuestion.showPairs')}</span>
+        <input type="number" min={2} max={SHOW_MAX} step={1} value={typeof data.show === 'number' ? data.show : ''} disabled={!writes} placeholder={t('cogitaEditQuestion.all')}
           onChange={(e) => onSet('show', e.target.value === '' ? undefined : Math.max(2, Math.min(SHOW_MAX, Math.round(Number(e.target.value)))))} />
       </label>
       <span className="cg-muted" data-pairs-count={count}>
-        {count} {count === 1 ? 'para' : 'par'}{show === null
-          ? ' — wszystkie na jednej karcie.'
-          : ` — na karcie po ${show}: każda para ma swoją kartę, a obok niej ${show - 1} innych, losowo. W powtórce wracają pary, których jeszcze nie umiesz.`}
+        {t('cogitaEditQuestion.pairCount', { count })}{show === null
+          ? t('cogitaEditQuestion.pairsAll')
+          : t('cogitaEditQuestion.pairsShow', { show, others: show - 1 })}
       </span>
     </fieldset>
   );
@@ -403,21 +414,22 @@ function Pairs({ data, writes, onSet }: { data: Readonly<Record<string, unknown>
  * Paare); „Wspólne zdania" lässt mehrere Fassungen der Frage dieselben Sätze teilen.
  */
 function Sentences({ data, writes, onSet, share }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put; share: ReactNode }) {
+  const t = useT();
   const count = choicesOf(data).options.length;
   const show = showOf(data, count);
   return (
     <div className="cg-qmore" data-question-sentences="">
       <label className="wk-field cg-qshow">
-        <span>Ile zdań naraz na karcie</span>
-        <input type="number" min={2} max={SHOW_MAX} step={1} value={typeof data.show === 'number' ? data.show : ''} disabled={!writes} placeholder="wszystkie"
+        <span>{t('cogitaEditQuestion.showSentences')}</span>
+        <input type="number" min={2} max={SHOW_MAX} step={1} value={typeof data.show === 'number' ? data.show : ''} disabled={!writes} placeholder={t('cogitaEditQuestion.all')}
           onChange={(e) => onSet('show', e.target.value === '' ? undefined : Math.max(2, Math.min(SHOW_MAX, Math.round(Number(e.target.value)))))} />
       </label>
       {share}
       <span className="cg-muted" data-sentences-count={count}>
-        Każde zdanie liczy się osobno: dobrze zaznaczone albo dobrze pominięte; wynik to średnia.
+        {t('cogitaEditQuestion.sentences')}
         {show === null || count < 3
-          ? ' Wszystkie zdania na jednej karcie.'
-          : ` Na karcie po ${show}: każde zdanie ma swoją kartę (obok niego ${show - 1} innych, co najmniej jedno dobre). W powtórce wracają zdania, których jeszcze nie umiesz.`}
+          ? t('cogitaEditQuestion.sentencesAll')
+          : t('cogitaEditQuestion.sentencesShow', { show, others: show - 1 })}
       </span>
     </div>
   );
@@ -428,6 +440,7 @@ function Sentences({ data, writes, onSet, share }: { data: Readonly<Record<strin
  * gespeichert. Steht neben dem Formular, nicht darin: die Karte hat ihr eigenes.
  */
 export function QuestionPreview({ id, data, lib }: { id: string; data: Readonly<Record<string, unknown>>; lib: CogitaLibrary }) {
+  const t = useT();
   const [round, setRound] = useState(0);
   const text = JSON.stringify(data);
   /* 2026-11-03 — mit der Baza (`genWorld`): ein Generator zieht auch Einträge. */
@@ -437,16 +450,16 @@ export function QuestionPreview({ id, data, lib }: { id: string; data: Readonly<
   return (
     <section className="cg-card cg-qpreview" data-question-preview={cards.length}>
       <div className="cg-row-between">
-        <strong>Tak zobaczy to uczący się</strong>
+        <strong>{t('cogitaEditQuestion.previewTitle')}</strong>
         {card !== undefined && (
           <span className="cg-row">
-            {cards.length > 1 && <span className="cg-muted">karta {(round % cards.length) + 1} z {cards.length}</span>}
-            <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>{cards.length > 1 ? 'Następna karta' : 'Jeszcze raz'}</button>
+            {cards.length > 1 && <span className="cg-muted">{t('cogitaEditQuestion.cardOf', { n: (round % cards.length) + 1, of: cards.length })}</span>}
+            <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>{cards.length > 1 ? t('cogitaEditQuestion.nextCard') : t('cogitaEditQuestion.again')}</button>
           </span>
         )}
       </div>
       {card === undefined
-        ? <span className="cg-muted">Karta pojawi się, gdy pytanie będzie kompletne.</span>
+        ? <span className="cg-muted">{t('cogitaEditQuestion.incomplete')}</span>
         : <CardFace key={`${card.key}:${round}`} card={card} lib={lib} autoFocus={false} onAnswered={() => undefined} />}
       {/* 2026-11-03 — z generatorem: dziesięć zadań z odpowiedziami i ile losowań odrzucono. */}
       {readParamsSpec(data) !== null && <QuestionSamples id={id} data={data} lib={lib} />}

@@ -19,6 +19,7 @@ import { MusicFiles } from './MusicFiles';
 import type { Entry, LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
 import { viewPath } from '../routes';
+import { useT } from '../core/i18n';
 import { QuoteIntake } from './QuoteIntake';
 import { AreaBox } from './LibraryAreaBox';
 import { DeleteBox, EntryJson, KeyBox, type EntryFormat } from './LibraryEntryBoxes';
@@ -52,18 +53,19 @@ export function LibraryEditor({ store, library, entryId, kind, preset = {}, sour
   /** 2026-10-24 — wohin der Text eines Werks gehen kann (`SourceBox.tsx`). */
   sources?: SourceTargets;
 }) {
+  const t = useT();
   const existing = entryId === null ? undefined : store.own(entryId);
   /* 2026-10-22 — ein Eintrag einer anderen lesbaren Bibliothek wird dort bearbeitet. */
   const home = entryId === null || existing !== undefined ? undefined : store.homeOf(entryId);
   if (entryId !== null && home !== undefined) {
-    return <p className="wk-note">Ten wpis jest w innej bibliotece. <a href={containerPath(home.libraryId, entryId)}>Otwórz go tam</a></p>;
+    return <p className="wk-note">{t('library.editor.elsewhere')} <a href={containerPath(home.libraryId, entryId)}>{t('library.editor.openThere')}</a></p>;
   }
   if (entryId !== null && existing === undefined) {
-    return <p className="wk-empty">Tego wpisu nie ma (albo został usunięty). <a href={viewPath('library', library.libraryId)}>Wróć do biblioteki</a></p>;
+    return <p className="wk-empty">{t('library.editor.missing')} <a href={viewPath('library', library.libraryId)}>{t('librarySource.reader.backToLibrary')}</a></p>;
   }
   /* 2026-10-23 — die Bibliothek hält nur Quellen; was sonst noch liegt, steht unter „Stare wpisy". */
   if (!isLibraryKind(existing?.kind ?? kind ?? '')) {
-    return <p className="wk-note">Ten wpis jest rodzaju, którego biblioteka już nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”. <a href={viewPath('library', library.libraryId, 'stare')}>Stare wpisy</a></p>;
+    return <p className="wk-note">{t('library.editor.oldKind')} <a href={viewPath('library', library.libraryId, 'stare')}>{t('library.home.old')}</a></p>;
   }
   return <Editor key={entryId ?? `new-${kind}`} store={store} library={library} existing={existing} kind={existing?.kind ?? kind!} preset={preset} sources={sources} />;
 }
@@ -77,6 +79,7 @@ function Editor({ store, library, existing, kind, preset, sources }: {
   sources: SourceTargets | undefined;
 }) {
   const def = kindOf(kind)!;
+  const t = useT();
   const readOnly = !library.writes;
   const draft = useEntryDraft(store, existing, kind, () => defaults(kind, preset), readOnly);
   const { id, data, set, saved, live, state } = draft;
@@ -104,19 +107,19 @@ function Editor({ store, library, existing, kind, preset, sources }: {
   return (
     <div className={`lib-editor lib-editor-${kind}`}>
       <header className="lib-editor-head">
-        <a className="wk-link" href={here(back)}>← {music ? 'Muzyka' : def.plural}</a>
-        <span className="lib-editor-kind">{music ? WORK_TYPES.find((t) => t.value === workType)?.label ?? def.label : def.label}</span>
+        <a className="wk-link" href={here(back)}>← {music ? t('libraryKinds.group.music') : def.plural}</a>
+        <span className="lib-editor-kind">{music ? WORK_TYPES.find((w) => w.value === workType)?.label ?? def.label : def.label}</span>
         <h1 className="wk-h1 lib-editor-title">{kind === 'quote' ? <q>{title}</q> : title}</h1>
         {saved !== undefined && kind === 'work' && <KnowledgeLine store={store} work={saved} />}
         <p className={`lib-state is-${state}`} role="status">{draft.status}</p>
         {state === 'stale' && (
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={draft.reloadTheirs}>Wczytaj nowszą wersję</button>
-            <button type="button" className="wk-link-btn" onClick={() => void draft.saveNow()}>Zachowaj moją (nadpisz)</button>
+            <button type="button" className="wk-btn" onClick={draft.reloadTheirs}>{t('library.editor.reload')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => void draft.saveNow()}>{t('library.editor.keepMine')}</button>
           </div>
         )}
         {draft.failed !== null && state !== 'stale' && <p className="wk-error">{draft.failed}</p>}
-        {readOnly && <p className="wk-note">Tę bibliotekę możesz tylko czytać.</p>}
+        {readOnly && <p className="wk-note">{t('library.editor.readOnly')}</p>}
       </header>
 
       <div className="lib-editor-grid">
@@ -124,10 +127,10 @@ function Editor({ store, library, existing, kind, preset, sources }: {
           <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
           {music && files !== null && (saved !== undefined
             ? <MusicFiles store={store} data={data} set={set} commit={draft.commit} readOnly={readOnly} which={files} />
-            : <p className="lib-music-status">{files === 'tracks' ? 'Ścieżki nagrania' : 'Pliki nut'} dodasz po zapisaniu wpisu.</p>)}
+            : <p className="lib-music-status">{t(files === 'tracks' ? 'library.editor.tracksLater' : 'library.editor.filesLater')}</p>)}
           {kind === 'work' && !music && saved !== undefined && <QuoteIntake store={store} library={library} work={saved} />}
           {state === 'new' && !readOnly && (
-            <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => void draft.create((made) => window.location.replace(here(made)))}>Zapisz</button></div>
+            <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => void draft.create((made) => window.location.replace(here(made)))}>{t('common.save')}</button></div>
           )}
         </div>
 
@@ -146,7 +149,7 @@ function Editor({ store, library, existing, kind, preset, sources }: {
           {/* 2026-10-25 (Wywód) — was eine lesbare Baza wiedzy über dieses Werk erklärt (ihre Wejścia), als Knöpfe; nichts davon liegt hier. */}
           {saved !== undefined && kind === 'work' && <KnowledgeBox store={store} work={saved} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
-          {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
+          {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">{t('common.preview')}</h2><QuoteFigure entry={live} look={store} /></section>}
           {!readOnly || saved !== undefined ? <EntryJson store={store} entry={saved ?? live} isNew={saved === undefined} format={libraryFormat(store, library.name)} home={(made) => here(made)} /> : null}
           {saved !== undefined && !readOnly && <DeleteBox store={store} entry={saved} back={here(back)} />}
         </aside>

@@ -19,6 +19,8 @@ import { createPortal } from 'react-dom';
 
 import { useT } from '../../core/i18n';
 import type { DraftPart } from '../page';
+import { langOfLayout } from '../layout';
+import { InLang } from '../pageLang';
 import { partSize, text } from '../part';
 import { usePageLogic } from '../pageLogic';
 import { PreviewControlContext } from '../previewControl';
@@ -33,7 +35,7 @@ import { inline, RichLine } from '../../ui/richText';
 import type { Look } from '../slides/slideLook';
 import type { DriveControl } from './usePresentationDrive';
 import type { Learner } from '../../cogita/learn';
-import { BLOCKED_KIND, BLOCKED_PART_TEXT } from '../../reports/reportPath';
+import { BLOCKED_KIND } from '../../reports/reportPath';
 
 /** Diese Arten zeigen sich ohne Tafel — ein Bild ist ein Bild, ein Kształt eine Fläche. */
 const BARE = new Set(['image', 'shape', 'animation', 'layers']);
@@ -145,7 +147,7 @@ export function PagePresentation({
       content = <p className="wk-card-muted">{messages.get(part.id)}</p>;
     } else if (part.kind === BLOCKED_KIND) {
       /* 0130 — nach einer Meldung gesperrt. */
-      content = <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>;
+      content = <p className="wk-blocked">{t('reports.blockedPart')}</p>;
     } else if (def === undefined) {
       content = <p className="wk-card-unknown">{t('pagePresentation.unknownModule', { kind: part.kind })}</p>;
     } else if (part.kind === 'text' && piece.type !== 'auto') {
@@ -161,7 +163,8 @@ export function PagePresentation({
       );
     }
 
-    return [{ key: part.id, kind: part.kind, label: pieceLabelOf(part), piece, content }];
+    /* 2026-11-09 — ein Stück spricht die Sprache seines Bausteins (`layout.lang`), sonst die der Seite. */
+    return [{ key: part.id, kind: part.kind, label: pieceLabelOf(part), piece, content: <InLang lang={langOfLayout(part.layout)}>{content}</InLang> }];
   });
 
   const stop = useCallback(() => { setPresenting(null); onPresentEnd?.(); }, [onPresentEnd]);

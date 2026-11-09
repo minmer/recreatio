@@ -24,6 +24,7 @@ import { Avatar, cls, Icon, listTime, PopMenu, useButtonMenu, type MenuItem } fr
 import { useCrumbs } from '../shell/crumbTrail';
 import { viewPath } from '../routes';
 import { loadAreas, type AreaRow } from '../areas/area';
+import { fmtDate, fmtNumber, rich, useT, type T } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
@@ -49,13 +50,13 @@ import {
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
 import { DropVeil, usePageDrop } from './fileDrop';
-import { shareFile } from './share';
-import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { daysLabel, shareFile } from './share';
+import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
-const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
+const mb = (bytes: number) => `${fmtNumber(bytes / 1024 / 1024, { maximumFractionDigits: 1 })} MB`;
 const meterStyle = (s: ArchiveSummary) => ({ width: `${Math.min(100, (100 * s.bytes) / Math.max(1, s.limit)).toFixed(1)}%` });
 
 /** Ein Archiv, das ich lese — der Bereich, wie er heisst, wie viel darin ist. */
@@ -69,6 +70,7 @@ const conversationSeen = new Map<string, ArchivedMessage[]>();
 const INDEX_EVERY = 30_000;
 
 export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly string[] }) {
+  const t = useT();
   const native = phoneHere();
   const [settingsText] = useRemembered(ARCHIVE_PREF, '');
   const settings = useMemo(() => readSettings(settingsText), [settingsText]);
@@ -87,13 +89,13 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
         const found = await readableArchives(known.map((a) => a.areaId));
         if (!alive) return;
         setAreas(known);
-        setArchives(found.map((f) => ({ areaId: f.areaId, name: known.find((a) => a.areaId === f.areaId)?.name ?? 'Archiwum', messages: f.messages })));
+        setArchives(found.map((f) => ({ areaId: f.areaId, name: known.find((a) => a.areaId === f.areaId)?.name ?? t('phoneSms.menu.archive'), messages: f.messages })));
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać archiwów.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('phoneArchive.loadArchivesFailed'));
       }
     })();
     return () => { alive = false; };
-  }, [tick]);
+  }, [tick, t]);
 
   const areaId = archives === null ? null
     : archives.some((a) => a.areaId === viewText) ? viewText
@@ -105,9 +107,9 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
     if (areaId === null) { setCtx(null); return undefined; }
     let alive = true;
     void openArea(who, areaId).then((c) => { if (alive) setCtx(c); })
-      .catch((e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć archiwum.'); });
+      .catch((e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('phoneArchive.openFailed')); });
     return () => { alive = false; };
-  }, [who, areaId]);
+  }, [who, areaId, t]);
 
   const [index, setIndex] = useState(areaId === null ? null : indexSeen.get(areaId) ?? null);
   const reload = useCallback(async (opened: PhoneCtx) => {
@@ -118,8 +120,8 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
   useEffect(() => {
     if (ctx === null) return;
     setIndex(indexSeen.get(ctx.areaId) ?? null);
-    void reload(ctx).catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać archiwum.'));
-  }, [ctx, reload]);
+    void reload(ctx).catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : t('phoneArchive.loadFailed')));
+  }, [ctx, reload, t]);
 
   /* Neues vom Telefon (eine Antwort, die kam): alle halbe Minute, solange das Fenster vorn ist. */
   useEffect(() => {
@@ -137,15 +139,15 @@ export function SmsArchiveView({ who, trail }: { who: Who; trail: readonly strin
 
   const names = useNames(who, native, index?.conversations ?? []);
   const titleOf = useCallback((c: { readonly peers: readonly string[] }) =>
-    (c.peers.length === 0 ? 'Bez numeru' : c.peers.map((p) => names.get(p) ?? phoneShown(p)).join(', ')), [names]);
+    (c.peers.length === 0 ? t('phoneSms.noNumber') : c.peers.map((p) => names.get(p) ?? phoneShown(p)).join(', ')), [names, t]);
 
   const step = trail[0];
   const listHref = native ? viewPath('sms', 'archiwum') : viewPath('sms');
   const conversation = step === undefined ? null : index?.conversations.find((c) => c.key === step) ?? null;
 
   if (step !== undefined) {
-    if (ctx === null || index === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Otwieranie archiwum…" />;
-    if (conversation === null) return <p className="wk-empty">Takiej rozmowy nie ma w archiwum.</p>;
+    if (ctx === null || index === null) return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label={t('phoneArchive.opening')} />;
+    if (conversation === null) return <p className="wk-empty">{t('phoneArchive.noConversation')}</p>;
     return (
       <ArchiveConversation key={conversation.key} who={who} ctx={ctx} conversation={conversation} title={titleOf(conversation)} names={names} back={listHref} native={native}
         lines={lines} mayWrite={mayWrite} />
@@ -209,13 +211,14 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
   onArchived: () => void;
   areas: readonly AreaRow[];
 }) {
+  const t = useT();
   const [modeText, setModeText] = useRemembered('sms.search', 'osoby');
   const mode: SearchMode = isMode(modeText) ? modeText : 'osoby';
   const [query, setQuery] = useState('');
   const [all, setAll] = useState<readonly ArchivedMessage[] | null>(null);
   const [loadingAll, setLoadingAll] = useState<string | null>(null);
   const top = useBarHeight();
-  useCrumbs(native ? [{ label: 'Archiwum', href: null }] : []);
+  useCrumbs(native ? [{ label: t('phoneSms.menu.archive'), href: null }] : []);
 
   /* Ein anderes Archiv: die Suche im Text beginnt von vorn. */
   useEffect(() => { setAll(null); }, [areaId]);
@@ -227,44 +230,44 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
   /* Im Text suchen: einmal alles laden (mit Fortschritt), dann hier durchsuchen. */
   useEffect(() => {
     if (mode !== 'tresc' || q.length < 2 || all !== null || loadingAll !== null || ctx === null) return;
-    setLoadingAll('Wczytywanie archiwum…');
-    void loadAll(ctx, (done, total) => setLoadingAll(`Wczytywanie archiwum… ${done}/${total}`))
-      .then(setAll).catch(() => toast('Nie udało się wczytać archiwum.'))
+    setLoadingAll(t('phoneArchive.loading'));
+    void loadAll(ctx, (done, total) => setLoadingAll(t('phoneArchive.loadingN', { done, total })))
+      .then(setAll).catch(() => toast(t('phoneArchive.loadFailed')))
       .finally(() => setLoadingAll(null));
-  }, [mode, q, all, loadingAll, ctx]);
+  }, [mode, q, all, loadingAll, ctx, t]);
 
   const hits = useMemo(() => {
     if (mode !== 'tresc' || q.length < 2 || all === null) return null;
-    const needle = q.toLocaleLowerCase('pl');
-    return all.filter((m) => m.body.toLocaleLowerCase('pl').includes(needle)).slice(-300).reverse();
+    const needle = q.toLocaleLowerCase();
+    return all.filter((m) => m.body.toLocaleLowerCase().includes(needle)).slice(-300).reverse();
   }, [mode, q, all]);
 
   const ownName = settings.areaId === null ? null : areas.find((a) => a.areaId === settings.areaId)?.name ?? null;
 
   return (
     <div className="ph-threads" style={barStyle(top)}>
-      <PageHeader title={native ? 'Archiwum SMS' : 'SMS'} meta={index === null ? undefined
-        : `W archiwum: ${index.summary.messages.toLocaleString('pl-PL')} wiadomości · ${mb(index.summary.bytes)} z ${mb(index.summary.limit)}`}
-        actions={native ? undefined : <a className="wk-btn wk-btn-quiet" href={viewPath('sms', 'pliki')}><UiIcon name="link" />Pliki przez link</a>} />
+      <PageHeader title={native ? t('phone.ctx.archiveArea') : t('phoneSms.title')} meta={index === null ? undefined
+        : t('phoneArchive.meta', { count: fmtNumber(index.summary.messages), used: mb(index.summary.bytes), limit: mb(index.summary.limit) })}
+        actions={native ? undefined : <a className="wk-btn wk-btn-quiet" href={viewPath('sms', 'pliki')}><UiIcon name="link" />{t('phoneShare.view.title')}</a>} />
       {index !== null && <span className="ph-meter" aria-hidden="true"><span style={meterStyle(index.summary)} /></span>}
 
       {native && <ArchiveSetup who={who} settings={settings} conversations={conversations} ownName={ownName} onArchived={onArchived} />}
 
       {archives !== null && archives.length > 1 && (
         <label className="wk-field ph-archive-pick">
-          <span>Archiwum</span>
+          <span>{t('phoneSms.menu.archive')}</span>
           <select value={areaId ?? ''} onChange={(e) => onView(e.target.value)}>
             {archives.map((a) => (
-              <option key={a.areaId} value={a.areaId}>{a.name}{a.areaId === settings.areaId ? ' (to, do którego archiwizuje telefon)' : ''} · {a.messages.toLocaleString('pl-PL')}</option>
+              <option key={a.areaId} value={a.areaId}>{a.name}{a.areaId === settings.areaId ? ` ${t('phoneArchive.phoneTarget')}` : ''} · {fmtNumber(a.messages)}</option>
             ))}
           </select>
         </label>
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {archives === null && failed === null && <Loading label="Wczytywanie archiwów…" />}
+      {archives === null && failed === null && <Loading label={t('phoneArchive.loadingArchives')} />}
       {archives !== null && archives.length === 0 && !native && (
-        <p className="wk-empty">Nie ma jeszcze archiwum SMS. Wiadomości archiwizuje aplikacja SMS na telefonie (wydanie „sms").</p>
+        <p className="wk-empty">{t('phoneArchive.none')}</p>
       )}
 
       {ctx !== null && (
@@ -272,26 +275,26 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
           <div className="ph-bar" role="search">
             <label className="ch-side-search ph-search-pill">
               <Icon name="search" />
-              <select value={mode} aria-label="Szukaj w" onChange={(e) => setModeText(e.target.value)}>
+              <select value={mode} aria-label={t('phoneSms.list.searchIn')} onChange={(e) => setModeText(e.target.value)}>
                 {(Object.keys(SEARCH) as SearchMode[]).map((m) => <option key={m} value={m}>{SEARCH[m].label}</option>)}
               </select>
               <input type="search" value={query} placeholder={SEARCH[mode].placeholder} aria-label={SEARCH[mode].placeholder}
                 inputMode={mode === 'numery' ? 'tel' : 'search'} onChange={(e) => setQuery(e.target.value)} />
             </label>
           </div>
-          {index === null && <Loading label="Wczytywanie archiwum…" />}
+          {index === null && <Loading label={t('phoneArchive.loading')} />}
           {loadingAll !== null && <Loading label={loadingAll} lines={1} />}
 
           {hits !== null ? (
-            hits.length === 0 ? <p className="wk-empty">Żadna wiadomość w archiwum tego nie zawiera.</p> : (
-              <ul className="ch-list ph-chat-list" aria-label="Znalezione wiadomości">
+            hits.length === 0 ? <p className="wk-empty">{t('phoneArchive.noHits')}</p> : (
+              <ul className="ch-list ph-chat-list" aria-label={t('phoneSms.list.hits')}>
                 {hits.map((m) => {
                   const key = conversationKey(m.peers);
                   const title = titleOf({ peers: m.peers });
                   return (
                     <li key={m.key}>
                       <a className="ch-item" href={conversationHref(key)}>
-                        <Avatar seed={key || '?'} name={title} icon={m.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} />
+                        <Avatar seed={key || '?'} name={title} icon={m.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} /> // i18n-ignore
                         <span className="ch-item-main">
                           <span className="ch-item-top">
                             <strong className="ch-item-title">{title}</strong>
@@ -307,7 +310,7 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
             )
           ) : index !== null && (
             shown.length === 0
-              ? <p className="wk-empty">{conversations.length === 0 ? (native ? 'Archiwum jest jeszcze puste — „Archiwizuj teraz".' : 'Archiwum jest puste.') : 'Nic nie pasuje.'}</p>
+              ? <p className="wk-empty">{conversations.length === 0 ? (native ? t('phoneArchive.emptyNative') : t('phoneArchive.empty')) : t('phoneContacts.app.noMatch')}</p>
               : (
                 <ul className="ch-list ph-chat-list">
                   {shown.map((c) => {
@@ -315,15 +318,15 @@ function ArchiveList({ who, native, settings, archives, areaId, ctx, index, fail
                     return (
                       <li key={c.key}>
                         <a className={cls('ch-item', c.lastBox === 'in' && 'ph-last-in')} href={conversationHref(c.key)}>
-                          <Avatar seed={c.key || '?'} name={title} icon={c.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} />
+                          <Avatar seed={c.key || '?'} name={title} icon={c.peers.length > 1 ? 'users' : /\p{L}/u.test(title) ? undefined : 'user'} /> // i18n-ignore
                           <span className="ch-item-main">
                             <span className="ch-item-top">
                               <strong className="ch-item-title">{title}</strong>
                               {c.last > 0 && <time className="ch-item-time">{listTime(new Date(c.last).toISOString())}</time>}
                             </span>
                             <span className="ch-item-bottom">
-                              <span className="ch-item-sub">{c.lastBox === 'in' ? '' : 'Ty: '}{c.lastBody !== '' ? c.lastBody : c.lastMedia ? '📷 MMS' : ''}</span>
-                              <span className="ph-item-count" title="Wiadomości w archiwum">{c.count.toLocaleString('pl-PL')}</span>
+                              <span className="ch-item-sub">{c.lastBox === 'in' ? '' : t('phoneArchive.youPrefix')}{c.lastBody !== '' ? c.lastBody : c.lastMedia ? '📷 MMS' : ''}</span>
+                              <span className="ph-item-count" title={t('phoneArchive.countTitle')}>{fmtNumber(c.count)}</span>
                             </span>
                           </span>
                         </a>
@@ -345,6 +348,7 @@ interface RoleOption { readonly id: string; readonly name: string; readonly pers
 
 /** Meine Rollen, denen ein Archiv gehören kann: die eigene Person und jede Rolle, mit der ich einen Bereich anlegen darf. */
 function useOwnRoles(who: Who): readonly RoleOption[] | null {
+  const t = useT();
   const [roles, setRoles] = useState<readonly RoleOption[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -356,15 +360,15 @@ function useOwnRoles(who: Who): readonly RoleOption[] | null {
         const self = selfOf(graph)?.id ?? null;
         const out = graph.roles
           .filter((r) => r.kind !== 'account' && ring.has(r.id) && (r.id === self || ring.maySign(r.id)))
-          .map((r) => ({ id: r.id, name: names.get(r.id) ?? (r.id === self ? 'Ty' : 'Rola'), person: r.id === self }))
-          .sort((a, b) => Number(b.person) - Number(a.person) || a.name.localeCompare(b.name, 'pl'));
+          .map((r) => ({ id: r.id, name: names.get(r.id) ?? (r.id === self ? t('phoneChat.log.you') : t('phoneArchive.role')), person: r.id === self }))
+          .sort((a, b) => Number(b.person) - Number(a.person) || a.name.localeCompare(b.name, t.locale));
         if (alive) setRoles(out);
       } catch {
         if (alive) setRoles([]);
       }
     })();
     return () => { alive = false; };
-  }, [who]);
+  }, [who, t]);
   return roles;
 }
 
@@ -375,6 +379,7 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
   ownName: string | null;
   onArchived: () => void;
 }) {
+  const t = useT();
   const roles = useOwnRoles(who);
   const [mediaText, setMediaText] = useRemembered(MEDIA_PREF, 'on');
   const [status, setStatus] = useState<PhoneStatus | null>(null);
@@ -399,18 +404,18 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
     if (next === roleId) return;
     const role = roles?.find((r) => r.id === next);
     const yes = await ask({
-      title: `Archiwum SMS ma należeć do: ${role?.name ?? 'tej roli'}?`,
-      body: 'Kto ma tę rolę — także ten, komu ją kiedyś przekażesz — czyta archiwum, również w przeglądarce. Od teraz telefon archiwizuje tam; dotychczasowe archiwum zostaje, gdzie jest, i dalej można je czytać.',
-      confirm: 'Zmień'
+      title: role === undefined ? t('phoneArchive.setup.roleAskThis') : t('phoneArchive.setup.roleAsk', { name: role.name }),
+      body: t('phoneArchive.setup.roleBody'),
+      confirm: t('common.change')
     });
     if (!yes) return;
     setBusy(true);
     try {
       await archiveArea(who, { ...settings, roleId: next, areaId: settings.areas[next] ?? null });
-      toast('Archiwum należy teraz do wybranej roli. „Archiwizuj teraz" przeniesie tam wiadomości.');
+      toast(t('phoneArchive.setup.roleChanged'));
       onArchived();
     } catch (e) {
-      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się.');
+      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setBusy(false);
     }
@@ -425,70 +430,68 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
     try {
       const done = await archiveNow(who, pluginSource, { full, onProgress: setProgress });
       setProgress(done);
-      toast(done.added === 0 ? 'Archiwum jest aktualne.' : `Dodano do archiwum: ${done.added}.`);
+      toast(done.added === 0 ? t('phoneArchive.setup.upToDate') : t('phoneArchive.setup.added', { count: done.added }));
       onArchived();
       refresh();
     } catch (e) {
-      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się zarchiwizować.');
+      toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneArchive.setup.failed'));
     } finally {
       setRunning(false);
     }
   };
 
-  const threadTitle = (t: NativeThread) => (t.addresses.length === 0 ? 'Bez numeru' : t.addresses.map((a, i) => t.names?.[i] ?? phoneShown(a)).join(', '));
+  const threadTitle = (th: NativeThread) => (th.addresses.length === 0 ? t('phoneSms.noNumber') : th.addresses.map((a, i) => th.names?.[i] ?? phoneShown(a)).join(', '));
 
   return (
-    <section className="ph-archive-state" aria-label="Archiwizowanie">
+    <section className="ph-archive-state" aria-label={t('phoneArchive.setup.title')}>
       {status !== null && !status.smsRead && (
         <div className="ph-setup">
           <p>
-            <strong>Ta aplikacja nie może jeszcze czytać SMS na tym telefonie.</strong> Na starym telefonie, z którego chcesz tylko przenieść
-            historię, nie musi być aplikacją SMS — wystarczy pozwolić jej czytać wiadomości.
+            {rich(t('phoneArchive.setup.noRead'), { b: (s) => <strong>{s}</strong> })}
           </p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => void Phone.requestSmsRead().then(refresh)}>Pozwól czytać SMS</button>
+            <button type="button" className="wk-btn" onClick={() => void Phone.requestSmsRead().then(refresh)}>{t('phoneArchive.setup.allowRead')}</button>
           </div>
         </div>
       )}
 
       <label className="wk-field">
-        <span>Archiwum należy do</span>
+        <span>{t('phoneArchive.setup.owner')}</span>
         <select value={roleId} disabled={roles === null || busy || running} onChange={(e) => void chooseRole(e.target.value)}>
-          {(roles ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}{r.person ? ' (prywatnie)' : ''}</option>)}
+          {(roles ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}{r.person ? ` ${t('phoneArchive.setup.private')}` : ''}</option>)}
         </select>
       </label>
       <p>
-        Kto ma tę rolę, czyta archiwum — także w przeglądarce. Każdy telefon z tą aplikacją (np. stary) archiwizuje do tego samego miejsca;
-        te same wiadomości z dwóch telefonów zapisują się raz.{ownName !== null ? ` Obszar: „${ownName}".` : ''}
+        {t('phoneArchive.setup.ownerNote')}{ownName !== null ? ` ${t('phoneArchive.setup.area', { name: ownName })}` : ''}
       </p>
 
-      <div className="wk-field" role="radiogroup" aria-label="Które rozmowy">
-        <label className="wk-check"><input type="radio" checked={settings.mode === 'all'} onChange={() => setChoice({ mode: 'all' })} /><span>Wszystkie rozmowy (także nowe)</span></label>
-        <label className="wk-check"><input type="radio" checked={settings.mode === 'chosen'} onChange={() => { setChoice({ mode: 'chosen' }); setListOpen(true); }} /><span>Tylko wybrane</span></label>
+      <div className="wk-field" role="radiogroup" aria-label={t('phoneArchive.setup.which')}>
+        <label className="wk-check"><input type="radio" checked={settings.mode === 'all'} onChange={() => setChoice({ mode: 'all' })} /><span>{t('phoneArchive.setup.all')}</span></label>
+        <label className="wk-check"><input type="radio" checked={settings.mode === 'chosen'} onChange={() => { setChoice({ mode: 'chosen' }); setListOpen(true); }} /><span>{t('phoneArchive.setup.chosen')}</span></label>
       </div>
 
       {settings.mode === 'chosen' && (
         <div className="ph-choose">
           <button type="button" className="wk-link-btn" onClick={() => setListOpen(!listOpen)}>
-            {listOpen ? 'Zwiń listę' : `Wybrane rozmowy: ${settings.chosen.length}`}
+            {listOpen ? t('phoneArchive.setup.collapse') : t('phoneArchive.setup.chosenCount', { count: settings.chosen.length })}
           </button>
           {listOpen && threads !== null && (
             <>
               <div className="wk-actions">
-                <button type="button" className="wk-link-btn" onClick={() => setChoice({ chosen: [...new Set([...settings.chosen, ...threads.map((t) => conversationKey(t.addresses))])] })}>Zaznacz wszystkie</button>
-                <button type="button" className="wk-link-btn" onClick={() => setChoice({ chosen: [] })}>Odznacz wszystkie</button>
+                <button type="button" className="wk-link-btn" onClick={() => setChoice({ chosen: [...new Set([...settings.chosen, ...threads.map((th) => conversationKey(th.addresses))])] })}>{t('phoneArchive.setup.selectAll')}</button>
+                <button type="button" className="wk-link-btn" onClick={() => setChoice({ chosen: [] })}>{t('phoneArchive.setup.selectNone')}</button>
               </div>
               <ul className="ph-choose-list">
-                {threads.map((t) => {
-                  const key = conversationKey(t.addresses);
+                {threads.map((th) => {
+                  const key = conversationKey(th.addresses);
                   const inArchive = archived.get(key) ?? 0;
                   return (
-                    <li key={t.threadId}>
+                    <li key={th.threadId}>
                       <label className="wk-check">
                         <input type="checkbox" checked={chosen.has(key)} onChange={(e) => toggle(key, e.target.checked)} />
                         <span className="ph-choose-text">
-                          <span className="ph-row-name">{threadTitle(t)}</span>
-                          <small>{t.count} na telefonie{inArchive > 0 ? ` · ${inArchive} w archiwum` : ''}</small>
+                          <span className="ph-row-name">{threadTitle(th)}</span>
+                          <small>{t('phoneArchive.setup.onPhone', { count: th.count })}{inArchive > 0 ? ` · ${t('phoneArchive.setup.inArchive', { count: inArchive })}` : ''}</small>
                         </span>
                       </label>
                     </li>
@@ -502,26 +505,24 @@ function ArchiveSetup({ who, settings, conversations, ownName, onArchived }: {
 
       <label className="wk-check">
         <input type="checkbox" checked={mediaText !== 'off'} onChange={(e) => setMediaText(e.target.checked ? 'on' : 'off')} />
-        <span>Ze zdjęciami i filmami z MMS (do 10 MB każde)</span>
+        <span>{t('phoneArchive.setup.media')}</span>
       </label>
 
       <OwnLines />
       <p>
-        Każda wybrana rozmowa trafia do archiwum cała — wszystkie wiadomości, które są na telefonie.
-        {settings.areaId === null
-          ? ' Archiwum nie jest jeszcze włączone: wybierz rolę i rozmowy, potem „Archiwizuj teraz" — od tego momentu nowe wiadomości dochodzą same.'
-          : ' Nowe dochodzą same: chwilę po przyjściu albo wysłaniu i dwa razy na dobę.'}
+        {t('phoneArchive.setup.whole')}
+        {' '}{settings.areaId === null ? t('phoneArchive.setup.notOn') : t('phoneArchive.setup.auto')}
       </p>
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={running || status?.smsRead === false} onClick={() => void run(false)}>
-          <UiIcon name="archive" />{running ? 'Archiwizowanie…' : 'Archiwizuj teraz'}
+          <UiIcon name="archive" />{running ? t('phoneArchive.setup.running') : t('phoneArchive.setup.run')}
         </button>
-        <button type="button" className="wk-btn wk-btn-quiet" disabled={running || status?.smsRead === false} onClick={() => void run(true)}>Sprawdź wszystko od początku</button>
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={running || status?.smsRead === false} onClick={() => void run(true)}>{t('phoneArchive.setup.full')}</button>
       </div>
       {progress !== null && (
         <p aria-live="polite">
-          Rozmowy {progress.conversations}/{progress.of} · przejrzano {progress.seen} · nowych {progress.added} · już w archiwum {progress.known}
-          {progress.media > 0 ? ` · plików ${progress.media}` : ''}{progress.done ? ' — gotowe.' : '…'}
+          {t('phoneArchive.setup.progress', { done: progress.conversations, of: progress.of, seen: progress.seen, added: progress.added, known: progress.known })}
+          {progress.media > 0 ? ` · ${t('phoneArchive.setup.files', { count: progress.media })}` : ''}{progress.done ? t('phoneArchive.setup.finished') : '…'}
         </p>
       )}
     </section>
@@ -553,16 +554,16 @@ function useOutbox(ctx: PhoneCtx, on: boolean): [readonly OutboxEntry[], () => v
 }
 
 /** Wo eine aus dem Browser gerade ist — die Zeile unter ihrem Text. */
-function outboxMeta(entry: OutboxEntry): { text: string; future: boolean } {
+function outboxMeta(entry: OutboxEntry, t: T): { text: string; future: boolean } {
   const m = entry.message;
   const at = m?.sendAt ?? 0;
   const future = m !== null && m.sendAt !== null && at > Date.now();
   const device = entry.device !== null ? ` (${entry.device})` : '';
-  const text = entry.state === 'waiting' ? (future ? `Zaplanowana · ${aheadWhen(at)} · czeka na telefon` : 'Czeka na telefon…')
-    : entry.state === 'taken' ? (future ? `Zaplanowana · ${aheadWhen(at)} · telefon ją ma${device}` : `Telefon wysyła${device}…`)
-    : entry.state === 'sent' ? `Wysłano z telefonu${device}${entry.doneAt !== null ? ` · ${timeOf(Date.parse(entry.doneAt))}` : ''}`
-    : entry.state === 'failed' ? `Nie wysłano${entry.error !== null ? ` · ${entry.error}` : ''}`
-    : 'Odwołana — telefon jeszcze tego nie potwierdził';
+  const text = entry.state === 'waiting' ? (future ? t('phoneArchive.out.waitingAt', { when: aheadWhen(at) }) : t('phoneArchive.out.waiting'))
+    : entry.state === 'taken' ? (future ? t('phoneArchive.out.takenAt', { when: aheadWhen(at), device }) : t('phoneArchive.out.taken', { device }))
+    : entry.state === 'sent' ? (entry.doneAt !== null ? t('phoneArchive.out.sentAt', { device, time: timeOf(Date.parse(entry.doneAt)) }) : t('phoneArchive.out.sent', { device }))
+    : entry.state === 'failed' ? (entry.error !== null ? t('phoneSms.planned.failedWhy', { error: entry.error }) : t('phoneSms.planned.failed'))
+    : t('phoneArchive.out.cancelled');
   return { text, future };
 }
 
@@ -576,6 +577,7 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; title: string; names: ReadonlyMap<string, string>; back: string; native: boolean;
   lines: readonly string[]; mayWrite: boolean;
 }) {
+  const t = useT();
   const seenKey = `${ctx.areaId}:${conversation.key}`;
   const batchKey = conversation.batches.join(',');
   const [messages, setMessages] = useState<readonly ArchivedMessage[] | null>(conversationSeen.get(seenKey) ?? null);
@@ -608,13 +610,13 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   const [dropped, setDropped] = useState<Dropped | null>(null);
   const dropping = usePageDrop(replying ? (files) => setDropped((was) => ({ files, n: (was?.n ?? 0) + 1 })) : null);
   useRoomFrame();
-  useCrumbs(native ? [{ label: 'Archiwum', href: back }] : []);
+  useCrumbs(native ? [{ label: t('phoneSms.menu.archive'), href: back }] : []);
 
   useEffect(() => {
     let alive = true;
     void loadConversation(ctx, conversation)
       .then((found) => { conversationSeen.set(seenKey, found); if (alive) { setMessages(found); setFailed(null); } })
-      .catch(() => { if (alive) setFailed('Nie udało się wczytać rozmowy.'); });
+      .catch(() => { if (alive) setFailed(t('phoneSms.thread.loadFailed')); });
     return () => { alive = false; };
     // Neu nur, wenn andere Stapel dazukommen — nicht bei jedem Nachsehen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -645,15 +647,15 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     authorSeed: m.from ?? undefined,
     state: m.box === 'failed' ? 'failed' as const : null,
     media: m.parts.length > 0 ? m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />) : undefined,
-    ...(ownLines.size > 1 && m.line ? { sim: `…${m.line.slice(-3)}`, simTitle: `${m.box === 'in' ? 'Odebrano na' : 'Wysłano z'}: ${phoneShown(m.line)}` } : {})
-  })), [shown, group, names, ctx, ownLines]);
+    ...(ownLines.size > 1 && m.line ? { sim: `…${m.line.slice(-3)}`, simTitle: t(m.box === 'in' ? 'phoneSms.sim.in' : 'phoneSms.sim.out', { line: phoneShown(m.line) }) } : {})
+  })), [shown, group, names, ctx, ownLines, t]);
 
   const cancel = async (entry: OutboxEntry) => {
-    if (!await ask({ title: 'Odwołać tę wiadomość?', body: 'Telefon jej nie wyśle — chyba że już to zrobił.', confirm: 'Odwołaj', danger: true })) return;
+    if (!await ask({ title: t('phoneArchive.conv.cancelAsk'), body: t('phoneArchive.conv.cancelBody'), confirm: t('phoneSms.thread.cancel'), danger: true })) return;
     try {
       await cancelReply(ctx, entry.id);
     } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się odwołać.');
+      toast(e instanceof WorkspaceError ? e.message : t('phoneArchive.conv.cancelFailed'));
     }
     reloadOutbox();
   };
@@ -661,57 +663,57 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     if (entry.message === null) return;
     try {
       await queueReply(ctx, { to: entry.message.to, body: entry.message.body, line: entry.message.line, sendAt: null, conversation: entry.message.conversation });
-      toast('Przekazano telefonowi jeszcze raz.');
+      toast(t('phoneArchive.conv.retried'));
     } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      toast(e instanceof WorkspaceError ? e.message : t('common.failed'));
     }
     reloadOutbox();
   };
 
   const tail = pending.length === 0 ? undefined : pending.map((entry) => {
-    const meta = outboxMeta(entry);
+    const meta = outboxMeta(entry, t);
     const failedHere = entry.state === 'failed';
+    const cancelable = entry.state === 'waiting' || (entry.state === 'taken' && meta.future);
+    const cancelTool = <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancel(entry)}>{t('phoneSms.thread.cancel')}</button>;
+    const retryTool = <button type="button" className="wk-link-btn" onClick={() => void retry(entry)}>{t('phoneSms.mms.resend')}</button>;
     return (
       <PlannedRow key={entry.id} text={entry.message?.body ?? ''} meta={meta.text} failed={failedHere}
-        tools={entry.state === 'waiting' || (entry.state === 'taken' && meta.future)
-          ? <button type="button" className="wk-link-btn wk-danger-link" onClick={() => void cancel(entry)}>Odwołaj</button>
-          : failedHere ? <button type="button" className="wk-link-btn" onClick={() => void retry(entry)}>Wyślij ponownie</button>
-          : undefined} />
+        tools={cancelable ? cancelTool : failedHere ? retryTool : undefined} />
     );
   });
 
   const from = messages !== null && messages.length > 0 ? messages[0].at : conversation.first;
-  const ruleText = rule === null ? '' : rule.why === 'thread' ? ' — wybrany dla tej rozmowy' : ` — grupa „${rule.group ?? ''}”`;
+  const ruleText = rule === null ? '' : ` — ${whyText({ why: rule.why, group: rule.group ?? null })}`;
   /* 2026-10-29 — warum diese Nummer: dasselbe Zeichen wie auf dem Telefon (gewählt, Gruppe, zuletzt, sonst die erste bekannte). */
   const why: LineWhy = rule !== null ? rule.why : conversation.lastLine !== null && conversation.lastLine !== '' && line === conversation.lastLine ? 'last' : 'default';
-  const whyHere = why === 'last' ? 'ostatni numer tej rozmowy' : why === 'default' ? 'domyślny numer' : whyText({ why, group: rule?.group ?? null });
+  const whyHere = why === 'last' ? t('phoneArchive.conv.whyLast') : why === 'default' ? t('phoneArchive.conv.whyDefault') : whyText({ why, group: rule?.group ?? null });
   const lineItems: MenuItem[] = [
     ...options.map((l) => ({
-      label: `${phoneShown(l)}${l === rule?.number ? ruleText : l === conversation.lastLine ? ' — ta rozmowa' : ''}`,
+      label: `${phoneShown(l)}${l === rule?.number ? ruleText : l === conversation.lastLine ? ` — ${t('phoneArchive.conv.thisConversation')}` : ''}`, // i18n-ignore
       icon: 'phone' as const, checked: line === l, onSelect: () => setThreadRule(conversation.peers, l)
     })),
-    { label: 'Inny numer…', icon: 'edit', onSelect: () => setAskingLine(true) },
-    ...(rule?.why === 'thread' ? [{ label: 'Jak dotąd: według grupy i ostatniej wiadomości', icon: 'refresh' as const, onSelect: () => setThreadRule(conversation.peers, null) }] : [])
+    { label: t('phoneArchive.conv.otherNumber'), icon: 'edit', onSelect: () => setAskingLine(true) },
+    ...(rule?.why === 'thread' ? [{ label: t('phoneChat.line.reset'), icon: 'refresh' as const, onSelect: () => setThreadRule(conversation.peers, null) }] : [])
   ];
   const sub = (
     <>
       {replying && (
         <>
           <button type="button" className="ch-chip ph-line-chip" aria-haspopup="menu" aria-expanded={lineMenu.open !== null}
-            title={`Z którego numeru telefon wyśle odpowiedź${line === '' ? '' : ` — ${whyHere}`}`} data-why={line === '' ? undefined : why}
+            title={line === '' ? t('phoneArchive.conv.lineTitle') : t('phoneArchive.conv.lineTitleWhy', { why: whyHere })} data-why={line === '' ? undefined : why}
             onClick={(e) => lineMenu.toggle(e.currentTarget)}>
-            <Icon name={line === '' ? 'phone' : whyIcon(why)} />{line === '' ? 'wybierz numer' : phoneShown(line)}<Icon name="down" />
+            <Icon name={line === '' ? 'phone' : whyIcon(why)} />{line === '' ? t('phoneArchive.conv.pickNumber') : phoneShown(line)}<Icon name="down" />
           </button>
           {lineMenu.open !== null && (
-            <PopMenu anchor={{ rect: lineMenu.open.rect }} from={lineMenu.open.from} label="Z którego numeru" items={lineItems} onClose={lineMenu.close}>
+            <PopMenu anchor={{ rect: lineMenu.open.rect }} from={lineMenu.open.from} label={t('phoneChat.line.which')} items={lineItems} onClose={lineMenu.close}>
               <p className="ch-pop-head ph-why-head">
-                {line !== '' && <><Icon name={whyIcon(why)} />{whyHere}. </>}Telefon z tym numerem wyśle odpowiedź — wybór zostaje dla tej rozmowy, także na telefonie
+                {line !== '' && <><Icon name={whyIcon(why)} />{whyHere}. </>}{t('phoneArchive.conv.lineHead')}
               </p>
             </PopMenu>
           )}
         </>
       )}
-      <span className="ph-head-numbers">{messages === null ? conversation.count : messages.length} w archiwum{from > 0 ? ` · od ${new Date(from).toLocaleDateString('pl-PL')}` : ''}</span>
+      <span className="ph-head-numbers">{t('phoneArchive.setup.inArchive', { count: messages === null ? conversation.count : messages.length })}{from > 0 ? ` · ${t('phoneArchive.conv.since', { date: fmtDate(new Date(from), { day: '2-digit', month: '2-digit', year: 'numeric' }) })}` : ''}</span>
     </>
   );
 
@@ -719,13 +721,13 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     <div className="ch-room ph-room" style={barStyle(top)}>
       <SmsHeader back={back} title={title} seed={conversation.key || '?'} group={group} sub={sub} menu={[]} search={search} onSearch={setSearch} />
       <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
-        more={more} onEarlier={earlier} tail={tail} empty="W archiwum nie ma jeszcze wiadomości tej rozmowy."
+        more={more} onEarlier={earlier} tail={tail} empty={t('phoneArchive.conv.empty')}
         place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null} />
       {!native && (
         <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite} dropped={dropped}
           onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} onWrite={() => setFollow((n) => n + 1)} />
       )}
-      {dropping && <DropVeil text="Upuść — plik pójdzie w odpowiedzi jako link" />}
+      {dropping && <DropVeil text={t('phoneArchive.conv.drop')} />}
       {askingLine && (
         <OtherLine value={ownText} onClose={() => setAskingLine(false)}
           onSave={(value) => { setOwnText(value); setThreadRule(conversation.peers, phoneKey(value)); setAskingLine(false); }} />
@@ -736,16 +738,17 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
 
 /** Ein anderer eigener Numer — den das Archiv noch nicht kennt. */
 function OtherLine({ value, onSave, onClose }: { value: string; onSave: (value: string) => void; onClose: () => void }) {
+  const t = useT();
   const [text, setText] = useState(value);
   return (
-    <Modal title="Z którego numeru?" onClose={onClose}>
+    <Modal title={t('phoneArchive.other.title')} onClose={onClose}>
       <label className="wk-field">
-        <span>Twój numer — wyśle telefon, który go ma</span>
+        <span>{t('phoneArchive.other.label')}</span>
         <input type="tel" value={text} placeholder="+48 600 100 200" autoFocus onChange={(e) => setText(e.target.value)} />
       </label>
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={phoneKey(text) === ''} onClick={() => onSave(text)}>Ustaw</button>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+        <button type="button" className="wk-btn" disabled={phoneKey(text) === ''} onClick={() => onSave(text)}>{t('phoneArchive.other.set')}</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
       </div>
     </Modal>
   );
@@ -769,6 +772,7 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   /** Man beginnt zu schreiben — das Gespräch geht ans Ende. */
   onWrite: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [planning, setPlanning] = useState(false);
@@ -785,11 +789,11 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   const take = (files: readonly File[]) => {
     const chosen = files[0];
     if (chosen === undefined) return;
-    if (busy) { toast('Poczekaj, aż ta wiadomość pójdzie do telefonu.'); return; }
-    if (chosen.size > SHARE_MAX) { toast('Plik może mieć najwyżej 25 MB.'); return; }
+    if (busy) { toast(t('phoneArchive.reply.wait')); return; }
+    if (chosen.size > SHARE_MAX) { toast(t('phoneSms.compose.tooBig')); return; }
     uploaded.current = null;
     setFile(chosen);
-    if (files.length > 1) toast(`W odpowiedzi pójdzie jeden plik: ${chosen.name}. Kilka naraz dodasz w „Pliki przez link”.`);
+    if (files.length > 1) toast(t('phoneArchive.reply.oneFile', { name: chosen.name }));
   };
   useEffect(() => {
     if (dropped !== null) take(dropped.files);
@@ -797,8 +801,8 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dropped]);
 
-  if (!mayWrite) return <p className="ch-compose is-readonly">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
-  if (conversation.peers.length !== 1) return <p className="ch-compose is-readonly">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
+  if (!mayWrite) return <p className="ch-compose is-readonly">{t('phoneArchive.reply.readOnly')}</p>;
+  if (conversation.peers.length !== 1) return <p className="ch-compose is-readonly">{t('phoneArchive.reply.onePerson')}</p>;
 
   const content = text.trim() !== '' || file !== null;
   const withLink = (link: string) => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
@@ -809,7 +813,7 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
     take(chosen);
   };
   const send = async (at: number | null) => {
-    if (line === '') { toast('Wybierz w nagłówku numer, z którego telefon ma wysłać.'); return; }
+    if (line === '') { toast(t('phoneArchive.reply.pickLine')); return; }
     if (busy || !content) return;
     setBusy(true);
     try {
@@ -833,18 +837,25 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
       setText('');
       setFile(null);
       uploaded.current = null;
-      toast(at === null ? 'Przekazano telefonowi — wyśle, gdy tylko się zgłosi.' : `Telefon wyśle ją: ${aheadWhen(at)}.`);
+      toast(at === null ? t('phoneArchive.reply.queued') : t('phoneArchive.reply.queuedAt', { when: aheadWhen(at) }));
       onQueued();
     } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się przekazać wiadomości telefonowi.');
+      toast(e instanceof WorkspaceError ? e.message : t('phoneArchive.reply.failed'));
     } finally {
       setBusy(false);
     }
   };
 
-  const status = busy && progress !== null ? `Wysyłanie pliku… ${Math.round(progress * 100)}%`
-    : line === '' ? 'Wybierz w nagłówku numer, z którego telefon ma wysłać.'
-    : `${text !== '' || file !== null ? `${count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało ${count.left}${file !== null ? ' · z linkiem' : ''} · ` : ''}wyśle telefon z numerem ${phoneShown(line)}`;
+  const status = busy && progress !== null ? t('phoneSms.compose.uploading', { percent: Math.round(progress * 100) })
+    : line === '' ? t('phoneArchive.reply.pickLine')
+    : [
+      ...(text !== '' || file !== null ? [
+        ...(count.parts > 1 ? [t('phoneSms.compose.parts', { count: count.parts })] : []),
+        t('phoneSms.compose.left', { left: count.left }),
+        ...(file !== null ? [t('phoneSms.compose.withLink')] : [])
+      ] : []),
+      t('phoneArchive.reply.sentBy', { line: phoneShown(line) })
+    ].join(' · ');
 
   return (
     <form className="ch-compose ph-compose ph-reply" onSubmit={(e) => { e.preventDefault(); void send(null); }}>
@@ -852,18 +863,18 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
         <div className="ch-files">
           <span className="ch-file-chip">
             <span className="ch-file-ic"><Icon name="file" /></span>
-            <span className="ch-file-text"><span className="ch-file-name">{file.name}</span><small>{sizeText(file.size)} · link, pełna jakość</small></span>
-            <button type="button" className="ch-icon-btn is-small" aria-label={`Usuń załącznik ${file.name}`} disabled={busy}
+            <span className="ch-file-text"><span className="ch-file-name">{file.name}</span><small>{sizeText(file.size)} · {t('phoneArchive.reply.linkFull')}</small></span>
+            <button type="button" className="ch-icon-btn is-small" aria-label={t('phoneSms.compose.removeAttachment', { name: file.name })} disabled={busy}
               onClick={() => { setFile(null); uploaded.current = null; }}><Icon name="x" /></button>
           </span>
-          <select aria-label="Jak długo działa link" value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
-            {SHARE_DAYS.map((d) => <option key={d} value={d}>ważny {daysLabel(d)}</option>)}
+          <select aria-label={t('phoneSms.compose.linkDays')} value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
+            {SHARE_DAYS.map((d) => <option key={d} value={d}>{t('phoneSms.compose.valid', { days: daysLabel(d) })}</option>)}
           </select>
         </div>
       )}
       <div className="ch-compose-row">
         <div className="ch-field">
-          <textarea rows={1} value={text} placeholder="Odpowiedź — SMS wyśle telefon" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} onFocus={onWrite}
+          <textarea rows={1} value={text} placeholder={t('phoneArchive.reply.placeholder')} aria-label={t('phoneArchive.reply.body')} onChange={(e) => setText(e.target.value)} onFocus={onWrite}
             onPaste={(e) => {
               const pasted = Array.from(e.clipboardData.files);
               if (pasted.length === 0) return;
@@ -871,36 +882,37 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
               take(pasted);
             }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(null); } }} />
-          <button type="button" className="ch-icon-btn" aria-label="Dołącz plik (pójdzie jako link)" title="Dołącz plik (pójdzie jako link)" disabled={busy}
+          <button type="button" className="ch-icon-btn" aria-label={t('phoneArchive.reply.attach')} title={t('phoneArchive.reply.attach')} disabled={busy}
             onClick={() => picker.current?.click()}>
             <Icon name="clip" />
           </button>
         </div>
         {content && (
-          <button type="button" className="ch-send-more" aria-label="Wyślij później" title="Wyślij później" aria-haspopup="menu" aria-expanded={sendMenu !== null}
+          <button type="button" className="ch-send-more" aria-label={t('phoneSms.compose.later')} title={t('phoneSms.compose.later')} aria-haspopup="menu" aria-expanded={sendMenu !== null}
             disabled={busy} onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => { const el = e.currentTarget; setSendMenu(sendMenu === null ? { rect: el.getBoundingClientRect(), from: el } : null); }}>
             <Icon name="chevron" />
           </button>
         )}
-        <button type="submit" className="ch-send" aria-label="Wyślij" title="Wyślij" disabled={busy || !content || line === ''} onMouseDown={(e) => e.preventDefault()}>
+        <button type="submit" className="ch-send" aria-label={t('common.send')} title={t('common.send')} disabled={busy || !content || line === ''} onMouseDown={(e) => e.preventDefault()}>
           <Icon name="send" />
         </button>
       </div>
-      {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label="Przesyłanie pliku" />}
+      {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label={t('phoneSms.compose.uploadBar')} />}
       <p className="ch-compose-line" role="status">{status}</p>
-      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label="Wybierz plik" onChange={pick} />
+      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label={t('phoneSms.compose.pickFile')} onChange={pick} />
       {sendMenu !== null && (
-        <PopMenu anchor={{ rect: sendMenu.rect, above: true }} from={sendMenu.from} label="Wysyłanie" onClose={() => setSendMenu(null)} items={[
-          { label: 'Wyślij później…', icon: 'clock', onSelect: () => setPlanning(true) }
+        <PopMenu anchor={{ rect: sendMenu.rect, above: true }} from={sendMenu.from} label={t('phoneSms.compose.sending')} onClose={() => setSendMenu(null)} items={[
+          { label: t('phoneSms.compose.laterDots'), icon: 'clock', onSelect: () => setPlanning(true) }
         ]} />
       )}
-      {planning && <PlanDialog onClose={() => setPlanning(false)} onPlan={(at) => void send(at)} note="Telefon z tym numerem wyśle ją o tej porze." />}
+      {planning && <PlanDialog onClose={() => setPlanning(false)} onPlan={(at) => void send(at)} note={t('phoneArchive.reply.planNote')} />}
     </form>
   );
 }
 
 function ArchivedMedia({ ctx, part }: { ctx: PhoneCtx; part: ArchivedPart }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);
   const visual = part.type.startsWith('image/') || part.type.startsWith('video/') || part.type.startsWith('audio/');
@@ -912,16 +924,16 @@ function ArchivedMedia({ ctx, part }: { ctx: PhoneCtx; part: ArchivedPart }) {
   }, [ctx, part.file, part.type, part.epoch, visual, asked]);
 
   if (part.file === null) {
-    const why = part.skipped === 'big' ? 'za duży' : part.skipped === 'off' ? 'bez plików' : 'nie zapisano';
+    const why = part.skipped === 'big' ? t('phoneArchive.media.big') : part.skipped === 'off' ? t('phoneArchive.media.off') : t('phoneArchive.media.notSaved');
     return <span className="ph-media-file">📎 {part.name ?? part.type} ({why})</span>;
   }
   if (!visual) return <span className="ph-media-file">📎 {part.name ?? part.type}</span>;
   if (url === null) {
     return part.type.startsWith('image/')
       ? <span className="ph-media-file">📷 …</span>
-      : <button type="button" className="wk-link-btn" onClick={() => setAsked(true)}>{part.type.startsWith('video/') ? '🎞 Pokaż film' : '🔊 Odtwórz'}</button>;
+      : <button type="button" className="wk-link-btn" onClick={() => setAsked(true)}>{part.type.startsWith('video/') ? t('phoneArchive.media.video') : t('phoneArchive.media.audio')}</button>;
   }
-  return part.type.startsWith('image/') ? <img src={url} alt={part.name ?? 'Zdjęcie'} loading="lazy" />
+  return part.type.startsWith('image/') ? <img src={url} alt={part.name ?? t('phoneSms.mms.photo')} loading="lazy" />
     : part.type.startsWith('video/') ? <video src={url} controls preload="metadata" />
     : <audio src={url} controls preload="metadata" />;
 }

@@ -32,7 +32,7 @@ import { partLabel, partOf } from '../parts/registry';
 import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
 import { COVER_KEY, readSlide, type SlideCompanion, type StageFrame } from './slides';
 import { deckOf, type Look } from './slideLook';
-import { BLOCKED_KIND, BLOCKED_PART_TEXT } from '../../reports/reportPath';
+import { BLOCKED_KIND } from '../../reports/reportPath';
 import { useT } from '../../core/i18n';
 import { InLang } from '../pageLang';
 import { langOfLayout } from '../layout';
@@ -132,7 +132,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
             <p className="wk-card-muted">{messages.get(part.id)}</p>
           ) : part.kind === BLOCKED_KIND ? (
             /* 0130 — nach einer Meldung gesperrt. */
-            <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
+            <p className="wk-blocked">{t('reports.blockedPart')}</p>
           ) : def === undefined ? (
             <p className="wk-card-unknown">{t('pages.parts.unknownKind', { kind: part.kind })}</p>
           ) : (

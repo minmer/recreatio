@@ -28,6 +28,7 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 | Biblioteka — a work with its full text | `work-with-text` | „Źródła” → „Dzieło z tekstem (JSON)” | `library/sourceImport.ts` |
 | Biblioteka — a text for an existing work | `source-text` | dzieło → „Tekst źródła” → „Dodaj tekst (JSON)” | `library/sourceText.ts` |
 | Biblioteka — quotes of a book | `quotes` | książka → „Cytaty z tej książki” → „Import cytatów z JSON…” | `library/libraryQuotes.ts` |
+| Biblioteka — Liturgia, a whole collection (also `liturgy-schema`, `liturgy-defaults`, `example-liturgy`, `example-liturgy-maintenance`; current data: MCP `get_liturgy_library`) | `liturgy` | zbiór rodzaju Liturgia → „Import / eksport” (own panel with preview, not `JsonPanel`; [LITURGY.md](LITURGY.md)) | `library/liturgy/schema.ts`, `resources.ts`, `description.ts` |
 | Wiedza — a knowledge base | `knowledge-base` | Wiedza → baza → „Więcej” → „Import i eksport (JSON)”; Schematy → „Schemat jako JSON” | `cogita/json.ts` |
 | Wiedza — forms for adding | `knowledge-forms` | Schematy → „Sposoby dodawania” → „Z JSON (wklej)…” | `cogita/json.ts` |
 | Skryptorium | `scriptorium` | Skryptorium → „Import / eksport”; per entry | `scriptorium/scriptoriumJson.ts` |

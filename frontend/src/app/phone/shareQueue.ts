@@ -13,6 +13,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { viewPath } from '../routes';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { toast } from '../ui/dialogs';
 import type { PhoneCtx } from './phoneContext';
@@ -86,9 +87,9 @@ function guard(): void {
 /* -- Kopieren --------------------------------------------------------------------------------- */
 
 /** In die Zwischenablage — mit einem Wort, ob es ging. */
-export function copyText(text: string, said = 'Skopiowano link.'): void {
-  if (navigator.clipboard === undefined) { toast('Ta przeglądarka nie pozwala kopiować — zaznacz link i skopiuj go ręcznie.'); return; }
-  void navigator.clipboard.writeText(text).then(() => toast(said)).catch(() => toast('Nie udało się skopiować — zaznacz link i skopiuj go ręcznie.'));
+export function copyText(text: string, said?: string): void {
+  if (navigator.clipboard === undefined) { toast(t('phoneShare.queue.noClipboard')); return; }
+  void navigator.clipboard.writeText(text).then(() => toast(said ?? t('phoneShare.queue.copiedLink'))).catch(() => toast(t('phoneShare.queue.copyFailed')));
 }
 
 /** Mehrere Links in einem Stück: je eine Zeile „Name: Link" — so stehen sie in einer Mail. */
@@ -102,9 +103,9 @@ function report(): void {
   const done = unseen;
   unseen = [];
   if (done.length === 1) {
-    toast(`Link gotowy: ${done[0].name}`, { action: { label: 'Kopiuj', run: () => copyText(done[0].link) } });
+    toast(t('phoneShare.queue.ready', { name: done[0].name }), { action: { label: t('common.copy'), run: () => copyText(done[0].link) } });
   } else {
-    toast(`Gotowe linki: ${done.length}`, { action: { label: 'Kopiuj wszystkie', run: () => copyText(linesOf(done), 'Skopiowano linki.') } });
+    toast(t('phoneShare.queue.readyMany', { count: done.length }), { action: { label: t('phoneShare.queue.copyAll'), run: () => copyText(linesOf(done), t('phoneShare.queue.copiedLinks')) } });
   }
 }
 
@@ -127,13 +128,13 @@ async function pump(): Promise<void> {
     outcome = { made: { id: result.id, name: next.name, link: result.link } };
   } catch (e) {
     outcome = e instanceof ShareStopped ? null
-      : { error: e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się wysłać pliku.' };
+      : { error: e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneShare.err.sendFailed') };
   }
   running = null;
 
   if (outcome !== null && 'error' in outcome) {
     patch(next.key, { state: 'failed', done: null, error: outcome.error });
-    if (watchers === 0) toast(`Nie udało się wysłać: ${next.name}`, { action: { label: 'Pokaż', run: () => { window.location.hash = viewPath('sms', 'pliki'); } } });
+    if (watchers === 0) toast(t('phoneShare.queue.failed', { name: next.name }), { action: { label: t('phoneShare.queue.show'), run: () => { window.location.hash = viewPath('sms', 'pliki'); } } });
   } else {
     items = items.filter((i) => i.key !== next.key);
     if (outcome !== null) {
@@ -152,9 +153,9 @@ async function pump(): Promise<void> {
 export function addFiles(ctx: PhoneCtx, files: readonly File[], days: number): void {
   if (files.length === 0) return;
   items = [...items, ...files.map((file): Item => ({
-    key: nextKey++, file, ctx, name: file.name === '' ? 'plik' : file.name, size: file.size, days, done: null,
+    key: nextKey++, file, ctx, name: file.name === '' ? t('phoneShare.queue.file') : file.name, size: file.size, days, done: null,
     ...(file.size > SHARE_MAX
-      ? { state: 'failed' as const, error: 'Plik przez link może mieć najwyżej 25 MB.' }
+      ? { state: 'failed' as const, error: t('phoneShare.err.tooBig') }
       : { state: 'waiting' as const, error: null })
   }))];
   changed();

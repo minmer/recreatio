@@ -9,6 +9,7 @@ import { fromBase64Url } from '../core/crypto';
 import type { Ring, SealedRole } from '../core/keys';
 import { sealSeatNames } from '../seats/seatNames';
 import { keysFor } from '../core/ringOf';
+import { useT } from '../core/i18n';
 import { type Who, WorkspaceError } from '../core/session';
 import { questionsAreaOf, type ModuleRow, type ResealIn, type Resealed } from '../modules/module';
 import { markFormSeen } from '../notify/notify';
@@ -74,6 +75,7 @@ export type FormOfficeProps = {
 
 export function useFormOffice(props: FormOfficeProps) {
   const { module, onList, partId, config, who, onModuleChanged } = props;
+  const t = useT();
   /*
    * DREI REITER, wie im Altbestand der Veranstaltungen (`events/admin`:
    * Strony · Dostęp · Ustawienia): EINRICHTEN, LESEN, HANDELN. Vorher stand
@@ -252,7 +254,7 @@ export function useFormOffice(props: FormOfficeProps) {
       setFields(sealed.map((f) => ({ ...f, label: null, help: null, options: [] })));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać pytań.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('formsOffice.msg.questionsFailed'));
       return;
     }
 
@@ -373,7 +375,7 @@ export function useFormOffice(props: FormOfficeProps) {
       await todo();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -387,7 +389,7 @@ export function useFormOffice(props: FormOfficeProps) {
    * davon lesen — er hat den ersten nie gesehen.
    */
   const read = async (hidden: boolean = showHidden) => {
-    if (ring === null) throw new WorkspaceError('Bez hasła w tej karcie nie da się otworzyć odpowiedzi.');
+    if (ring === null) throw new WorkspaceError(t('formsOffice.msg.noPasswordOpen'));
 
     /*
      * JEDER ANTWORTBEREICH MIT SEINEM EIGENEN SCHLÜSSEL — alle, die dieser
@@ -534,23 +536,15 @@ export function useFormOffice(props: FormOfficeProps) {
      * gleich aus und sind völlig verschieden.
      */
     if (registrations.length === 0) {
-      setNote('Jeszcze nikt się nie zapisał.');
+      setNote(t('formsOffice.msg.nobody'));
     } else if (sent === 0) {
-      setNote(
-        'Zgłoszenia są, ale usługa nie wydała ich treści: żadne pytanie tego '
-        + 'formularza nie należy do obszaru, który czytasz. Poproś o dostęp do '
-        + 'obszaru, do którego trafiają odpowiedzi.');
+      setNote(t('formsOffice.msg.noneSent'));
     } else if (got === 0) {
-      setNote(
-        `Przyszło ${sent} zapieczętowanych odpowiedzi i żadna się nie otworzyła. `
-        + 'Ten klucz przyjmowania nie pasuje do tych kopert. Zwykle znaczy to, że '
-        + 'wpisy powstały pod inną parą kluczy tego obszaru albo pod wcześniejszą '
-        + 'wersją strony — takich wpisów nie da się już odzyskać, trzeba je zebrać '
-        + 'ponownie.');
+      setNote(t('formsOffice.msg.noneOpened', { count: sent }));
     } else if (got < sent) {
-      setNote(`Otwarto ${got} z ${sent} odpowiedzi.${shut.length > 0
-        ? ` Nie masz klucza przyjmowania obszaru ${shut.map((id) => `„${areaLabel(id)}"`).join(', ')} — jego odpowiedzi zostają zamknięte.`
-        : ' Reszta nie pasuje do tych kluczy.'}`);
+      setNote(`${t('formsOffice.msg.opened', { got, sent })} ${shut.length > 0
+        ? t('formsOffice.msg.shutAreas', { list: shut.map((id) => `„${areaLabel(id)}"`).join(', ') })
+        : t('formsOffice.msg.restNoMatch')}`);
     } else {
       setNote(null);
     }
@@ -590,8 +584,8 @@ export function useFormOffice(props: FormOfficeProps) {
    * Platzschlüssel muss mit, sonst nähme die Korrektur ihm seine Angabe weg).
    */
   const straighten = async () => {
-    if (ring === null) throw new WorkspaceError('Bez hasła nie da się poprawić.');
-    if (readAreas === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
+    if (ring === null) throw new WorkspaceError(t('formsOffice.msg.noPasswordFix'));
+    if (readAreas === null) throw new WorkspaceError(t('formsOffice.msg.openFirst'));
 
     const keys = new Set(crooked.filter((c) => !skipped.has(crookedKey(c))).map(crookedKey));
 
@@ -615,9 +609,8 @@ export function useFormOffice(props: FormOfficeProps) {
      * überschreiben. Eine neu geschriebene Nummer ist für den Dienst eine
      * ANDERE Nummer, ungeprüft (0030) — wer eben ein Häkchen sah, soll wissen, warum es weg ist.
      */
-    setNote(`Uporządkowano ${done.values} ${done.values === 1 ? 'odpowiedź' : 'odpowiedzi'} `
-      + `(${done.people === 1 ? 'jedna osoba' : done.people + ' osób'}).`
-      + (phones > 0 ? ' Potwierdzenia poprawionych numerów wygasły — to już inny zapis numeru.' : ''));
+    setNote(t('formsOffice.msg.tidied', { answers: t('formsOffice.msg.answers', { count: done.values }), people: t('formsOffice.msg.people', { count: done.people }) })
+      + (phones > 0 ? ` ${t('formsOffice.msg.checksExpired')}` : ''));
   };
 
   /*
@@ -643,7 +636,7 @@ export function useFormOffice(props: FormOfficeProps) {
     void read(hidden)
       .catch((e: unknown) => setFailed(
         e instanceof WorkspaceError ? e.message
-        : `Nie udało się otworzyć zgłoszeń${e instanceof Error && e.message !== '' ? `: ${e.message}` : '.'}`))
+        : e instanceof Error && e.message !== '' ? t('formsOffice.msg.openFailedWhy', { why: e.message }) : t('forms.ext.openFailed')))
       .finally(() => setBusy(null));
   };
 
@@ -651,7 +644,7 @@ export function useFormOffice(props: FormOfficeProps) {
     if (!readsHere(tab) || autoTried || ring === null
       || readAreas !== null || areasHere.length === 0) return;
     setAutoTried(true);
-    openAll('Otwieranie zgłoszeń…');
+    openAll(t('formsOffice.openingEntries'));
   }, [tab, isExtension, autoTried, ring, readAreas, areasHere.length]);
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -677,7 +670,7 @@ export function useFormOffice(props: FormOfficeProps) {
 
   /** Der Epochenschlüssel eines Bereichs, den ich halte — oder eine klare Absage. */
   const keyOf = async (areaId: string): Promise<{ key: Uint8Array; epoch: number }> => {
-    if (ring === null) throw new WorkspaceError('Bez hasła nie da się zapieczętować pytania.');
+    if (ring === null) throw new WorkspaceError(t('formsOffice.msg.noPasswordSeal'));
     const area = areas.find((a) => a.areaId === areaId);
     const key = area === undefined ? undefined : (await myEpochKeys(ring, areaId)).get(area.currentEpoch);
     if (area === undefined || key === undefined) {
@@ -696,10 +689,10 @@ export function useFormOffice(props: FormOfficeProps) {
     /* 0086 — auch die vom Formular genommenen: ihre Beschriftung muss lesbar bleiben. */
     const unread = allFields.filter((f) => f.label === null);
     if (unread.length > 0) {
-      throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — bez tego nie da się ich przepieczętować.');
+      throw new WorkspaceError(t('formsOffice.msg.resealUnread'));
     }
     if (designLocked) {
-      throw new WorkspaceError('Układu formularza nie da się teraz odczytać — bez tego nie da się go przepieczętować.');
+      throw new WorkspaceError(t('formsOffice.msg.resealDesign'));
     }
 
     const out: ResealIn[] = [];
@@ -723,8 +716,8 @@ export function useFormOffice(props: FormOfficeProps) {
    * er ist, und umgekehrt.
    */
   const saveDesignNow = async (next: FormDesign) => {
-    if (module?.areaId == null || questionsArea === null) throw new WorkspaceError('Formularz potrzebuje najpierw własnego obszaru.');
-    if (designLocked) throw new WorkspaceError('Zapisany układ jest zapieczętowany kluczem, którego nie masz.');
+    if (module?.areaId == null || questionsArea === null) throw new WorkspaceError(t('formsOffice.msg.needsArea'));
+    if (designLocked) throw new WorkspaceError(t('formsOffice.msg.designSealed'));
     const { key, epoch } = await keyOf(questionsArea);
     await saveDesign(partId, questionsArea, epoch, await sealDesign(next, key, partId));
   };
@@ -740,7 +733,7 @@ export function useFormOffice(props: FormOfficeProps) {
 
   const resealStale = async () => {
     for (const f of stale) {
-      if (f.label === null) throw new WorkspaceError('Nie każde pytanie da się teraz odczytać.');
+      if (f.label === null) throw new WorkspaceError(t('formsOffice.msg.unread'));
       await saveField(f, {
         label: f.label, help: f.help, options: f.options, kind: f.kind,
         isRequired: f.isRequired, isHalfWidth: f.isHalfWidth, identityRole: f.identityRole,
@@ -770,7 +763,7 @@ export function useFormOffice(props: FormOfficeProps) {
   useEffect(() => {
     if (resealTried || busy !== null || !canReseal) return;
     setResealTried(true);
-    void act('Przepieczętowywanie pytań kluczem formularza…', resealStale);
+    void act(t('formsOffice.msg.resealingForm'), resealStale);
   }, [resealTried, busy, canReseal]);
 
   /*
@@ -781,10 +774,7 @@ export function useFormOffice(props: FormOfficeProps) {
    */
   const hiddenNotice = formArea !== undefined && formArea.publicLevel === 'none' && (
     <p className="wk-warn">
-      {questionsArea !== module?.areaId ? 'Obszar pytań' : 'Obszar formularza'} „{areaLabel(formArea.areaId)}" nie jest jawny — na stronie pytania przeczyta
-      tylko ten, kto czyta ten obszar (zalogowany albo przez link z dostępem); dla pozostałych będą
-      nieczytelne. Ma być dla wszystkich? Ustaw w tym obszarze, w zakładce „Dla wszystkich",
-      „Każdy czyta" — albo wybierz tu obszar jawny.
+      {t(questionsArea !== module?.areaId ? 'formsOffice.msg.hiddenQuestions' : 'formsOffice.msg.hiddenForm', { area: areaLabel(formArea.areaId) })}
     </p>
   );
 
@@ -794,17 +784,15 @@ export function useFormOffice(props: FormOfficeProps) {
   const staleNotice = stale.length > 0 && ring !== null && (
     <div className="wk-warn">
       <p>
-        {stale.length === 1 ? 'Jedno pytanie jest zapieczętowane' : `${stale.length} pytań jest zapieczętowanych`}{' '}
-        kluczem innego obszaru ({staleUnder}) niż obszar pytań formularza — na stronie publicznej
-        {stale.length === 1 ? ' jest nieczytelne' : ' są nieczytelne'}.
-        {!stale.every((f) => f.label !== null) && ' Nie wszystkie da się teraz odczytać — potrzebny jest klucz tamtego obszaru.'}
-        {formArea === undefined && ' Nie masz klucza obszaru pytań.'}
+        {t('formsOffice.msg.stale', { count: stale.length, areas: staleUnder })}
+        {!stale.every((f) => f.label !== null) && ` ${t('formsOffice.msg.staleUnread')}`}
+        {formArea === undefined && ` ${t('formsOffice.msg.noQuestionsKey')}`}
       </p>
       <button
         type="button" className="wk-link-btn" disabled={busy !== null || !canReseal}
-        onClick={() => void act('Przepieczętowywanie pytań…', resealStale)}
+        onClick={() => void act(t('formsOffice.msg.resealing'), resealStale)}
       >
-        Przepieczętuj kluczem obszaru pytań
+        {t('formsOffice.msg.reseal')}
       </button>
     </div>
   );
@@ -819,8 +807,8 @@ export function useFormOffice(props: FormOfficeProps) {
     let moveTo: { areaId: string; moved: readonly MovedValue[] } | undefined;
 
     if (change.areaId !== f.areaId) {
-      if (ring === null) throw new WorkspaceError('Bez hasła nie da się przenieść odpowiedzi.');
-      if (person === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby.');
+      if (ring === null) throw new WorkspaceError(t('formsOffice.msg.noPasswordMove'));
+      if (person === null) throw new WorkspaceError(t('formsOffice.msg.noPerson'));
 
       /* Der neue Bereich braucht eine Annahme — sonst gäbe es nichts, wofür zu verpacken wäre. */
       const target = await loadPublicIntake(change.areaId).catch(async () => {
@@ -867,7 +855,7 @@ export function useFormOffice(props: FormOfficeProps) {
    * ihm die Korrektur seine Angabe weg), neue Zeilen als Einträge der Kanzlei.
    */
   const saveTable = async (changes: readonly TableChange[], added: readonly (readonly Answer[])[]): Promise<string | null> => {
-    if (ring === null) throw new WorkspaceError('Bez hasła nie da się zapisać.');
+    if (ring === null) throw new WorkspaceError(t('formsOffice.msg.noPasswordSave'));
 
     const intakes = new Map<string, Uint8Array>();
     for (const areaId of new Set(allFields.map((f) => f.areaId))) {
@@ -897,9 +885,9 @@ export function useFormOffice(props: FormOfficeProps) {
      */
     const cells = changes.reduce((n, one) => n + one.answers.length, 0);
     setNote([
-      cells > 0 ? `Zapisano zmienione odpowiedzi: ${cells}.` : '',
-      added.length > 0 ? `Dopisano osób: ${added.length}.` : '',
-      blind === 0 ? '' : `${blind === 1 ? 'Jedna osoba nie zobaczy' : `${blind} osób nie zobaczy`} poprawionych odpowiedzi w swoim linku — do jej miejsca nie ma tu klucza.`
+      cells > 0 ? t('formsOffice.msg.savedCells', { count: cells }) : '',
+      added.length > 0 ? t('formsOffice.msg.addedPeople', { count: added.length }) : '',
+      blind === 0 ? '' : t('formsOffice.msg.blind', { count: blind })
     ].filter((x) => x !== '').join(' '));
     return null;
   };

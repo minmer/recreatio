@@ -1,0 +1,34 @@
+{
+  "ctx": {
+    "locked": "Der Schlüssel ist gesperrt — entsperre ihn mit deinem Passwort.",
+    "noPerson": "Das Konto führt noch keine Person.",
+    "roleCannot": "Mit dieser Rolle kannst du keinen Bereich anlegen — wähle eine andere.",
+    "archiveArea": "SMS-Archiv",
+    "noAreaKey": "Du hast den Schlüssel dieses Bereichs nicht."
+  },
+  "reading": {
+    "copiedOne": "Nachricht kopiert.",
+    "copiedMany": "Nachrichten kopiert: {count}.",
+    "copyFailed": "Kopieren fehlgeschlagen.",
+    "size": "Schriftgröße",
+    "smaller": "Kleinere Schrift",
+    "larger": "Größere Schrift"
+  },
+  "when": {
+    "today": "heute {time}",
+    "tomorrow": "morgen {time}"
+  },
+  "search": {
+    "people": "Personen",
+    "peoplePh": "Personen suchen…",
+    "numbers": "Nummern",
+    "numbersPh": "Nummern suchen…",
+    "messages": "Nachrichten",
+    "messagesPh": "Im Text suchen…"
+  },
+  "jobs": {
+    "noSession": "Keine Sitzung.",
+    "notSms": "Das ist nicht die SMS-Ausgabe der App.",
+    "unknown": "Unbekannter Auftrag."
+  }
+}

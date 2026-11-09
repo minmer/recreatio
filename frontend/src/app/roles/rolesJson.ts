@@ -22,7 +22,7 @@
 
 import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
 import type { Ring, SealedRole } from '../core/keys';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import type { RoleReach } from './commonRole';
 import {
@@ -53,52 +53,61 @@ type Kind = SealedRole['kind'];
 /* Als Map, nicht als Objekt: ein Schlüssel wie "constructor" fände sonst etwas auf dem Prototyp. */
 const KINDS = new Map<string, Kind>([
   ['person', 'person'], ['role', 'role'], ['group', 'group'], ['account', 'account'],
-  ['osoba', 'person'], ['rola', 'role'], ['grupa', 'group'], ['konto', 'account']
+  ['osoba', 'person'], ['rola', 'role'], ['grupa', 'group'], ['konto', 'account'] // i18n-ignore — Wörter des Formats
 ]);
 const LEVELS = new Map<string, EdgeKind>([
   ['holds', 'holds'], ['write', 'write'], ['read', 'read'], ['prowadzi', 'holds'], ['pisze', 'write'], ['czyta', 'read']
 ]);
 
-const KIND_WORD: Readonly<Record<Kind, string>> = { account: 'konto', person: 'osoba', role: 'rola', group: 'grupa' };
+/** Die Schlüssel des Exports ohne Namen („rola-2") — Wörter des Formats, nicht der Oberfläche. */
+const KIND_WORD: Readonly<Record<Kind, string>> = { account: 'konto', person: 'osoba', role: 'rola', group: 'grupa' }; // i18n-ignore
+
+/** Sätze, die erst beim Lesen übersetzt werden (Sprache der Anwendung zu diesem Zeitpunkt). */
+const lazy = (entries: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [k, read] of Object.entries(entries)) Object.defineProperty(out, k, { get: read, enumerable: true });
+  return out;
+};
+const quote = (text: string): string => t('roles.json.quote', { text });
 const LEVEL_ORDER: Readonly<Record<EdgeKind, number>> = { holds: 0, write: 1, read: 2 };
 
 /* -- Was die Beschreibung sagt ------------------------------------------------------------------- */
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `zawsze "${ROLES_FORMAT}"`,
-  version: `${ROLES_VERSION} (wersja formatu)`,
-  roles: 'osoby, role i grupy (niżej: Wpis w "roles"); eksport podaje je od konta w dół — kto trzyma, stoi przed tym, co trzyma',
-  sealed: 'tylko w eksporcie: ile ról widać w koncie, choć ta przeglądarka ich nie otwiera (w eksporcie ich nie ma); import tę liczbę pomija'
-};
+const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => t('roles.json.top.format', { format: ROLES_FORMAT }),
+  version: () => t('roles.json.top.version', { version: ROLES_VERSION }),
+  roles: () => t('roles.json.top.roles'),
+  sealed: () => t('roles.json.top.sealed')
+});
 
-const ENTRY_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator roli z eksportu — wpis z "id" to rola, która już jest, i zmienia się w miejscu; nowa rola NIE ma "id" (dostaje go przy zakładaniu)',
-  key: `krótka nazwa wpisu do odwołań "@klucz" w tym dokumencie — litery, cyfry, "-", "_", "." (do 40 znaków), np. "rada"; "${ACCOUNT_KEY}" jest zarezerwowane, "${SELF_KEY}" — tylko dla Twojej pierwszej osoby`,
-  kind: '"person" (osoba — człowiek), "role" (rola — funkcja, którą ktoś pełni i przekazuje dalej) albo "group" (grupa — ci, którzy do niej należą); można też po polsku: "osoba", "rola", "grupa". Nowy wpis bez "kind" to "role". Rolę da się zmienić na grupę i z powrotem, osoby — nie',
-  name: `nazwa (do ${MAX_NAME} znaków), pieczętowana w przeglądarce kluczem roli — usługa jej nie widzi; przy wpisie z "id" inna nazwa to zmiana nazwy; nowa rola musi ją mieć`,
-  holders: 'kto trzyma tę rolę (niżej: Kto trzyma); nową rolę zakłada pierwszy z listy, kto ją prowadzi ("holds" z podpisem) i kogo Ty prowadzisz — reszta listy dochodzi potem',
-  areas: 'tylko informacja z eksportu: do jakich obszarów prowadzi rola (sama albo przez role, które trzyma) — lista { "name", "level" } (niżej); import jej nie zmienia, dostęp do obszarów nadaje się w Obszarach',
-  link: 'tylko informacja z eksportu: true — to rola linku dostępu; import jej nie zmienia (ani nazwy, ani kto ją trzyma, ani tego, co ona trzyma) — linki zmienia się przy linkach'
-};
+const ENTRY_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('roles.json.entryKey.id'),
+  key: () => t('roles.json.entryKey.key', { account: ACCOUNT_KEY, self: SELF_KEY }),
+  kind: () => t('roles.json.entryKey.kind'),
+  name: () => t('roles.json.entryKey.name', { max: MAX_NAME }),
+  holders: () => t('roles.json.entryKey.holders'),
+  areas: () => t('roles.json.entryKey.areas'),
+  link: () => t('roles.json.entryKey.link')
+});
 
-const AREA_KEYS: Readonly<Record<string, string>> = {
-  name: 'nazwa obszaru',
-  level: '"read" (czyta), "write" (pisze) albo "admin" (prowadzi — może też wpuszczać innych)'
-};
+const AREA_KEYS: Readonly<Record<string, string>> = lazy({
+  name: () => t('roles.json.areaKey.name'),
+  level: () => t('roles.json.areaKey.level')
+});
 
-const HOLDER_KEYS: Readonly<Record<string, string>> = {
-  by: `kto trzyma: "@klucz" (wpis tego dokumentu), "${SELF_REF}" (Twoja pierwsza osoba — ta z rejestracji), "${ACCOUNT_REF}" (konto; trzyma tylko osoby) albo "id" roli z eksportu. Zamiast obiektu wystarczy sam ten napis — wtedy "level": "holds" i "sign": true`,
-  level: '"holds" — prowadzi: zmienia, przekazuje dalej, przyjmuje innych (domyślnie); "write" — pisze: dopisuje to, co należy do roli; "read" — czyta: widzi. Można też po polsku: "prowadzi", "pisze", "czyta"',
-  sign: 'tylko przy "holds": true (domyślnie) — dostaje też klucz podpisu i działa w imieniu roli; false — należy do roli bez podpisu (jak przez link „Członek”). Podpisu w powiązaniu, które już jest, import nie zmienia'
-};
+const HOLDER_KEYS: Readonly<Record<string, string>> = lazy({
+  by: () => t('roles.json.holderKey.by', { self: SELF_REF, account: ACCOUNT_REF }),
+  level: () => t('roles.json.holderKey.level'),
+  sign: () => t('roles.json.holderKey.sign')
+});
 
 /** Jeder Schlüssel als Pfad (`roles[].holders[].by`) mit seinem Satz — für die Prüfung (`app-json-roles-check.mjs`). */
-export const ROLES_PATHS: Readonly<Record<string, string>> = {
-  ...TOP_KEYS,
-  ...Object.fromEntries(Object.entries(ENTRY_KEYS).map(([k, v]) => [`roles[].${k}`, v])),
-  ...Object.fromEntries(Object.entries(HOLDER_KEYS).map(([k, v]) => [`roles[].holders[].${k}`, v])),
-  ...Object.fromEntries(Object.entries(AREA_KEYS).map(([k, v]) => [`roles[].areas[].${k}`, v]))
-};
+export const ROLES_PATHS: Readonly<Record<string, string>> = lazy({
+  ...Object.fromEntries(Object.keys(TOP_KEYS).map((k) => [k, () => TOP_KEYS[k]!])),
+  ...Object.fromEntries(Object.keys(ENTRY_KEYS).map((k) => [`roles[].${k}`, () => ENTRY_KEYS[k]!])),
+  ...Object.fromEntries(Object.keys(HOLDER_KEYS).map((k) => [`roles[].holders[].${k}`, () => HOLDER_KEYS[k]!])),
+  ...Object.fromEntries(Object.keys(AREA_KEYS).map((k) => [`roles[].areas[].${k}`, () => AREA_KEYS[k]!]))
+});
 
 /* Was bekannt ist, als Mengen: `in` sähe auch den Prototyp. */
 const TOP_SET = new Set(Object.keys(TOP_KEYS));
@@ -340,24 +349,24 @@ const cut = (text: string, max: number): string => (text.length > max ? `${text.
 
 /** „prowadzi, z podpisem" — wie die Punkte im Graphen heissen (`RoleNode.DOTS`). */
 export function levelWords(level: EdgeKind, sign: boolean): string {
-  if (level === 'holds') return sign ? 'prowadzi, z podpisem' : 'prowadzi, bez podpisu';
-  return level === 'write' ? 'pisze' : 'czyta';
+  if (level === 'holds') return sign ? t('roles.json.level.holdsSign') : t('roles.json.level.holdsNoSign');
+  return level === 'write' ? t('roles.json.level.write') : t('roles.json.level.read');
 }
 
 function readHolder(raw: unknown, where: string, warnings: string[]): HolderItem | null {
   if (typeof raw === 'string') {
     if (raw.trim() !== '') return { by: raw.trim(), level: 'holds', sign: true, signGiven: false };
-    warnings.push(`${where}: puste odwołanie — pominięte.`);
+    warnings.push(t('roles.json.warn.emptyRef', { where }));
     return null;
   }
-  if (!isObject(raw)) { warnings.push(`${where}: to nie jest odwołanie ani obiekt — pominięte.`); return null; }
-  for (const key of Object.keys(raw)) if (!HOLDER_SET.has(key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
-  if (typeof raw.by !== 'string' || raw.by.trim() === '') { warnings.push(`${where}: brak "by" (kto trzyma) — pominięte.`); return null; }
+  if (!isObject(raw)) { warnings.push(t('roles.json.warn.notRef', { where })); return null; }
+  for (const key of Object.keys(raw)) if (!HOLDER_SET.has(key)) warnings.push(t('roles.json.warn.unknownKey', { where, key }));
+  if (typeof raw.by !== 'string' || raw.by.trim() === '') { warnings.push(t('roles.json.warn.noBy', { where })); return null; }
   let level: EdgeKind = 'holds';
   if (raw.level !== undefined && raw.level !== null) {
     const found = typeof raw.level === 'string' ? LEVELS.get(raw.level.trim().toLowerCase()) : undefined;
     if (found === undefined) {
-      warnings.push(`${where}: nieznany stopień ${cut(JSON.stringify(raw.level) ?? '?', 40)} — pominięte (dozwolone: "holds", "write", "read").`);
+      warnings.push(t('roles.json.warn.badLevel', { where, level: cut(JSON.stringify(raw.level) ?? '?', 40) }));
       return null;
     }
     level = found;
@@ -365,8 +374,8 @@ function readHolder(raw: unknown, where: string, warnings: string[]): HolderItem
   let sign = level === 'holds';
   const signGiven = raw.sign !== undefined && raw.sign !== null;
   if (signGiven) {
-    if (typeof raw.sign !== 'boolean') warnings.push(`${where}: "sign" to true albo false — ${level === 'holds' ? 'przyjmuję true' : 'pominięte'}.`);
-    else if (raw.sign && level !== 'holds') warnings.push(`${where}: klucz podpisu idzie tylko z "holds" — przy "${level}" pominięty.`);
+    if (typeof raw.sign !== 'boolean') warnings.push(t(level === 'holds' ? 'roles.json.warn.signBoolTrue' : 'roles.json.warn.signBoolSkip', { where }));
+    else if (raw.sign && level !== 'holds') warnings.push(t('roles.json.warn.signOnlyHolds', { where, level }));
     else sign = raw.sign;
   }
   return { by: raw.by.trim(), level, sign, signGiven: signGiven && typeof raw.sign === 'boolean' };
@@ -377,21 +386,21 @@ function readHolder(raw: unknown, where: string, warnings: string[]): HolderItem
  * (`rolesStateOf`). Jede Zeile ist eine Änderung; alles Übergangene steht in den Warnungen.
  */
 export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument ról — oczekiwano obiektu JSON z listą "roles".' };
-  if (doc.format !== undefined && doc.format !== ROLES_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${ROLES_FORMAT}".` };
-  if (!Array.isArray(doc.roles)) return { error: 'Brakuje listy "roles".' };
-  if (state.accountId === null) return { error: 'To konto nie ma jeszcze struktury ról — nie ma do czego importować.' };
+  if (!isObject(doc)) return { error: t('roles.json.error.notDoc') };
+  if (doc.format !== undefined && doc.format !== ROLES_FORMAT) return { error: t('roles.json.error.format', { format: String(doc.format), expected: ROLES_FORMAT }) };
+  if (!Array.isArray(doc.roles)) return { error: t('roles.json.error.noRoles') };
+  if (state.accountId === null) return { error: t('roles.json.error.noStructure') };
   const accountId = state.accountId;
 
   const warnings: string[] = [];
   const warn = (text: string) => warnings.push(text);
-  for (const key of Object.keys(doc)) if (!TOP_SET.has(key)) warn(`Nieznany klucz "${key}" — pominięty.`);
-  if (doc.version !== undefined && doc.version !== ROLES_VERSION) warn(`Wersja ${cut(String(doc.version), 20)} — czytam jak wersję ${ROLES_VERSION}.`);
+  for (const key of Object.keys(doc)) if (!TOP_SET.has(key)) warn(t('roles.json.warn.unknownTop', { key }));
+  if (doc.version !== undefined && doc.version !== ROLES_VERSION) warn(t('roles.json.warn.version', { version: cut(String(doc.version), 20), current: ROLES_VERSION }));
 
   const facts = new Map(state.roles.filter((r) => r.readable).map((r) => [r.id, r]));
   const sealedIds = new Set(state.roles.filter((r) => !r.readable).map((r) => r.id));
   const list: readonly unknown[] = doc.roles.slice(0, MAX_ENTRIES);
-  if (doc.roles.length > MAX_ENTRIES) warn(`Najwyżej ${MAX_ENTRIES} wpisów w jednym dokumencie — dalsze pominięte.`);
+  if (doc.roles.length > MAX_ENTRIES) warn(t('roles.json.warn.tooMany', { max: MAX_ENTRIES }));
 
   /* 1 — die Einträge, jeder für sich. */
   const entries: Entry[] = [];
@@ -399,22 +408,22 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
   const seenIds = new Set<string>();
   list.forEach((raw, i) => {
     const at = i + 1;
-    if (!isObject(raw)) { warn(`Wpis ${at}: to nie jest obiekt — pominięty.`); return; }
+    if (!isObject(raw)) { warn(t('roles.json.warn.notObject', { n: at })); return; }
     const given = typeof raw.name === 'string' ? raw.name.trim() : '';
-    const label = given !== '' ? `„${cut(given, 60)}”` : typeof raw.key === 'string' && raw.key.trim() !== '' ? `„@${cut(raw.key.trim(), 40)}”` : `Wpis ${at}`;
-    for (const key of Object.keys(raw)) if (!ENTRY_SET.has(key)) warn(`${label}: nieznany klucz "${key}" — pominięty.`);
+    const label = given !== '' ? quote(cut(given, 60)) : typeof raw.key === 'string' && raw.key.trim() !== '' ? quote(`@${cut(raw.key.trim(), 40)}`) : t('roles.json.entry', { n: at });
+    for (const key of Object.keys(raw)) if (!ENTRY_SET.has(key)) warn(t('roles.json.warn.unknownKey', { where: label, key }));
 
     let fact: RoleFacts | null = null;
     if (raw.id !== undefined && raw.id !== null) {
       const id = typeof raw.id === 'string' ? raw.id.trim() : '';
-      if (id === '') { warn(`${label}: "id" musi być tekstem — wpis pominięty.`); return; }
-      if (id === accountId) { warn(`${label}: to konto, nie rola — odwołuj się do niego przez "${ACCOUNT_REF}"; wpis pominięty.`); return; }
-      if (seenIds.has(id)) { warn(`${label}: ta sama rola ("id") drugi raz — wpis pominięty.`); return; }
+      if (id === '') { warn(t('roles.json.warn.idText', { where: label })); return; }
+      if (id === accountId) { warn(t('roles.json.warn.idAccount', { where: label, ref: ACCOUNT_REF })); return; }
+      if (seenIds.has(id)) { warn(t('roles.json.warn.idTwice', { where: label })); return; }
       const found = facts.get(id);
       if (found === undefined) {
         warn(sealedIds.has(id)
-          ? `${label}: tej roli nie otwierasz w tej przeglądarce — pominięta.`
-          : `${label}: nie ma takiej roli w tym koncie ("id" z innego konta?) — pominięta. Nowa rola nie ma "id".`);
+          ? t('roles.json.warn.idSealed', { where: label })
+          : t('roles.json.warn.idUnknown', { where: label }));
         return;
       }
       fact = found;
@@ -424,32 +433,32 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
     let key: string | null = null;
     if (raw.key !== undefined && raw.key !== null) {
       const k = typeof raw.key === 'string' ? raw.key.trim().replace(/^@/, '') : '';
-      if (!KEY_PATTERN.test(k)) warn(`${label}: klucz ${cut(JSON.stringify(raw.key) ?? '?', 50)} — tylko litery, cyfry, „-”, „_” i „.” (do 40 znaków); do tego wpisu nie da się odwołać.`);
-      else if (k === ACCOUNT_KEY || (k === SELF_KEY && (fact === null || fact.id !== state.selfId))) warn(`${label}: klucz „${k}” jest zarezerwowany ("@${k}") — pominięty.`);
-      else if (byKey.has(k)) warn(`${label}: klucz „${k}” drugi raz — odwołania „@${k}” prowadzą do pierwszego wpisu.`);
+      if (!KEY_PATTERN.test(k)) warn(t('roles.json.warn.badKey', { where: label, key: cut(JSON.stringify(raw.key) ?? '?', 50) }));
+      else if (k === ACCOUNT_KEY || (k === SELF_KEY && (fact === null || fact.id !== state.selfId))) warn(t('roles.json.warn.reservedKey', { where: label, key: k }));
+      else if (byKey.has(k)) warn(t('roles.json.warn.keyTwice', { where: label, key: k }));
       else key = k;
     }
 
     let kind: Kind | null = null;
     if (raw.kind !== undefined && raw.kind !== null) {
       const found = typeof raw.kind === 'string' ? KINDS.get(raw.kind.trim().toLowerCase()) : undefined;
-      if (found === undefined) warn(`${label}: nieznany rodzaj ${cut(JSON.stringify(raw.kind) ?? '?', 40)} — ${fact === null ? 'będzie „role”' : 'rodzaj zostaje'}.`);
+      if (found === undefined) warn(t(fact === null ? 'roles.json.warn.unknownKindNew' : 'roles.json.warn.unknownKindKept', { where: label, kind: cut(JSON.stringify(raw.kind) ?? '?', 40) }));
       else kind = found;
     }
 
     let name: string | null = null;
     if (raw.name !== undefined && raw.name !== null) {
-      if (typeof raw.name !== 'string') warn(`${label}: "name" musi być tekstem — pominięte.`);
-      else if (given === '') { if (fact !== null) warn(`${label}: pusta nazwa — zostaje, jaka była.`); }
-      else if (given.length > MAX_NAME) { warn(`${label}: nazwa dłuższa niż ${MAX_NAME} znaków — skrócona.`); name = given.slice(0, MAX_NAME).trim(); }
+      if (typeof raw.name !== 'string') warn(t('roles.json.warn.nameText', { where: label }));
+      else if (given === '') { if (fact !== null) warn(t('roles.json.warn.nameEmpty', { where: label })); }
+      else if (given.length > MAX_NAME) { warn(t('roles.json.warn.nameLong', { where: label, max: MAX_NAME })); name = given.slice(0, MAX_NAME).trim(); }
       else name = given;
     }
 
     const holders: HolderItem[] = [];
     if (raw.holders !== undefined && raw.holders !== null) {
-      if (!Array.isArray(raw.holders)) warn(`${label}: "holders" musi być listą — pominięte.`);
+      if (!Array.isArray(raw.holders)) warn(t('roles.json.warn.holdersList', { where: label }));
       else raw.holders.forEach((one, j) => {
-        const item = readHolder(one, `${label}, "holders" ${j + 1}`, warnings);
+        const item = readHolder(one, t('roles.json.whereHolder', { where: label, n: j + 1 }), warnings);
         if (item !== null) holders.push(item);
       });
     }
@@ -464,30 +473,30 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
   for (const e of entries) {
     if (e.fact !== null) continue;
     const kind = e.kind ?? 'role';
-    if (kind === 'person') { dropped.add(e); warn(`${e.label}: osób import nie zakłada — osobę zakładasz sam (Role → Konto → „Nowa osoba”); pominięta.`); }
-    else if (kind === 'account') { dropped.add(e); warn(`${e.label}: konta nie da się założyć importem — pominięte.`); }
-    else if (e.name === null) { dropped.add(e); warn(`${e.label}: nowa rola potrzebuje nazwy ("name") — pominięta.`); }
+    if (kind === 'person') { dropped.add(e); warn(t('roles.json.warn.noPersons', { where: e.label })); }
+    else if (kind === 'account') { dropped.add(e); warn(t('roles.json.warn.noAccount', { where: e.label })); }
+    else if (e.name === null) { dropped.add(e); warn(t('roles.json.warn.needName', { where: e.label })); }
   }
 
-  const nameOf = (t: Target): string =>
-    t.kind === 'account' ? 'Konto' : t.kind === 'role' ? t.fact.name ?? 'bez nazwy' : t.entry.name ?? t.entry.label;
+  const nameOf = (x: Target): string =>
+    x.kind === 'account' ? t('roles.json.account') : x.kind === 'role' ? x.fact.name ?? t('roles.json.noName') : x.entry.name ?? x.entry.label;
 
   /** Wer mit „by" gemeint ist — oder warum niemand. */
   const resolve = (by: string): Target | string => {
     if (by === ACCOUNT_REF || by === accountId) return { kind: 'account' };
     if (by === SELF_REF) {
       const self = state.selfId === null ? undefined : facts.get(state.selfId);
-      return self === undefined ? `„${SELF_REF}”: to konto nie prowadzi jeszcze żadnej osoby` : { kind: 'role', fact: self };
+      return self === undefined ? t('roles.json.why.noSelf', { self: SELF_REF }) : { kind: 'role', fact: self };
     }
     if (by.startsWith('@')) {
       const e = byKey.get(by.slice(1));
-      if (e === undefined) return `odwołanie „${cut(by, 40)}” prowadzi donikąd`;
-      if (dropped.has(e)) return `„${cut(by, 40)}” nie powstanie`;
+      if (e === undefined) return t('roles.json.why.nowhere', { ref: cut(by, 40) });
+      if (dropped.has(e)) return t('roles.json.why.notMade', { ref: cut(by, 40) });
       return e.fact !== null ? { kind: 'role', fact: e.fact } : { kind: 'new', entry: e };
     }
     const fact = facts.get(by);
     if (fact !== undefined) return { kind: 'role', fact };
-    return sealedIds.has(by) ? `roli „${cut(by, 13)}” nie otwierasz w tej przeglądarce` : `nie wiadomo, kto to jest: „${cut(by, 40)}”`;
+    return sealedIds.has(by) ? t('roles.json.why.sealed', { ref: cut(by, 13) }) : t('roles.json.why.unknown', { ref: cut(by, 40) });
   };
 
   /* 3 — unter wem eine neue Rolle entsteht: der erste in "holders", der sie mit Unterschrift führt und den ich führe. */
@@ -496,20 +505,20 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
     if (e.fact !== null || dropped.has(e)) continue;
     const leading = e.holders.filter((h) => h.level === 'holds');
     let why: string | null = e.holders.length === 0
-      ? `nowa rola potrzebuje "holders" — kogoś, kto ją poprowadzi (np. "${SELF_REF}")`
-      : leading.length === 0 ? 'nikt jej nie prowadzi — potrzebny "level": "holds"' : null;
+      ? t('roles.json.why.noHolders', { self: SELF_REF })
+      : leading.length === 0 ? t('roles.json.why.noLeader') : null;
     for (const item of leading) {
-      const t = resolve(item.by);
-      if (typeof t === 'string') { why ??= t; continue; }
-      if (!item.sign) { why ??= `„${cut(item.by, 40)}” ma "sign": false — kto zakłada rolę, prowadzi ją z podpisem`; continue; }
-      if (t.kind === 'account') { why ??= `konto trzyma tylko osoby — rolę albo grupę załóż pod osobą (np. "${SELF_REF}")`; continue; }
-      if (t.kind === 'new' && t.entry === e) { why ??= 'rola nie może trzymać samej siebie'; continue; }
-      if (t.kind === 'role' && t.fact.link) { why ??= `„${nameOf(t)}” to rola linku dostępu`; continue; }
-      if (t.kind === 'role' && !t.fact.leads) { why ??= `nie prowadzisz „${nameOf(t)}” z podpisem`; continue; }
-      creators.set(e, { item, target: t });
+      const got = resolve(item.by);
+      if (typeof got === 'string') { why ??= got; continue; }
+      if (!item.sign) { why ??= t('roles.json.why.noSign', { ref: cut(item.by, 40) }); continue; }
+      if (got.kind === 'account') { why ??= t('roles.json.why.accountOnlyPersons', { self: SELF_REF }); continue; }
+      if (got.kind === 'new' && got.entry === e) { why ??= t('roles.json.why.self'); continue; }
+      if (got.kind === 'role' && got.fact.link) { why ??= t('roles.json.why.link', { name: nameOf(got) }); continue; }
+      if (got.kind === 'role' && !got.fact.leads) { why ??= t('roles.json.why.notLeading', { name: nameOf(got) }); continue; }
+      creators.set(e, { item, target: got });
       break;
     }
-    if (!creators.has(e)) { dropped.add(e); warn(`${e.label}: ${why ?? 'nie ma pod kim jej założyć'} — pominięta.`); }
+    if (!creators.has(e)) { dropped.add(e); warn(t('roles.json.warn.skippedWhy', { where: e.label, why: why ?? t('roles.json.why.nowhereToCreate') })); }
   }
 
   /* 4 — die Reihenfolge: wer unter einer neuen Rolle entsteht, nach ihr; ein Kreis entsteht nie. */
@@ -520,20 +529,20 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
     for (const [e, { target }] of creators) {
       if (placed.has(e) || dropped.has(e)) continue;
       if (target.kind !== 'new' || placed.has(target.entry)) { order.push(e); placed.add(e); moved = true; }
-      else if (dropped.has(target.entry)) { dropped.add(e); moved = true; warn(`${e.label}: nie powstanie ${target.entry.label}, więc i ta rola — pominięta.`); }
+      else if (dropped.has(target.entry)) { dropped.add(e); moved = true; warn(t('roles.json.warn.parentNotMade', { where: e.label, parent: target.entry.label })); }
     }
   }
   for (const e of creators.keys()) {
-    if (!placed.has(e) && !dropped.has(e)) { dropped.add(e); warn(`${e.label}: nowe role w "holders" trzymają się nawzajem w kółko — pominięta.`); }
+    if (!placed.has(e) && !dropped.has(e)) { dropped.add(e); warn(t('roles.json.warn.circle', { where: e.label })); }
   }
   if (order.length > MAX_NEW_ROLES) {
     const rest = order.splice(MAX_NEW_ROLES);
     for (const e of rest) dropped.add(e);
-    warn(`Najwyżej ${MAX_NEW_ROLES} nowych ról w jednym imporcie — ${rest.length} pominięto (zaimportuj ten sam dokument jeszcze raz, gdy te powstaną).`);
+    warn(t('roles.json.warn.tooManyNew', { max: MAX_NEW_ROLES, rest: rest.length }));
   }
 
-  const refOf = (t: Target): RoleRef => (t.kind === 'account' ? { id: accountId } : t.kind === 'role' ? { id: t.fact.id } : { key: t.entry.ref });
-  const nodeOf = (t: Target): string => (t.kind === 'account' ? accountId : t.kind === 'role' ? t.fact.id : `#new:${t.entry.ref}`);
+  const refOf = (x: Target): RoleRef => (x.kind === 'account' ? { id: accountId } : x.kind === 'role' ? { id: x.fact.id } : { key: x.entry.ref });
+  const nodeOf = (x: Target): string => (x.kind === 'account' ? accountId : x.kind === 'role' ? x.fact.id : `#new:${x.entry.ref}`);
   const creates: PlannedCreate[] = order.map((e) => {
     const { target } = creators.get(e)!;
     return { key: e.ref, kind: e.kind === 'group' ? 'group' : 'role', name: e.name!, holder: refOf(target), holderName: nameOf(target) };
@@ -546,14 +555,14 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
     const fact = e.fact;
     if (fact === null) continue;
     if (e.name !== null && e.name !== (fact.name ?? '')) {
-      if (fact.link) warn(`${e.label}: to rola linku dostępu — jej nazwę zmienia się przy linku; zostaje.`);
+      if (fact.link) warn(t('roles.json.warn.linkName', { where: e.label }));
       else renames.push({ roleId: fact.id, from: fact.name, to: e.name });
     }
     if (e.kind !== null && e.kind !== fact.kind) {
       const swaps = (k: Kind) => k === 'role' || k === 'group';
-      if (!swaps(e.kind) || !swaps(fact.kind)) warn(`${e.label}: rodzaju „${KIND_WORD[fact.kind]}” nie da się zmienić na „${KIND_WORD[e.kind]}” — zostaje.`);
-      else if (fact.link) warn(`${e.label}: to rola linku dostępu — rodzaj zostaje.`);
-      else retypes.push({ roleId: fact.id, name: e.name ?? fact.name ?? 'bez nazwy', to: e.kind === 'group' ? 'group' : 'role' });
+      if (!swaps(e.kind) || !swaps(fact.kind)) warn(t('roles.json.warn.kindFixed', { where: e.label, from: t(`roles.json.kind.${fact.kind}`), to: t(`roles.json.kind.${e.kind}`) }));
+      else if (fact.link) warn(t('roles.json.warn.linkKind', { where: e.label }));
+      else retypes.push({ roleId: fact.id, name: e.name ?? fact.name ?? t('roles.json.noName'), to: e.kind === 'group' ? 'group' : 'role' });
     }
   }
 
@@ -587,50 +596,50 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
     const creator = creators.get(e)?.item;
     for (const item of e.holders) {
       if (item === creator) continue;
-      const t = resolve(item.by);
-      const where = `${e.label}, „${cut(item.by, 40)}”`;
-      if (typeof t === 'string') { warn(`${where}: ${t} — pominięte.`); continue; }
-      const from = nodeOf(t);
+      const got = resolve(item.by);
+      const where = t('roles.json.whereBy', { where: e.label, by: cut(item.by, 40) });
+      if (typeof got === 'string') { warn(t('roles.json.warn.skipped', { where, why: got })); continue; }
+      const from = nodeOf(got);
       const to = nodeOf(role);
-      if (from === to) { warn(`${where}: rola nie może trzymać samej siebie — pominięte.`); continue; }
-      const label = `„${nameOf(t)}” trzyma „${nameOf(role)}” (${levelWords(item.level, item.sign)})`;
+      if (from === to) { warn(t('roles.json.warn.selfHold', { where })); continue; }
+      const label = t('roles.json.holdLabel', { holder: nameOf(got), role: nameOf(role), level: levelWords(item.level, item.sign) });
       const had = state.holdings.find((h) => h.from === from && h.to === to && h.level === item.level);
       if (had !== undefined) {
         if (item.level === 'holds' && item.signGiven && item.sign !== had.sign) {
-          warn(`${where}: to powiązanie już jest, ${had.sign ? 'z podpisem' : 'bez podpisu'} — podpisu import nie zmienia (odbierz i nadaj w Rolach).`);
+          warn(t(had.sign ? 'roles.json.warn.signFixedWith' : 'roles.json.warn.signFixedWithout', { where }));
         } else unchanged += 1;
         continue;
       }
       const once = `${from}>${to}>${item.level}`;
-      if (planned.has(once)) { warn(`${where}: to samo powiązanie drugi raz — pominięte.`); continue; }
-      if (t.kind === 'account') {
+      if (planned.has(once)) { warn(t('roles.json.warn.twice', { where })); continue; }
+      if (got.kind === 'account') {
         if (role.kind !== 'role' || role.fact.kind !== 'person' || item.level !== 'holds') {
-          warn(`${where}: konto trzyma tylko osoby i tylko prowadząc ("holds") — pominięte.`);
+          warn(t('roles.json.warn.accountPersons', { where }));
           continue;
         }
-        if (!state.accountLeads) { warn(`${where}: ta przeglądarka nie podpisuje w imieniu konta — pominięte.`); continue; }
+        if (!state.accountLeads) { warn(t('roles.json.warn.accountSign', { where })); continue; }
       }
-      if ((t.kind === 'role' && t.fact.link) || (role.kind === 'role' && role.fact.link)) {
-        warn(`${where}: role linków dostępu zmienia się przy linkach, nie tutaj — pominięte.`);
+      if ((got.kind === 'role' && got.fact.link) || (role.kind === 'role' && role.fact.link)) {
+        warn(t('roles.json.warn.linkRoles', { where }));
         continue;
       }
-      if (t.kind === 'role' && !t.fact.leads) { warn(`${where}: nie prowadzisz „${nameOf(t)}” z podpisem — w jej imieniu nikogo nie przyjmiesz; pominięte.`); continue; }
+      if (got.kind === 'role' && !got.fact.leads) { warn(t('roles.json.warn.notLeading', { where, name: nameOf(got) })); continue; }
       if (item.level === 'holds' && item.sign && role.kind === 'role' && !role.fact.passesSign) {
-        warn(`${where}: nie masz klucza podpisu „${nameOf(role)}” — ustaw "sign": false, żeby dać ją bez podpisu; pominięte.`);
+        warn(t('roles.json.warn.noSignKey', { where, name: nameOf(role) }));
         continue;
       }
-      if (reaches(to, from)) { warn(`${where}: to zamknęłoby krąg — obie role otwierałyby się nawzajem; pominięte.`); continue; }
+      if (reaches(to, from)) { warn(t('roles.json.warn.ring', { where })); continue; }
       planned.add(once);
       if (item.level === 'holds') addEdge(from, to);
-      holdings.push({ role: refOf(role), holder: refOf(t), level: item.level, sign: item.level === 'holds' && item.sign, label });
+      holdings.push({ role: refOf(role), holder: refOf(got), level: item.level, sign: item.level === 'holds' && item.sign, label });
       /* Eine andere Stufe derselben beiden bleibt stehen — wer im Export „read" zu „write" macht, hat danach beides. */
       const other = state.holdings.find((h) => h.from === from && h.to === to && h.level !== item.level);
       if (other !== undefined) {
-        warn(`${where}: „${nameOf(t)}” trzyma już „${nameOf(role)}” (${levelWords(other.level, other.sign)}) — to powiązanie zostaje obok nowego; odbiera się je w Rolach.`);
+        warn(t('roles.json.warn.otherLevel', { where, holder: nameOf(got), role: nameOf(role), level: levelWords(other.level, other.sign) }));
       }
       /* Wer eine Person hält, handelt als dieser Mensch — das soll niemand übersehen. */
-      if (role.kind === 'role' && role.fact.kind === 'person' && t.kind !== 'account') {
-        warn(`Uwaga: „${nameOf(t)}” dostanie klucz osoby „${nameOf(role)}” — każdy, kto trzyma „${nameOf(t)}”, zobaczy to, co ta osoba${item.level === 'holds' && item.sign ? ', i będzie działać w jej imieniu' : ''}.`);
+      if (role.kind === 'role' && role.fact.kind === 'person' && got.kind !== 'account') {
+        warn(t(item.level === 'holds' && item.sign ? 'roles.json.warn.personKeySign' : 'roles.json.warn.personKey', { holder: nameOf(got), role: nameOf(role) }));
       }
     }
   }
@@ -638,16 +647,16 @@ export function planRolesImport(doc: unknown, state: RolesState): RolesPlan | { 
   /* 7 — die Zeilen der Vorschau. */
   const lines: string[] = [];
   if (creates.length > 0) {
-    lines.push(`Nowe role: ${creates.length} — każda to dwa klucze RSA-4096 liczone w tej przeglądarce, kilka sekund na rolę (na telefonie dłużej). Nie zamykaj karty, póki import trwa.`);
+    lines.push(t('roles.json.line.newRoles', { n: creates.length }));
   }
-  for (const c of creates) lines.push(`Nowa ${KIND_WORD[c.kind]} „${c.name}” pod „${c.holderName}”.`);
-  for (const r of renames) lines.push(`Zmiana nazwy: „${r.from ?? 'bez nazwy'}” → „${r.to}”.`);
-  for (const r of retypes) lines.push(`Zmiana rodzaju: „${r.name}” — ${r.to === 'group' ? 'rola → grupa' : 'grupa → rola'}.`);
-  for (const h of holdings) lines.push(`Nowe powiązanie: ${h.label}.`);
-  if (lines.length === 0) lines.push('Nic się nie zmieni.');
+  for (const c of creates) lines.push(t(c.kind === 'group' ? 'roles.json.line.newGroup' : 'roles.json.line.newRole', { name: c.name, holder: c.holderName }));
+  for (const r of renames) lines.push(t('roles.json.line.rename', { from: r.from ?? t('roles.json.noName'), to: r.to }));
+  for (const r of retypes) lines.push(t(r.to === 'group' ? 'roles.json.line.toGroup' : 'roles.json.line.toRole', { name: r.name }));
+  for (const h of holdings) lines.push(t('roles.json.line.newHolding', { label: h.label }));
+  if (lines.length === 0) lines.push(t('roles.json.line.nothing'));
   const known = entries.filter((e) => e.fact !== null).map((e) => e.fact!.id);
   if (known.length > 0 || unchanged > 0) {
-    lines.push(`Rozpoznane po "id": ${known.length} ${plural(known.length, 'rola', 'role', 'ról')}; powiązań, które już są: ${unchanged}. Niczego się nie usuwa.`);
+    lines.push(t('roles.json.line.known', { count: known.length, unchanged }));
   }
 
   return { creates, renames, retypes, holdings, known, lines, warnings };
@@ -664,7 +673,7 @@ export interface RolesOps {
   hold(roleId: string, holderId: string, level: EdgeKind, sign: boolean): Promise<void>;
 }
 
-const failure = (e: unknown): string => (e instanceof Error && e.message.trim() !== '' ? e.message : 'nie udało się');
+const failure = (e: unknown): string => (e instanceof Error && e.message.trim() !== '' ? e.message : t('roles.json.apply.failed'));
 
 /**
  * DEN PLAN AUSFÜHREN — erst die neuen Rollen (je eine Zeile Fortschritt: das sind die Sekunden), dann Namen,
@@ -681,43 +690,43 @@ export async function applyRolesImport(
   let created = 0;
   for (const [i, c] of plan.creates.entries()) {
     const holder = idOf(c.holder);
-    if (holder === null) { warnings.push(`„${c.name}”: nie powstała, bo nie powstała „${c.holderName}”.`); continue; }
-    stage(`Rola ${i + 1} z ${plan.creates.length}: „${cut(c.name, 40)}” — liczenie kluczy…`);
+    if (holder === null) { warnings.push(t('roles.json.apply.holderMissing', { name: c.name, holder: c.holderName })); continue; }
+    stage(t('roles.json.apply.stageRole', { n: i + 1, total: plan.creates.length, name: cut(c.name, 40) }));
     try {
       made.set(c.key, await ops.create(holder, c.kind, c.name));
       created += 1;
     } catch (e) {
-      warnings.push(`„${c.name}”: ${failure(e)} — nie powstała.`);
+      warnings.push(t('roles.json.apply.createFailed', { name: c.name, reason: failure(e) }));
     }
   }
 
   let renamed = 0;
   for (const [i, r] of plan.renames.entries()) {
-    stage(`Zmiana nazwy ${i + 1} z ${plan.renames.length}…`);
-    try { await ops.rename(r.roleId, r.to); renamed += 1; } catch (e) { warnings.push(`„${r.from ?? 'bez nazwy'}” → „${r.to}”: ${failure(e)}.`); }
+    stage(t('roles.json.apply.stageRename', { n: i + 1, total: plan.renames.length }));
+    try { await ops.rename(r.roleId, r.to); renamed += 1; } catch (e) { warnings.push(t('roles.json.apply.renameFailed', { from: r.from ?? t('roles.json.noName'), to: r.to, reason: failure(e) })); }
   }
 
   let retyped = 0;
   for (const [i, r] of plan.retypes.entries()) {
-    stage(`Zmiana rodzaju ${i + 1} z ${plan.retypes.length}…`);
-    try { await ops.retype(r.roleId, r.to); retyped += 1; } catch (e) { warnings.push(`„${r.name}”: ${failure(e)}.`); }
+    stage(t('roles.json.apply.stageRetype', { n: i + 1, total: plan.retypes.length }));
+    try { await ops.retype(r.roleId, r.to); retyped += 1; } catch (e) { warnings.push(t('roles.json.apply.namedFailed', { name: r.name, reason: failure(e) })); }
   }
 
   let held = 0;
   for (const [i, h] of plan.holdings.entries()) {
     const role = idOf(h.role);
     const holder = idOf(h.holder);
-    if (role === null || holder === null) { warnings.push(`${h.label}: pominięte — rola nie powstała.`); continue; }
-    stage(`Powiązanie ${i + 1} z ${plan.holdings.length}…`);
-    try { await ops.hold(role, holder, h.level, h.sign); held += 1; } catch (e) { warnings.push(`${h.label}: ${failure(e)}.`); }
+    if (role === null || holder === null) { warnings.push(t('roles.json.apply.holdSkipped', { label: h.label })); continue; }
+    stage(t('roles.json.apply.stageHold', { n: i + 1, total: plan.holdings.length }));
+    try { await ops.hold(role, holder, h.level, h.sign); held += 1; } catch (e) { warnings.push(t('roles.json.apply.holdFailed', { label: h.label, reason: failure(e) })); }
   }
 
   const lines: string[] = [];
-  if (plan.creates.length > 0) lines.push(`Nowe role: ${created} z ${plan.creates.length}.`);
-  if (plan.renames.length > 0) lines.push(`Zmienione nazwy: ${renamed} z ${plan.renames.length}.`);
-  if (plan.retypes.length > 0) lines.push(`Zmieniony rodzaj: ${retyped} z ${plan.retypes.length}.`);
-  if (plan.holdings.length > 0) lines.push(`Nowe powiązania: ${held} z ${plan.holdings.length}.`);
-  if (lines.length === 0) lines.push('Nic się nie zmieniło.');
+  if (plan.creates.length > 0) lines.push(t('roles.json.apply.roles', { n: created, total: plan.creates.length }));
+  if (plan.renames.length > 0) lines.push(t('roles.json.apply.renames', { n: renamed, total: plan.renames.length }));
+  if (plan.retypes.length > 0) lines.push(t('roles.json.apply.retypes', { n: retyped, total: plan.retypes.length }));
+  if (plan.holdings.length > 0) lines.push(t('roles.json.apply.holdings', { n: held, total: plan.holdings.length }));
+  if (lines.length === 0) lines.push(t('roles.json.apply.nothing'));
   return { lines, warnings };
 }
 
@@ -731,7 +740,7 @@ export function liveRolesOps(start: Ring, graph: RoleGraphData): RolesOps {
   const known = new Map<string, SealedRole>(graph.roles.map((r) => [r.id, r]));
   const roleOf = (id: string): SealedRole => {
     const found = known.get(id) ?? ring.roleOf(id);
-    if (found === undefined) throw new WorkspaceError('Tej roli już nie ma — odśwież Role.');
+    if (found === undefined) throw new WorkspaceError(t('roles.json.apply.gone'));
     return found;
   };
   return {
@@ -755,57 +764,54 @@ const fake = (n: number, kind: Kind, name: string, more: Partial<RoleFacts> = {}
   id: fakeId(n), kind, name, readable: true, leads: true, passesSign: true, link: false, areas: [],
   createdAt: `2026-01-0${n}T10:00:00Z`, ...more
 });
-const EXAMPLE_STATE: RolesState = {
+const exampleState = (): RolesState => ({
   accountId: fakeId(9), accountLeads: true, selfId: fakeId(1),
   roles: [
-    fake(1, 'person', 'Anna Nowak'),
-    fake(2, 'role', 'Sekretarz parafii', { areas: [{ name: 'Parafia św. Józefa', level: 'write' }] }),
-    fake(3, 'group', 'Lektorzy', { leads: false, passesSign: false })
+    fake(1, 'person', t('roles.json.example.anna')),
+    fake(2, 'role', t('roles.json.example.secretary'), { areas: [{ name: t('roles.json.example.parish'), level: 'write' }] }),
+    fake(3, 'group', t('roles.json.example.readers'), { leads: false, passesSign: false })
   ],
   holdings: [
     { from: fakeId(9), to: fakeId(1), level: 'holds', sign: true, createdAt: '2026-01-01T10:00:00Z' },
     { from: fakeId(1), to: fakeId(2), level: 'holds', sign: true, createdAt: '2026-01-02T10:00:00Z' },
     { from: fakeId(2), to: fakeId(3), level: 'holds', sign: false, createdAt: '2026-01-03T10:00:00Z' }
   ]
-};
+});
 
 /** Eine Pfarrei: Proboszcz unter mir, darunter Kancelaria, Rada und Schola — mit Lesekanten daneben. */
-const PARISH_SAMPLE = {
+const parishSample = () => ({
   format: ROLES_FORMAT,
   version: ROLES_VERSION,
   roles: [
-    { key: 'proboszcz', kind: 'role', name: 'Proboszcz', holders: [{ by: SELF_REF, level: 'holds', sign: true }] },
-    { key: 'kancelaria', kind: 'role', name: 'Kancelaria parafialna', holders: [{ by: '@proboszcz', level: 'holds', sign: true }] },
-    { key: 'rada', kind: 'group', name: 'Rada parafialna', holders: [{ by: '@proboszcz', level: 'holds', sign: true }, { by: '@kancelaria', level: 'read' }] },
-    { key: 'schola', kind: 'group', name: 'Schola', holders: ['@proboszcz', { by: '@rada', level: 'read' }] }
+    { key: 'proboszcz', kind: 'role', name: t('roles.json.example.pastor'), holders: [{ by: SELF_REF, level: 'holds', sign: true }] },
+    { key: 'kancelaria', kind: 'role', name: t('roles.json.example.office'), holders: [{ by: '@proboszcz', level: 'holds', sign: true }] },
+    { key: 'rada', kind: 'group', name: t('roles.json.example.council'), holders: [{ by: '@proboszcz', level: 'holds', sign: true }, { by: '@kancelaria', level: 'read' }] },
+    { key: 'schola', kind: 'group', name: t('roles.json.example.schola'), holders: ['@proboszcz', { by: '@rada', level: 'read' }] }
   ]
-};
+});
 
 /** Eine Schule: Dyrektor, Nauczyciele, ein Wychowawca, den die Nauczyciele mitschreiben. */
-const SCHOOL_SAMPLE = {
+const schoolSample = () => ({
   format: ROLES_FORMAT,
   version: ROLES_VERSION,
   roles: [
-    { key: 'dyrektor', kind: 'role', name: 'Dyrektor szkoły', holders: [SELF_REF] },
-    { key: 'nauczyciele', kind: 'group', name: 'Nauczyciele', holders: ['@dyrektor'] },
-    { key: 'wychowawca-1a', kind: 'role', name: 'Wychowawca klasy 1a', holders: [{ by: '@dyrektor', level: 'holds', sign: true }, { by: '@nauczyciele', level: 'write' }] }
+    { key: 'dyrektor', kind: 'role', name: t('roles.json.example.director'), holders: [SELF_REF] },
+    { key: 'nauczyciele', kind: 'group', name: t('roles.json.example.teachers'), holders: ['@dyrektor'] },
+    { key: 'wychowawca-1a', kind: 'role', name: t('roles.json.example.tutor'), holders: [{ by: '@dyrektor', level: 'holds', sign: true }, { by: '@nauczyciele', level: 'write' }] }
   ]
-};
+});
 
 const ENTRY_JSON: JsonNode = {
   key: 'roles.entry',
-  title: 'Wpis w "roles"',
-  text: () => `${keyLines(ENTRY_KEYS, '')}
-Obszar w "areas" (tylko informacja):
-${keyLines(AREA_KEYS)}`
+  get title() { return t('roles.json.node.entry'); },
+  text: () => t('roles.json.node.entryText', { keys: keyLines(ENTRY_KEYS, ''), areas: keyLines(AREA_KEYS) })
 };
 
 const HOLDER_JSON: JsonNode = {
   key: 'roles.holder',
-  title: 'Kto trzyma ("holders[]")',
-  short: 'Kto trzyma',
-  text: () => `${keyLines(HOLDER_KEYS, '')}
-Kto trzyma rolę, widzi wszystko, co ona widzi (jej obszary, rozmowy, kalendarze, role, które ona trzyma); z kluczem podpisu działa też w jej imieniu. Ta sama para na innym stopniu to osobne powiązanie (np. "read" obok "holds"). Konto trzyma tylko osoby i tylko z "holds".`
+  get title() { return t('roles.json.node.holder'); },
+  get short() { return t('roles.json.node.holderShort'); },
+  text: () => t('roles.json.node.holderText', { keys: keyLines(HOLDER_KEYS, '') })
 };
 
 /*
@@ -816,47 +822,23 @@ Kto trzyma rolę, widzi wszystko, co ona widzi (jej obszary, rozmowy, kalendarze
  */
 const USAGE_JSON: JsonNode = {
   key: 'roles.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Graf ról to graf kluczy. Każde powiązanie — także "write" i "read" — niesie klucz roli zapieczętowany dla tego, kto ją trzyma; przeglądarka idzie od konta w dół i otwiera tyle, ile sięgają powiązania. Usługa kluczy nie ma — sprawdza tylko podpisy.
-- Dostęp do obszaru (czyta, pisze, prowadzi) dostaje rola: klucz obszaru i certyfikat podpisany przez rolę, która w obszarze przyjmuje. Certyfikat jest ważny dwa lata; po roku przeglądarka kogoś, kto przyjmuje w tym obszarze, odnawia go sama.
-- Usługa wpuszcza do obszarów roli tylko po "holds" (konto → osoba → rola → …, także przez role pośrednie): ci, do których rola tak schodzi, widzą rozmowy, kalendarze i zgłoszenia jej obszarów, a nowości z nich budzą ich telefony.
-- Adres strony (i wszystko pod nim) prowadzi jedna rola — stronę edytują ci, do których ta rola schodzi po "holds".
-- Formularz i link dostępu dają swoim osobom rolę; do czego prowadzi, mówi sama rola — jedna zmiana dotyczy wszystkich, którzy ją dostali.
-- Klucz podpisu ("sign": true, tylko przy "holds") to działanie w imieniu roli: nim podpisuje się jej wiadomości w rozmowach, powiązania, w których ona trzyma inne role (także nowe role zakładane pod nią), i certyfikaty, które wydaje.
-- Nowe "holds" daje więc od razu wszystko, do czego rola prowadzi — także przez role, które ona trzyma. Import nie nadaje dostępu do obszarów ani adresów stron; powiązanie odbiera się ręcznie (Role → rola → „Odbierz”).`
+  get title() { return t('roles.json.node.usage'); },
+  text: () => t('roles.json.node.usageText')
 };
 
 /** DIE BESCHREIBUNG — neben dem Import und für einen Assistenten (MCP). Ohne Zusammenhang aufrufbar. */
 export const ROLES_JSON: JsonNode = {
   key: 'roles',
-  title: `Role konta jako JSON ("${ROLES_FORMAT}", wersja ${ROLES_VERSION})`,
-  short: 'Role',
-  text: () => `Struktura ról konta: osoby, role i grupy, kto kogo trzyma i na jakim stopniu, z nazwami. Konto (korzeń) trzyma tylko osoby; pod osobami są role i grupy. Gdzie: Role → „Więcej” (⋯) → „Import i eksport (JSON)” (#/workspace/roles).
-Co robi import:
-- Najpierw pokazuje listę zmian z ostrzeżeniami; zapisuje dopiero po „Importuj role”.
-- Wpis z "id" (z eksportu) to rola, która już jest: inna "name" zmienia nazwę, "kind" "role" ↔ "group" zmienia rodzaj, nowe pozycje w "holders" dochodzą.
-- Wpis bez "id" zakłada nową rolę albo grupę — pod pierwszą pozycją "holders", która ją prowadzi ("holds" z podpisem) i którą Ty prowadzisz z podpisem: Twoją osobę ("${SELF_REF}"), Twoją rolę albo inną nową rolę z tego dokumentu ("@klucz" — ta powstaje najpierw).
-- Każda nowa rola to dwa klucze RSA-4096 liczone w przeglądarce — kilka sekund na rolę; najwyżej ${MAX_NEW_ROLES} nowych ról w jednym imporcie (najwyżej ${MAX_ENTRIES} wpisów w dokumencie).
-- Niczego nie usuwa: role, nazwy i powiązania, których nie ma w dokumencie, zostają; podpisu w powiązaniu, które już jest, nie zmienia.
-- Nie zakłada kont ani osób (osobę zakładasz sam: Role → Konto → „Nowa osoba”); nie rusza ról, których ta przeglądarka nie otwiera, ani ról linków dostępu ("link": true).
-- Daje tylko to, co Ty możesz dać: rolę, której klucz masz (a z "sign": true — także jej klucz podpisu), komuś, w czyim imieniu podpisujesz. Czego nie możesz, pomija z ostrzeżeniem — tak samo powiązanie, które zamknęłoby krąg (dwie role trzymające się nawzajem).
-- Nazwy są pieczętowane w przeglądarce kluczem roli; usługa widzi tylko, że rola jest i kto ją trzyma. Plik eksportu ma nazwy otwartym tekstem — to Twoja kopia.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-Dokument:
-${keyLines(TOP_KEYS)}
-
-Odwołania w "by": "@klucz" — wpis tego dokumentu (także nowy); "${SELF_REF}" — Twoja pierwsza osoba; "${ACCOUNT_REF}" — konto; albo "id" z eksportu.
-
-Eksport wygląda tak (identyfikatory zmyślone) — "id" zostaw; zmień "name", dopisz "holders" albo dodaj wpisy bez "id":
-${pretty(exportRoles(EXAMPLE_STATE))}
-
-Przykład — nowe role pod Twoją osobą:
-${pretty(PARISH_SAMPLE)}`,
+  get title() { return t('roles.json.node.root', { format: ROLES_FORMAT, version: ROLES_VERSION }); },
+  get short() { return t('roles.json.node.rootShort'); },
+  text: () => t('roles.json.node.rootText', {
+    self: SELF_REF, account: ACCOUNT_REF, maxNew: MAX_NEW_ROLES, maxEntries: MAX_ENTRIES, top: keyLines(TOP_KEYS),
+    export: pretty(exportRoles(exampleState())), sample: pretty(parishSample())
+  }),
   inside: () => [USAGE_JSON, ENTRY_JSON, HOLDER_JSON],
   samples: () => [
-    { label: 'Parafia: proboszcz, kancelaria, rada, schola', doc: () => PARISH_SAMPLE },
-    { label: 'Szkoła: dyrektor, nauczyciele, wychowawca', doc: () => SCHOOL_SAMPLE }
+    { label: t('roles.json.sample.parish'), doc: parishSample },
+    { label: t('roles.json.sample.school'), doc: schoolSample }
   ]
 };
 

@@ -12,6 +12,7 @@ import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import { JsonPanel } from '../ui/JsonPanel';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 import { loadRoleReach, type RoleReach } from './commonRole';
 import type { RoleGraphData } from './roles';
 import { applyRolesImport, exportRoles, liveRolesOps, planRolesImport, ROLES_JSON, rolesStateOf } from './rolesJson';
@@ -24,6 +25,7 @@ export function RolesJsonPanel({ ring, graph, names, onImported }: {
   onImported: () => Promise<void>;
 }) {
   /** `undefined` — noch nicht gefragt; `null` — der Dienst gab nichts (dann ohne Bereiche). */
+  const t = useT();
   const [reach, setReach] = useState<readonly RoleReach[] | null | undefined>(undefined);
 
   /* Nach einem Import neu gefragt — der alte Stand bleibt stehen, bis der neue da ist (das Ergebnis des Imports bleibt sichtbar). */
@@ -40,8 +42,8 @@ export function RolesJsonPanel({ ring, graph, names, onImported }: {
   return (
     <JsonPanel
       open
-      summary="Role jako JSON"
-      lead={<>Osoby, role i grupy tego konta: kto kogo trzyma i na jakim stopniu, z nazwami — do kopii, do poprawy ręcznie albo przez AI. Wpis z „id” zmienia istniejącą rolę (nazwę, rodzaj rola/grupa, kto jeszcze ją trzyma), wpis bez „id” zakłada nową rolę albo grupę. Niczego się nie usuwa.</>}
+      summary={t('roles.json.panel.summary')}
+      lead={t('roles.json.panel.lead')}
       fileName={`role-${new Date().toISOString().slice(0, 10)}.json`}
       exportDoc={() => exportRoles(state)}
       format={ROLES_JSON}
@@ -49,15 +51,15 @@ export function RolesJsonPanel({ ring, graph, names, onImported }: {
         const plan = planRolesImport(doc, state);
         return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
       }}
-      importLabel="Importuj role"
-      note="Każda nowa rola to kilka sekund liczenia kluczy w tej przeglądarce — nie zamykaj karty, póki import trwa."
+      importLabel={t('roles.json.panel.import')}
+      note={t('roles.json.panel.note')}
       onImport={async (doc, stage) => {
         const plan = planRolesImport(doc, state);
         if ('error' in plan) throw new WorkspaceError(plan.error);
         try {
           return await applyRolesImport(plan, liveRolesOps(ring, graph), stage);
         } finally {
-          stage('Odświeżanie ról…');
+          stage(t('roles.json.panel.refreshing'));
           await onImported();
         }
       }}

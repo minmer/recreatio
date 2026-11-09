@@ -39,15 +39,15 @@ import { PRIVATE, Weekdays, bitOf, fromLocal, groupName, localDate, localTime } 
 import { addDays, monthOfName } from '../core/dayMath';
 import type { Ring } from '../core/keys';
 import type { Me } from '../core/me';
-import { plural } from '../core/plural';
+import { rich, useT } from '../core/i18n';
 import { useRecent } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
-import { DEVOTION_NAMES } from '../masses/mass';
+import { devotionNames } from '../masses/mass';
 import { askText } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { Modal } from '../ui/Modal';
 import { type OpenedItem, type RepeatKind, cancelOne, deleteEvent, draftOf, endSeriesBefore, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent } from './agenda';
-import { type CalendarRow, ITEM_LABEL, type ItemKind, safeLink, setPeople, setProgramParent } from './calendar';
+import { type CalendarRow, type ItemKind, safeLink, setPeople, setProgramParent } from './calendar';
 import { calendarLabel } from './calendarLabel';
 import type { CalEvent } from './calendarModel';
 import { ProgramOf } from './EventDetails';
@@ -64,12 +64,9 @@ import { draftValues, editText, saveDayValues } from './schemeValues';
 /** Was zu einem Termin dazukommen kann — jedes auf Wunsch („+ Miejsce"), in dieser Reihenfolge. */
 type Extra = 'place' | 'notes' | 'people' | 'link' | 'program';
 
-const EXTRAS: readonly { readonly key: Extra; readonly label: string }[] = [
-  { key: 'place', label: 'Miejsce' },
-  { key: 'notes', label: 'Notatka' },
-  { key: 'people', label: 'Osoby' },
-  { key: 'link', label: 'Link' },
-  { key: 'program', label: 'Program' }
+/* Bezeichnungen: `calendarApp.editor.extra.<key>`. */
+const EXTRAS: readonly { readonly key: Extra }[] = [
+  { key: 'place' }, { key: 'notes' }, { key: 'people' }, { key: 'link' }, { key: 'program' }
 ];
 
 /** Die Wahl „Powtarzanie": die üblichen Abstände — und „Inaczej…" für co N, die Wochentage stehen bei „Co tydzień". */
@@ -77,17 +74,13 @@ type RepeatChoice = RepeatKind | 'custom';
 
 type Scope = 'one' | 'following' | 'all';
 
-const SCOPES: readonly { readonly value: Scope; readonly label: string }[] = [
-  { value: 'one', label: 'Ten termin' }, { value: 'following', label: 'Ten i następne' }, { value: 'all', label: 'Całą serię' }
-];
+const SCOPES: readonly { readonly value: Scope }[] = [{ value: 'one' }, { value: 'following' }, { value: 'all' }];
 
 /** Bis zu so vielen Kalendern: Plättchen nebeneinander; mehr — eine Auswahlliste. */
 const CHIP_CALENDARS = 5;
 
-/** Wie ein neuer Eintrag heisst, nach seiner Art. */
-const NEW_TITLE: Partial<Record<ItemKind, string>> = {
-  mass: 'Nowa msza', confession: 'Nowa spowiedź', devotion: 'Nowe nabożeństwo', visit: 'Nowe odwiedziny'
-};
+/** Wie ein neuer Eintrag heisst, nach seiner Art (`calendarApp.editor.newTitle.<kind>`). */
+const NEW_TITLE: ReadonlySet<ItemKind> = new Set<ItemKind>(['mass', 'confession', 'devotion', 'visit']);
 
 const capital = (text: string) => text.replace(/^./, (c) => c.toUpperCase());
 
@@ -111,6 +104,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   onSaved: () => void;
   onOpenPart?: (part: CalEvent) => void;
 }) {
+  const t = useT();
   const recent = useRecent('calendar.cal');
   const item: OpenedItem | undefined = target.at === 'event' ? target.event.item : undefined;
   const occurrence = item?.occurrence;
@@ -400,29 +394,29 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
       onSaved();
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.taskDialog.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const save = () => run(async () => {
-    if (date === '' || (!allDay && (from === '' || to === '')) || endDate === '') throw new WorkspaceError('Podaj dzień i godziny.');
+    if (date === '' || (!allDay && (from === '' || to === '')) || endDate === '') throw new WorkspaceError(t('calendarApp.editor.needsWhen'));
     const startAt = allDay ? fromLocal(date, '00:00') : fromLocal(date, from);
     const endAt = allDay ? new Date(fromLocal(endDate, '00:00').getTime() + 86400_000) : fromLocal(endDate, to);
     const minutes = Math.round((endAt.getTime() - startAt.getTime()) / 60_000);
-    if (minutes <= 0) throw new WorkspaceError('Koniec musi być po początku.');
+    if (minutes <= 0) throw new WorkspaceError(t('calendarApp.details.endAfterStart'));
 
     /* 0132 — was das Schema verlangt. */
     const missing = [...(onlyTime ? [] : itemFields.map((f) => ({ f, level: 'item' as const }))), ...dayFields.map((f) => ({ f, level: 'day' as const }))]
       .find(({ f, level }) => f.required === true && textOf(f, level).trim() === '');
-    if (missing !== undefined) throw new WorkspaceError(`Uzupełnij: ${missing.f.label}.`);
+    if (missing !== undefined) throw new WorkspaceError(t('calendarApp.editor.fillIn', { field: missing.f.label }));
     const dayTexts = Object.fromEntries(dayFields.map((f) => [f.key, textOf(f, 'day')]));
     const dayTouched = dayFields.some((f) => fieldTexts[`day:${f.key}`] !== undefined);
     const writeDay = async (itemId: string, occurrenceAt: string, areaId: string) => {
       if (!dayTouched) return;
       const newest = newestKey(await areaKeys(me.ring, areaId, true));
-      if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+      if (newest === null) throw new WorkspaceError(t('calendarApp.noAreaKey'));
       await saveDayValues(itemId, occurrenceAt, newest, areaId, draftValues(dayFields, dayTexts));
     };
 
@@ -497,7 +491,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         people: isPrivate ? null : pinned,
         shift: repeating || repeat !== 'none' ? 0 : startAt.getTime() - seriesStart.getTime()
       });
-      if (failed > 0) throw new WorkspaceError(`Termin zapisany, ale ${failed} z ${parts.length} punktów programu nie udało się zmienić razem z nim.`);
+      if (failed > 0) throw new WorkspaceError(t('calendarApp.editor.partsFailed', { failed, total: parts.length }));
     }
   });
 
@@ -509,26 +503,26 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   const remove = async () => {
     if (item === undefined) return;
     if (repeating && scope === 'following' && hasEarlier) {
-      if (await askText('Zakończyć serię przed tym dniem? Wcześniejsze terminy zostają.')) void endBefore();
+      if (await askText(t('calendarApp.editor.endAsk'))) void endBefore();
       return;
     }
     const one = repeating && scope === 'one';
-    if (!(await askText(one ? 'Odwołać tylko ten termin?' : 'Usunąć ten termin (całą serię)?'))) return;
+    if (!(await askText(one ? t('calendarApp.editor.cancelOneAsk') : t('calendarApp.editor.removeAsk')))) return;
     void run(() => one ? cancelOne(item.occurrence.itemId, item.occurrence.occurrenceAt) : deleteEvent(item.occurrence.itemId));
   };
 
   /* Die Kalender zur Wahl — „Tylko ja" zuerst; der eigene, falls er (archiviert, ausserhalb des Bausteins) nicht dabei ist, auch. */
   const calendarOptions = [
-    ...(offerPrivate ? [{ value: PRIVATE, label: 'Tylko ja', mine: true }] : []),
-    ...privateCals.map((c) => ({ value: c.calendarId, label: privateCals.length === 1 ? 'Tylko ja' : calendarLabel(areas, c), mine: true })),
+    ...(offerPrivate ? [{ value: PRIVATE, label: t('calendarApp.editor.onlyMe'), mine: true }] : []),
+    ...privateCals.map((c) => ({ value: c.calendarId, label: privateCals.length === 1 ? t('calendarApp.editor.onlyMe') : calendarLabel(areas, c), mine: true })),
     ...groupCals.map((c) => ({ value: c.calendarId, label: calendarLabel(areas, c), mine: false }))
   ];
   if (calendar !== undefined && !calendarOptions.some((o) => o.value === calendarId)) {
     calendarOptions.unshift({ value: calendarId, label: calendarLabel(areas, calendar), mine: calendar.areaId === personal?.areaId });
   }
 
-  const heading = item === undefined ? (NEW_TITLE[kind] ?? 'Nowy termin')
-    : kind === 'appointment' || kind === 'task' ? 'Termin' : capital(ITEM_LABEL[kind] ?? 'termin');
+  const heading = item === undefined ? (NEW_TITLE.has(kind) ? t(`calendarApp.editor.newTitle.${kind}`) : t('calendarApp.editor.newTitle.appointment'))
+    : kind === 'appointment' || kind === 'task' ? t('calendarApp.kindWord.appointment') : capital(t(`calendarApp.itemLabel.${kind}`));
 
   return (
     <Modal title={heading} onClose={onClose}>
@@ -540,55 +534,54 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
       <form className="wk-form wk-ev-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         {repeating && (
           <div className="wk-ev-scoperow">
-            <span className="wk-ev-scope-q">Zmieniasz</span>
-            <div className="wk-seg" role="group" aria-label="Co zmieniasz">
+            <span className="wk-ev-scope-q">{t('calendarApp.editor.youChange')}</span>
+            <div className="wk-seg" role="group" aria-label={t('calendarApp.editor.whatChanges')}>
               {SCOPES.filter((one) => one.value !== 'following' || hasEarlier).map((one) => (
                 <button key={one.value} type="button" aria-pressed={scope === one.value}
-                  className={scope === one.value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => pickScope(one.value)}>{one.label}</button>
+                  className={scope === one.value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => pickScope(one.value)}>{t(`calendarApp.editor.scope.${one.value}`)}</button>
               ))}
             </div>
           </div>
         )}
         {scope === 'following' && hasEarlier && (
-          <p className="wk-note">Od tego dnia — wcześniejsze terminy zostają, jak były. Intencje, obsada i zapisy przechodzą na nowe godziny według dnia.</p>
+          <p className="wk-note">{t('calendarApp.editor.followingNote')}</p>
         )}
         {scope === 'all' && repeating && liturgy && hasEarlier && (
-          <p className="wk-warn">Zmieniasz całą serię — także terminy, które już były. Zwykle właściwe jest „Ten i następne”.</p>
+          <p className="wk-warn">{t('calendarApp.editor.allWarn')}</p>
         )}
 
         {/* 0079 — was es ist: nur, wo der Kalender mehr als Treffen führt (Msze: msza, spowiedź, nabożeństwo). */}
         {!onlyTime && kinds.length > 1 && (
-          <div className="wk-seg wk-ev-kinds" role="group" aria-label="Rodzaj">
+          <div className="wk-seg wk-ev-kinds" role="group" aria-label={t('calendarApp.editor.kind')}>
             {kinds.map((one) => (
               <button key={one} type="button" aria-pressed={kind === one} className={kind === one ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-                onClick={() => setKind(one)}>{capital(ITEM_LABEL[one])}</button>
+                onClick={() => setKind(one)}>{capital(t(`calendarApp.itemLabel.${one}`))}</button>
             ))}
           </div>
         )}
 
         <input className="wk-ev-name" value={title} disabled={onlyTime} maxLength={200}
-          aria-label={liturgy ? 'Nazwa (widoczna publicznie)' : 'Tytuł'}
+          aria-label={liturgy ? t('calendarApp.editor.namePublic') : t('common.title')}
           list={kind === 'devotion' ? 'wk-devotion-names' : undefined}
-          placeholder={kind === 'mass' ? 'Nazwa, np. Suma — puste: sama godzina' : kind === 'devotion' ? 'Nazwa, np. Różaniec'
-            : kind === 'confession' ? 'Nazwa — puste: „Spowiedź”' : 'Tytuł, np. Spotkanie z rodzicami'}
+          placeholder={t(kind === 'mass' || kind === 'devotion' || kind === 'confession' ? `calendarApp.editor.titlePlaceholder.${kind}` : 'calendarApp.editor.titlePlaceholder.other')}
           onChange={(e) => setTitle(e.target.value)} />
-        {kind === 'devotion' && <datalist id="wk-devotion-names">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
-        {liturgy && !onlyTime && <p className="wk-hint">Nazwa jest jawna — stoi w planie i w gablocie. Miejsce i notatka zostają zaszyfrowane.</p>}
+        {kind === 'devotion' && <datalist id="wk-devotion-names">{devotionNames().map((n) => <option key={n} value={n} />)}</datalist>}
+        {liturgy && !onlyTime && <p className="wk-hint">{t('calendarApp.editor.publicHint')}</p>}
 
         {/* KIEDY — der Tag, von–bis; der Tag des Endes nur, wenn er ein anderer ist. */}
         <div className="wk-ev-row">
           <Icon name="clock" />
           <div className="wk-ev-body">
             <div className="wk-ev-times">
-              <input type="date" aria-label={allDay && endShown ? 'Od dnia' : 'Dzień'} value={date} onChange={(e) => moveDate(e.target.value)} />
-              {!allDay && <input type="time" aria-label="Początek" step={300} value={from} onChange={(e) => moveFrom(e.target.value)} />}
+              <input type="date" aria-label={allDay && endShown ? t('calendarApp.taskDialog.fromDay') : t('calendarApp.view.day')} value={date} onChange={(e) => moveDate(e.target.value)} />
+              {!allDay && <input type="time" aria-label={t('common.start')} step={300} value={from} onChange={(e) => moveFrom(e.target.value)} />}
               {(!allDay || endShown) && <span className="wk-ev-dash" aria-hidden="true">–</span>}
               {endShown && (
-                <input type="date" aria-label={allDay ? 'Do dnia' : 'Dzień końca'} min={date} value={endDate} disabled={onlyTime}
+                <input type="date" aria-label={allDay ? t('calendarApp.taskDialog.toDay') : t('calendarApp.editor.endDay')} min={date} value={endDate} disabled={onlyTime}
                   onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); setEndWanted(true); }} />
               )}
               {!allDay && (
-                <input type="time" aria-label="Koniec" step={300} value={to} disabled={onlyTime}
+                <input type="time" aria-label={t('common.end')} step={300} value={to} disabled={onlyTime}
                   onChange={(e) => { setTo(e.target.value); setEndTouched(true); }} />
               )}
             </div>
@@ -596,14 +589,14 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               <div className="wk-ev-opts">
                 <label className="wk-check">
                   <input type="checkbox" checked={allDay} onChange={(e) => toggleAllDay(e.target.checked)} />
-                  <span>Cały dzień</span>
+                  <span>{t('calendarApp.editor.allDay')}</span>
                 </label>
                 {!endShown && (
-                  <button type="button" className="wk-link-btn" onClick={() => setEndWanted(true)}>{allDay ? 'Kilka dni' : 'Kończy się innego dnia'}</button>
+                  <button type="button" className="wk-link-btn" onClick={() => setEndWanted(true)}>{allDay ? t('calendarApp.editor.severalDays') : t('calendarApp.editor.endsOtherDay')}</button>
                 )}
               </div>
             )}
-            {endBeforeStart && <p className="wk-error">Koniec musi być po początku.</p>}
+            {endBeforeStart && <p className="wk-error">{t('calendarApp.details.endAfterStart')}</p>}
           </div>
         </div>
 
@@ -612,40 +605,40 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           <div className="wk-ev-row">
             <Icon name="refresh" />
             <div className="wk-ev-body">
-              <select aria-label="Powtarzanie" value={repeatChoice} onChange={(e) => pickRepeat(e.target.value as RepeatChoice)}>
-                <option value="none">Nie powtarza się</option>
-                <option value="daily">Codziennie</option>
-                <option value="weekly">Co tydzień</option>
-                <option value="monthly">Co miesiąc, {shownDay.getDate()}. dnia</option>
-                <option value="yearly">Co rok, {shownDay.getDate()} {monthOfName(shownDay)}</option>
-                <option value="custom">Inaczej…</option>
+              <select aria-label={t('calendarApp.editor.repeat')} value={repeatChoice} onChange={(e) => pickRepeat(e.target.value as RepeatChoice)}>
+                <option value="none">{t('calendarApp.editor.repeatNone')}</option>
+                <option value="daily">{t('calendarApp.taskDialog.repeat.daily')}</option>
+                <option value="weekly">{t('calendarApp.editor.repeatWeekly')}</option>
+                <option value="monthly">{t('calendarApp.editor.repeatMonthly', { day: shownDay.getDate() })}</option>
+                <option value="yearly">{t('calendarApp.editor.repeatYearly', { day: shownDay.getDate(), month: monthOfName(shownDay, t.lang) })}</option>
+                <option value="custom">{t('calendarApp.editor.repeatCustom')}</option>
               </select>
               {repeatChoice === 'custom' && (
                 <div className="wk-ev-inline">
-                  <span>co</span>
-                  <input type="number" min={1} max={52} aria-label="Co ile" value={every}
+                  <span>{t('calendarApp.editor.every')}</span>
+                  <input type="number" min={1} max={52} aria-label={t('calendarApp.editor.everyHowMany')} value={every}
                     onChange={(e) => setEvery(Math.max(1, Math.min(52, Number(e.target.value) || 1)))} />
-                  <select aria-label="Jednostka" value={repeat} onChange={(e) => setRepeat(e.target.value as RepeatKind)}>
-                    <option value="daily">{plural(every, 'dzień', 'dni', 'dni')}</option>
-                    <option value="weekly">{plural(every, 'tydzień', 'tygodnie', 'tygodni')}</option>
-                    <option value="monthly">{plural(every, 'miesiąc', 'miesiące', 'miesięcy')}</option>
-                    <option value="yearly">{plural(every, 'rok', 'lata', 'lat')}</option>
+                  <select aria-label={t('calendarApp.taskDialog.unitLabel')} value={repeat} onChange={(e) => setRepeat(e.target.value as RepeatKind)}>
+                    <option value="daily">{t('calendarApp.editor.unit.daily', { count: every })}</option>
+                    <option value="weekly">{t('calendarApp.editor.unit.weekly', { count: every })}</option>
+                    <option value="monthly">{t('calendarApp.editor.unit.monthly', { count: every })}</option>
+                    <option value="yearly">{t('calendarApp.editor.unit.yearly', { count: every })}</option>
                   </select>
                 </div>
               )}
               {repeat === 'weekly' && <Weekdays value={weekdays} onChange={setOwnWeekdays} />}
               {repeat !== 'none' && (
                 <div className="wk-ev-inline">
-                  <select aria-label="Do kiedy" value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>
-                    <option value="never">bez końca</option>
-                    <option value="date">do dnia…</option>
-                    <option value="count">tyle razy…</option>
+                  <select aria-label={t('calendarApp.editor.until')} value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>
+                    <option value="never">{t('calendarApp.editor.endsNever')}</option>
+                    <option value="date">{t('calendarApp.editor.endsDate')}</option>
+                    <option value="count">{t('calendarApp.editor.endsCount')}</option>
                   </select>
-                  {ends === 'date' && <input type="date" aria-label="Ostatni dzień" min={date} value={until} onChange={(e) => setUntil(e.target.value)} />}
+                  {ends === 'date' && <input type="date" aria-label={t('calendarApp.editor.lastDay')} min={date} value={until} onChange={(e) => setUntil(e.target.value)} />}
                   {ends === 'count' && (
                     <>
-                      <input type="number" min={1} max={999} aria-label="Ile razy" value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} />
-                      <span>{plural(count, 'raz', 'razy', 'razy')}</span>
+                      <input type="number" min={1} max={999} aria-label={t('calendarApp.editor.howManyTimes')} value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} />
+                      <span>{t('calendarApp.editor.times', { count })}</span>
                     </>
                   )}
                 </div>
@@ -660,9 +653,9 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
             <Icon name="calendar" />
             <div className="wk-ev-body">
               {calendarOptions.length <= 1 ? (
-                <p className="wk-ev-calname">{calendarOptions[0]?.label ?? 'Tylko ja'}</p>
+                <p className="wk-ev-calname">{calendarOptions[0]?.label ?? t('calendarApp.editor.onlyMe')}</p>
               ) : calendarOptions.length <= CHIP_CALENDARS ? (
-                <div className="wk-ev-cals" role="group" aria-label="Kalendarz">
+                <div className="wk-ev-cals" role="group" aria-label={t('calendarApp.linkCalendar.title')}>
                   {calendarOptions.map((o) => (
                     <button key={o.value} type="button" className="wk-ev-cal" aria-pressed={o.value === calendarId} onClick={() => pickCalendar(o.value)}>
                       {o.label}
@@ -670,26 +663,26 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
                   ))}
                 </div>
               ) : (
-                <select aria-label="Kalendarz" value={calendarId} onChange={(e) => pickCalendar(e.target.value)}>
+                <select aria-label={t('calendarApp.linkCalendar.title')} value={calendarId} onChange={(e) => pickCalendar(e.target.value)}>
                   {calendarOptions.some((o) => o.mine) && (
-                    <optgroup label="Tylko ja">
+                    <optgroup label={t('calendarApp.editor.onlyMe')}>
                       {calendarOptions.filter((o) => o.mine).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </optgroup>
                   )}
                   {calendarOptions.some((o) => !o.mine) && (
-                    <optgroup label="Kalendarze grup">
+                    <optgroup label={t('calendarApp.editor.groupCalendars')}>
                       {calendarOptions.filter((o) => !o.mine).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </optgroup>
                   )}
                 </select>
               )}
               <p className="wk-ev-seen">
-                {isPrivate ? 'Widzisz tylko Ty — zaszyfrowane Twoim kluczem.' : (
+                {isPrivate ? t('calendarApp.editor.privateSeen') : (
                   <>
-                    Widzą: <strong>{groupName(areas, visibility ?? defaultVisibility)}</strong>
+                    {rich(t('calendarApp.editor.seenBy', { who: groupName(areas, visibility ?? defaultVisibility) }), { b: (s) => <strong>{s}</strong> })}
                     {visibility !== null && (
-                      <> — inaczej niż kalendarz · <button type="button" className="wk-link-btn" onClick={() => setVisibility(null)}>
-                        jak w kalendarzu ({groupName(areas, defaultVisibility)})
+                      <> {t('calendarApp.editor.otherThanCalendar')} · <button type="button" className="wk-link-btn" onClick={() => setVisibility(null)}>
+                        {t('calendarApp.editor.asCalendar', { who: groupName(areas, defaultVisibility) })}
                       </button></>
                     )}
                   </>
@@ -705,8 +698,8 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           <div className="wk-ev-row">
             <Icon name="layers" />
             <div className="wk-ev-body">
-              <div className="wk-ev-cals" role="group" aria-label="Schemat">
-                {[{ docId: null as string | null, name: 'Uniwersalny' }, ...docs!.schemes.map((one) => ({ docId: one.docId as string | null, name: one.def.name }))].map((one) => (
+              <div className="wk-ev-cals" role="group" aria-label={t('calendarApp.editor.scheme')}>
+                {[{ docId: null as string | null, name: t('calendarApp.editor.universal') }, ...docs!.schemes.map((one) => ({ docId: one.docId as string | null, name: one.def.name }))].map((one) => (
                   <button key={one.docId ?? UNIVERSAL_ID} type="button" className="wk-ev-cal" aria-pressed={(schemeId ?? null) === one.docId}
                     onClick={() => pickScheme(one.docId)}>{one.name}</button>
                 ))}
@@ -728,7 +721,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               ))}
               {dayFields.filter((f) => fieldShown(f, 'day')).map((f) => (
                 <label key={`day:${f.key}`} className="wk-sc-field">
-                  <span>{f.label}{f.required ? ' *' : ''}{repeating ? ' (ten dzień)' : ''}</span>
+                  <span>{f.label}{f.required ? ' *' : ''}{repeating ? ` ${t('calendarApp.editor.thisDay')}` : ''}</span>
                   <SchemeInput field={f} value={textOf(f, 'day')} people={candidates} autoFocus={freshField === `day:${f.key}`}
                     onChange={(v) => setText(f, 'day', v)} />
                 </label>
@@ -745,19 +738,19 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               <label className="wk-check">
                 <input type="checkbox" checked={bookableNow}
                   onChange={(e) => setBookable(e.target.checked === (booking.mode === 'all') ? null : e.target.checked)} />
-                <span>Można rezerwować</span>
+                <span>{t('calendarApp.editor.bookable')}</span>
               </label>
               {bookableNow && (
                 <div className="wk-ev-inline">
                   <label className="wk-ev-mini">
-                    <span>Miejsc</span>
+                    <span>{t('calendarApp.editor.places')}</span>
                     <input type="number" min={1} max={10000} value={capacity} placeholder={String(booking.capacity)}
                       onChange={(e) => setCapacity(e.target.value)} />
                   </label>
                   <AreaPick
-                    label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
+                    label={t('calendarApp.settings.reserve')} value={reserveArea} onChange={setReserveArea}
                     areas={areas} only={areas.filter((a) => a.personal !== true)}
-                    extras={[{ value: '', label: `rezerwuje: jak w kalendarzu (${booking.reserveAreaId === null ? 'każdy, kto znajdzie termin' : groupName(areas, booking.reserveAreaId)})` }]}
+                    extras={[{ value: '', label: t('calendarApp.editor.reserveAsCalendar', { who: booking.reserveAreaId === null ? t('calendarApp.editor.anyoneFinds') : groupName(areas, booking.reserveAreaId) }) }]}
                   />
                 </div>
               )}
@@ -769,7 +762,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         {!onlyTime && shows('place') && (
           <div className="wk-ev-row">
             <Icon name="place" />
-            <input aria-label="Miejsce" value={location} maxLength={300} placeholder="Miejsce, np. salka parafialna" autoFocus={fresh === 'place'}
+            <input aria-label={t('calendarApp.editor.extra.place')} value={location} maxLength={300} placeholder={t('calendarApp.editor.placePlaceholder')} autoFocus={fresh === 'place'}
               onChange={(e) => setLocation(e.target.value)} />
           </div>
         )}
@@ -777,7 +770,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         {!onlyTime && shows('notes') && (
           <div className="wk-ev-row">
             <Icon name="compose" />
-            <textarea aria-label="Notatka" rows={3} value={notes} placeholder="Notatka" autoFocus={fresh === 'notes'}
+            <textarea aria-label={t('calendarApp.editor.extra.notes')} rows={3} value={notes} placeholder={t('calendarApp.editor.extra.notes')} autoFocus={fresh === 'notes'}
               onChange={(e) => setNotes(e.target.value)} />
           </div>
         )}
@@ -786,7 +779,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           <div className="wk-ev-row">
             <Icon name="users" />
             <div className="wk-ev-body">
-              <span className="wk-ev-label">{peopleWord(kind)}{onlyTime ? ' — ten termin' : ''}</span>
+              <span className="wk-ev-label">{peopleWord(kind)}{onlyTime ? ` ${t('calendarApp.editor.thisOne')}` : ''}</span>
               <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned} defaultDuty={dutyOf(kind)} />
             </div>
           </div>
@@ -796,11 +789,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           <div className="wk-ev-row">
             <Icon name="link" />
             <div className="wk-ev-body wk-ev-link">
-              <input type="text" inputMode="url" autoComplete="url" spellCheck={false} aria-label="Link do informacji" value={link} maxLength={1000}
-                placeholder="https://… albo #/strona na recreatio.pl" autoFocus={fresh === 'link'} onChange={(e) => setLink(e.target.value)} />
-              <input aria-label="Napis na przycisku" value={linkLabel} maxLength={60} placeholder="Napis: Więcej informacji" disabled={link.trim() === ''}
+              <input type="text" inputMode="url" autoComplete="url" spellCheck={false} aria-label={t('calendarApp.editor.linkLabel')} value={link} maxLength={1000}
+                placeholder={t('calendarApp.editor.linkPlaceholder')} autoFocus={fresh === 'link'} onChange={(e) => setLink(e.target.value)} />
+              <input aria-label={t('calendarApp.editor.buttonText')} value={linkLabel} maxLength={60} placeholder={t('calendarApp.editor.buttonPlaceholder')} disabled={link.trim() === ''}
                 onChange={(e) => setLinkLabel(e.target.value)} />
-              {link.trim() !== '' && safeLink(link) === null && <p className="wk-warn">Link musi zaczynać się od https:// (albo #/ dla strony na recreatio.pl).</p>}
+              {link.trim() !== '' && safeLink(link) === null && <p className="wk-warn">{t('calendarApp.editor.linkWarn')}</p>}
             </div>
           </div>
         )}
@@ -830,11 +823,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               onOpen={onOpenPart}
               onLink={async (child) => {
                 try { await setProgramParent(child, item.occurrence.itemId); onSaved(); }
-                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podłączyć terminu.'); }
+                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.editor.linkFailed')); }
               }}
               onUnlink={async (child) => {
                 try { await setProgramParent(child, null); onSaved(); }
-                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć terminu.'); }
+                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.editor.unlinkFailed')); }
               }} />
           </div>
         )}
@@ -842,38 +835,37 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         {/* 0070 — ein Punkt eines Programms: woran er hängt; 2026-10-24 — und „odłącz" statt der Wahl „Część programu". */}
         {target.at === 'new' && target.parentItemId !== undefined && parentItemId === target.parentItemId && (
           <p className="wk-note">
-            Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong> — kalendarz, widoczność, miejsce, link i osoby
-            są wspólne z nim. Zmień tutaj tylko to, co w tym punkcie ma być inaczej.
+            {rich(t('calendarApp.editor.newPartNote', { parent: target.parentTitle ?? t('calendarApp.editor.parentFallback') }), { b: (s) => <strong>{s}</strong> })}
           </p>
         )}
         {!onlyTime && item !== undefined && item.occurrence.parentItemId != null && (parentItemId === null ? (
           <p className="wk-note">
-            Po zapisaniu ten termin nie będzie już punktem programu.{' '}
-            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(undefined)}>Cofnij</button>
+            {t('calendarApp.editor.willDetach')}{' '}
+            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(undefined)}>{t('calendarApp.tasks.undo')}</button>
           </p>
         ) : (
           <p className="wk-note">
-            Punkt programu: <strong>{ownParent?.title ?? 'termin spoza widoku'}</strong> — to, co ma tak samo jak on, zmienia się razem z nim.{' '}
-            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(null)}>Odłącz</button>
+            {rich(t('calendarApp.editor.partNote', { parent: ownParent?.title ?? t('calendarApp.editor.parentOutside') }), { b: (s) => <strong>{s}</strong> })}{' '}
+            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(null)}>{t('calendarApp.editor.detach')}</button>
           </p>
         ))}
         {target.at === 'new' && target.origin !== undefined && (
-          <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
+          <p className="wk-note">{t('calendarApp.editor.fromChat')}</p>
         )}
         {onlyTime && (
-          <p className="wk-note">Przesuwasz tylko ten jeden termin — reszta serii zostaje, jak była. Rezerwacje przechodzą razem z nim.</p>
+          <p className="wk-note">{t('calendarApp.editor.onlyTimeNote')}</p>
         )}
 
         {/* 2026-10-24 — was noch dazukommen kann. */}
         {(adds.length > 0 || fieldAdds.length > 0) && (
-          <div className="wk-ev-adds" role="group" aria-label="Dodaj do terminu">
+          <div className="wk-ev-adds" role="group" aria-label={t('calendarApp.editor.addTo')}>
             {adds.map((x) => (
-              <button key={x.key} type="button" className="wk-ev-add" aria-label={`Dodaj: ${x.label}`} onClick={() => add(x.key)}>
-                <span aria-hidden="true">+</span> {x.label}
+              <button key={x.key} type="button" className="wk-ev-add" aria-label={t('calendarApp.editor.addOne', { what: t(`calendarApp.editor.extra.${x.key}`) })} onClick={() => add(x.key)}>
+                <span aria-hidden="true">+</span> {t(`calendarApp.editor.extra.${x.key}`)}
               </button>
             ))}
             {fieldAdds.map(({ f, level }) => (
-              <button key={`${level}:${f.key}`} type="button" className="wk-ev-add" aria-label={`Dodaj: ${f.label}`}
+              <button key={`${level}:${f.key}`} type="button" className="wk-ev-add" aria-label={t('calendarApp.editor.addOne', { what: f.label })}
                 onClick={() => { setFieldsOpen((was) => new Set(was).add(`${level}:${f.key}`)); setFreshField(`${level}:${f.key}`); }}>
                 <span aria-hidden="true">+</span> {f.label}
               </button>
@@ -884,11 +876,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         {failed !== null && <p className="wk-error">{failed}</p>}
 
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
+          <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('common.saving') : t('common.save')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
           {item !== undefined && (
             <button type="button" className="wk-link-btn wk-danger wk-ev-delete" disabled={busy} onClick={remove}>
-              {repeating && scope === 'one' ? 'Odwołaj ten termin' : repeating && scope === 'following' && hasEarlier ? 'Zakończ serię przed tym dniem' : 'Usuń'}
+              {repeating && scope === 'one' ? t('calendarApp.editor.cancelOne') : repeating && scope === 'following' && hasEarlier ? t('calendarApp.editor.endSeries') : t('common.delete')}
             </button>
           )}
         </div>

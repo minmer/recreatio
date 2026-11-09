@@ -14,6 +14,7 @@
 import { groupNameAad, moduleNameAad, nameText, openName, sealUnderArea } from '../core/names';
 import type { Repeat } from '../forms/rounds';
 import { call, WorkspaceError } from '../core/session';
+import { t, texts } from '../core/i18n';
 
 /**
  * Der Inhalt eines Bausteins, aus seinem gespeicherten `config` gelesen.
@@ -61,12 +62,12 @@ export function readConfig(text: string | null | undefined): Record<string, stri
 export const SUBJECTS = ['none', 'person', 'group', 'role'] as const;
 export type Subject = (typeof SUBJECTS)[number];
 
-export const SUBJECT_LABEL: Record<Subject, string> = {
-  none: 'Niczyj — zwykły formularz',
-  person: 'Osoby',
-  group: 'Grupy',
-  role: 'Roli'
-};
+export const SUBJECT_LABEL: Record<Subject, string> = texts({
+  none: 'modules.subject.none',
+  person: 'modules.subject.person',
+  group: 'modules.subject.group',
+  role: 'modules.subject.role'
+});
 
 export interface ModuleRow {
   readonly moduleId: string;
@@ -220,7 +221,7 @@ export async function loadModules(): Promise<{ modules: readonly ModuleRow[]; gr
 /** 0097 — eine Gruppe gehört einem Bereich: unter seinem Schlüssel liegt ihr Name. */
 export async function createFormGroup(groupId: string, name: string, areaId: string): Promise<{ groupId: string; name: string }> {
   const clean = nameText(name);
-  if (clean === '') throw new WorkspaceError('Grupa potrzebuje nazwy.');
+  if (clean === '') throw new WorkspaceError(t('modules.err.groupName'));
   await call('/workspace/form-groups', {
     method: 'POST',
     body: JSON.stringify({ groupId, areaId, ...await sealUnderArea(areaId, groupNameAad(groupId), clean) })
@@ -235,8 +236,8 @@ export async function updateFormGroup(
   let named = {};
   if (change.name !== undefined) {
     const clean = nameText(change.name);
-    if (clean === '') throw new WorkspaceError('Grupa potrzebuje nazwy.');
-    if (areaId == null) throw new WorkspaceError('Ta grupa nie ma obszaru — jej nazwy nie ma czym zapieczętować.');
+    if (clean === '') throw new WorkspaceError(t('modules.err.groupName'));
+    if (areaId == null) throw new WorkspaceError(t('modules.err.groupArea'));
     named = await sealUnderArea(areaId, groupNameAad(groupId), clean);
   }
   return call(`/workspace/form-group/${encodeURIComponent(groupId)}`, {
@@ -272,7 +273,7 @@ export async function createModule(
   let named: Record<string, unknown> = { name: clean };
 
   if (kind === 'form') {
-    if (areaId === null) throw new WorkspaceError('Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.');
+    if (areaId === null) throw new WorkspaceError(t('modules.err.formArea'));
     named = { ...await sealUnderArea(areaId, moduleNameAad(moduleId), clean) };
   }
 
@@ -334,7 +335,7 @@ export async function updateModule(
   const moving = change.clearArea === true || change.areaId !== undefined;
   if (name !== undefined || moving) {
     const row = known ?? (await loadModules()).modules.find((one) => one.moduleId === moduleId);
-    if (row === undefined) throw new WorkspaceError('Takiego modułu nie ma.');
+    if (row === undefined) throw new WorkspaceError(t('modules.err.noModule'));
 
     if (row.kind === 'form') {
       const target = change.clearArea === true ? null : change.areaId ?? row.areaId;
@@ -344,11 +345,11 @@ export async function updateModule(
       const text = name !== undefined ? nameText(name) : reallyMoving && row.nameLocked !== true && row.nameMissing !== true ? row.name : null;
       named = {};
       if (text !== null) {
-        if (text === '') throw new WorkspaceError('Formularz potrzebuje nazwy.');
-        if (target === null) throw new WorkspaceError('Formularz potrzebuje obszaru — pod jego kluczem leży nazwa.');
+        if (text === '') throw new WorkspaceError(t('modules.err.formName'));
+        if (target === null) throw new WorkspaceError(t('modules.err.formArea'));
         named = { ...await sealUnderArea(target, moduleNameAad(moduleId), text) };
       } else if (reallyMoving && row.nameLocked === true) {
-        throw new WorkspaceError('Nazwy tego formularza nie da się otworzyć — bez niej nie przeniesiesz go do innego obszaru.');
+        throw new WorkspaceError(t('modules.err.nameLocked'));
       }
     }
   }

@@ -18,6 +18,7 @@ import { areaKeys, newestKey } from '../chat/chat';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
+import { t, texts } from '../core/i18n';
 import { call, WorkspaceError } from '../core/session';
 import type { RuleCtx, RuleResult, Weekday } from './flow/flowModel';
 import type { RecordList } from './scheme';
@@ -26,13 +27,13 @@ import type { DraftValue, OpenValue } from './schemeValues';
 export type RecordStatus = 'waiting' | 'accepted' | 'declined' | 'cancelled' | 'celebrated';
 export type RecordOrigin = 'office' | 'outside' | 'rule' | 'legacy';
 
-export const STATUS_LABEL: Record<RecordStatus, string> = {
-  waiting: 'czeka', accepted: 'przyjęty', declined: 'odrzucony', cancelled: 'wycofany', celebrated: 'odbyty'
-};
+export const STATUS_LABEL: Readonly<Record<RecordStatus, string>> = texts({
+  waiting: 'calendarDataScheme.status.waiting', accepted: 'calendarDataScheme.status.accepted', declined: 'calendarDataScheme.status.declined', cancelled: 'calendarDataScheme.status.cancelled', celebrated: 'calendarDataScheme.status.celebrated'
+});
 
 /** Bei Intentionen heisst „odbyty" „odprawiona". */
 export const statusWord = (list: string, status: RecordStatus): string =>
-  list === 'intencje' ? ({ accepted: 'przyjęta', celebrated: 'odprawiona', cancelled: 'wycofana', declined: 'odrzucona', waiting: 'czeka' } as const)[status] : STATUS_LABEL[status];
+  list === 'intencje' ? t(`calendarDataScheme.intentionStatus.${status}`) : STATUS_LABEL[status];
 
 export interface RecordValueRow {
   readonly field: string;
@@ -117,9 +118,9 @@ async function sealRecordValues(
   const hidden = values.filter((v) => v.publicLabel === undefined && v.text.trim() !== '');
   let newest: { key: Uint8Array; epoch: number } | null = null;
   if (hidden.length > 0) {
-    if (areaId === null) throw new WorkspaceError('Z zewnątrz można podać tylko jawne pola.');
+    if (areaId === null) throw new WorkspaceError(t('calendarDataScheme.recordOutsidePublic'));
     newest = newestKey(await areaKeys(ring, areaId, true));
-    if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+    if (newest === null) throw new WorkspaceError(t('calendarDataJson.run.noKey'));
   }
   for (const v of values) {
     const text = v.text.trim();

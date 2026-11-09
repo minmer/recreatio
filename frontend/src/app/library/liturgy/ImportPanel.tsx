@@ -8,7 +8,9 @@ import { commitImport, exportEntities, storeStamp } from './persistence';
 import { jsonSchema, type LitEntity } from './schema';
 import { download } from './export';
 import { liturgyDescription } from './description';
-import example from '../../../../../templates/liturgy/complete-example.json';
+
+/* Das Beispiel (95 kB) kommt erst mit dem Klick — nicht mit jeder geöffneten Liturgia. */
+const loadExample = () => import('../../../../../templates/liturgy/complete-example.json').then((m) => JSON.stringify(m.default, null, 2));
 
 export function ImportPanel({ store, library, initial }: { store: LibraryStore; library: OpenLibrary; initial?: LitEntity }) {
   const t = useT();
@@ -41,7 +43,7 @@ export function ImportPanel({ store, library, initial }: { store: LibraryStore; 
       }}>{t('liturgy.refreshSnapshot')}</button>}
     </div>
     <p className="lit-meta">{t('liturgy.exampleHint')}</p>
-    {library.writes && <button className="wk-btn wk-btn-quiet" disabled={busy || text.trim().length > 0} onClick={() => setText(JSON.stringify(example, null, 2))}>{t('liturgy.loadExample')}</button>}
+    {library.writes && <button className="wk-btn wk-btn-quiet" disabled={busy || text.trim().length > 0} onClick={() => void loadExample().then(setText, () => setFailed(t('common.failed')))}>{t('liturgy.loadExample')}</button>}
     {!library.writes ? <p className="lit-meta">{t('liturgy.readOnly')}</p> : <>
       <label className="wk-field"><span>{t('liturgy.jsonFile')}</span><input type="file" accept="application/json,.json" disabled={busy} onChange={async e => {
         const file = e.target.files?.[0]; if (!file) return;

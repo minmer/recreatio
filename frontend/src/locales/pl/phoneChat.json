@@ -1,0 +1,72 @@
+{
+  "head": {
+    "searchPh": "Szukaj w rozmowie…",
+    "search": "Szukaj w rozmowie",
+    "closeSearch": "Zamknij wyszukiwanie",
+    "all": "Wszystkie wiadomości",
+    "mutedTitle": "Wyciszona — bez powiadomień",
+    "muted": "wyciszona",
+    "call": "Zadzwoń",
+    "moreOptions": "Więcej opcji rozmowy",
+    "options": "Opcje rozmowy"
+  },
+  "line": {
+    "reset": "Jak dotąd: według grupy i ostatniej wiadomości",
+    "title": "Wysyłasz z numeru: {line} — {why}",
+    "which": "Z którego numeru",
+    "head": "Wysyłaj z numeru · {why}"
+  },
+  "arch": {
+    "onTitle": "Ta rozmowa trafia do archiwum",
+    "offTitle": "Ta rozmowa nie jest archiwizowana",
+    "on": "w archiwum",
+    "off": "poza archiwum"
+  },
+  "log": {
+    "you": "Ty",
+    "copyText": "Tylko treść",
+    "copyWho": "Z nadawcą i godziną",
+    "unread": "Nieprzeczytane",
+    "picked": "Zaznaczone wiadomości",
+    "cancelPick": "Anuluj zaznaczenie",
+    "pickedCount": "Zaznaczone:",
+    "show": "Wyświetl",
+    "copyWhoTitle": "Kopiuj z nadawcą i godziną",
+    "copyTextTitle": "Kopiuj samą treść",
+    "copyHow": "Jak kopiować",
+    "copyRemembered": "Kopiuj — wybór zostaje zapamiętany",
+    "earlier": "Wczytaj wcześniejsze",
+    "loading": "Wczytywanie rozmowy…",
+    "empty": "Nie ma tu jeszcze wiadomości.",
+    "noMatch": "Nic nie pasuje do „{search}” we wczytanych wiadomościach.",
+    "newJump": "Nowe wiadomości: {count} — przejdź do nich",
+    "toBottom": "Przewiń na dół"
+  },
+  "row": {
+    "notSent": "nie wysłano",
+    "sent": "Wysłana"
+  },
+  "mute": {
+    "title": "Wyciszyć rozmowę?",
+    "body": "Wiadomości dalej przychodzą i są w rozmowie — telefon tylko o nich nie powiadamia.",
+    "hours8": "Na 8 godzin",
+    "week": "Na tydzień",
+    "forever": "Na zawsze"
+  },
+  "block": {
+    "title": "Zablokować: {title}?",
+    "body": "Telefon nie przyjmie już od tego nadawcy SMS ani MMS. Blokada działa w całym telefonie — także dla połączeń. Rozmowa zniknie z telefonu. Odblokować można w SMS → ⋮ → Zablokowane numery.",
+    "alsoArchive": "Usuń ją też z archiwum",
+    "confirm": "Zablokuj i usuń"
+  },
+  "plan": {
+    "inHour": "Za godzinę",
+    "today18": "Dziś o 18:00",
+    "tomorrow9": "Jutro o 9:00",
+    "monday9": "W poniedziałek o 9:00",
+    "future": "Wybierz przyszły termin.",
+    "year": "Najdalej za rok.",
+    "exact": "Dokładny termin",
+    "plan": "Zaplanuj"
+  }
+}

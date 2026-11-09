@@ -919,5 +919,25 @@
   "landscapeClient": {
     "failed": "Landschaft: Fehler bei der Berechnung.",
     "workerDied": "Landschaft: der Worker arbeitet nicht mehr."
+  },
+  "choice": {
+    "hit": "richtig gewählt",
+    "missed": "übersehen — auch richtig",
+    "wrong": "falsch gewählt",
+    "left": "richtig weggelassen",
+    "right": "richtige Antwort",
+    "wrongAnswer": "falsche Antwort"
+  },
+  "home": {
+    "title": "Dein Zuhause",
+    "fullTitle": "Dein Lernen — alle Zahlen und Auszeichnungen",
+    "numbers": "{land} von {topics} Themen gekonnt · {won} von {regions} Gebieten erobert · {ready} bereit · {due} Karten zu wiederholen",
+    "review": "Wiederholen ({n})",
+    "stackLine": "je {n} Karten auf einmal",
+    "all": "Alle Zahlen und Auszeichnungen",
+    "hint": "Ein Doppelklick auf das Haus öffnet gleich alles.",
+    "close": "Schließen",
+    "settings": "Wie du lernst",
+    "noLearner": "Zahlen und Auszeichnungen erscheinen, sobald du lernst."
   }
 }

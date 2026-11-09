@@ -52,6 +52,7 @@
  */
 
 import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from '../core/dayMath';
+import { t, texts } from '../core/i18n';
 import type { PartSize } from '../pages/part';
 
 /** Wie die Kachel zeichnet. */
@@ -190,31 +191,27 @@ export const daysToLoad = (shown: MassView): number => Math.min(33, shown.days +
 /** Was die Kachel in dieser Grösse zeigt — ein Satz für den Editor. */
 export function massSays(shown: MassView): string {
   const tools = shown.browse === 'step'
-    ? ' Strzałki i kalendarz: dowolny dzień.'
+    ? ` ${t('masses.shape.toolsStep')}`
     : shown.browse === 'full'
-      ? ` Widoki: ${shown.modes.map((m) => MODE_WORD[m].toLowerCase()).join(', ')}; kalendarz do wyboru daty.`
+      ? ` ${t('masses.shape.toolsFull', { modes: shown.modes.map((m) => MODE_WORD[m].toLowerCase()).join(', ') })}`
       : '';
   return glanceSays(shown) + tools;
 }
 
 /** Wie die Ansichten in der Kachel heissen. */
-export const MODE_WORD: Record<MassMode, string> = {
-  soon: 'Najbliższe', day: 'Dzień', week: 'Tydzień', month: 'Miesiąc'
-};
+export const MODE_WORD: Readonly<Record<MassMode, string>> = texts({
+  soon: 'masses.shape.mode.soon', day: 'masses.shape.mode.day', week: 'masses.shape.mode.week', month: 'masses.shape.mode.month'
+});
 
 function glanceSays(shown: MassView): string {
-  const days = (n: number) => (n === 1 ? '1 dzień' : `${n} dni`);
-
   switch (shown.form) {
-    case 'next': return 'Najbliższa msza i za ile — w pasku nie zmieści się więcej.';
-    case 'hours': return shown.days === 1
-      ? 'Godziny mszy dnia; te, które już minęły, przygaszone.'
-      : 'Godziny mszy dziś i następnego dnia.';
-    case 'ticker': return 'Najbliższa msza z intencją, za nią kolejne godziny.';
-    case 'spotlight': return 'Najbliższa msza z intencjami, pod nią godziny na kolejne dni.';
-    case 'day': return 'Jeden dzień msza po mszy, z intencjami, spowiedzią i nabożeństwami; następny w jednym wierszu.';
-    case 'columns': return `${days(shown.days)} obok siebie (${shown.columns} kolumny), z intencjami, spowiedzią i nabożeństwami.`;
-    case 'stack': return `${days(shown.days)} jeden pod drugim, z intencjami, spowiedzią i nabożeństwami.`;
+    case 'next': return t('masses.shape.next');
+    case 'hours': return shown.days === 1 ? t('masses.shape.hoursOne') : t('masses.shape.hoursTwo');
+    case 'ticker': return t('masses.shape.ticker');
+    case 'spotlight': return t('masses.shape.spotlight');
+    case 'day': return t('masses.shape.day');
+    case 'columns': return t('masses.shape.columns', { count: shown.days, columns: shown.columns });
+    case 'stack': return t('masses.shape.stack', { count: shown.days });
   }
 }
 
@@ -286,14 +283,14 @@ export function soon(one: Timed, now: Date): string | null {
   const end = ms(one.endsAt);
   const at = now.getTime();
 
-  if (start <= at && at < end) return 'trwa';
+  if (start <= at && at < end) return t('masses.soon.now');
 
   const minutes = Math.round((start - at) / 60_000);
   if (minutes < 0) return null;
-  if (minutes < 1) return 'za chwilę';
-  if (minutes < 60) return `za ${minutes} min`;
+  if (minutes < 1) return t('masses.soon.moment');
+  if (minutes < 60) return t('masses.soon.minutes', { count: minutes });
 
   const hours = Math.round(minutes / 60);
-  if (hours <= 12) return `za ok. ${hours} godz.`;
+  if (hours <= 12) return t('masses.soon.hours', { count: hours });
   return null;
 }

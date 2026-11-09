@@ -8,13 +8,16 @@
 
 import { useState } from 'react';
 
-import { AreaRow, asOptionalText, asRecord, asText, count, defineEventPart, ListEditor, mapEntries, TextRow } from '../event/kit';
+import { t, useT } from '../../core/i18n';
+import { lazyPart } from './partTexts';
+import { AreaRow, asOptionalText, asRecord, asText, defineEventPart, ListEditor, mapEntries, TextRow } from '../event/kit';
 
 type Row = { time: string | null; title: string; detail: string | null };
 type Group = { label: string; caption: string | null; rows: Row[] };
 type PlanConfig = { groups: Group[]; note: string | null };
 
 function Plan({ config, all }: { config: PlanConfig; all: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set([0]));
   const groups = config.groups.filter((g) => g.label !== '' || g.rows.some((r) => r.title !== ''));
 
@@ -35,7 +38,7 @@ function Plan({ config, all }: { config: PlanConfig; all: boolean }) {
                 </h3>
               )}
               {group.caption !== null && <p>{group.caption}</p>}
-              {!shown && <p className="ev-plan-count">{count(rows.length, 'punkt', 'punkty', 'punktów')}</p>}
+              {!shown && <p className="ev-plan-count">{t('moduleData.plan.points', { count: rows.length })}</p>}
             </header>
             {shown && (
               <ol className="ev-plan-rows">
@@ -58,33 +61,34 @@ function Plan({ config, all }: { config: PlanConfig; all: boolean }) {
   );
 }
 
-export const planPart = defineEventPart<PlanConfig>({
+/* Die Texte der Beschreibung je Sprache (`lazyPart`): `defineEventPart` liest sie beim Anlegen. */
+export const planPart = lazyPart(() => defineEventPart<PlanConfig>({
   kind: 'plan',
-  label: 'Plan',
-  use: 'Program pogrupowany w etapy (dni), z godzinami.',
+  label: t('moduleData.plan.label'),
+  use: t('moduleData.plan.use'),
   box: { colSpan: 6, rowSpan: 3 },
-  strip: { title: 'Plan', open: 'Pokaż program' },
+  strip: { title: t('moduleData.plan.label'), open: t('moduleData.plan.open') },
   fullscreen: true,
 
   blank: () => ({ groups: [], note: null }),
   example: () => ({
     groups: [
-      { label: 'Piątek', caption: 'Kraków → Olkusz', rows: [{ time: '7:00', title: 'Msza św. na rozpoczęcie', detail: 'Kościół św. Józefa' }, { time: '8:00', title: 'Wyjazd', detail: null }] },
-      { label: 'Sobota', caption: 'Olkusz → Częstochowa', rows: [{ time: '8:30', title: 'Wyjazd', detail: null }, { time: '17:00', title: 'Jasna Góra', detail: 'Apel Jasnogórski o 21:00' }] }
+      { label: t('moduleData.plan.ex.friday'), caption: t('moduleData.plan.ex.route1'), rows: [{ time: '7:00', title: t('moduleData.plan.ex.mass'), detail: t('moduleData.plan.ex.church') }, { time: '8:00', title: t('moduleData.plan.ex.departure'), detail: null }] },
+      { label: t('moduleData.plan.ex.saturday'), caption: t('moduleData.plan.ex.route2'), rows: [{ time: '8:30', title: t('moduleData.plan.ex.departure'), detail: null }, { time: '17:00', title: t('moduleData.plan.ex.jasnaGora'), detail: t('moduleData.plan.ex.appeal') }] }
     ],
     note: null
   }),
 
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
-    groups: 'Etapy programu (np. dni) — lista',
-    'groups[].label': 'Nazwa etapu, np. "Piątek"',
-    'groups[].caption': 'Podpis pod nazwą (albo null)',
-    'groups[].rows': 'Punkty programu w tym etapie — lista',
-    'groups[].rows[].time': 'Godzina, np. "9:00" (albo null)',
-    'groups[].rows[].title': 'Co się dzieje',
-    'groups[].rows[].detail': 'Szczegóły (albo null)',
-    note: 'Uwaga pod programem (albo null)'
+    groups: t('moduleData.plan.k.groups'),
+    'groups[].label': t('moduleData.plan.k.groupLabel'),
+    'groups[].caption': t('moduleData.plan.k.groupCaption'),
+    'groups[].rows': t('moduleData.plan.k.rows'),
+    'groups[].rows[].time': t('moduleData.plan.k.time'),
+    'groups[].rows[].title': t('moduleData.plan.k.title'),
+    'groups[].rows[].detail': t('moduleData.plan.k.detail'),
+    note: t('moduleData.plan.k.note')
   },
 
   parse: (raw) => {
@@ -102,44 +106,47 @@ export const planPart = defineEventPart<PlanConfig>({
 
   hasContent: (c) => c.groups.some((g) => g.rows.some((r) => r.title !== '')),
 
-  shows: (c, size) => size.height === 'strip' ? 'Przycisk, który rozwija program.'
-    : size.height === 'tall' ? `Wszystkie etapy rozwinięte (${c.groups.length}).`
-    : 'Pierwszy etap rozwinięty, pozostałe do rozwinięcia.',
+  shows: (c, size) => size.height === 'strip' ? t('moduleData.plan.showsStrip')
+    : size.height === 'tall' ? t('moduleData.plan.showsTall', { count: c.groups.length })
+    : t('moduleData.plan.showsBlock'),
 
   Body: ({ config, ctx }) => <Plan config={config} all={ctx.size.height === 'tall' || ctx.whole === true} />,
 
-  Edit: ({ config, onChange }) => (
+  Edit: function PlanEdit({ config, onChange }) {
+    const t = useT();
+    return (
     <>
       <ListEditor<Group>
-        legend="Etapy"
+        legend={t('moduleData.plan.groups')}
         items={config.groups}
-        addLabel="Dodaj etap"
-        blank={() => ({ label: `Dzień ${config.groups.length + 1}`, caption: null, rows: [] })}
-        titleOf={(item, index) => item.label || `Etap ${index + 1}`}
+        addLabel={t('moduleData.plan.addGroup')}
+        blank={() => ({ label: t('moduleData.plan.dayN', { n: config.groups.length + 1 }), caption: null, rows: [] })}
+        titleOf={(item, index) => item.label || t('moduleData.plan.groupN', { n: index + 1 })}
         onChange={(groups) => onChange({ ...config, groups })}
         renderItem={(group, updateGroup) => (
           <>
-            <TextRow label="Nazwa etapu" value={group.label} onChange={(label) => updateGroup({ ...group, label })} />
-            <TextRow label="Podpis" value={group.caption ?? ''} onChange={(caption) => updateGroup({ ...group, caption: caption || null })} />
+            <TextRow label={t('moduleData.plan.groupName')} value={group.label} onChange={(label) => updateGroup({ ...group, label })} />
+            <TextRow label={t('moduleData.plan.caption')} value={group.caption ?? ''} onChange={(caption) => updateGroup({ ...group, caption: caption || null })} />
             <ListEditor<Row>
-              legend="Punkty programu"
+              legend={t('moduleData.plan.rows')}
               items={group.rows}
-              addLabel="Dodaj punkt"
+              addLabel={t('moduleData.plan.addRow')}
               blank={() => ({ time: null, title: '', detail: null })}
-              titleOf={(row, index) => [row.time, row.title].filter(Boolean).join(' · ') || `Punkt ${index + 1}`}
+              titleOf={(row, index) => [row.time, row.title].filter(Boolean).join(' · ') || t('moduleData.plan.rowN', { n: index + 1 })}
               onChange={(rows) => updateGroup({ ...group, rows })}
               renderItem={(row, updateRow) => (
                 <>
-                  <TextRow label="Godzina" value={row.time ?? ''} placeholder="9:00" onChange={(time) => updateRow({ ...row, time: time || null })} />
-                  <TextRow label="Co się dzieje" value={row.title} onChange={(title) => updateRow({ ...row, title })} />
-                  <TextRow label="Szczegóły" value={row.detail ?? ''} onChange={(detail) => updateRow({ ...row, detail: detail || null })} />
+                  <TextRow label={t('moduleData.plan.time')} value={row.time ?? ''} placeholder="9:00" onChange={(time) => updateRow({ ...row, time: time || null })} />
+                  <TextRow label={t('moduleData.plan.what')} value={row.title} onChange={(title) => updateRow({ ...row, title })} />
+                  <TextRow label={t('moduleData.plan.detail')} value={row.detail ?? ''} onChange={(detail) => updateRow({ ...row, detail: detail || null })} />
                 </>
               )}
             />
           </>
         )}
       />
-      <AreaRow label="Uwaga" rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
+      <AreaRow label={t('moduleData.plan.note')} rows={2} value={config.note ?? ''} onChange={(note) => onChange({ ...config, note: note || null })} />
     </>
-  )
-});
+    );
+  }
+}));

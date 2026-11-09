@@ -11,19 +11,20 @@ import { loadAreas, loadMembers } from '../areas/area';
 import { areaKeys, loadAreaNames, looksLikeCode, openNames, roleCard, type ChatRow, type Invitee } from '../chat/chat';
 import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
+import { t, texts, useT } from '../core/i18n';
 
 interface Me {
   readonly ring: Ring;
   readonly names: ReadonlyMap<string, string>;
 }
 
-export const KIND: Record<string, string> = { person: 'osoba', role: 'rola', group: 'grupa', account: 'konto' };
+export const KIND: Record<string, string> = texts({ person: 'roles.picker.kind.person', role: 'roles.picker.kind.role', group: 'roles.picker.kind.group', account: 'roles.picker.kind.account' });
 
 export const shortId = (id: string) => id.slice(0, 8);
 
 /** Wie ein Mitglied heisst: sein Name in diesem Bereich, sonst meiner für meine Rollen, sonst Art und Kennung. */
-export const nameOf = (roleId: string, kind: string | undefined, names: ReadonlyMap<string, string>, mine: ReadonlyMap<string, string>) =>
-  names.get(roleId) ?? mine.get(roleId) ?? `${KIND[kind ?? 'person'] ?? 'osoba'} · ${shortId(roleId)}`;
+export const nameOf = (roleId: string, kind: string | undefined, names: ReadonlyMap<string, string>, mine: ReadonlyMap<string, string>) => // i18n-ignore — Typen, kein Text
+  names.get(roleId) ?? mine.get(roleId) ?? `${KIND[kind ?? 'person'] ?? t('roles.picker.kind.person')} · ${shortId(roleId)}`;
 
 /** Wen ich schon kenne — aus meinen Rozmowy, mit dem Namen, den sie dort tragen. Ohne Schlüssel (`null`): niemanden. */
 export function useKnown(me: Pick<Me, 'ring' | 'names'> | null, chats: readonly ChatRow[]): readonly Invitee[] {
@@ -43,7 +44,7 @@ export function useKnown(me: Pick<Me, 'ring' | 'names'> | null, chats: readonly 
           out.set(m.roleId, { roleId: m.roleId, kind: m.kind, wrapPublicKey: m.wrapPublicKey, name: nameOf(m.roleId, m.kind, names, me.names) });
         }
       }
-      if (alive) setKnown([...out.values()].sort((a, b) => a.name.localeCompare(b.name, 'pl')));
+      if (alive) setKnown([...out.values()].sort((a, b) => a.name.localeCompare(b.name)));
     })();
     return () => { alive = false; };
   }, [key]);
@@ -83,7 +84,7 @@ export function useKnownInAreas(me: Pick<Me, 'ring' | 'names'> | null): readonly
           // Ein Bereich, der nicht aufgeht, hält die anderen nicht auf.
         }
       }));
-      if (alive) setKnown([...out.values()].sort((x, y) => x.name.localeCompare(y.name, 'pl')));
+      if (alive) setKnown([...out.values()].sort((x, y) => x.name.localeCompare(y.name)));
     })();
     return () => { alive = false; };
   }, [me]);
@@ -102,6 +103,7 @@ export function InviteePicker({ known, chosen, single, busy, onChange }: {
   busy: boolean;
   onChange: (next: readonly Invitee[]) => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [looking, setLooking] = useState(false);
@@ -114,8 +116,8 @@ export function InviteePicker({ known, chosen, single, busy, onChange }: {
 
   const byCode = async () => {
     setFailed(null);
-    if (!looksLikeCode(code)) { setFailed('To nie wygląda na kod do rozmów — skopiuj go w całości.'); return; }
-    if (name.trim() === '') { setFailed('Wpisz, jak ta osoba ma się tu nazywać.'); return; }
+    if (!looksLikeCode(code)) { setFailed(t('roles.picker.badCode')); return; }
+    if (name.trim() === '') { setFailed(t('roles.picker.needName')); return; }
     setLooking(true);
     try {
       const card = await roleCard(code);
@@ -123,7 +125,7 @@ export function InviteePicker({ known, chosen, single, busy, onChange }: {
       setCode('');
       setName('');
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się znaleźć tego kodu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('roles.picker.notFound'));
     } finally {
       setLooking(false);
     }
@@ -133,14 +135,14 @@ export function InviteePicker({ known, chosen, single, busy, onChange }: {
 
   return (
     <div className="wk-field wk-chat-pick">
-      <span>{single ? 'Z kim' : 'Kto jeszcze'}</span>
+      <span>{single ? t('roles.picker.withWhom') : t('roles.picker.whoElse')}</span>
 
       {chosen.length > 0 && (
         <span className="wk-slot-people">
           {chosen.map((c) => (
             <span key={c.roleId} className="wk-tag">
               {c.name}
-              <button type="button" className="wk-chip-x" aria-label={`Usuń: ${c.name}`} disabled={busy}
+              <button type="button" className="wk-chip-x" aria-label={t('roles.picker.remove', { name: c.name })} disabled={busy}
                 onClick={() => onChange(chosen.filter((x) => x.roleId !== c.roleId))}>×</button>
             </span>
           ))}
@@ -159,20 +161,19 @@ export function InviteePicker({ known, chosen, single, busy, onChange }: {
 
       {(!single || chosen.length === 0) && (
         <span className="wk-chat-bycode">
-          <input value={code} placeholder="Kod do rozmów (np. 01a0…)" aria-label="Kod do rozmów"
+          <input value={code} placeholder={t('roles.picker.codePlaceholder')} aria-label={t('roles.picker.code')}
             onChange={(e) => setCode(e.target.value)} />
-          <input value={name} placeholder="Jak się nazywa" aria-label="Nazwa tej osoby"
+          <input value={name} placeholder={t('roles.picker.namePlaceholder')} aria-label={t('roles.picker.name')}
             onChange={(e) => setName(e.target.value)} />
           <button type="button" className="wk-link-btn" disabled={busy || looking} onClick={() => void byCode()}>
-            {looking ? 'Szukanie…' : 'Dodaj po kodzie'}
+            {looking ? t('roles.picker.looking') : t('roles.picker.addByCode')}
           </button>
         </span>
       )}
 
       {failed !== null && <span className="wk-error">{failed}</span>}
       <span className="wk-hint">
-        Kod do rozmów ma każda osoba i rola — znajdzie go u siebie w „Rozmowach". Nazwę, którą tu wpiszesz,
-        zobaczą tylko uczestnicy rozmowy.
+        {t('roles.picker.hint')}
       </span>
     </div>
   );

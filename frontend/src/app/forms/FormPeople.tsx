@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import type { Ring } from '../core/keys';
+import { fmtDate, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { formPath } from '../routes';
 import { checkText } from '../seats/seatCheck';
@@ -85,6 +86,7 @@ export function People({
   onChanged: () => Promise<void>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const t = useT();
 
   /* „Napisz SMS": `null` heisst aus. Der Text gilt nur für diesen Durchgang. */
   const [smsText, setSmsText] = useState<string | null>(null);
@@ -123,7 +125,7 @@ export function People({
 
   const rows = everyone.filter((r) => stepMatches(stepFilter, r.states) && (!onlyNew || freshCount === 0 || isNew(r.s)));
 
-  if (everyone.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
+  if (everyone.length === 0) return <p className="wk-empty">{t('formsOffice.msg.nobody')}</p>;
 
   const templates = templatesOf(config);
 
@@ -169,7 +171,7 @@ export function People({
       const body = renderSms(smsText, filled, link);
       if (!smsInApp(one.dial, body)) window.location.href = smsHref(one.dial, body);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować wiadomości.');
+      onError(e instanceof WorkspaceError ? e.message : t('formsOffice.people.smsFailed'));
     } finally {
       setWorking(null);
     }
@@ -192,19 +194,19 @@ export function People({
   return (
     <section className="wk-panel">
       <div className="wk-sms-bar">
-        <h3 className="wk-h2">Osoby ({rows.length === everyone.length ? rows.length : `${rows.length} z ${everyone.length}`})</h3>
+        <h3 className="wk-h2">{rows.length === everyone.length ? t('forms.ext.people', { count: rows.length }) : t('formsOffice.people.countOf', { count: rows.length, of: everyone.length })}</h3>
 
         <div className="wk-people-filters">
           {freshCount > 0 && (
             <button type="button" className="ui-filter is-new" aria-pressed={onlyNew}
-              title="Zgłoszenia, które przyszły od Twojego poprzedniego przeglądania" onClick={() => setOnlyNew((was) => !was)}>
-              nowe: {freshCount}
+              title={t('formsOffice.people.newTitle')} onClick={() => setOnlyNew((was) => !was)}>
+              {t('formsOffice.people.newCount', { count: freshCount })}
             </button>
           )}
 
           {stepKinds.length > 0 && (
-            <select className="wk-step-filter" value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Pokaż osoby">
-              {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            <select className="wk-step-filter" value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label={t('formsOffice.people.showPeople')}>
+              {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}
               {/* Je Schritt beide Richtungen — bei „Wybierz termin": ma termin / bez terminu / już był … */}
               {stepKinds.map((k) => (
                 <optgroup key={k.key} label={k.label}>
@@ -228,7 +230,7 @@ export function People({
             if (on) links.warm(rows.flatMap((r) => (r.s.seatId === null ? [] : [r.s.seatId])));
           }}
         >
-          {smsText === null ? 'Napisz SMS' : 'Zakończ pisanie'}
+          {smsText === null ? t('formsOffice.people.writeSms') : t('formsOffice.people.endSms')}
         </button>
       </div>
 
@@ -251,7 +253,7 @@ export function People({
         />
       )}
 
-      {rows.length === 0 && <p className="wk-empty">Nikt nie pasuje do tego filtra.</p>}
+      {rows.length === 0 && <p className="wk-empty">{t('formsOffice.people.noMatch')}</p>}
 
       <ul className="wk-entry-list">
         {rows.map(({ s, values, name, phones, states }) => {
@@ -264,7 +266,7 @@ export function People({
             <li key={s.registrationId} className={s.hidden || s.withdrawnAt !== null ? 'wk-entry is-muted' : 'wk-entry'}>
               <div className="wk-entry-head">
                 <strong className="wk-entry-name">{name}</strong>
-                {isNew(s) && <span className="wk-tag wk-tag-new">nowe</span>}
+                {isNew(s) && <span className="wk-tag wk-tag-new">{t('formsOffice.people.new')}</span>}
 
                 {/*
                   JEDE NUMMER EIN ANRUF — und im SMS-Durchgang daneben ihr
@@ -272,7 +274,7 @@ export function People({
                 */}
                 <span className="wk-entry-phones">
                   {phones.length === 0 ? (
-                    <span className="wk-hint">{values === undefined ? '' : 'brak telefonu'}</span>
+                    <span className="wk-hint">{values === undefined ? '' : t('formsOffice.people.noPhone')}</span>
                   ) : phones.map((one) => {
                     const key = `${s.registrationId}|${one.dial}`;
                     const done = sent.has(key);
@@ -285,7 +287,7 @@ export function People({
                             type="button"
                             className={done ? 'wk-sms-go is-sent' : 'wk-sms-go'}
                             disabled={working !== null || smsText.trim() === '' || s.withdrawnAt !== null}
-                            aria-label={done ? `SMS na ${one.shown} — już otwarty w tym przejściu` : `SMS na ${one.shown}`}
+                            aria-label={done ? t('formsOffice.people.smsToDone', { number: one.shown }) : t('formsOffice.people.smsTo', { number: one.shown })}
                             onClick={() => void write(s, one)}
                           >
                             {working === key ? '…' : 'SMS'}{done ? ' ✓' : ''}
@@ -297,28 +299,28 @@ export function People({
                 </span>
 
                 <span className="wk-tags">
-                  {s.hidden && <span className="wk-tag">ukryte</span>}
-                  {s.withdrawnAt !== null && <span className="wk-tag">wycofane</span>}
-                  {s.seatId === null && <span className="wk-tag">bez linku</span>}
-                  {seat !== undefined && seat.revokedAt !== null && <span className="wk-tag">link wycofany</span>}
-                  {seat?.locked === true && <span className="wk-tag">link zablokowany</span>}
+                  {s.hidden && <span className="wk-tag">{t('formsOffice.people.tagHidden')}</span>}
+                  {s.withdrawnAt !== null && <span className="wk-tag">{t('formsOffice.people.tagWithdrawn')}</span>}
+                  {s.seatId === null && <span className="wk-tag">{t('formsOffice.people.tagNoLink')}</span>}
+                  {seat !== undefined && seat.revokedAt !== null && <span className="wk-tag">{t('formsOffice.people.tagLinkWithdrawn')}</span>}
+                  {seat?.locked === true && <span className="wk-tag">{t('formsOffice.people.tagLinkLocked')}</span>}
                   {seat !== undefined && seat.asks && seat.verifiedAt === null && !seat.locked && seat.revokedAt === null && (
-                    <span className="wk-tag" title="Link czeka, aż ktoś otworzy go pierwszy raz i odpowie na pytanie">
-                      link nieotwarty
+                    <span className="wk-tag" title={t('formsOffice.people.tagUnopenedTitle')}>
+                      {t('formsOffice.people.tagUnopened')}
                     </span>
                   )}
                   {s.confirmedAt !== null && (
-                    <span className="wk-tag wk-tag-open" title={`Potwierdzone ${new Date(s.confirmedAt).toLocaleDateString('pl-PL')}`}>
-                      dane potwierdzone
+                    <span className="wk-tag wk-tag-open" title={t('formsOffice.people.confirmedAt', { date: fmtDate(new Date(s.confirmedAt), { dateStyle: 'short' }, t.lang) })}>
+                      {t('formsOffice.people.tagConfirmed')}
                     </span>
                   )}
-                  {bySms && <span className="wk-tag wk-tag-open">numer potwierdzony SMS-em</span>}
+                  {bySms && <span className="wk-tag wk-tag-open">{t('formsOffice.people.tagSms')}</span>}
                   {progress.total > 0 && (
                     <span
                       className={progress.done === progress.total ? 'wk-tag wk-tag-open' : 'wk-tag'}
-                      title={states.filter((st) => st.status !== 'done').map((st) => st.label).join(', ') || 'Wszystko zrobione'}
+                      title={states.filter((st) => st.status !== 'done').map((st) => st.label).join(', ') || t('formsOffice.people.allDone')}
                     >
-                      postęp {progress.done}/{progress.total}{progress.overdue > 0 ? ' · po terminie!' : ''}
+                      {t('formsOffice.people.progress', { done: progress.done, total: progress.total })}{progress.overdue > 0 ? ` · ${t('formsOffice.people.overdue')}` : ''}
                     </span>
                   )}
                   {/* „Wybierz termin": der Termin selbst — oder dass keiner gewählt ist. */}
@@ -331,7 +333,7 @@ export function People({
                   type="button" className="wk-link-btn wk-entry-more" aria-expanded={open}
                   onClick={() => setOpenId(open ? null : s.registrationId)}
                 >
-                  {open ? 'Mniej' : 'Więcej'}
+                  {open ? t('common.less') : t('common.more')}
                 </button>
               </div>
 
@@ -400,14 +402,16 @@ function EntryPanel({
 }) {
   const { s, values, name, states } = row;
   const on = new Set(sections);
+  const t = useT();
+  const moment = (iso: string) => new Date(iso).toLocaleString(t.locale);
 
   return (
     <>
       {on.has('answers') && (
         <>
           <p className="wk-hint">
-            Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}
-            {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
+            {t('formsOffice.people.sentAt', { date: moment(s.submittedAt) })}
+            {s.confirmedAt !== null && ` · ${t('formsOffice.people.confirmedBy', { date: moment(s.confirmedAt) })}`}
           </p>
           <Answers values={values} fields={removed.length === 0 ? fields : [...fields, ...removed]} sealed={s.values.length} checks={s.checks} />
           {/* 0083 — auch die Kanzlei druckt das Blatt (für den, der seines vergessen hat). */}
@@ -443,13 +447,13 @@ function EntryPanel({
                 <h4 className="wk-h3">
                   {ext.name}
                   <span className="wk-row-side">
-                    {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
+                    {' · '}{ext.audience === 'office' ? t('forms.settings.fillsOffice') : t('forms.card.personFills')}
                     {/* 0077 — hier steht der LAUFENDE Zeitraum; alle zeigt die Liste der Erweiterung. */}
-                    {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={formPath(ext.moduleId)}>wszystkie okresy</a></>}
+                    {repeat !== 'once' && <> · {roundLabel(repeat, round)} · <a className="wk-link" href={formPath(ext.moduleId)}>{t('formsOffice.people.allRounds')}</a></>}
                   </span>
                 </h4>
                 {data === undefined ? (
-                  <p className="wk-empty">Tego rozszerzenia nie otworzysz tym kluczem.</p>
+                  <p className="wk-empty">{t('formsOffice.people.extNoKey')}</p>
                 ) : (
                   <ExtensionEntry
                     extensionId={ext.moduleId}
@@ -492,8 +496,8 @@ function EntryPanel({
           ) : (
             <p className="wk-hint">
               {s.byOffice === true
-                ? 'Osoba dopisana przez koordynatora — nie ma własnego linku.'
-                : 'To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.'}
+                ? t('formsOffice.people.byOffice')
+                : t('formsOffice.people.noSeat')}
             </p>
           )}
         </>
@@ -512,21 +516,21 @@ function EntryPanel({
               <WriteToSeat seatId={s.seatId} near={[...formAreas, links.areaOf(s.seatId)]} areas={areas} ring={ring} busy={busy} onError={onError} />
             )}
             <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
-              {s.hidden ? 'Przywróć' : 'Ukryj'}
+              {s.hidden ? t('formsOffice.restore') : t('formsOffice.people.hide')}
             </button>
             <button
               type="button" className="wk-link-btn wk-danger" disabled={busy}
               onClick={async () => {
-                if (await askText(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
+                if (await askText(t('formsOffice.people.removeAsk', { name }))) {
                   onRemove(s);
                 }
               }}
             >
-              Usuń bezpowrotnie
+              {t('formsOffice.people.removeForever')}
             </button>
           </div>
           <p className="wk-hint">
-            „Ukryj" tylko chowa wiersz. Usunięcie zabiera zgłoszenie, nie dostęp osoby.
+            {t('formsOffice.people.hideHint')}
           </p>
         </>
       )}
@@ -549,6 +553,7 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
   const links = useSeatLinks(seatAreasOf(desk), ring);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setBusy(what);
@@ -557,7 +562,7 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
       await todo();
       deskChanged(desk.formId);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -580,8 +585,8 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
         ring={ring}
         busy={busy !== null}
         sections={sections}
-        onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', () => hideSubmission(s.registrationId, !s.hidden))}
-        onRemove={(s) => void act('Usuwanie…', () => removeSubmission(s.registrationId))}
+        onHide={(s) => void act(s.hidden ? t('formsOffice.restoring') : t('formsOffice.hiding'), () => hideSubmission(s.registrationId, !s.hidden))}
+        onRemove={(s) => void act(t('formsOffice.deleting'), () => removeSubmission(s.registrationId))}
         onError={setFailed}
         onChanged={async () => { await links.reload(); deskChanged(desk.formId); }}
       />
@@ -619,35 +624,35 @@ function Answers({ values, fields, sealed, checks }: {
    * dass die Angabe noch gilt. Beides als dasselbe anzuzeigen wäre bequem und
    * unwahr.
    */
+  const t = useT();
   const mark = (fieldId: string) => {
     const one = checks.find((c) => c.fieldId === fieldId && c.verifiedAt !== null);
     if (one === undefined) return null;
 
-    const when = new Date(one.verifiedAt!).toLocaleDateString('pl-PL',
-      { day: 'numeric', month: 'long', year: 'numeric' });
+    const when = fmtDate(new Date(one.verifiedAt!), { day: 'numeric', month: 'long', year: 'numeric' }, t.lang);
 
     return (
       <span
         className="wk-chip-ok"
         title={one.origin === 'sms'
-          ? `Otworzył link wysłany SMS-em — ${when}`
-          : `Potwierdził w swoim portalu — ${when}`}
+          ? t('formsOffice.people.smsOpened', { date: when })
+          : t('formsOffice.people.portalConfirmed', { date: when })}
       >
-        ✓ {one.origin === 'sms' ? 'potwierdzony SMS-em' : 'potwierdzony w portalu'}
+        ✓ {one.origin === 'sms' ? t('formsOffice.people.bySms') : t('formsOffice.people.inPortal')}
       </span>
     );
   };
 
   if (values === undefined) {
-    return <p className="wk-empty">Jeszcze nieotwarte — kliknij „Otwórz zgłoszenia".</p>;
+    return <p className="wk-empty">{t('formsOffice.people.notOpened')}</p>;
   }
 
   if (values.size === 0) {
     return (
       <p className="wk-empty">
         {sealed === 0
-          ? 'Usługa nie wydała treści tego zgłoszenia — nie czytasz obszaru, do którego trafiło.'
-          : `${sealed} zapieczętowanych odpowiedzi, żadna nie pasuje do tego klucza przyjmowania.`}
+          ? t('formsOffice.people.notReleased')
+          : t('formsOffice.people.noneFits', { count: sealed })}
       </p>
     );
   }
@@ -661,7 +666,7 @@ function Answers({ values, fields, sealed, checks }: {
   if (fields.length === 0) {
     return (
       <>
-        <p className="wk-empty">Pytania się nie wczytały — poniżej same odpowiedzi.</p>
+        <p className="wk-empty">{t('formsOffice.people.noQuestions')}</p>
         <ul className="wk-tile-lines">
           {[...values.entries()].map(([id, text]) => (
             <li key={id}>
@@ -690,19 +695,19 @@ function Answers({ values, fields, sealed, checks }: {
     <ul className="wk-tile-lines">
       {known.map((f) => (
         <li key={f.fieldId} className={f.removedAt != null ? 'wk-answer-off' : undefined}>
-          <strong>{f.label ?? 'zapieczętowane pytanie'}{f.removedAt != null && <span className="wk-row-side"> (zdjęte z formularza)</span>}:</strong>{' '}
+          <strong>{f.label ?? t('forms.ext.sealedQuestion')}{f.removedAt != null && <span className="wk-row-side"> {t('formsOffice.people.takenOff')}</span>}:</strong>{' '}
           {f.kind === 'consent' ? (
             /* 0083 — tak oder nein; und der Wortlaut, dem zugestimmt wurde (nicht der heutige der Frage). */
             consentGiven(values.get(f.fieldId))
-              ? <>✓ tak <span className="wk-consent-text">{consentText(values.get(f.fieldId))}</span></>
-              : '— nie'
+              ? <>{t('forms.own.consentYes')} <span className="wk-consent-text">{consentText(values.get(f.fieldId))}</span></>
+              : t('formsOffice.people.consentNo')
           ) : values.get(f.fieldId)}{mark(f.fieldId)}
         </li>
       ))}
 
       {rest.map((id) => (
         <li key={id}>
-          <strong className="wk-row-side">pytanie usunięte ({id.slice(0, 8)}):</strong>{' '}
+          <strong className="wk-row-side">{t('formsOffice.people.removedQuestion', { id: id.slice(0, 8) })}</strong>{' '}
           {values.get(id)}{mark(id)}
         </li>
       ))}

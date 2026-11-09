@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 
 import { loadedStores } from '../library/libraryStore';
-import { UNREADABLE } from '../library/libraryMarkup';
+import { unreadable } from '../library/libraryMarkup';
 import { usePageBase } from './pageBase';
 import { readView, viewList } from './views';
 import { Loading } from '../ui/Loading';
@@ -27,7 +27,7 @@ export function ViewEmbed({ viewId, libraryId }: { viewId: string; libraryId: st
 
   if (lib === undefined) return <Loading lines={1} />;
   const doc = lib === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
-  if (lib === null || doc === undefined) return <p className="lib-missing">{UNREADABLE}</p>;
+  if (lib === null || doc === undefined) return <p className="lib-missing">{unreadable()}</p>;
   const view = readView(doc.data);
   const list = viewList(lib, view);
   return (

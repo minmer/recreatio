@@ -25,6 +25,7 @@ import {
   aad, Field, fromBase64Url, newSeatPairs, openText, sealText, signCanonicalP256, toBase64Url, unwrapKeyP256
 } from '../core/crypto';
 import { personName, sealName, seatOwnNameAad } from '../core/names';
+import { t } from '../core/i18n';
 import { call, WorkspaceError } from '../core/session';
 import type { Controller } from '../forms/intake';
 
@@ -73,7 +74,7 @@ export async function nameSeat(
 ): Promise<{ name: string; changed: boolean }> {
   /* 0097 — der Name geht versiegelt, unter dem eigenen Platzschlüssel; der Dienst sieht ihn nicht. */
   const name = personName(givenName, surname);
-  if (name === null) throw new WorkspaceError('Podaj imię i nazwisko.');
+  if (name === null) throw new WorkspaceError(t('seats.chat.giveName'));
   const done = await call<{ changed: boolean }>(`${seatPath(token)}/name`, {
     method: 'POST',
     body: JSON.stringify({ ownNameSealed: await sealName(seatKey, seatOwnNameAad(seatId), name) })
@@ -225,7 +226,7 @@ export interface AskTarget {
   readonly areaId: string;
   readonly name: string;
   readonly chatId: string | null;
-  /** Optional for private conversations; includes the parent area's controller when inherited. */
+  /** 0129 — wer für die Daten geradesteht (auch geerbt); `null`: niemand — das private Gespräch fängt trotzdem an. */
   readonly controller?: Controller | null;
 }
 

@@ -1,8 +1,10 @@
-/** Library/Cogita adapters. Derived text is computed for readers, never written as another canonical copy. */
-import type { LibEntry, LibKind } from '../libraryKinds';
+/**
+ * Die Arten der Liturgia für die Bibliothek und Cogita. Ohne zod: `libraryKinds.ts` (erstes Bündel) liest diese Datei;
+ * die errechneten Texte für Leser kommen aus `projection.ts`.
+ */
+import type { LibKind } from '../libraryKinds';
 import { t } from '../../core/i18n';
-import { KIND, type LitEntity } from './schema';
-import { entitiesOf, indexOf, resolveText } from './resources';
+import { KIND } from './names';
 
 export const LITURGY_KINDS: readonly LibKind[] = Object.entries(KIND).map(([type, kind]) => ({
   kind, get label() { return t(`liturgy.types.${type}`); }, get plural() { return t(`liturgy.types.${type}`); },
@@ -18,12 +20,3 @@ export const LITURGY_KINDS: readonly LibKind[] = Object.entries(KIND).map(([type
   title: data => typeof data.title === 'string' ? data.title : String(data.id ?? kind),
   sort: e => String(e.data.title ?? e.data.id ?? ''), example: { data: { title: type } }
 }));
-export function projectLiturgyEntries(entries: readonly LibEntry[]): LibEntry[] {
-  const index = indexOf(entitiesOf(entries));
-  return entries.map(e => {
-    if (!Object.values(KIND).includes(e.kind)) return e;
-    const resolved = resolveText(String(e.data.id), index);
-    return { ...e, data: { ...e.data, references: e.data._refs ?? [], ...(resolved ? { text: resolved.blocks.map(b => `${b.verse === undefined ? '' : `${b.verse}. `}${b.text}`).join('\n') } : {}) } };
-  });
-}
-export const asData = (entity: LitEntity): Record<string, unknown> => ({ ...entity });

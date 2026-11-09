@@ -28,6 +28,7 @@ import { saveBlob } from '../core/platform';
 import { useRemembered } from '../core/prefs';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
+import { useT } from '../core/i18n';
 
 const SHOWN = 6;
 
@@ -39,12 +40,13 @@ export function QuoteIntake({ store, library, work }: { store: LibraryStore; lib
   [store, store.revision, work.id, work.data]);
   const [all, setAll] = useState(false);
   const [intake, setIntake] = useState(false);
+  const t = useT();
 
   return (
     <section className="lib-quotes-of" aria-labelledby="lib-quotes-of-h">
       <div className="lib-quotes-of-head">
-        <h2 id="lib-quotes-of-h" className="wk-h2">Cytaty z tej książki <span className="lib-count">{quotes.length}</span></h2>
-        {library.writes && !intake && <button type="button" className="wk-btn" onClick={() => setIntake(true)}>Import cytatów z JSON…</button>}
+        <h2 id="lib-quotes-of-h" className="wk-h2">{t('libraryData.quotes.title')} <span className="lib-count">{quotes.length}</span></h2>
+        {library.writes && !intake && <button type="button" className="wk-btn" onClick={() => setIntake(true)}>{t('libraryData.quotes.importOpen')}</button>}
       </div>
 
       {quotes.length > 0 && (
@@ -57,7 +59,7 @@ export function QuoteIntake({ store, library, work }: { store: LibraryStore; lib
           ))}
         </ol>
       )}
-      {quotes.length > SHOWN && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? 'Pokaż mniej' : `Pokaż wszystkie (${quotes.length})`}</button>}
+      {quotes.length > SHOWN && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? t('libraryData.quotes.showLess') : t('libraryData.quotes.showAll', { n: quotes.length })}</button>}
 
       {library.writes && <QuickQuote store={store} work={work} />}
       {library.writes && intake && <JsonIntake store={store} work={work} onClose={() => setIntake(false)} />}
@@ -79,6 +81,7 @@ function QuickQuote({ store, work }: { store: LibraryStore; work: Entry }) {
   const [said, setSaid] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement | null>(null);
+  const t = useT();
 
   const add = async () => {
     if (text.trim() === '') return;
@@ -87,10 +90,10 @@ function QuickQuote({ store, work }: { store: LibraryStore; work: Entry }) {
     try {
       const saved = await store.save({ kind: 'quote', data: { text: text.trim(), work: work.id, ...(page.trim() === '' ? {} : { locator: locatorOf(page, '') }) } });
       setText('');
-      setSaid(`Dodano [@${saved.key ?? ''}].`);
+      setSaid(t('libraryData.quotes.added', { key: saved.key ?? '' }));
       area.current?.focus();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać cytatu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.quotes.saveOneFailed'));
     } finally {
       setBusy(false);
     }
@@ -99,16 +102,16 @@ function QuickQuote({ store, work }: { store: LibraryStore; work: Entry }) {
   return (
     <form className="lib-quick-quote" onSubmit={(e) => { e.preventDefault(); void add(); }}>
       <label className="wk-field">
-        <span>Nowy cytat</span>
-        <textarea ref={area} rows={3} value={text} placeholder="Przepisz fragment… (Ctrl+Enter — dodaj)" onChange={(e) => { setText(e.target.value); setSaid(null); }}
+        <span>{t('libraryData.quotes.newQuote')}</span>
+        <textarea ref={area} rows={3} value={text} placeholder={t('libraryData.quotes.newPlaceholder')} onChange={(e) => { setText(e.target.value); setSaid(null); }}
           onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); void add(); } }} />
       </label>
       <label className="wk-field lib-quick-page">
-        <span>Strona</span>
-        <input value={page} inputMode="numeric" placeholder="np. 23" onChange={(e) => setPage(e.target.value)} />
+        <span>{t('libraryData.quotes.page')}</span>
+        <input value={page} inputMode="numeric" placeholder={t('libraryData.quotes.pagePlaceholder')} onChange={(e) => setPage(e.target.value)} />
       </label>
       <div className="wk-actions">
-        <button type="submit" className="wk-btn wk-btn-line" disabled={busy || text.trim() === ''}>{busy ? 'Zapisywanie…' : 'Dodaj cytat'}</button>
+        <button type="submit" className="wk-btn wk-btn-line" disabled={busy || text.trim() === ''}>{busy ? t('common.saving') : t('libraryData.quotes.addQuote')}</button>
         {said !== null && <span className="wk-done" role="status">{said}</span>}
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -129,6 +132,7 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
   const [copied, setCopied] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const file = useRef<HTMLInputElement | null>(null);
+  const t = useT();
 
   const markMode: MarkMode = mode === 'whole' ? 'whole' : 'marked';
   const prompt = useMemo(() => quotesPrompt(work, store, markMode), [work, store, markMode]);
@@ -138,7 +142,7 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
     setDone(null);
     const parsed = parseDocument(text);
     if (parsed === null) { setItems(null); setFailed(null); return; }
-    if ('error' in parsed) { setFailed(`Nieprawidłowy JSON: ${parsed.error}`); setItems(null); return; }
+    if ('error' in parsed) { setFailed(t('libraryData.quotes.badJson', { error: parsed.error })); setItems(null); return; }
     const planned = planQuotes(parsed.value, work, store);
     if ('error' in planned) { setFailed(planned.error); setItems(null); return; }
     setFailed(null);
@@ -155,15 +159,15 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
   const save = async () => {
     if (items === null) return;
     setFailed(null);
-    setStage('Zapisywanie…');
+    setStage(t('common.saving'));
     try {
       const result = await importQuotes(items, work, store, (input) => store.save(input), { stage: setStage });
-      setDone(`Zapisano ${result.saved} ${result.saved === 1 ? 'cytat' : result.saved < 5 && result.saved > 1 ? 'cytaty' : 'cytatów'}.`
-        + (result.failed.length > 0 ? ` Nie udało się: ${result.failed.join(', ')}.` : ''));
+      setDone(t('libraryData.quotes.savedN', { count: result.saved })
+        + (result.failed.length > 0 ? ` ${t('libraryData.quotes.failedList', { list: result.failed.join(', ') })}` : ''));
       setItems(null);
       setPasted('');
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać cytatów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('libraryData.quotes.saveFailed'));
     } finally {
       setStage(null);
     }
@@ -174,39 +178,39 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
   return (
     <div className="lib-intake">
       <div className="lib-intake-head">
-        <h3 className="wk-h3">Import cytatów z JSON</h3>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+        <h3 className="wk-h3">{t('libraryData.quotes.importTitle')}</h3>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
       </div>
-      <p className="wk-hint">Zdjęcia zaznaczonych stron daj swojemu czatowi z AI razem z poleceniem poniżej. Odpowiedź (JSON) wklej tutaj — zanim cokolwiek zapiszesz, zobaczysz każdy cytat.</p>
+      <p className="wk-hint">{t('libraryData.quotes.importHint')}</p>
 
-      <section className="lib-intake-step" aria-label="Polecenie">
-        <h4 className="wk-json-h">1. Polecenie dla Twojego AI</h4>
+      <section className="lib-intake-step" aria-label={t('libraryData.quotes.prompt')}>
+        <h4 className="wk-json-h">{t('libraryData.quotes.step1')}</h4>
         <fieldset className="lib-mode">
-          <legend>Co jest cytatem</legend>
-          <label className="pe-check"><input type="radio" name="lib-mode" checked={markMode === 'marked'} onChange={() => setMode('marked')} /><span>fragmenty zaznaczone ołówkiem</span></label>
-          <label className="pe-check"><input type="radio" name="lib-mode" checked={markMode === 'whole'} onChange={() => setMode('whole')} /><span>cały tekst ze zdjęcia</span></label>
+          <legend>{t('libraryData.quotes.whatIsQuote')}</legend>
+          <label className="pe-check"><input type="radio" name="lib-mode" checked={markMode === 'marked'} onChange={() => setMode('marked')} /><span>{t('libraryData.quotes.marked')}</span></label>
+          <label className="pe-check"><input type="radio" name="lib-mode" checked={markMode === 'whole'} onChange={() => setMode('whole')} /><span>{t('libraryData.quotes.whole')}</span></label>
         </fieldset>
         <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => copy('prompt', prompt)}>{copied === 'prompt' ? 'Skopiowano polecenie' : 'Kopiuj polecenie'}</button>
-          <button type="button" className="wk-link-btn" aria-expanded={showPrompt} onClick={() => setShowPrompt(!showPrompt)}>{showPrompt ? 'Ukryj polecenie' : 'Pokaż polecenie'}</button>
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => copy('prompt', prompt)}>{copied === 'prompt' ? t('libraryData.quotes.promptCopied') : t('libraryData.quotes.copyPrompt')}</button>
+          <button type="button" className="wk-link-btn" aria-expanded={showPrompt} onClick={() => setShowPrompt(!showPrompt)}>{showPrompt ? t('libraryData.quotes.hidePrompt') : t('libraryData.quotes.showPrompt')}</button>
         </div>
         {showPrompt && <pre className="wk-json-pre lib-prompt">{prompt}</pre>}
       </section>
 
-      <section className="lib-intake-step" aria-label="JSON">
-        <h4 className="wk-json-h">2. Odpowiedź AI (JSON)</h4>
-        <textarea className="wk-json-text" rows={6} spellCheck={false} value={pasted} aria-label="Odpowiedź AI (JSON)"
+      <section className="lib-intake-step" aria-label="JSON"> // i18n-ignore
+        <h4 className="wk-json-h">{t('libraryData.quotes.step2')}</h4>
+        <textarea className="wk-json-text" rows={6} spellCheck={false} value={pasted} aria-label={t('libraryData.quotes.answer')}
           placeholder='{"format": "recreatio/quotes", "quotes": [ … ] }' onChange={(e) => readPasted(e.target.value)} />
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => file.current?.click()}>Wczytaj plik .json…</button>
+          <button type="button" className="wk-link-btn" onClick={() => file.current?.click()}>{t('libraryData.quotes.loadFile')}</button>
           <input ref={file} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { const one = e.target.files?.[0]; e.target.value = ''; if (one !== undefined) void one.text().then(readPasted); }} />
-          <button type="button" className="wk-link-btn" onClick={() => void saveBlob(new Blob([JSON.stringify(exportQuotes(work, store), null, 2)], { type: 'application/json' }), `cytaty-${work.key ?? work.id.slice(0, 8)}.json`)}>
-            Eksportuj cytaty tej książki (JSON)
+          <button type="button" className="wk-link-btn" onClick={() => void saveBlob(new Blob([JSON.stringify(exportQuotes(work, store), null, 2)], { type: 'application/json' }), `${t('libraryData.quotes.fileName')}-${work.key ?? work.id.slice(0, 8)}.json`)}>
+            {t('libraryData.quotes.export')}
           </button>
         </div>
         <details className="wk-fold">
-          <summary>Opis formatu JSON</summary>
-          <div className="wk-actions"><button type="button" className="wk-link-btn" onClick={() => copy('doc', quotesDescription(work))}>{copied === 'doc' ? 'Skopiowano opis' : 'Kopiuj opis'}</button></div>
+          <summary>{t('libraryData.quotes.formatDoc')}</summary>
+          <div className="wk-actions"><button type="button" className="wk-link-btn" onClick={() => copy('doc', quotesDescription(work))}>{copied === 'doc' ? t('libraryData.quotes.docCopied') : t('libraryData.quotes.copyDoc')}</button></div>
           <pre className="wk-json-pre">{quotesDescription(work)}</pre>
         </details>
       </section>
@@ -215,10 +219,10 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
       {done !== null && <p className="wk-done" role="status">{done}</p>}
 
       {items !== null && items.length > 0 && (
-        <section className="lib-intake-step" aria-label="Sprawdzenie">
-          <h4 className="wk-json-h">3. Sprawdź i zapisz</h4>
+        <section className="lib-intake-step" aria-label={t('libraryData.quotes.review')}>
+          <h4 className="wk-json-h">{t('libraryData.quotes.step3')}</h4>
           <p className="wk-hint">
-            {items.length} {items.length === 1 ? 'cytat' : 'cytatów'} · {items.filter((i) => i.uncertain).length} do sprawdzenia · {items.filter((i) => i.duplicateOf !== undefined).length} już jest
+            {t('libraryData.quotes.summary', { quotes: t('libraryData.quotes.count', { count: items.length }), unsure: items.filter((i) => i.uncertain).length, known: items.filter((i) => i.duplicateOf !== undefined).length })}
           </p>
           {warnings.length > 0 && <ul className="wk-json-warn">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
           <ol className="lib-review">
@@ -226,26 +230,26 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
               <li key={item.n} className={`${item.keep ? '' : 'is-off'}${item.uncertain ? ' is-unsure' : ''}`}>
                 <label className="lib-review-keep">
                   <input type="checkbox" checked={item.keep} onChange={(e) => change(item.n, { keep: e.target.checked })} />
-                  <span className="lib-sr">Zapisz ten cytat</span>
+                  <span className="lib-sr">{t('libraryData.quotes.keep')}</span>
                 </label>
                 <div className="lib-review-body">
                   <div className="lib-review-row">
-                    <input className="lib-review-page" value={item.locator} aria-label="Miejsce (strona)" placeholder="s. ?" onChange={(e) => change(item.n, { locator: e.target.value })} />
-                    {item.uncertain && <span className="lib-badge is-unsure">do sprawdzenia</span>}
-                    {item.duplicateOf !== undefined && <span className="lib-badge">już jest</span>}
-                    {item.id !== undefined && <span className="lib-badge">zmiana istniejącego</span>}
+                    <input className="lib-review-page" value={item.locator} aria-label={t('libraryData.quotes.place')} placeholder={t('libraryData.quotes.placePlaceholder')} onChange={(e) => change(item.n, { locator: e.target.value })} />
+                    {item.uncertain && <span className="lib-badge is-unsure">{t('libraryData.quotes.unsure')}</span>}
+                    {item.duplicateOf !== undefined && <span className="lib-badge">{t('libraryData.quotes.exists')}</span>}
+                    {item.id !== undefined && <span className="lib-badge">{t('libraryData.quotes.changesExisting')}</span>}
                   </div>
-                  <textarea rows={Math.min(8, Math.max(2, Math.ceil(item.text.length / 90)))} value={item.text} aria-label="Tekst cytatu" onChange={(e) => change(item.n, { text: e.target.value })} />
-                  {item.check !== '' && <p className="wk-warn">Do sprawdzenia: {item.check}</p>}
+                  <textarea rows={Math.min(8, Math.max(2, Math.ceil(item.text.length / 90)))} value={item.text} aria-label={t('libraryData.quotes.text')} onChange={(e) => change(item.n, { text: e.target.value })} />
+                  {item.check !== '' && <p className="wk-warn">{t('libraryData.quotes.check', { what: item.check })}</p>}
                 </div>
               </li>
             ))}
           </ol>
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={chosen === 0 || stage !== null} onClick={() => void save()}>
-              {stage ?? `Zapisz ${chosen} ${chosen === 1 ? 'cytat' : chosen > 1 && chosen < 5 ? 'cytaty' : 'cytatów'}`}
+              {stage ?? t('libraryData.quotes.saveN', { count: chosen })}
             </button>
-            <button type="button" className="wk-link-btn" onClick={() => { setItems(null); setPasted(''); }}>Odrzuć</button>
+            <button type="button" className="wk-link-btn" onClick={() => { setItems(null); setPasted(''); }}>{t('libraryData.quotes.discard')}</button>
           </div>
         </section>
       )}

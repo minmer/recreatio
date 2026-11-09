@@ -18,6 +18,7 @@
 import { useEffect, useState } from 'react';
 
 import { areaKeys, setMemberName } from '../chat/chat';
+import { t as tApp, useT } from '../core/i18n';
 import type { Ring, SealedRole } from '../core/keys';
 import { keysFor } from '../core/ringOf';
 import type { LibraryRow } from '../library/library';
@@ -41,8 +42,10 @@ import './school.css';
 
 /** Die Lehrer einer Schule — sie schreiben Programme und den Dziennik, und jede neue Klasse bekommt sie. */
 export const TEACHERS: RoleDef = {
-  key: 'teachers', label: 'Nauczyciele', capability: 'write',
-  says: 'piszą programy i dziennik klas; dostają każdą nową klasę', link: 'Link dla nauczycieli'
+  key: 'teachers', capability: 'write', legacy: 'Nauczyciele', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasSchool.school.teachers'); },
+  get says() { return tApp('areasSchool.school.teachersSay'); },
+  get link() { return tApp('areasSchool.school.teachersLink'); }
 };
 
 /** Eine Rolle, die in neue Klassen kommt (mit ihrem Namen dort). */
@@ -62,11 +65,11 @@ export async function addClassesTo(ring: Ring, person: SealedRole, schoolAreaId:
   const notes: string[] = [];
   const made: string[] = [];
   for (const name of names) {
-    step(`Klasa „${name}”…`);
+    step(tApp('areasSchool.school.stepClass', { name }));
     const area = await createArea(ring, person, name, schoolAreaId);
     made.push(area.areaId);
     await saveProfile(area.areaId, { kind: 'class' }).catch((e: unknown) => {
-      notes.push(`„${name}”: rodzaj „Klasa” nie zapisany (${failure(e, 'błąd')}) — ustawisz go w ustawieniach klasy.`);
+      notes.push(tApp('areasSchool.school.kindNotSaved', { name, error: failure(e, tApp('areasSchool.school.error')) }));
     });
     if (teachers === null) continue;
     try {
@@ -75,7 +78,7 @@ export async function addClassesTo(ring: Ring, person: SealedRole, schoolAreaId:
         await setMemberName(area.areaId, new Map([[area.epoch, area.key]]), teachers.roleId, teachers.name, person.id).catch(() => undefined);
       }
     } catch (e) {
-      notes.push(`„${name}”: nauczyciele nie zostali dodani (${failure(e, 'błąd')}).`);
+      notes.push(tApp('areasSchool.school.teachersNotAdded', { name, error: failure(e, tApp('areasSchool.school.error')) }));
     }
   }
   return { made, note: notes.length === 0 ? null : notes.join(' ') };
@@ -115,6 +118,7 @@ async function loadSchool(ctx: Ctx, teachers: RoleSeen | null): Promise<SchoolWo
 /* == Der Reiter ============================================================================ */
 
 export function SchoolTools({ ctx }: { ctx: Ctx }) {
+  const t = useT();
   const [world, setWorld] = useState<SchoolWorld | null>(null);
   const [failed, setFailed] = useState(false);
   const teachers = roleFor(ctx.world.roles, TEACHERS);
@@ -131,11 +135,11 @@ export function SchoolTools({ ctx }: { ctx: Ctx }) {
   const { store, failed: storeFailed } = useLibraryStore(world?.ring ?? null, world?.library ?? null);
 
   if (world === null) {
-    return <li className="wk-kind-tool">{failed ? <p className="wk-error">Nie udało się wczytać szkoły.</p> : <Loading lines={2} />}</li>;
+    return <li className="wk-kind-tool">{failed ? <p className="wk-error">{t('areasSchool.school.loadFailed')}</p> : <Loading lines={2} />}</li>;
   }
 
   const classes = world.children.filter((c) => c.kind === 'class').map((c) => c.areaId.toLowerCase())
-    .sort((a, b) => (world.names.get(a) ?? '').localeCompare(world.names.get(b) ?? '', 'pl', { numeric: true }));
+    .sort((a, b) => (world.names.get(a) ?? '').localeCompare(world.names.get(b) ?? '', t.locale, { numeric: true }));
   const plain = world.children.filter((c) => c.kind === null).map((c) => c.areaId.toLowerCase());
   const ready = store !== null && store.loaded;
   const programs = ready ? programsIn(store) : [];
@@ -157,6 +161,7 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
   ctx: Ctx; world: SchoolWorld; classes: readonly string[]; plain: readonly string[];
   store: LibraryStore | null; programs: readonly Entry[]; teachers: RoleSeen | null;
 }) {
+  const t = useT();
   const [names, setNames] = useState('');
   const wanted = parseClassNames(names);
   const missing = teachers === null ? [] : classes.filter((c) => world.teachersIn.get(c) === false);
@@ -166,7 +171,7 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
   const add = () => {
     const list = wanted;
     if (list.length === 0) return;
-    void ctx.run(`Tworzenie klas (${list.length})…`, list.length === 1 ? `Klasa „${list[0]}” jest gotowa.` : `Klasy gotowe: ${list.length}.`, async (held: Held) => {
+    void ctx.run(t('areasSchool.school.creatingClasses', { count: list.length }), list.length === 1 ? t('areasSchool.school.classReady', { name: list[0] }) : t('areasSchool.school.classesReady', { count: list.length }), async (held: Held) => {
       const done = await addClassesTo(held.ring, held.person, ctx.area.areaId, list,
         teachers === null ? null : { roleId: teachers.roleId, wrapPublicKey: teachers.wrapPublicKey, name: teachers.name }, held.step);
       setNames('');
@@ -175,20 +180,20 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
   };
 
   return (
-    <Tool id="classes" name="Klasy" ok={classes.length > 0}
-      says={<>Każda klasa to obszar w szkole — z dziennikiem, uczniami, planem lekcji i rozmową. Za dane odpowiada administrator danych szkoły: {controller !== null ? controller.name : 'jeszcze go nie ma — wskaż go w ustawieniach szkoły'}.</>}>
+    <Tool id="classes" name={t('areasSchool.school.classes')} ok={classes.length > 0}
+      says={t('areasSchool.school.classesSays', { controller: controller !== null ? controller.name : t('areasSchool.school.noController') })}>
       {classes.length > 0 && (
         <ul className="sc-classes" data-school-classes="">
           {classes.map((c) => {
             const mine = programsOfClass(programs, c);
             const lines = store === null ? [] : mine.map((p) => {
               const lessons = lessonsOf(p, store);
-              return `${str(p.data, 'title') || 'Program'}: ${progressLine(progressOf(lessons, all.filter((r) => r.classAreaId === c)))}`;
+              return `${str(p.data, 'title') || t('areasSchool.program')}: ${progressLine(progressOf(lessons, all.filter((r) => r.classAreaId === c)))}`;
             });
             return (
               <li key={c} data-class={c}>
-                <a className="wk-link sc-class-name" href={viewPath('areas', c, 'profil')}>{world.names.get(c) ?? 'klasa'}</a>
-                <span className="wk-kind-small">{mine.length === 0 ? 'bez programu' : lines.join(' · ') || mine.map((p) => str(p.data, 'title')).join(', ')}</span>
+                <a className="wk-link sc-class-name" href={viewPath('areas', c, 'profil')}>{world.names.get(c) ?? t('areasSchool.aClass')}</a>
+                <span className="wk-kind-small">{mine.length === 0 ? t('areasSchool.school.noProgram') : lines.join(' · ') || mine.map((p) => str(p.data, 'title')).join(', ')}</span>
               </li>
             );
           })}
@@ -196,16 +201,16 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
       )}
       {missing.length > 0 && teachers !== null && (
         <div className="wk-actions">
-          <Fix ctx={ctx} label={`Dodaj nauczycieli do klas (${missing.length})`} what="Dodawanie nauczycieli…" done="Nauczyciele są we wszystkich klasach."
+          <Fix ctx={ctx} label={t('areasSchool.school.addTeachers', { count: missing.length })} what={t('areasSchool.school.addingTeachers')} done={t('areasSchool.school.teachersEverywhere')}
             act={async (held) => {
               const notes: string[] = [];
               for (const c of missing) {
-                held.step(`Nauczyciele w „${world.names.get(c) ?? 'klasie'}”…`);
+                held.step(t('areasSchool.school.stepTeachers', { name: world.names.get(c) ?? t('areasSchool.aClass') }));
                 try {
                   await joinArea(held.ring, c, { id: teachers.roleId, kind: 'group', wrapPublicKey: teachers.wrapPublicKey }, held.person.id, 'admin');
                   if (teachers.name !== null) await setMemberName(c, await areaKeys(held.ring, c, true), teachers.roleId, teachers.name, held.person.id).catch(() => undefined);
                 } catch (e) {
-                  notes.push(`„${world.names.get(c) ?? 'klasa'}”: ${failure(e, 'nie udało się')}.`);
+                  notes.push(t('areasSchool.school.classError', { name: world.names.get(c) ?? t('areasSchool.aClass'), error: failure(e, t('areasJson.import.failedWord')) }));
                 }
               }
               return notes.join(' ') || undefined;
@@ -214,12 +219,12 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
       )}
       {plain.length > 0 && (
         <div className="sc-plain">
-          <p className="wk-kind-small">Obszary w szkole bez rodzaju — może to klasy:</p>
+          <p className="wk-kind-small">{t('areasSchool.school.plain')}</p>
           <ul className="wk-kind-list">
             {plain.map((c) => (
               <li key={c}>
-                {world.names.get(c) ?? 'obszar'}{' '}
-                <Fix ctx={ctx} label="Oznacz jako klasę" what="Zapisywanie…" done={`„${world.names.get(c) ?? 'Obszar'}” jest klasą.`}
+                {world.names.get(c) ?? t('areas.ctl.anArea')}{' '}
+                <Fix ctx={ctx} label={t('areasSchool.school.markClass')} what={t('common.saving')} done={t('areasSchool.school.isClass', { name: world.names.get(c) ?? t('areas.ctl.anArea') })}
                   act={async () => { await saveProfile(c, { kind: 'class' }); }} />
               </li>
             ))}
@@ -228,17 +233,17 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
       )}
       <form className="wk-kind-form wk-kind-inline" onSubmit={(e) => { e.preventDefault(); add(); }}>
         <label className="wk-field">
-          <span>Dodaj klasy</span>
-          <input value={names} maxLength={600} disabled={ctx.busy} placeholder="np. 1a, 1b, 2a" data-school-add-classes="" onChange={(e) => setNames(e.target.value)} />
+          <span>{t('areasSchool.school.addClasses')}</span>
+          <input value={names} maxLength={600} disabled={ctx.busy} placeholder={t('areasSchool.school.addClassesPlaceholder')} data-school-add-classes="" onChange={(e) => setNames(e.target.value)} />
         </label>
         <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || wanted.length === 0} data-school-add-classes-go="">
-          {wanted.length > 1 ? `Dodaj ${wanted.length}` : 'Dodaj'}
+          {wanted.length > 1 ? t('areasSchool.school.addN', { count: wanted.length }) : t('common.add')}
         </button>
       </form>
       <p className="wk-kind-small">
         {teachers === null
-          ? 'Utwórz niżej rolę „Nauczyciele” — każda nowa klasa dostanie ją od razu.'
-          : 'Nowa klasa od razu dostaje rolę „Nauczyciele”. Uczniów, plan lekcji i dziennik ustawisz w karcie klasy.'}
+          ? t('areasSchool.school.makeTeachers')
+          : t('areasSchool.school.teachersAuto')}
       </p>
     </Tool>
   );
@@ -249,16 +254,17 @@ function ClassesTool({ ctx, world, classes, plain, store, programs, teachers }: 
 function ProgramsTool({ ctx, world, classes, store, storeFailed, programs }: {
   ctx: Ctx; world: SchoolWorld; classes: readonly string[]; store: LibraryStore | null; storeFailed: string | null; programs: readonly Entry[];
 }) {
+  const t = useT();
   const [title, setTitle] = useState('');
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const library = world.library;
 
   if (library === null) {
     return (
-      <Tool id="programs" name="Programy nauczania" ok={false}
-        says="Program piszesz raz — dla wszystkich klas, które go realizują. Leży w skryptorium szkoły (widzą go tylko jej nauczyciele): każda lekcja to tekst z planem punkt po punkcie.">
+      <Tool id="programs" name={t('areasSchool.school.programs')} ok={false}
+        says={t('areasSchool.school.programsSaysNone')}>
         <div className="wk-actions">
-          <Fix ctx={ctx} label="Utwórz skryptorium szkoły" what="Tworzenie skryptorium…" done="Skryptorium szkoły jest gotowe."
+          <Fix ctx={ctx} label={t('areasSchool.school.makeScriptorium')} what={t('areasSchool.school.makingScriptorium')} done={t('areasSchool.school.scriptoriumReady')}
             act={async (held) => { await ensureScriptorium(held.ring, ctx.area.areaId, ctx.area.name); }} />
         </div>
       </Tool>
@@ -269,7 +275,7 @@ function ProgramsTool({ ctx, world, classes, store, storeFailed, programs }: {
   const make = () => {
     const name = title.trim();
     if (name === '' || store === null) return;
-    void ctx.run('Tworzenie programu…', `Program „${name}” jest gotowy — dodaj w nim lekcje.`, async () => {
+    void ctx.run(t('areasSchool.school.makingProgram'), t('areasSchool.school.programReady', { name }), async () => {
       await createProgram(store, name, chosen);
       setTitle('');
       setChosen([]);
@@ -277,34 +283,34 @@ function ProgramsTool({ ctx, world, classes, store, storeFailed, programs }: {
   };
 
   return (
-    <Tool id="programs" name="Programy nauczania" ok={programs.length > 0}
-      says="Program piszesz raz — dla wszystkich klas, które go realizują. Każda lekcja to tekst w skryptorium szkoły: jej plan (punkty) piszesz tam, a realizacja w każdej klasie zaznacza, co z planu było, co krótko, co pominięte.">
+    <Tool id="programs" name={t('areasSchool.school.programs')} ok={programs.length > 0}
+      says={t('areasSchool.school.programsSays')}>
       {store === null ? (storeFailed !== null ? <p className="wk-error">{storeFailed}</p> : <Loading lines={2} />) : (
         <>
-          {programs.length === 0 && <p className="wk-kind-small">Nie ma jeszcze programu.</p>}
+          {programs.length === 0 && <p className="wk-kind-small">{t('areasSchool.school.noPrograms')}</p>}
           <ul className="sc-programs">
             {programs.map((p) => <ProgramRow key={p.id} ctx={ctx} world={world} classes={classes} store={store} library={library} program={p} />)}
           </ul>
           {writes && (
             <form className="wk-kind-form sc-new-program" onSubmit={(e) => { e.preventDefault(); make(); }}>
               <label className="wk-field">
-                <span>Nowy program</span>
-                <input value={title} maxLength={200} disabled={ctx.busy} placeholder="np. Religia — klasa 4" data-school-program-title="" onChange={(e) => setTitle(e.target.value)} />
+                <span>{t('areasSchool.school.newProgram')}</span>
+                <input value={title} maxLength={200} disabled={ctx.busy} placeholder={t('areasSchool.school.newProgramPlaceholder')} data-school-program-title="" onChange={(e) => setTitle(e.target.value)} />
               </label>
               {classes.length > 0 && (
                 <fieldset className="sc-checks">
-                  <legend>Realizują go klasy</legend>
+                  <legend>{t('areasSchool.school.classesOfProgram')}</legend>
                   {classes.map((c) => (
                     <label key={c} className="wk-check">
                       <input type="checkbox" checked={chosen.includes(c)} disabled={ctx.busy}
                         onChange={(e) => setChosen((was) => (e.target.checked ? [...was, c] : was.filter((x) => x !== c)))} />
-                      <span>{world.names.get(c) ?? 'klasa'}</span>
+                      <span>{world.names.get(c) ?? t('areasSchool.aClass')}</span>
                     </label>
                   ))}
                 </fieldset>
               )}
               <div className="wk-actions">
-                <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || title.trim() === ''} data-school-program-go="">Utwórz program</button>
+                <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy || title.trim() === ''} data-school-program-go="">{t('areasSchool.school.makeProgram')}</button>
               </div>
             </form>
           )}
@@ -317,23 +323,24 @@ function ProgramsTool({ ctx, world, classes, store, storeFailed, programs }: {
 function ProgramRow({ ctx, world, classes, store, library, program }: {
   ctx: Ctx; world: SchoolWorld; classes: readonly string[]; store: LibraryStore; library: LibraryRow; program: Entry;
 }) {
+  const t = useT();
   const [list, setList] = useState('');
   const lessons = lessonsOf(program, store);
   const mine = classesOf(program);
   const items = parseLessonList(list);
   const count = items.filter((i) => 'title' in i).length;
-  const name = str(program.data, 'title') || 'Program';
+  const name = str(program.data, 'title') || t('areasSchool.program');
   const writes = library.writes;
   /* Klassen, die das Programm nennt, die aber nicht (mehr) in der Schule stehen — sie bleiben, bis man sie abwählt. */
   const others = mine.filter((c) => !classes.includes(c));
 
   const toggle = (c: string, on: boolean) => {
     const next = on ? [...mine, c] : mine.filter((x) => x !== c);
-    void ctx.run('Zapisywanie…', `Klasy programu „${name}” zapisane.`, async () => { await setProgramClasses(store, program, next); });
+    void ctx.run(t('common.saving'), t('areasSchool.school.programClassesSaved', { name }), async () => { await setProgramClasses(store, program, next); });
   };
   const add = () => {
     if (count === 0) return;
-    void ctx.run(`Dodawanie lekcji (${count})…`, `Dodano lekcje: ${count}.`, async () => {
+    void ctx.run(t('areasSchool.school.addingLessons', { count }), t('areasSchool.school.lessonsAdded', { count }), async () => {
       await addLessons(store, program, items);
       setList('');
     });
@@ -343,24 +350,24 @@ function ProgramRow({ ctx, world, classes, store, library, program }: {
     <li className="sc-program" data-program={program.id}>
       <div className="sc-program-head">
         <strong>{name}</strong>
-        <span className="wk-kind-small">{lessons.length === 0 ? 'bez lekcji' : `lekcji: ${lessons.length}`}</span>
-        <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, program.id)}>Otwórz w skryptorium</a>
+        <span className="wk-kind-small">{lessons.length === 0 ? t('areasSchool.school.noLessons') : t('areasSchool.school.lessonCount', { count: lessons.length })}</span>
+        <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, program.id)}>{t('areasSchool.school.openInScriptorium')}</a>
       </div>
       {classes.length > 0 && (
         <fieldset className="sc-checks" disabled={!writes || ctx.busy}>
-          <legend>Realizują go klasy</legend>
+          <legend>{t('areasSchool.school.classesOfProgram')}</legend>
           {classes.map((c) => (
             <label key={c} className="wk-check">
               <input type="checkbox" checked={mine.includes(c)} data-program-class={c} onChange={(e) => toggle(c, e.target.checked)} />
-              <span>{world.names.get(c) ?? 'klasa'}</span>
+              <span>{world.names.get(c) ?? t('areasSchool.aClass')}</span>
             </label>
           ))}
         </fieldset>
       )}
-      {others.length > 0 && <p className="wk-kind-small">Także klasy spoza tej szkoły: {others.length}.</p>}
+      {others.length > 0 && <p className="wk-kind-small">{t('areasSchool.school.otherClasses', { count: others.length })}</p>}
       {lessons.length > 0 && (
         <details className="wk-fold sc-lessons">
-          <summary>Lekcje ({lessons.length})</summary>
+          <summary>{t('areasSchool.school.lessons', { count: lessons.length })}</summary>
           <ol>
             {lessons.map((l) => (
               <li key={l.textId}>
@@ -374,12 +381,12 @@ function ProgramRow({ ctx, world, classes, store, library, program }: {
       {writes && (
         <form className="wk-kind-form" onSubmit={(e) => { e.preventDefault(); add(); }}>
           <label className="wk-field">
-            <span>Dodaj lekcje — jedna w wierszu („# Dział” albo „Dział:” to nagłówek)</span>
-            <textarea rows={4} value={list} disabled={ctx.busy} placeholder={'# Dział I. Stworzenie\nBóg stwarza świat\nCzłowiek obrazem Boga'} data-school-lessons={program.id} onChange={(e) => setList(e.target.value)} />
+            <span>{t('areasSchool.school.addLessonsLabel')}</span>
+            <textarea rows={4} value={list} disabled={ctx.busy} placeholder={t('areasSchool.school.addLessonsPlaceholder')} data-school-lessons={program.id} onChange={(e) => setList(e.target.value)} />
           </label>
           <div className="wk-actions">
             <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy || count === 0} data-school-lessons-go={program.id}>
-              {count > 0 ? `Dodaj ${count} ${count === 1 ? 'lekcję' : count < 5 ? 'lekcje' : 'lekcji'}` : 'Dodaj lekcje'}
+              {count > 0 ? t('areasSchool.school.addLessonsN', { count }) : t('areasSchool.school.addLessons')}
             </button>
           </div>
         </form>
@@ -393,6 +400,7 @@ function ProgramRow({ ctx, world, classes, store, library, program }: {
 function RealizationTool({ world, classes, store, programs }: {
   world: SchoolWorld; classes: readonly string[]; store: LibraryStore | null; programs: readonly Entry[];
 }) {
+  const t = useT();
   const library = world.library;
   if (library === null) return null;
   const today = dayOf(new Date());
@@ -403,20 +411,20 @@ function RealizationTool({ world, classes, store, programs }: {
       const texts = lessonsOf(p, store).map((l) => l.textId);
       for (const c of classesOf(p)) {
         const set = programTexts.get(c) ?? new Set<string>();
-        for (const t of texts) set.add(t);
+        for (const id of texts) set.add(id);
         programTexts.set(c, set);
       }
     }
   }
   const withClasses = programs.filter((p) => classesOf(p).length > 0);
   return (
-    <Tool id="realization" name="Realizacja w klasach" ok={null}
-      says="Każda lekcja programu w każdej klasie: ✓ zrealizowana, ◐ częściowo, · zaplanowana, ✕ nie odbyła się (do powtórzenia). Kliknięcie otwiera realizację — z notatkami i tym, co z planu było; pusta komórka zapisuje nową.">
+    <Tool id="realization" name={t('areasSchool.school.realization')} ok={null}
+      says={t('areasSchool.school.realizationSays')}>
       {store === null ? <Loading lines={2} /> : withClasses.length === 0 ? (
-        <p className="wk-kind-small">Gdy program będzie miał lekcje i klasy, tu zobaczysz, która klasa jest gdzie.</p>
+        <p className="wk-kind-small">{t('areasSchool.school.realizationEmpty')}</p>
       ) : withClasses.map((p) => (
-        <section key={p.id} className="sc-matrix-sec" aria-label={str(p.data, 'title') || 'Program'}>
-          <h4 className="sc-matrix-title">{str(p.data, 'title') || 'Program'}</h4>
+        <section key={p.id} className="sc-matrix-sec" aria-label={str(p.data, 'title') || t('areasSchool.program')}>
+          <h4 className="sc-matrix-title">{str(p.data, 'title') || t('areasSchool.program')}</h4>
           <SchoolMatrix store={store} library={library} program={p}
             classes={classes.filter((c) => classesOf(p).includes(c)).concat(classesOf(p).filter((c) => !classes.includes(c)))}
             names={world.names} programTexts={programTexts} today={today} />

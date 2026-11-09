@@ -86,7 +86,7 @@ export interface StoryRouteStep {
   readonly lock: StoryLock;
 }
 
-/** A selectable destination keeps the same prerequisite checks as the story and landscape. */
+/** 2026-11-08 — der Weg zu einem Ziel: was davor gelernt sein muss (nach Ebene), dann das Ziel — jeder Schritt mit derselben Sperre wie Erzählung und Krajobraz. */
 export function storyRoute(lib: CogitaLibrary, cards: readonly Card[], learner: Learner, target: string): readonly StoryRouteStep[] {
   const c = lockContext(lib, cards, learner);
   const before = chainNeeds([target], c.graph)

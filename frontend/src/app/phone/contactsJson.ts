@@ -13,6 +13,7 @@
  * Kontakte gibt.
  */
 
+import { t } from '../core/i18n';
 import { keyLines, pretty, type JsonNode } from '../core/jsonTree';
 import { planImport, sameContact, tidyContact, type Contact, type ContactData, type ContactEmail, type ContactPhone } from './contactStore';
 
@@ -22,34 +23,41 @@ export const CONTACTS_VERSION = 1;
 /** Höchstens so viele Kontakte je Dokument — mehr ist eine Sicherung, kein Import zum Durchsehen. */
 const MAX_CONTACTS = 5000;
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${CONTACTS_FORMAT}"`,
-  version: `${CONTACTS_VERSION}`,
-  contacts: 'lista kontaktów (niżej)'
-};
+/** Eine Tabelle, deren Sätze erst beim Lesen geholt werden (in der Sprache der Anwendung) — die Schlüssel bleiben. */
+function lazy(table: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [key, text] of Object.entries(table)) Object.defineProperty(out, key, { get: text, enumerable: true });
+  return out;
+}
 
-const CONTACT_KEYS: Readonly<Record<string, string>> = {
-  id: 'tylko przy poprawianiu wyeksportowanych kontaktów: ich "id" — wtedy kontakt jest zmieniany w miejscu; bez "id" kontakt jest szukany (to samo imię i nazwisko i wspólny numer) albo dodawany',
-  name: 'jak kontakt jest podpisany (wymagane, chyba że są "given" albo "family" — wtedy powstaje z nich)',
-  given: 'imię',
-  family: 'nazwisko',
-  org: 'firma, parafia, instytucja',
-  title: 'funkcja albo stanowisko',
-  phones: 'numery: ["+48 600 100 200"] albo [{ "number": "+48 600 100 200", "label": "komórka" }]; etykiety: komórka, dom, praca, główny (albo własna)',
-  emails: 'adresy e-mail: ["anna@example.pl"] albo [{ "address": "anna@example.pl", "label": "praca" }]',
-  note: 'notatka',
-  birthday: 'data urodzenia "RRRR-MM-DD" (albo "--MM-DD", gdy bez roku)',
-  groups: 'grupy, np. ["Rada parafialna", "Schola"] — po nich filtruje się listę; grupa może mieć własny numer do SMS'
-};
+const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => `"${CONTACTS_FORMAT}"`,
+  version: () => `${CONTACTS_VERSION}`,
+  contacts: () => t('phoneContacts.json.keys.contacts')
+});
 
-const SAMPLE = {
+const CONTACT_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('phoneContacts.json.keys.id'),
+  name: () => t('phoneContacts.json.keys.name'),
+  given: () => t('phoneContacts.json.keys.given'),
+  family: () => t('phoneContacts.json.keys.family'),
+  org: () => t('phoneContacts.json.keys.org'),
+  title: () => t('phoneContacts.json.keys.title'),
+  phones: () => t('phoneContacts.json.keys.phones'),
+  emails: () => t('phoneContacts.json.keys.emails'),
+  note: () => t('phoneContacts.json.keys.note'),
+  birthday: () => t('phoneContacts.json.keys.birthday'),
+  groups: () => t('phoneContacts.json.keys.groups')
+});
+
+const sample = () => ({
   format: CONTACTS_FORMAT,
   version: CONTACTS_VERSION,
   contacts: [
-    { name: 'Anna Kowalska', given: 'Anna', family: 'Kowalska', phones: [{ number: '+48 600 100 200', label: 'komórka' }], emails: ['anna.kowalska@example.pl'], groups: ['Schola'], birthday: '1987-05-14' },
-    { name: 'ks. Marek Nowak', org: 'Parafia św. Jana', title: 'wikariusz', phones: ['+48 22 123 45 67'], note: 'dyżur w kancelarii we wtorki' }
+    { name: 'Anna Kowalska', given: 'Anna', family: 'Kowalska', phones: [{ number: '+48 600 100 200', label: 'komórka' }], emails: ['anna.kowalska@example.pl'], groups: ['Schola'], birthday: '1987-05-14' }, // i18n-ignore
+    { name: 'ks. Marek Nowak', org: t('phoneContacts.json.sample.org'), title: t('phoneContacts.json.sample.title'), phones: ['+48 22 123 45 67'], note: t('phoneContacts.json.sample.note') }
   ]
-};
+});
 
 /*
  * 2026-10-30 — WAS DIE APP MIT DEN KONTAKTEN TUT: nur der Telefonteil liest sie (Kontakty, SMS, Archiv,
@@ -58,37 +66,26 @@ const SAMPLE = {
  */
 export const CONTACTS_USAGE_JSON: JsonNode = {
   key: 'contacts.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Kontakty leżą w Twoim obszarze „Tylko ja”, każdy zapieczętowany osobno: widzisz je tylko Ty, na każdym urządzeniu, na którym się zalogujesz. Nie trafiają do obszarów, rozmów ani formularzy.
-- Kontakty (#/workspace/contacts): lista z wyszukiwaniem po nazwie, numerze, firmie, funkcji, grupie i adresie e-mail; "groups" filtrują listę.
-- W wydaniu „sms” telefon trzyma ich kopię w osobnym koncie książki adresowej „REcreatio” — dzięki niej przy połączeniu widać nazwę. Kopię zmienia się w recreatio, nie w książce telefonu; usunięcie konta „REcreatio” z telefonu usuwa tylko kopie.
-- W SMS-ach aplikacji nazwa z recreatio ma pierwszeństwo przed nazwą z innych kont telefonu. Archiwum SMS w przeglądarce podpisuje numery nazwami z Twoich kontaktów, a „Nowa wiadomość” podpowiada z nich odbiorców.
-- Grupa może mieć własny numer do SMS (SMS → „Numery i grupy”, #/workspace/sms/numery): kto do niej należy, dostaje SMS-y z tego numeru, chyba że rozmowa ma własny wybór. Numer jest przypisany do nazwy grupy — pisz ją w "groups" tak samo jak dotąd.
-- Import nie wysyła SMS-ów i nie zmienia numerów przypisanych grupom.`
+  get title() { return t('phoneContacts.json.usage.title'); },
+  text: () => t('phoneContacts.json.usage.text')
 };
 
 export const CONTACTS_JSON: JsonNode = {
   key: 'contacts',
-  title: `Kontakty jako JSON ("${CONTACTS_FORMAT}", wersja ${CONTACTS_VERSION})`,
-  short: 'Kontakty',
-  text: () => `Co robi import (Kontakty → „Więcej” → „Import i eksport (JSON)”):
-- Kontakt z "id" z eksportu jest zmieniany w miejscu — tylko pola, które są w dokumencie; reszta zostaje.
-- Kontakt bez "id" jest szukany wśród istniejących: ten sam podpis (imię i nazwisko) i wspólny numer — wtedy jest uzupełniany (nowe numery, adresy, grupy dochodzą; to, co już było, zostaje). Inaczej powstaje nowy.
-- Niczego nie usuwa. Przed zapisem widać listę zmian i ostrzeżenia.
-- Wszystko jest pieczętowane w tej przeglądarce — usługa widzi tylko, że kontakty są. W wydaniu „sms” telefon dostaje ich kopię przy następnym zapisie.
-- Do telefonów i Google służy dalej vCard („Wczytaj vCard”, „Zapisz … jako vCard”); JSON jest do poprawek ręcznych i przez AI.
-Zwróć JEDEN obiekt JSON, bez komentarzy, najwyżej ${MAX_CONTACTS} kontaktów.
+  get title() { return t('phoneContacts.json.title', { format: CONTACTS_FORMAT, version: CONTACTS_VERSION }); },
+  get short() { return t('phoneContacts.json.short'); },
+  text: () => `${t('phoneContacts.json.intro', { max: MAX_CONTACTS })}
 
-Dokument:
+${t('phoneContacts.json.doc')}
 ${keyLines(TOP_KEYS)}
 
-Kontakt (wpis w "contacts"):
+${t('phoneContacts.json.contact')}
 ${keyLines(CONTACT_KEYS)}
 
-Przykład:
-${pretty(SAMPLE)}`,
+${t('phoneContacts.json.example')}
+${pretty(sample())}`,
   inside: () => [CONTACTS_USAGE_JSON],
-  samples: () => [{ label: 'Dwa kontakty', doc: () => SAMPLE }]
+  samples: () => [{ get label() { return t('phoneContacts.json.sampleLabel'); }, doc: sample }]
 };
 
 /** Die Schlüssel, die die Beschreibung erklärt — für die Prüfung. */
@@ -126,52 +123,52 @@ interface Incoming {
 }
 
 function readPhones(v: unknown, where: string, warnings: string[]): ContactPhone[] {
-  if (!Array.isArray(v)) { warnings.push(`${where}: "phones" to nie lista — pominięte.`); return []; }
+  if (!Array.isArray(v)) { warnings.push(t('phoneContacts.json.warn.phonesNotList', { where })); return []; }
   const out: ContactPhone[] = [];
   for (const one of v) {
     if (typeof one === 'string' && one.trim() !== '') out.push({ number: one.trim(), label: null });
     else if (isObject(one) && textOf(one.number) !== null) out.push({ number: textOf(one.number)!, label: textOf(one.label) });
-    else warnings.push(`${where}: nieczytelny numer ${JSON.stringify(one).slice(0, 60)} — pominięty.`);
+    else warnings.push(t('phoneContacts.json.warn.badNumber', { where, value: JSON.stringify(one).slice(0, 60) }));
   }
   return out;
 }
 
 function readEmails(v: unknown, where: string, warnings: string[]): ContactEmail[] {
-  if (!Array.isArray(v)) { warnings.push(`${where}: "emails" to nie lista — pominięte.`); return []; }
+  if (!Array.isArray(v)) { warnings.push(t('phoneContacts.json.warn.emailsNotList', { where })); return []; }
   const out: ContactEmail[] = [];
   for (const one of v) {
     const address = typeof one === 'string' ? textOf(one) : isObject(one) ? textOf(one.address) : null;
     if (address !== null && address.includes('@')) out.push({ address, label: isObject(one) ? textOf(one.label) : null });
-    else warnings.push(`${where}: nieczytelny adres ${JSON.stringify(one).slice(0, 60)} — pominięty.`);
+    else warnings.push(t('phoneContacts.json.warn.badEmail', { where, value: JSON.stringify(one).slice(0, 60) }));
   }
   return out;
 }
 
 function readContact(raw: unknown, at: number, warnings: string[]): Incoming | null {
-  const where = `Kontakt ${at + 1}`;
-  if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięty.`); return null; }
-  for (const key of Object.keys(raw)) if (!(key in CONTACT_KEYS)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
+  const where = t('phoneContacts.json.at', { n: at + 1 });
+  if (!isObject(raw)) { warnings.push(t('phoneContacts.json.warn.notObject', { where })); return null; }
+  for (const key of Object.keys(raw)) if (!(key in CONTACT_KEYS)) warnings.push(t('phoneContacts.json.warn.unknownKey', { where, key }));
   const given: { -readonly [K in keyof ContactData]?: ContactData[K] } = {};
   for (const key of ['name', 'given', 'family', 'org', 'title', 'note'] as const) {
     if (!(key in raw)) continue;
-    if (raw[key] !== null && typeof raw[key] !== 'string') { warnings.push(`${where}: "${key}" to nie tekst — pominięte.`); continue; }
+    if (raw[key] !== null && typeof raw[key] !== 'string') { warnings.push(t('phoneContacts.json.warn.notText', { where, key })); continue; }
     given[key] = textOf(raw[key]) as never;
   }
   if ('birthday' in raw) {
     const b = textOf(raw.birthday);
-    if (b !== null && !BIRTHDAY.test(b)) warnings.push(`${where}: data urodzenia „${b}” nie ma postaci RRRR-MM-DD — pominięta.`);
+    if (b !== null && !BIRTHDAY.test(b)) warnings.push(t('phoneContacts.json.warn.birthday', { where, value: b }));
     else given.birthday = b;
   }
   if ('phones' in raw) given.phones = readPhones(raw.phones, where, warnings);
   if ('emails' in raw) given.emails = readEmails(raw.emails, where, warnings);
   if ('groups' in raw) {
     if (Array.isArray(raw.groups)) given.groups = raw.groups.filter((g): g is string => typeof g === 'string' && g.trim() !== '').map((g) => g.trim());
-    else warnings.push(`${where}: "groups" to nie lista — pominięte.`);
+    else warnings.push(t('phoneContacts.json.warn.groupsNotList', { where }));
   }
   const id = textOf(raw.id);
   const label = textOf(given.name) ?? ([given.given, given.family].filter(Boolean).join(' ') || null);
-  if (id === null && label === null) { warnings.push(`${where}: bez "name" (ani imienia i nazwiska) — pominięty.`); return null; }
-  return { id, given, label: label ?? '(bez zmiany podpisu)' };
+  if (id === null && label === null) { warnings.push(t('phoneContacts.json.warn.noName', { where })); return null; }
+  return { id, given, label: label ?? t('phoneContacts.json.sameLabel') };
 }
 
 /** Ein neuer Kontakt aus dem, was das Dokument nennt. */
@@ -188,12 +185,12 @@ export interface ContactsJsonPlan {
 }
 
 export function planContactsJson(doc: unknown, existing: readonly Contact[]): ContactsJsonPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument JSON (obiekt).' };
-  if (doc.format !== undefined && doc.format !== CONTACTS_FORMAT) return { error: `To nie są kontakty: "format" to "${String(doc.format)}", a powinien być "${CONTACTS_FORMAT}".` };
-  if (!Array.isArray(doc.contacts)) return { error: 'Brak listy "contacts".' };
+  if (!isObject(doc)) return { error: t('phoneContacts.json.err.notObject') };
+  if (doc.format !== undefined && doc.format !== CONTACTS_FORMAT) return { error: t('phoneContacts.json.err.format', { got: String(doc.format), format: CONTACTS_FORMAT }) };
+  if (!Array.isArray(doc.contacts)) return { error: t('phoneContacts.json.err.noList') };
   const warnings: string[] = [];
-  for (const key of Object.keys(doc)) if (!(key in TOP_KEYS)) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
-  if (doc.contacts.length > MAX_CONTACTS) warnings.push(`Dokument ma ${doc.contacts.length} kontaktów — wzięto pierwsze ${MAX_CONTACTS}.`);
+  for (const key of Object.keys(doc)) if (!(key in TOP_KEYS)) warnings.push(t('phoneContacts.json.warn.unknownTop', { key }));
+  if (doc.contacts.length > MAX_CONTACTS) warnings.push(t('phoneContacts.json.warn.tooMany', { count: doc.contacts.length, max: MAX_CONTACTS }));
 
   const byId = new Map(existing.map((c) => [c.id, c]));
   const changed = new Map<string, Contact>();
@@ -206,7 +203,7 @@ export function planContactsJson(doc: unknown, existing: readonly Contact[]): Co
     if (one.id !== null) {
       const had = changed.get(one.id) ?? byId.get(one.id);
       if (had === undefined) {
-        warnings.push(`Kontakt „${one.label}”: nie ma kontaktu o tym "id" — zostanie dodany jako nowy.`);
+        warnings.push(t('phoneContacts.json.warn.noSuchId', { name: one.label }));
         fresh.push(whole(one.given));
         return;
       }
@@ -225,15 +222,15 @@ export function planContactsJson(doc: unknown, existing: readonly Contact[]): Co
   const added: { id: null; data: ContactData; version: number }[] = [];
   for (const [id, c] of changed) {
     work.set(id, { id, data: c, version: byId.get(id)!.version });
-    lines.push(`Zmiana: „${c.name}”`);
+    lines.push(t('phoneContacts.json.line.changed', { name: c.name }));
   }
   for (const w of merged.work) {
-    if (w.id === null) { added.push({ id: null, data: w.data, version: 0 }); lines.push(`Nowy: „${w.data.name}”`); continue; }
-    if (!work.has(w.id)) lines.push(`Uzupełniony: „${w.data.name}”`);
+    if (w.id === null) { added.push({ id: null, data: w.data, version: 0 }); lines.push(t('phoneContacts.json.line.new', { name: w.data.name })); continue; }
+    if (!work.has(w.id)) lines.push(t('phoneContacts.json.line.completed', { name: w.data.name }));
     work.set(w.id, { id: w.id, data: w.data, version: byId.get(w.id)?.version ?? w.version });
   }
   const unchanged = same + merged.unchanged;
-  if (work.size === 0 && added.length === 0) lines.push('Bez zmian — wszystko jest już w kontaktach.');
-  else if (unchanged > 0) lines.push(`Bez zmian: ${unchanged}.`);
+  if (work.size === 0 && added.length === 0) lines.push(t('phoneContacts.json.line.nothing'));
+  else if (unchanged > 0) lines.push(t('phoneContacts.json.line.unchanged', { count: unchanged }));
   return { lines, warnings, work: [...work.values(), ...added] };
 }

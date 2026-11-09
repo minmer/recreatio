@@ -655,7 +655,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const [pathMark, setPathMark] = useState<string | null>(null);
   useEffect(() => { if (keep.unit === null) setPathMark(null); }, [keep.unit]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const storyUnits = useMemo(() => { const on = new Set(stories.map((x) => x.flow.unit ?? '').filter((u) => u !== '' && topicIndex.has(u))); return on.size > 0 && libQuestionGroups(lib).length > 0 ? on : new Set<string>(); }, [stories, topicIndex, lib, lib.revision]);
+  const storyUnits = useMemo(() => { const on = new Set(stories.map((x) => x.flow.unit ?? '').filter((u) => u !== '' && topicIndex.has(u))); return on.size > 0 && libQuestionGroups(lib).length > 0 ? on : new Set<string>(); }, [stories, topicIndex, lib, lib.revision]); // i18n-ignore
   const SW = slideWords(lang);
 
   /* -- Lernen ------------------------------------------------------------------------------------------- */
@@ -695,7 +695,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const nextUp = after ?? (() => learnEntry(id));
     if (list.length === 0) { nextUp(); return; }
     const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true });
-    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: nextUp, origin: id });
+    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: nextUp, origin: id }); // i18n-ignore
   };
   const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
   const storyUnit = (id: string): Flow | undefined => (gauge.testing.has(id) ? undefined : storyOf(id));

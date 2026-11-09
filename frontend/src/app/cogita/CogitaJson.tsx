@@ -9,11 +9,13 @@ import { useState } from 'react';
 
 import { JsonPanel } from '../ui/JsonPanel';
 import { WorkspaceError } from '../core/session';
+import { useT } from '../core/i18n';
 import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow } from './json';
 import { useImportReview } from './ImportReviewPanel';
 import { useCtx } from './ui';
 
 export function CogitaJson() {
+  const t = useT();
   const { lib, name, writes } = useCtx();
   const [what, setWhat] = useState<'entities' | 'statements' | 'questions' | 'flow' | 'schema'>('statements');
   const [source, setSource] = useState('');
@@ -26,57 +28,57 @@ export function CogitaJson() {
   return (
     <div className="cg">
       <JsonPanel
-        summary="Kurs jako JSON — eksport i import"
-        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import dodaje nowe i zmienia istniejące w miejscu; usuwa tylko to, co dokument wymienia z „"remove": true”. Przed zapisem widać każdą zmianę: nowe i usunięcia są zaznaczone (każde można odznaczyć), a zmiany w tym, co już jest, trzeba przyjąć — każdą można też poprawić.</>}
-        fileName={`kurs-${file}.json`}
+        summary={t('cogitaData.json.courseSummary')}
+        lead={t('cogitaData.json.courseLead')}
+        fileName={t('cogitaData.json.courseFile', { name: file })}
         exportDoc={() => exportCourse(lib, name)}
         description={() => courseDescription(lib)}
         /* 2026-11-03 — derselbe Plan wie in der Durchsicht und beim Speichern (dieselben Kennungen für das Neue). */
         preview={(doc) => review.preview(doc)}
         options={review.options}
-        importLabel="Zapisz przyjęte"
+        importLabel={t('cogitaData.json.saveAccepted')}
         onImport={async (doc, stage) => {
-          if (!writes) throw new WorkspaceError('W tej bazie wiedzy możesz tylko czytać.');
+          if (!writes) throw new WorkspaceError(t('cogitaData.json.readOnly'));
           return applyImport(lib, review.decide(doc), stage);
         }}
       />
 
       {lib.docs('flow').length > 0 && (
         <section className="cg-card">
-          <h3>Jeden przebieg z jego treścią</h3>
+          <h3>{t('cogitaData.json.oneFlow')}</h3>
           <div className="cg-row">
-            <select value={flow} onChange={(e) => setFlow(e.target.value)}>{lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? 'Przebieg')}</option>)}</select>
+            <select value={flow} onChange={(e) => setFlow(e.target.value)}>{lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? t('cogitaData.docKind.flow'))}</option>)}</select>
             <button type="button" className="wk-link-btn" onClick={() => {
               const doc = exportFlow(lib, flow);
               if (doc === null) return;
               const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
               const a = document.createElement('a');
               a.href = URL.createObjectURL(blob);
-              a.download = `przebieg-${file}.json`;
+              a.download = t('cogitaData.json.flowFile', { name: file });
               a.click();
               URL.revokeObjectURL(a.href);
-            }}>Pobierz</button>
+            }}>{t('common.download')}</button>
           </div>
         </section>
       )}
 
       {writes && (
         <section className="cg-card">
-          <h3>Przygotuj z tekstu — w swoim czacie z AI</h3>
-          <p className="wk-hint">Aplikacja nie wysyła niczego do AI. Skopiuj polecenie do własnego czatu, a odpowiedź (JSON) wklej wyżej w „Import" — zobaczysz, co powstanie, zanim cokolwiek się zapisze.</p>
+          <h3>{t('cogitaData.json.aiTitle')}</h3>
+          <p className="wk-hint">{t('cogitaData.json.aiHint')}</p>
           <div className="cg-row">
             <select value={what} onChange={(e) => setWhat(e.target.value as typeof what)}>
-              <option value="statements">wypowiedzi (teza i treść w blokach)</option>
-              <option value="entities">wpisy (osoby, miejsca, dzieła…)</option>
-              <option value="questions">pytania</option>
-              <option value="flow">przebieg z treścią</option>
-              <option value="schema">rodzaje (schemat)</option>
+              <option value="statements">{t('cogitaData.json.what.statements')}</option>
+              <option value="entities">{t('cogitaData.json.what.entities')}</option>
+              <option value="questions">{t('cogitaData.json.what.questions')}</option>
+              <option value="flow">{t('cogitaData.json.what.flow')}</option>
+              <option value="schema">{t('cogitaData.json.what.schema')}</option>
             </select>
           </div>
-          <textarea rows={6} value={source} onChange={(e) => setSource(e.target.value)} placeholder="Wklej tekst źródłowy (rozdział, notatki, kazanie)…" />
+          <textarea rows={6} value={source} onChange={(e) => setSource(e.target.value)} placeholder={t('cogitaData.json.sourcePlaceholder')} />
           <button type="button" className="wk-btn" disabled={source.trim() === ''} onClick={() => {
             void navigator.clipboard?.writeText(aiPrompt(lib, what, source)).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2500); });
-          }}>{copied ? 'Skopiowano polecenie' : 'Kopiuj polecenie dla AI'}</button>
+          }}>{copied ? t('cogitaData.json.copied') : t('cogitaData.json.copyPrompt')}</button>
         </section>
       )}
     </div>

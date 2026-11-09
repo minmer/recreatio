@@ -35,8 +35,6 @@ export const SHARE_MAX = 25 * 1024 * 1024;
 /** Wie lange ein Link gilt — zur Wahl. */
 export const SHARE_DAYS = [7, 30, 365] as const;
 
-export const daysLabel = (days: number): string => (days === 365 ? '1 rok' : days === 1 ? '1 dzień' : `${days} dni`);
-
 const SECRET_BYTES = 16;
 const SECRET_TEXT = /^[A-Za-z0-9_-]{22}$/;
 

@@ -33,6 +33,7 @@ import { AnswerInput, CardFace, CardPrompt, givenText, Verdict } from './CardFac
 import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
+import { appLang, LangScope, rich, useT } from '../core/i18n';
 import {
   chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, reviewOf, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
@@ -154,7 +155,7 @@ export const stepEntries = (content: Pick<FlowContent, 'card'>): EntriesOfStep =
  * der Baza, ein Unterablauf nach seiner Erzählung (mit allem, was sie bringt), eine Frage nach ihrem Thema.
  */
 export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: GraphNode) => string | null) {
-  const W = words(content.lang ?? 'pl');
+  const W = words(content.lang ?? appLang());
   const label = content.label ?? ((id: string) => content.entity(id)?.label ?? id);
   const base = stepWorkOf(stepEntries(content));
   const topicName = (ref: string): string | null => {
@@ -198,7 +199,14 @@ const FREE = 'cg-story-free:';
 const isFree = (flow: string): boolean => { try { return sessionStorage.getItem(FREE + flow) === '1'; } catch { return false; } };
 const keepFree = (flow: string): void => { try { sessionStorage.setItem(FREE + flow, '1'); } catch { /* ohne Speicher: mit Sperre */ } };
 
-export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel }: {
+type FlowPlayerProps = Parameters<typeof FlowPlayerIn>[0];
+
+/** 2026-11-05 — der Spieler spricht die Sprache der Baza (`content.lang`). */
+export function FlowPlayer(props: FlowPlayerProps) {
+  return <LangScope lang={props.content.lang ?? null}><FlowPlayerIn {...props} /></LangScope>;
+}
+
+function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
@@ -221,7 +229,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   /* Ein Ablauf beim Namen: der gegebene selbst (vielleicht ungespeichert), sonst der der Baza. */
   const flowOf = (id: string): Flow | undefined => (id === flow.id ? flow : content.flow(content.flowRef?.(id) ?? id));
   const cg = useContext(CogitaContext);
-  const W = words(content.lang ?? 'pl');
+  const t = useT();
+  const W = words(content.lang ?? t.lang);
 
   /*
     2026-11-04 (Prompt 10) — DIE KENNTNIS AUS DER GANZEN GESCHICHTE: alle Antworten des Lernenden auf diese Karte (aus jeder
@@ -645,7 +654,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const lockUnit = !gate || unlocked || learner === null || root.unit === undefined || cg === null || content.cards === undefined || cg.lib.entity(root.unit) === undefined ? null : root.unit;
   const around = useMemo(() => {
     if (cg === null || content.cards === undefined || learner === null) return { lock: OPEN_LOCK, next: null };
-    const after = state.stack.length > 0 ? null : { flow: running, taught: [...new Set(sp.parts.flatMap((p) => [...p.shown, ...p.asked]))] };
+    const after = state.stack.length > 0 ? null : { flow: running, taught: [...new Set(sp.parts.flatMap((p) => [...p.shown, ...p.asked]))] }; // i18n-ignore
     return storyAround(cg.lib, content.cards, learner, lockUnit, after);
   }, [cg, cg?.lib.revision, content.cards, learner, progressNow, lockUnit, lockTick, running, sp, state.stack.length, state.ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const lock = around.lock;
@@ -813,7 +822,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const drawingText = node.type === 'show' ? slideDrawingText(k.drawing, shownEntity) : null;
     return (
       <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken}>
-        {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
+        {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? t('cogitaLearnPath.flow.guess') : t('cogitaLearnPath.flow.recall')}</p>}
         {media !== null && <MediaView media={media} />}
         {id !== '' && <EntityView entity={shownEntity} />}
       </WithSlideDrawing>
@@ -915,7 +924,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           {directFirst !== null && <p className="wk-note" data-flow-story-first={directFirst.length}>{W.storyFirst(directFirst.map((x) => `„${x}”`).join(', '))}</p>}
           {missing ? (
             <>
-              <p><strong>Ta opowieść jest jeszcze zamknięta.</strong> Otworzy się, gdy poznasz to, co trzeba znać przed nią — od podstaw:</p>
+              <p>{rich(t('cogitaLearnPath.flow.locked'), { b: (s) => <strong>{s}</strong> })}</p>
               <ol className="cg-flow-missing" data-flow-missing={lock.missing.length}>
                 {lock.missing.map((id) => {
                   const origin = cg.lib.origin(id);
@@ -923,7 +932,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
                   return (
                     <li key={id} data-flow-missing-item={id}>
                       {inWorkspace && origin !== undefined ? <a className="cg-ref" href={originPath(origin, id, 'wpisy')}><TexText text={name(id)} /></a> : <TexText text={name(id)} />}
-                      {learner !== null && own.length > 0 && <> · <button type="button" className="wk-link-btn" onClick={() => runOf(name(id), own, false)} data-flow-missing-learn={id}>Ucz się</button></>}
+                      {learner !== null && own.length > 0 && <> · <button type="button" className="wk-link-btn" onClick={() => runOf(name(id), own, false)} data-flow-missing-learn={id}>{W.learn}</button></>}
                     </li>
                   );
                 })}
@@ -931,9 +940,9 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             </>
           ) : (
             <>
-              <p>Wszystko, czego ta opowieść wymaga, już poznałeś — ale {lock.weak.length === 1 ? 'jedną kartę' : `${lock.weak.length} kart`} z tego warto najpierw powtórzyć.</p>
+              <p>{t('cogitaLearnPath.flow.weak', { count: lock.weak.length })}</p>
               <div className="wk-actions">
-                <button type="button" className="wk-btn" onClick={() => runOf(`Najpierw powtórka: ${root.name}`, lock.weak, true)} data-flow-review-first={lock.weak.length}>Najpierw powtórz ({lock.weak.length})</button>
+                <button type="button" className="wk-btn" onClick={() => runOf(t('cogitaLearnPath.flow.reviewFirstTitle', { name: root.name }), lock.weak, true)} data-flow-review-first={lock.weak.length}>{t('cogitaLearnPath.flow.reviewFirst', { n: lock.weak.length })}</button>
               </div>
             </>
           )}
@@ -942,7 +951,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             <button type="button" className="wk-btn" title={W.nextGoalHint} onClick={() => setRouteTarget({ id: root.unit!, aim: true })} data-flow-goal="">{W.setGoal}</button>
           </div>}
           <div className="wk-actions">
-            {cg.writes && <button type="button" className="wk-link-btn" onClick={() => setUnlocked(true)} data-flow-preview="">Podgląd mimo to</button>}
+            {cg.writes && <button type="button" className="wk-link-btn" onClick={() => setUnlocked(true)} data-flow-preview="">{t('cogitaLearnPath.flow.previewAnyway')}</button>}
             {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.back}</button>}
           </div>
         </div>
@@ -957,8 +966,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         <section className="cg-flow">
           <div className="cg-flow-step">
             <h2><TexText text={root.name} /></h2>
-            <p className="cg-muted">Ten przebieg jest prezentacją.</p>
-            <div className="wk-actions"><a className="wk-btn" href={`#/${root.presentation}`}>Otwórz prezentację</a></div>
+            <p className="cg-muted">{t('cogitaLearnPath.flow.isPresentation')}</p>
+            <div className="wk-actions"><a className="wk-btn" href={`#/${root.presentation}`}>{t('cogitaLearnPath.flow.openPresentation')}</a></div>
           </div>
         </section>
       );
@@ -1028,7 +1037,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       }
       case 'question': {
         const card = askedCardOf(current, content.card);
-        if (card === null) return <><p className="wk-hint">Tego pytania tu nie ma.</p>{next(() => go('right'))}</>;
+        if (card === null) return <><p className="wk-hint">{t('cogitaLearnPath.flow.noQuestion')}</p>{next(() => go('right'))}</>;
         const left = questionsLeft(running, current.id, content.card, marksOf).left;
         /* Dieselbe Frage wie eben, nach einer falschen Antwort: erst ein Przerywnik (eine gekonnte), dann sie wieder. */
         /* Nur beim Wiederkommen — nicht, solange die Rückmeldung zur eben falschen Antwort steht. */
@@ -1077,7 +1086,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             <p className="cg-muted">{W.chooseRoad(list.length)}</p>
             {list.map((o, i) => {
               const exit = `o${i}`;
-              const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || `możliwość ${i + 1}`;
+              const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || t('cogitaLearnPath.flow.option', { n: i + 1 });
               const branch = fork?.branches.find((x) => x.exit === exit);
               const work = branch === undefined ? null : branchWork(sp, branch, knownStep);
               const wordsOf = work === null || work.parts === 0 ? '' : W.part({ kind: 'read', slides: work.slides, questions: work.questions }, work.ask);
@@ -1093,7 +1102,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
                   {walked && <span className="cg-muted" data-flow-option-done="">{W.done}</span>}
                   {locked && cond !== null && !holds(cond, facts(state)) && (
                     <span className="cg-muted" data-flow-option-why="">
-                      {cond.type === 'not' && cond.items?.length === 1 ? `Zamknięte, bo: ${conditionText(cond.items[0], name)}` : `Zamknięte — otworzy się, gdy: ${conditionText(cond, name)}`}
+                      {cond.type === 'not' && cond.items?.length === 1 ? t('cogitaLearnPath.flow.closedBecause', { why: conditionText(cond.items[0], name) }) : t('cogitaLearnPath.flow.closedUntil', { when: conditionText(cond, name) })}
                     </span>
                   )}
                 </button>
@@ -1119,18 +1128,18 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const done = all - left.length;
         return (
           <>
-            <p className="cg-muted" data-flow-merge={`${done}/${all}`}>Ukończono {mergeWords(done, all)}{left.length > 0 ? ' — wybierz następną (wszystkie, w dowolnej kolejności):' : '.'}</p>
+            <p className="cg-muted" data-flow-merge={`${done}/${all}`}>{left.length > 0 ? t('cogitaLearnPath.flow.mergedNext', { merged: mergeWords(done, all, t.lang) }) : t('cogitaLearnPath.flow.merged', { merged: mergeWords(done, all, t.lang) })}</p>
             {left.length === 0 ? next(() => go('done')) : (
               <div className="cg-choices cg-choice-list">
                 {(Array.isArray(c.chapters) ? c.chapters : []).map((one, i) => {
                   const exit = `c${i}`;
-                  const chapterTitle = (typeof one === 'object' && one !== null && typeof (one as { title?: unknown }).title === 'string' ? (one as { title: string }).title : typeof one === 'string' ? one : '') || `Rozdział ${i + 1}`;
+                  const chapterTitle = (typeof one === 'object' && one !== null && typeof (one as { title?: unknown }).title === 'string' ? (one as { title: string }).title : typeof one === 'string' ? one : '') || t('cogitaLearnPath.flow.chapter', { n: i + 1 });
                   const isLeft = left.some((x) => x.exit === exit);
                   const workWords = workOf(exit);
                   return (
                     <button key={exit} type="button" className={`cg-option cg-choice-item${isLeft ? '' : ' is-done'}`} disabled={!isLeft} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-done={isLeft ? '0' : '1'}>
                       <TexText text={chapterTitle} />
-                      <span className="cg-muted">{isLeft ? workWords : 'ukończone'}</span>
+                      <span className="cg-muted">{isLeft ? workWords : W.done}</span>
                     </button>
                   );
                 })}
@@ -1188,8 +1197,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const page = typeof c.page === 'string' ? c.page.replace(/^#?\/?/, '') : '';
         return (
           <>
-            <p className="cg-muted">Scena prezentacji</p>
-            {page !== '' && <a className="wk-link" href={`#/${page}`} target="_blank" rel="noopener">Otwórz prezentację</a>}
+            <p className="cg-muted">{t('cogitaLearnPath.flow.scene')}</p>
+            {page !== '' && <a className="wk-link" href={`#/${page}`} target="_blank" rel="noopener">{t('cogitaLearnPath.flow.openPresentation')}</a>}
             {next(() => go('next'))}
           </>
         );
@@ -1240,7 +1249,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       if (cards.length > 0) {
         const known = marksOf === null ? 0 : cards.filter((x) => isKnown(x, marksOf)).length;
         const mark = running.goals.length === 0 ? '' : ` · ${reviewOpen ? W.reviewOpenMark : W.reviewPassedMark}`;
-        return { label: `${W.reviewProgress(known, cards.length)}${mark}`, share: known / cards.length, review: true };
+        return { label: `${W.reviewProgress(known, cards.length)}${mark}`, share: known / cards.length, review: true }; // i18n-ignore
       }
     }
     const count = hexNow ?? pathNow;
@@ -1486,13 +1495,14 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
 function Bubble({ who, text, mood }: { who: PublicEntity | null; text: PublicEntity | null; mood: string | null }) {
   const portrait = who?.media.find((m) => m.type === 'image');
   const line = text?.fields.find((f) => f.key === 'text' || f.type === 'blocks')?.text ?? text?.label ?? '';
+  const t = useT();
   return (
     <div className="cg-bubble">
       <span className="cg-bubble-face" title={who?.label ?? ''}>
         {portrait !== undefined ? <MediaView media={portrait} /> : (who?.label ?? '?').slice(0, 1)}
       </span>
       <span className="cg-bubble-text">
-        <strong><TexText text={who?.label ?? 'Postać'} />{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>
+        <strong><TexText text={who?.label ?? t('cogitaLearnPath.flow.character')} />{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>
         <Markup text={line} />
       </span>
     </div>

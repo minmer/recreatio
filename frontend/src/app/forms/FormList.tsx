@@ -17,7 +17,7 @@ import { useState } from 'react';
 
 import { areaPath, type AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { formSections, moveInGroup, type FormItem } from './formGroups';
 import { newId } from '../core/ids';
 import { createFormGroup, removeFormGroup, updateFormGroup, updateModule, type FormGroup, type ModuleRow } from '../modules/module';
@@ -42,6 +42,7 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
   const [name, setName] = useState('');
   const [making, setMaking] = useState(false);
   const [newName, setNewName] = useState('');
+  const t = useT();
   const sections = formSections(modules, groups);
   const hasGroups = groups.length > 0;
 
@@ -60,7 +61,7 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
   const groupArea = newArea !== '' ? newArea : usual;
 
   const moveTo = (form: ModuleRow, value: string) => void onAct(
-    value === '' ? 'Wyjmowanie z grupy…' : 'Przenoszenie do grupy…',
+    value === '' ? t('formsOffice.list.ungrouping') : t('formsOffice.list.moving'),
     () => updateModule(form.moduleId, value === '' ? { clearGroup: true } : { groupId: value }, form)
   );
 
@@ -73,28 +74,28 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
         <a className="wk-tree-row" href={n > 0 ? formNewsPath(form.moduleId) : formPath(form.moduleId)}>
           <span className="wk-tree-name">{sub && <span aria-hidden="true">↳ </span>}{form.name}</span>
           <span className="wk-tags">
-            {form.extendsId !== null && <span className="wk-tag">{form.audience === 'office' ? 'tylko koordynator' : 'wypełnia osoba'}</span>}
+            {form.extendsId !== null && <span className="wk-tag">{form.audience === 'office' ? t('forms.settings.fillsOffice') : t('forms.settings.fillsPerson')}</span>}
             {form.extendsId === null && form.areaId !== null && <span className="wk-tag">{areaPath(areas, form.areaId).short || form.areaName}</span>}
-            {form.closed && <span className="wk-tag">zamknięty</span>}
-            {n > 0 && <span className="wk-tag wk-tag-new">nowe: {n}</span>}
+            {form.closed && <span className="wk-tag">{t('formsOffice.list.closed')}</span>}
+            {n > 0 && <span className="wk-tag wk-tag-new">{t('formsOffice.people.newCount', { count: n })}</span>}
           </span>
           <span className="wk-tree-mine">
-            {form.entries} {form.extendsId === null ? plural(form.entries, 'zgłoszenie', 'zgłoszenia', 'zgłoszeń') : plural(form.entries, 'wpis', 'wpisy', 'wpisów')}
+            {form.extendsId === null ? t('formsOffice.list.entries', { count: form.entries }) : t('formsOffice.list.records', { count: form.entries })}
           </span>
         </a>
         {/* 2026-10-17 — Grupa und Reihenfolge in EINEM Menü: vorher an jeder Zeile ein Auswahlfeld und zwei Pfeile. */}
-        <MenuButton label={`Więcej: ${form.name}`} disabled={busy} items={[
+        <MenuButton label={t('formsOffice.list.more', { name: form.name })} disabled={busy} items={[
           order !== null && group !== null && group.manages && at > 0 && {
-            label: 'Przesuń wyżej', icon: 'up',
-            onSelect: () => void onAct('Porządkowanie…', () => updateFormGroup(group.groupId, { order: moveInGroup(order, form.moduleId, -1) }))
+            label: t('formsOffice.list.up'), icon: 'up',
+            onSelect: () => void onAct(t('formsOffice.tidying'), () => updateFormGroup(group.groupId, { order: moveInGroup(order, form.moduleId, -1) }))
           },
           order !== null && group !== null && group.manages && at >= 0 && at < order.length - 1 && {
-            label: 'Przesuń niżej', icon: 'down',
-            onSelect: () => void onAct('Porządkowanie…', () => updateFormGroup(group.groupId, { order: moveInGroup(order, form.moduleId, 1) }))
+            label: t('formsOffice.list.down'), icon: 'down',
+            onSelect: () => void onAct(t('formsOffice.tidying'), () => updateFormGroup(group.groupId, { order: moveInGroup(order, form.moduleId, 1) }))
           },
           ...(hasGroups || form.groupId != null ? [
-            ...groups.map((g) => ({ label: `Do grupy: ${g.name}`, icon: 'layers' as const, checked: form.groupId === g.groupId, onSelect: () => { if (form.groupId !== g.groupId) moveTo(form, g.groupId); } })),
-            form.groupId != null && { label: 'Wyjmij z grupy', icon: 'x' as const, onSelect: () => moveTo(form, '') }
+            ...groups.map((g) => ({ label: t('formsOffice.list.toGroup', { name: g.name }), icon: 'layers' as const, checked: form.groupId === g.groupId, onSelect: () => { if (form.groupId !== g.groupId) moveTo(form, g.groupId); } })),
+            form.groupId != null && { label: t('formsOffice.list.ungroup'), icon: 'x' as const, onSelect: () => moveTo(form, '') }
           ] : [])
         ]} />
       </div>
@@ -122,12 +123,12 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
   return (
     <div className="wk-form-groups" data-form-groups="">
       <PageHeader
-        title="Formularze"
+        title={t('formsOffice.list.title')}
         actions={(
           <>
-            <a className="wk-btn" href={formPath('new')}><Icon name="plus" />Nowy formularz</a>
-            {!making && <button type="button" className="wk-btn wk-btn-line" data-new-group="" onClick={() => setMaking(true)}><Icon name="plus" />Nowa grupa</button>}
-            <a className="wk-btn wk-btn-quiet" href={formsPath(FORM_MAP)} data-form-map-link=""><Icon name="branch" />Mapa</a>
+            <a className="wk-btn" href={formPath('new')}><Icon name="plus" />{t('formsOffice.list.newForm')}</a>
+            {!making && <button type="button" className="wk-btn wk-btn-line" data-new-group="" onClick={() => setMaking(true)}><Icon name="plus" />{t('formsOffice.list.newGroup')}</button>}
+            <a className="wk-btn wk-btn-quiet" href={formsPath(FORM_MAP)} data-form-map-link=""><Icon name="branch" />{t('formsOffice.list.map')}</a>
           </>
         )}
       />
@@ -136,13 +137,13 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
         <form className="wk-inline wk-new-group" onSubmit={(e) => {
           e.preventDefault();
           if (newName.trim() === '' || groupArea === '') return;
-          void onAct('Zakładanie grupy…', () => createFormGroup(newId(), newName.trim(), groupArea)).then(() => { setMaking(false); setNewName(''); });
+          void onAct(t('formsOffice.list.creatingGroup'), () => createFormGroup(newId(), newName.trim(), groupArea)).then(() => { setMaking(false); setNewName(''); });
         }}>
-          <input value={newName} autoFocus placeholder="np. Bierzmowanie 2027" aria-label="Nazwa grupy" data-new-group-name="" onChange={(e) => setNewName(e.target.value)} />
-          <span className="wk-new-group-area" data-new-group-area=""><AreaPick label="Obszar grupy" value={groupArea} disabled={busy} onChange={setNewArea} areas={areas} only={writable} /></span>
-          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || newName.trim() === '' || groupArea === ''}>Utwórz grupę</button>
-          <button type="button" className="wk-link-btn" onClick={() => { setMaking(false); setNewName(''); }}>Anuluj</button>
-          <span className="wk-hint">Grupa to folder — dla wypełniających nic się nie zmienia.</span>
+          <input value={newName} autoFocus placeholder={t('formsOffice.list.groupPlaceholder')} aria-label={t('formsOffice.list.groupName')} data-new-group-name="" onChange={(e) => setNewName(e.target.value)} />
+          <span className="wk-new-group-area" data-new-group-area=""><AreaPick label={t('formsOffice.list.groupArea')} value={groupArea} disabled={busy} onChange={setNewArea} areas={areas} only={writable} /></span>
+          <button type="submit" className="wk-btn wk-btn-small" disabled={busy || newName.trim() === '' || groupArea === ''}>{t('formsOffice.list.createGroup')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => { setMaking(false); setNewName(''); }}>{t('common.cancel')}</button>
+          <span className="wk-hint">{t('formsOffice.list.groupHint')}</span>
         </form>
       )}
 
@@ -158,23 +159,23 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
                   <form className="wk-inline" onSubmit={(e) => {
                     e.preventDefault();
                     if (name.trim() === '') return;
-                    void onAct('Zmiana nazwy grupy…', () => updateFormGroup(group.groupId, { name: name.trim() }, group.areaId)).then(() => setNaming(null));
+                    void onAct(t('formsOffice.list.renaming'), () => updateFormGroup(group.groupId, { name: name.trim() }, group.areaId)).then(() => setNaming(null));
                   }}>
-                    <input value={name} autoFocus aria-label="Nazwa grupy" onChange={(e) => setName(e.target.value)} />
-                    <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === ''}>Zapisz</button>
-                    <button type="button" className="wk-link-btn" onClick={() => setNaming(null)}>Anuluj</button>
+                    <input value={name} autoFocus aria-label={t('formsOffice.list.groupName')} onChange={(e) => setName(e.target.value)} />
+                    <button type="submit" className="wk-btn wk-btn-small" disabled={busy || name.trim() === ''}>{t('common.save')}</button>
+                    <button type="button" className="wk-link-btn" onClick={() => setNaming(null)}>{t('common.cancel')}</button>
                   </form>
                 ) : (
-                  <h2 className="wk-fgroup-name">{group === null ? 'Bez grupy' : group.name}</h2>
+                  <h2 className="wk-fgroup-name">{group === null ? t('formsOffice.list.noGroup') : group.name}</h2>
                 )}
                 {group !== null && naming !== group.groupId && group.manages && (
-                  <MenuButton label={`Grupa: ${group.name}`} disabled={busy} items={[
-                    { label: 'Zmień nazwę', icon: 'edit', onSelect: () => { setNaming(group.groupId); setName(group.name); } },
+                  <MenuButton label={t('formsOffice.list.group', { name: group.name })} disabled={busy} items={[
+                    { label: t('formsOffice.list.rename'), icon: 'edit', onSelect: () => { setNaming(group.groupId); setName(group.name); } },
                     {
-                      label: 'Usuń grupę', icon: 'trash', danger: true,
+                      label: t('formsOffice.list.removeGroup'), icon: 'trash', danger: true,
                       onSelect: () => void (async () => {
-                        if (!(await askText(`Usunąć grupę „${group.name}"? Formularze zostają — tylko bez grupy.`))) return;
-                        void onAct('Usuwanie grupy…', () => removeFormGroup(group.groupId));
+                        if (!(await askText(t('formsOffice.list.removeGroupAsk', { name: group.name })))) return;
+                        void onAct(t('formsOffice.list.removingGroup'), () => removeFormGroup(group.groupId));
                       })()
                     }
                   ]} />
@@ -182,14 +183,14 @@ export function FormList({ modules, groups, areas, fresh, busy, onAct }: {
               </header>
             )}
             {section.items.length === 0
-              ? <p className="wk-empty">Pusta grupa — przenieś tu formularz z jego menu „⋯".</p>
+              ? <p className="wk-empty">{t('formsOffice.list.emptyGroup')}</p>
               : items(section.items, group)}
           </section>
         );
       })}
 
       {modules.every((m) => m.kind !== 'form') && (
-        <p className="wk-empty">Nie masz jeszcze formularza. Najprościej: na stronie warsztatu „Co chcesz zrobić?" → „Zapisy na wydarzenie".</p>
+        <p className="wk-empty">{t('formsOffice.list.none')}</p>
       )}
     </div>
   );

@@ -1,0 +1,51 @@
+{
+  "why": {
+    "thread": "für dieses Gespräch gewählt",
+    "group": "Gruppe „{group}”",
+    "last": "von hier kam die letzte Nachricht",
+    "default": "Standardnummer für SMS"
+  },
+  "own": {
+    "removed": "Nummer entfernt.",
+    "saved": "Nummer gespeichert.",
+    "saveFailed": "Die Nummer ließ sich nicht speichern.",
+    "title": "Deine Nummern",
+    "note": "Das Archiv vermerkt bei Nachrichten, von welcher Nummer sie gingen; eine Antwort aus dem Browser sendet das Telefon, das die Nummer des Gesprächs hat.",
+    "default": "(Standard für SMS)",
+    "numberPh": "Nummer dieser Karte, z. B. +48 600 100 200",
+    "numberOf": "Nummer: {name}"
+  },
+  "title": "Nummern und Gruppen",
+  "loadFailed": "Die Kontakte ließen sich nicht laden.",
+  "loading": "Kontakte werden geladen…",
+  "groups": {
+    "title": "Gruppen mit eigener Nummer",
+    "note": "Personen einer Gruppe bekommen SMS immer von der gewählten Nummer — im Gespräch, in einer neuen Nachricht und in der Antwort aus einer Benachrichtigung. Im Gespräch lässt sich das in seinem Kopf ändern (dann nur für dieses Gespräch).",
+    "oneSim": "Dieses Telefon hat eine Nummer — die Wahl einer Nummer für Gruppen erscheint bei zwei SIM-Karten.",
+    "empty": "Noch keine Gruppen. Leg die erste an — oder trag eine Gruppe beim Kontakt ein (Kontakte → Person → Gruppen).",
+    "numberFor": "Nummer für die Gruppe {group}",
+    "people": "Personen…",
+    "new": "Neue Gruppe"
+  },
+  "persons": {
+    "one": "{count} Person",
+    "other": "{count} Personen"
+  },
+  "defaultNumber": "Standardnummer",
+  "edit": {
+    "nameIt": "Gib der Gruppe einen Namen.",
+    "noComma": "Ein Gruppenname darf kein Komma enthalten.",
+    "savingN": "Speichern… {done}/{total}",
+    "saved": "Gruppe „{group}”: {persons}.",
+    "savedNumber": "Gruppe „{group}”: {persons}, Nummer {number}.",
+    "saveFailed": "Die Gruppe ließ sich nicht speichern.",
+    "title": "Gruppe „{group}”",
+    "name": "Name der Gruppe",
+    "namePh": "z. B. Arbeit, Firmung 2026",
+    "sendFrom": "SMS an diese Personen von der Nummer senden",
+    "people": "Personen ({count})",
+    "searchPh": "Suchen: Name, Nummer…",
+    "contacts": "Kontakte",
+    "save": "Gruppe speichern"
+  }
+}

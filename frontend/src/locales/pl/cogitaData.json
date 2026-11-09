@@ -647,5 +647,517 @@
     "backToProposal": "Wróć do propozycji",
     "editedValue": "Poprawiona wartość: {name}",
     "paragraphsHint": "Akapity oddziela pusta linia."
+  },
+  "worlds": {
+    "doc": {
+      "flow": "Przebieg",
+      "view": "Widok",
+      "revision": "Powtórka",
+      "collection": "Zbiór",
+      "template": "Szablon",
+      "look": "Wygląd",
+      "rules": "Zasady",
+      "anchor": "Wejście",
+      "other": "Dokument"
+    },
+    "detourAt": "{name}, zagłębienie „{id}”",
+    "notExternal": "{where}: odwołanie do innego świata „{ref}” w polu bez \"external\": true — zapisze się i pokaże jako „W innych światach”, ale edytor nie pozwoli tam wybierać z innych światów; dodaj w rodzaju polu \"external\": true.",
+    "refs": {
+      "one": "{count} odwołanie",
+      "few": "{count} odwołania",
+      "many": "{count} odwołań",
+      "other": "{count} odwołania"
+    },
+    "sameBase": "„@@{handle}:…” to ta sama baza ({refs}, np. {where}) — w obrębie bazy wskazuje się zwykłym „@nazwa”; te odwołania zapiszą się, ale nie zostaną pokazane jako inny świat.",
+    "unknown": "Nieznany świat „@@{handle}” ({refs}, np. {where}) — żadna baza, którą możesz czytać, nie ma w Ustawieniach nazwy „{handle}”. Odwołania zapiszą się; uczący się ich nie zobaczą, a w „Do zrobienia” będą jako zerwane, dopóki świat się nie znajdzie (Ustawienia → Inne światy).",
+    "added": "Dodano świat „{name}” (@@{handle}) do Ustawień tej bazy — odwołania „@@{handle}:…” prowadzą do niego.",
+    "unreadable": "Świat „{name}” (@@{handle}): nie możesz go czytać — {refs} zapisze się, ale nie da się ich sprawdzić; widzą je tylko ci, którzy ten świat czytają.",
+    "broken": "{where}: „{ref}” — w świecie „{name}” nie ma takiego wpisu, opowieści ani widoku. Zapisze się jako zerwane (uczący się go nie zobaczą; „Do zrobienia”).",
+    "notStory": "{where}: „{ref}” w świecie „{name}” to nie opowieść — zagłębienie pokaże tylko kartę z linkiem.",
+    "incoming": "Linki z innych światów: {list} — tam staną się zerwane (pokażą się w ich „Do zrobienia”, uczący się ich nie zobaczą)."
+  },
+  "generator": {
+    "question": "Pytanie „{name}”",
+    "questionErrors": "{name}: generator — {errors} Taka karta nie powstanie.",
+    "neverDrawn": "{name}: generator nie wylosował zadania w {failed} z {probes} prób — {why} Ta karta nie powstanie.",
+    "sometimesNotDrawn": "{name}: generator nie wylosował zadania w {failed} z {probes} prób — {why} Wtedy karta w danym przebiegu nie powstaje.",
+    "unmet": "warunki niespełnione",
+    "template": "Szablon „{name}”, generator „{node}”",
+    "nothing": "{name}: nie ma nic do losowania (params, let albo texts).",
+    "templateErrors": "{name}: {errors} Karty z niego nie powstaną.",
+    "templateNotDrawn": "{name}: dla wpisu „{entry}” nie wylosował zadania w {failed} z {probes} prób — {why}"
+  },
+  "landscape": {
+    "circle": "Kolejność nauki („Najpierw trzeba znać”) zamyka koło: {list} — w krajobrazie koło liczy się jako jeden krok, a ścieżka i poziomy pomijają jedno połączenie. Popraw je.",
+    "noAxis": "Krajobraz „{name}”: nie ma rodzaju-osi „{kind}” — kierunek przyjdzie z sąsiedztwa w kolejności nauki.",
+    "noOrder": "Krajobraz „{name}”: baza nie ma jeszcze kolejności nauki (pól „Najpierw trzeba znać”) — wszystko, czego się nie umie, leży na pierścieniu, bez gór."
+  },
+  "interactive": {
+    "cannotCompute": "solution „{name}”: nie da się policzyć („{source}”)",
+    "question": "Pytanie „{name}” (rysunek)",
+    "moreErrors": "{name}: i {count} innych błędów w wyrażeniach.",
+    "notSolved": "{name}: rozwiązanie (\"solution\") nie osiąga celu — policzone do końca z tymi wartościami cel nie jest spełniony; uczący się po złej odpowiedzi zobaczy złe rozwiązanie.",
+    "goalReached": "cel rysunku osiągnięty",
+    "more": "… ({count} więcej)"
+  },
+  "json": {
+    "courseSummary": "Kurs jako JSON — eksport i import",
+    "courseLead": "Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import dodaje nowe i zmienia istniejące w miejscu; usuwa tylko to, co dokument wymienia z „\"remove\": true”. Przed zapisem widać każdą zmianę: nowe i usunięcia są zaznaczone (każde można odznaczyć), a zmiany w tym, co już jest, trzeba przyjąć — każdą można też poprawić.",
+    "courseFile": "kurs-{name}.json",
+    "saveAccepted": "Zapisz przyjęte",
+    "readOnly": "W tej bazie wiedzy możesz tylko czytać.",
+    "oneFlow": "Jeden przebieg z jego treścią",
+    "flowFile": "przebieg-{name}.json",
+    "aiTitle": "Przygotuj z tekstu — w swoim czacie z AI",
+    "aiHint": "Aplikacja nie wysyła niczego do AI. Skopiuj polecenie do własnego czatu, a odpowiedź (JSON) wklej wyżej w „Import\" — zobaczysz, co powstanie, zanim cokolwiek się zapisze.",
+    "what": {
+      "statements": "wypowiedzi (teza i treść w blokach)",
+      "entities": "wpisy (osoby, miejsca, dzieła…)",
+      "questions": "pytania",
+      "flow": "przebieg z treścią",
+      "schema": "rodzaje (schemat)"
+    },
+    "sourcePlaceholder": "Wklej tekst źródłowy (rozdział, notatki, kazanie)…",
+    "copied": "Skopiowano polecenie",
+    "copyPrompt": "Kopiuj polecenie dla AI",
+    "formSummary": "Formularz jako JSON",
+    "formsSummary": "Formularze dodawania jako JSON",
+    "formLead": "Formularz razem z rodzajami, których potrzebuje (i szablonami kart, jeśli dokument je ma) — do innej bazy wiedzy albo do poprawienia w tekście. Ten sam „ref” zmienia istniejący formularz, nowy — tworzy formularz. Niczego się nie usuwa.",
+    "formFile": "formularz-{name}.json",
+    "importForm": "Importuj formularz",
+    "formDialog": "Formularz dodawania z JSON",
+    "formsName": "Formularze dodawania",
+    "baseFallback": "baza",
+    "progressSummary": "Moje postępy jako JSON",
+    "progressLead": "Twoje odpowiedzi w tej bazie wiedzy — karta, jak dobrze, kiedy, jak długo i co podano — do zachowania albo do analizy przez AI. Import dopisuje do Twoich postępów odpowiedzi, których jeszcze nie ma; niczego nie zmienia ani nie usuwa i nigdy nie zapisuje za kogoś innego.",
+    "progressFile": "postepy-{name}.json",
+    "progressImport": "Dopisz do moich postępów"
+  },
+  "kindRemoval": {
+    "foreign": "Rodzaj „{name}” pochodzi z innej bazy wiedzy (źródła) — usuń go tam albo odłącz to źródło w Ustawieniach.",
+    "fieldRemoved": "pole „{field}” w „{kind}” zostanie usunięte",
+    "fieldNarrowed": "pole „{field}” w „{kind}” przestanie wskazywać na „{removed}”",
+    "baseGone": "Rodzaj „{name}” zniknie z tej bazy wiedzy — gotowy można później dodać z powrotem („+ Rodzaj”).",
+    "gone": "Rodzaj „{name}” zniknie ze schematu.",
+    "remove": {
+      "one": "{count} wpis tego rodzaju zostanie usunięty — razem z postępami ich kart.",
+      "few": "{count} wpisy tego rodzaju zostaną usunięte — razem z postępami ich kart.",
+      "many": "{count} wpisów tego rodzaju zostanie usuniętych — razem z postępami ich kart.",
+      "other": "{count} wpisów tego rodzaju zostanie usuniętych — razem z postępami ich kart."
+    },
+    "noRemove": "Nie ma wpisów tego rodzaju do usunięcia.",
+    "narrow": {
+      "one": "{count} wpis ma też inny rodzaj — zostaną, bez „{name}”.",
+      "few": "{count} wpisy mają też inny rodzaj — zostaną, bez „{name}”.",
+      "many": "{count} wpisów ma też inny rodzaj — zostaną, bez „{name}”.",
+      "other": "{count} wpisów ma też inny rodzaj — zostaną, bez „{name}”."
+    },
+    "foreignEntries": {
+      "one": "{count} wpis pochodzi z innych baz wiedzy — tam zostaną.",
+      "few": "{count} wpisy pochodzą z innych baz wiedzy — tam zostaną.",
+      "many": "{count} wpisów pochodzi z innych baz wiedzy — tam zostaną.",
+      "other": "{count} wpisów pochodzi z innych baz wiedzy — tam zostaną."
+    },
+    "unlink": {
+      "one": "{count} inny wpis odwołuje się do usuwanych — te odwołania zostaną z nich wyjęte.",
+      "few": "{count} inne wpisy odwołują się do usuwanych — te odwołania zostaną z nich wyjęte.",
+      "many": "{count} innych wpisów odwołuje się do usuwanych — te odwołania zostaną z nich wyjęte.",
+      "other": "{count} innych wpisów odwołuje się do usuwanych — te odwołania zostaną z nich wyjęte."
+    },
+    "schema": "Schemat: {line}.",
+    "templatesDropped": "Szablony kart do usunięcia: {list}.",
+    "templatesNarrowed": "Szablony kart, które przestaną dotyczyć „{name}”: {list}.",
+    "formsDropped": "Formularze dodawania do usunięcia: {list}.",
+    "formsNarrowed": "Formularze dodawania bez kroków tego rodzaju: {list}.",
+    "collections": {
+      "one": "{count} zbiór straci usuwane wpisy.",
+      "few": "{count} zbiory stracą usuwane wpisy.",
+      "many": "{count} zbiorów straci usuwane wpisy.",
+      "other": "{count} zbiorów straci usuwane wpisy."
+    }
+  },
+  "flowCheck": {
+    "empty": "Przebieg nie ma żadnego kroku — nie ma początku ani końca.",
+    "noStart": "Nie ma początku: pole \"start\" nie wskazuje kroku, a kroków, do których nic nie prowadzi, jest więcej niż jeden albo nie ma żadnego — wpisz \"start\".",
+    "startGuessed": "Pole \"start\" nie wskazuje kroku — początkiem jest {step} (jedyny, do którego nic nie prowadzi).",
+    "next": "dalej",
+    "toChapters": "do rozdziałów",
+    "noEnd": "Nie ma końca: z początku nie da się dojść do kroku „Koniec” (ani „Powrót”, „Przekazanie”) — dodaj go i połącz z ostatnim krokiem.",
+    "secondStart": "Drugi początek: do kroku {step} nic nie prowadzi — połącz go z resztą albo usuń.",
+    "unreachable": "Krok {step} jest nieosiągalny — od początku nie prowadzi do niego żadna droga.",
+    "deadEndOne": "Ślepy zaułek: z kroku {step} wyjście „{exit}” nie prowadzi nigdzie — przebieg skończy się tam bez kroku „Koniec”.",
+    "deadEndMany": "Ślepy zaułek: z kroku {step} wyjścia {exits} nie prowadzą nigdzie — przebieg skończy się tam bez kroku „Koniec”.",
+    "loop": "Ślepy zaułek: z kroku {step} nie da się dojść do końca (pętla bez wyjścia).",
+    "reviewEmpty": "Przegląd {step} nie ma czego sprawdzać: w tym przebiegu nie ma kroków „Pytanie”.",
+    "threshold": "Przegląd {step}: \"threshold\" to liczba od 0 do 1 (np. 0.9) — przyjęto 0.9."
+  },
+  "answerForm": {
+    "text": "Wpisany tekst",
+    "number": "Liczba",
+    "date": "Data",
+    "one": "Jeden wybór",
+    "many": "Kilka wyborów",
+    "truefalse": "Prawda albo fałsz",
+    "order": "Kolejność",
+    "match": "Dopasowanie par",
+    "gap": "Luka w cytacie",
+    "flash": "Fiszka z samooceną",
+    "code": "Kod (Python)",
+    "point": "Punkt na obrazie albo mapie",
+    "interactive": "Rysunek do poruszania (np. fizyka)",
+    "build": "Zbuduj z kafelków"
+  },
+  "check": {
+    "unknownUnit": "Nie znam jednostki „{unit}”.",
+    "wrongQuantity": "„{unit}” to jednostka wielkości: {kinds} — a pytanie dotyczy wielkości: {quantity}.",
+    "askYear": "Podaj rok.",
+    "askMonth": "Podaj miesiąc i rok.",
+    "askDay": "Podaj dzień, miesiąc i rok."
+  },
+  "logic": {
+    "compare": {
+      "eq": "=",
+      "ne": "≠",
+      "gt": ">",
+      "ge": "≥",
+      "lt": "<",
+      "le": "≤",
+      "contains": "zawiera",
+      "filled": "wypełnione",
+      "empty": "puste"
+    },
+    "relation": {
+      "self": "ten wpis",
+      "cards": "jego karty",
+      "before": "to, co trzeba znać wcześniej",
+      "up": "to, pod czym leży w strukturze",
+      "chain": "już pytane karty całej drogi przed nim",
+      "core": "pytania kluczowe tematu"
+    },
+    "of": {
+      "self": "tego wpisu",
+      "cards": {
+        "any": "którejś z jego kart",
+        "all": "każdej z jego kart"
+      },
+      "before": {
+        "any": "czegoś z tego, co trzeba znać wcześniej",
+        "all": "tego, co trzeba znać wcześniej"
+      },
+      "up": {
+        "any": "czegoś, pod czym leży",
+        "all": "tego, pod czym leży"
+      },
+      "chain": {
+        "any": "którejś z już pytanych kart całej drogi przed nim",
+        "all": "każdej już pytanej karty całej drogi przed nim"
+      },
+      "core": {
+        "any": "któregoś z pytań kluczowych tematu",
+        "all": "każdego pytania kluczowego tematu"
+      },
+      "field": {
+        "any": "czegoś, na co wskazuje pole „{field}”",
+        "all": "tego, na co wskazuje pole „{field}”"
+      }
+    },
+    "band": {
+      "learned": "poznane (do powtórki albo znane)",
+      "known": "znane",
+      "due": "do powtórki",
+      "unknown": "nieznane"
+    },
+    "condition": {
+      "value": "Wartość",
+      "knowness": "Znajomość",
+      "answered": "Odpowiedź",
+      "visited": "Odwiedzone",
+      "flow": "Przebieg",
+      "time": "Czas",
+      "place": "Miejsce",
+      "zone": "Strefa",
+      "and": "I",
+      "or": "LUB",
+      "not": "NIE",
+      "xor": "ALBO"
+    },
+    "flowCheck": {
+      "started": "rozpoczęty",
+      "done": "ukończony",
+      "goal": "cel osiągnięty"
+    },
+    "text": {
+      "value": "wartość „{value}\" {op} {than}",
+      "quoted": "„{name}\"",
+      "knownessBand": "znajomość {who}: {band}",
+      "knowness": "znajomość {who} {op} {than}",
+      "answeredRight": "dobrze odpowiedziano na „{name}\"",
+      "answeredWrong": "źle odpowiedziano na „{name}\"",
+      "answered": "odpowiedziano na „{name}\"",
+      "visited": "widziano krok „{name}\"",
+      "flowGoal": "w przebiegu „{name}\" osiągnięto cel",
+      "flowGoalNamed": "w przebiegu „{name}\" osiągnięto cel „{goal}\"",
+      "flowState": "przebieg „{name}\" {state}",
+      "time": "czas",
+      "timeAfter": "od {at}",
+      "timeBefore": "do {at}",
+      "timeHours": "godz. {from}–{to}",
+      "place": "w promieniu {radius} m od {lat}, {lon}",
+      "zone": "w strefie „{name}\"",
+      "not": "NIE ({inner})"
+    }
+  },
+  "rules": {
+    "preset": {
+      "balanced_duel": {
+        "label": "Wyrównany pojedynek",
+        "says": "Minuta na pytanie; po pierwszej odpowiedzi 10 s dla reszty; bonus za szybkość i serię."
+      },
+      "first_strike": {
+        "label": "Kto pierwszy",
+        "says": "Liczy się pierwsza odpowiedź — po niej od razu dalej; za błąd odejmuje."
+      },
+      "sprint_race": {
+        "label": "Sprint",
+        "says": "12 s na pytanie, potem od razu następne; duży bonus za szybkość."
+      },
+      "accuracy_focus": {
+        "label": "Dokładność",
+        "says": "Bez pośpiechu: 35 s, bez bonusu za szybkość; liczy się trafność i seria."
+      },
+      "streak_master": {
+        "label": "Mistrz serii",
+        "says": "Krótkie rundy; najwięcej daje seria dobrych odpowiedzi."
+      },
+      "marathon_classic": {
+        "label": "Maraton",
+        "says": "Pytanie za pytaniem, samo przechodzi dalej po 5 s."
+      },
+      "async_challenge": {
+        "label": "Wyzwanie we własnym tempie",
+        "says": "Każdy odpowiada, kiedy chce, do końca czasu sesji (30 min)."
+      }
+    },
+    "describe": {
+      "actionNext": "pokaż wynik i przejdź dalej",
+      "actionReveal": "pokaż wynik",
+      "actionTimer": "uruchom odliczanie",
+      "actionNone": "nic",
+      "async": "Każdy odpowiada we własnym tempie.",
+      "round": "Na pytanie jest {seconds} s — potem: {action}.",
+      "first": "Pierwsza odpowiedź: {action}.",
+      "firstTimed": "Pierwsza odpowiedź: {action} ({seconds} s dla pozostałych).",
+      "all": "Gdy wszyscy odpowiedzą: {action}.",
+      "correct": "Dobra odpowiedź: {points} pkt{more}.",
+      "firstBonus": ", pierwsza dobra +{points}",
+      "speedBonus": ", za szybkość do +{points}",
+      "streakBonus": ", seria do +{points}",
+      "wrong": "Za błąd: −{points}{more}.",
+      "firstWrong": ", pierwszy błąd −{points}",
+      "wrongStreak": ", seria błędów do −{points}",
+      "nextTimer": "Następne pytanie samo po {seconds} s.",
+      "nextManual": "Następne pytanie — gdy gospodarz kliknie.",
+      "session": "Sesja trwa {minutes} min."
+    }
+  },
+  "ruleEditor": {
+    "all": "wszystkie warunki (I)",
+    "any": "którykolwiek (LUB)",
+    "field": "pole…",
+    "addCondition": "+ warunek",
+    "addGroup": "+ grupa"
+  },
+  "rule": {
+    "eq": "równe",
+    "ne": "różne od",
+    "contains": "zawiera",
+    "filled": "wypełnione",
+    "empty": "puste",
+    "gt": "większe niż / po",
+    "lt": "mniejsze niż / przed",
+    "kind": "jest rodzaju",
+    "refers": "odwołuje się do"
+  },
+  "selection": {
+    "retiredTopic": "Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.",
+    "noGroup": "bez grupy",
+    "outsideOrder": "poza kolejnością nauki",
+    "noAxisValue": "bez wartości na tej osi",
+    "noKind": "bez rodzaju",
+    "noValue": "bez wartości",
+    "refUnavailable": "[odwołanie niedostępne]"
+  },
+  "step": {
+    "sourceAll": {
+      "label": "Wszystko",
+      "says": "Każdy wpis tej bazy wiedzy (i baz, z których korzysta)."
+    },
+    "sourceKind": {
+      "label": "Rodzaj",
+      "says": "Wpisy jednego rodzaju — także z biblioteki albo skryptorium, z których korzysta ta baza (np. cytaty, kazania jednego rodzaju tekstu); „Skąd\" zawęża do jednego źródła."
+    },
+    "sourceCollection": {
+      "label": "Zbiór",
+      "says": "Wpisy zapisanego zbioru — filtra albo listy."
+    },
+    "sourceList": {
+      "label": "Lista",
+      "says": "Wybrane wpisy (identyfikatory, jeden w wierszu)."
+    },
+    "sourceFrom": {
+      "label": "Z wpisu",
+      "says": "To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu."
+    },
+    "follow": {
+      "label": "Idź po odwołaniu",
+      "says": "Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie."
+    },
+    "structure": {
+      "label": "Idź po strukturze",
+      "says": "Od wybranych wpisów w dół struktury — po polach, które ich rodzaje oznaczają jako „połączenie w strukturze” — do samego końca albo o jeden poziom; albo w górę, do wpisów, pod którymi leżą. W „Strukturze” rysuje drzewo w kolejności miejsc w dziele."
+    },
+    "filterRule": {
+      "label": "Filtr",
+      "says": "Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB)."
+    },
+    "filterWhen": {
+      "label": "Filtr znajomości",
+      "says": "Zostawia wpisy, dla których warunek jest spełniony — także o tym, jak dobrze się je zna: ten wpis, jego karty, to, co trzeba znać wcześniej, to, pod czym leży, to, na co wskazuje jego pole (np. fakty okresu dopiero, gdy okres jest znany). Bez uczącego się liczy się znajomość oglądającego."
+    },
+    "learning": {
+      "label": "Idź po kolejności nauki",
+      "says": "Od wybranych wpisów do tego, co trzeba znać wcześniej („Najpierw trzeba znać”) — do samych podstaw albo o jeden krok; albo dalej: do tego, co na nich buduje."
+    }
+  },
+  "listMode": {
+    "table": "Tabela",
+    "tree": "Drzewo",
+    "canvas": "Płótno",
+    "matrix": "Macierz",
+    "map": "Mapa",
+    "outline": "Struktura",
+    "quilt": "Mapa postępów",
+    "landscape": "Krajobraz"
+  },
+  "view": {
+    "treeTopics": "Drzewo grupowało według tematów — tematów już nie ma. Wybierz oś (rodzaj) albo pole.",
+    "matrixTopics": "Macierz miała osie z tematów — tematów już nie ma. Wybierz osie: rodzaje (np. Tajemnica × Obszar).",
+    "colKnowness": "Znajomość",
+    "colDue": "Kiedy powtórzyć",
+    "colLevel": "Poziom nauki",
+    "revisionOf": "Powtórka: {name}",
+    "noKind": "Ten widok nie ma jednego rodzaju — wybierz rodzaj w „Wybór i grupy\".",
+    "noScriptorium": "Ta baza nie korzysta z żadnego skryptorium — dodaj je w Ustawieniach (Źródła).",
+    "noLibrary": "Ta baza nie korzysta z żadnej biblioteki — dodaj ją w Ustawieniach (Źródła).",
+    "newText": "Nowy tekst"
+  },
+  "visibility": {
+    "wholeBase": "całą bazę: wpisy, pytania razem z odpowiedziami, szkice, powtórki i przebiegi",
+    "members": "członkowie jej obszaru (i ci, którym dali link)",
+    "membersNotOpen": "członkowie obszaru — obszar jest jawny, ale ta baza nie jest jeszcze otwarta (Ustawienia → Kto czyta)",
+    "everyone": "każdy — obszar jest jawny, więc każdy czyta {whole}",
+    "kind": {
+      "kind": "rodzaj",
+      "template": "szablon",
+      "revision": "powtórka",
+      "flow": "przebieg",
+      "collection": "zbiór",
+      "addform": "formularz",
+      "rules": "zasady",
+      "values": "wartości",
+      "look": "wygląd",
+      "view": "widok",
+      "reward": "nagrody",
+      "entry": "wpis"
+    }
+  },
+  "memory": {
+    "notOwn": "Nic nie zapisano: wpis {id} do usunięcia nie należy do tej biblioteki.",
+    "saveAndRemove": "Nic nie zapisano: wpis {id} jest i do zapisania, i do usunięcia.",
+    "noFiles": "W podglądzie nie ma plików.",
+    "previewNone": "bez postępów (nowy uczący się)",
+    "previewPartial": "w połowie drogi: dolne poziomy znane, następne mieszane (do powtórki, ostatnio źle, nowe), trochę zapomnianego, wyżej nowe",
+    "previewAll": "wszystko znane",
+    "true": "prawda",
+    "false": "fałsz",
+    "codePasses": "kod, który przechodzi przypadki",
+    "point": "punkt",
+    "drawingGoal": "cel rysunku",
+    "noCardIn": "W {failed} z {tries} prób nie powstała żadna karta — warunki (\"require\") niespełnione albo brak odpowiedzi.",
+    "templateNoCard": "Szablon nie dał żadnej karty — czy jakiś wpis ma jego rodzaj?"
+  },
+  "anchor": {
+    "chooseWork": "Wybierz dzieło.",
+    "workMissing": "Tego dzieła nie ma w bibliotekach, z których korzysta ta baza (Więcej → Ustawienia → Źródła) — przycisk w Bibliotece i tak się pojawi, ale miejsca nie da się sprawdzić.",
+    "notWork": "To nie jest dzieło z biblioteki.",
+    "placeUnread": "Miejsca „{locator}” nie da się odczytać w układzie tego dzieła.",
+    "partUnread": "Część „{part}” nie została odczytana w układzie tego dzieła — ta część niczego nie wskaże.",
+    "needTarget": "Wskaż wpis albo sposób wyświetlania, do którego prowadzi wejście.",
+    "entryGone": "Tego wpisu już nie ma.",
+    "viewGone": "Tego sposobu wyświetlania już nie ma."
+  },
+  "model": {
+    "memory": {
+      "label": "Pamięć: odstępy i zapominanie",
+      "says": "Umie, gdy ostatnia odpowiedź była dobra i jeszcze nie zdążył zapomnieć. Dobra odpowiedź po tygodniu przerwy utrwala bardziej niż następnego dnia; z czasem znajomość spada."
+    },
+    "hierarchy": {
+      "label": "Z hierarchią",
+      "says": "Jak „Pamięć” — a do tego kto umie rzeczy szczegółowe, umie też ogólne, na których one stoją (kolejność nauki: „Najpierw trzeba znać”)."
+    },
+    "last": {
+      "label": "Ostatnia odpowiedź",
+      "says": "Umie, gdy ostatnia odpowiedź była dobra — bez względu na to, kiedy to było."
+    }
+  },
+  "motivation": {
+    "none": "Bez dodatków",
+    "progress": "Paski postępu",
+    "streaks": "Serie dni nauki",
+    "exploration": "Mapa odkrywania",
+    "rewards": "Punkty i nagrody"
+  },
+  "store": {
+    "otherSort": "Ten identyfikator ma już wpis innego rodzaju — nie zapisano.",
+    "fromSource": "To pochodzi z „{name}\" — zmień to tam.",
+    "fixingRefs": "Poprawianie odwołań… ({count})",
+    "notSaved": "Nie zapisano {count} wpisów: {error}",
+    "removing": "Usuwanie wpisów… {n} z {total}"
+  },
+  "files": {
+    "tooBig": "Plik może mieć najwyżej {mb} MB."
+  },
+  "holders": {
+    "loadFailed": "Nie udało się wczytać postępów."
+  },
+  "piece": {
+    "objections": "Zarzuty — Videtur quod",
+    "sedContra": "Sed contra",
+    "respondeo": "Odpowiedź — Respondeo",
+    "replies": "Odpowiedzi na zarzuty"
+  },
+  "anchors": {
+    "name": "Nazwa (tak wygląda przycisk w Bibliotece)",
+    "namePlaceholder": "np. Wywód całego artykułu · Wstęp · Zakończenie",
+    "work": "Dzieło z biblioteki",
+    "workSearch": "szukaj dzieła…",
+    "parts": "Których części dotyczy — puste: całego dzieła",
+    "partsPlaceholder": "np. s. 45–60 · s. 1–3; 27–30 · I q. 2 a. 3 · rozdz. 1; rozdz. 9",
+    "partsLabel": "Miejsca w dziele",
+    "read": "Odczytane: {place}",
+    "entry": "Prowadzi do wpisu (np. pytania wiodącego)",
+    "entrySearch": "szukaj wpisu…",
+    "view": "W sposobie wyświetlania",
+    "entryPage": "— strona tego wpisu —",
+    "note": "Notatka (opcjonalnie)",
+    "create": "Utwórz wejście",
+    "removeTitle": "Usunąć wejście „{name}”?",
+    "removeBody": "Wpisy i sposób wyświetlania zostają; z Biblioteki znika tylko ten przycisk.",
+    "title": "Wejścia z Biblioteki",
+    "lead": "Przyciski „W Wiedzy” przy dziele w Bibliotece — dla każdego, kto może czytać tę bazę. Biblioteka niczego nie zapisuje.",
+    "add": "+ Wejście z Biblioteki",
+    "tabHint": "Wejście mówi: to dzieło z biblioteki (całe albo jego części — początek, środek, koniec, także kilka naraz) wyjaśnia ten wpis, pokazany tym sposobem wyświetlania. W Bibliotece przy dziele pojawia się przycisk „W Wiedzy” — tylko dla tych, którzy mogą czytać tę bazę.",
+    "empty": "Nie ma jeszcze wejść. Dodasz je tutaj albo pod wpisem (np. pod pytaniem wiodącym).",
+    "new": "+ Nowe wejście"
   }
 }

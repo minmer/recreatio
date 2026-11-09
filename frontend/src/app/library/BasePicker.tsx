@@ -17,6 +17,7 @@ import { libraryKindOf, loadLibraries, openLibraries } from './library';
 import { entryTitle } from './libraryKinds';
 import { storeOf, type LibraryStore } from './libraryStore';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 interface Found {
   readonly id: string;
@@ -34,6 +35,7 @@ export function BasePicker({ onLink, onEmbed, onClose }: {
 }) {
   const me = useMe(useWho());
   const [query, setQuery] = useState('');
+  const t = useT();
   const [bases, setBases] = useState<readonly { name: string; store: LibraryStore }[] | null>(null);
   useEffect(() => {
     if (me == null) return undefined;
@@ -63,19 +65,19 @@ export function BasePicker({ onLink, onEmbed, onClose }: {
   }, [bases, query]);
 
   return (
-    <div className="lib-cite-picker" role="dialog" aria-label="Z bazy wiedzy">
+    <div className="lib-cite-picker" role="dialog" aria-label={t('library.basePick.label')}>
       <div className="lib-cite-head">
-        <strong>Z bazy wiedzy: słowo, wpis albo widok</strong>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+        <strong>{t('library.basePick.title')}</strong>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
       </div>
-      <input type="search" value={query} autoFocus placeholder="Szukaj w bazach wiedzy…" aria-label="Szukaj w bazach wiedzy" onChange={(e) => setQuery(e.target.value)} />
-      {bases === null ? <Loading lines={1} /> : found.length === 0 ? <p className="lib-meta">{bases.length === 0 ? 'Nie czytasz żadnej bazy wiedzy.' : 'Nic nie pasuje.'}</p> : (
+      <input type="search" value={query} autoFocus placeholder={t('library.basePick.searchPlaceholder')} aria-label={t('library.basePick.search')} onChange={(e) => setQuery(e.target.value)} />
+      {bases === null ? <Loading lines={1} /> : found.length === 0 ? <p className="lib-meta">{bases.length === 0 ? t('library.basePick.none') : t('library.kindList.noMatch')}</p> : (
         <ul className="lib-cite-results">
           {found.slice(0, 12).map((f) => (
             <li key={f.id}>
               <button type="button" className="lib-row" onClick={() => (f.view ? onEmbed(f.id) : onLink(f.id, f.label))}>
                 <span className="lib-row-title">{f.label}</span>
-                <span className="lib-row-meta">{f.base}{f.view ? ' · widok — wstawi listę, która żyje razem z bazą' : ' · odnośnik'}</span>
+                <span className="lib-row-meta">{f.base}{f.view ? t('library.basePick.view') : t('library.basePick.link')}</span>
               </button>
             </li>
           ))}

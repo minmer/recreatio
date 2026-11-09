@@ -22,6 +22,9 @@ import {
   type DeviceDoc, type ShareLabel
 } from './shareSeal';
 
+/** Wie lange ein Link gilt, zum Lesen (`shareSeal.ts` bleibt ohne Texte — der Dodatek bündelt es allein). */
+export const daysLabel = (days: number): string => (days === 365 ? t('phoneShare.oneYear') : t('phoneShare.days', { count: days }));
+
 export interface ShareEntry {
   readonly id: string;
   readonly size: number;

@@ -26,5 +26,16 @@
   },
   "routes": {
     "noSlug": "Część \"{route}\" nie nazywa pojedynczych rzeczy — \"{slug}\" nie pasuje za nią."
+  },
+  "checking": "Sprawdzanie…",
+  "needsAccount": "Ta część warsztatu działa tylko z kontem. Link z dostępem, który masz w tej przeglądarce, działa bez logowania na stronach i w <link>kalendarzu</link>.",
+  "smsAlone": "Bez sieci albo bez konta? SMS-y działają bez logowania: <link>otwórz SMS</link>.",
+  "runner": {
+    "noTask": "Brak zlecenia.",
+    "unknownTask": "Nieznane zlecenie."
+  },
+  "shell": {
+    "file": "plik",
+    "saveFailed": "Nie udało się zapisać pliku."
   }
 }

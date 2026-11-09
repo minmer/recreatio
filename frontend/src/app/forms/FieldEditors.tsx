@@ -7,6 +7,7 @@ import { useId, useState } from 'react';
 import { type AreaRow, myEpochKeys } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import type { Ring } from '../core/keys';
+import { useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { FIELD_KINDS, IDENTITY_ROLES, type FieldKind, IDENTITY_LABEL, type IdentityRole, KIND_LABEL, type OpenField, addField } from './form';
 import { createIntake, loadPublicIntake } from './intake';
@@ -20,17 +21,18 @@ function ConsentText({ kind, value, onChange, edited = false }: {
   onChange: (next: string) => void;
   edited?: boolean;
 }) {
+  const t = useT();
   if (kind !== 'consent') return null;
   return (
     <label className="wk-field">
-      <span>Treść oświadczenia — to, na co osoba się zgadza</span>
+      <span>{t('formsEdit.consent.label')}</span>
       <textarea rows={4} value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder="np. Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka…" />
+        placeholder={t('formsEdit.consent.placeholder')} />
       <span className="wk-hint">
-        Pokazuje się w całości pod polem do zaznaczenia; „Pytanie” to krótka nazwa (np. „Zgoda na udział”).
+        {t('formsEdit.consent.hint')}{' '}
         {edited
-          ? ' Zmiana dotyczy tylko nowych odpowiedzi — każda udzielona zgoda zachowuje treść, na którą ją wyrażono.'
-          : ' Zaznaczona zgoda zapisuje się razem z tą treścią — późniejsza zmiana jej nie podmienia.'}
+          ? t('formsEdit.consent.edited')
+          : t('formsEdit.consent.fresh')}
       </span>
     </label>
   );
@@ -101,6 +103,7 @@ export function NewFieldForm({
   const [help, setHelp] = useState('');
   const [working, setWorking] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
+  const t = useT();
 
   const usable = areas.filter((a) => a.heldEpochs > 0);
 
@@ -129,7 +132,7 @@ export function NewFieldForm({
       const keys = await myEpochKeys(ring, area.areaId);
       const areaKey = keys.get(area.currentEpoch);
 
-      if (areaKey === undefined) throw new WorkspaceError('Nie masz klucza tej epoki.');
+      if (areaKey === undefined) throw new WorkspaceError(t('formsEdit.field.noEpochKey'));
 
       /*
        * DIE ANNAHME ENTSTEHT MIT DER ERSTEN FRAGE. Vorher stand dafür ein
@@ -138,8 +141,8 @@ export function NewFieldForm({
        */
       const takes = await loadPublicIntake(area.areaId).then(() => true, () => false);
       if (!takes) {
-        if (officeRoleId === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.');
-        setStage('Tworzenie klucza przyjmowania — kilka sekund…');
+        if (officeRoleId === null) throw new WorkspaceError(t('formsFormat.msg.noPerson'));
+        setStage(t('forms.settings.intakeCreating'));
         await createIntake(ring, area.areaId, officeRoleId);
       }
 
@@ -151,12 +154,12 @@ export function NewFieldForm({
           ? undefined
           : (await myEpochKeys(ring, formAreaId)).get(formArea.currentEpoch);
         if (formArea === undefined || formKey === undefined) {
-          throw new WorkspaceError('Nie masz klucza obszaru formularza — pytania nie da się zapieczętować.');
+          throw new WorkspaceError(t('formsEdit.field.noFormKey'));
         }
         labelArea = { areaId: formAreaId, key: formKey, epoch: formArea.currentEpoch };
       }
 
-      setStage('Pieczętowanie pytania…');
+      setStage(t('formsEdit.field.sealing'));
 
       await addField(partId, {
         labelArea,
@@ -177,7 +180,7 @@ export function NewFieldForm({
       setKind('line');
       onAdded();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać pytania.');
+      onError(e instanceof WorkspaceError ? e.message : t('formsEdit.field.addFailed'));
     } finally {
       setWorking(false);
       setStage(null);
@@ -186,7 +189,7 @@ export function NewFieldForm({
 
   return (
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void go(); }}>
-      <h4 className="wk-h2">Dodaj pytanie</h4>
+      <h4 className="wk-h2">{t('formsEdit.field.addTitle')}</h4>
 
       {/*
         WELCHE genormte Angabe das ist (0038) — und zwar ZUERST.
@@ -197,36 +200,36 @@ export function NewFieldForm({
         angelegt hat, und eine Änderung dort ist eine Änderung überall.
       */}
       <label className="wk-field">
-        <span>Czego dotyczy</span>
+        <span>{t('formsEdit.field.about')}</span>
         <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
           {IDENTITY_ROLES.map((r) => (
             <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
-              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
+              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ` ${t('formsEdit.field.taken')}` : ''}
             </option>
           ))}
         </select>
       </label>
 
       <label className="wk-field">
-        <span>Pytanie</span>
+        <span>{t('formsOffice.question')}</span>
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder={identity === 'none' ? 'np. Z której jesteś parafii?' : IDENTITY_LABEL[identity]}
+          placeholder={identity === 'none' ? t('formsEdit.field.questionPlaceholder') : IDENTITY_LABEL[identity]}
         />
       </label>
 
       <label className="wk-field">
-        <span>Rodzaj</span>
+        <span>{t('formsEdit.field.kind')}</span>
         <select value={kind} disabled={fixed} onChange={(e) => setKind(e.target.value as FieldKind)}>
           {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </select>
-        {fixed && <span className="wk-hint">Wynika z tego, czego dotyczy pytanie.</span>}
+        {fixed && <span className="wk-hint">{t('formsEdit.field.kindFixed')}</span>}
       </label>
 
       {kind === 'choice' && (
         <label className="wk-field">
-          <span>Możliwości — jedna w wierszu</span>
+          <span>{t('formsEdit.field.options')}</span>
           <textarea rows={3} value={options} onChange={(e) => setOptions(e.target.value)} />
         </label>
       )}
@@ -238,14 +241,14 @@ export function NewFieldForm({
         Fragen stellen kann, deren Antworten an verschiedene Stellen gehören.
       */}
       <label className="wk-field">
-        <span>Odpowiedzi trafiają do obszaru</span>
-        <AreaPick label="Odpowiedzi trafiają do obszaru" value={areaId} onChange={setAreaId} areas={areas} only={usable} />
+        <span>{t('forms.settings.answersTo')}</span>
+        <AreaPick label={t('forms.settings.answersTo')} value={areaId} onChange={setAreaId} areas={areas} only={usable} />
       </label>
 
       <label className="wk-field">
         <span>
           <input type="checkbox" checked={required} onChange={() => setRequired(!required)} />
-          {' '}Wymagane
+          {' '}{t('formsEdit.field.required')}
         </span>
       </label>
 
@@ -253,9 +256,8 @@ export function NewFieldForm({
 
       <p className="wk-hint">
         {formAreaId !== null
-          ? 'Odpowiedzi trafią do wybranego obszaru — przeczyta je tylko ten, kto ma do niego dostęp. '
-            + 'Samo pytanie leży w obszarze pytań formularza.'
-          : 'Pytanie zostanie zapieczętowane kluczem tego obszaru — publicznie czytelne tylko, gdy obszar jest jawny.'}
+          ? t('formsEdit.field.areaHintForm')
+          : t('formsEdit.field.areaHint')}
         
       </p>
 
@@ -266,7 +268,7 @@ export function NewFieldForm({
           type="submit" className="wk-btn"
           disabled={busy || working || label.trim() === '' || areaId === '' || (kind === 'consent' && help.trim() === '')}
         >
-          {working ? 'Dodawanie…' : 'Dodaj'}
+          {working ? t('formsEdit.field.adding') : t('common.add')}
         </button>
       </div>
     </form>
@@ -327,6 +329,7 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
   const [options, setOptions] = useState(field.options.join('\n'));
   const [areaId, setAreaId] = useState(field.areaId);
 
+  const t = useT();
   const usable = areas.filter((a) => a.heldEpochs > 0);
   const fixed = KIND_OF[identity] !== undefined || optionsOf !== undefined;
   const moving = areaId !== field.areaId;
@@ -351,18 +354,18 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
       }}
     >
       <label className="wk-field">
-        <span>Czego dotyczy</span>
+        <span>{t('formsEdit.field.about')}</span>
         <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
           {IDENTITY_ROLES.map((r) => (
             <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
-              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
+              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ` ${t('formsEdit.field.taken')}` : ''}
             </option>
           ))}
         </select>
       </label>
 
       <label className="wk-field">
-        <span>Pytanie</span>
+        <span>{t('formsOffice.question')}</span>
         <input value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
 
@@ -370,35 +373,35 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
         <ConsentText kind={kind} value={help} onChange={setHelp} edited />
       ) : (
         <label className="wk-field">
-          <span>Podpowiedź pod pytaniem (opcjonalnie)</span>
+          <span>{t('formsEdit.field.help')}</span>
           <input value={help} onChange={(e) => setHelp(e.target.value)} />
         </label>
       )}
 
       <label className="wk-field">
-        <span>Rodzaj</span>
+        <span>{t('formsEdit.field.kind')}</span>
         <select value={kind} disabled={fixed} onChange={(e) => setKind(e.target.value as FieldKind)}>
           {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </select>
         <span className="wk-hint">
-          {optionsOf !== undefined ? `Ustala wymaganie „${optionsOf}”.`
-            : fixed ? 'Wynika z tego, czego dotyczy pytanie.' : 'Rodzaj zmienisz tylko, dopóki nikt nie odpowiedział.'}
+          {optionsOf !== undefined ? t('formsEdit.field.setByNeed', { need: optionsOf })
+            : fixed ? t('formsEdit.field.kindFixed') : t('formsEdit.field.kindChange')}
         </span>
       </label>
 
       {kind === 'choice' && (
         <label className="wk-field">
-          <span>{optionsOf === undefined ? 'Możliwości — jedna w wierszu' : `Możliwości — ustala je wymaganie „${optionsOf}” (zmienisz je w jego ustawieniach)`}</span>
+          <span>{optionsOf === undefined ? t('formsEdit.field.options') : t('formsEdit.field.optionsByNeed', { need: optionsOf })}</span>
           <textarea rows={3} value={options} readOnly={optionsOf !== undefined} onChange={(e) => setOptions(e.target.value)} />
         </label>
       )}
 
       <label className="wk-field">
-        <span>Odpowiedzi trafiają do obszaru</span>
-        <AreaPick label="Odpowiedzi trafiają do obszaru" value={areaId} onChange={setAreaId} areas={areas} only={usable} />
+        <span>{t('forms.settings.answersTo')}</span>
+        <AreaPick label={t('forms.settings.answersTo')} value={areaId} onChange={setAreaId} areas={areas} only={usable} />
         {moving && (
           <span className="wk-hint">
-            Zebrane odpowiedzi przeniosą się do nowego obszaru.
+            {t('formsEdit.field.moving')}
           </span>
         )}
       </label>
@@ -406,7 +409,7 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
       <label className="wk-field">
         <span>
           <input type="checkbox" checked={required} onChange={() => setRequired(!required)} />
-          {' '}Wymagane
+          {' '}{t('formsEdit.field.required')}
         </span>
       </label>
 
@@ -414,9 +417,9 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || label.trim() === ''}>
-          {moving ? 'Zapisz i przenieś odpowiedzi' : 'Zapisz'}
+          {moving ? t('formsEdit.field.saveMove') : t('common.save')}
         </button>
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>Anuluj</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>{t('common.cancel')}</button>
       </div>
     </form>
   );
@@ -435,11 +438,8 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optio
  * Ziele, ein Zeugnis): die Kanzlei liest, ändert aber nie; der Dienst lehnt
  * es ab, nicht nur die Oberfläche.
  */
-const WHO_EDITS: readonly { key: 'both' | 'office' | 'person'; label: string; says: string }[] = [
-  { key: 'both', label: 'Osoba i kancelaria', says: 'Osoba w swoim portalu zobaczy „Popraw dane"; kancelaria też może poprawić.' },
-  { key: 'office', label: 'Tylko kancelaria', says: 'Osoba zobaczy odpowiedź, ale zmienić ją może tylko kancelaria.' },
-  { key: 'person', label: 'Tylko osoba', says: 'Wpisuje i poprawia tylko sama osoba (przez swój link). Kancelaria może ją czytać, ale nie zmieni jej ani nie wpisze za nią.' }
-];
+/* Beschriftung und Satz stehen in `formsEdit.who.<key>` / `<key>Says`. */
+const WHO_EDITS: readonly { key: 'both' | 'office' | 'person' }[] = [{ key: 'both' }, { key: 'office' }, { key: 'person' }];
 
 function WhoEditsBox({ selfEdit, personOnly, onChange }: {
   selfEdit: boolean;
@@ -448,19 +448,20 @@ function WhoEditsBox({ selfEdit, personOnly, onChange }: {
 }) {
   const now = personOnly ? 'person' : selfEdit ? 'both' : 'office';
   const name = useId();
+  const t = useT();
   return (
     <fieldset className="wk-field wk-who-edits">
-      <legend>Kto może zmieniać odpowiedź</legend>
+      <legend>{t('formsEdit.who.legend')}</legend>
       <div className="wk-seg" role="radiogroup">
         {WHO_EDITS.map((one) => (
           <label key={one.key} className={one.key === now ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}>
             <input type="radio" name={name} value={one.key} checked={one.key === now} data-who-edits={one.key}
               onChange={() => onChange({ selfEdit: one.key !== 'office', personOnly: one.key === 'person' })} />
-            {one.label}
+            {t(`formsEdit.who.${one.key}`)}
           </label>
         ))}
       </div>
-      <span className="wk-hint">{WHO_EDITS.find((one) => one.key === now)?.says}</span>
+      <span className="wk-hint">{t(`formsEdit.who.${now}Says`)}</span>
     </fieldset>
   );
 }

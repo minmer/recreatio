@@ -384,7 +384,7 @@
       "worldDepth": "Dicke der Körper in Metern (daraus, aus Dichte und Fläche — die Masse); meist 0.1",
       "worldGround": "false — ohne Boden (Tisch von oben, Weltraum)",
       "worldSpeed": "Tempo der Zeit beim Start (1 — wie in Wirklichkeit)",
-      "vars": "Werte, die bei jedem Öffnen (und bei „Neu auslosen”) gezogen werden — verwendet in Ausdrücken \"=…\" und in Texten als {…} um den Namen",
+      "vars": "Werte, die bei jedem Öffnen (und bei „Neu auslosen”) gezogen werden — verwendet in Ausdrücken \"=…\" und in Texten als \"{nazwa}\" (nazwa = Name des Werts)",
       "varsName": "Name des Werts",
       "varsFrom": "Mindestens",
       "varsTo": "Höchstens",
@@ -694,7 +694,8 @@
       "axesY": "Beschriftung der senkrechten Achse",
       "axesGrid": "Gitter darunter",
       "clip": "frame — true: was aus dem Rahmen ragt, verschwindet",
-      "camera": "frame — true: man kann zoomen (+, −, Strg+Rad, zwei Finger) und die Ansicht verschieben; \"view\" ist dann die Ansicht „Einpassen”"
+      "camera": "frame — true: man kann zoomen (+, −, Strg+Rad, zwei Finger) und die Ansicht verschieben; \"view\" ist dann die Ansicht „Einpassen”",
+      "typeMore": "\"group\" sammelt \"children\", \"use\" fügt einen Teil aus \"symbols\" ein, \"frame\" ist ein Rahmen mit einer Welt (y nach oben), \"world\" — hier stehen die Dinge aus \"world\" (im Rahmen)"
     },
     "motion": {
       "duration": "Dauer eines Durchlaufs (ms)",
@@ -859,6 +860,78 @@
       "save": "true — eine Werkstatt: „Speichern”, „Laden” (in diesem Browser) und die Anordnung als JSON",
       "hint": "Hinweis unter der Zeichnung, wenn nichts gewählt ist ({…} — berechnet)",
       "list": "true — jede Eigenschaft, die man ändern darf, als eigener Schieber im Panel („Du stellst ein”, ohne ein Ding zu wählen); false — erst ein Ding wählen; weggelassen — Zeilen, wenn nichts hinzugefügt oder entfernt werden darf und es höchstens 6 sind"
+    },
+    "label": "Animation",
+    "use": "Eine Zeichnung, die sich bewegt oder bewegen lässt: Formen, Linien, Diagramme, Vektoren — mit Bewegung, Schiebern, Ziehen und einer Physiksimulation (z. B. Wurf, Pendel, Feder). Auch die Bilder der Cogita-Präsentation.",
+    "sum": {
+      "elements": {
+        "one": "{count} Element",
+        "other": "{count} Elemente"
+      },
+      "motions": {
+        "one": "{count} Bewegung",
+        "other": "{count} Bewegungen"
+      },
+      "vars": {
+        "one": "{count} zum Einstellen",
+        "other": "{count} zum Einstellen"
+      },
+      "sim": "Simulation",
+      "goal": "mit Ziel"
+    },
+    "drawing": "Zeichnung",
+    "empty": "Die Zeichnung ist leer.",
+    "notObject": "Eine Zeichnung ist ein Objekt { … }.",
+    "badJson": "Das ist kein gültiges JSON: {error}",
+    "accepted": "Übernommen: {sum}.",
+    "promptCopied": "Anweisung für die KI kopiert — füge sie in deinen Chat ein und das fertige JSON hier.",
+    "promptFailed": "Die Anweisung konnte nicht kopiert werden.",
+    "alt": "Beschreibung (für Screenreader)",
+    "max": "Höchstens (rem)",
+    "fullWidth": "volle Breite",
+    "hint": "Zeichnung: „size”, „elements” (rect, circle, ellipse, line, arrow, poly, plot, trace, frame, path, text, image, group, use), „symbols”; zum Bewegen: „vars”, „let”, „sim”, „controls”, „rules”, und Dinge zum Bauen (Waage, Zahnräder) — „world” mit einem Element „world” im Rahmen; Werte können Ausdrücke „=…” sein. Vollständige Beschreibung — beim JSON-Import der Seite und in der Anweisung für die KI. Jetzt: {sum}.",
+    "insertExample": "Beispiel einfügen",
+    "exampleLoaded": "Beispiel „{title}” — prüfe die Vorschau und übernimm.",
+    "insertPhysics": "Ein Physikbeispiel einfügen…",
+    "copyPrompt": "Anweisung für die KI kopieren",
+    "json": "Zeichnung als JSON",
+    "preview": "Vorschau der Zeichnung",
+    "problems": "Fehler in Ausdrücken",
+    "apply": "Zeichnung übernehmen",
+    "missing": "Die Zeichnung hat noch kein Element.",
+    "showsStrip": "Zeichnung ({sum}) — klein, unbewegt, ohne Bedienung.",
+    "showsMoving": "Zeichnung ({sum}) in Bewegung, über die ganze Breite des Bausteins.",
+    "showsLive": "Zeichnung ({sum}) in Bewegung, über die ganze Breite des Bausteins, mit Bedienung darunter.",
+    "lead": {
+      "type": "Art",
+      "do": "Was es mit der Simulation tut",
+      "buttonDo": "button — was es mit der Simulation tut",
+      "motionName": "Bewegungswort",
+      "mood": "Aussehen des Textes"
+    },
+    "let": {
+      "name": "Name des berechneten Werts",
+      "value": "Ausdruck (aus anderen Namen)"
+    },
+    "key": {
+      "alt": "Beschreibung der Zeichnung für Screenreader (leer — die Zeichnung ist nur Schmuck)",
+      "question": "in einer Geschichte mit Wissensbasis: das Ziel der Zeichnung (eine Regel mit \"goal\": true) zählt wie eine richtige Antwort auf diese Frage der Basis — id oder @name (leer: eigene Zielkarte)",
+      "about": "in einer Geschichte mit Wissensbasis: für welche Einträge der Basis das erreichte Ziel der Zeichnung zählt — id oder @name, jeder in einer eigenen Zeile",
+      "size": "Größe der Zeichnung in ihren Einheiten: [breite, höhe] — die Zeichnung wächst und schrumpft als Ganzes mit dem Baustein",
+      "max": "Höchstens diese Breite in rem (eine Zahl); weggelassen — die ganze Breite des Bausteins",
+      "panel": "Wo die Bedienung steht: \"below\" (unter der Zeichnung, üblich) oder \"side\" (daneben, wenn die Zeichnung breit ist; am Telefon immer darunter)",
+      "vars": "Werte zum Einstellen (Schieber, Schalter, Ziehen): [{ \"name\", \"value\", \"min\", \"max\", \"step\", \"unit\", \"label\", \"random\" }]",
+      "let": "Werte, aus anderen berechnet, in jedem Bild, in dieser Reihenfolge: [{ \"name\", \"value\": \"ausdruck\" }]",
+      "sim": "Simulation (Bewegungsgleichungen, Runge-Kutta): { \"state\": [{ \"name\", \"value\", \"rate\" }], \"events\", \"until\", \"dt\", \"speed\", \"auto\", \"loop\", \"max\" }",
+      "controls": "Bedienung unter der Zeichnung: Schieber, Schalter, Auswahl, Knöpfe, Anzeigen",
+      "rules": "Regeln: wenn eine Bedingung wahr wird — ein Text, das Ziel der Aufgabe, eine Einstellung, Start/Pause, weiter in einer Präsentation",
+      "predict": "Erst vorhersagen, dann sehen: die Zeichnung steht (Simulation angehalten, Regeln schweigen, in Ausdrücken \"held\" = 1 — z. B. wartet eine Farbe, die das Ergebnis verraten würde), bis die Person „Prüfen” klickt; \"tries\" — wie oft sie schon geprüft hat. true oder { \"start\", \"say\", \"check\", \"again\", \"hold\" }",
+      "task": "Jedes Mal eine andere Aufgabe, gleich schwer: zieht Werte aus \"random\" (Variablen, Eigenschaften von Dingen, auch als Ausdrücke daraus), bis die Bedingungen gelten, die Aufgabe beim Start nicht gelöst ist und sich die Lösung einstellen lässt. { \"require\", \"solve\", \"new\", \"tries\" }",
+      "world": "Eine Welt von Dingen zum Bauen (Waage aus Balken und Gewichten, Zahnräder): Arten, Dinge beim Start und was erlaubt ist — jede Änderung geht durch die Regeln der Welt, mit „Rückgängig”; ein Element { \"type\": \"world\" } im Rahmen zeigt, wo sie stehen",
+      "symbols": "Wiederverwendbare Teile: [{ \"name\": \"fiszka\", \"shapes\": [elemente] }] — ein Element { \"type\": \"use\", \"use\": \"fiszka\" } fügt sie ein",
+      "symbolName": "Name des Teils",
+      "symbolShapes": "Elemente des Teils (wie in \"elements\")",
+      "elements": "Elemente der Zeichnung, von hinten nach vorn — jedes mit Lage, Aussehen, Bewegung (\"motion\") und — zum Bewegen — Ausdrücken, \"drag\", \"tap\", \"show\", \"repeat\""
     }
   }
 }

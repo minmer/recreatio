@@ -30,11 +30,13 @@ import {
   type ChainHead, type DecisionReason, type MyTakedown, type OperatorKey, type QueueRow, type ReportLetter
 } from './reports';
 import type { ReportKind } from './reportPath';
+import { appLang, localeOf, rich, useT } from '../core/i18n';
 
 const said = (e: unknown, fallback: string) => (e instanceof WorkspaceError || (e instanceof Error && e.message !== '') ? e.message : fallback);
 
-const day = (iso: string) => new Date(iso).toLocaleString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const date = (iso: string) => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+const day = (iso: string) => new Date(iso).toLocaleString(localeOf(appLang()), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const date = (iso: string) => new Date(iso).toLocaleDateString(localeOf(appLang()), { day: 'numeric', month: 'long', year: 'numeric' });
+const code = (s: string, key: number) => <code key={key} className="wk-case-id">{s}</code>;
 
 const kindWord = (kind: string): string => KIND_WORDS[kind as ReportKind] ?? kind;
 
@@ -48,6 +50,7 @@ function itemHref(row: { itemKind: string; itemId: string; path: string | null }
 export function SprawyView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const { digest } = useSyncExternalStore(notifySubscribe, notifyNow);
   const duties = digest?.duties ?? null;
+  const t = useT();
 
   /* Was die Abschnitte, die selbst laden, gefunden haben — für „nichts wartet". */
   const [found, setFound] = useState<Readonly<Record<'operator' | 'takedowns', boolean | undefined>>>({ operator: undefined, takedowns: undefined });
@@ -66,14 +69,14 @@ export function SprawyView({ who, trail }: { who: Who; trail: readonly string[] 
       <OperatorSection who={who} focus={trail[0] ?? null} catalogue={catalogue} onFound={(any) => tell('operator', any)} />
       {lists.length > 0 && (
         <section aria-labelledby="sprawy-lists-h">
-          <h2 className="wk-h2" id="sprawy-lists-h">Prośby o miejsce na liście wydarzeń</h2>
+          <h2 className="wk-h2" id="sprawy-lists-h">{t('reports.sprawy.listsTitle')}</h2>
           {lists.map((one) => <ListingRow key={`${one.areaId}|${one.moduleId}`} row={one} catalogue={false} />)}
         </section>
       )}
       <TakedownSection stamp={(duties?.takedowns ?? []).map((t) => `${t.id}:${t.state}:${t.objectedAt ?? ''}`).join(',')}
         onFound={(any) => tell('takedowns', any)} />
       {duties !== null && controllerCount > 0 && <ControllerSection duties={duties} />}
-      {nothing && <p className="wk-empty">Nic nie czeka na Twoją decyzję.</p>}
+      {nothing && <p className="wk-empty">{t('reports.sprawy.nothing')}</p>}
       {digest === null && found.operator === undefined && <Loading lines={2} />}
     </div>
   );
@@ -96,6 +99,7 @@ function OperatorSection({ who, focus, catalogue, onFound }: {
   const [failed, setFailed] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const again = useCallback(() => setRound((n) => n + 1), []);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -116,7 +120,7 @@ function OperatorSection({ who, focus, catalogue, onFound }: {
         const keys = await keysFor(who);
         if (alive) setRing(keys.ring);
       } catch (e) {
-        if (alive) setFailed(said(e, 'Nie udało się wczytać klucza operatora.'));
+        if (alive) setFailed(said(e, t('reports.sprawy.opKeyFailed')));
       }
     })();
     return () => { alive = false; };
@@ -151,24 +155,24 @@ function OperatorSection({ who, focus, catalogue, onFound }: {
   return (
     <>
       <section aria-labelledby="sprawy-reports-h" data-operator="">
-        <h2 className="wk-h2" id="sprawy-reports-h">Zgłoszenia treści</h2>
+        <h2 className="wk-h2" id="sprawy-reports-h">{t('workspace.duty.reports')}</h2>
         {ring === null && (
-          <Unlock who={who} why="Zgłoszenia są zaszyfrowane dla roli operatora — otworzysz je i podpiszesz decyzję jej kluczem." onDone={again} />
+          <Unlock who={who} why={t('reports.sprawy.unlockWhy')} onDone={again} />
         )}
         {ring != null && !holds && (
-          <p className="wk-warn">Ta przeglądarka nie ma klucza roli operatora — zgłoszenia otworzy i rozstrzygnie tylko konto, które ją prowadzi.</p>
+          <p className="wk-warn">{t('reports.sprawy.noOpKey')}</p>
         )}
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
-        {open.length === 0 ? <p className="wk-empty">Nowych zgłoszeń nie ma.</p> : cases(open)}
+        {open.length === 0 ? <p className="wk-empty">{t('reports.sprawy.noNew')}</p> : cases(open)}
         {blocked.length > 0 && (
           <>
-            <h3 className="wk-h3 wk-case-group">Zablokowane i przywrócone ({blocked.length})</h3>
+            <h3 className="wk-h3 wk-case-group">{t('reports.sprawy.blockedRestored', { count: blocked.length })}</h3>
             {cases(blocked)}
           </>
         )}
         {closed.length > 0 && (
           <details className="wk-fold">
-            <summary>Rozpatrzone ({closed.length})</summary>
+            <summary>{t('reports.sprawy.closed', { count: closed.length })}</summary>
             <div className="wk-case-list">{cases(closed)}</div>
           </details>
         )}
@@ -177,7 +181,7 @@ function OperatorSection({ who, focus, catalogue, onFound }: {
 
       {catalogue.length > 0 && (
         <section aria-labelledby="sprawy-catalogue-h">
-          <h2 className="wk-h2" id="sprawy-catalogue-h">Katalog wydarzeń</h2>
+          <h2 className="wk-h2" id="sprawy-catalogue-h">{t('reports.sprawy.catalogue')}</h2>
           {catalogue.map((one) => <ListingRow key={`${one.areaId}|${one.moduleId}`} row={one} catalogue />)}
         </section>
       )}
@@ -198,6 +202,7 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
   const [letter, setLetter] = useState<ReportLetter | null | undefined>(undefined);
   const [objection, setObjection] = useState<string | null>(null);
   const [reason, setReason] = useState<DecisionReason>(row.reason === 'data' ? 'personal-data' : row.reason === 'illegal' ? 'illegal' : 'other');
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -208,7 +213,7 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
       setLetter(await openLetter(ring, opRole, row));
       setObjection(row.objection === null ? null : await openObjection(ring, opRole, row));
     } catch (e) {
-      setFailed(said(e, 'Nie udało się otworzyć zgłoszenia.'));
+      setFailed(said(e, t('reports.sprawy.openFailed')));
     }
   }, [ring, opRole, row]);
 
@@ -221,9 +226,9 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
     if (ring === null || letter == null) return;
     if (action === 'delete') {
       const yes = await ask({
-        title: 'Usunąć tę treść na zawsze?',
-        body: 'Zniknie bezpowrotnie — nie da się jej przywrócić. Decyzja zostanie podpisana kluczem roli operatora i dopisana do łańcucha.',
-        confirm: 'Usuń na zawsze',
+        title: t('reports.sprawy.askDelete'),
+        body: t('reports.sprawy.askDeleteBody'),
+        confirm: t('reports.action.delete'),
         danger: true
       });
       if (!yes) return;
@@ -232,11 +237,11 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
     setFailed(null);
     try {
       await decideReport(ring, opRole, row, letter, action, reason, head);
-      toast(`Zapisano: ${ACTION_WORDS[action].toLocaleLowerCase('pl-PL')}.`, { kind: 'ok' });
+      toast(t('reports.sprawy.saved', { action: ACTION_WORDS[action].toLocaleLowerCase(localeOf(appLang())) }), { kind: 'ok' });
       onDecided();
     } catch (e) {
-      const moved = e instanceof WorkspaceError && e.message.startsWith('Łańcuch się przesunął');
-      setFailed(moved ? 'Łańcuch się przesunął — lista jest odświeżona, podejmij decyzję jeszcze raz.' : said(e, 'Nie udało się zapisać decyzji.'));
+      const moved = e instanceof WorkspaceError && e.message.startsWith('Łańcuch się przesunął'); // i18n-ignore — Satz des Dienstes
+      setFailed(moved ? t('reports.sprawy.moved') : said(e, t('reports.sprawy.decideFailed')));
       if (moved) onDecided();
     } finally {
       setBusy(false);
@@ -256,32 +261,32 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
       </div>
       <div className="wk-case-body">
         {href !== null && (
-          <p><a className="wk-link" href={href} target="_blank" rel="noopener noreferrer">{row.path === null ? 'Otwórz plik' : `recreatio.pl/${row.path}`}</a></p>
+          <p><a className="wk-link" href={href} target="_blank" rel="noopener noreferrer">{row.path === null ? t('reports.sprawy.openFile') : `recreatio.pl/${row.path}`}</a></p>
         )}
         {(row.areaName !== null || row.controllerName !== null) && (
           <p className="wk-case-meta">
-            {row.areaName !== null && <>Obszar: {row.areaName}</>}
+            {row.areaName !== null && t('reports.sprawy.area', { name: row.areaName })}
             {row.areaName !== null && row.controllerName !== null && ' · '}
-            {row.controllerName !== null && <>Administrator danych: {row.controllerName}</>}
+            {row.controllerName !== null && t('reports.sprawy.controller', { name: row.controllerName })}
           </p>
         )}
-        <p className="wk-case-meta">Numer: <code className="wk-case-id">{row.itemKind}/{row.itemId}</code></p>
+        <p className="wk-case-meta">{t('reports.sprawy.number')} <code className="wk-case-id">{row.itemKind}/{row.itemId}</code></p>
         {row.blockedSince !== null && (
           <p className="wk-case-meta">
-            Zablokowane od {day(row.blockedSince)}
-            {row.state === 'blocked' && row.deleteFrom !== null && <> · usunąć na zawsze można od {date(row.deleteFrom)}</>}
+            {t('reports.sprawy.blockedSince', { date: day(row.blockedSince) })}
+            {row.state === 'blocked' && row.deleteFrom !== null && <> · {t('reports.sprawy.deleteFrom', { date: date(row.deleteFrom) })}</>}
           </p>
         )}
-        {row.objectedAt !== null && <p className="wk-case-meta">Autor odwołał się {day(row.objectedAt)}.</p>}
+        {row.objectedAt !== null && <p className="wk-case-meta">{t('reports.sprawy.objected', { date: day(row.objectedAt) })}</p>}
 
         {letter === undefined ? (
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ring === null} onClick={() => void openIt()} data-report-open="">
-              Otwórz zgłoszenie
+              {t('reports.sprawy.openReport')}
             </button>
           </div>
         ) : letter === null ? (
-          <p className="wk-case-meta">Treść zgłoszenia usunięto pół roku po decyzji — zostało, co zgłoszono i jak zdecydowano.</p>
+          <p className="wk-case-meta">{t('reports.sprawy.letterGone')}</p>
         ) : (
           <Letter letter={letter} objection={objection} />
         )}
@@ -290,7 +295,7 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
           <div className="wk-case-decide">
             {(actions.includes('block') || actions.includes('delete')) && (
               <label className="wk-field wk-case-reason">
-                <span>Powód decyzji (zobaczy go autor)</span>
+                <span>{t('reports.sprawy.reasonLabel')}</span>
                 <select value={reason} disabled={busy} onChange={(e) => setReason(e.target.value as DecisionReason)}>
                   {(Object.keys(DECISION_REASONS) as DecisionReason[]).map((key) => <option key={key} value={key}>{DECISION_REASONS[key]}</option>)}
                 </select>
@@ -305,7 +310,7 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
                 </button>
               ))}
             </div>
-            <p className="wk-report-small">Decyzję podpisuje klucz roli operatora; trafia do łańcucha, którego nie da się po cichu zmienić.</p>
+            <p className="wk-report-small">{t('reports.sprawy.signedNote')}</p>
           </div>
         )}
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
@@ -315,20 +320,21 @@ function ReportCase({ row, ring, opRole, head, focused, onDecided }: {
 }
 
 function Letter({ letter, objection }: { letter: ReportLetter; objection: string | null }) {
+  const t = useT();
   return (
     <div className="wk-case-letter" data-report-letter="">
-      <p><strong>{REASONS.find((one) => one.value === letter.reason)?.label ?? letter.reason}</strong> · wysłane {day(letter.sentAt)}</p>
+      <p><strong>{REASONS.find((one) => one.value === letter.reason)?.label ?? letter.reason}</strong> · {t('reports.sprawy.sentAt', { date: day(letter.sentAt) })}</p>
       <p className="wk-case-text">{letter.text}</p>
       {letter.quote !== null && (
         <>
-          <p className="wk-case-meta">Co widział zgłaszający:</p>
+          <p className="wk-case-meta">{t('reports.sprawy.quote')}</p>
           <blockquote className="wk-case-quote">{letter.quote}</blockquote>
         </>
       )}
-      <p className="wk-case-meta">{letter.contact === null ? 'Bez kontaktu do zgłaszającego.' : <>Kontakt: {letter.contact}</>}</p>
+      <p className="wk-case-meta">{letter.contact === null ? t('reports.sprawy.noContact') : t('reports.sprawy.contact', { contact: letter.contact })}</p>
       {objection !== null && (
         <div className="wk-case-objection">
-          <p><strong>Odwołanie autora</strong></p>
+          <p><strong>{t('reports.sprawy.authorObjection')}</strong></p>
           <p className="wk-case-text">{objection}</p>
         </div>
       )}
@@ -339,6 +345,7 @@ function Letter({ letter, objection }: { letter: ReportLetter; objection: string
 /** Die Kette nachrechnen — im Browser, gegen den öffentlichen Schlüssel der Rolle des Betreibers. */
 function LedgerCheck({ signPublicKey, head }: { signPublicKey: string; head: ChainHead }) {
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   if (head.sequence === 0) return null;
@@ -349,10 +356,12 @@ function LedgerCheck({ signPublicKey, head }: { signPublicKey: string; head: Cha
       const { entries } = await loadLedger();
       const check = await checkLedger(entries, signPublicKey);
       setResult(check.broken === null
-        ? { ok: true, text: `Łańcuch w porządku: ${check.checked} ${check.checked === 1 ? 'wpis' : check.checked % 10 >= 2 && check.checked % 10 <= 4 && (check.checked % 100 < 12 || check.checked % 100 > 14) ? 'wpisy' : 'wpisów'} sprawdzonych${entries.length < head.sequence ? ` (ostatnie ${entries.length} z ${head.sequence})` : ''}.` }
+        ? { ok: true, text: entries.length < head.sequence
+          ? t('reports.sprawy.chainOkLast', { count: check.checked, last: entries.length, total: head.sequence })
+          : t('reports.sprawy.chainOk', { count: check.checked }) }
         : { ok: false, text: check.broken });
     } catch (e) {
-      setResult({ ok: false, text: said(e, 'Nie udało się sprawdzić łańcucha.') });
+      setResult({ ok: false, text: said(e, t('reports.sprawy.chainFailed')) });
     } finally {
       setBusy(false);
     }
@@ -361,7 +370,7 @@ function LedgerCheck({ signPublicKey, head }: { signPublicKey: string; head: Cha
   return (
     <div className="wk-actions wk-ledger" data-ledger="">
       <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy} onClick={() => void run()}>
-        {busy ? 'Sprawdzanie…' : 'Sprawdź łańcuch decyzji'}
+        {busy ? t('seats.checking') : t('reports.sprawy.checkChain')}
       </button>
       {result !== null && <span className={result.ok ? 'wk-done' : 'wk-error'} data-ledger-result={result.ok ? 'ok' : 'broken'}>{result.text}</span>}
     </div>
@@ -375,16 +384,17 @@ function ListingRow({ row, catalogue }: { row: Duties['listings'][number]; catal
   const [checked, setChecked] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ card: EventCard; texts: CardTexts } | 'none' | null>(null);
+  const t = useT();
 
   const decide = async (accept: boolean) => {
     setBusy(true);
     setFailed(null);
     try {
       await decideListing(row.areaId, row.moduleId, accept, catalogue && accept && checked);
-      toast(accept ? 'Wydarzenie pokazane na liście.' : 'Odmówiono.', { kind: 'ok' });
+      toast(accept ? t('reports.sprawy.listed') : t('reports.sprawy.refused'), { kind: 'ok' });
       void refreshNotify();
     } catch (e) {
-      setFailed(said(e, 'Nie udało się.'));
+      setFailed(said(e, t('common.failed')));
     } finally {
       setBusy(false);
     }
@@ -403,29 +413,29 @@ function ListingRow({ row, catalogue }: { row: Duties['listings'][number]; catal
     <article className="wk-box wk-case" data-listing={catalogue ? 'catalogue' : 'list'}>
       <div className="wk-case-head">
         <strong>{row.name}</strong>
-        {row.path !== null && <span className="wk-case-when">lista: <a className="wk-link" href={pagePath(row.path)} target="_blank" rel="noopener noreferrer">recreatio.pl/{row.path}</a></span>}
+        {row.path !== null && <span className="wk-case-when">{t('reports.sprawy.list')} <a className="wk-link" href={pagePath(row.path)} target="_blank" rel="noopener noreferrer">{`recreatio.pl/${row.path}`}</a></span>}
       </div>
       <div className="wk-case-body">
         {preview === null ? (
-          <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => void show()}>Pokaż kartę</button></div>
+          <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => void show()}>{t('reports.sprawy.showCard')}</button></div>
         ) : preview === 'none' ? (
-          <p className="wk-case-meta">Tego wydarzenia nie widać publicznie — karta się nie pokaże.</p>
+          <p className="wk-case-meta">{t('reports.sprawy.notPublic')}</p>
         ) : (
           <EventPreview card={preview.card} texts={preview.texts} />
         )}
         {catalogue && (
           <label className="wk-check">
             <input type="checkbox" checked={checked} disabled={busy} onChange={(e) => setChecked(e.target.checked)} data-listing-nodata="" />
-            <span>Na karcie nie ma danych osobowych (nazwisk, zdjęć osób, kontaktów prywatnych).</span>
+            <span>{t('reports.sprawy.noPersonal')}</span>
           </label>
         )}
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy || (catalogue && !checked)} onClick={() => void decide(true)}>
-            {catalogue ? 'Pokaż w katalogu' : 'Pokaż na liście'}
+            {catalogue ? t('reports.sprawy.showInCatalogue') : t('reports.sprawy.showInList')}
           </button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void decide(false)}>Odmów</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void decide(false)}>{t('reports.sprawy.refuse')}</button>
         </div>
-        {catalogue && <p className="wk-report-small">Zgoda dotyczy karty w tej postaci — gdy ktoś ją zmieni, zniknie z katalogu do ponownej zgody.</p>}
+        {catalogue && <p className="wk-report-small">{t('reports.sprawy.consentNote')}</p>}
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
       </div>
     </article>
@@ -434,6 +444,7 @@ function ListingRow({ row, catalogue }: { row: Duties['listings'][number]; catal
 
 function EventPreview({ card, texts }: { card: EventCard; texts: CardTexts }) {
   const when = whenText(card.item);
+  const t = useT();
   return (
     <div className="wk-case-card" data-event-preview={card.areaId}>
       {card.page.imageId !== null && <img src={eventImageUrl(card.page.imageId)} alt="" loading="lazy" />}
@@ -441,8 +452,8 @@ function EventPreview({ card, texts }: { card: EventCard; texts: CardTexts }) {
         <p><strong>{texts.title ?? card.page.title ?? card.name}</strong></p>
         {when !== null && <p className="wk-case-meta">{when}{texts.location !== null && ` · ${texts.location}`}</p>}
         {card.page.lead !== null && <p className="wk-case-text">{card.page.lead}</p>}
-        {card.organiser !== null && <p className="wk-case-meta">Organizator: {card.organiser}</p>}
-        <p><a className="wk-link" href={pagePath(card.page.path)} target="_blank" rel="noopener noreferrer">Strona wydarzenia</a></p>
+        {card.organiser !== null && <p className="wk-case-meta">{t('reports.sprawy.organiser', { name: card.organiser })}</p>}
+        <p><a className="wk-link" href={pagePath(card.page.path)} target="_blank" rel="noopener noreferrer">{t('reports.sprawy.eventPage')}</a></p>
       </div>
     </div>
   );
@@ -456,6 +467,7 @@ function TakedownSection({ stamp, onFound }: {
   onFound: (any: boolean) => void;
 }) {
   const [rows, setRows] = useState<readonly MyTakedown[] | undefined>(undefined);
+  const t = useT();
   const [failed, setFailed] = useState<string | null>(null);
   const [round, setRound] = useState(0);
 
@@ -463,7 +475,7 @@ function TakedownSection({ stamp, onFound }: {
     let alive = true;
     loadMyTakedowns()
       .then((found) => { if (alive) { setRows(found.takedowns); setFailed(null); } })
-      .catch((e: unknown) => { if (alive) { setRows([]); setFailed(said(e, 'Nie udało się wczytać zablokowanych treści.')); } });
+      .catch((e: unknown) => { if (alive) { setRows([]); setFailed(said(e, t('reports.sprawy.takedownsFailed'))); } });
     return () => { alive = false; };
   }, [round, stamp]);
 
@@ -473,7 +485,7 @@ function TakedownSection({ stamp, onFound }: {
 
   return (
     <section aria-labelledby="sprawy-takedowns-h">
-      <h2 className="wk-h2" id="sprawy-takedowns-h">Twoje treści zablokowane po zgłoszeniu</h2>
+      <h2 className="wk-h2" id="sprawy-takedowns-h">{t('reports.sprawy.takedowns')}</h2>
       {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
       {rows.map((one) => <TakedownRow key={one.id} row={one} onSent={() => { setRound((n) => n + 1); void refreshNotify(); }} />)}
     </section>
@@ -485,17 +497,18 @@ function TakedownRow({ row, onSent }: { row: MyTakedown; onSent: () => void }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const href = row.path === null ? null : pagePath(row.path);
+  const t = useT();
 
   const send = async () => {
     setBusy(true);
     setFailed(null);
     try {
       await sendObjection(row, text);
-      toast('Odwołanie wysłane do operatora.', { kind: 'ok' });
+      toast(t('reports.sprawy.objectionSent'), { kind: 'ok' });
       setText('');
       onSent();
     } catch (e) {
-      setFailed(said(e, 'Nie udało się wysłać odwołania.'));
+      setFailed(said(e, t('reports.sprawy.objectionFailed')));
     } finally {
       setBusy(false);
     }
@@ -505,31 +518,28 @@ function TakedownRow({ row, onSent }: { row: MyTakedown; onSent: () => void }) {
     <article className="wk-box wk-case" data-takedown={row.state}>
       <div className="wk-case-head">
         <strong>{kindWord(row.itemKind)}</strong>
-        <span className={`wk-tag ${row.state === 'blocked' ? 'wk-tag-danger' : ''}`}>{row.state === 'blocked' ? 'zablokowane' : 'usunięte na zawsze'}</span>
+        <span className={`wk-tag ${row.state === 'blocked' ? 'wk-tag-danger' : ''}`}>{row.state === 'blocked' ? t('reports.sprawy.blocked') : t('reports.sprawy.deleted')}</span>
         <span className="wk-case-when">{day(row.since)}</span>
       </div>
       <div className="wk-case-body">
-        {href !== null && <p><a className="wk-link" href={href}>recreatio.pl/{row.path}</a></p>}
-        <p className="wk-case-meta">Powód: {DECISION_REASONS[row.reason] ?? row.reason} · numer <code className="wk-case-id">{row.itemKind}/{row.itemId}</code></p>
+        {href !== null && <p><a className="wk-link" href={href}>{`recreatio.pl/${row.path}`}</a></p>}
+        <p className="wk-case-meta">{rich(t('reports.sprawy.reasonLine', { reason: DECISION_REASONS[row.reason] ?? row.reason, id: `${row.itemKind}/${row.itemId}` }), { code })}</p>
         {row.state === 'deleted' ? (
-          <p className="wk-case-meta">Operator usunął tę treść na zawsze.</p>
+          <p className="wk-case-meta">{t('reports.sprawy.operatorDeleted')}</p>
         ) : row.objectedAt !== null ? (
-          <p className="wk-case-meta">Odwołanie wysłane {day(row.objectedAt)} — operator je przeczyta i zdecyduje: przywróci treść albo usunie ją na zawsze.</p>
+          <p className="wk-case-meta">{t('reports.sprawy.objectionSentAt', { date: day(row.objectedAt) })}</p>
         ) : (
           <form className="wk-form wk-case-object" onSubmit={(e) => { e.preventDefault(); if (text.trim().length >= 3 && !busy) void send(); }}>
-            <p className="wk-case-meta">
-              Do {date(row.objectUntil)} treść pozostaje zablokowana, ale nie usunięta — w tym czasie możesz się odwołać.
-              Operator przeczyta odwołanie przed decyzją; bez odwołania może ją potem usunąć na zawsze.
-            </p>
+            <p className="wk-case-meta">{t('reports.sprawy.objectUntil', { date: date(row.objectUntil) })}</p>
             <label className="wk-field">
-              <span>Odwołanie</span>
+              <span>{t('reports.sprawy.objection')}</span>
               <textarea rows={3} maxLength={5000} value={text} disabled={busy} data-objection-text=""
-                placeholder="Dlaczego ta treść powinna wrócić? Odwołanie trafi zaszyfrowane do operatora."
+                placeholder={t('reports.sprawy.objectionPlaceholder')}
                 onChange={(e) => setText(e.target.value)} />
             </label>
             <div className="wk-actions">
               <button type="submit" className="wk-btn" disabled={busy || text.trim().length < 3} data-objection-send="">
-                {busy ? 'Wysyłanie…' : 'Wyślij odwołanie'}
+                {busy ? t('reports.sprawy.sending') : t('reports.sprawy.sendObjection')}
               </button>
             </div>
           </form>
@@ -545,24 +555,25 @@ function TakedownRow({ row, onSent }: { row: MyTakedown; onSent: () => void }) {
 function ControllerSection({ duties }: { duties: Duties }) {
   const c = duties.controllers;
   const settings = (areaId: string) => viewPath('areas', areaId, 'ustawienia');
+  const t = useT();
   const lacking = (m: Duties['controllers']['missing'][number]) => [
-    m.terms ? null : 'akceptacji warunków powierzenia',
-    m.confirmed ? null : 'potwierdzenia, że można działać w imieniu organizacji',
-    m.complete ? null : 'adresu, e-maila albo organu do skarg'
+    m.terms ? null : t('reports.ctrl.lackTerms'),
+    m.confirmed ? null : t('reports.ctrl.lackConfirm'),
+    m.complete ? null : t('reports.ctrl.lackData')
   ].filter((one): one is string => one !== null).join(', ');
 
   const lines = useMemo(() => [
-    ...c.asks.map((one) => ({ key: `a${one.attachmentId}`, href: settings(one.homeAreaId), title: `Prośba: „${one.areaName ?? 'obszar'}” chce administratora „${one.controllerName}”`, sub: 'Zdecyduj i podpisz w ustawieniach obszaru, w którym administrator jest wpisany.', warn: true })),
-    ...c.offers.map((one) => ({ key: `o${one.attachmentId}`, href: settings(one.areaId), title: `Propozycja dla „${one.areaName ?? 'obszaru'}”: administrator „${one.controllerName}”`, sub: 'Przyjmij albo odrzuć w ustawieniach obszaru.', warn: true })),
-    ...c.decided.map((one) => ({ key: `d${one.attachmentId}`, href: settings(one.areaId), title: `„${one.controllerName}” dla „${one.areaName ?? 'obszaru'}”: ${one.state === 'live' ? 'przyjęte' : 'odrzucone'}`, sub: one.state === 'live' ? 'Obowiązuje od teraz.' : 'Wybierz innego administratora.', warn: one.state !== 'live' })),
-    ...c.nobody.map((one) => ({ key: `n${one.areaId}`, href: settings(one.areaId), title: `Za dane w „${one.areaName}” nikt nie odpowiada`, sub: 'Formularze, rezerwacje i rozmowy tego obszaru nic teraz nie przyjmą. Wskaż administratora danych.', warn: true })),
-    ...c.missing.map((one) => ({ key: `m${one.controllerId}`, href: settings(one.homeAreaId), title: `„${one.name}”: brakuje ${lacking(one)}`, sub: 'Uzupełnij w ustawieniach obszaru, w którym administrator jest wpisany.', warn: true })),
-    ...(c.pages ?? []).map((one) => ({ key: `p${one.path}`, href: viewPath('pages', ...pageSteps(one.path)), title: `Strona recreatio.pl/${one.path}: nikt nie odpowiada za jej treść`, sub: 'Wskaż obszar, który za nią odpowiada — bez tego nie zapiszesz zmian.', warn: true }))
-  ], [c]);
+    ...c.asks.map((one) => ({ key: `a${one.attachmentId}`, href: settings(one.homeAreaId), title: t('reports.ctrl.ask', { area: one.areaName ?? t('reports.ctrl.area'), name: one.controllerName }), sub: t('reports.ctrl.askSub'), warn: true })),
+    ...c.offers.map((one) => ({ key: `o${one.attachmentId}`, href: settings(one.areaId), title: t('reports.ctrl.offer', { area: one.areaName ?? t('workspace.duty.areaOf'), name: one.controllerName }), sub: t('reports.ctrl.offerSub'), warn: true })),
+    ...c.decided.map((one) => ({ key: `d${one.attachmentId}`, href: settings(one.areaId), title: t(one.state === 'live' ? 'reports.ctrl.decidedLive' : 'reports.ctrl.decidedRefused', { name: one.controllerName, area: one.areaName ?? t('workspace.duty.areaOf') }), sub: one.state === 'live' ? t('reports.ctrl.liveSub') : t('reports.ctrl.refusedSub'), warn: one.state !== 'live' })),
+    ...c.nobody.map((one) => ({ key: `n${one.areaId}`, href: settings(one.areaId), title: t('reports.ctrl.nobody', { area: one.areaName }), sub: t('reports.ctrl.nobodySub'), warn: true })),
+    ...c.missing.map((one) => ({ key: `m${one.controllerId}`, href: settings(one.homeAreaId), title: t('reports.ctrl.missing', { name: one.name, what: lacking(one) }), sub: t('reports.ctrl.missingSub'), warn: true })),
+    ...(c.pages ?? []).map((one) => ({ key: `p${one.path}`, href: viewPath('pages', ...pageSteps(one.path)), title: t('reports.ctrl.page', { path: one.path }), sub: t('reports.ctrl.pageSub'), warn: true }))
+  ], [c, t]);
 
   return (
     <section aria-labelledby="sprawy-controllers-h">
-      <h2 className="wk-h2" id="sprawy-controllers-h">Administrator danych</h2>
+      <h2 className="wk-h2" id="sprawy-controllers-h">{t('reports.ctrl.title')}</h2>
       <div className="wk-box">
         {lines.map((one, i) => (
           <a key={one.key} className={`wk-line is-wrap${i === 0 ? ' wk-line-first' : ''}`} href={one.href} data-duty={one.key[0]}>
@@ -570,7 +581,7 @@ function ControllerSection({ duties }: { duties: Duties }) {
               <span className="wk-line-title">{one.title}</span>
               <span className="wk-line-sub">{one.sub}</span>
             </span>
-            <span className="wk-line-end">{one.warn ? 'Otwórz' : 'Zobacz'} ›</span>
+            <span className="wk-line-end">{one.warn ? t('common.open') : t('reports.ctrl.see')} ›</span>
           </a>
         ))}
       </div>

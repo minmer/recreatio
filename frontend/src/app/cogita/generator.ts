@@ -33,6 +33,7 @@
 
 import { compile, isExprError, isList, isRecord, makeRecord, newEnv, recordId, takeOverrun, truth, valueText, withRng, type Env, type Expr, type Val, type ValRecord } from '../pages/motion/expr';
 import { texPieces, texSource } from '../core/tex';
+import { appLang, tIn } from '../core/i18n';
 import { dateOrdinal, dateText, fieldsOf, fieldUnit, labelOf, plainOf, readDate, valuesOf, type Entity, type Lookup, type Value } from './schema';
 import { readRule, ruleMatches, type RuleGroup } from './selection';
 
@@ -387,13 +388,13 @@ export function drawInstance(spec: ParamsSpec, rng: () => number, world?: GenWor
         candidates = candidates.filter((e) => { const child = Object.create(base) as Env; child.it = recordOf(e, world.look); return truth(where.expr.run(child)); });
       }
       if (p.entry !== undefined) {
-        if (candidates.length === 0) { problem = `„${p.name}”: żaden wpis rodzaju „${world.look.kind(kind)?.name ?? draw.kind}” nie pasuje${draw.where === '' ? '' : ` do „${draw.where}”`}.`; break; }
+        if (candidates.length === 0) { problem = draw.where === '' ? tIn(appLang(), 'cogitaLearnLogic.generator.noEntry', { name: p.name, kind: world.look.kind(kind)?.name ?? draw.kind }) : tIn(appLang(), 'cogitaLearnLogic.generator.noEntryWhere', { name: p.name, kind: world.look.kind(kind)?.name ?? draw.kind, where: draw.where }); break; }
         const one = candidates[Math.floor(rng() * candidates.length)]!;
         env[p.name] = recordOf(one, world.look);
         picked.push(one.id);
       } else {
         const want = draw.count;
-        if (want !== null && candidates.length < want) { problem = `„${p.name}”: potrzeba ${want} różnych wpisów, pasuje ${candidates.length}.`; break; }
+        if (want !== null && candidates.length < want) { problem = tIn(appLang(), 'cogitaLearnLogic.generator.tooFew', { name: p.name, want, n: candidates.length }); break; }
         const list = want === null ? candidates : sample(candidates, want, rng);
         env[p.name] = list.map((e) => recordOf(e, world.look));
         picked.push(...list.map((e) => e.id));
@@ -402,7 +403,7 @@ export function drawInstance(spec: ParamsSpec, rng: () => number, world?: GenWor
     if (problem === null) {
       for (const l of lets) {
         env[l.name] = l.expr.run(env);
-        if (takeOverrun()) { problem = `„${l.name}”: za dużo obliczeń (listy dłuższe niż pozwala język albo zbyt wiele kroków).`; break; }
+        if (takeOverrun()) { problem = tIn(appLang(), 'cogitaLearnLogic.generator.overrun', { name: l.name }); break; }
       }
     }
     const values: Record<string, Val> = {};
@@ -419,7 +420,7 @@ export function drawInstance(spec: ParamsSpec, rng: () => number, world?: GenWor
       for (const tx of spec.texts) values[tx.name] = fillParams(tx.value, values);
       return { values, picked, tries: t, held: true, problem: null };
     }
-    last = { values, picked, tries: t, held: false, problem: `Warunek „${failing.source}” nie dał się spełnić w ${total} losowaniach — poszerz zakresy albo złagodź warunki.` };
+    last = { values, picked, tries: t, held: false, problem: tIn(appLang(), 'cogitaLearnLogic.generator.unmet', { source: failing.source, total }) };
   }
   return last;
 }
@@ -452,7 +453,7 @@ export function sampleInstances(spec: ParamsSpec, seeds: readonly string[], rngO
 
 export type Stored = number | string | readonly (number | string)[];
 
-const clip = (text: string, n: number): string => (text.length <= n ? text : `${text.slice(0, n - 1)}…`);
+const clip = (text: string, n: number): string => (text.length <= n ? text : `${text.slice(0, n - 1)}…`); // i18n-ignore
 
 /** Ein Wert, wie ihn die Antwort mitnimmt: Zahlen, Texte (gekürzt), Einträge als `@kennung`, kurze Listen davon. */
 export function storedValue(v: Val): Stored | undefined {
@@ -562,7 +563,7 @@ function fillDeep(v: unknown, values: Readonly<Record<string, Val>>): unknown {
 }
 
 const TRUE_WORDS = new Set(['1', 'true', 'prawda', 'tak', 'yes']);
-const FALSE_WORDS = new Set(['0', 'false', 'fałsz', 'falsz', 'nie', 'no', '']);
+const FALSE_WORDS = new Set(['0', 'false', 'fałsz', 'falsz', 'nie', 'no', '']); // i18n-ignore
 const numberOf = (x: unknown): unknown => {
   if (typeof x !== 'string') return x;
   const n = Number(x.trim().replace(',', '.').replace(/^-/, '-'));

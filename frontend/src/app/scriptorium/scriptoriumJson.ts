@@ -23,7 +23,7 @@
  * ihnen wird abgewiesen, mit dem Format, in das sie gehört.
  */
 
-import { readAmount, planLibraryImport, exportLibrary, kindsDoc, LIBRARY_FORMAT, MARKUP_DOC, BIBLE_DOC, SCRIPTORIUM_FORMAT, type ExtraField, type FormatSpec, type ImportBase, type LibraryImportPlan } from '../library/libraryJson';
+import { readAmount, planLibraryImport, exportLibrary, kindsDoc, LIBRARY_FORMAT, markupDoc, bibleDoc, SCRIPTORIUM_FORMAT, type ExtraField, type FormatSpec, type ImportBase, type LibraryImportPlan } from '../library/libraryJson';
 import { t } from '../core/i18n';
 import { isUuid } from '../library/library';
 import { slug, WRITING_KINDS, type LibEntry, type Lookup } from '../library/libraryKinds';
@@ -243,6 +243,6 @@ export function scriptoriumDescription(): string {
   return t('scriptorium.json.description', {
     format: SCRIPTORIUM_FORMAT, version: SCRIPTORIUM_VERSION, library: LIBRARY_FORMAT, kinds: kindsDoc(WRITING_KINDS),
     types: TEXT_TYPE_FIELD_TYPES.join(', '), coreKeys: [...CORE_KEYS.keys()].join(', '),
-    example: JSON.stringify(textWithType(), null, 2), markup: MARKUP_DOC, bible: BIBLE_DOC
+    example: JSON.stringify(textWithType(), null, 2), markup: markupDoc(), bible: bibleDoc()
   });
 }

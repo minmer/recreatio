@@ -8,6 +8,7 @@ import { type Duty, setPeople } from '../calendar/calendar';
 import type { Candidate } from '../calendar/PeoplePicker';
 import { areaKeys, newestKey } from '../chat/chat';
 import { Field, aad, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
@@ -32,6 +33,7 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [kind, setKind] = useState<IntentionKind>('single');
   const [busy, setBusy] = useState(false);
@@ -77,7 +79,7 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
       if (thenNext && hasNext) onNextMass();
       else field.current?.focus();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać intencji.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -106,7 +108,7 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
       for (const one of open) await updateIntention(one.intentionId, { status: 'celebrated' });
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się oznaczyć.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.markFailed'));
     } finally {
       setBusy(false);
     }
@@ -127,7 +129,7 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
       await updateIntention(b.intentionId, { ordinal: ordA });
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zmienić kolejności.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.orderFailed'));
     } finally {
       setBusy(false);
     }
@@ -140,21 +142,21 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
       <header className="wk-mo-head">
         <strong>{hour(mass.startsAt)}</strong>
         {(mass.title ?? '') !== '' && <span className="wk-mass-title">{mass.title}</span>}
-        {mass.moved === true && <span className="wk-tag">przeniesiona</span>}
-        <span className="wk-row-side">{dayLabel(mass.startsAt)} · {position}</span>
+        {mass.moved === true && <span className="wk-tag">{t('masses.plan.moved')}</span>}
+        <span className="wk-row-side">{dayLabel(mass.startsAt, new Date(), t.lang)} · {position}</span>
         <PeopleLine mass={mass} names={names} />
         <span className="wk-mo-head-actions">
-          <button type="button" className="wk-link-btn" onClick={onEdit}>Zmień mszę</button>
+          <button type="button" className="wk-link-btn" onClick={onEdit}>{t('masses.entry.editMass')}</button>
           {past && open.length > 0 && (
             <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void markAll()}>
-              Oznacz jako odprawione ({open.length})
+              {t('masses.entry.markAll', { count: open.length })}
             </button>
           )}
         </span>
       </header>
 
       {ordered.length === 0 ? (
-        <p className="wk-empty">Bez intencji.</p>
+        <p className="wk-empty">{t('masses.entry.none')}</p>
       ) : (
         <ul className="wk-list">
           {ordered.map((one, index) => (
@@ -183,8 +185,9 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
       */}
       {singles.length > 1 && (
         <p className="wk-mo-need">
-          {singles.length} pojedyncze — potrzeba {singles.length} kapłanów
-          {celebrants.length > 0 && ` (odprawia: ${celebrants.length})`}.
+          {celebrants.length > 0
+            ? t('masses.entry.needPriestsHave', { count: singles.length, have: celebrants.length })
+            : t('masses.entry.needPriests', { count: singles.length })}
         </p>
       )}
 
@@ -195,8 +198,8 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
           value={text}
           maxLength={400}
           disabled={busy}
-          placeholder="Za śp. Jana Kowalskiego"
-          aria-label="Nowa intencja"
+          placeholder={t('masses.entry.placeholder')}
+          aria-label={t('masses.entry.newIntention')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
         />
@@ -204,7 +207,7 @@ export function MassEntry({ me, mass, masses, candidates: people, names, positio
         <select
           value={kind}
           disabled={busy}
-          aria-label="Rodzaj nowej intencji"
+          aria-label={t('masses.entry.newKind')}
           onChange={(e) => setKind(e.target.value as IntentionKind)}
         >
           <option value="single">{KIND_LABEL.single}</option>
@@ -235,6 +238,7 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(intention.text);
   const [busy, setBusy] = useState(false);
   const [more, setMore] = useState(false);
@@ -242,7 +246,7 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
 
   useEffect(() => { setText(intention.text); }, [intention.text]);
 
-  const change = async (body: Parameters<typeof updateIntention>[1], failed = 'Nie udało się zapisać.') => {
+  const change = async (body: Parameters<typeof updateIntention>[1], failed = t('masses.entry.genericSaveFailed')) => {
     setBusy(true);
     onError(null);
     try {
@@ -280,20 +284,20 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
       }
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przypisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.assignFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async () => {
-    if (!(await askText(`Usunąć intencję „${intention.text}"? Tego nie da się cofnąć.`))) return;
+    if (!(await askText(t('masses.entry.deleteAsk', { text: intention.text })))) return;
     setBusy(true);
     try {
       await deleteIntention(intention.intentionId);
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.deleteFailed'));
     } finally {
       setBusy(false);
     }
@@ -304,8 +308,8 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
   return (
     <li className="wk-row wk-mo-int" data-cancelled={cancelled} data-status={intention.status}>
       <span className="wk-mo-order">
-        <button type="button" className="wk-icon-btn" aria-label="Wyżej" title="Wyżej" disabled={busy || first} onClick={onUp}>↑</button>
-        <button type="button" className="wk-icon-btn" aria-label="Niżej" title="Niżej" disabled={busy || last} onClick={onDown}>↓</button>
+        <button type="button" className="wk-icon-btn" aria-label={t('masses.entry.up')} title={t('masses.entry.up')} disabled={busy || first} onClick={onUp}>↑</button>
+        <button type="button" className="wk-icon-btn" aria-label={t('masses.entry.down')} title={t('masses.entry.down')} disabled={busy || last} onClick={onDown}>↓</button>
       </span>
 
       <input
@@ -313,32 +317,32 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
         value={text}
         maxLength={400}
         disabled={busy || cancelled}
-        aria-label="Treść intencji"
+        aria-label={t('masses.entry.text')}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => void commit()}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
       />
 
       <span className="wk-mo-int-controls">
-        <select value={intention.kind} disabled={busy} aria-label="Rodzaj" onChange={(e) => void change({ kind: e.target.value as IntentionKind })}>
+        <select value={intention.kind} disabled={busy} aria-label={t('masses.entry.kind')} onChange={(e) => void change({ kind: e.target.value as IntentionKind })}>
           <option value="single">{KIND_LABEL.single}</option>
           <option value="collective">{KIND_LABEL.collective}</option>
         </select>
 
-        <select value={intention.status} disabled={busy} aria-label="Stan" onChange={(e) => void change({ status: e.target.value })}>
+        <select value={intention.status} disabled={busy} aria-label={t('masses.entry.status')} onChange={(e) => void change({ status: e.target.value })}>
           {(['accepted', 'celebrated', 'cancelled'] as const).map((s) => <option key={s} value={s}>{INTENTION_STATUS_LABEL[s]}</option>)}
         </select>
 
         {candidates !== null && (
-          <select value={intention.celebrantRoleId ?? ''} disabled={busy} aria-label="Kto odprawia tę intencję"
+          <select value={intention.celebrantRoleId ?? ''} disabled={busy} aria-label={t('masses.entry.celebrant')}
             onChange={(e) => void pickCelebrant(e.target.value)}>
-            <option value="">— kto odprawia —</option>
+            <option value="">{t('masses.entry.celebrantNone')}</option>
             {candidates.map((c) => <option key={c.roleId} value={c.roleId}>{c.name}</option>)}
           </select>
         )}
 
         <button type="button" className="wk-link-btn" aria-expanded={more} onClick={() => setMore((m) => !m)}>
-          {more ? 'Mniej' : 'Więcej'}
+          {more ? t('common.less') : t('common.more')}
         </button>
       </span>
 
@@ -348,24 +352,24 @@ function Row({ me, mass, intention, masses, candidates, first, last, onUp, onDow
 
           {others.length > 0 && (
             <label className="wk-field">
-              <span>Przenieś na inną mszę</span>
+              <span>{t('masses.entry.moveTo')}</span>
               <select value="" disabled={busy} onChange={(e) => {
                 const target = others.find((m) => keyOf(m) === e.target.value);
-                if (target !== undefined) void change({ itemId: target.itemId, occurrenceAt: target.occurrenceAt }, 'Nie udało się przenieść.');
+                if (target !== undefined) void change({ itemId: target.itemId, occurrenceAt: target.occurrenceAt }, t('masses.entry.moveFailed'));
               }}>
-                <option value="">— wybierz mszę —</option>
+                <option value="">{t('masses.entry.pickMass')}</option>
                 {others.map((m) => (
                   <option key={keyOf(m)} value={keyOf(m)}>
-                    {dayLabel(m.startsAt)} {hour(m.startsAt)}{(m.title ?? '') === '' ? '' : ` — ${m.title}`}
+                    {dayLabel(m.startsAt, new Date(), t.lang)} {hour(m.startsAt)}{(m.title ?? '') === '' ? '' : ` — ${m.title}`}
                   </option>
                 ))}
               </select>
-              <span className="wk-hint">Inny termin poza tymi dwoma tygodniami: wybierz wyżej inny dzień.</span>
+              <span className="wk-hint">{t('masses.entry.moveHint')}</span>
             </label>
           )}
 
           {intention.status !== 'celebrated' && (
-            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>Usuń intencję</button>
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void remove()}>{t('masses.entry.delete')}</button>
           )}
         </div>
       )}
@@ -386,6 +390,7 @@ function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
   onChanged: () => void;
   onError: (message: string | null) => void;
 }) {
+  const t = useT();
   const [giver, setGiver] = useState<string | null>(null);
   const [offering, setOffering] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -414,9 +419,9 @@ function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
   }, [me, intention.intentionId, intention.fields]);
 
   if (me === null || mass.areaId == null) {
-    return <p className="wk-hint">Ofiarodawca i ofiara są zaszyfrowane — bez kluczy w tej karcie ich nie widać.</p>;
+    return <p className="wk-hint">{t('masses.entry.sealedNoKeys')}</p>;
   }
-  if (giver === null || offering === null) return <p className="wk-hint">Odczytywanie…</p>;
+  if (giver === null || offering === null) return <p className="wk-hint">{t('masses.entry.reading')}</p>;
 
   const save = async () => {
     setBusy(true);
@@ -424,7 +429,7 @@ function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
     setSaved(false);
     try {
       const newest = newestKey(await areaKeys(me.ring, mass.areaId!, true));
-      if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się zapisać.');
+      if (newest === null) throw new WorkspaceError(t('masses.entry.noAreaKey'));
       const seal = async (field: 'giver' | 'offering', value: string) => ({
         field, areaId: mass.areaId!, epoch: newest.epoch,
         sealed: toBase64Url(await sealText(newest.key, aadOf(field), value))
@@ -435,7 +440,7 @@ function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
       setSaved(true);
       onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('masses.entry.genericSaveFailed'));
     } finally {
       setBusy(false);
     }
@@ -444,17 +449,17 @@ function Sealed({ me, mass, intention, busy: outerBusy, onChanged, onError }: {
   return (
     <div className="wk-mo-sealed">
       <label className="wk-field">
-        <span>Kto zamówił</span>
-        <input value={giver} maxLength={200} disabled={busy || outerBusy} placeholder="np. rodzina Kowalskich, tel. …" onChange={(e) => { setGiver(e.target.value); setSaved(false); }} />
+        <span>{t('masses.entry.giver')}</span>
+        <input value={giver} maxLength={200} disabled={busy || outerBusy} placeholder={t('masses.entry.giverPlaceholder')} onChange={(e) => { setGiver(e.target.value); setSaved(false); }} />
       </label>
       <label className="wk-field">
-        <span>Ofiara</span>
-        <input value={offering} maxLength={100} disabled={busy || outerBusy} placeholder="np. 50 zł" onChange={(e) => { setOffering(e.target.value); setSaved(false); }} />
+        <span>{t('masses.entry.offering')}</span>
+        <input value={offering} maxLength={100} disabled={busy || outerBusy} placeholder={t('masses.entry.offeringPlaceholder')} onChange={(e) => { setOffering(e.target.value); setSaved(false); }} />
       </label>
       <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || outerBusy} onClick={() => void save()}>Zapisz</button>
-        {saved && <span className="wk-row-side">Zapisano.</span>}
-        <span className="wk-hint">Zaszyfrowane — w gablocie i na wydruku ich nie ma.</span>
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || outerBusy} onClick={() => void save()}>{t('common.save')}</button>
+        {saved && <span className="wk-row-side">{t('masses.entry.saved')}</span>}
+        <span className="wk-hint">{t('masses.entry.sealedHint')}</span>
       </div>
     </div>
   );

@@ -29,6 +29,8 @@
  * `routeTo`, `marks` (fremde Markierungen auf Feldern) sind der Weg hinein.
  */
 
+import { t, texts } from '../core/i18n';
+
 /* -- Eingänge ---------------------------------------------------------------------------------------------------- */
 
 /** Ein Wert der Richtung (eine Achse, ein Feldwert, ein Rodzaj, eine Ebene). */
@@ -121,9 +123,9 @@ export const LS_SHRINK = 1;
 
 export type LsBand = 'known' | 'due' | 'ring' | 'mountain';
 
-export const LS_BAND_LABEL: Readonly<Record<LsBand, string>> = {
-  known: 'umiem', due: 'do powtórki', ring: 'gotowe do nauki', mountain: 'jeszcze za górami'
-};
+export const LS_BAND_LABEL: Readonly<Record<LsBand, string>> = texts({
+  known: 'cogitaLearnLogic.band.known', due: 'cogitaLearnLogic.band.due', ring: 'cogitaLearnLogic.band.ring', mountain: 'cogitaLearnLogic.band.mountain'
+});
 
 /** Das Zeichen jedes Bandes — nie nur die Farbe. */
 export const LS_BAND_MARK: Readonly<Record<LsBand, string>> = { known: '●', due: '◑', ring: '○', mountain: '▲' };
@@ -1158,8 +1160,9 @@ export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOp
   const n = input.ids.length;
   const label = (v: number) => input.labels[v] ?? input.ids[v] ?? '';
   const notes: string[] = [];
-  if (input.needs.every((l) => l.length === 0)) notes.push('Ta baza nie ma kolejności nauki („Najpierw trzeba znać”) — wszystko, czego jeszcze nie umiesz, stoi na równinie.');
-  if (g.cycles.length > 0) notes.push(`W kolejności nauki są koła (${g.cycles.length}) — każde liczy się jako jeden krok; popraw je w „Do zrobienia”.`);
+  /* 2026-11-05 — im Worker ohne Wörterbücher: dort stehen die Schlüssel (`landscapeClient.ts` übersetzt sie). */
+  if (input.needs.every((l) => l.length === 0)) notes.push(t('cogitaLearnLogic.landscape.noOrder'));
+  if (g.cycles.length > 0) notes.push(t('cogitaLearnLogic.landscape.cycles', { n: g.cycles.length }));
   const shown = (v: number) => fixed.cellOf[v] >= 0 && h.band[v] !== null;
 
   /* -- Der Fokus: Werte (Bereiche) — nur die Kamera und was einzeln steht; die Karte bleibt ---------------------- */
@@ -1430,7 +1433,7 @@ export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOp
     const area = dir.centre[list[0]] === 1 ? -1 : dir.top[list[0]];
     const progress = progressOf(list);
     fields.push({
-      key, kind: 'area', value: x >= 0 ? dir.values[x].id : '', label: x >= 0 ? dir.values[x].label : 'bez obszaru', count: list.length,
+      key, kind: 'area', value: x >= 0 ? dir.values[x].id : '', label: x >= 0 ? dir.values[x].label : t('cogitaLearnLogic.landscape.noArea'), count: list.length,
       height: band === 'mountain' ? low : band === 'ring' ? 0 : -1, missing: Number.isFinite(low) ? low : 0, band, locked: false,
       subject: x >= 0 ? dir.subjectOfValue[x] : -1, area, q: c.q, r: c.r, x: c.x, y: c.y, angle: polarOf(ac).angle, row: Math.round(polarOf(ac).rho), lift: lift[ac],
       route: list.filter((v) => onRoute[v] === 1 || v === goalIndex).length, next: list.some((v) => nextStep[v] === 1), goal: goalIndex !== undefined && list.includes(goalIndex),

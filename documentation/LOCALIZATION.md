@@ -92,11 +92,20 @@ Three levels, the most specific wins:
    `<LangScope section=…>`; a new view gets an entry in `SECTION_OF` (`workspace/Workspace.tsx`), a new section
    an id in `SECTIONS` and a name in `i18n.section.*`.
 3. **A page and a module of a page** — the page's author sets `"lang"` on the page and, if needed, on single
-   modules (page editor, page JSON). Visitors see that language whatever their own is. A knowledge base speaks
-   its `language` setting on the learning screens.
+   modules (page editor: under the page kind and in each module's settings; page JSON: `"lang"` on the page and
+   on modules, `null` removes it). Stored without a migration: the page's in its look (`look.lang` in
+   `page_theme`, next to `look.style`), a module's in its layout (`layout.lang`, `pages/layout.ts`). Rendering
+   goes through `InLang` (`pages/pageLang.tsx`). Visitors see that language whatever their own is. A knowledge
+   base speaks its `language` setting on the learning screens (`baseLang`, `cogita/lang.ts`).
 
 Any subtree can get its own language with `<LangScope lang={…}>`; the language is loaded on demand and the
-subtree gets `lang="…"` for screen readers and hyphenation.
+subtree gets `lang="…"` for screen readers and hyphenation. `<LangScope bare>` sets only the language, without
+the extra element — for places where CSS rules with `>` hang on the children (page modules).
+
+**Data that stays stable across languages.** When the app writes words into a person's data (a requirement's
+options in a form, a starter's names in a knowledge base), the text is written once, in the language of that
+moment, and code that recognises it later must accept it in all three languages (`inAnyLang` in
+`forms/needs.ts`, `readBool` in `cogita/schema.ts`) — never only in the current one.
 
 ## Adding a new part
 

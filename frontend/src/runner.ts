@@ -21,7 +21,7 @@
 
 import './app/core/polyfills';
 import './locales';
-import { startI18n } from './app/core/i18n';
+import { startI18n, t } from './app/core/i18n';
 import { doneIn, gatherNews, readIn, replyIn, type GatherOptions } from './app/notify/notifyRich';
 import { whoIsThere, WorkspaceError } from './app/core/session';
 
@@ -53,7 +53,7 @@ async function perform(task: Task): Promise<unknown> {
   const who = await whoIsThere();
   switch (task.kind) {
     case 'check':
-      if (task.check === undefined) throw new WorkspaceError('Brak zlecenia.');
+      if (task.check === undefined) throw new WorkspaceError(t('app.runner.noTask'));
       return gatherNews(who, task.check);
     case 'reply':
       return { ok: true, ...(await replyIn(who, task.chatId ?? '', task.text ?? '', task.messageId)) };
@@ -67,7 +67,7 @@ async function perform(task: Task): Promise<unknown> {
       /* Nur in der Ausgabe „sms" — als eigenes Bündel, die gewöhnliche App lädt es nie. */
       return (await import('./app/phone/phoneJobs')).runPhoneJob(task.job ?? '');
     default:
-      throw new WorkspaceError('Nieznane zlecenie.');
+      throw new WorkspaceError(t('app.runner.unknownTask'));
   }
 }
 
@@ -84,7 +84,7 @@ if (bridge !== undefined) {
         try {
           out = await perform(task);
         } catch (e) {
-          out = { ok: false, error: e instanceof Error ? e.message : 'Nie udało się.' };
+          out = { ok: false, error: e instanceof Error ? e.message : t('core.session.failed') };
         }
         bridge.done(task.id, JSON.stringify(out));
       });

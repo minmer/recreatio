@@ -53,7 +53,7 @@ import {
   wholeDay, type CalEvent, type CalView, type Laned, type Placed, type TaskMark
 } from './calendarModel';
 import { addDays, addMonths, firstOfMonth, fromKey, keyOf, longDate, monthOfName, monthTitle, rangeTitle, sameDay, startOfDay, WEEK_HEADS, weekdayName } from '../core/dayMath';
-import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
+import { loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel } from './calendarLabel';
 import type { EventTarget } from './EventDialog';
@@ -80,11 +80,10 @@ const CalendarJsonSection = lazy(() => import('./CalendarJsonSection'));
 import { loadTasks, markSkipped, openTasks, type OpenTask } from './tasks';
 import { groupName } from '../areas/WhoSees';
 import { Loading } from '../ui/Loading';
+import { fmtDate, useT } from '../core/i18n';
 
-const VIEWS: readonly { value: CalView; label: string }[] = [
-  { value: 'day', label: 'Dzień' }, { value: 'week', label: 'Tydzień' },
-  { value: 'month', label: 'Miesiąc' }, { value: 'list', label: 'Lista' }
-];
+/* Bezeichnungen: `calendarApp.view.<value>`. */
+const VIEWS: readonly { value: CalView }[] = [{ value: 'day' }, { value: 'week' }, { value: 'month' }, { value: 'list' }];
 
 /** Wie hoch eine Stunde im Raster ist — von Haus aus. */
 const HOUR = 48;
@@ -128,19 +127,20 @@ const SCROLL_GAP = 12;
 /** Wie breit die Striche der Termine nebeneinander stehen dürfen. */
 const RAIL_SPAN = EVENT_RAIL - SCROLL_GAP - 4;
 
-const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const time = (at: Date) => fmtDate(at, { hour: '2-digit', minute: '2-digit' });
 
 /**
  * `trail`: 0079 — `#/workspace/calendar/2026-10-05` schlägt den Kalender an diesem
  * Tag auf (aus „Msze i intencje": „W kalendarzu").
  */
 export function CalendarApp({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
+  const t = useT();
   const me = useMe(who);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(trail[0] ?? '') ? new Date(`${trail[0]}T00:00:00`) : undefined;
 
-  if (me === undefined) return <Loading label="Wczytywanie…" />;
+  if (me === undefined) return <Loading label={t('common.loading')} />;
   if (me === null) {
-    return <p className="wk-note">Bez klucza w tej karcie kalendarz jest zamknięty — zaloguj się ponownie albo odblokuj klucz.</p>;
+    return <p className="wk-note">{t('calendarApp.app.noKey')}</p>;
   }
 
   /* 0132 — `zaplanuj/<kalendarz>`: gleich das Anwenden eines Plans dieses Kalenders. */
@@ -176,6 +176,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
   /** Einmal gefragt, sobald die Kalender da sind: gleich einen neuen Termin aufmachen? („+ Termin" auf der Kachel einer Seite.) */
   startNew?: () => boolean;
 }) {
+  const t = useT();
   const scoped = scope !== undefined;
   /* 2026-10-17 — auf dem Telefon passen sieben Spalten nicht: ohne eigene Wahl beginnt es dort mit der Liste. */
   const narrow = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 40rem)').matches === true;
@@ -271,7 +272,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
         setTaskBusy(null);
       } catch (e) {
         if (!alive) return;
-        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kalendarza.');
+        setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.app.loadFailed'));
         setTaskBusy(null);
       }
     })();
@@ -309,7 +310,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
       void (act === 'tick' ? toggleMark(mark, me.person.id) : markSkipped(mark.task.taskId, me.person.id, mark.occurrence?.at))
         .then(reload, (e: unknown) => {
           setTaskBusy(null);
-          setTaskFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+          setTaskFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.failed'));
         });
     },
     open: (task) => setTaskDialog({ task }),
@@ -320,9 +321,9 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
   const shownCalendars = [...new Set(all.map((e) => e.calendarId).filter((id): id is string => id !== undefined))]
     .map((calendarId) => {
       const row = calendars.find((c) => c.calendarId === calendarId);
-      return { calendarId, name: row !== undefined ? calendarLabel(areas, row) : 'kalendarz', personal: areas.find((a) => a.areaId === row?.areaId)?.personal === true };
+      return { calendarId, name: row !== undefined ? calendarLabel(areas, row) : t('calendarApp.app.calendarFallback'), personal: areas.find((a) => a.areaId === row?.areaId)?.personal === true };
     })
-    .sort((a, b) => Number(b.personal) - Number(a.personal) || a.name.localeCompare(b.name, 'pl'));
+    .sort((a, b) => Number(b.personal) - Number(a.personal) || a.name.localeCompare(b.name, t.locale));
   const anyMine = all.some((e) => e.mine === true);
 
   const toggleCalendar = (calendarId: string) => {
@@ -331,10 +332,10 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
     setHiddenText([...next].join(','));
   };
 
-  const label = view === 'day' ? longDate(anchor)
+  const label = view === 'day' ? longDate(anchor, t.lang)
     : view === 'month' ? (shownMore.before + shownMore.after > 0
-      ? `${monthTitle(addMonths(anchor, -shownMore.before))} – ${monthTitle(addMonths(anchor, shownMore.after))}` : monthTitle(anchor))
-    : rangeTitle(range.from, range.to);
+      ? `${monthTitle(addMonths(anchor, -shownMore.before), t.lang)} – ${monthTitle(addMonths(anchor, shownMore.after), t.lang)}` : monthTitle(anchor, t.lang))
+    : rangeTitle(range.from, range.to, t.lang);
 
   const newAt = (start: Date, allDay = false) =>
     setDialog({ at: 'new', start, end: allDay ? addDays(start, 1) : new Date(start.getTime() + 3600_000), allDay,
@@ -393,10 +394,12 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
 
   /* Wohin es fällt, in Worten — am Zettel beim Ziehen. */
   const dropLabel = (count: number, target: PasteAt | null, copy: boolean) => {
-    const what = `${copy ? 'Kopiuj' : 'Przenieś'} ${terms(count)}`;
+    const what = t(copy ? 'calendarApp.app.dropCopy' : 'calendarApp.app.dropMove', { terms: terms(count) });
     if (target === null) return what;
-    const d = target.day;
-    return `${what} → ${WEEK_HEADS[(d.getDay() + 6) % 7]}, ${d.getDate()} ${monthOfName(d).slice(0, 3)}${target.at !== undefined ? `, ${time(target.at)}` : ''}`;
+    const where = target.at !== undefined
+      ? fmtDate(target.at, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, t.lang)
+      : fmtDate(target.day, { weekday: 'short', day: 'numeric', month: 'short' }, t.lang);
+    return `${what} → ${where}`;
   };
 
   const gestures = usePickGestures(data !== null, {
@@ -426,7 +429,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
   const open = (event: CalEvent) => {
     if (picking || multi.current) {
       if (pickable(event)) { togglePick(event); return; }
-      if (picking) { toast('Tego terminu nie zmienisz razem z innymi.'); return; }
+      if (picking) { toast(t('calendarApp.app.notPickable')); return; }
     }
     if (event.source === 'offer' || event.source === 'booking') setReservation(event.key);
     else setDialog({ at: 'event', event });
@@ -447,7 +450,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
   const quiet = dialog === null && taskDialog === null && taskDay === null && settings === null && !calendarsOpen && reservation === null && !waitingOpen && jsonOf === null;
   const pasteHere = () => {
     if (view === 'day') paste({ day: anchor });
-    else toast('Kliknij dzień albo godzinę, gdzie mają trafić.');
+    else toast(t('calendarApp.app.clickWhere'));
   };
   const keys = useRef({ step, stopPicking, quiet, picking, hasClip: clip !== null, toClip, pasteHere, remove: pickActions.removeThese });
   keys.current = { step, stopPicking, quiet, picking, hasClip: clip !== null, toClip, pasteHere, remove: pickActions.removeThese };
@@ -493,20 +496,20 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
     <div className="wk-cal2" onClickCapture={(e) => { multi.current = e.ctrlKey || e.metaKey || e.shiftKey; }}>
       <div className="wk-cal2-bar">
         <div className="wk-mass-nav">
-          <button type="button" className="wk-mass-step" aria-label="Wcześniej" onClick={() => step(-1)}>‹</button>
-          <button type="button" className="wk-mass-today" aria-pressed={sameDay(anchor, now)} onClick={() => setAnchor(startOfDay(new Date()))}>Dziś</button>
-          <button type="button" className="wk-mass-step" aria-label="Później" onClick={() => step(1)}>›</button>
+          <button type="button" className="wk-mass-step" aria-label={t('calendarApp.nav.earlier')} onClick={() => step(-1)}>‹</button>
+          <button type="button" className="wk-mass-today" aria-pressed={sameDay(anchor, now)} onClick={() => setAnchor(startOfDay(new Date()))}>{t('calendarApp.nav.today')}</button>
+          <button type="button" className="wk-mass-step" aria-label={t('calendarApp.nav.later')} onClick={() => step(1)}>›</button>
         </div>
         <p className="wk-mass-range" aria-live="polite">
           {label}
-          {data !== null && (data.from !== fromMs || data.to !== toMs) && <span className="wk-mass-loading"> · wczytywanie…</span>}
+          {data !== null && (data.from !== fromMs || data.to !== toMs) && <span className="wk-mass-loading"> · {t('calendarApp.app.loadingShort')}</span>}
         </p>
-        <div className="wk-seg" role="group" aria-label="Widok">
+        <div className="wk-seg" role="group" aria-label={t('calendarApp.nav.view')}>
           {VIEWS.map((one) => (
             <button key={one.value} type="button" aria-pressed={one.value === view}
               className={one.value === view ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
               onClick={() => { if (one.value === 'month') setMarkDay(view === 'day' ? anchor : null); setViewText(one.value); }}>
-              {one.label}
+              {t(`calendarApp.view.${one.value}`)}
             </button>
           ))}
         </div>
@@ -517,18 +520,18 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
               const at = new Date(Math.max(now.getTime(), anchor.getTime()));
               at.setHours(now.getHours() + 1, 0, 0, 0);
               newAt(at);
-            }}>+ Termin</button>
+            }}>{t('calendarApp.part.add')}</button>
           )}
-          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>+ Zadanie</button>}
-          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setCalendarsOpen(true)}>Kalendarze</button>}
+          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>{t('calendarApp.taskDay.new')}</button>}
+          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setCalendarsOpen(true)}>{t('calendarApp.app.calendars')}</button>}
         </div>
       </div>
 
       {(shownCalendars.length > 0 || waiting > 0 || allMarks.length > 0) && (
-        <div className="wk-cal2-groups" role="group" aria-label="Co pokazać">
+        <div className="wk-cal2-groups" role="group" aria-label={t('calendarApp.app.whatToShow')}>
           {waiting > 0 && (
             <button type="button" className="wk-cal2-waiting" onClick={() => setWaitingOpen(true)}>
-              Do potwierdzenia <span className="wk-cal2-count">{waiting}</span>
+              {t('calendarApp.app.toConfirm')} <span className="wk-cal2-count">{waiting}</span>
             </button>
           )}
           {/* Auch ein einzelner Kalender bekommt seinen Knopf, wenn er abgewählt ist — sonst käme man nicht mehr an ihn heran. */}
@@ -542,17 +545,17 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
           ))}
           {(anyMine || mineOnly) && (
             <button type="button" className={`wk-cal2-group wk-cal2-mine${mineOnly ? '' : ' is-off'}`} aria-pressed={mineOnly}
-              title="Tylko terminy, przy których musisz być (np. msze, które odprawiasz)"
+              title={t('calendarApp.app.mineHint')}
               onClick={() => setMineText(mineOnly ? 'off' : 'on')}>
               <span className="wk-cal2-me" aria-hidden="true">●</span>
-              Przypisane do mnie
+              {t('calendarApp.app.mine')}
             </button>
           )}
           {allMarks.length > 0 && (
             <button type="button" className={`wk-cal2-group wk-cal2-tasks-toggle${tasksShown ? '' : ' is-off'}`}
               aria-pressed={tasksShown} onClick={() => setTasksText(tasksShown ? 'off' : 'on')}>
               <span className="wk-cal2-tick" aria-hidden="true">✓</span>
-              Zadania
+              {t('calendarApp.app.tasks')}
             </button>
           )}
         </div>
@@ -560,7 +563,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {taskFailed !== null && <p className="wk-error">{taskFailed}</p>}
-      {data === null && failed === null && <Loading label="Wczytywanie…" />}
+      {data === null && failed === null && <Loading label={t('common.loading')} />}
 
       {data !== null && (
         <CutKeys.Provider value={cutKeys}>
@@ -630,8 +633,8 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
       )}
 
       {jsonOf !== null && (
-        <Modal title={`Terminy jako JSON — ${calendarLabel(areas, jsonOf)}`} onClose={() => setJsonOf(null)} wide>
-          <Suspense fallback={<Loading label="Wczytywanie…" />}>
+        <Modal title={t('calendarApp.app.jsonTitle', { name: calendarLabel(areas, jsonOf) })} onClose={() => setJsonOf(null)} wide>
+          <Suspense fallback={<Loading label={t('common.loading')} />}>
             <CalendarJsonSection me={me} areas={areas} calendar={jsonOf} writer={false} onChanged={reload} open />
           </Suspense>
         </Modal>
@@ -684,7 +687,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
 /** 0058 — die Farbe eines Termins: die seines Kalenders. */
 const hueOfEvent = (event: CalEvent) => hueOf(event.calendarId ?? event.areaId);
 
-function chipClass(event: CalEvent, picked?: ReadonlySet<string>, cut?: ReadonlySet<string>): string {
+function chipClass(event: CalEvent, picked?: ReadonlySet<string>, cut?: ReadonlySet<string>): string { // i18n-ignore — Typen, kein Text
   const offer = event.offer;
   const waits = offer !== undefined ? waitingOn(offer) > 0 : event.booking !== undefined && waitsForOffice(event.booking);
   return ['wk-ev', `is-${event.source}`,
@@ -710,23 +713,24 @@ function whoIsOn(event: CalEvent): string | null {
 
 /** Plätze und Wartende als kleine Zeichen am Termin: „2/3", „1?". */
 function Badges({ event }: { event: CalEvent }) {
+  const t = useT();
   const offer = event.offer;
   if (offer !== undefined) {
     const waits = waitingOn(offer);
     return (
       <span className="wk-ev-badges">
-        <span className="wk-ev-seats" title={`zajęte ${offer.taken} z ${offer.capacity}`}>{offer.taken}/{offer.capacity}</span>
-        {waits > 0 && <span className="wk-ev-wait" title={`${waits} czeka na potwierdzenie`}>{waits}?</span>}
+        <span className="wk-ev-seats" title={t('calendarApp.app.taken', { taken: offer.taken, capacity: offer.capacity })}>{offer.taken}/{offer.capacity}</span>
+        {waits > 0 && <span className="wk-ev-wait" title={t('calendarApp.app.waitingCount', { count: waits })}>{waits}?</span>}
       </span>
     );
   }
   if (event.booking !== undefined && waitsForOffice(event.booking)) {
-    return <span className="wk-ev-badges"><span className="wk-ev-wait" title="czeka na potwierdzenie">?</span></span>;
+    return <span className="wk-ev-badges"><span className="wk-ev-wait" title={t('calendarApp.claim.waiting')}>?</span></span>;
   }
   /* 0079 — an einer Messe: wie viele Intentionen. Eine Messe ohne ist eine Auskunft (noch frei). */
   const intentions = event.item?.occurrence.intentions;
   if (intentions != null && intentions > 0) {
-    return <span className="wk-ev-badges"><span className="wk-ev-intcount" title={intentionsWord(intentions)}>{intentions} int.</span></span>;
+    return <span className="wk-ev-badges"><span className="wk-ev-intcount" title={intentionsWord(intentions)}>{t('calendarApp.app.intShort', { count: intentions })}</span></span>;
   }
   return null;
 }
@@ -774,6 +778,7 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   hour?: number;
   onZoom?: (direction: 1 | -1) => void;
 }) {
+  const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
   const cut = useContext(CutKeys);
   /* Wie breit eine Tagesspalte ist — davon hängt ab, ob Teile neben ihrem Ganzen Platz haben. */
@@ -851,29 +856,29 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
       <div className="wk-cal2-head">
         {/* 2026-10-17 — in der Ecke über den Stunden: die Stunden niedriger / höher. */}
         {onZoom !== undefined ? (
-          <span className="wk-cal2-corner wk-cal2-zoom" role="group" aria-label="Wysokość godziny">
-            <button type="button" className="wk-cal2-zoombtn" aria-label="Pomniejsz" title="Pomniejsz (Ctrl + kółko myszy)"
+          <span className="wk-cal2-corner wk-cal2-zoom" role="group" aria-label={t('calendarApp.grid.hourHeight')}>
+            <button type="button" className="wk-cal2-zoombtn" aria-label={t('calendarApp.grid.zoomOut')} title={t('calendarApp.grid.zoomOutHint')}
               disabled={hour <= HOURS[0]} onClick={() => onZoom(-1)}>−</button>
-            <button type="button" className="wk-cal2-zoombtn" aria-label="Powiększ" title="Powiększ (Ctrl + kółko myszy)"
+            <button type="button" className="wk-cal2-zoombtn" aria-label={t('calendarApp.grid.zoomIn')} title={t('calendarApp.grid.zoomInHint')}
               disabled={hour >= HOURS[HOURS.length - 1]} onClick={() => onZoom(1)}>+</button>
           </span>
         ) : <span className="wk-cal2-corner" />}
         {/* 2026-10-17 — wo Platz ist, der ganze Name des Tages und der Monat (`@container` in personal.css). */}
         {days.map((day) => (
           <button key={keyOf(day)} type="button" className={`wk-cal2-dayhead${sameDay(day, now) ? ' is-today' : ''}`} data-day={keyOf(day)}
-            aria-label={longDate(day)} title={onStep === undefined ? undefined : one ? 'Pokaż cały miesiąc' : 'Pokaż ten dzień'} onClick={() => onDay(day)}>
+            aria-label={longDate(day, t.lang)} title={onStep === undefined ? undefined : one ? t('calendarApp.grid.showMonth') : t('calendarApp.grid.showDay')} onClick={() => onDay(day)}>
             <span className="wk-cal2-dow">
               <span className="wk-cal2-short">{WEEK_HEADS[(day.getDay() + 6) % 7]}</span>
-              <span className="wk-cal2-long">{weekdayName(day)}</span>
+              <span className="wk-cal2-long">{weekdayName(day, t.lang)}</span>
             </span>
             <span className="wk-cal2-date">{day.getDate()}</span>
-            <span className="wk-cal2-mon wk-cal2-long">{monthOfName(day)}</span>
+            <span className="wk-cal2-mon wk-cal2-long">{monthOfName(day, t.lang)}</span>
           </button>
         ))}
       </div>
 
       <div className="wk-cal2-allday">
-        <span className="wk-cal2-corner wk-cal2-alllabel">cały dzień</span>
+        <span className="wk-cal2-corner wk-cal2-alllabel">{t('calendarApp.grid.allDay')}</span>
         {days.map((day) => (
           <div key={keyOf(day)} className="wk-cal2-allcell" data-day={keyOf(day)}
             onClick={(e) => { if (e.target === e.currentTarget) onSlot(startOfDay(day), true); }}>
@@ -893,11 +898,11 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
         <div className="wk-cal2-taskrow">
           {onFocus !== undefined && tasks !== undefined ? (
             <button type="button" className="wk-cal2-corner wk-cal2-alllabel wk-cal2-focus" aria-pressed={wide}
-              title={wide ? 'Terminy szeroko, zadania z boku' : 'Zadania szeroko, terminy z boku'}
+              title={wide ? t('calendarApp.grid.focusEvents') : t('calendarApp.grid.focusTasks')}
               onClick={() => onFocus(wide ? 'events' : 'tasks')}>
-              zadania
+              {t('calendarApp.grid.tasks')}
             </button>
-          ) : <span className="wk-cal2-corner wk-cal2-alllabel">zadania</span>}
+          ) : <span className="wk-cal2-corner wk-cal2-alllabel">{t('calendarApp.grid.tasks')}</span>}
           {days.map((day) => (
             <div key={keyOf(day)} className="wk-cal2-taskcell">
               {/* Erst gibt die Pille den Aufgaben die Breite; stehen sie schon breit, öffnet sie die Liste des Tages. */}
@@ -971,10 +976,10 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
   /* 2026-10-17 — blättern an den Seiten des ganzen Rasters: links zurück, rechts weiter. */
   return (
     <div className="wk-cal2-stage">
-      <button type="button" className="wk-cal2-side" aria-label={one ? 'Poprzedni dzień' : 'Poprzedni tydzień'} title={one ? 'Poprzedni dzień' : 'Poprzedni tydzień'}
+      <button type="button" className="wk-cal2-side" aria-label={one ? t('calendarApp.grid.prevDay') : t('calendarApp.grid.prevWeek')} title={one ? t('calendarApp.grid.prevDay') : t('calendarApp.grid.prevWeek')}
         onClick={() => onStep(-1)}><span aria-hidden="true">‹</span></button>
       {grid}
-      <button type="button" className="wk-cal2-side" aria-label={one ? 'Następny dzień' : 'Następny tydzień'} title={one ? 'Następny dzień' : 'Następny tydzień'}
+      <button type="button" className="wk-cal2-side" aria-label={one ? t('calendarApp.grid.nextDay') : t('calendarApp.grid.nextWeek')} title={one ? t('calendarApp.grid.nextDay') : t('calendarApp.grid.nextWeek')}
         onClick={() => onStep(1)}><span aria-hidden="true">›</span></button>
     </div>
   );
@@ -987,16 +992,17 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
  * die Liste des Tages, die jetzt an der Pille in der Zeile „zadania" hängt).
  */
 function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; onOpen: () => void }) {
+  const t = useT();
   const hour = useContext(HourHeight);
   const railed = railDay(marks, day);
   if (railed.length === 0) return null;
 
   return (
-    <button type="button" className={`wk-cal2-rail${day < startOfDay(new Date()) ? ' is-past' : ''}`} aria-label={`Zadania: ${longDate(day)} — pokaż szeroko`}
-      title="Zadania szeroko" onClick={onOpen}>
+    <button type="button" className={`wk-cal2-rail${day < startOfDay(new Date()) ? ' is-past' : ''}`} aria-label={t('calendarApp.grid.railTasks', { date: longDate(day, t.lang) })}
+      title={t('calendarApp.grid.tasksWide')} onClick={onOpen}>
       {railed.map((r) => (
         <span key={r.mark.key} className={`wk-rail-bar is-${r.mark.state}`}
-          title={`${r.mark.task.title} · ${time(r.mark.start)}${r.mark.end > r.mark.start ? `–${time(r.mark.end)}` : ''}`}
+          title={`${r.mark.task.title} · ${time(r.mark.start)}${r.mark.start < r.mark.end ? `–${time(r.mark.end)}` : ''}`}
           style={{
             '--ev-h': hueOf(r.mark.areaId),
             top: `${(r.top / 60) * hour}px`,
@@ -1030,6 +1036,7 @@ const taskPlace = (p: Laned, areaId: string, hour: number): CSSProperties => ({
  * heute steht, steht hier nicht — nur in der Liste (`TaskDay`, „Wszystkie dni").
  */
 function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; acts: TaskActs; placed: Laned }) {
+  const t = useT();
   const hour = useContext(HourHeight);
   const done = settled(mark);
   const short = (placed.height / 60) * hour < TALL;
@@ -1043,8 +1050,8 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
       <div className="wk-tb-in">
       <button type="button" role="checkbox" aria-checked={done} className={`wk-task-tick wk-tb-tick${done ? ' is-done' : ''}`}
         disabled={acts.busy !== null || !mayTick(mark, now)}
-        aria-label={done ? `Cofnij: ${mark.task.title}` : `Zrobione: ${mark.task.title}`}
-        title={done ? 'Cofnij' : 'Zrobione'}
+        aria-label={done ? t('calendarApp.taskDay.undo', { title: mark.task.title }) : t('calendarApp.taskDay.markDone', { title: mark.task.title })}
+        title={done ? t('calendarApp.tasks.undo') : t('calendarApp.grid.done')}
         onClick={() => acts.run(mark, 'tick')}>
         {mark.state === 'done' ? '✓' : mark.state === 'skipped' ? '–' : ''}
       </button>
@@ -1054,8 +1061,8 @@ function TaskBlock({ mark, now, acts, placed }: { mark: TaskMark; now: Date; act
       </button>
       {maySkip(mark) && (
         <button type="button" className="wk-tb-skip" disabled={acts.busy !== null}
-          aria-label={`Pomiń: ${mark.task.title}`} title="Pomiń" onClick={() => acts.run(mark, 'skip')}>
-          <span className="wk-tb-skip-word">pomiń</span><span className="wk-tb-skip-mark" aria-hidden="true">»</span>
+          aria-label={t('calendarApp.tasks.skipLabel', { title: mark.task.title })} title={t('calendarApp.tasks.skip')} onClick={() => acts.run(mark, 'skip')}>
+          <span className="wk-tb-skip-word">{t('calendarApp.taskDay.skip')}</span><span className="wk-tb-skip-mark" aria-hidden="true">»</span>
         </button>
       )}
       </div>
@@ -1078,10 +1085,11 @@ const railPlace = (p: Placed, hue: number, hour: number): CSSProperties => ({
  * gibt den Terminen die Breite zurück.
  */
 function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]; day: Date; areas: readonly AreaRow[]; onOpen: () => void }) {
+  const t = useT();
   const hour = useContext(HourHeight);
   const placed = placeDay(events, day, partHead(hour)).filter((p) => p.depth === 0);
   return (
-    <button type="button" className="wk-cal2-evrail" aria-label={`Terminy: ${longDate(day)} — pokaż szeroko`} title="Terminy szeroko" onClick={onOpen}>
+    <button type="button" className="wk-cal2-evrail" aria-label={t('calendarApp.grid.railEvents', { date: longDate(day, t.lang) })} title={t('calendarApp.grid.eventsWide')} onClick={onOpen}>
       {placed.map((p) => (
         <span key={p.event.key} className={`wk-evrail-bar${p.event.cancelled ? ' is-cancelled' : ''}`} title={hint(p.event, areas)}
           style={railPlace(p, hueOfEvent(p.event), hour)} />
@@ -1121,6 +1129,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
   /** 2026-10-17 — oben und unten: den Monat davor / danach dazunehmen. */
   onReveal?: (side: 'before' | 'after') => void;
 }) {
+  const t = useT();
   const cut = useContext(CutKeys);
   const length = to === undefined ? 42 : Math.max(42, Math.round((to.getTime() - from.getTime()) / 86400_000));
   const days = Array.from({ length }, (_, i) => addDays(from, i));
@@ -1160,13 +1169,13 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
       window.removeEventListener('resize', onScroll);
     };
   }, [several, from.getTime(), length, shownFrom, shownTo]);
-  const title = monthTitle(topMonth !== null ? new Date(topMonth) : several ? firstMonth : anchor);
+  const title = monthTitle(topMonth !== null ? new Date(topMonth) : several ? firstMonth : anchor, t.lang);
 
   return (
     <div className="wk-cal2-monthwrap">
       {onReveal !== undefined && (
         <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('before')}>
-          <span aria-hidden="true">▲</span> Pokaż też {monthTitle(addMonths(firstMonth, -1))}
+          <span aria-hidden="true">▲</span> {t('calendarApp.grid.showAlso', { month: monthTitle(addMonths(firstMonth, -1), t.lang) })}
         </button>
       )}
       <div className="wk-cal2-monthhead" ref={head}>
@@ -1178,7 +1187,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
       <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`} ref={cells}>
         {days.map((day) => {
           /* 0074 — Teile stehen im Monat nicht einzeln: ihr Ganzes sagt, wie viele es hat. */
-          const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
+          const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((one) => one.depth === 0);
           const dayMarks = marksOn(marks, day);
           return (
             <div key={keyOf(day)} data-day={keyOf(day)}
@@ -1192,13 +1201,13 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
               */}
               <button type="button" className="wk-cal2-cellhead" aria-label={dayLabel(day, dayMarks)} onClick={() => onDay(day)}>
                 {/* 2026-10-17 — an jedem Tag der Monat, kurz („31 paź", „1 lis"): an den Rändern und über mehrere Monate weiss man so immer, wo man ist. */}
-                <span className={`wk-cal2-cellday${day.getDate() === 1 ? ' is-first' : ''}`}>{day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span></span>
+                <span className={`wk-cal2-cellday${day.getDate() === 1 ? ' is-first' : ''}`}>{day.getDate()} <span className="wk-cal2-cellmon">{fmtDate(day, { month: 'short' }, t.lang)}</span></span>
                 <TaskTally marks={dayMarks} />
               </button>
               {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
                 <button key={e.key} type="button" className={`${chipClass(e, picked, cut)} is-line`} aria-pressed={picked?.has(e.key)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
                   data-pick={pickable(e) ? e.key : undefined}
-                  title={parts > 0 ? `${e.title} — punkty programu: ${parts}` : e.title} onClick={() => onOpen(e)}>
+                  title={parts > 0 ? t('calendarApp.grid.withParts', { title: e.title, count: parts }) : e.title} onClick={() => onOpen(e)}>
                   {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
                   <span className="wk-ev-title">{e.title}</span>
                   {parts > 0 && <span className="wk-ev-parts">+{parts}</span>}
@@ -1206,7 +1215,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
                 </button>
               ))}
               {mine.length > SHOWN && (
-                <button type="button" className="wk-link-btn wk-cal2-more" onClick={() => onDay(day)}>+{mine.length - SHOWN} więcej</button>
+                <button type="button" className="wk-link-btn wk-cal2-more" onClick={() => onDay(day)}>{t('calendarApp.grid.more', { count: mine.length - SHOWN })}</button>
               )}
             </div>
           );
@@ -1214,7 +1223,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
       </div>
       {onReveal !== undefined && (
         <button type="button" className="wk-cal2-reveal" onClick={() => onReveal('after')}>
-          <span aria-hidden="true">▼</span> Pokaż też {monthTitle(addMonths(lastMonth, 1))}
+          <span aria-hidden="true">▼</span> {t('calendarApp.grid.showAlso', { month: monthTitle(addMonths(lastMonth, 1), t.lang) })}
         </button>
       )}
     </div>
@@ -1240,21 +1249,22 @@ export function ListView({ from, events, marks, now, areas, onOpen, onDay, picke
   onDay?: (day: Date) => void;
   picked?: ReadonlySet<string>;
 }) {
+  const t = useT();
   const cut = useContext(CutKeys);
   const days = Array.from({ length: 30 }, (_, i) => addDays(from, i))
     .map((day) => ({ day, list: events.filter((e) => happensOn(e, day)), tasks: marksOn(marks, day) }))
     .filter((one) => one.list.length > 0 || one.tasks.length > 0);
 
-  if (days.length === 0) return <p className="wk-empty">W tych dniach nic nie ma.</p>;
+  if (days.length === 0) return <p className="wk-empty">{t('calendarApp.list.empty')}</p>;
 
   const side = (e: CalEvent): ReactNode => {
     if (e.offer !== undefined) {
       const waits = waitingOn(e.offer);
-      return <>{e.offer.taken}/{e.offer.capacity} zajęte{waits > 0 && <strong className="wk-res-waitnote"> · {waits} czeka</strong>}</>;
+      return <>{t('calendarApp.list.taken', { taken: e.offer.taken, capacity: e.offer.capacity })}{waits > 0 && <strong className="wk-res-waitnote"> · {t('calendarApp.list.waitCount', { count: waits })}</strong>}</>;
     }
-    if (e.booking !== undefined) return <>{holderName(e.booking)}{waitsForOffice(e.booking) && <strong className="wk-res-waitnote"> · czeka</strong>}</>;
+    if (e.booking !== undefined) return <>{holderName(e.booking)}{waitsForOffice(e.booking) && <strong className="wk-res-waitnote"> · {t('calendarApp.list.waits')}</strong>}</>;
     const intentions = e.item?.occurrence.intentions;
-    return <>{groupName(areas, e.areaId)}{e.source === 'claim' ? ' · rezerwacja' : ''}{intentions != null && intentions > 0 ? ` · ${intentionsWord(intentions)}` : ''}</>;
+    return <>{groupName(areas, e.areaId)}{e.source === 'claim' ? ` · ${t('calendarApp.list.booking')}` : ''}{intentions != null && intentions > 0 ? ` · ${intentionsWord(intentions)}` : ''}</>;
   };
 
   return (
@@ -1265,12 +1275,12 @@ export function ListView({ from, events, marks, now, areas, onOpen, onDay, picke
           <h3 className="wk-mass-day-name wk-cal2-listname">
             {onDay !== undefined ? (
               <button type="button" className="wk-cal2-listhead" aria-label={dayLabel(day, tasks)} onClick={() => onDay(day)}>
-                <span className="wk-cal2-listdate">{longDate(day)}</span>
+                <span className="wk-cal2-listdate">{longDate(day, t.lang)}</span>
                 <TaskTally marks={tasks} />
               </button>
             ) : (
               <span className="wk-cal2-listhead">
-                <span className="wk-cal2-listdate">{longDate(day)}</span>
+                <span className="wk-cal2-listdate">{longDate(day, t.lang)}</span>
                 <TaskTally marks={tasks} />
               </span>
             )}
@@ -1279,7 +1289,7 @@ export function ListView({ from, events, marks, now, areas, onOpen, onDay, picke
             <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}${picked?.has(e.key) === true ? ' is-picked' : ''}${cut.has(e.key) ? ' is-cut' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
               {depth > 0 && <span className="wk-cal2-partmark" aria-hidden="true">↳</span>}
               <span className="wk-cal2-dot" aria-hidden="true" />
-              <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
+              <span className="wk-cal2-listtime">{wholeDay(e) ? t('calendarApp.grid.allDay') : `${time(e.start)}–${time(e.end)}`}</span>
               <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} aria-pressed={picked?.has(e.key)}
                 data-pick={pickable(e) ? e.key : undefined} onClick={() => onOpen(e)}>
                 {e.title}
@@ -1310,6 +1320,7 @@ function CalendarsList({ areas, calendars, onClose, onNew, onEdit, onJson }: {
   /** 2026-10-29 — ein Kalender, in dem ich nur lese: seine Termine als JSON (Export). */
   onJson: (row: CalendarRow) => void;
 }) {
+  const t = useT();
   const personal = areas.find((a) => a.personal === true);
   const live = calendars.filter((c) => c.archived !== true);
   const mine = live.filter((c) => c.areaId === personal?.areaId);
@@ -1321,47 +1332,46 @@ function CalendarsList({ areas, calendars, onClose, onNew, onEdit, onJson }: {
       <span className="wk-callist-main">
         <strong>{calendarLabel(areas, c)}</strong>
         <span className="wk-callist-rules">
-          {c.itemKind !== undefined && c.itemKind !== 'appointment' && <span className="wk-tag">{CALENDAR_KIND_LABEL[c.itemKind]}</span>}
+          {c.itemKind !== undefined && c.itemKind !== 'appointment' && <span className="wk-tag">{t(`calendarApp.calendarKind.${c.itemKind}`)}</span>}
           {c.booking != null && (
             <span className="wk-tag">
-              rezerwacje: {c.booking.mode === 'all' ? 'każdy termin' : 'oznaczone'} · {c.booking.capacity} miejsc
-              {c.booking.reserveAreaId !== null ? ` · tylko ${groupName(areas, c.booking.reserveAreaId)}` : ''}
+              {t(c.booking.mode === 'all' ? 'calendarApp.list.bookingAll' : 'calendarApp.list.bookingMarked', { capacity: c.booking.capacity })}
+              {c.booking.reserveAreaId !== null ? ` · ${t('calendarApp.list.onlyGroup', { who: groupName(areas, c.booking.reserveAreaId) })}` : ''}
             </span>
           )}
-          {c.visibilityAreaId != null && <span className="wk-tag">widzą: {groupName(areas, c.visibilityAreaId)}</span>}
-          {c.mayWrite !== true && <span className="wk-tag">tylko podgląd</span>}
+          {c.visibilityAreaId != null && <span className="wk-tag">{t('calendarApp.list.seenBy', { who: groupName(areas, c.visibilityAreaId) })}</span>}
+          {c.mayWrite !== true && <span className="wk-tag">{t('calendarApp.list.readOnly')}</span>}
         </span>
         {c.description && <span className="wk-callist-desc">{c.description}</span>}
       </span>
       {c.mayWrite === true ? (
-        <button type="button" className="wk-link-btn" onClick={() => onEdit(c)}>Ustawienia</button>
+        <button type="button" className="wk-link-btn" onClick={() => onEdit(c)}>{t('common.settings')}</button>
       ) : (
-        <button type="button" className="wk-link-btn" onClick={() => onJson(c)}>Eksport JSON</button>
+        <button type="button" className="wk-link-btn" onClick={() => onJson(c)}>{t('calendarApp.list.exportJson')}</button>
       )}
     </li>
   );
 
   return (
-    <Modal title="Kalendarze" onClose={onClose} wide>
+    <Modal title={t('calendarApp.app.calendars')} onClose={onClose} wide>
       <p className="wk-hint">
-        Grupa ma swój kalendarz od razu — a może mieć ich więcej (np. msze i spotkania osobno). Każdy mówi, jak działają
-        jego terminy: kto je widzi, jak długo trwają i kto może je rezerwować.
+        {t('calendarApp.list.intro')}
       </p>
       {mine.length > 0 && (
         <section className="wk-callist">
-          <h3 className="wk-res-h">Tylko ja</h3>
+          <h3 className="wk-res-h">{t('calendarApp.editor.onlyMe')}</h3>
           <ul className="wk-callist-list">{mine.map(line)}</ul>
         </section>
       )}
       {groups.length > 0 && (
         <section className="wk-callist">
-          <h3 className="wk-res-h">Kalendarze grup</h3>
+          <h3 className="wk-res-h">{t('calendarApp.editor.groupCalendars')}</h3>
           <ul className="wk-callist-list">{groups.map(line)}</ul>
         </section>
       )}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={onNew}>+ Nowy kalendarz</button>
-        <button type="button" className="wk-btn wk-btn-quiet" onClick={onClose}>Zamknij</button>
+        <button type="button" className="wk-btn" onClick={onNew}>{t('calendarApp.list.newCalendar')}</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={onClose}>{t('common.close')}</button>
       </div>
     </Modal>
   );

@@ -1,0 +1,176 @@
+{
+  "level": {
+    "unseen": "nieznane",
+    "learning": "do powtórki",
+    "known": "znane"
+  },
+  "dependency": {
+    "prerequisite": "Najpierw trzeba znać",
+    "elaboration": "Pogłębia",
+    "context": "Daje tło"
+  },
+  "band": {
+    "known": "umiem",
+    "due": "do powtórki",
+    "ring": "gotowe do nauki",
+    "mountain": "jeszcze za górami"
+  },
+  "landscape": {
+    "noOrder": "Ta baza nie ma kolejności nauki („Najpierw trzeba znać”) — wszystko, czego jeszcze nie umiesz, stoi na równinie.",
+    "cycles": "W kolejności nauki są koła ({n}) — każde liczy się jako jeden krok; popraw je w „Do zrobienia”.",
+    "noArea": "bez obszaru"
+  },
+  "detour": {
+    "crossOptional": "Zagłębienie w innym świecie („{flow}”) jest zawsze nieobowiązkowe — \"optional\": false nie obowiązuje.",
+    "noFlow": "Zagłębienie nie wskazuje opowieści (\"flow\") — uczący się zobaczy tylko „Dalej”.",
+    "missing": "Zagłębienie wskazuje opowieść „{flow}”, której nie ma ani w dokumencie, ani w bazie — uczący się zobaczy tylko „Dalej”.",
+    "self": "Zagłębienie prowadzi do tej samej opowieści {name} — opowieść nie może wejść sama w siebie.",
+    "cycle": "Zagłębienia tworzą koło: {ring} — opowieść nie może przez zagłębienia wrócić do siebie. Usuń jedno z nich.",
+    "deep": "Zagłębienia idą głębiej niż {depth} poziomy: {chain} — najgłębszego odtwarzacz nie zaproponuje.",
+    "quoted": "„{name}”"
+  },
+  "learn": {
+    "notNeeded": "Nie jest potrzebny do wysłania."
+  },
+  "offline": {
+    "locked": "Bez internetu klucz prywatny osoby jest zamknięty."
+  },
+  "oldCopies": {
+    "done": "Wycofane stare kopie publiczne: {withdrawn}, usunięte kopie we wpisach: {stripped}, wycofane kopie plików: {files}.",
+    "kept": "Zostało kopii: {n} — pokazują wpisy, których w bazie już nie ma (przywróć je z historii wpisu albo zachowaj kopię; dopóki jest, tej bazy nie da się otworzyć dla wszystkich).",
+    "failed": "Nie udało się wycofać plików: {n} — spróbuj jeszcze raz."
+  },
+  "presentation": {
+    "noAccess": "Nie masz dostępu do tej bazy wiedzy.",
+    "noWrite": "W tej bazie wiedzy nie piszesz — przebieg może założyć ktoś, kto w niej pisze.",
+    "name": "Prezentacja"
+  },
+  "worlds": {
+    "crumbs": "Gdzie jesteś"
+  },
+  "python": {
+    "crashed": "Python przestał działać.",
+    "unavailable": "Python nie jest tu dostępny.",
+    "tooLong": "Python liczył za długo.",
+    "loadTooLong": "Python ładował się za długo — sprawdź internet i spróbuj jeszcze raz.",
+    "startFailed": "Nie udało się uruchomić Pythona (za pierwszym razem potrzebny jest internet): {error}",
+    "loadTimeout": "Kod działa za długo już przy uruchomieniu (ponad {s} s) — czy jakaś pętla stoi poza funkcją transform?",
+    "invalid": "Kod się nie uruchomił.",
+    "garbled": "Python odpowiedział niezrozumiale.",
+    "caseTimeout": "Przekroczony czas ({s} s na przypadek).",
+    "nothing": "To pytanie nie ma przykładów ani ukrytych przypadków do sprawdzenia.",
+    "notRun": "Nie uruchomiono — {why}",
+    "notRunQuestion": "Nie uruchomiono — błąd w pytaniu (create_input/reference): {error}",
+    "questionTooLong": "create_input/reference liczą za długo",
+    "questionError": "Błąd w pytaniu (create_input/reference): {error}",
+    "questionFailed": "create_input/reference się nie powiodły",
+    "tooManyTimeouts": "Nie uruchomiono — kod {n} razy przekroczył czas.",
+    "unknownCommand": "Nieznane polecenie dla Pythona.",
+    "failed": "Python się nie powiódł.",
+    "needTransform": "Trzeba zdefiniować funkcję: def transform(x):",
+    "noTransform": "Brakuje funkcji transform(x).",
+    "notLoaded": "Kod nie jest wczytany.",
+    "noCreate": "Brakuje create_input(seed) albo reference(x).",
+    "noCase": "Nie ma przygotowanego przypadku.",
+    "needRun": "Kod musi zdefiniować funkcję run(*wejścia)."
+  },
+  "generator": {
+    "noEntry": "„{name}”: żaden wpis rodzaju „{kind}” nie pasuje.",
+    "noEntryWhere": "„{name}”: żaden wpis rodzaju „{kind}” nie pasuje do „{where}”.",
+    "tooFew": "„{name}”: potrzeba {want} różnych wpisów, pasuje {n}.",
+    "overrun": "„{name}”: za dużo obliczeń (listy dłuższe niż pozwala język albo zbyt wiele kroków).",
+    "unmet": "Warunek „{source}” nie dał się spełnić w {total} losowaniach — poszerz zakresy albo złagodź warunki."
+  },
+  "samples": {
+    "noCardWhy": "Karta nie powstała — brakuje odpowiedzi albo możliwości.",
+    "noCard": "Karta nie powstała.",
+    "made": "Udało się {k} z {n}.",
+    "madeTries": "Udało się {k} z {n} · średnio {tries} losowań na zadanie.",
+    "madeTriesRejected": "Udało się {k} z {n} · średnio {tries} losowań na zadanie (odrzuconych {pct}%).",
+    "title": "Przykłady zadań ({n})",
+    "other": "Inne przykłady",
+    "drawing": "Losowanie…"
+  },
+  "quilt": {
+    "label": {
+      "new": "nowe",
+      "learning": "uczę się",
+      "due": "do powtórki",
+      "known": "umiem"
+    },
+    "says": {
+      "new": "jeszcze bez odpowiedzi",
+      "learning": "ostatnio źle albo zapomniane — wraca do nauki",
+      "due": "umiesz, a teraz trzeba powtórzyć",
+      "known": "umiesz — przed terminem powtórki"
+    },
+    "step": {
+      "s1": "umie mniej niż ¼",
+      "s2": "¼ – ½",
+      "s3": "½ – ¾",
+      "s4": "ponad ¾"
+    }
+  },
+  "quiltView": {
+    "empty": "W tym widoku nie ma wpisów.",
+    "noQuestionsYet": "Do tego wpisu nie ma jeszcze pytań.",
+    "noQuestions": "Do tego wpisu nie ma pytań.",
+    "entry": "wpis",
+    "allKnown": "Umiesz wszystko ({n})",
+    "known": "Umiesz {k} z {n}",
+    "shown": "Pokazano {k} z {n} wpisów.",
+    "shownMore": "Pokazano {k} z {n} wpisów — ",
+    "noQuestionsShort": " · bez pytań",
+    "notYet": "jeszcze nie",
+    "practise": "Ćwicz to",
+    "questions": "Pytania",
+    "lastAnswer": "{word} · {date} · {answers}",
+    "answers": {
+      "one": "{count} odpowiedź",
+      "few": "{count} odp.",
+      "many": "{count} odp.",
+      "other": "{count} odp."
+    },
+    "hints": " · podpowiedzi: {n}",
+    "map": "Mapa",
+    "title": "Mapa postępów",
+    "classSum": "Wszyscy umieją {k} z {n} · uczących się: {learners}",
+    "nobody": "nikt jeszcze nie odpowiadał",
+    "knowsOf": "umie {k} z {n}",
+    "nobodyQuestions": "Nikt jeszcze nie odpowiadał na te pytania.",
+    "nobodyRange": "Nikt jeszcze nie odpowiadał w tym zakresie.",
+    "col": {
+      "question": {
+        "label": "Pytanie"
+      },
+      "learners": {
+        "label": "Uczący się",
+        "says": "ilu odpowiadało"
+      },
+      "success": {
+        "label": "Skuteczność",
+        "says": "odpowiedzi całkiem dobre (bez podpowiedzi)"
+      },
+      "first": {
+        "label": "Za pierwszym razem",
+        "says": "ilu odpowiedziało dobrze od razu"
+      },
+      "attempts": {
+        "label": "Średnio prób",
+        "says": "odpowiedzi na osobę"
+      },
+      "hints": {
+        "label": "Podpowiedzi",
+        "says": "odsłonięte podpowiedzi razem (w ilu odpowiedziach)"
+      },
+      "wrong": {
+        "label": "Najczęstsza zła odpowiedź"
+      }
+    },
+    "shown300": "Pokazano 300 z {n}.",
+    "successNote": "Skuteczność liczy tylko odpowiedzi całkiem dobre — dobra odpowiedź z podpowiedzią się do niej nie wlicza.",
+    "who": "Kto",
+    "everyone": "wszyscy razem",
+    "mapOf": "Mapa: {name}"
+  }
+}

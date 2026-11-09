@@ -17,7 +17,9 @@
  * gibt. Drei Dateien mit je acht Zeilen wären drei Wege zu derselben Zeile.
  */
 
-import { definePart, maybeNumber, text, type RawConfig } from '../part';
+import { t } from '../../core/i18n';
+import { maybeNumber, text, type RawConfig } from '../part';
+import { field, texts, textPart, withTexts } from './partTexts';
 import { massSays, massView } from '../../masses/massShape';
 import { later } from '../../ui/later';
 
@@ -40,19 +42,17 @@ interface MassConfig {
   readonly days: number | null;
 }
 
-export const massesPart = definePart<MassConfig>({
+export const massesPart = textPart<MassConfig>(texts({ label: 'moduleData.masses.label', use: 'moduleData.masses.use' }), {
   kind: 'masses',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Porządek mszy', calendar: '<id-kalendarza>', days: '7' },
-  label: 'Msze i nabożeństwa',
-  use: 'Porządek mszy z kalendarza, z intencjami.',
+  example: withTexts({ days: '7' }, texts({ title: 'moduleData.masses.exTitle', calendar: 'moduleData.masses.exCalendar' })),
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Porządek mszy' },
-    { key: 'calendar', label: 'Terminarz której grupy', kind: 'calendar' },
-    { key: 'days', label: 'Ile dni pokazać', kind: 'line', hint: 'Puste: ile zmieści się w kafelku' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleData.masses.titleHint' })),
+    field({ key: 'calendar', kind: 'calendar' }, texts({ label: 'moduleData.masses.calendar' })),
+    field({ key: 'days', kind: 'line' }, texts({ label: 'moduleData.masses.days', hint: 'moduleData.masses.daysHint' }))
   ],
 
   read: (raw: RawConfig): MassConfig => ({
@@ -79,21 +79,16 @@ interface FormConfig {
   readonly portalUnder: string;
 }
 
-export const formPart = definePart<FormConfig>({
+export const formPart = textPart<FormConfig>(texts({ label: 'moduleData.form.label', use: 'moduleData.form.use' }), {
   kind: 'form',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: {
-    title: 'Zapisy na pielgrzymkę',
-    portalUnder: 'parafia/pielgrzymka',
-    smsTemplates: JSON.stringify([{ label: 'Przypomnienie', text: 'Jutro wyjazd o 7:00 spod kościoła.' }]),
-    sentTitle: 'Dziękujemy za zapisanie!',
-    sentText: 'Zbiórka w sobotę o 7:00 przed kościołem.\n\nZabierz legitymację szkolną.',
-    paper: 'sign',
-    paperSigner: 'czytelny podpis rodzica / opiekuna prawnego',
-    /* 0086 — der Zusatz zur Adresse nach dem Absenden. */
-    portalAt: '#twoje-zgloszenie'
-  },
+  /* 0086 — `portalAt`: der Zusatz zur Adresse nach dem Absenden. Die Wörter erst beim Lesen (`texts`). */
+  example: Object.defineProperty(
+    withTexts({ portalUnder: 'parafia/pielgrzymka', paper: 'sign', portalAt: '#twoje-zgloszenie' }, texts({ title: 'moduleData.form.exTitle', sentTitle: 'moduleData.form.exSentTitle', sentText: 'moduleData.form.exSentText', paperSigner: 'moduleData.form.exSigner' })),
+    'smsTemplates',
+    { enumerable: true, get: () => JSON.stringify([{ label: t('moduleData.form.exSmsLabel'), text: t('moduleData.form.exSmsText') }]) }
+  ),
 
   /*
    * 2026-10-24 — DIE SPERREN DER WYMAGANIA (`needs`) führt das Formular selbst:
@@ -104,30 +99,16 @@ export const formPart = definePart<FormConfig>({
 
   /* Was der Bogen trägt, ohne dass die Seite es zeigt — eingestellt wird es in seinem Reiter „Ustawienia". */
   extra: [
-    { key: 'title', shape: 'line', says: 'Nagłówek nad formularzem' },
-    {
-      key: 'portalUnder', shape: 'line',
-      says: 'Pod którą stroną powstaje portal osoby po zgłoszeniu — ścieżka, np. "parafia/pielgrzymka" (musi być tą stroną albo leżeć pod nią)'
-    },
-    {
-      key: 'smsTemplates', shape: 'json', says: 'Szablony wiadomości do zgłoszonych — lista',
-      inside: { '[].label': 'Nazwa szablonu', '[].text': 'Treść wiadomości' }
-    },
+    withTexts({ key: 'title', shape: 'line' } as const, texts({ says: 'moduleData.form.sTitle' })),
+    withTexts({ key: 'portalUnder', shape: 'line' } as const, texts({ says: 'moduleData.form.sPortalUnder' })),
+    withTexts({ key: 'smsTemplates', shape: 'json', inside: texts({ '[].label': 'moduleData.form.sSmsLabel', '[].text': 'moduleData.form.sSmsText' }) } as const, texts({ says: 'moduleData.form.sSms' })),
     /* 0083 — was nach dem Absenden dasteht, und ob ein Ausdruck unterschrieben werden muss. */
-    { key: 'sentTitle', shape: 'line', says: 'Nagłówek po wysłaniu (zamiast „Zgłoszenie przyjęte.”)' },
-    { key: 'sentText', shape: 'line', says: 'Tekst po wysłaniu — "\\n" nowa linia, pusta linia nowy akapit' },
-    {
-      key: 'paper', shape: 'line',
-      says: 'Podpis odręczny na wydruku: "always" (zawsze), "sign" (gdy formularz pokazuje oświadczenie do podpisu — tekst z "sign": true w układzie, np. zgodę rodzica, którą logika pokazuje tylko niepełnoletnim bez rodzica; ustawia to wymaganie "minor"), "minor" (niepełnoletni — wg daty urodzenia albo PESEL w dniu wypełnienia) albo identyfikator pytania „Zgoda / oświadczenie” lub „Tak / nie” — wtedy, gdy zaznaczone'
-    },
-    { key: 'paperSigner', shape: 'line', says: 'Kto podpisuje — napis pod linią podpisu na wydruku' },
-    {
-      key: 'portalAt', shape: 'line',
-      says: 'Dopisek do adresu strony po wysłaniu (portalUnder): "#nazwa-slajdu" (otwiera ten slajd), "?s=3" (trzeci slajd), "?part=<id modułu>" albo razem "?s=2#zapisy"; zaczyna się od "?" albo "#", bez spacji; klucz osoby link dopisuje sam'
-    }
+    withTexts({ key: 'sentTitle', shape: 'line' } as const, texts({ says: 'moduleData.form.sSentTitle' })),
+    withTexts({ key: 'sentText', shape: 'line' } as const, texts({ says: 'moduleData.form.sSentText' })),
+    withTexts({ key: 'paper', shape: 'line' } as const, texts({ says: 'moduleData.form.sPaper' })),
+    withTexts({ key: 'paperSigner', shape: 'line' } as const, texts({ says: 'moduleData.form.sSigner' })),
+    withTexts({ key: 'portalAt', shape: 'line' } as const, texts({ says: 'moduleData.form.sPortalAt' }))
   ],
-  label: 'Formularz',
-  use: 'Pytania i zgłoszenia; każdy dostaje własny adres.',
   box: { colSpan: 3, rowSpan: 3 },
   takes: true,
 
@@ -151,11 +132,11 @@ export const formPart = definePart<FormConfig>({
   hasContent: () => true,
 
   /* Ein halbes Formular gibt es nicht: im Streifen ein Knopf, sonst das ganze. */
-  strip: { title: 'Formularz', open: 'Wypełnij formularz' },
+  strip: texts({ title: 'moduleData.form.label', open: 'moduleData.form.open' }),
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — formularz rozwija się po kliknięciu.'
-    : 'Cały formularz.',
+    ? t('moduleData.form.showsStrip')
+    : t('moduleData.form.showsBlock'),
 
   View: ({ config, ctx }) => (
     <FormCard partId={ctx.moduleId} title={config.title} portalUnder={config.portalUnder} />
@@ -180,11 +161,11 @@ interface SlotConfig {
   readonly resource: string;
 }
 
-export const slotsPart = definePart<SlotConfig>({
+export const slotsPart = textPart<SlotConfig>(texts({ label: 'moduleData.slots.label', use: 'moduleData.slots.use' }), {
   kind: 'slots',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Wybierz termin spotkania', resource: '<id-zasobu>' },
+  example: texts({ title: 'moduleData.slots.exTitle', resource: 'moduleData.slots.exResource' }),
 
   /*
    * EIN BAUSTEIN FÜR BEIDES. Ein Treffen mit dem Priester und ein Haus in
@@ -192,13 +173,11 @@ export const slotsPart = definePart<SlotConfig>({
    * Begrenztem, für eine Zeit. Welcher Fall es ist, sagt das Ding — nicht
    * dieser Baustein.
    */
-  label: 'Rezerwacja',
-  use: 'Termin u księdza, sala, dom — ktoś zajmuje coś na czas.',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Wybierz termin spotkania' },
-    { key: 'resource', label: 'Co można zarezerwować', kind: 'resource' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleData.slots.titleHint' })),
+    field({ key: 'resource', kind: 'resource' }, texts({ label: 'moduleData.slots.resource' }))
   ],
 
   read: (raw: RawConfig): SlotConfig => ({
@@ -212,13 +191,13 @@ export const slotsPart = definePart<SlotConfig>({
    * Im Streifen ein Knopf; sonst die Termine — breiter nebeneinander, damit
    * eine Woche Termine nicht zu einer Spalte wird, die man hinunterscrollt.
    */
-  strip: { title: 'Rezerwacja', open: 'Wybierz termin' },
+  strip: texts({ title: 'moduleData.slots.label', open: 'moduleData.slots.open' }),
   fullscreen: true,
   shows: (_config, size) =>
-    size.height === 'strip' ? 'Nagłówek i przycisk — terminy rozwijają się po kliknięciu.'
-    : size.width === 'wide' ? 'Terminy w dwóch kolumnach.'
-    : size.width === 'full' ? 'Terminy w trzech kolumnach.'
-    : 'Terminy jeden pod drugim.',
+    size.height === 'strip' ? t('moduleData.slots.showsStrip')
+    : size.width === 'wide' ? t('moduleData.slots.showsWide')
+    : size.width === 'full' ? t('moduleData.slots.showsFull')
+    : t('moduleData.slots.showsBlock'),
 
   View: ({ config }) => <SlotCard title={config.title} resource={config.resource} />
 });

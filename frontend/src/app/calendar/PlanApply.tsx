@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 
+import { fmtDate, type Lang, useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { Modal } from '../ui/Modal';
@@ -28,7 +29,7 @@ import { areaKeys, newestKey } from '../chat/chat';
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const plusDays = (key: string, n: number) => { const d = new Date(`${key}T12:00:00`); d.setDate(d.getDate() + n); return iso(d); };
-const dayName = (key: string) => new Date(`${key}T12:00:00`).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
+const dayName = (key: string, lang: Lang) => fmtDate(new Date(`${key}T12:00:00`), { weekday: 'short', day: 'numeric', month: 'long' }, lang);
 
 export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, planId: firstPlan, onClose, onDone }: {
   me: Me;
@@ -40,6 +41,7 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
   onClose: () => void;
   onDone: () => void;
 }) {
+  const t = useT();
   const [calendarId, setCalendarId] = useState(firstCalendar ?? calendars[0]?.calendarId ?? '');
   const calendar = calendars.find((c) => c.calendarId === calendarId);
   const docs = useCalendarDocs(me.ring, calendarId || null);
@@ -74,7 +76,7 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
         .map((o) => o.planOrigin!));
       setPreview({ days, planned });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się policzyć planu.');
+      setFailed(e instanceof WorkspaceError || e instanceof Error ? e.message : t('calendarData.planApply.computeFailed'));
     } finally {
       setBusy(false);
     }
@@ -96,9 +98,9 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
     const problems: string[] = [];
     try {
       const newest = newestKey(await areaKeys(me.ring, seenBy, true));
-      if (newest === null) throw new WorkspaceError('Nie masz klucza obszaru, który widzi ten kalendarz.');
+      if (newest === null) throw new WorkspaceError(t('calendarData.planApply.noKey'));
       for (const [i, { day, mass }] of fresh.entries()) {
-        setStage(`Tworzenie ${i + 1} z ${fresh.length}…`);
+        setStage(t('calendarData.planApply.stage', { n: i + 1, total: fresh.length }));
         try {
           const id = await saveEvent(me.ring, {
             kind, title: mass.title, location: '', notes: '', areaId: seenBy, ownerRoleId: me.person.id,
@@ -116,7 +118,7 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
             /* Das Vorkommen, wie der Dienst es rechnet (in der Zone des Kalenders). */
             const agenda = await loadAgenda(new Date(`${day.date}T00:00:00`), new Date(`${plusDays(day.date, 1)}T00:00:00`));
             const at = agenda.occurrences.find((o) => o.itemId === id)?.occurrenceAt;
-            if (at === undefined) { problems.push(`${day.date} ${mass.slot.time}: nie znaleziono utworzonego terminu.`); continue; }
+            if (at === undefined) { problems.push(t('calendarData.planApply.notFound', { day: day.date, time: mass.slot.time })); continue; }
             if (dayValues.length > 0) await saveDayValues(id, at, newest, seenBy, dayValues);
             for (const r of mass.records) {
               await addRecord(me.ring, id, calendar.areaId, {
@@ -126,14 +128,17 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
             }
           }
         } catch (e) {
-          problems.push(`${day.date} ${mass.slot.time}: ${e instanceof WorkspaceError ? e.message : 'nie udało się.'}`);
+          problems.push(`${day.date} ${mass.slot.time}: ${e instanceof WorkspaceError ? e.message : t('calendarData.planApply.failedShort')}`);
         }
       }
-      setDone(`Utworzono ${made} ${made === 1 ? 'termin' : 'terminów'}${records > 0 ? `, wpisów z reguły: ${records}` : ''}.${problems.length > 0 ? ` Problemy: ${problems.slice(0, 5).join(' · ')}${problems.length > 5 ? ` … i ${problems.length - 5} więcej` : ''}` : ''}`);
+      const summary = records > 0 ? t('calendarData.planApply.doneRecords', { count: made, records }) : t('calendarData.planApply.done', { count: made });
+      const listed = problems.length === 0 ? ''
+        : ` ${t('calendarData.planApply.problems', { list: problems.slice(0, 5).join(' · ') })}${problems.length > 5 ? t('calendarData.planApply.moreProblems', { count: problems.length - 5 }) : ''}`;
+      setDone(`${summary}${listed}`);
       setPreview(null);
       onDone();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się utworzyć terminów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarData.planApply.createFailed'));
     } finally {
       setStage(null);
       setBusy(false);
@@ -141,38 +146,38 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
   };
 
   return (
-    <Modal title="Zaplanuj terminy" onClose={onClose} wide>
+    <Modal title={t('calendarData.planApply.title')} onClose={onClose} wide>
       <div className="wk-plan">
         <div className="wk-sch-head">
           <label className="wk-field">
-            <span>Kalendarz</span>
+            <span>{t('calendarData.planApply.calendar')}</span>
             <select value={calendarId} disabled={busy} onChange={(e) => { setCalendarId(e.target.value); setPlanId(''); setPreview(null); }}>
               {calendars.map((c) => <option key={c.calendarId} value={c.calendarId}>{calendarLabel(areas, c)}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Plan</span>
+            <span>{t('calendarData.planApply.plan')}</span>
             <select value={plan?.docId ?? ''} disabled={busy || docs === null} onChange={(e) => { setPlanId(e.target.value); setPreview(null); }}>
               {docs === null && <option value="">…</option>}
-              {docs !== null && docs.plans.length === 0 && <option value="">— ten kalendarz nie ma planów —</option>}
+              {docs !== null && docs.plans.length === 0 && <option value="">{t('calendarData.planApply.noPlans')}</option>}
               {(docs?.plans ?? []).map((p) => <option key={p.docId} value={p.docId}>{p.def.name}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Od</span>
+            <span>{t('common.from')}</span>
             <input type="date" value={from} disabled={busy} onChange={(e) => { setFrom(e.target.value); setPreview(null); }} />
           </label>
           <label className="wk-field">
-            <span>Do</span>
+            <span>{t('common.to')}</span>
             <input type="date" value={until} min={from} disabled={busy} onChange={(e) => { setTo(e.target.value); setPreview(null); }} />
           </label>
         </div>
 
         <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || plan === undefined || from === ''} onClick={() => void show()}>Pokaż, co powstanie</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || plan === undefined || from === ''} onClick={() => void show()}>{t('calendarData.planApply.show')}</button>
           {preview !== null && (
             <button type="button" className="wk-btn" disabled={busy || fresh.length === 0} onClick={() => void create()}>
-              {stage ?? (fresh.length === 0 ? 'Wszystko już zaplanowane' : `Utwórz ${fresh.length} ${fresh.length === 1 ? 'termin' : 'terminów'}`)}
+              {stage ?? (fresh.length === 0 ? t('calendarData.planApply.allPlanned') : t('calendarData.planApply.create', { count: fresh.length }))}
             </button>
           )}
         </div>
@@ -185,11 +190,11 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
             {preview.days.map((d) => (
               <li key={d.date} className={`wk-plan-day${d.ctx.sunday || d.ctx.festive ? ' is-festive' : ''}`}>
                 <div className="wk-plan-dayhead">
-                  <span className="wk-plan-date">{dayName(d.date)}</span>
+                  <span className="wk-plan-date">{dayName(d.date, t.lang)}</span>
                   <span className={`wk-lc${colourClass(d.ctx.colour) === null ? ' is-none' : ` ${colourClass(d.ctx.colour)}`}`} aria-hidden="true" />
                   <span className="wk-plan-cel">{d.ctx.celebration?.name ?? (d.ctx.sunday ? d.ctx.sundayName : '')}</span>
                 </div>
-                {d.masses.length === 0 ? <span className="wk-row-side">bez terminów</span> : (
+                {d.masses.length === 0 ? <span className="wk-row-side">{t('calendarData.planApply.noAppointments')}</span> : (
                   <ul className="wk-plan-masses">
                     {d.masses.map((m) => {
                       const there = preview.planned.has(originOf(d.date, m.slot.key));
@@ -197,10 +202,10 @@ export function PlanApply({ me, areas, calendars, calendarId: firstCalendar, pla
                         <li key={m.slot.key} className={there ? 'is-there' : undefined}>
                           <strong>{m.slot.time}</strong> {m.title}
                           {colourKey !== undefined && m.values[colourKey] !== undefined && (
-                            <span className={`wk-lc ${colourClass(m.values[colourKey]) ?? 'is-none'}`} role="img" aria-label={`kolor ${m.values[colourKey]}`} />
+                            <span className={`wk-lc ${colourClass(m.values[colourKey]) ?? 'is-none'}`} role="img" aria-label={t('calendarData.planApply.colourAria', { colour: m.values[colourKey] })} />
                           )}
                           {m.records.map((r) => <span key={`${r.list}-${r.text}`} className="wk-row-side"> · {r.text}</span>)}
-                          {there && <span className="wk-row-side"> · już jest</span>}
+                          {there && <span className="wk-row-side"> · {t('calendarData.planApply.already')}</span>}
                         </li>
                       );
                     })}

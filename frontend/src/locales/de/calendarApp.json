@@ -377,5 +377,825 @@
     "ownClaimConfirmed": "Das ist deine Reservierung (bestätigt). Du änderst sie dort, wo du sie gemacht hast.",
     "ownClaimWaiting": "Das ist deine Reservierung (wartet auf Bestätigung). Du änderst sie dort, wo du sie gemacht hast.",
     "readOnly": "Diesen Termin kannst du nur ansehen — in seinem Kalender schreibst du nicht."
+  },
+  "pickBar": {
+    "terms": {
+      "one": "{count} Termin",
+      "other": "{count} Termine"
+    },
+    "series": {
+      "one": "{count} Serie",
+      "other": "{count} Serien"
+    },
+    "unit": {
+      "minute": {
+        "one": "Minute",
+        "other": "Minuten"
+      },
+      "hour": {
+        "one": "Stunde",
+        "other": "Stunden"
+      },
+      "day": {
+        "one": "Tag",
+        "other": "Tage"
+      },
+      "week": {
+        "one": "Woche",
+        "other": "Wochen"
+      },
+      "month": {
+        "one": "Monat",
+        "other": "Monate"
+      }
+    },
+    "periodEarlier": "um {span} früher",
+    "periodLater": "um {span} später",
+    "undone": "Rückgängig gemacht.",
+    "undoFailed": "Rückgängig machen hat nicht geklappt.",
+    "skippedAllDay": " Ganztägige rücken nur um ganze Tage — unverändert: {terms}.",
+    "moved": "{terms} verschoben",
+    "copied": "{terms} kopiert",
+    "partlyFailed": "{done}, fehlgeschlagen: {failed}",
+    "failedOf": "Fehlgeschlagen: {failed} von {total}",
+    "removeAsk": "{terms} löschen?",
+    "removeAskSeries": "{terms} löschen? Aus Serien verschwinden nur diese Tage.",
+    "removed": "{terms} gelöscht.",
+    "endAsk": "{series} vor dem markierten Tag beenden? Frühere Termine bleiben, einzelne Termine verschwinden.",
+    "ended": "Erledigt — die Serien enden vor den markierten Tagen.",
+    "removeSeriesAsk": "{series} ganz löschen — auch Termine, die schon waren?",
+    "label": "Markierte Termine",
+    "picked": "Markiert: {terms}",
+    "cutHint": "Strg + X — dann auf einen Tag oder eine Stunde klicken",
+    "copyHint": "Strg + C — dann auf einen Tag oder eine Stunde klicken",
+    "cut": "Ausschneiden",
+    "deleteKey": "Entf",
+    "escKey": "Esc",
+    "removeOnly": "Nur diese löschen",
+    "removeWithSeries": "Mit Serien löschen",
+    "seriesMenu": "Serien…",
+    "endFollowing": "Diese und die folgenden — Serien beenden",
+    "wholeSeries": "Ganze Serien",
+    "shiftPicked": "Markierte verschieben",
+    "shiftMenu": "Verschieben…",
+    "dayEarlier": "Einen Tag früher",
+    "dayLater": "Einen Tag später",
+    "weekEarlier": "Eine Woche früher",
+    "weekLater": "Eine Woche später",
+    "hourEarlier": "Eine Stunde früher",
+    "hourLater": "Eine Stunde später",
+    "otherPeriod": "Um einen anderen Zeitraum…",
+    "copyPeriod": "Um einen Zeitraum kopieren…",
+    "shiftForm": "Um einen Zeitraum verschieben",
+    "shift": "Verschieben",
+    "by": "um",
+    "howMany": "Wie viele",
+    "ofWhat": "Wovon",
+    "earlier": "früher",
+    "later": "später",
+    "allDayOnly": "Ganztägige rücken nur um ganze Tage.",
+    "allDayStay": "ganztägige bleiben: {count}",
+    "clipCut": "Zu verschieben: {terms} — klicke auf den Tag oder die Stunde, wo sie hinsollen",
+    "clipCopy": "Zu kopieren: {terms} — klicke auf den Tag oder die Stunde, wo sie hinsollen"
+  },
+  "editor": {
+    "extra": {
+      "place": "Ort",
+      "notes": "Notiz",
+      "people": "Personen",
+      "link": "Link",
+      "program": "Programm"
+    },
+    "scope": {
+      "one": "Dieser Termin",
+      "following": "Dieser und folgende",
+      "all": "Die ganze Serie"
+    },
+    "newTitle": {
+      "mass": "Neue Messe",
+      "confession": "Neue Beichte",
+      "devotion": "Neue Andacht",
+      "visit": "Neuer Besuch",
+      "appointment": "Neuer Termin"
+    },
+    "needsWhen": "Gib den Tag und die Uhrzeiten an.",
+    "fillIn": "Bitte ausfüllen: {field}.",
+    "partsFailed": "Termin gespeichert, aber {failed} von {total} Programmpunkten konnten nicht mitgeändert werden.",
+    "endAsk": "Die Serie vor diesem Tag beenden? Frühere Termine bleiben.",
+    "cancelOneAsk": "Nur diesen Termin absagen?",
+    "removeAsk": "Diesen Termin löschen (die ganze Serie)?",
+    "onlyMe": "Nur ich",
+    "youChange": "Du änderst",
+    "whatChanges": "Was du änderst",
+    "followingNote": "Ab diesem Tag — frühere Termine bleiben, wie sie waren. Intentionen, Besetzung und Anmeldungen wandern tageweise zu den neuen Uhrzeiten.",
+    "allWarn": "Du änderst die ganze Serie — auch Termine, die schon waren. Meist ist „Dieser und folgende“ richtig.",
+    "kind": "Art",
+    "namePublic": "Name (öffentlich sichtbar)",
+    "titlePlaceholder": {
+      "mass": "Name, z. B. Hochamt — leer: nur die Uhrzeit",
+      "devotion": "Name, z. B. Rosenkranz",
+      "confession": "Name — leer: „Beichte“",
+      "other": "Titel, z. B. Elterntreffen"
+    },
+    "publicHint": "Der Name ist öffentlich — er steht im Plan und im Schaukasten. Ort und Notiz bleiben verschlüsselt.",
+    "endDay": "Tag des Endes",
+    "allDay": "Ganztägig",
+    "severalDays": "Mehrere Tage",
+    "endsOtherDay": "Endet an einem anderen Tag",
+    "repeat": "Wiederholung",
+    "repeatNone": "Wiederholt sich nicht",
+    "repeatWeekly": "Jede Woche",
+    "repeatMonthly": "Jeden Monat, am {day}.",
+    "repeatYearly": "Jedes Jahr, {day}. {month}",
+    "repeatCustom": "Anders…",
+    "every": "alle",
+    "everyHowMany": "Alle wie viele",
+    "unit": {
+      "daily": {
+        "one": "Tag",
+        "other": "Tage"
+      },
+      "weekly": {
+        "one": "Woche",
+        "other": "Wochen"
+      },
+      "monthly": {
+        "one": "Monat",
+        "other": "Monate"
+      },
+      "yearly": {
+        "one": "Jahr",
+        "other": "Jahre"
+      }
+    },
+    "until": "Bis wann",
+    "endsNever": "ohne Ende",
+    "endsDate": "bis zum Tag…",
+    "endsCount": "so oft…",
+    "lastDay": "Letzter Tag",
+    "howManyTimes": "Wie oft",
+    "times": {
+      "one": "Mal",
+      "other": "Mal"
+    },
+    "groupCalendars": "Gruppenkalender",
+    "privateSeen": "Nur du siehst ihn — mit deinem Schlüssel verschlüsselt.",
+    "seenBy": "Sichtbar für: <b>{who}</b>",
+    "otherThanCalendar": "— anders als der Kalender",
+    "asCalendar": "wie im Kalender ({who})",
+    "scheme": "Schema",
+    "universal": "Universal",
+    "thisDay": "(dieser Tag)",
+    "bookable": "Reservierbar",
+    "places": "Plätze",
+    "reserveAsCalendar": "wer reserviert: wie im Kalender ({who})",
+    "anyoneFinds": "alle, die den Termin finden",
+    "placePlaceholder": "Ort, z. B. Pfarrsaal",
+    "thisOne": "— dieser Termin",
+    "linkLabel": "Link zu Informationen",
+    "linkPlaceholder": "https://… oder #/Seite auf recreatio.pl",
+    "buttonText": "Text auf der Schaltfläche",
+    "buttonPlaceholder": "Text: Mehr Informationen",
+    "linkWarn": "Der Link muss mit https:// beginnen (oder #/ für eine Seite auf recreatio.pl).",
+    "linkFailed": "Der Termin konnte nicht angehängt werden.",
+    "unlinkFailed": "Der Termin konnte nicht gelöst werden.",
+    "newPartNote": "Programmpunkt: <b>{parent}</b> — Kalender, Sichtbarkeit, Ort, Link und Personen teilt er mit ihm. Ändere hier nur, was bei diesem Punkt anders sein soll.",
+    "parentFallback": "übergeordneter Termin",
+    "willDetach": "Nach dem Speichern ist dieser Termin kein Programmpunkt mehr.",
+    "partNote": "Programmpunkt: <b>{parent}</b> — was er gleich hat wie dieser, ändert sich mit ihm.",
+    "parentOutside": "Termin außerhalb der Ansicht",
+    "detach": "Lösen",
+    "fromChat": "Aus einem Chat — der Termin merkt sich, aus welcher Nachricht er entstand.",
+    "onlyTimeNote": "Du verschiebst nur diesen einen Termin — der Rest der Serie bleibt, wie er war. Reservierungen wandern mit.",
+    "addTo": "Zum Termin hinzufügen",
+    "addOne": "Hinzufügen: {what}",
+    "cancelOne": "Diesen Termin absagen",
+    "endSeries": "Serie vor diesem Tag beenden"
+  },
+  "app": {
+    "noKey": "Ohne Schlüssel in diesem Tab ist der Kalender verschlossen — melde dich erneut an oder entsperre den Schlüssel.",
+    "loadFailed": "Der Kalender konnte nicht geladen werden.",
+    "calendarFallback": "Kalender",
+    "dropCopy": "{terms} kopieren",
+    "dropMove": "{terms} verschieben",
+    "notPickable": "Diesen Termin kannst du nicht zusammen mit anderen ändern.",
+    "clickWhere": "Klicke auf den Tag oder die Stunde, wo sie hinsollen.",
+    "loadingShort": "wird geladen…",
+    "calendars": "Kalender",
+    "whatToShow": "Was zeigen",
+    "toConfirm": "Zu bestätigen",
+    "mineHint": "Nur Termine, bei denen du dabei sein musst (z. B. Messen, die du feierst)",
+    "mine": "Mir zugewiesen",
+    "tasks": "Aufgaben",
+    "jsonTitle": "Termine als JSON — {name}",
+    "taken": "belegt {taken} von {capacity}",
+    "waitingCount": {
+      "one": "{count} wartet auf Bestätigung",
+      "other": "{count} warten auf Bestätigung"
+    },
+    "intShort": "{count} Int."
+  },
+  "grid": {
+    "hourHeight": "Höhe einer Stunde",
+    "zoomOut": "Verkleinern",
+    "zoomOutHint": "Verkleinern (Strg + Mausrad)",
+    "zoomIn": "Vergrößern",
+    "zoomInHint": "Vergrößern (Strg + Mausrad)",
+    "showMonth": "Den ganzen Monat zeigen",
+    "showDay": "Diesen Tag zeigen",
+    "allDay": "ganztägig",
+    "focusEvents": "Termine breit, Aufgaben am Rand",
+    "focusTasks": "Aufgaben breit, Termine am Rand",
+    "tasks": "Aufgaben",
+    "prevDay": "Vorheriger Tag",
+    "prevWeek": "Vorherige Woche",
+    "nextDay": "Nächster Tag",
+    "nextWeek": "Nächste Woche",
+    "railTasks": "Aufgaben: {date} — breit zeigen",
+    "tasksWide": "Aufgaben breit",
+    "railEvents": "Termine: {date} — breit zeigen",
+    "eventsWide": "Termine breit",
+    "done": "Erledigt",
+    "showAlso": "Auch {month} zeigen",
+    "withParts": "{title} — Programmpunkte: {count}",
+    "more": "+{count} weitere"
+  },
+  "list": {
+    "empty": "An diesen Tagen ist nichts.",
+    "taken": "{taken}/{capacity} belegt",
+    "waitCount": "{count} warten",
+    "waits": "wartet",
+    "booking": "Reservierung",
+    "bookingAll": "Reservierungen: jeder Termin · {capacity} Plätze",
+    "bookingMarked": "Reservierungen: markierte · {capacity} Plätze",
+    "onlyGroup": "nur {who}",
+    "seenBy": "sichtbar für: {who}",
+    "readOnly": "nur Ansicht",
+    "exportJson": "JSON exportieren",
+    "intro": "Eine Gruppe hat sofort ihren Kalender — und kann mehrere haben (z. B. Messen und Treffen getrennt). Jeder sagt, wie seine Termine funktionieren: wer sie sieht, wie lange sie dauern und wer sie reservieren darf.",
+    "newCalendar": "+ Neuer Kalender"
+  },
+  "flow": {
+    "season": {
+      "adwent": "Advent",
+      "narodzenie": "Weihnachtszeit",
+      "zwykly": "Zeit im Jahreskreis",
+      "post": "Fastenzeit",
+      "triduum": "Österliches Triduum",
+      "wielkanoc": "Osterzeit"
+    },
+    "node": {
+      "day": {
+        "label": "Tag",
+        "says": "Anfang für jeden Tag des Zeitraums."
+      },
+      "mass": {
+        "label": "Messe",
+        "says": "Anfang für jede Messe des Tages (aus dem Knoten „Uhrzeiten“)."
+      },
+      "season": {
+        "label": "Liturgische Zeit",
+        "says": "Berechnet Zeit, Woche, Rang des Tages und Farbe der Zeit."
+      },
+      "feasts": {
+        "label": "Festkalender",
+        "says": "Wählt die Feier des Tages aus der Tabelle (der höchste Rang gewinnt)."
+      },
+      "if": {
+        "label": "Bedingung",
+        "says": "Prüft den Tag, die Messe oder den Eintrag — weiter mit „ja“ oder „nein“."
+      },
+      "set": {
+        "label": "Setzen",
+        "says": "Setzt den Titel, ein Feld des Schemas oder eine Variable."
+      },
+      "slots": {
+        "label": "Messzeiten",
+        "says": "Sagt, welche Messen an diesem Tag sind (Sonn- und Feiertage / Werktage)."
+      },
+      "record": {
+        "label": "Eintrag hinzufügen",
+        "says": "Fügt der Messe einen festen Eintrag hinzu, z. B. die Intention „Für die Pfarrgemeinde“."
+      },
+      "skip": {
+        "label": "Keine Messe",
+        "says": "An diesem Tag (zu dieser Stunde) ist keine Messe."
+      },
+      "end": {
+        "label": "Anlegen",
+        "says": "Die Messe wird mit dem angelegt, was unterwegs gesetzt wurde."
+      },
+      "record-start": {
+        "label": "Neuer Eintrag",
+        "says": "Anfang: jemand fügt einen Eintrag hinzu oder nimmt ihn an."
+      },
+      "allow": {
+        "label": "Annehmen",
+        "says": "Der Eintrag wird angenommen."
+      },
+      "wait": {
+        "label": "Wartet",
+        "says": "Der Eintrag wartet, bis das Büro ihn annimmt."
+      },
+      "refuse": {
+        "label": "Ablehnen",
+        "says": "Der Eintrag kann nicht hinzugefügt werden — mit dieser Meldung."
+      }
+    },
+    "dateRule": {
+      "shift": {
+        "one": "{unit} {sign}{count} Tag",
+        "other": "{unit} {sign}{count} Tage"
+      },
+      "easter": "Ostern",
+      "advent": "1. Adventssonntag",
+      "christmasSunday": "Sonntag in der Weihnachtsoktav (oder 30. Dezember)",
+      "baptism": "Sonntag nach dem 6. Januar",
+      "last": "letzter",
+      "nth": "{n}.",
+      "nthEvery": "{which} {weekday} jedes Monats",
+      "nthOf": "{which} {weekday} im {month}",
+      "sundayAfter": "erster Sonntag nach dem {date}"
+    },
+    "dayShort": {
+      "d1": "Mo",
+      "d2": "Di",
+      "d3": "Mi",
+      "d4": "Do",
+      "d5": "Fr",
+      "d6": "Sa",
+      "d7": "So"
+    },
+    "test": {
+      "weekday": "Wochentag: {list}",
+      "slot": "Messzeit: {list}",
+      "timeBoth": "Messe von {from} bis {to}",
+      "timeFrom": "Messe ab {from}",
+      "timeTo": "Messe bis {to}",
+      "time": "Messe",
+      "season": "Zeit: {list}",
+      "week": "Woche {op} {n}",
+      "rank": "Rang {op} {n}",
+      "celebrationAny": "es gibt eine Feier",
+      "celebrationNone": "keine Feier",
+      "celebrationName": "Feier enthält „{name}“",
+      "festive": "Feiertag (Sonntag oder Fest)",
+      "sunday": "Sonntag",
+      "date": "Datum: {rule}",
+      "between": "zwischen {from} und {to}",
+      "varContains": "Variable {name} enthält „{value}“",
+      "varIs": "Variable {name} {op} „{value}“",
+      "mode": "Art des Eintrags: {list}",
+      "countHere": "bei diesem Termin",
+      "countOthers": "andere Termine in der Woche",
+      "countWeek": "in der Woche",
+      "countNumber": "Anzahl",
+      "countEntries": "Anzahl der Einträge",
+      "countWaiting": ", auch wartende",
+      "count": "{what} {where}{extra} {op} {n}",
+      "actorOffice": "vom Büro hinzugefügt",
+      "actorOutside": "von jemandem außerhalb hinzugefügt",
+      "fieldSet": "Feld {key} ausgefüllt",
+      "fieldEmpty": "Feld {key} leer",
+      "fieldIs": "Feld {key} = „{value}“",
+      "unknown": "unbekannte Bedingung"
+    },
+    "out": {
+      "out": "weiter",
+      "yes": "ja",
+      "no": "nein"
+    },
+    "trace": {
+      "week": ", Woche {week}",
+      "colour": ", Farbe {colour}",
+      "noCelebration": "keine Feier",
+      "title": "Titel",
+      "set": "{node}: {key} = „{value}“",
+      "record": "{node}: {list} „{text}“",
+      "noTest": "keine Bedingung",
+      "noMass": "keine Messe",
+      "mass": "Messe {time}",
+      "noMassNode": "(kein Knoten „Messe“ — die Messe mit dem, was der Tag gesetzt hat)"
+    },
+    "problem": {
+      "badDate": "Unlesbares Datum: {date}",
+      "noDay": "Kein Knoten „Tag“ — der Plan weiß nicht, womit der Tag beginnt.",
+      "dayLoop": "Zu viele Schritte auf dem Weg des Tages — gibt es im Plan eine Schleife?",
+      "endOnDay": "„Anlegen“ auf dem Weg des Tages — der Tag endet in „Messzeiten“ oder „Keine Messe“.",
+      "notOnDay": "Knoten „{node}“ gehört nicht auf den Weg des Tages.",
+      "dayEnds": "Der Weg des Tages endet bei „{node}“ — keine Verbindung „{out}“ (ohne Messzeiten).",
+      "massLoop": "Zu viele Schritte auf dem Weg der Messe um {time} — gibt es im Plan eine Schleife?",
+      "notOnMass": "Knoten „{node}“ gehört nicht auf den Weg der Messe."
+    },
+    "rule": {
+      "waits": "Der Eintrag wartet darauf, vom Büro angenommen zu werden.",
+      "refused": "Dieser Eintrag kann nicht hinzugefügt werden.",
+      "none": "(keine Regel)",
+      "noStart": "(Regel ohne Knoten „Neuer Eintrag“)",
+      "loop": "(zu viele Schritte — eine Schleife?)",
+      "notInRule": "(Knoten „{node}“ gehört nicht in die Regel)",
+      "endsWithout": "(die Regel endet bei „{node}“ ohne Entscheidung)",
+      "noDecision": "(Regel ohne Entscheidung)"
+    }
+  },
+  "flowUi": {
+    "day": {
+      "d1": "Montag",
+      "d2": "Dienstag",
+      "d3": "Mittwoch",
+      "d4": "Donnerstag",
+      "d5": "Freitag",
+      "d6": "Samstag",
+      "d7": "Sonntag"
+    },
+    "rank": {
+      "r1": "Österliches Triduum",
+      "r2": "Höchste Tage (Weihnachten, Erscheinung, Himmelfahrt, Pfingsten; Sonntage im Advent, in der Fastenzeit, der Osterzeit; Aschermittwoch; Karwoche; Osteroktav)",
+      "r3": "Hochfeste des Generalkalenders, Allerseelen",
+      "r4": "Eigene Hochfeste (Patron, Titel und Kirchweihtag)",
+      "r5": "Herrenfeste",
+      "r6": "Sonntage im Jahreskreis und der Weihnachtszeit",
+      "r7": "Feste des Generalkalenders",
+      "r8": "Eigene Feste (Diözesanpatron, Weihetag der Kathedrale)",
+      "r9": "Bevorzugte Tage (17.–24. 12., Weihnachtsoktav, Tage der Fastenzeit)",
+      "r10": "Gebotene Gedenktage",
+      "r11": "Eigene gebotene Gedenktage",
+      "r12": "Nichtgebotene Gedenktage",
+      "r13": "Wochentage"
+    },
+    "rankShort": {
+      "r1": "Triduum",
+      "r2": "höchster",
+      "r3": "Hochfest",
+      "r4": "eigenes Hochfest",
+      "r5": "Herrenfest",
+      "r6": "Sonntag",
+      "r7": "Fest",
+      "r8": "eigenes Fest",
+      "r9": "bevorzugter Tag",
+      "r10": "geb. Gedenktag",
+      "r11": "eigener Gedenktag",
+      "r12": "nichtgeb. Gedenktag",
+      "r13": "Wochentag"
+    },
+    "special": {
+      "gaudete": "3. Adventssonntag (Gaudete)",
+      "laetare": "4. Fastensonntag (Laetare)",
+      "palm": "Palmsonntag",
+      "goodFriday": "Karfreitag",
+      "pentecost": "Pfingsten"
+    },
+    "testLabel": {
+      "weekday": "Wochentag",
+      "slot": "Welche Messe (Schlüssel der Uhrzeit)",
+      "time": "Messzeit zwischen",
+      "season": "Liturgische Zeit",
+      "week": "Woche der Zeit",
+      "rank": "Rang des Tages",
+      "celebration": "Feier des Tages",
+      "festive": "Sonntag oder gebotener Feiertag",
+      "sunday": "Sonntag",
+      "date": "Datum (Regel)",
+      "between": "Zwischen Daten im Jahr",
+      "var": "Variable",
+      "mode": "Art des Eintrags",
+      "count": "Anzahl der Einträge",
+      "actor": "Wer hinzufügt",
+      "field": "Feld des Eintrags"
+    },
+    "placeholder": {
+      "celebration": "Feier des Tages",
+      "title": "Titel der Messe (aus der Feier)",
+      "sundayName": "Name des Sonntags, z. B. 3. Adventssonntag",
+      "seasonName": "Name der Zeit",
+      "season": "Zeit (Schlüssel)",
+      "week": "Woche der Zeit",
+      "weekRoman": "Woche in römischen Ziffern",
+      "colour": "Farbe",
+      "date": "Datum",
+      "time": "Messzeit",
+      "slot": "Schlüssel der Uhrzeit"
+    },
+    "easter": {
+      "om46": "Aschermittwoch",
+      "om7": "Palmsonntag",
+      "om3": "Gründonnerstag",
+      "om2": "Karfreitag",
+      "om1": "Karsamstag",
+      "o0": "Ostern",
+      "o1": "Ostermontag",
+      "o7": "Sonntag der Barmherzigkeit",
+      "o42": "Christi Himmelfahrt (PL)",
+      "o49": "Pfingsten",
+      "o50": "Maria, Mutter der Kirche",
+      "o56": "Dreifaltigkeitssonntag",
+      "o60": "Fronleichnam",
+      "o68": "Heiligstes Herz Jesu",
+      "o69": "Unbeflecktes Herz Mariä"
+    },
+    "advent": {
+      "om7": "Christkönig",
+      "o0": "1. Adventssonntag",
+      "o7": "2. Adventssonntag",
+      "o14": "3. Adventssonntag",
+      "o21": "4. Adventssonntag"
+    },
+    "nth": {
+      "n1": "erster",
+      "n2": "zweiter",
+      "n3": "dritter",
+      "n4": "vierter",
+      "n5": "fünfter",
+      "last": "letzter"
+    },
+    "summary": {
+      "easterShift": "Ostern{shift} Tage",
+      "adventShift": "1. Adventsso.{shift} Tage",
+      "holyFamily": "Heilige Familie",
+      "baptism": "Taufe des Herrn",
+      "nthEvery": "{which} {weekday} im Monat",
+      "nthOf": "{which} {weekday} {month}",
+      "sundayAfter": "Sonntag nach dem {day}. {month}",
+      "pick": "— wählen —",
+      "anyMode": "jede",
+      "weekday": "Tag: {list}",
+      "slot": "Messe: {list}",
+      "time": "Uhrzeit {from}–{to}",
+      "season": "Zeit: {list}",
+      "week": "Woche {op} {n}",
+      "rank": "Rang {op} {n} ({rank})",
+      "celebrationAny": "es gibt eine Feier",
+      "celebrationNone": "keine Feier",
+      "celebrationName": "Feier: „{name}“",
+      "festive": "Sonntag oder Feiertag",
+      "date": "Tag: {rule}",
+      "between": "von {from} bis {to}",
+      "varContains": "{name} enthält „{value}“",
+      "mode": "Art: {list}",
+      "countHere": "beim Termin",
+      "countOthers": "andere Termine in der Woche mit",
+      "countWeek": "in der Woche",
+      "countAll": "(alle)",
+      "fieldSet": "Feld {key}: ausgefüllt",
+      "fieldEmpty": "Feld {key}: leer",
+      "field": "Feld {key}:"
+    },
+    "node": {
+      "seasonEmpty": "Zeit, Woche — Farben einzustellen",
+      "seasonFilled": {
+        "one": "Zeit, Woche, Farbe ({count} Zeit)",
+        "other": "Zeit, Woche, Farbe ({count} Zeiten)"
+      },
+      "feastsEmpty": "leere Tabelle",
+      "feasts": {
+        "one": "{count} Feier",
+        "other": "{count} Feiern"
+      },
+      "noName": "(ohne Namen)",
+      "noTest": "— Bedingung —",
+      "field": "Feld „{field}“",
+      "variable": "Variable {name}",
+      "slots": "So. und Feiertage: {festive} · Werktage: {weekdays}",
+      "message": "— Meldung —",
+      "waitDefault": "Das Büro bestätigt den Eintrag."
+    }
+  },
+  "test": {
+    "weekdays": "Wochentage",
+    "compareOf": "{label}: Vergleich",
+    "numberOf": "{label}: Zahl",
+    "dayOf": "{label}: Tag",
+    "monthOf": "{label}: Monat",
+    "what": "Was prüfen",
+    "masses": "Messen",
+    "slotKeys": "Schlüssel der Uhrzeiten (durch Kommas getrennt)",
+    "slotKeysPlaceholder": "z. B. n1213, p1800",
+    "from": "von",
+    "to": "bis",
+    "fromTime": "Ab Uhrzeit",
+    "toTime": "Bis Uhrzeit",
+    "seasons": "Zeiten",
+    "week": "Woche",
+    "rank": "Rang",
+    "rankNote": "1 ist der höchste Rang, 13 ein gewöhnlicher Wochentag. „< 10“ heißt: wichtiger als ein gebotener Gedenktag.",
+    "celebration": "Feier",
+    "celebrationAny": "es gibt eine Feier aus dem Festkalender",
+    "celebrationNone": "keine Feier (Tag der Zeit)",
+    "celebrationName": "Feier, deren Name enthält…",
+    "celebrationNameLabel": "Name der Feier",
+    "celebrationPlaceholder": "z. B. Muttergottes",
+    "betweenNote": "Jedes Jahr, beide Enden eingeschlossen (z. B. 17.–24. Dezember). Ein „bis“ vor dem „von“ läuft über Neujahr.",
+    "varName": "Name der Variable",
+    "varPlaceholder": "z. B. colour",
+    "compare": "Vergleich",
+    "contains": "enthält",
+    "value": "Wert",
+    "modes": "Arten",
+    "modeKeys": "Arten (Schlüssel, durch Kommas getrennt)",
+    "countWhere": "Wo zählen",
+    "countOccurrence": "Einträge bei diesem Termin",
+    "countWeek": "Einträge in dieser Woche (Mo–So)",
+    "countWeekOcc": "andere Termine dieser Woche mit solchen Einträgen",
+    "ofKind": "Welcher Art",
+    "anyKind": "jeder Art",
+    "which": "Welche",
+    "statusLive": "angenommen und gefeiert",
+    "statusAll": "auch wartende",
+    "number": "Anzahl",
+    "actorOffice": "das Büro (schreibt im Kalender)",
+    "actorOutside": "jemand von außen (Mitglied, Link)",
+    "field": "Feld",
+    "pickField": "— Feld wählen —",
+    "fieldKey": "Schlüssel des Feldes",
+    "fieldTest": "Bedingung des Feldes",
+    "filled": "ausgefüllt",
+    "empty": "leer",
+    "equals": "gleich",
+    "fieldValue": "Wert des Feldes"
+  },
+  "dateRule": {
+    "kind": {
+      "fixed": "Festes Datum",
+      "easter": "Bezogen auf Ostern",
+      "advent": "Bezogen auf den 1. Adventssonntag",
+      "christmas-sunday": "Heilige Familie (Sonntag in der Oktav)",
+      "baptism": "Taufe des Herrn (Sonntag nach dem 6. 1.)",
+      "nth-weekday": "N-ter Wochentag im Monat",
+      "sunday-after": "Erster Sonntag nach einem Tag"
+    },
+    "knownDay": "{label}: bekannter Tag",
+    "otherDay": "— anderer Tag —",
+    "daysOf": "{label}: Tage",
+    "days": "Tage",
+    "when": "Wann",
+    "kindOf": "{label}: Art des Datums",
+    "whichOf": "{label}: welcher",
+    "weekdayOf": "{label}: Wochentag",
+    "everyMonth": "jeden Monat"
+  },
+  "season": {
+    "note": "Der Knoten berechnet Zeit, Woche und Rang des Tages (z. B. Adventssonntag) — jedes Jahr neu, aus den Daten von Ostern und Advent. Die Farben trägst du ein.",
+    "season": "Zeit",
+    "colour": "Farbe",
+    "colourOf": "Farbe: {name}",
+    "special": "Besonderer Tag"
+  },
+  "slots": {
+    "empty": "Keine Messen.",
+    "time": "Uhrzeit",
+    "minutes": "Wie viele Minuten",
+    "min": "Min.",
+    "remove": "Messe um {time} löschen",
+    "key": "Schlüssel",
+    "keyHint": "Schlüssel — daran erkennen Bedingungen und Vorschau diese Messe",
+    "label": "Beschreibung (optional)",
+    "labelPlaceholder": "Beschreibung, z. B. Hochamt",
+    "days": "Tage: {time}",
+    "needsKey": "Die Messe braucht einen Schlüssel.",
+    "keyTaken": "Dieser Schlüssel ist schon vergeben.",
+    "add": "+ Messe hinzufügen",
+    "note": "An Sonntagen und gebotenen Feiertagen (Feier mit „Feiertag“ markiert) gilt die erste Liste, an den übrigen Tagen die zweite.",
+    "festive": "Sonn- und Feiertage",
+    "weekdays": "Werktage"
+  },
+  "feasts": {
+    "note": "Von den Feiern eines Tages gewinnt die mit dem höchsten Rang (der kleinsten Zahl) — wenn sie wichtiger ist als der Tag selbst (z. B. hat ein Adventssonntag Rang 2). Sie setzt Feier, Farbe und Feiertag.",
+    "search": "Feier suchen",
+    "count": {
+      "one": "{count} Feier",
+      "other": "{count} Feiern"
+    },
+    "shown": "{shown} von {total}",
+    "empty": "Die Tabelle ist leer — füge die erste Feier hinzu.",
+    "festive": "Feiertag",
+    "namePlaceholder": "z. B. Hochfest Maria, Königin Polens",
+    "colour": "Farbe der Gewänder",
+    "title": "Titel der Messe (leer: Name der Feier)",
+    "festiveLong": "Feiertag — Messen wie am Sonntag",
+    "move": "Wenn der Tag höheren Rang hat — am nächsten Tag feiern",
+    "up": "Nach oben",
+    "upShort": "hoch",
+    "down": "Nach unten",
+    "downShort": "runter",
+    "remove": "Feier löschen",
+    "add": "+ Feier hinzufügen",
+    "sort": "Nach Datum ordnen"
+  },
+  "panel": {
+    "insert": "In den Text einfügen",
+    "setWhat": "Was setzen",
+    "targetTitle": "Titel der Messe",
+    "targetField": "Feld des Schemas",
+    "targetVar": "eine Variable (z. B. colour)",
+    "notInScheme": "{key} (nicht im Schema)",
+    "fieldKey": "Schlüssel des Schemafeldes",
+    "fieldKeyPlaceholder": "z. B. kolor",
+    "valuePlaceholder": "z. B. {token}",
+    "colourNote": "Die Variable „colour“ ist die Farbe der Messe: Sie wird danach in ein Feld geschrieben (z. B. „Feld Farbe setzen = {token}“).",
+    "list": "Liste",
+    "pickList": "— Liste wählen —",
+    "listKey": "Schlüssel der Liste",
+    "noKind": "— ohne Art —",
+    "text": "Text des Eintrags",
+    "textPlaceholder": "z. B. Für die Pfarrgemeinde",
+    "recordNote": "Der Eintrag entsteht zusammen mit der Messe und ist „aus der Regel“ markiert — das Büro kann ihn ändern oder löschen.",
+    "removeNode": "Knoten löschen",
+    "messageRefuse": "Meldung für die hinzufügende Person",
+    "message": "Meldung (optional)",
+    "messagePlaceholder": {
+      "refuse": "z. B. Diese Messe hat schon eine Intention.",
+      "wait": "z. B. Das Büro bestätigt den Eintrag.",
+      "allow": "z. B. Danke — Intention angenommen."
+    }
+  },
+  "flowEditor": {
+    "group": {
+      "start": "Anfang",
+      "day": "Tag",
+      "logic": "Logik",
+      "end": "Ende"
+    },
+    "missing": {
+      "day": "Kein Knoten „{node}“ — mit ihm beginnt jeder Tag.",
+      "mass": "Kein Knoten „{node}“ — mit ihm beginnt jede Messe.",
+      "record": "Kein Knoten „{node}“ — mit ihm beginnt die Prüfung eines Eintrags."
+    },
+    "tooMany": "Es gibt {count} Knoten „{node}“ — nur einer zählt.",
+    "unreached": "nicht mit dem Anfang verbunden",
+    "noYesNo": "keine Ausgänge „ja“ und „nein“",
+    "noYes": "kein Ausgang „ja“",
+    "noNo": "kein Ausgang „nein“",
+    "slotFestive": "So {time}",
+    "slotWeekday": "Wt. {time}",
+    "addNode": "Knoten hinzufügen",
+    "onMap": "Schon auf der Karte",
+    "settings": "Einstellungen des Knotens",
+    "help": "Klicke einen Knoten an, um ihn einzustellen. Verbinde einen Ausgang (Punkt rechts) mit dem Eingang des nächsten Knotens (Punkt links). Ein neuer Knoten neben dem markierten hängt sich an dessen freien Ausgang. Entf löscht den markierten Knoten oder die Kante.",
+    "planHelp": "Für jeden Tag beginnt der Weg bei „Tag“ und endet bei „Messzeiten“; für jede Messe beginnt er bei „Messe“ und endet bei „Anlegen“ oder „Keine Messe“."
+  },
+  "tpl": {
+    "rule": {
+      "intentionWaits": "Die Intention wartet darauf, vom Büro angenommen zu werden.",
+      "singleAlone": "Diese Messe hat schon eine Intention — eine Einzelintention muss die einzige sein.",
+      "noMixed": "Diese Messe hat eine Einzelintention — eine Sammelintention kann nicht dazukommen.",
+      "weekFull": "In dieser Woche gibt es schon zwei Messen mit Sammelintentionen.",
+      "noPlaces": "Es gibt keine freien Plätze mehr.",
+      "signupWaits": "Die Anmeldung wartet auf Bestätigung."
+    },
+    "field": {
+      "obchod": {
+        "label": "Feier",
+        "says": "Feier des Tages oder Messformular (z. B. „Allerheiligen“, „30. Sonntag im Jahreskreis“) — steht im Plan und im Schaukasten."
+      },
+      "kolor": {
+        "label": "Farbe der Gewänder",
+        "says": "Farbe der liturgischen Gewänder — im Plan als Farbzeichen."
+      },
+      "czytania": {
+        "label": "Lesungen",
+        "says": "Stellenangaben der Lesungen, z. B. „Jes 7,10-14; Ps 24; Röm 1,1-7; Mt 1,18-24“ — nur Verweise, keine Texte."
+      }
+    },
+    "msza": {
+      "name": "Messe",
+      "says": "Messe mit Feier, Farbe der Gewänder, Lesungen und Intentionen (mit der Regel für Einzel- und Sammelintentionen).",
+      "listSays": "Messintentionen: der Text, der in der Messe und im Schaukasten steht; eine Einzelintention steht allein, Sammelintentionen höchstens an zwei Messen pro Woche."
+    },
+    "nabozenstwo": {
+      "name": "Andacht",
+      "says": "Andacht (Rosenkranz, Kreuzweg, Fastenandacht …) mit Feier und Farbe."
+    },
+    "spowiedz": {
+      "name": "Beichte",
+      "says": "Beichte mit einem kurzen öffentlichen Hinweis.",
+      "fieldLabel": "Für die Gläubigen",
+      "fieldSays": "Ein kurzer Hinweis im Plan, z. B. „am Beichtstuhl St. Josef“."
+    },
+    "zapisy": {
+      "name": "Treffen mit Anmeldungen",
+      "says": "Ein Treffen, zu dem man sich anmelden kann (z. B. Firmlinge wählen einen Termin).",
+      "leadLabel": "Leitung",
+      "leadSays": "Wer das Treffen leitet.",
+      "listLabel": "Anmeldungen",
+      "itemLabel": "Anmeldung",
+      "person": "Wer",
+      "yes": "ich komme",
+      "maybe": "vielleicht",
+      "no": "ich komme nicht",
+      "notesLabel": "Anmerkungen",
+      "notesSays": "Anmerkungen zur Anmeldung — das Büro sieht sie.",
+      "listSays": "Anmeldungen zu einem Termin: „ich komme“ zählt zu den Plätzen (20, in der Regel änderbar); eine Anmeldung von außen wartet auf Bestätigung."
+    },
+    "plan": {
+      "year": {
+        "name": "Kirchenjahr — Pfarrei (Polen)",
+        "says": "Messen für die kommenden Wochen nach dem Kirchenjahr: Festkalender in Polen, Sonntags- und Werktagszeiten, Triduum, Christmette, Feier und Farbe jeder Messe, mittwochabends die Votivmesse der Mutter von der Immerwährenden Hilfe, sonntags um 12:13 die Intention „Für die Pfarrgemeinde“."
+      },
+      "fixed": {
+        "name": "Feste Messzeiten",
+        "says": "Nur die Zeiten: Sonn- und Feiertage 7:30, 9:00, 10:30, 12:13, 18:00; Werktage 7:00 und 18:00 — ohne Festkalender.",
+        "massTitle": "Heilige Messe"
+      }
+    }
   }
 }

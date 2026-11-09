@@ -8,7 +8,7 @@
 import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsStand, type LsState } from './landscape';
 import type { Lang } from './lang';
 import { landscapeWords } from './landscapeWords';
-import { t } from '../core/i18n';
+import { hasKey, t } from '../core/i18n';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
 import { worldLayout, type WorldLayout } from './worldLayout';
 
@@ -39,6 +39,10 @@ type Factory = () => Worker;
 
 /* Der Worker hat keine Wörterbücher: das Muster „Wokół: {label}“ kommt aus dem Hauptfaden mit. */
 const aroundOf = (lang: Lang): string => landscapeWords(lang).around('{label}');
+
+/* Was der Worker ohne Wörterbücher als Schlüssel zurückgab (ein Feld „bez obszaru“), hier in Worten. */
+const spoken = (run: LsRun): LsRun => (run.layout.fields.some((f) => hasKey(f.label))
+  ? { ...run, layout: { ...run.layout, fields: run.layout.fields.map((f) => (hasKey(f.label) ? { ...f, label: t(f.label) } : f)) } } : run);
 
 let factory: Factory | null | undefined;
 
@@ -128,7 +132,7 @@ export function landscapeClient(): LandscapeClient {
       if (input !== undefined) lastInput = input;
       if (state !== undefined) lastState = state;
       if (broken) return viaFallback().run({ ...again(), options });
-      return ask<LsRun>({ type: 'run', input, state, options });
+      return ask<LsRun>({ type: 'run', input, state, options }).then(spoken);
     },
     stand: async ({ input, state }) => {
       if (input !== undefined) lastInput = input;

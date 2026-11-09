@@ -18,6 +18,7 @@
  * </code>
  */
 
+import { texts } from '../core/i18n';
 import type { Card } from './cardBasics';
 import type { Graph } from './graph';
 import { itemKnowness, type Gauge } from './knowing';
@@ -32,14 +33,14 @@ export type QuiltBand = 'new' | 'learning' | 'due' | 'known';
 
 export const QUILT_BANDS: readonly QuiltBand[] = ['new', 'learning', 'due', 'known'];
 
-export const QUILT_LABEL: Readonly<Record<QuiltBand, string>> = { new: 'nowe', learning: 'uczę się', due: 'do powtórki', known: 'umiem' };
+export const QUILT_LABEL: Readonly<Record<QuiltBand, string>> = texts({ new: 'cogitaLearnLogic.quilt.label.new', learning: 'cogitaLearnLogic.quilt.label.learning', due: 'cogitaLearnLogic.quilt.label.due', known: 'cogitaLearnLogic.quilt.label.known' });
 
-export const QUILT_SAYS: Readonly<Record<QuiltBand, string>> = {
-  new: 'jeszcze bez odpowiedzi',
-  learning: 'ostatnio źle albo zapomniane — wraca do nauki',
-  due: 'umiesz, a teraz trzeba powtórzyć',
-  known: 'umiesz — przed terminem powtórki'
-};
+export const QUILT_SAYS: Readonly<Record<QuiltBand, string>> = texts({
+  new: 'cogitaLearnLogic.quilt.says.new',
+  learning: 'cogitaLearnLogic.quilt.says.learning',
+  due: 'cogitaLearnLogic.quilt.says.due',
+  known: 'cogitaLearnLogic.quilt.says.known'
+});
 
 /** Das Zeichen jeder Stufe — ein Kreis, der sich füllt: nie nur die Farbe. */
 export const QUILT_MARK: Readonly<Record<QuiltBand, string>> = { new: '○', learning: '◔', due: '◑', known: '●' };
@@ -158,7 +159,7 @@ export function classStep(tile: Pick<ClassTile, 'answered' | 'share'>): 0 | 1 | 
 }
 
 /** Die Grenzen der Stufen in Worten (für die Legende). */
-export const CLASS_STEP_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = { 1: 'umie mniej niż ¼', 2: '¼ – ½', 3: '½ – ¾', 4: 'ponad ¾' };
+export const CLASS_STEP_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = texts<'1' | '2' | '3' | '4'>({ 1: 'cogitaLearnLogic.quilt.step.s1', 2: 'cogitaLearnLogic.quilt.step.s2', 3: 'cogitaLearnLogic.quilt.step.s3', 4: 'cogitaLearnLogic.quilt.step.s4' }) as unknown as Readonly<Record<1 | 2 | 3 | 4, string>>;
 
 /* -- Pytania: wo die Klasse scheitert ----------------------------------------------------------------------------- */
 

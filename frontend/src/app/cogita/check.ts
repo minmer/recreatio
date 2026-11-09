@@ -29,28 +29,29 @@
 
 import { coarsen, dateKey, dateText, precisionOf, readDate, readNumber, type DatePrecision, type DateValue } from './schema';
 import { findUnit, kindById, kindsText, measures, parseQuantity, siUnitOf, toSI, type QuantityKind } from '../core/quantities';
+import { t, texts } from '../core/i18n';
 
 /* -- Formen ------------------------------------------------------------------------ */
 
 export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build'] as const;
 export type AnswerForm = (typeof ANSWER_FORMS)[number];
 
-export const ANSWER_FORM_LABEL: Record<AnswerForm, string> = {
-  text: 'Wpisany tekst',
-  number: 'Liczba',
-  date: 'Data',
-  one: 'Jeden wybór',
-  many: 'Kilka wyborów',
-  truefalse: 'Prawda albo fałsz',
-  order: 'Kolejność',
-  match: 'Dopasowanie par',
-  gap: 'Luka w cytacie',
-  flash: 'Fiszka z samooceną',
-  code: 'Kod (Python)',
-  point: 'Punkt na obrazie albo mapie',
-  interactive: 'Rysunek do poruszania (np. fizyka)',
-  build: 'Zbuduj z kafelków'
-};
+export const ANSWER_FORM_LABEL: Readonly<Record<AnswerForm, string>> = texts({
+  text: 'cogitaData.answerForm.text',
+  number: 'cogitaData.answerForm.number',
+  date: 'cogitaData.answerForm.date',
+  one: 'cogitaData.answerForm.one',
+  many: 'cogitaData.answerForm.many',
+  truefalse: 'cogitaData.answerForm.truefalse',
+  order: 'cogitaData.answerForm.order',
+  match: 'cogitaData.answerForm.match',
+  gap: 'cogitaData.answerForm.gap',
+  flash: 'cogitaData.answerForm.flash',
+  code: 'cogitaData.answerForm.code',
+  point: 'cogitaData.answerForm.point',
+  interactive: 'cogitaData.answerForm.interactive',
+  build: 'cogitaData.answerForm.build'
+});
 
 export type CompareAlgorithm = 'anchors' | 'bidirectional' | 'prefix';
 
@@ -134,17 +135,17 @@ const NOTHING: Outcome = { correct: false, correctness: 0, answered: false };
 /* -- Text, Zeichen für Zeichen ----------------------------------------------------- */
 
 const SIMILAR: Readonly<Record<string, string>> = {
-  ą: 'a', à: 'a', á: 'a', â: 'a', ä: 'a', ã: 'a', å: 'a',
+  ą: 'a', à: 'a', á: 'a', â: 'a', ä: 'a', ã: 'a', å: 'a', // i18n-ignore
   ć: 'c', č: 'c',
   ę: 'e', è: 'e', é: 'e', ê: 'e', ë: 'e',
   ì: 'i', í: 'i', î: 'i', ï: 'i',
   ł: 'l',
   ń: 'n',
-  ò: 'o', ó: 'o', ô: 'o', ö: 'o', õ: 'o',
+  ò: 'o', ó: 'o', ô: 'o', ö: 'o', õ: 'o', // i18n-ignore
   ś: 's', š: 's',
-  ù: 'u', ú: 'u', û: 'u', ü: 'u',
+  ù: 'u', ú: 'u', û: 'u', ü: 'u', // i18n-ignore
   ý: 'y', ÿ: 'y',
-  ź: 'z', ż: 'z', ž: 'z'
+  ź: 'z', ż: 'z', ž: 'z' // i18n-ignore
 };
 
 const base = (c: string): string => SIMILAR[c] ?? c;
@@ -354,9 +355,9 @@ function checkQuantity(expected: NumberExpected, kind: QuantityKind, given: stri
   if (own === undefined) return { correct: false, correctness: 0, answered: true };
   let unit = own;
   if (read.unitText !== '') {
-    if (read.unit === undefined) return { correct: false, correctness: 0, answered: true, note: `Nie znam jednostki „${read.unitText}”.` };
+    if (read.unit === undefined) return { correct: false, correctness: 0, answered: true, note: t('cogitaData.check.unknownUnit', { unit: read.unitText }) };
     if (!measures(read.unit, kind.id)) {
-      return { correct: false, correctness: 0, answered: true, note: `„${read.unit.symbol}” to jednostka wielkości: ${kindsText(read.unit.kinds)} — a pytanie dotyczy wielkości: ${kind.label}.` };
+      return { correct: false, correctness: 0, answered: true, note: t('cogitaData.check.wrongQuantity', { unit: read.unit.symbol, kinds: kindsText(read.unit.kinds), quantity: kind.label }) };
     }
     unit = read.unit;
   }
@@ -380,7 +381,7 @@ const ROMAN_MONTH = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'
 const DATE_FILLER: ReadonlySet<string> = new Set(['r', 'rok', 'roku', 'w', 'we', 'dnia', 'dn', 'dzien', 'dniu', 'ok', 'okolo', 'ca', 'circa', 'go', 'ego', 'the', 'of', 'in', 'on', 'year', 'st', 'nd', 'rd', 'th']);
 const BCE_END = /(?<=^|[\s\d.])(p\.?\s?n\.?\s?e\.?|przed\s+chr(?:ystusem|\.)?|bce?|b\.\s?c\.)$/i;
 const CE_END = /(?<=^|[\s\d.])(n\.?\s?e\.?|po\s+chr(?:ystusie|\.)?|ad|a\.\s?d\.)$/i;
-const plainWord = (w: string): string => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const plainWord = (w: string): string => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /**
  * EIN DATUM, WIE MAN ES EINTIPPT — 2026-11-01 in jeder üblichen Form: „1829", „1829-11", „1829 11", „11 1829",
@@ -592,11 +593,11 @@ export function checkTrueFalse(correct: boolean, given: boolean | null | undefin
  * 2026-10-31 — WAS EINE DATUMSFRAGE VERLANGT, in Worten: jede Karte sagt es unter der Frage, damit niemand raten muss,
  * ob das Jahr genügt (im Allgemeinen genügt es; der genaue Tag kommt im Thema, das davon erzählt).
  */
-export const PRECISION_ASK: Readonly<Record<DatePrecision, string>> = {
-  year: 'Podaj rok.',
-  month: 'Podaj miesiąc i rok.',
-  day: 'Podaj dzień, miesiąc i rok.'
-};
+export const PRECISION_ASK: Readonly<Record<DatePrecision, string>> = texts({
+  year: 'cogitaData.check.askYear',
+  month: 'cogitaData.check.askMonth',
+  day: 'cogitaData.check.askDay'
+});
 
 /** Ein Stück der Reihenfolge nach der Prüfung: steht es an seiner Stelle, und welche ist seine (1 = die erste). */
 export interface OrderMark {

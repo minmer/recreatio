@@ -20,6 +20,7 @@
  * noch eine trägt (`hasOldCopies`) — sonst läse jeder diese Abschrift mit.
  */
 
+import { t } from '../core/i18n';
 import type { EntryData, LibEntry } from '../library/libraryKinds';
 import type { LibraryStore } from '../library/libraryStore';
 import { loadFiles, unpublishFile } from './files';
@@ -109,9 +110,8 @@ export async function withdrawOldCopies(
 
 /** Der Bericht in einem Satz. */
 export function oldCopiesLine(report: OldCopiesReport): string {
-  const parts = [`Wycofane stare kopie publiczne: ${report.withdrawn}`, `usunięte kopie we wpisach: ${report.stripped}`, `wycofane kopie plików: ${report.files}`];
   const more: string[] = [];
-  if (report.kept.length > 0) more.push(`Zostało kopii: ${report.kept.length} — pokazują wpisy, których w bazie już nie ma (przywróć je z historii wpisu albo zachowaj kopię; dopóki jest, tej bazy nie da się otworzyć dla wszystkich).`);
-  if (report.failedFiles > 0) more.push(`Nie udało się wycofać plików: ${report.failedFiles} — spróbuj jeszcze raz.`);
-  return [`${parts.join(', ')}.`, ...more].join(' ');
+  if (report.kept.length > 0) more.push(t('cogitaLearnLogic.oldCopies.kept', { n: report.kept.length }));
+  if (report.failedFiles > 0) more.push(t('cogitaLearnLogic.oldCopies.failed', { n: report.failedFiles }));
+  return [t('cogitaLearnLogic.oldCopies.done', { withdrawn: report.withdrawn, stripped: report.stripped, files: report.files }), ...more].join(' ');
 }

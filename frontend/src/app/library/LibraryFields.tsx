@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 
 import { type EntryData, type LibField, ids, kindOf, num, str } from './libraryKinds';
 import { RefPicker } from './LibraryPick';
+import { hasKey, t } from '../core/i18n';
 import type { LibraryStore } from './libraryStore';
 
 export function FieldList({ store, kind, data, set, readOnly, skip = [], only, extras = {} }: {
@@ -67,7 +68,7 @@ export function FieldInput({ store, field, data, set, readOnly, extra }: {
         <option value="">—</option>
         {groups.length === 0
           ? options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-          : groups.map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</optgroup>)}
+          : groups.map((g) => <optgroup key={g} label={hasKey(g) ? t(g) : g}>{options.filter((o) => o.group === g).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</optgroup>)}
       </select>
     );
   } else if (field.type === 'text') {

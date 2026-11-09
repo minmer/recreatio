@@ -28,6 +28,7 @@ import { CogitaLibrary } from './store';
 import { newId } from '../core/ids';
 import { cleanData, LibraryStore, type Entry, type SaveInput } from '../library/libraryStore';
 import { WorkspaceError } from '../core/session';
+import { t, texts } from '../core/i18n';
 
 /* -- Der Speicher ------------------------------------------------------------------------------------------------- */
 
@@ -97,8 +98,8 @@ export class MemoryStore extends LibraryStore {
     if (this.failWith !== null) throw new WorkspaceError(this.failWith, 'conflict');
     /* 2026-11-03 — wie der Dienst: nur eigene, nie zugleich gespeichert und gelöscht — sonst nichts. */
     for (const id of remove) {
-      if (this.own(id) === undefined) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} do usunięcia nie należy do tej biblioteki.`, 'conflict');
-      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} jest i do zapisania, i do usunięcia.`, 'conflict');
+      if (this.own(id) === undefined) throw new WorkspaceError(t('cogitaData.memory.notOwn', { id }), 'conflict');
+      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(t('cogitaData.memory.saveAndRemove', { id }), 'conflict');
     }
     const made = inputs.map((input) => this.make(input));
     for (const entry of made) this.inside.put(entry);
@@ -120,7 +121,7 @@ export class MemoryStore extends LibraryStore {
     return own.length;
   }
 
-  override upload(): Promise<MediaRef> { return Promise.reject(new Error('W podglądzie nie ma plików.')); }
+  override upload(): Promise<MediaRef> { return Promise.reject(new Error(t('cogitaData.memory.noFiles'))); }
 
   override openFile(): Promise<string | null> { return Promise.resolve(null); }
 }
@@ -176,11 +177,11 @@ export async function memoryBase(doc: unknown, { libraryId = 'podglad-bazy-wiedz
 export const PREVIEW_PROGRESS = ['none', 'partial', 'all'] as const;
 export type PreviewProgress = (typeof PREVIEW_PROGRESS)[number];
 
-export const PREVIEW_PROGRESS_LABEL: Readonly<Record<PreviewProgress, string>> = {
-  none: 'bez postępów (nowy uczący się)',
-  partial: 'w połowie drogi: dolne poziomy znane, następne mieszane (do powtórki, ostatnio źle, nowe), trochę zapomnianego, wyżej nowe',
-  all: 'wszystko znane'
-};
+export const PREVIEW_PROGRESS_LABEL: Readonly<Record<PreviewProgress, string>> = texts({
+  none: 'cogitaData.memory.previewNone',
+  partial: 'cogitaData.memory.previewPartial',
+  all: 'cogitaData.memory.previewAll'
+});
 
 /** Wie es einer Karte geht: gewusst, zu wiederholen, vergessen, zuletzt falsch, nie gefragt. */
 export type CardMood = 'known' | 'due' | 'forgotten' | 'wrong' | 'new';
@@ -351,14 +352,14 @@ export function expectedText(a: AnswerSpec): string {
     case 'date': return a.values.join(' | ');
     case 'one': return a.options[a.correct] ?? '';
     case 'many': return a.correct.map((i) => a.options[i]).join(', ');
-    case 'truefalse': return a.value ? 'prawda' : 'fałsz';
+    case 'truefalse': return a.value ? t('cogitaData.memory.true') : t('cogitaData.memory.false');
     case 'order': return a.items.join(' → ');
     case 'match': return a.pairs.map(([l, r]) => `${a.left[l]} — ${a.right[r]}`).join('; ');
     case 'flash': return a.back.join(' · ');
     case 'build': return a.items.join(a.join);
-    case 'code': return 'kod, który przechodzi przypadki';
-    case 'point': return 'punkt';
-    default: return 'cel rysunku';
+    case 'code': return t('cogitaData.memory.codePasses');
+    case 'point': return t('cogitaData.memory.point');
+    default: return t('cogitaData.memory.drawingGoal');
   }
 }
 
@@ -428,23 +429,23 @@ export async function generatorReport(lib: CogitaLibrary, count = 10): Promise<G
       samples.push(sampleOf(card, stable));
     }
     const problems = [...new Set(runs.flatMap((r) => r.problems.get(q.id) ?? []))];
-    if (made < tries && problems.length === 0) problems.push(`W ${tries - made} z ${tries} prób nie powstała żadna karta — warunki ("require") niespełnione albo brak odpowiedzi.`);
+    if (made < tries && problems.length === 0) problems.push(t('cogitaData.memory.noCardIn', { failed: tries - made, tries }));
     out.push({ kind: 'question', id: q.id, ref: refOf(q.id), name: questionName(q.data), samples, made, tried: tries, draws: drawsOf(lib, q.data, seeds), problems });
   }
-  for (const t of templates) {
+  for (const tpl of templates) {
     const samples: GeneratorSample[] = [];
     let made = 0;
     runs.forEach((run, i) => {
-      const of = run.cards.filter((c) => c.template === t.id);
+      const of = run.cards.filter((c) => c.template === tpl.id);
       if (of.length === 0) return;
       made += 1;
       const card = of[i % of.length]!;
       const entity = card.entity === undefined ? undefined : lib.entity(card.entity);
       samples.push(sampleOf(card, stable, entity === undefined ? undefined : oneLine(lib.label(entity), 80)));
     });
-    const problems = [...new Set(runs.flatMap((r) => r.problems.get(t.id) ?? []))];
-    if (made === 0 && problems.length === 0) problems.push('Szablon nie dał żadnej karty — czy jakiś wpis ma jego rodzaj?');
-    out.push({ kind: 'template', id: t.id, ref: refOf(t.id), name: oneLine(t.name, 90), samples, made, tried: tries, draws: null, problems });
+    const problems = [...new Set(runs.flatMap((r) => r.problems.get(tpl.id) ?? []))];
+    if (made === 0 && problems.length === 0) problems.push(t('cogitaData.memory.templateNoCard'));
+    out.push({ kind: 'template', id: tpl.id, ref: refOf(tpl.id), name: oneLine(tpl.name, 90), samples, made, tried: tries, draws: null, problems });
   }
   return out;
 }

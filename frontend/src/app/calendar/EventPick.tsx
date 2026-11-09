@@ -44,7 +44,8 @@
 import { useState } from 'react';
 
 import { localDate, localTime } from '../areas/WhoSees';
-import { monthOfName, startOfDay, WEEK_HEADS } from '../core/dayMath';
+import { startOfDay } from '../core/dayMath';
+import { fmtDate, t, useT } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
@@ -76,19 +77,9 @@ const DAY = 86400_000;
 const HOUR = 3600_000;
 
 /** „3 terminy", „1 termin", „5 terminów". */
-export function terms(n: number): string {
-  if (n === 1) return '1 termin';
-  const last = n % 10;
-  const teen = n % 100 >= 12 && n % 100 <= 14;
-  return `${n} ${last >= 2 && last <= 4 && !teen ? 'terminy' : 'terminów'}`;
-}
+export const terms = (n: number): string => t('calendarApp.pickBar.terms', { count: n });
 
-function series(n: number): string {
-  if (n === 1) return '1 serię';
-  const last = n % 10;
-  const teen = n % 100 >= 12 && n % 100 <= 14;
-  return `${n} ${last >= 2 && last <= 4 && !teen ? 'serie' : 'serii'}`;
-}
+const series = (n: number): string => t('calendarApp.pickBar.series', { count: n });
 
 /** Ganze Kalendertage weiter, dieselbe Uhrzeit (auch über die Zeitumstellung). */
 const shiftDays = (at: Date, days: number): Date =>
@@ -129,21 +120,13 @@ export function shiftBy(at: Date, period: Period): Date {
 export const wholeDays = (unit: PeriodUnit): boolean => unit === 'day' || unit === 'week' || unit === 'month';
 
 /** Das Wort nach „o": 1 godzinę, 2 godziny, 5 godzin … */
-export function unitWord(unit: PeriodUnit, n: number): string {
-  const few = n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
-  switch (unit) {
-    case 'minute': return n === 1 ? 'minutę' : few ? 'minuty' : 'minut';
-    case 'hour': return n === 1 ? 'godzinę' : few ? 'godziny' : 'godzin';
-    case 'day': return n === 1 ? 'dzień' : 'dni';
-    case 'week': return n === 1 ? 'tydzień' : few ? 'tygodnie' : 'tygodni';
-    case 'month': return n === 1 ? 'miesiąc' : few ? 'miesiące' : 'miesięcy';
-  }
-}
+export const unitWord = (unit: PeriodUnit, n: number): string => t(`calendarApp.pickBar.unit.${unit}`, { count: n });
 
 /** „o 2 godziny później", „o tydzień wcześniej". */
 export function periodText(period: Period): string {
   const n = Math.abs(period.amount);
-  return `o ${n === 1 ? '' : `${n} `}${unitWord(period.unit, n)} ${period.amount < 0 ? 'wcześniej' : 'później'}`;
+  const span = n === 1 ? unitWord(period.unit, n) : `${n} ${unitWord(period.unit, n)}`;
+  return t(period.amount < 0 ? 'calendarApp.pickBar.periodEarlier' : 'calendarApp.pickBar.periodLater', { span });
 }
 
 /** Jeder um denselben Zeitraum — Ganztägiges nur um ganze Tage (die übrigen bleiben, wo sie sind). */
@@ -156,7 +139,7 @@ const isPeriod = (target: PasteAt | Period): target is Period => 'unit' in targe
 
 /** „pn 19 paź, 10:00" — wo ein Termin beginnt, kurz. */
 const whenShort = (at: Date, allDay: boolean): string =>
-  `${WEEK_HEADS[(at.getDay() + 6) % 7]} ${at.getDate()} ${monthOfName(at).slice(0, 3)}${allDay ? '' : `, ${at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`}`;
+  fmtDate(at, allDay ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /**
  * Die Punkte des Programms gehen mit: zu jedem Termin die Punkte (beliebig
@@ -296,17 +279,18 @@ export async function pasteClip(ring: Ring, clip: Clip, target: PasteAt | Period
 
 /** Die Meldung nach dem Einfügen — mit „Cofnij". */
 export function tellPasted(result: PasteResult, mode: Clip['mode'], reload: () => void): void {
-  const word = mode === 'cut' ? 'Przeniesiono' : 'Skopiowano';
   const undo = result.undo;
   const action = undo === null ? undefined : {
-    label: 'Cofnij',
+    label: t('calendarApp.tasks.undo'),
     run: () => void undo().then(
-      () => { toast('Cofnięto.'); reload(); },
-      (e: unknown) => { toast(e instanceof WorkspaceError ? e.message : 'Nie udało się cofnąć.', { kind: 'error' }); reload(); })
+      () => { toast(t('calendarApp.pickBar.undone')); reload(); },
+      (e: unknown) => { toast(e instanceof WorkspaceError ? e.message : t('calendarApp.pickBar.undoFailed'), { kind: 'error' }); reload(); })
   };
-  const left = result.skipped === 0 ? '' : ` Całodniowe przesuwają się tylko o pełne dni — bez zmian: ${terms(result.skipped)}.`;
-  if (result.failed === 0) toast(`${word} ${terms(result.done)}.${left}`, { action, ms: 8000 });
-  else toast(`${word} ${terms(result.done)}, nie udało się: ${result.failed}${result.why !== null ? ` — ${result.why}` : ''}.${left}`, { kind: 'error', action, ms: 10000 });
+  const left = result.skipped === 0 ? '' : t('calendarApp.pickBar.skippedAllDay', { terms: terms(result.skipped) });
+  const done = t(mode === 'cut' ? 'calendarApp.pickBar.moved' : 'calendarApp.pickBar.copied', { terms: terms(result.done) });
+  const whole = `${done}.${left}`;
+  if (result.failed === 0) toast(whole, { action, ms: 8000 });
+  else toast(`${t('calendarApp.pickBar.partlyFailed', { done, failed: result.failed })}${result.why !== null ? ` — ${result.why}` : ''}.${left}`, { kind: 'error', action, ms: 10000 });
 }
 
 /**
@@ -338,37 +322,37 @@ export function usePickActions(me: Me, picked: readonly CalEvent[], onDone: () =
     }
     setBusy(false);
     const action = undos.length === 0 ? undefined : {
-      label: 'Cofnij',
+      label: t('calendarApp.tasks.undo'),
       run: () => void (async () => { for (const one of [...undos].reverse()) await one(); })().then(onDone, onDone)
     };
     if (failed === 0) toast(done, { action });
-    else toast(`Nie udało się: ${failed} z ${steps.length}${why !== null ? ` — ${why}` : ''}`, { kind: 'error', action });
+    else toast(`${t('calendarApp.pickBar.failedOf', { failed, total: steps.length })}${why !== null ? ` — ${why}` : ''}`, { kind: 'error', action });
     onDone();
   };
 
   /* Ein einzelner Termin hat nur sich selbst: löschen. Ein Vorkommen einer Reihe: absagen. */
   const removeThese = async () => {
     if (items.length === 0 || busy) return;
-    if (!(await askText(`Usunąć ${terms(items.length)}?${anySeries ? ' Z serii znikną tylko te dni.' : ''}`))) return;
+    if (!(await askText(t(anySeries ? 'calendarApp.pickBar.removeAskSeries' : 'calendarApp.pickBar.removeAsk', { terms: terms(items.length) })))) return;
     const singles = [...byItem.values()].filter((list) => !repeats(list[0])).map((list) => list[0]);
     const occurrences = items.filter(repeats);
     void runAll([
       ...singles.map((item) => () => deleteEvent(item.occurrence.itemId)),
       ...occurrences.map((item) => () => cancelOne(item.occurrence.itemId, item.occurrence.occurrenceAt))
-    ], `Usunięto ${terms(items.length)}.`);
+    ], t('calendarApp.pickBar.removed', { terms: terms(items.length) }));
   };
 
   /* Je Reihe zählt das früheste gewählte Vorkommen. */
   const endFollowing = async () => {
     const firsts = [...byItem.values()].map((list) => [...list].sort((a, b) => a.occurrence.occurrenceAt.localeCompare(b.occurrence.occurrenceAt))[0]);
-    if (!(await askText(`Zakończyć ${series(firsts.length)} przed zaznaczonym dniem? Wcześniejsze terminy zostają, pojedyncze terminy znikną.`))) return;
+    if (!(await askText(t('calendarApp.pickBar.endAsk', { series: series(firsts.length) })))) return;
     void runAll(firsts.map((item) => () => repeats(item) ? endSeriesBefore(me.ring, item) : deleteEvent(item.occurrence.itemId)),
-      'Gotowe — serie kończą się przed zaznaczonymi dniami.');
+      t('calendarApp.pickBar.ended'));
   };
 
   const removeSeries = async () => {
-    if (!(await askText(`Usunąć ${series(byItem.size)} w całości — także terminy, które już były?`))) return;
-    void runAll([...byItem.keys()].map((itemId) => () => deleteEvent(itemId)), `Usunięto ${series(byItem.size)}.`);
+    if (!(await askText(t('calendarApp.pickBar.removeSeriesAsk', { series: series(byItem.size) })))) return;
+    void runAll([...byItem.keys()].map((itemId) => () => deleteEvent(itemId)), t('calendarApp.pickBar.removed', { terms: series(byItem.size) }));
   };
 
   return { busy, anySeries, removeThese, endFollowing, removeSeries };
@@ -391,6 +375,7 @@ export function PickBar({ picked, clip, actions, onCut, onCopy, onShift, onClear
   onClear: () => void;
   onClearClip: () => void;
 }) {
+  const t = useT();
   const { busy } = actions;
   /* Die Zeile „um einen eigenen Zeitraum": offen zum Verschieben oder Kopieren; das Gewählte bleibt für das nächste Mal. */
   const [shifting, setShifting] = useState<Clip['mode'] | null>(null);
@@ -405,62 +390,62 @@ export function PickBar({ picked, clip, actions, onCut, onCopy, onShift, onClear
   const run = () => { if (valid && shifting !== null && shown.length > 0) { onShift(period, shifting); setShifting(null); } };
 
   return (
-    <div className="wk-cal2-pickbar" role="toolbar" aria-label="Zaznaczone terminy" aria-busy={busy || undefined}>
+    <div className="wk-cal2-pickbar" role="toolbar" aria-label={t('calendarApp.pickBar.label')} aria-busy={busy || undefined}>
       {picked.length > 0 && (
         <div className="wk-cal2-pickrow">
-          <span className="wk-cal2-pickcount">Zaznaczone: {terms(picked.length)}</span>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} title="Ctrl + X — potem kliknij dzień albo godzinę" onClick={onCut}>Wytnij</button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} title="Ctrl + C — potem kliknij dzień albo godzinę" onClick={onCopy}>Kopiuj</button>
-          <button type="button" className="wk-btn wk-btn-quiet wk-danger" disabled={busy} title="Delete" onClick={() => void actions.removeThese()}>
-            {actions.anySeries ? 'Usuń tylko te' : 'Usuń'}
+          <span className="wk-cal2-pickcount">{t('calendarApp.pickBar.picked', { terms: terms(picked.length) })}</span>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} title={t('calendarApp.pickBar.cutHint')} onClick={onCut}>{t('calendarApp.pickBar.cut')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} title={t('calendarApp.pickBar.copyHint')} onClick={onCopy}>{t('common.copy')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet wk-danger" disabled={busy} title={t('calendarApp.pickBar.deleteKey')} onClick={() => void actions.removeThese()}>
+            {actions.anySeries ? t('calendarApp.pickBar.removeOnly') : t('common.delete')}
           </button>
           {actions.anySeries && (
-            <MenuButton label="Usuń z seriami" text="Serie…" disabled={busy} items={[
-              { label: 'Te i następne — zakończ serie', onSelect: () => void actions.endFollowing(), danger: true },
-              { label: 'Całe serie', onSelect: () => void actions.removeSeries(), danger: true }
+            <MenuButton label={t('calendarApp.pickBar.removeWithSeries')} text={t('calendarApp.pickBar.seriesMenu')} disabled={busy} items={[
+              { label: t('calendarApp.pickBar.endFollowing'), onSelect: () => void actions.endFollowing(), danger: true },
+              { label: t('calendarApp.pickBar.wholeSeries'), onSelect: () => void actions.removeSeries(), danger: true }
             ]} />
           )}
-          <MenuButton label="Przesuń zaznaczone" text="Przesuń…" disabled={busy} items={[
-            { label: 'O dzień wcześniej', onSelect: () => onShift({ amount: -1, unit: 'day' }, 'cut') },
-            { label: 'O dzień później', onSelect: () => onShift({ amount: 1, unit: 'day' }, 'cut') },
-            { label: 'O tydzień wcześniej', onSelect: () => onShift({ amount: -1, unit: 'week' }, 'cut') },
-            { label: 'O tydzień później', onSelect: () => onShift({ amount: 1, unit: 'week' }, 'cut') },
-            { label: 'O godzinę wcześniej', onSelect: () => onShift({ amount: -1, unit: 'hour' }, 'cut') },
-            { label: 'O godzinę później', onSelect: () => onShift({ amount: 1, unit: 'hour' }, 'cut') },
-            { label: 'O inny okres…', onSelect: () => setShifting('cut') },
-            { label: 'Kopiuj o okres…', onSelect: () => setShifting('copy') }
+          <MenuButton label={t('calendarApp.pickBar.shiftPicked')} text={t('calendarApp.pickBar.shiftMenu')} disabled={busy} items={[
+            { label: t('calendarApp.pickBar.dayEarlier'), onSelect: () => onShift({ amount: -1, unit: 'day' }, 'cut') },
+            { label: t('calendarApp.pickBar.dayLater'), onSelect: () => onShift({ amount: 1, unit: 'day' }, 'cut') },
+            { label: t('calendarApp.pickBar.weekEarlier'), onSelect: () => onShift({ amount: -1, unit: 'week' }, 'cut') },
+            { label: t('calendarApp.pickBar.weekLater'), onSelect: () => onShift({ amount: 1, unit: 'week' }, 'cut') },
+            { label: t('calendarApp.pickBar.hourEarlier'), onSelect: () => onShift({ amount: -1, unit: 'hour' }, 'cut') },
+            { label: t('calendarApp.pickBar.hourLater'), onSelect: () => onShift({ amount: 1, unit: 'hour' }, 'cut') },
+            { label: t('calendarApp.pickBar.otherPeriod'), onSelect: () => setShifting('cut') },
+            { label: t('calendarApp.pickBar.copyPeriod'), onSelect: () => setShifting('copy') }
           ]} />
-          <button type="button" className="wk-btn wk-btn-quiet wk-cal2-pickdone" disabled={busy} title="Esc" onClick={onClear}>Gotowe</button>
+          <button type="button" className="wk-btn wk-btn-quiet wk-cal2-pickdone" disabled={busy} title={t('calendarApp.pickBar.escKey')} onClick={onClear}>{t('common.done')}</button>
         </div>
       )}
       {/* 2026-10-20 — um einen eigenen Zeitraum: wie viel, wovon, früher oder später; daneben, wohin der erste kommt. */}
       {shifting !== null && picked.length > 0 && (
-        <form className="wk-cal2-pickrow wk-cal2-shift" aria-label="Przesuń o okres"
+        <form className="wk-cal2-pickrow wk-cal2-shift" aria-label={t('calendarApp.pickBar.shiftForm')}
           onSubmit={(e) => { e.preventDefault(); run(); }}
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShifting(null); } }}>
-          <Segment now={shifting} busy={busy} onPick={setShifting} options={[{ value: 'cut', label: 'Przesuń' }, { value: 'copy', label: 'Kopiuj' }]} />
-          <span>o</span>
+          <Segment now={shifting} busy={busy} onPick={setShifting} options={[{ value: 'cut', label: t('calendarApp.pickBar.shift') }, { value: 'copy', label: t('common.copy') }]} />
+          <span>{t('calendarApp.pickBar.by')}</span>
           <input className="wk-cal2-shiftn" type="number" inputMode="numeric" min={1} max={999} step={1} value={amount} disabled={busy}
-            aria-label="Ile" aria-invalid={!valid} autoFocus onChange={(e) => setAmount(e.target.value)} />
-          <select value={unit} disabled={busy} aria-label="Czego" onChange={(e) => setUnit(e.target.value as PeriodUnit)}>
-            {PERIOD_UNITS.map((one) => <option key={one} value={one}>{unitWord(one, valid ? n : 1)}</option>)}
+            aria-label={t('calendarApp.pickBar.howMany')} aria-invalid={!valid} autoFocus onChange={(e) => setAmount(e.target.value)} />
+          <select value={unit} disabled={busy} aria-label={t('calendarApp.pickBar.ofWhat')} onChange={(e) => setUnit(e.target.value as PeriodUnit)}>
+            {PERIOD_UNITS.map((one) => <option key={one} value={one}>{t(`calendarApp.pickBar.unit.${one}`, { count: valid ? n : 1 })}</option>)}
           </select>
           <Segment now={later ? 'later' : 'earlier'} busy={busy} onPick={(v) => setLater(v === 'later')}
-            options={[{ value: 'earlier', label: 'wcześniej' }, { value: 'later', label: 'później' }]} />
-          <button type="submit" className="wk-btn" disabled={busy || !valid || shown.length === 0}>{shifting === 'cut' ? 'Przesuń' : 'Kopiuj'}</button>
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setShifting(null)}>Anuluj</button>
+            options={[{ value: 'earlier', label: t('calendarApp.pickBar.earlier') }, { value: 'later', label: t('calendarApp.pickBar.later') }]} />
+          <button type="submit" className="wk-btn" disabled={busy || !valid || shown.length === 0}>{shifting === 'cut' ? t('calendarApp.pickBar.shift') : t('common.copy')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setShifting(null)}>{t('common.cancel')}</button>
           <span className="wk-cal2-shiftsee">
-            {first === null ? 'Całodniowe przesuwają się tylko o pełne dni.'
-              : `${whenShort(first.start, first.allDay)} → ${whenShort(shiftBy(first.start, period), first.allDay)}${shown.length < picked.length ? ` · całodniowe zostają: ${picked.length - shown.length}` : ''}`}
+            {first === null ? t('calendarApp.pickBar.allDayOnly')
+              : `${whenShort(first.start, first.allDay)} → ${whenShort(shiftBy(first.start, period), first.allDay)}${shown.length < picked.length ? ` · ${t('calendarApp.pickBar.allDayStay', { count: picked.length - shown.length })}` : ''}`}
           </span>
         </form>
       )}
       {clip !== null && (
         <div className="wk-cal2-pickrow is-clip">
           <span className="wk-cal2-pickcount">
-            {clip.mode === 'cut' ? 'Do przeniesienia' : 'Do skopiowania'}: {terms(clip.events.length)} — kliknij dzień albo godzinę, gdzie mają trafić
+            {t(clip.mode === 'cut' ? 'calendarApp.pickBar.clipCut' : 'calendarApp.pickBar.clipCopy', { terms: terms(clip.events.length) })}
           </span>
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={onClearClip}>Anuluj</button>
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={onClearClip}>{t('common.cancel')}</button>
         </div>
       )}
     </div>

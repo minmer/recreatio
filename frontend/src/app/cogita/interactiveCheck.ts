@@ -11,6 +11,7 @@
  * Rein (ohne Oberfläche); der Zufall eines Versuchs aus einem festen Samen.
  */
 
+import { t } from '../core/i18n';
 import { problemsOf } from '../pages/motion/liveLint';
 import { Program } from '../pages/motion/liveRun';
 import { checkInteractive, drawingOfText, interactiveSpec, liveWithGoals, solutionValues, solutionWorld, type InteractiveSpec } from './interactive';
@@ -36,13 +37,13 @@ export function drawingReport(data: Readonly<Record<string, unknown>>, seed = 7)
   if (spec === null) return { problems: ['rysunek jest pusty albo nie jest poprawnym JSON z "elements" — karta nie powstanie'], solved: null, spec: null };
   const drawing = drawingOfText(spec.drawing)!;
   const problems: string[] = [];
-  for (const p of problemsOf(drawing)) problems.push(`${p.where}: ${p.error}${p.source === '' ? '' : ` („${p.source}”)`}`);
+  for (const p of problemsOf(drawing)) problems.push(`${p.where}: ${p.error}${p.source === '' ? '' : ` (${t('cogitaData.import.quoted', { name: p.source })})`}`);
   /* Das Ziel und die Lösung mit denselben Namen wie die Zeichnung. */
   const program = new Program(liveWithGoals(drawing.live, spec), { fixed: spec.fixed });
-  for (const p of program.problems) problems.push(`${p.where}: ${p.error}${p.source === '' ? '' : ` („${p.source}”)`}`);
+  for (const p of program.problems) problems.push(`${p.where}: ${p.error}${p.source === '' ? '' : ` (${t('cogitaData.import.quoted', { name: p.source })})`}`);
   for (const [name, source] of Object.entries(spec.solution ?? {})) {
-    const e = program.compile(source, `solution „${name}”`);
-    if (e === null) { const p = program.problems[program.problems.length - 1]; problems.push(p === undefined ? `solution „${name}”: nie da się policzyć („${source}”)` : `${p.where}: ${p.error}`); }
+    const e = program.compile(source, `solution ${t('cogitaData.import.quoted', { name })}`);
+    if (e === null) { const p = program.problems[program.problems.length - 1]; problems.push(p === undefined ? t('cogitaData.interactive.cannotCompute', { name, source }) : `${p.where}: ${p.error}`); }
   }
   const hasGoal = program.hasGoal();
   /* Ein Ziel, das sich nicht übersetzen lässt (ein unbekannter Name), ist schon gemeldet — dann keine zweite Meldung zur Lösung. */
@@ -99,10 +100,10 @@ export function interactiveImportWarnings(plan: { readonly entities: readonly { 
     const r = drawingReport(e.data);
     if (r === null) continue;
     const prompt = typeof e.data.prompt === 'string' && e.data.prompt.trim() !== '' ? e.data.prompt.trim() : e.id;
-    const name = `Pytanie „${prompt.length > 60 ? `${prompt.slice(0, 59)}…` : prompt}” (rysunek)`;
+    const name = t('cogitaData.interactive.question', { name: prompt.length > 60 ? `${prompt.slice(0, 59)}…` : prompt });
     for (const p of r.problems.slice(0, 6)) out.push(`${name}: ${p}.`);
-    if (r.problems.length > 6) out.push(`${name}: i ${r.problems.length - 6} innych błędów w wyrażeniach.`);
-    if (r.solved === false) out.push(`${name}: rozwiązanie ("solution") nie osiąga celu — policzone do końca z tymi wartościami cel nie jest spełniony; uczący się po złej odpowiedzi zobaczy złe rozwiązanie.`);
+    if (r.problems.length > 6) out.push(t('cogitaData.interactive.moreErrors', { name, count: r.problems.length - 6 }));
+    if (r.solved === false) out.push(t('cogitaData.interactive.notSolved', { name }));
   }
   return out;
 }

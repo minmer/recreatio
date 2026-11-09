@@ -14,7 +14,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { askText, toast } from '../ui/dialogs';
 import { Segment } from '../ui/Segment';
 import {
@@ -40,6 +40,7 @@ export function ValueInput({ field, value, onChange, disabled = false, placehold
   placeholder?: string;
   label?: string;
 }) {
+  const t = useT();
   if (field.type === 'choice') {
     return (
       <select value={value} disabled={disabled} aria-label={label} onChange={(e) => onChange(e.target.value)}>
@@ -51,7 +52,7 @@ export function ValueInput({ field, value, onChange, disabled = false, placehold
   if (field.type === 'bool') {
     return (
       <select value={value} disabled={disabled} aria-label={label} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option><option value="tak">tak</option><option value="nie">nie</option><option value="nie wiadomo">nie wiadomo</option>
+        <option value="">—</option><option value="tak">{t('common.yes')}</option><option value="nie">{t('common.no')}</option><option value="nie wiadomo">{t('cogitaEditForm.rows.unknown')}</option>
       </select>
     );
   }
@@ -66,17 +67,18 @@ export function AddFormRun({ formId, onClose, onOpen, onEdit }: {
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
 }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const entry = formId === null ? undefined : lib.docs('addform').find((e) => e.id === formId);
   if (entry === undefined) {
     return (
       <div className="cg">
-        <button type="button" className="wk-link-btn" onClick={onClose}>← Wpisy</button>
-        <p className="wk-empty">Nie ma takiego formularza.</p>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('cogitaEditForm.run.back')}</button>
+        <p className="wk-empty">{t('cogitaEditForm.run.missing')}</p>
       </div>
     );
   }
-  if (!writes) return <p className="wk-empty">W tej bazie wiedzy możesz tylko czytać.</p>;
+  if (!writes) return <p className="wk-empty">{t('cogitaEditForm.run.readOnly')}</p>;
   return <Runner key={entry.id} entryId={entry.id} version={entry.version} data={entry.data} onClose={onClose} onOpen={onOpen} onEdit={onEdit} />;
 }
 
@@ -130,6 +132,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const form = useMemo(() => readAddForm(entryId, data), [entryId, version]);
@@ -149,7 +152,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
   const [editDirty, setEditDirty] = useState(false);
   const switchTo = async (next: 'add' | 'edit') => {
     if (next === mode) return;
-    if (editDirty && !(await askText('Odrzucić niezapisane zmiany? Zmiany w wierszach przepadną.'))) return;
+    if (editDirty && !(await askText(t('cogitaEditForm.run.askDiscard')))) return;
     setEditDirty(false);
     setMode(next);
   };
@@ -180,18 +183,18 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
         try {
           const plan = planForm(formRef.current, planCtx(lib), item.rows, item.top);
           if (plan.problems.length > 0) throw new Error(plan.problems.join(' '));
-          const problems = plan.rows.flatMap((r, i) => r.problems.map((p) => (item.rows.length > 1 ? `Wiersz ${i + 1}: ${p}` : p)));
+          const problems = plan.rows.flatMap((r, i) => r.problems.map((p) => (item.rows.length > 1 ? t('cogitaEditForm.run.rowProblem', { n: i + 1, problem: p }) : p)));
           if (item.rows.length === 1 && problems.length > 0) throw new Error(problems.join(' '));
           tell(item, plan, formRef.current, lib);
           item.problems = problems;
           item.done = 0;
           item.total = plan.saves.length;
           const done = await lib.saveMany(plan.saves, (n, total) => { item.done = n; item.total = total; bump(); });
-          if (done.failed.length > 0) throw new Error(`Nie zapisano ${done.failed.length} z ${plan.saves.length}: ${done.failed[0].error}`);
+          if (done.failed.length > 0) throw new Error(t('cogitaEditForm.rows.saveFailed', { n: done.failed.length, of: plan.saves.length, error: done.failed[0].error }));
           item.status = 'done';
         } catch (e) {
           item.status = 'failed';
-          item.error = e instanceof Error && e.message !== '' ? e.message : 'Nie udało się zapisać.';
+          item.error = e instanceof Error && e.message !== '' ? e.message : t('cogitaEditForm.run.saveFailed');
         }
         bump();
       }
@@ -295,17 +298,17 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
   return (
     <div className="cg cg-af">
       <div className="cg-af-title">
-        <button type="button" className="wk-link-btn" onClick={onClose}>← Wpisy</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('cogitaEditForm.run.back')}</button>
         <div className="cg-row-between">
           <h2 className="wk-h2">{form.name}</h2>
-          <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>Zmień formularz</button>
+          <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>{t('cogitaEditForm.run.editForm')}</button>
         </div>
       </div>
       {form.says !== undefined && <p className="cg-muted">{form.says}</p>}
-      <Segment now={mode} busy={false} options={[{ value: 'add', label: 'Dodawanie' }, { value: 'edit', label: 'Edycja tego, co już jest' }]} onPick={(m) => void switchTo(m)} />
+      <Segment now={mode} busy={false} options={[{ value: 'add', label: t('cogitaEditForm.run.modeAdd') }, { value: 'edit', label: t('cogitaEditForm.run.modeEdit') }]} onPick={(m) => void switchTo(m)} />
 
       {top.length > 0 && (
-        <section className="cg-card cg-af-top" aria-label="Na początek">
+        <section className="cg-card cg-af-top" aria-label={t('cogitaEditForm.node.pick')}>
           {top.map((item) => (item.type === 'pick'
             ? <PickChoice key={item.key} item={item} chosen={choice.picks[item.node] ?? item.config.value} onChange={(ids) => setChoice((c) => ({ ...c, picks: { ...c.picks, [item.node]: ids } }))} />
             : (
@@ -321,7 +324,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
       {mode === 'edit' && groups.length > 0 && <EditRows form={form} choice={choice} onDirty={setEditDirty} />}
 
       {mode === 'add' && (groups.length === 0 ? (
-        <p className="wk-empty">Ten formularz nie ma pól wpisywanych w wierszu — <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>uzupełnij go</button>.</p>
+        <p className="wk-empty">{t('cogitaEditForm.run.noFields')} <button type="button" className="wk-link-btn" onClick={() => onEdit(form.id)}>{t('cogitaEditForm.run.complete')}</button>.</p>
       ) : (
         <form className="cg" onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <div className="cg-af-row">
@@ -332,7 +335,7 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
                   <div key={i} className="cg-af-inst">
                     {/* 2026-10-20 — bei jedem Wert der Rodzaj (Psalm oder Pieśń), in der getippten Reihenfolge. */}
                     {g.choices !== undefined && (
-                      <select className="cg-af-kind" aria-label={`${g.label}: rodzaj${i > 0 ? ` (${i + 1})` : ''}`} value={inst._kind ?? g.choices[0].kind.id}
+                      <select className="cg-af-kind" aria-label={`${t('cogitaEditForm.rows.kindOf', { label: g.label })}${i > 0 ? ` (${i + 1})` : ''}`} value={inst._kind ?? g.choices[0].kind.id}
                         onChange={(e) => setText({ node: g.node, i, field: '_kind' }, e.target.value)}>
                         {g.choices.map((ch) => <option key={ch.kind.id} value={ch.kind.id}>{ch.kind.name}</option>)}
                       </select>
@@ -341,49 +344,49 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
                       const at = { node: g.node, i, field: f.key };
                       const k = spots.findIndex((s) => spotKey(s) === spotKey(at));
                       return (
-                        <RowField key={f.key} field={f} value={inst[f.key] ?? ''} label={`${g.label}: ${f.label}${i > 0 ? ` (${i + 1})` : ''}`}
-                          placeholder={g.choices !== undefined ? (g.choices.find((ch) => ch.kind.id === inst._kind) ?? g.choices[0]).field.label : g.fields.length > 1 ? f.label : i > 0 ? 'kolejne' : undefined}
+                        <RowField key={f.key} field={f} value={inst[f.key] ?? ''} label={`${t('cogitaEditForm.askLabel', { node: g.label, field: f.label })}${i > 0 ? ` (${i + 1})` : ''}`}
+                          placeholder={g.choices !== undefined ? (g.choices.find((ch) => ch.kind.id === inst._kind) ?? g.choices[0]).field.label : g.fields.length > 1 ? f.label : i > 0 ? t('cogitaEditForm.run.another') : undefined}
                           last={k === spots.length - 1 && form.keys.enter === 'next'}
                           register={(el) => { if (el === null) inputs.current.delete(spotKey(at)); else inputs.current.set(spotKey(at), el); }}
                           onChange={(v) => setText(at, v)} onKey={(e) => onKey(e, at, isLong(f))} />
                       );
                     })}
-                    {i > 0 && <button type="button" className="wk-link-btn" aria-label="Usuń tę wartość" onClick={() => removeInstance(g.node, i)}>×</button>}
+                    {i > 0 && <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.run.removeValue')} onClick={() => removeInstance(g.node, i)}>×</button>}
                   </div>
                 ))}
-                {g.many && <button type="button" className="wk-link-btn cg-af-more" onClick={() => addInstance(g.node, (row[g.node] ?? [{}]).length - 1)}>+ kolejne</button>}
+                {g.many && <button type="button" className="wk-link-btn cg-af-more" onClick={() => addInstance(g.node, (row[g.node] ?? [{}]).length - 1)}>{t('cogitaEditForm.run.addAnother')}</button>}
               </fieldset>
             ))}
           </div>
           <div className="cg-row">
-            <button type="submit" className="wk-btn" disabled={topProblems.length > 0}>Dodaj wiersz</button>
+            <button type="submit" className="wk-btn" disabled={topProblems.length > 0}>{t('cogitaEditForm.run.addRow')}</button>
             <span className="cg-af-keys">{keyLine.map((k) => <span key={k.name}><kbd>{k.name}</kbd> {k.what}</span>)}</span>
           </div>
           {said !== null && <p className="wk-error">{said}</p>}
         </form>
       ))}
 
-      {mode === 'add' && groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, `Lista: ${rows.length} ${plural(rows.length, 'wiersz', 'wiersze', 'wierszy')}`)} />}
+      {mode === 'add' && groups.length > 0 && <PastePanel form={form} groups={groups} choice={choice} blocked={topProblems} onQueue={(rows) => queue(rows, t('cogitaEditForm.run.listQueued', { count: rows.length }))} />}
 
       <details className="cg-card">
-        <summary>Jak działa ten formularz</summary>
+        <summary>{t('cogitaEditForm.run.how')}</summary>
         <ul className="cg-af-desc">{describeForm(form, look).map((line, i) => <li key={i}>{line}</li>)}</ul>
       </details>
 
       {mode === 'add' && items.length > 0 && (
         <section className="cg-card">
-          <h3>Dodane teraz ({items.filter((x) => x.status === 'done').length}){busy > 0 ? ` · zapisywanie: ${busy}` : ''}</h3>
+          <h3>{t('cogitaEditForm.run.added', { n: items.filter((x) => x.status === 'done').length })}{busy > 0 ? t('cogitaEditForm.run.savingN', { n: busy }) : ''}</h3>
           <ul className="cg-af-log">
             {items.slice(0, 60).map((item) => (
               <LogLine key={item.n} item={item} onOpen={onOpen}
                 onRetry={() => { item.status = 'waiting'; bump(); void pump(); }}
                 onUndo={async () => {
-                  if (item.created.length > 10 && !(await askText(`Usunąć ${item.created.length} dodanych wpisów? Zostaną w historii wersji.`))) return;
-                  await undo(lib, item).then(bump, (e: unknown) => toast(e instanceof Error ? e.message : 'Nie udało się cofnąć.', { kind: 'error' }));
+                  if (item.created.length > 10 && !(await askText(t('cogitaEditForm.run.askUndo', { n: item.created.length })))) return;
+                  await undo(lib, item).then(bump, (e: unknown) => toast(e instanceof Error ? e.message : t('cogitaEditForm.run.undoFailed'), { kind: 'error' }));
                 }} />
             ))}
           </ul>
-          {items.length > 60 && <span className="cg-muted">… i {items.length - 60} wcześniejszych.</span>}
+          {items.length > 60 && <span className="cg-muted">{t('cogitaEditForm.run.earlier', { n: items.length - 60 })}</span>}
         </section>
       )}
     </div>
@@ -414,52 +417,53 @@ async function undo(lib: CogitaLibrary, item: LogItem): Promise<void> {
 }
 
 function LogLine({ item, onOpen, onRetry, onUndo }: { item: LogItem; onOpen: (id: string) => void; onRetry: () => void; onUndo: () => Promise<void> }) {
+  const t = useT();
   const { lib } = useCtx();
   const kindCount = (ids: readonly string[]) => {
     const by = new Map<string, number>();
     for (const id of ids) {
       const e = lib.entity(id);
-      const name = e === undefined ? 'wpis' : lib.kind(e.kinds[0] ?? '')?.name ?? 'wpis';
+      const name = e === undefined ? t('cogitaEditForm.run.entry') : lib.kind(e.kinds[0] ?? '')?.name ?? t('cogitaEditForm.run.entry');
       by.set(name, (by.get(name) ?? 0) + 1);
     }
     return [...by.entries()].map(([name, n]) => (n === 1 ? name : `${name} ×${n}`)).join(', ');
   };
-  const time = item.at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const time = item.at.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' });
   const many = item.rows.length > 1;
   return (
     <li className={`is-${item.status}`}>
       <span className="cg-muted">{time}</span>
       <strong>{item.text || '—'}</strong>
-      {item.status === 'waiting' && <span className="cg-tag">czeka</span>}
-      {item.status === 'saving' && <span className="cg-tag">zapisywanie{item.total > 1 ? ` ${item.done}/${item.total}` : '…'}</span>}
+      {item.status === 'waiting' && <span className="cg-tag">{t('cogitaEditForm.log.waiting')}</span>}
+      {item.status === 'saving' && <span className="cg-tag">{item.total > 1 ? t('cogitaEditForm.log.savingOf', { done: item.done, total: item.total }) : t('cogitaEditForm.log.saving')}</span>}
       {item.status === 'failed' && (
         <>
-          <span className="cg-tag is-bad">nie zapisano</span>
+          <span className="cg-tag is-bad">{t('cogitaEditForm.log.failed')}</span>
           <span className="cg-af-log-error">{item.error}</span>
-          <button type="button" className="wk-link-btn" onClick={onRetry}>Ponów</button>
+          <button type="button" className="wk-link-btn" onClick={onRetry}>{t('cogitaEditForm.log.retry')}</button>
         </>
       )}
-      {item.status === 'undone' && <span className="cg-tag">cofnięte{item.kept ? ` (zostało ${item.kept} — używane gdzie indziej)` : ''}</span>}
+      {item.status === 'undone' && <span className="cg-tag">{item.kept ? t('cogitaEditForm.log.undoneKept', { n: item.kept }) : t('cogitaEditForm.log.undone')}</span>}
       {item.status === 'done' && (
         <>
-          <span className="cg-tag is-ok">dodano</span>
+          <span className="cg-tag is-ok">{t('cogitaEditForm.log.added')}</span>
           <span className="cg-muted">
             {[
-              item.created.length > 0 ? `nowe: ${kindCount(item.created)}` : '',
-              item.changed.length > 0 ? `uzupełnione: ${kindCount(item.changed)}` : '',
-              item.reused.length > 0 ? `już były: ${kindCount(item.reused)}` : '',
-              item.created.length + item.changed.length + item.reused.length === 0 ? 'nic nowego' : '',
-              item.skipped.length > 0 ? `pominięte (${item.skipped.join('; ')})` : '',
-              item.problems.length > 0 ? `wiersze z błędem: ${item.problems.length}` : ''
+              item.created.length > 0 ? t('cogitaEditForm.log.new', { list: kindCount(item.created) }) : '',
+              item.changed.length > 0 ? t('cogitaEditForm.log.changed', { list: kindCount(item.changed) }) : '',
+              item.reused.length > 0 ? t('cogitaEditForm.log.reused', { list: kindCount(item.reused) }) : '',
+              item.created.length + item.changed.length + item.reused.length === 0 ? t('cogitaEditForm.log.nothingNew') : '',
+              item.skipped.length > 0 ? t('cogitaEditForm.log.skipped', { list: item.skipped.join('; ') }) : '',
+              item.problems.length > 0 ? t('cogitaEditForm.log.badRows', { n: item.problems.length }) : ''
             ].filter(Boolean).join(' · ')}
           </span>
           {!many && item.created.slice(0, 6).map((id) => lib.entity(id) === undefined ? null : (
             <button key={id} type="button" className="cg-ref" onClick={() => onOpen(id)}><TexText text={entityNameTex(lib, id)} /></button>
           ))}
-          {item.created.length > 0 && <button type="button" className="wk-link-btn" onClick={() => void onUndo()}>Cofnij</button>}
+          {item.created.length > 0 && <button type="button" className="wk-link-btn" onClick={() => void onUndo()}>{t('cogitaEditForm.log.undo')}</button>}
           {item.problems.length > 0 && (
             <details className="cg-af-problems">
-              <summary>Błędy</summary>
+              <summary>{t('cogitaEditForm.log.errors')}</summary>
               <ul>{item.problems.slice(0, 20).map((p, i) => <li key={i}>{p}</li>)}</ul>
             </details>
           )}
@@ -493,13 +497,14 @@ function RowField({ field, value, label, placeholder, last, register, onChange, 
   onChange: (v: string) => void;
   onKey: (e: KeyboardEvent<HTMLElement>) => void;
 }) {
+  const t = useT();
   if (field.type === 'choice' || field.type === 'bool') {
     return (
       <select ref={register} value={value} aria-label={label} onChange={(e) => onChange(e.target.value)} onKeyDown={onKey}>
         <option value="">—</option>
         {field.type === 'choice'
           ? (field.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-          : ['tak', 'nie', 'nie wiadomo'].map((o) => <option key={o} value={o}>{o}</option>)}
+          : (['tak', 'nie', 'nie wiadomo'] as const).map((o, i) => <option key={o} value={o}>{t(['common.yes', 'common.no', 'cogitaEditForm.rows.unknown'][i]!)}</option>) /* i18n-ignore: die Werte liest readBool (schema.ts) */}
       </select>
     );
   }
@@ -517,6 +522,7 @@ function RowField({ field, value, label, placeholder, last, register, onChange, 
 /* -- Oben gewählt ------------------------------------------------------------------------------ */
 
 function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type: 'pick' }>; chosen: readonly string[]; onChange: (ids: string[]) => void }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   /* „+ Utwórz" steht in der Liste selbst — vorher ein Verweis darunter, den die offene Liste verdeckte. */
   const make = creatorFor(lib, item.config.kinds, writes);
@@ -530,12 +536,12 @@ function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type:
       {item.config.many ? (
         <span className="cg-row">
           {shown.map((id) => (
-            <span key={id} className="cg-tag"><TexText text={entityNameTex(lib, id)} /> <button type="button" className="wk-link-btn" aria-label={`Usuń: ${entityName(lib, id)}`} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
+            <span key={id} className="cg-tag"><TexText text={entityNameTex(lib, id)} /> <button type="button" className="wk-link-btn" aria-label={t('cogitaEditForm.pick.remove', { name: entityName(lib, id) })} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
           ))}
-          <EntityPicker key={round} lib={lib} kinds={kinds} refs {...make} value={null} placeholder="dodaj…" onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
+          <EntityPicker key={round} lib={lib} kinds={kinds} refs {...make} value={null} placeholder={t('cogitaEditForm.pick.add')} onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
         </span>
       ) : (
-        <EntityPicker lib={lib} kinds={kinds} refs {...make} value={shown[0] ?? null} allowClear={item.config.optional} placeholder={`Szukaj: ${item.label}`} onPick={(id) => onChange(id === null ? [] : [id])} />
+        <EntityPicker lib={lib} kinds={kinds} refs {...make} value={shown[0] ?? null} allowClear={item.config.optional} placeholder={t('cogitaEditForm.pick.search', { label: item.label })} onPick={(id) => onChange(id === null ? [] : [id])} />
       )}
     </div>
   );
@@ -550,6 +556,7 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
   blocked: readonly string[];
   onQueue: (rows: readonly RowInput[]) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const [text, setText] = useState('');
   const [rule, setRule] = useState<PasteRule>(form.paste);
@@ -559,35 +566,35 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [parsed, form, choice, blocked.length, lib.revision]);
   const columns = groups.flatMap((g) => g.fields.map((f) => ({ g, f, label: g.fields.length > 1 ? `${g.label}: ${f.label}` : g.label })));
-  const bad = plan === null ? [] : plan.rows.flatMap((r, i) => r.problems.map((p) => `Wiersz ${i + 1}: ${p}`));
+  const bad = plan === null ? [] : plan.rows.flatMap((r, i) => r.problems.map((p) => t('cogitaEditForm.run.rowProblem', { n: i + 1, problem: p })));
   const fresh = plan === null ? [] : plan.saves.filter((s) => s.isNew);
   const byKind = new Map<string, number>();
-  for (const s of fresh) { const name = lib.kind(s.kinds[0] ?? '')?.name ?? 'wpis'; byKind.set(name, (byKind.get(name) ?? 0) + 1); }
+  for (const s of fresh) { const name = lib.kind(s.kinds[0] ?? '')?.name ?? t('cogitaEditForm.run.entry'); byKind.set(name, (byKind.get(name) ?? 0) + 1); }
   const changed = plan === null ? 0 : plan.saves.filter((s) => !s.isNew).length;
-  const separator = parsed.separator === '\t' ? 'tabulator' : parsed.separator === '' ? '' : `„${parsed.separator.trim()}"`;
+  const separator = parsed.separator === '\t' ? t('cogitaEditForm.paste.tab') : parsed.separator === '' ? '' : t('cogitaEditForm.describe.quote', { text: parsed.separator.trim() });
 
   return (
     <details className="cg-card">
-      <summary>Wklej listę</summary>
+      <summary>{t('cogitaEditForm.paste.title')}</summary>
       <div className="cg">
-        <span className="cg-muted">Jedna linia — jeden wiersz; kolumny w kolejności: {columns.map((c) => c.label).join(' | ')}. Można wkleić prosto z arkusza.</span>
-        <textarea className="cg-af-paste" rows={8} value={text} placeholder={columns.length > 1 ? `np.\ncar, automobile\tsamochód\ndog\tpies` : 'jedna wartość w linii'} onChange={(e) => setText(e.target.value)} aria-label="Lista do wklejenia" />
+        <span className="cg-muted">{t('cogitaEditForm.paste.hint', { columns: columns.map((c) => c.label).join(' | ') })}</span>
+        <textarea className="cg-af-paste" rows={8} value={text} placeholder={columns.length > 1 ? t('cogitaEditForm.paste.example') : t('cogitaEditForm.paste.oneValue')} onChange={(e) => setText(e.target.value)} aria-label={t('cogitaEditForm.paste.list')} />
         <div className="cg-row">
           {columns.length > 1 && (
-            <label className="wk-field"><span>Kolumny oddziela</span>
+            <label className="wk-field"><span>{t('cogitaEditForm.paste.columns')}</span>
               <select value={rule.columns} onChange={(e) => setRule({ ...rule, columns: e.target.value as PasteRule['columns'] })}>
                 {COLUMN_SEPARATORS.map((s) => <option key={s} value={s}>{COLUMN_SEPARATOR_LABEL[s]}</option>)}
               </select>
             </label>
           )}
           {groups.some((g) => g.many) && (
-            <label className="wk-field"><span>Kilka wartości w komórce oddziela</span>
+            <label className="wk-field"><span>{t('cogitaEditForm.paste.values')}</span>
               <select value={rule.values} onChange={(e) => setRule({ ...rule, values: e.target.value as PasteRule['values'] })}>
                 {VALUE_SEPARATORS.map((s) => <option key={s} value={s}>{VALUE_SEPARATOR_LABEL[s]}</option>)}
               </select>
             </label>
           )}
-          <label className="pe-check"><input type="checkbox" checked={rule.header} onChange={(e) => setRule({ ...rule, header: e.target.checked })} /><span>pierwsza linia to nagłówki</span></label>
+          <label className="pe-check"><input type="checkbox" checked={rule.header} onChange={(e) => setRule({ ...rule, header: e.target.checked })} /><span>{t('cogitaEditForm.paste.header')}</span></label>
         </div>
         {parsed.rows.length > 0 && (
           <>
@@ -605,14 +612,14 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
               </table>
             </div>
             <span className="cg-muted">
-              {parsed.rows.length} {plural(parsed.rows.length, 'wiersz', 'wiersze', 'wierszy')}{separator === '' ? '' : ` · kolumny rozdzielone: ${separator}`}
-              {parsed.wide > 0 ? ` · w ${parsed.wide} liniach więcej kolumn — reszta trafiła do ostatniej` : ''}
+              {t('cogitaEditForm.rows.count', { count: parsed.rows.length })}{separator === '' ? '' : t('cogitaEditForm.paste.splitBy', { sep: separator })}
+              {parsed.wide > 0 ? t('cogitaEditForm.paste.wide', { n: parsed.wide }) : ''}
             </span>
             {plan !== null && (
               <p className="wk-note">
-                Powstanie: {fresh.length === 0 ? 'nic nowego' : [...byKind.entries()].map(([name, n]) => `${name} ×${n}`).join(', ')}
-                {changed > 0 ? ` · uzupełnione istniejące: ${changed}` : ''}
-                {bad.length > 0 ? ` · wiersze z błędem (pominięte): ${bad.length}` : ''}
+                {t('cogitaEditForm.paste.willMake', { list: fresh.length === 0 ? t('cogitaEditForm.log.nothingNew') : [...byKind.entries()].map(([name, n]) => `${name} ×${n}`).join(', ') })}
+                {changed > 0 ? t('cogitaEditForm.paste.changed', { n: changed }) : ''}
+                {bad.length > 0 ? t('cogitaEditForm.paste.bad', { n: bad.length }) : ''}
               </p>
             )}
             {bad.length > 0 && <ul className="wk-warn">{bad.slice(0, 6).map((p, i) => <li key={i}>{p}</li>)}</ul>}
@@ -621,7 +628,7 @@ function PastePanel({ form, groups, choice, blocked, onQueue }: {
         {blocked.length > 0 && parsed.rows.length > 0 && <p className="wk-warn">{blocked.join(' ')}</p>}
         <div className="cg-row">
           <button type="button" className="wk-btn" disabled={plan === null || plan.saves.length === 0} onClick={() => { onQueue(parsed.rows); setText(''); }}>
-            Dodaj {parsed.rows.length > 0 ? `${parsed.rows.length - bad.length} ${plural(parsed.rows.length - bad.length, 'wiersz', 'wiersze', 'wierszy')}` : 'wszystkie'}
+            {parsed.rows.length > 0 ? t('cogitaEditForm.paste.addN', { count: parsed.rows.length - bad.length }) : t('cogitaEditForm.paste.addAll')}
           </button>
         </div>
       </div>

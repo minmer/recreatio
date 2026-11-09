@@ -15,20 +15,21 @@
  * </code>
  */
 
+import { texts } from '../core/i18n';
 import type { Card } from './cardBasics';
 import { DEFAULT_SPACING, FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState, type Grade, type Mark, type Spacing } from './knowness';
 import type { AnswerRecord } from './learn';
 
 export type Band = 'unseen' | 'weak' | 'fading' | 'known' | 'solid';
 export const BANDS: readonly Band[] = ['unseen', 'weak', 'fading', 'known', 'solid'];
-export const BAND_LABEL: Readonly<Record<Band, string>> = { unseen: 'jeszcze nie', weak: 'zapomniane', fading: 'do powtórki', known: 'umiem', solid: 'pewnie' };
-export const BAND_SAYS: Readonly<Record<Band, string>> = {
-  unseen: 'nigdy nie pytana',
-  weak: 'nieznana: ostatnio źle albo zapomniana (trzy terminy powtórki minęły)',
-  fading: 'umiesz, a teraz trzeba powtórzyć — termin powtórki nie znaczy „nie umiem”',
-  known: 'umiem, przed terminem powtórki',
-  solid: 'świeżo utrwalona'
-};
+export const BAND_LABEL: Readonly<Record<Band, string>> = texts({ unseen: 'cogitaViewsStats.band.unseen', weak: 'cogitaViewsStats.band.weak', fading: 'cogitaViewsStats.band.fading', known: 'cogitaViewsStats.band.known', solid: 'cogitaViewsStats.band.solid' });
+export const BAND_SAYS: Readonly<Record<Band, string>> = texts({
+  unseen: 'cogitaViewsStats.bandSays.unseen',
+  weak: 'cogitaViewsStats.bandSays.weak',
+  fading: 'cogitaViewsStats.bandSays.fading',
+  known: 'cogitaViewsStats.bandSays.known',
+  solid: 'cogitaViewsStats.bandSays.solid'
+});
 
 /** Wo eine Kenntnis steht (ohne Antwort: `unseen`). */
 export function bandAt(state: CardState | null, now: number): Band {

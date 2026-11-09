@@ -34,6 +34,7 @@ import { deckOf, resolveTheme, type Look } from './slideLook';
 import { askText } from '../../ui/dialogs';
 import { CompanionEditor, LayoutEditor, MotionEditor, StageEditor, ThemeEditor } from './SlideSettings';
 import { DeckEditor, LayerEditor } from './LayerEditor';
+import { rich, useT } from '../../core/i18n';
 
 const FULL = partSize({ colSpan: 6, rowSpan: 5 });
 
@@ -48,6 +49,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
   onLook: (next: Look) => void;
   onOpenModule: (moduleId: string, parts: readonly DraftPart[]) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<string | null>(null);
   const control = useRef<DeckControl | null>(null);
   const dark = usePrefersDark();
@@ -114,8 +116,8 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
         <DeckEditor path={path} theme={theme} deck={whole} busy={busy} onChange={(deck) => onLook({ ...look, deck })} />
 
         <details className="wk-fold se-cover">
-          <summary>Slajd tytułowy {hasCover ? '' : '(pojawi się, gdy strona ma tytuł albo tekst)'}</summary>
-          <p className="wk-hint">Tytuł i tekst strony — na pierwszym slajdzie. Tutaj jego tło.</p>
+          <summary>{hasCover ? t('pagesSlides.editor.cover') : t('pagesSlides.editor.coverLater')}</summary>
+          <p className="wk-hint">{t('pagesSlides.editor.coverHint')}</p>
           <LayerEditor
             path={path}
             theme={theme}
@@ -126,8 +128,8 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
           />
         </details>
 
-        <h4 className="pb-h">Slajdy ({parts.length})</h4>
-        {parts.length === 0 && <p className="pb-empty">Nie ma jeszcze slajdu. Dodaj pierwszy poniżej.</p>}
+        <h4 className="pb-h">{t('pagesSlides.editor.slides', { n: parts.length })}</h4>
+        {parts.length === 0 && <p className="pb-empty">{t('pagesSlides.editor.empty')}</p>}
 
         <ol className="se-list">
           {parts.map((part, index) => {
@@ -146,25 +148,25 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
               <li key={part.id} className={`se-item${expanded ? ' is-open' : ''}`}>
                 <div className="se-row">
                   <button type="button" className={`se-num${onStage ? ' is-stage' : ''}${beside ? ' is-beside' : ''}`}
-                    title={onStage ? 'Na scenie — przechodzi między slajdami' : beside ? 'Obok innego modułu, na jego slajdzie' : 'Pokaż w podglądzie'} onClick={() => show(index)}>
+                    title={t(onStage ? 'pagesSlides.editor.onStage' : beside ? 'pagesSlides.editor.beside' : 'pagesSlides.editor.showPreview')} onClick={() => show(index)}>
                     {onStage ? '◆' : beside ? '↳' : deckIndex(part.id) + 1}
                   </button>
                   <button type="button" className="se-name" aria-expanded={expanded}
                     onClick={() => { setOpen(expanded ? null : part.id); show(index); }}>
                     <strong>{slideLabelOf(part)}</strong>
                     <span className="se-kind">
-                      {partLabel(part.kind)}{onStage ? ' · na scenie, przechodzi między slajdami' : ''}
-                      {mainOf !== undefined ? ` · obok „${slideLabelOf(mainOf)}”` : ''}
+                      {partLabel(part.kind)}{onStage ? t('pagesSlides.editor.onStageTag') : ''}
+                      {mainOf !== undefined ? t('pagesSlides.editor.besideTag', { name: slideLabelOf(mainOf) }) : ''}
                       {!onStage && !beside && slide.transition !== 'scroll' ? ` · ${TRANSITION_LABEL[slide.transition].split(' — ')[0].toLowerCase()}` : ''}
-                      {todo ? ' · do uzupełnienia' : ''}
+                      {todo ? t('pagesSlides.editor.todoTag') : ''}
                     </span>
                   </button>
                   <span className="se-tools">
-                    <button type="button" aria-label="W górę" disabled={busy || index === 0} onClick={() => move(index, -1)}>↑</button>
-                    <button type="button" aria-label="W dół" disabled={busy || index === parts.length - 1} onClick={() => move(index, 1)}>↓</button>
-                    <button type="button" aria-label="Usuń slajd" className="se-drop" disabled={busy}
+                    <button type="button" aria-label={t('pagesSlides.editor.up')} disabled={busy || index === 0} onClick={() => move(index, -1)}>↑</button>
+                    <button type="button" aria-label={t('pagesSlides.editor.down')} disabled={busy || index === parts.length - 1} onClick={() => move(index, 1)}>↓</button>
+                    <button type="button" aria-label={t('pagesSlides.editor.remove')} className="se-drop" disabled={busy}
                       onClick={async () => {
-                        if (!(await askText(`Usunąć slajd „${slideLabelOf(part)}"?`))) return;
+                        if (!(await askText(t('pagesSlides.editor.removeAsk', { name: slideLabelOf(part) })))) return;
                         onChange(parts.filter((p) => p.id !== part.id));
                       }}>×</button>
                   </span>
@@ -173,15 +175,15 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                 {expanded && (
                   <div className="se-body">
                     <label className="wk-field">
-                      <span>Nazwa w menu slajdów</span>
+                      <span>{t('pagesSlides.editor.label')}</span>
                       <input value={slide.label} placeholder={slideLabelOf({ ...part, layout: withSlide(part.layout, { ...slide, label: '' }) })}
                         disabled={busy} maxLength={60}
                         onChange={(e) => replace(part.id, { ...part, layout: withSlide(part.layout, { ...slide, label: e.target.value }) })} />
-                      <span className="wk-hint">Puste: nagłówek modułu. Link w tekście „#{'{'}nazwa{'}'}" prowadzi do tego slajdu.</span>
+                      <span className="wk-hint">{t('pagesSlides.editor.labelHint', { word: t('pagesSlides.editor.labelWord') })}</span>
                     </label>
 
                     <details className="wk-fold" open>
-                      <summary>Treść</summary>
+                      <summary>{t('pagesSlides.editor.content')}</summary>
                       <PartSettings
                         part={part}
                         size={FULL}
@@ -203,11 +205,11 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                       mit einem Platz je Slajd, zu dem er beim Wechsel gleitet.
                     */}
                     <fieldset className="se-where">
-                      <legend>Gdzie stoi</legend>
+                      <legend>{t('pagesSlides.editor.where')}</legend>
                       <label className="wk-check">
                         <input type="radio" name={`where-${part.id}`} checked={!onStage && !beside} disabled={busy}
                           onChange={() => setSlide({ ...slide, stage: null, with: null })} />
-                        <span><strong>Własny slajd</strong></span>
+                        <span><strong>{t('pagesSlides.editor.own')}</strong></span>
                       </label>
                       <label className="wk-check se-stage-toggle">
                         <input type="radio" name={`where-${part.id}`} checked={onStage} disabled={busy}
@@ -215,10 +217,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                             const first = deck[0]?.key ?? COVER_KEY;
                             setSlide({ ...slide, with: null, stage: { frames: { [first]: { ...STAGE_FRAME, x: 78, y: 22, w: 26 } }, bare: false } });
                           }} />
-                        <span>
-                          <strong>Przechodzi między slajdami</strong> — nie ma własnego slajdu; stoi nad wszystkimi i przy zmianie
-                          slajdu przesuwa się na swoje miejsce na następnym (logo, przycisk „Zapisz się”, licznik, cytat).
-                        </span>
+                        <span>{rich(t('pagesSlides.editor.stageNote'), { b: (s, k) => <strong key={k}>{s}</strong> })}</span>
                       </label>
                       {own.some((p) => p.id !== part.id) && (
                         <label className="wk-check">
@@ -227,9 +226,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                               const main = own.find((p) => p.id !== part.id);
                               if (main !== undefined) setSlide({ ...slide, stage: null, with: { slide: main.id, side: 'end', share: 45, tallSide: 'start' } });
                             }} />
-                          <span>
-                            <strong>Obok innego modułu</strong> — na jego slajdzie, w jednym rzędzie (obraz, animacja obok tekstu); na telefonie nad nim albo pod nim.
-                          </span>
+                          <span>{rich(t('pagesSlides.editor.besideNote'), { b: (s, k) => <strong key={k}>{s}</strong> })}</span>
                         </label>
                       )}
                     </fieldset>
@@ -240,7 +237,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
 
                     {/* 0107 — jeder, wo er auch steht, darf sich bewegen: ein Auftritt, wenn sein Slajd erreicht ist, eine Schleife. */}
                     <details className="wk-fold">
-                      <summary>Ruch{slide.motion.length > 0 ? ` (${slide.motion.length})` : ''}</summary>
+                      <summary>{slide.motion.length > 0 ? t('pagesSlides.editor.motionN', { n: slide.motion.length }) : t('pagesSlides.editor.motion')}</summary>
                       <MotionField value={slide.motion} busy={busy} onChange={(motion) => setSlide({ ...slide, motion })} />
                     </details>
 
@@ -249,17 +246,17 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                     ) : beside ? null : (
                       <>
                         <details className="wk-fold">
-                          <summary>Przejście i wejście{slide.transition !== 'scroll' || slide.enter !== 'none' || slide.colors !== null ? ' (ustawione)' : ''}</summary>
+                          <summary>{slide.transition !== 'scroll' || slide.enter !== 'none' || slide.colors !== null ? t('pagesSlides.editor.transitionSet') : t('pagesSlides.editor.transition')}</summary>
                           <MotionEditor slide={slide} first={deckIndex(part.id) === 0} busy={busy} onChange={setSlide} />
                         </details>
 
                         <details className="wk-fold">
-                          <summary>Układ{slide.layout !== null ? ' (ustawiony)' : ''}</summary>
+                          <summary>{slide.layout !== null ? t('pagesSlides.editor.layoutSet') : t('pagesSlides.editor.layout')}</summary>
                           <LayoutEditor slide={slide} busy={busy} onChange={setSlide} />
                         </details>
 
                         <details className="wk-fold">
-                          <summary>Tło slajdu</summary>
+                          <summary>{t('pagesSlides.editor.background')}</summary>
                           <LayerEditor
                             path={path}
                             theme={theme}
@@ -279,7 +276,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
         </ol>
 
         <div className="se-add">
-          <span className="pb-h">Dodaj slajd</span>
+          <span className="pb-h">{t('pagesSlides.editor.add')}</span>
           <div className="pb-palette">
             {palette().map((one) => (
               <button key={one.kind} type="button" className="pb-pill" title={one.use} disabled={busy} onClick={() => add(one.kind)}>
@@ -292,7 +289,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
       </div>
 
       <div className="se-preview">
-        <p className="wk-hint">Podgląd — przewijaj w ramce, klikaj nazwy slajdów. Tak zobaczy to gość (bez zapisywania).</p>
+        <p className="wk-hint">{t('pagesSlides.editor.previewHint')}</p>
         <PageSlides parts={parts} look={look} title={title} lead={lead} embedded control={control} />
       </div>
     </div>

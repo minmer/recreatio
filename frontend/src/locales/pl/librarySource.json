@@ -179,5 +179,153 @@
     "use": "## Jak aplikacja używa tych danych\n- Dzieło i wpisy z \"entries\" trafiają do biblioteki, w której importuje się dokument; tekst — do biblioteki wybranej przy imporcie. Po zapisie otwiera się strona dzieła.\n- Dzieło, autorzy i czasopismo to zwykłe wpisy Biblioteki (widzi je, kto widzi jej obszar): mają swoje strony i cytuje się je kluczem — [@kowalski2020, s. 47] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem.",
     "prompt": "Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficzne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.\n\nPrzepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz. Jeśli całość nie zmieści się w jednej odpowiedzi, w pierwszej daj \"work\", \"entries\" i pierwsze części, a w następnych — \"work\": \"@klucz-dzieła\" i kolejne części.",
     "textHead": "## Tekst"
+  },
+  "box": {
+    "title": "Tekst źródła",
+    "none": "Brak pełnego tekstu — dzieło działa i bez niego. Gdy tekst się pojawi, cytaty i przypisy z miejscem same do niego poprowadzą.",
+    "read": "Czytaj",
+    "parts": {
+      "one": "{count} część",
+      "few": "{count} części",
+      "many": "{count} części",
+      "other": "{count} części"
+    },
+    "inLibrary": "w bibliotece „{name}”",
+    "inLibraryApart": "w bibliotece „{name}” (osobno od dzieła)",
+    "add": "Dodaj tekst (JSON)",
+    "change": "Dodaj lub zmień części (JSON)",
+    "modal": "Tekst źródła — import JSON",
+    "textLibrary": "Biblioteka tekstu",
+    "publicMark": " (publiczna)",
+    "apart": "Tekst będzie w bibliotece „{target}”, dzieło jest w „{work}”. Kto czyta tylko „{work}”, widzi dzieło i cytaty, ale nie tekst.",
+    "publicNote": "Biblioteka „{name}” jest publiczna — tekst przeczyta każdy, także bez konta.",
+    "publicAsk": "Tekst w bibliotece publicznej?",
+    "publicBody": "Biblioteka „{name}” jest w obszarze publicznym — pełny tekst przeczyta każdy, także bez konta. Udostępniaj tylko teksty, które wolno publikować (prawa autorskie).",
+    "publicConfirm": "Tak, zapisz publicznie",
+    "otherWork": "Ten tekst jest dla innego dzieła („{key}”) — zaimportuj go w Źródłach jako „Dzieło z tekstem” albo otwórz właściwe dzieło.",
+    "workSkipped": "Dane dzieła z dokumentu pominięte — to dzieło już jest; jego pola zmienisz na tej stronie.",
+    "removeAsk": "Usunąć tekst tego dzieła?",
+    "removeBody": "Usuwa pełny tekst z biblioteki „{name}” ({parts}). Dzieło, cytaty i przypisy zostają — przestaną tylko prowadzić do tekstu.",
+    "removeConfirm": "Usuń tekst",
+    "summary": "Tekst: {title}",
+    "lead": "Jedna część tekstu, kilka albo cały tekst („portions”) — np. przepisany przez AI z PDF-u. Część o tym samym kluczu zastępuje poprzednią, inne zostają; ta sama część drugi raz niczego nie zmienia. Obok jest opis formatu i polecenie do skopiowania.",
+    "fileName": "tekst",
+    "importText": "Importuj tekst",
+    "removeFrom": "Usuń tekst z „{name}”",
+    "withWorkButton": "Dzieło z tekstem (JSON)",
+    "withWorkModal": "Dzieło z pełnym tekstem — import JSON",
+    "savingEntry": "Zapisywanie wpisu {n} z {total}…",
+    "workElsewhere": "Dzieło jest w innej bibliotece — tekst dodasz na jego stronie.",
+    "opening": "Otwieram stronę dzieła…",
+    "withWorkSummary": "Dzieło z pełnym tekstem",
+    "withWorkLead": "Jeden dokument: opis dzieła (książki, artykułu, rozdziału, dokumentu), jego autorzy i — gdy trzeba — czasopismo albo książka, w której jest, oraz jego tekst w częściach. Dzieło trafia do „{name}”; o istniejącym kluczu zostaje uzupełnione, nie zdublowane. Obok opis formatu i polecenie dla AI.",
+    "withWorkFile": "dzielo-z-tekstem",
+    "withWorkImport": "Importuj dzieło z tekstem"
+  },
+  "reader": {
+    "noWork": "Tego dzieła nie ma (albo nie masz do niego dostępu).",
+    "backToLibrary": "Wróć do biblioteki",
+    "noText": "To dzieło nie ma jeszcze tekstu, który możesz czytać. Dodasz go na stronie dzieła („Tekst źródła”).",
+    "text": "Tekst",
+    "textN": "Tekst {n} — {parts}",
+    "noParts": "Ten tekst nie ma jeszcze żadnej części.",
+    "tocLabel": "Części tekstu",
+    "toc": "Części",
+    "goLabelled": "s. 45 · Twierdzenie 2.3",
+    "goPlace": "miejsce",
+    "goLabel": "Przejdź do miejsca",
+    "go": "Przejdź",
+    "beside": "Obok",
+    "otherEdition": "— inne wydanie —",
+    "opening": "Otwieranie tekstu…",
+    "typesetting": "Składanie wzorów…",
+    "partFailed": "Tej części nie da się teraz otworzyć.",
+    "texMissing": "Wzory pokazane jako kod LaTeX — moduł do ich składania nie wczytał się (brak sieci?).",
+    "neighbours": "Sąsiednie części",
+    "openingPart": "Otwieranie części {n} z {total}…",
+    "searchPlaceholder": "Szukaj w tekście",
+    "searchLabel": "Szukaj w całym tekście",
+    "notFound": "Nie znaleziono.",
+    "selection": "Zaznaczony fragment",
+    "copyWithPlace": "Kopiuj z miejscem",
+    "openingOther": "Otwieranie drugiego wydania…",
+    "otherMissing": "Drugie wydanie nie ma tej części (albo nie ma w niej miejsc tej struktury — strony się nie przenoszą)."
+  },
+  "blocks": {
+    "refMissing": "Tego miejsca nie ma w zapisanym tekście",
+    "showInText": "Pokaż w tekście",
+    "showInOtherPart": "Pokaż w tekście (w innej części)",
+    "pageStart": "Początek strony {page}",
+    "pageStartPdf": "Początek strony {page} (strona {pdf} pliku PDF)",
+    "note": "Przypis {id}",
+    "unsure": "Niepewny odczyt",
+    "unsureMark": "niepewny odczyt",
+    "gap": "Brak w źródle albo pominięte",
+    "place": "Miejsce: {loc}",
+    "figure": "Rysunek",
+    "figureInSource": "Rysunek w źródle",
+    "qed": "Koniec dowodu"
+  },
+  "jump": {
+    "ambiguous": "[w tekście: niejednoznaczne]",
+    "hide": "ukryj tekst",
+    "show": "pokaż w tekście{other}",
+    "reader": "czytnik",
+    "failed": "Tego fragmentu nie da się teraz otworzyć.",
+    "notInPart": "W tej części tekstu nie widać tego miejsca."
+  },
+  "scheme": {
+    "pages": {
+      "label": "Strony wydania",
+      "says": "Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy książka numeruje swoje części osobno (wstęp „xii” albo „12*”, dodatek „3'”, wkładki „(7)”, „A12”), strona niesie znaki swojej serii tak, jak są wydrukowane — dowolne — a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce."
+    },
+    "bible": {
+      "label": "Pismo Święte",
+      "says": "Księga, rozdział, werset — wspólne dla wszystkich przekładów (numeracja psalmów: hebrajska, grecka w nawiasie)."
+    },
+    "numbered": {
+      "label": "Numery (dokumenty)",
+      "says": "Numerowane punkty dokumentów Kościoła, katechizmu, kodeksów; paragraf w numerze po „§\"."
+    },
+    "aquinas": {
+      "label": "Tomasz z Akwinu",
+      "says": "Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad)."
+    },
+    "decimal": {
+      "label": "Numeracja dziesiętna",
+      "says": "Twierdzenia numerowane dziesiętnie, jak w Traktacie logiczno-filozoficznym: każda cyfra po kropce to poziom niżej."
+    },
+    "sections": {
+      "label": "Paragrafy dzieła",
+      "says": "Paragrafy (uwagi) numerowane w całym dziele, z częściami, jak w Dociekaniach filozoficznych."
+    },
+    "outline": {
+      "label": "Podział dzieła",
+      "says": "Tom, część, księga, rozdział, paragraf, akapit — tyle poziomów, ile ma dzieło."
+    },
+    "time": {
+      "label": "Czas nagrania",
+      "says": "Minuty i sekundy nagrania — jak strony wydania należą do tego jednego wykonania, nie do utworu."
+    }
+  },
+  "statement": {
+    "definition": "Definicja",
+    "theorem": "Twierdzenie",
+    "lemma": "Lemat",
+    "proposition": "Stwierdzenie",
+    "corollary": "Wniosek",
+    "axiom": "Aksjomat",
+    "conjecture": "Hipoteza",
+    "fact": "Fakt",
+    "property": "Własność",
+    "example": "Przykład",
+    "remark": "Uwaga",
+    "exercise": "Ćwiczenie",
+    "problem": "Zadanie",
+    "solution": "Rozwiązanie",
+    "answer": "Odpowiedź",
+    "proof": "Dowód",
+    "notation": "Oznaczenie",
+    "algorithm": "Algorytm"
   }
 }

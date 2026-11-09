@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import type { Ring, SealedRole } from '../core/keys';
 import type { Who } from '../core/session';
+import { useT } from '../core/i18n';
 import { DOTS, KIND_NAME } from './RoleNode';
 import { type EdgeKind, type NewKind, type RoleEdge, createRole, dropHolder, renameRole, retypeRole, revokeRole } from './roles';
 
@@ -25,22 +26,22 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [newName, setNewName] = useState('');
   const [newKind, setNewKind] = useState<NewKind>('role');
 
   const mine = ring !== null && ring.has(role.id);
-  const label = (id: string) => names.get(id) ?? 'zapieczętowane';
+  const label = (id: string) => names.get(id) ?? t('roles.graph.sealed');
 
   return (
     <>
-      <h2 className="wk-h2">{name ?? (mine ? 'bez nazwy' : 'zapieczętowane')}</h2>
+      <h2 className="wk-h2">{name ?? (mine ? t('roles.graph.noName') : t('roles.graph.sealed'))}</h2>
       <p className="wk-row-side">{KIND_NAME[role.kind]} · <code>{role.id.slice(0, 8)}</code></p>
 
       {!mine && (
         <p className="wk-empty">
-          Tej roli nie masz otwartej — widzisz, że istnieje, ale nie jej nazwę
-          ani jej wnętrza.
+          {t('roles.panel.closed')}
         </p>
       )}
 
@@ -53,35 +54,35 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
             onSubmit={(e) => {
               e.preventDefault();
               if (draft.trim() !== '' && ring !== null) {
-                void onAct('Zmiana nazwy…', () => renameRole(ring, role.id, draft)).then(() => setDraft(''));
+                void onAct(t('roles.panel.renaming'), () => renameRole(ring, role.id, draft)).then(() => setDraft(''));
               }
             }}
           >
             <label className="wk-field">
-              <span>Nazwa</span>
+              <span>{t('common.name')}</span>
               <input value={draft} placeholder={name ?? ''} onChange={(e) => setDraft(e.target.value)} />
             </label>
             <div className="wk-actions">
-              <button type="submit" className="wk-btn" disabled={busy || draft.trim() === ''}>Zmień nazwę</button>
+              <button type="submit" className="wk-btn" disabled={busy || draft.trim() === ''}>{t('roles.panel.rename')}</button>
             </div>
-            <p className="wk-hint">Nazwa działa wstecz — także nad tym, co ta rola zrobiła wcześniej.</p>
+            <p className="wk-hint">{t('roles.panel.renameHint')}</p>
           </form>
 
           {role.kind !== 'person' && (
             <div className="wk-actions">
               <button
                 type="button" className="wk-btn" disabled={busy}
-                onClick={() => void onAct('Zmiana rodzaju…',
+                onClick={() => void onAct(t('roles.panel.retyping'),
                   () => retypeRole(role.id, role.kind === 'role' ? 'group' : 'role'))}
               >
-                Zmień na {role.kind === 'role' ? 'grupę' : 'rolę'}
+                {role.kind === 'role' ? t('roles.panel.toGroup') : t('roles.panel.toRole')}
               </button>
             </div>
           )}
 
-          <h3 className="wk-h2">Kto trzyma</h3>
+          <h3 className="wk-h2">{t('roles.panel.holders')}</h3>
           <ul className="wk-list">
-            {holders.length === 0 && <li className="wk-empty">Nikt — to korzeń Twojego konta.</li>}
+            {holders.length === 0 && <li className="wk-empty">{t('roles.panel.root')}</li>}
             {holders.map((edge) => {
               const dot = DOTS.find((d) => d.kind === edge.edgeKind) ?? DOTS[0];
 
@@ -100,17 +101,17 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
                     {label(edge.fromRoleId)}
                     <span className="wk-dot-key" style={{ marginLeft: '.5rem' }}>
                       <i style={{ background: dot.colour }} />
-                      {dot.name}
+                      {t(dot.name)}
                     </span>
                   </span>
 
                   {!last && (
                     <button
                       type="button" className="wk-link-btn" disabled={busy}
-                      onClick={() => void onAct(`Odbieranie: ${dot.name}…`,
+                      onClick={() => void onAct(t('roles.panel.taking', { name: t(dot.name) }),
                         () => dropHolder(role.id, edge.fromRoleId, edge.edgeKind as EdgeKind))}
                     >
-                      Odbierz
+                      {t('roles.panel.take')}
                     </button>
                   )}
                 </li>
@@ -120,29 +121,29 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
 
           {/* Anlegen: die gewählte Rolle HÄLT die neue. Ohne Halter gäbe es eine
               Rolle, deren Schlüssel niemand hat. */}
-          <h3 className="wk-h2">Nowa rola pod tą</h3>
+          <h3 className="wk-h2">{t('roles.panel.newUnder')}</h3>
           <form
             className="wk-form"
             onSubmit={(e) => {
               e.preventDefault();
               if (newName.trim() !== '' && ring !== null) {
-                void onAct('Liczenie kluczy nowej roli…',
+                void onAct(t('roles.common.computingKeys'),
                   () => createRole(ring, role, { kind: newKind, name: newName }))
                   .then(() => setNewName(''));
               }
             }}
           >
             <label className="wk-field">
-              <span>Nazwa</span>
+              <span>{t('common.name')}</span>
               <input value={newName} onChange={(e) => setNewName(e.target.value)} />
             </label>
 
             <label className="wk-field">
-              <span>Rodzaj</span>
+              <span>{t('roles.panel.kind')}</span>
               <select value={newKind} onChange={(e) => setNewKind(e.target.value as NewKind)}>
-                <option value="person">Osoba — konkretny człowiek</option>
-                <option value="role">Rola — funkcja, którą ktoś pełni</option>
-                <option value="group">Grupa — ci, którzy do niej należą</option>
+                <option value="person">{t('roles.panel.kinds.person')}</option>
+                <option value="role">{t('roles.panel.kinds.role')}</option>
+                <option value="group">{t('roles.panel.kinds.group')}</option>
               </select>
             </label>
 
@@ -153,16 +154,15 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
             */}
             {newKind === 'person' && (
               <p className="wk-hint">
-                Osoba to człowiek, nie funkcja. Jeśli chodzi Ci o coś, co można
-                komuś przekazać — wybierz „Rola".
+                {t('roles.panel.personHint')}
               </p>
             )}
 
             <div className="wk-actions">
-              <button type="submit" className="wk-btn" disabled={busy || newName.trim() === ''}>Załóż rolę</button>
+              <button type="submit" className="wk-btn" disabled={busy || newName.trim() === ''}>{t('roles.panel.createRole')}</button>
             </div>
             <p className="wk-hint">
-              Powstają dwa klucze RSA-4096 — to potrwa kilka sekund.
+              {t('roles.panel.keysHint')}
             </p>
           </form>
 
@@ -170,9 +170,9 @@ export function Panel({ role, ring, name, holders, names, busy, onAct }: {
             <div className="wk-actions">
               <button
                 type="button" className="wk-link-btn" disabled={busy}
-                onClick={() => void onAct('Usuwanie…', () => revokeRole(role.id))}
+                onClick={() => void onAct(t('roles.panel.removing'), () => revokeRole(role.id))}
               >
-                Usuń tę rolę
+                {t('roles.panel.remove')}
               </button>
             </div>
           )}
@@ -195,16 +195,16 @@ export function AccountPanel({ who, ring, account, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
 
   return (
     <>
-      <h2 className="wk-h2">Konto</h2>
+      <h2 className="wk-h2">{t('roles.node.kind.account')}</h2>
       <p className="wk-row-side">{who.loginId}</p>
 
       <p className="wk-hint">
-        Konto samo niczego nie trzyma. Obszary, adresy i role należą do osób,
-        które konto prowadzi.
+        {t('roles.panel.accountHint')}
       </p>
 
       {ring !== null && ring.has(account.id) && (
@@ -213,21 +213,21 @@ export function AccountPanel({ who, ring, account, busy, onAct }: {
           onSubmit={(e) => {
             e.preventDefault();
             if (name.trim() !== '') {
-              void onAct('Liczenie kluczy nowej osoby…',
+              void onAct(t('roles.panel.computingPerson'),
                 () => createRole(ring, account, { kind: 'person', name }))
                 .then(() => setName(''));
             }
           }}
         >
-          <h3 className="wk-h2">Nowa osoba</h3>
+          <h3 className="wk-h2">{t('roles.panel.newPerson')}</h3>
           <label className="wk-field">
-            <span>Imię</span>
+            <span>{t('roles.panel.firstName')}</span>
             <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
           </label>
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>Załóż osobę</button>
+            <button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>{t('roles.panel.createPerson')}</button>
           </div>
-          <p className="wk-hint">Powstają dwa klucze RSA-4096 — to potrwa kilka sekund.</p>
+          <p className="wk-hint">{t('roles.panel.keysHint')}</p>
         </form>
       )}
     </>

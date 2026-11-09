@@ -53,8 +53,14 @@ const N = 'formsNeeds.';
 const tx = <T extends object>(base: object, keys: Readonly<Record<string, string>>): T => {
   const out: Record<string, unknown> = { ...base };
   for (const [prop, key] of Object.entries(keys)) Object.defineProperty(out, prop, { get: () => t(N + key), enumerable: true });
+  /* Der Schlüssel des Wortlauts — damit eine Frage auch in einer anderen Sprache wiedererkannt wird. */
+  if (keys.label !== undefined) Object.defineProperty(out, 'labelKey', { value: N + keys.label, enumerable: false });
   return out as T;
 };
+
+/** Steht da dieser Wortlaut — in irgendeiner Sprache der App? (Formulare bleiben in der Sprache, in der sie entstanden.) */
+export const inAnyLang = (key: string, text: string | null | undefined): boolean =>
+  text != null && text.trim() !== '' && LANGS.some((lang) => tIn(lang, key).trim() === text.trim());
 
 /* -- Die Wortlaute ------------------------------------------------------------------- */
 
@@ -74,6 +80,9 @@ export interface Q {
    * Wortlaut — deshalb hält das Wymaganie sie fest (`lockedOf().options`).
    */
   readonly options?: readonly string[];
+  /** Die Schlüssel von `label` und `options` — zum Wiedererkennen in jeder Sprache. */
+  readonly labelKey?: string;
+  readonly optionKeys?: readonly string[];
 }
 
 const Q_GIVEN: Q = tx({ id: 'given', kind: 'line', identity: 'given_name', required: true, half: true }, { label: 'q.given' });
@@ -121,7 +130,10 @@ const INFO = (): string => t(`${N}info`);
 export const needSigner = (): string => t(`${N}signer`);
 
 /** Steht noch der vorgeschlagene Unterzeichner da — in irgendeiner Sprache? */
-export const isNeedSigner = (text: string): boolean => LANGS.some((lang) => tIn(lang, `${N}signer`) === text);
+export const isNeedSigner = (text: string): boolean => inAnyLang(`${N}signer`, text);
+
+/** Ist das der Schritt der Kanzlei für die Zustimmung auf Papier — in irgendeiner Sprache? */
+export const isNeedStep = (text: string | null | undefined): boolean => inAnyLang(`${N}approvalStep`, text);
 
 /** Der Schritt der Kanzlei, wenn Eltern auf Papier zustimmen. */
 const APPROVAL_STEP = (): string => t(`${N}approvalStep`);
@@ -266,7 +278,7 @@ function minorShape(choice: NeedChoice): NeedShape {
   const has = (w: MinorWay) => ways.includes(w);
 
   const questions: Q[] = [Q_GIVEN, Q_SURNAME, ask ? Q_MINOR : Q_BORN];
-  if (many) questions.push({ id: 'way', kind: 'choice', label: t(`${N}q.way`), options: ways.map((w) => WAY_OPTION[w]) });
+  if (many) questions.push({ id: 'way', kind: 'choice', label: t(`${N}q.way`), labelKey: `${N}q.way`, options: ways.map((w) => WAY_OPTION[w]), optionKeys: ways.map((w) => `${N}way.${w}`) });
   if (has('adult')) questions.push(Q_ADULT);
   if (has('consent')) questions.push(Q_GNAME, Q_GPHONE);
 

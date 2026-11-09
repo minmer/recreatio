@@ -1,0 +1,201 @@
+{
+  "fieldType": {
+    "text": "Text",
+    "longtext": "längerer Text",
+    "number": "Zahl",
+    "choice": "Auswahl",
+    "colour": "liturgische Farbe",
+    "date": "Datum",
+    "time": "Uhrzeit",
+    "bool": "ja / nein",
+    "bible": "Schriftstelle",
+    "person": "Person",
+    "link": "Link"
+  },
+  "colour": {
+    "white": "weiß",
+    "red": "rot",
+    "green": "grün",
+    "violet": "violett",
+    "rose": "rosa",
+    "black": "schwarz",
+    "gold": "golden",
+    "blue": "blau"
+  },
+  "universal": {
+    "name": "Universell",
+    "single": "einzeln",
+    "collective": "gemeinsam",
+    "list": "Intentionen",
+    "item": "Intention",
+    "text": "Text der Intention",
+    "person": "Wer zelebriert",
+    "giver": "Stifter",
+    "giverSays": "Wer sie bestellt hat — wird nicht vorgelesen, bleibt im Pfarrbüro.",
+    "offering": "Spende",
+    "offeringSays": "Spende — bleibt im Pfarrbüro.",
+    "listSays": "Messintentionen: der Text, der in der Messe und am Aushang gelesen wird, die Art (einzeln / gemeinsam), wer zelebriert.",
+    "says": "Das Schema, das jeder ältere Termin hat: alle Arten und Messintentionen."
+  },
+  "yes": "ja",
+  "no": "nein",
+  "status": {
+    "waiting": "wartet",
+    "accepted": "angenommen",
+    "declined": "abgelehnt",
+    "cancelled": "zurückgezogen",
+    "celebrated": "stattgefunden"
+  },
+  "intentionStatus": {
+    "waiting": "wartet",
+    "accepted": "angenommen",
+    "declined": "abgelehnt",
+    "cancelled": "zurückgezogen",
+    "celebrated": "gefeiert"
+  },
+  "recordOutsidePublic": "Von außen lassen sich nur öffentliche Felder angeben.",
+  "read": {
+    "optionsList": "{where}: „options“ muss eine Liste sein — übersprungen.",
+    "optionNoName": "{where}: Option ohne Namen — übersprungen.",
+    "fieldsList": "{where}: „fields“ muss eine Liste sein — übersprungen.",
+    "fieldNoName": "{where}: Feld {n} ohne Namen („label“) — übersprungen.",
+    "fieldType": "{where}: „{label}“ — unbekannter Typ „{type}“, wird Text.",
+    "flowNoNodes": "{where}: Ablauf ohne „nodes“ — übersprungen.",
+    "nodeNotPlan": "{where}: Knoten {type} passt nicht zu einem Plan — übersprungen.",
+    "nodeNotRule": "{where}: Knoten {type} passt nicht zu einer Regel — übersprungen.",
+    "listsList": "„lists“ muss eine Liste sein — übersprungen.",
+    "listNoName": "Liste {n} ohne Namen („label“) — übersprungen.",
+    "listWhere": "Liste „{label}“",
+    "notObject": "Das ist kein JSON-Objekt.",
+    "notScheme": "Das ist kein Schema („format“: {format}).",
+    "schemeNoName": "Ein Schema braucht einen Namen („name“).",
+    "unknownKind": "Unbekannte Art „{kind}“ — übersprungen.",
+    "schemeWhere": "Schema",
+    "notPlan": "Das ist kein Plan („format“: {format}).",
+    "planNoName": "Ein Plan braucht einen Namen („name“).",
+    "planWhere": "Plan",
+    "planNoFlow": "Ein Plan braucht einen Ablauf („flow“).",
+    "otherScheme": "Das Schema aus dem Dokument gehört nicht zu diesem Kalender — wähle im Plan ein Schema."
+  },
+  "date": {
+    "fixed": "jedes Jahr derselbe Tag (Monat 1 = Januar)",
+    "easter": "Tage ab Ostersonntag: −46 Aschermittwoch, +49 Pfingsten, +60 Fronleichnam, +68 Heiligstes Herz Jesu",
+    "advent": "Tage ab dem ersten Adventssonntag (−7 Christkönig)",
+    "christmasSunday": "Heilige Familie: der Sonntag in der Weihnachtsoktav, und wenn es keinen gibt — 30. Dezember",
+    "baptism": "Taufe des Herrn: der Sonntag nach dem 6. Januar",
+    "nthWeekday": "der n-te Wochentag des Monats (n: 1–5, −1 — der letzte); mit \"month\" nur in diesem Monat, ohne ihn jeden Monat (z. B. der erste Freitag)",
+    "sundayAfter": "der erste Sonntag NACH dem gegebenen Tag (nicht an ihm)"
+  },
+  "test": {
+    "weekday": "Wochentag",
+    "slot": "Messzeit — ein Schlüssel aus dem Knoten \"slots\" (nur im Ablauf \"mass\")",
+    "time": "die Messe beginnt in diesem Bereich (eine Grenze genügt)",
+    "season": "liturgische Zeit: {seasons}",
+    "week": "Woche der Zeit",
+    "rank": "Rang der Feier (ohne Feier — des Tages): 1 höchster … 13 Werktag",
+    "celebration": "\"any\" — es gibt eine Feier, \"none\" — keine, \"name\" — der Name der Feier enthält \"name\"",
+    "festive": "Sonntag oder gebotener Feiertag",
+    "sunday": "Sonntag",
+    "date": "dieser Tag nach einer Datumsregel (unten)",
+    "between": "Tag des Jahres im Bereich \"MM-DD\" (auch über Neujahr)",
+    "var": "eine Variable, die vorher ein Knoten \"set\" gesetzt hat; \"op\": \"=\", \"!=\" oder \"contains\"",
+    "mode": "Art des Eintrags",
+    "count": "wie viele Einträge dieser Liste es schon bei diesem Termin gibt (\"scope\": \"occurrence\") oder in der Woche ab Montag (\"week\"); \"mode\" — nur dieser Art; \"status\": \"live\" (angenommen und gefeiert, vorgegeben) oder \"all\" (auch wartende); \"per\": \"occurrence\" — bei wie vielen ANDEREN Terminen der Woche es solche Einträge gibt",
+    "actor": "wer einträgt: \"office\" — wer den Kalender führt, \"outside\" — jemand von außen (sein Eintrag wartet ohnehin)",
+    "field": "Feld des Eintrags: \"set\" — ausgefüllt, \"empty\" — leer, \"=\" — gleich \"value\""
+  },
+  "node": {
+    "nodes": "Knoten:",
+    "date": {
+      "title": "Datumsregel (\"when\", Bedingung \"date\")",
+      "lead": "Ein Datum, jedes Jahr neu berechnet:",
+      "tail": "Wochentag (\"weekday\", \"days\"): 1 = Montag … 7 = Sonntag."
+    },
+    "test": {
+      "title": "Bedingung (\"if\")",
+      "lead": "Der Knoten \"if\" hat die Daten {\"test\": …} und zwei Ausgänge: \"yes\" (ja) und \"no\" (nein). Vergleich \"op\": <, <=, =, >=, >, !=.",
+      "plan": "Tag und Messe (in einem Plan):",
+      "rule": "Eintrag (in der Regel einer Liste):"
+    },
+    "flow": {
+      "title": "Ablauf (\"flow\", \"rule\")",
+      "lead": "Ein Ablauf ist ein Graph wie im Editor: {\"v\":1,\"nodes\":[…],\"edges\":[…]}.",
+      "nodes": "{\"id\", \"type\", \"x\", \"y\", \"data\"} — \"id\" eindeutig im Ablauf; \"x\", \"y\" — Platz im Editor; \"data\" — Einstellungen des Knotens",
+      "edges": "{\"id\", \"from\", \"to\", \"out\"} — vom Ausgang des Knotens \"from\" zum Knoten \"to\"; \"out\": \"out\" (einziger Ausgang, vorgegeben), \"yes\" (ja) oder \"no\" (nein) aus einem Knoten \"if\"",
+      "tail": "Ein Ablauf geht vom Startknoten die Kanten entlang, bis er einen Endknoten erreicht. Knoten ohne Verbindung tun nichts; Knoten einer anderen Art von Ablauf überspringt der Import mit einem Hinweis."
+    },
+    "rule": {
+      "title": "Regel einer Liste (\"rule\")",
+      "lead": "Die Regel läuft im Browser, wenn jemand einen Eintrag hinzufügt oder das Büro einen wartenden annimmt. Ergebnis: annehmen, warten oder ablehnen (mit einer Nachricht — der Eintrag entsteht dann nicht). Ein Eintrag von jemandem außerhalb der Kalenderführung wartet immer; die Regel läuft noch einmal, wenn das Büro ihn annimmt.",
+      "data": "Daten: \"refuse\" und \"wait\" — {\"message\": \"…\"} (was die eintragende Person sieht); \"if\" — eine Bedingung (unten)."
+    },
+    "plan": {
+      "title": "Ablauf eines Plans (\"flow\")",
+      "lead": "Der Ablauf \"day\" läuft einmal für jeden Tag des Zeitraums und endet mit einem Knoten \"slots\" (die Messen des Tages) oder \"skip\" (keine Messe). Danach läuft der Ablauf \"mass\" einmal für jede Messe des Tages und endet mit \"end\" (anlegen) oder \"skip\" (diese Uhrzeit gibt es nicht). Der erste passende Weg gewinnt — so wird der Vorrang festgelegt.",
+      "dataHead": "Daten der Knoten:",
+      "season": "die Farbe jeder Zeit ({seasons}) und besonderer Tage; der Knoten berechnet Zeit, Woche, Rang des Tages und Farbe",
+      "feasts": "Feiern: \"when\" — eine Datumsregel (unten), \"rank\" 1–13, \"festive\": true — Sonntagszeiten, \"title\" — Titel der Messe (ohne ihn der Name), \"moveIfImpeded\": true — von einem höheren Rang verdrängt, geht sie auf den nächsten Tag; der höchste Rang gewinnt",
+      "set": "Titel der Messe, ein Feld des Schemas (über den Schlüssel) oder eine Variable (z. B. \"colour\")",
+      "slots": "Messen an Sonntagen und gebotenen Feiertagen sowie an den übrigen Tagen; \"key\" bleibt für immer — an ihm erkennt die Vorschau schon geplante Messen",
+      "recordText": "Für die Gemeinde",
+      "record": "ein fester Eintrag einer Liste des Schemas bei dieser Messe",
+      "ifSkipEnd": "\"if\" — eine Bedingung (unten); \"skip\" und \"end\" ohne Daten",
+      "texts": "Texte (\"value\", \"title\", \"text\") können Stellen zum Ausfüllen haben: {celebration} {celebrationTitle} {title} {season} {seasonName} {week} {weekRoman} {sundayName} {dayName} {weekday} {colour} {date} {dateWords} {time} {slot} — und jede Variable aus \"set\". Unbekannte bleiben, wie sie sind (die Vorschau zeigt sie)."
+    },
+    "field": {
+      "title": "Feld (\"fields[]\")",
+      "key": "a–z, 0–9, _ . - (fehlt er: aus dem Namen); bleibt, wenn sich der Name ändert — unter ihm liegen die Werte",
+      "label": "Name (erforderlich)",
+      "level": "\"item\" — der ganze Termin (vorgegeben) oder \"day\" — ein Tag der Reihe (nur Felder des Termins)",
+      "public": "true — der Wert ist ohne Schlüssel sichtbar: Messplan, Aushang, Ausdruck; sonst verschlüsselt. Bei Feldern eines Eintrags: nur solche füllt jemand außerhalb der Kalenderführung aus",
+      "required": "true — ohne Wert lässt sich nicht speichern",
+      "options": "für \"choice\" und \"colour\": eine Liste von Namen oder {\"value\",\"label\"}",
+      "unit": "für \"number\": eine Einheit (z. B. \"Personen\")",
+      "onlyKinds": "nur bei diesen Arten von Terminen (z. B. [\"mass\"])",
+      "says": "Erläuterung des Feldes",
+      "tail": "Werte sind Text. Eine liturgische Farbe ist ein Wort: {colours}."
+    },
+    "list": {
+      "title": "Liste von Einträgen (\"lists[]\")",
+      "lead": "Eine Liste von Einträgen bei jedem Termin — z. B. Messintentionen oder Anmeldungen zu einem Treffen.",
+      "key": "wie bei einem Feld; die Liste \"intencje\" sind die Messintentionen (auch unter „Messen und Gottesdienste“ zu sehen)",
+      "itemLabel": "wie ein Eintrag heißt (z. B. „Intention“)",
+      "modes": "Arten von Einträgen: eine Liste von Namen oder {\"value\",\"label\"} (z. B. [{\"value\":\"single\",\"label\":\"einzeln\"},{\"value\":\"collective\",\"label\":\"gemeinsam\"}])",
+      "textLabel": "der öffentliche Text eines Eintrags und seine Beschriftung (z. B. „Text der Intention“ — in der Messe, im Plan und am Aushang gelesen)",
+      "person": "Beschriftung der angehefteten Person (z. B. „Wer zelebriert“); wer sich von außen selbst einträgt, ist diese Person",
+      "fields": "Felder eines Eintrags (wie oben) — verschlüsselt mit dem Schlüssel der Kalenderführung",
+      "outside": "true — es tragen sich auch Personen ein, die den Kalender nicht führen (der Eintrag wartet auf das Büro)",
+      "onlyKinds": "die Liste nur bei diesen Arten von Terminen",
+      "rule": "die Regel der Liste — ein Ablauf (unten); ohne sie wird jeder Eintrag der Kalenderführung angenommen",
+      "says": "Erläuterung der Liste"
+    },
+    "usageTitle": "Wie die App diese Daten nutzt",
+    "schemeUsage": "- Ein Schema, gespeichert in den Einstellungen des Kalenders („Terminschemata“), wirkt bei den Terminen, die es haben: der Termineditor zeigt seine Felder (Felder \"level\": \"day\" — beim gewählten Tag der Reihe), und die Details des Termins im Kalender — Werte und Listen.\n- Öffentliche Felder einer Messe (\"public\": true) gehen in den öffentlichen Plan (Baustein „Messen und Gottesdienste“, z. B. Feier und Farbe der Gewänder) und auf den Ausdruck für den Aushang — wenn der Bereich, der den Kalender sieht, öffentlich ist. Die übrigen Werte öffnet nur der Schlüssel dieses Bereichs.\n- Listen von Einträgen stehen bei jedem Tag eines Termins. Wer den Kalender führt, fügt Einträge hinzu; bei \"outside\": true auch die, die ihn nur lesen („Melden“) — ein solcher Eintrag wartet, und die Kalenderführung sieht ihn unter „Einträge zum Annehmen“ (Glocke, „Wartet auf dich“). Die Kalenderführung sieht alle Einträge, Lesende — angenommene, gefeierte und eigene.\n- Regeln von Listen prüft nur der Browser — der Server kennt sie nicht, weil das Schema verschlüsselt ist.\n- Die Liste \"intencje\" sind die Messintentionen: mit ihr arbeitet das Pfarrbüro („Messen und Gottesdienste“), und ihre angenommenen und gefeierten Texte gehen in den öffentlichen Plan und auf den Ausdruck. Einträge anderer Listen kommen nicht in den öffentlichen Plan.\n- Ein Plan des Kalenders legt Termine mit dem gewählten Schema an und füllt sofort seine Felder und die festen Einträge der Listen.",
+    "planUsage": "- Ein gespeicherter Plan legt von sich aus nichts an. Erst „Anwenden…“ (Einstellungen des Kalenders → „Pläne“) berechnet im Browser die Tage des gewählten Zeitraums und legt einzelne Termine in diesem Kalender an.\n- Jeder bekommt: die Art aus dem Plan (ohne sie — aus dem Schema, ohne beide — \"mass\"), das Schema des Plans, den Titel aus dem Ablauf, die Werte der Felder (auch der Tagesfelder) und einen öffentlichen Titel, wenn das Schema es sagt; feste Einträge aus Knoten \"record\" (z. B. die Intention „Für die Gemeinde“) sind sofort angenommen.\n- Die angelegten Termine sieht jeder, der den Schlüssel des Bereichs hat, der den Kalender sieht: im Kalender, in „Jetzt“, unter „Messen und Gottesdienste“ und in Bausteinen von Seiten; ist dieser Bereich öffentlich — auch im öffentlichen Messplan und auf dem Ausdruck für den Aushang.\n- Ein Termin merkt sich Plan, Uhrzeit (\"key\" aus \"slots\") und Tag: so erkennt die Vorschau schon geplante Messen, und die Kalenderführung bekommt in „Wartet auf dich“ „Pläne zum Verlängern“, wenn der letzte Termin des Plans in die nächsten zwei Wochen fällt.\n- Der Plan ist mit dem Schlüssel des Bereichs verschlüsselt, der den Kalender führt (das Schema — mit dem Schlüssel des Bereichs, der die Termine sieht).",
+    "scheme": {
+      "title": "Schema eines Termins (\"{format}\")",
+      "short": "Terminschema",
+      "lead": "Ein Schema sagt, was die Termine des Kalenders sind, welche Felder sie haben und welche Listen von Einträgen (Intentionen, Anmeldungen). Es wird im Browser mit dem Schlüssel des Bereichs verschlüsselt, der die Termine des Kalenders sieht. Der Import lädt das Dokument in den Editor; gespeichert wird erst mit „Schema speichern“. Die Schlüssel der Felder und Listen bleiben — unter ihnen liegen die Werte der Termine.",
+      "name": "Name des Schemas (erforderlich), z. B. „Messe“",
+      "kind": "Art der Termine: {kinds} — \"mass\" stellt den Termin in den Messplan und an den Aushang",
+      "kinds": "Arten zur Wahl beim Termin (statt einer \"kind\")",
+      "publicTitle": "true — öffentlicher Titel (Plan, Aushang), false — verschlüsselt; fehlt es: öffentlich bei Messe, Beichte und Andacht",
+      "fields": "Felder des Termins (unten)",
+      "lists": "Listen von Einträgen (unten)",
+      "says": "Erläuterung des Schemas",
+      "example": "Beispiel (Vorlage „Treffen mit Anmeldungen“):"
+    },
+    "template": "Vorlage „{name}“",
+    "planRoot": {
+      "title": "Plan (\"{format}\")",
+      "short": "Plan",
+      "lead": "Ein Plan legt einzelne Termine (z. B. Messen) für einen gewählten Zeitraum an — „Anwenden…“. Einmal angelegt, hängen die Termine nicht am Plan: man ändert sie wie jeden anderen; ein zweites Anwenden desselben Plans überspringt schon geplante Messen. Der Import lädt das Dokument in den Editor; gespeichert wird erst mit „Plan speichern“.",
+      "name": "Name des Plans (erforderlich)",
+      "schemeId": "das Schema der angelegten Termine — ein Schema DIESES Kalenders; aus einem anderen Kalender fällt es beim Import weg (wähle es dann im Plan)",
+      "kind": "Art der angelegten Termine (z. B. \"mass\")",
+      "weeks": "wie viele Wochen das Fenster „Anwenden…“ vorschlägt (1–60)",
+      "flow": "Ablauf des Plans (unten)",
+      "says": "Erläuterung des Plans"
+    }
+  }
+}

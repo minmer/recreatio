@@ -11,6 +11,7 @@
 import type { CSSProperties } from 'react';
 
 import { keyOf } from '../core/dayMath';
+import { useT } from '../core/i18n';
 import { byDay, dayKey, DEVOTION, hour, isMass, massesOnly, shortDayLabel, type PublicMass } from './mass';
 import { isAhead, nextOf, soon, type MassView } from './massShape';
 import {
@@ -34,6 +35,7 @@ export function Glance({ shown, services, now, anchor, place, calendarSet, onOpe
   /** Eine Tagesüberschrift führt zur Tagesansicht — wo es eine gibt. */
   onOpen?: (date: Date) => void;
 }) {
+  const t = useT();
   const masses = massesOnly(services);
   const next = anchor === null ? nextOf(masses, now) : null;
 
@@ -46,8 +48,8 @@ export function Glance({ shown, services, now, anchor, place, calendarSet, onOpe
   if (anchor === null && next === null) {
     return (
       <p className="wk-card-muted">
-        {masses.length === 0 ? 'Brak mszy w planie.' : 'W najbliższych dniach nie ma już mszy.'}
-        {masses.length === 0 && calendarSet && ' Jeśli msze są wpisane, sprawdź, czy epoka obszaru jest opublikowana.'}
+        {masses.length === 0 ? t('masses.glance.noneInPlan') : t('masses.glance.noneSoon')}
+        {masses.length === 0 && calendarSet && ` ${t('masses.glance.checkEpoch')}`}
       </p>
     );
   }
@@ -62,7 +64,7 @@ export function Glance({ shown, services, now, anchor, place, calendarSet, onOpe
     /* 0079 — ein Tag mit einem Nabożeństwo (Droga Krzyżowa am Freitag) ist einer, zu dem man kommt; einer nur mit Beichte nicht. */
     .filter((one) => one.key >= start && one.masses.some((m) => isMass(m) || m.kind === DEVOTION));
 
-  if (days.length === 0) return <p className="wk-card-muted">Brak mszy w tych dniach.</p>;
+  if (days.length === 0) return <p className="wk-card-muted">{t('masses.glance.noneThese')}</p>;
 
   const ctx: Ctx = { now, next, place, shown, fold: anchor === null };
 
@@ -83,11 +85,12 @@ export function Glance({ shown, services, now, anchor, place, calendarSet, onOpe
 
 /** Die eine nächste Messe, und wann. Mehr passt in eine schmale Zeile nicht, und weniger hilft nicht. */
 function Next({ ctx, next }: { ctx: Ctx; next: PublicMass }) {
+  const t = useT();
   const when = soon(next, ctx.now);
 
   return (
     <p className="wk-mass-next">
-      <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, ctx.now)}</span>
+      <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, ctx.now, t.lang)}</span>
       <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
       {when !== null && <span className="wk-mass-soon">{when}</span>}
       {ctx.place && <span className="wk-mass-where">{next.calendarTitle}</span>}
@@ -101,11 +104,12 @@ function Next({ ctx, next }: { ctx: Ctx; next: PublicMass }) {
  * „18:00", und morgen früh sucht jemand die Messe um sieben.
  */
 function HoursStrip({ ctx, days }: { ctx: Ctx; days: readonly Day[] }) {
+  const t = useT();
   return (
     <div className="wk-mass-strip">
       {days.map((one) => (
         <p className="wk-mass-hours" key={one.key}>
-          <span className="wk-mass-dayname">{shortDayLabel(one.date.toISOString(), ctx.now)}</span>
+          <span className="wk-mass-dayname">{shortDayLabel(one.date.toISOString(), ctx.now, t.lang)}</span>
           {' '}
           <Times masses={onlyMasses(one)} ctx={ctx} />
         </p>
@@ -119,6 +123,7 @@ function HoursStrip({ ctx, days }: { ctx: Ctx; days: readonly Day[] }) {
  * fragt, wer eine gegeben hat —, und dahinter, was danach kommt.
  */
 function Ticker({ ctx, next, masses }: { ctx: Ctx; next: PublicMass; masses: readonly PublicMass[] }) {
+  const t = useT();
   const { now } = ctx;
   const when = soon(next, now);
   const after = masses.filter((m) => isAhead(m, now) && !same(m, next)).slice(0, 4);
@@ -128,15 +133,15 @@ function Ticker({ ctx, next, masses }: { ctx: Ctx; next: PublicMass; masses: rea
   return (
     <div className="wk-mass-ticker">
       <p className="wk-mass-next">
-        <span className="wk-mass-label">Najbliższa</span>
-        <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, now)}</span>
+        <span className="wk-mass-label">{t('masses.glance.nearest')}</span>
+        <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, now, t.lang)}</span>
         <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
         {when !== null && <span className="wk-mass-soon">{when}</span>}
         {ctx.place && <span className="wk-mass-where">{next.calendarTitle}</span>}
         {(ones.length > 0 || many > 0) && (
           <span className="wk-mass-int">
             {ones.map((i) => i.text).join('; ')}
-            {many > 0 && `${ones.length > 0 ? ' · ' : ''}intencje zbiorowe (${many})`}
+            {many > 0 && `${ones.length > 0 ? ' · ' : ''}${t('masses.glance.collective', { count: many })}`}
           </span>
         )}
       </p>
@@ -144,11 +149,11 @@ function Ticker({ ctx, next, masses }: { ctx: Ctx; next: PublicMass; masses: rea
       {/* Je Tag einmal genannt: „jutro 7:00 · 18:00", nicht „jutro 7:00 · jutro 18:00". */}
       {after.length > 0 && (
         <p className="wk-mass-then-line">
-          <span className="wk-mass-label">Potem</span>
+          <span className="wk-mass-label">{t('masses.glance.then')}</span>
           {byDay(after).map((one) => (
             <span key={one.day} className="wk-mass-then-day">
               {one.day !== dayKey(next.startsAt) && (
-                <span className="wk-mass-dayname">{shortDayLabel(one.masses[0].startsAt, now)} </span>
+                <span className="wk-mass-dayname">{shortDayLabel(one.masses[0].startsAt, now, t.lang)} </span>
               )}
               {one.masses.map((m) => hour(m.startsAt)).join(' · ')}
             </span>
@@ -163,13 +168,14 @@ function Ticker({ ctx, next, masses }: { ctx: Ctx; next: PublicMass; masses: rea
 
 /** Die nächste Messe, hervorgehoben, mit ihren Intentionen — hier und in der Seitenleiste des Kalenders. */
 export function NextBox({ ctx, next, label }: { ctx: Ctx; next: PublicMass; label?: string }) {
+  const t = useT();
   const when = soon(next, ctx.now);
 
   return (
     <div className="wk-mass-feature">
       {label !== undefined && <p className="wk-mass-label">{label}</p>}
       <p className="wk-mass-next">
-        <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, ctx.now)}</span>
+        <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, ctx.now, t.lang)}</span>
         <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
         {when !== null && <span className="wk-mass-soon">{when}</span>}
       </p>
@@ -190,6 +196,7 @@ function Spotlight({ ctx, next, days }: { ctx: Ctx; next: PublicMass; days: read
     ...one,
     masses: onlyMasses(one).filter((m) => i > 0 || new Date(m.startsAt) > new Date(next.startsAt))
   })).filter((one) => one.masses.length > 0);
+  const t = useT();
 
   return (
     <>
@@ -197,11 +204,11 @@ function Spotlight({ ctx, next, days }: { ctx: Ctx; next: PublicMass; days: read
 
       {rest.length > 0 && (
         <div className="wk-mass-then">
-          <p className="wk-mass-label">Potem</p>
+          <p className="wk-mass-label">{t('masses.glance.then')}</p>
           <ul className="wk-mass-then-list">
             {rest.map((one) => (
               <li key={one.key}>
-                <span className="wk-mass-dayname">{shortDayLabel(one.date.toISOString(), ctx.now)}</span>
+                <span className="wk-mass-dayname">{shortDayLabel(one.date.toISOString(), ctx.now, t.lang)}</span>
                 <span><Times masses={one.masses} ctx={ctx} /></span>
               </li>
             ))}
@@ -214,6 +221,7 @@ function Spotlight({ ctx, next, days }: { ctx: Ctx; next: PublicMass; days: read
 
 /** Ein ganzer Tag, Messe für Messe; der folgende in einer Zeile darunter. */
 function OneDay({ ctx, days, onOpen }: { ctx: Ctx; days: readonly Day[]; onOpen?: (date: Date) => void }) {
+  const t = useT();
   const [first, second] = days;
 
   return (
@@ -221,7 +229,7 @@ function OneDay({ ctx, days, onOpen }: { ctx: Ctx; days: readonly Day[]; onOpen?
       <DayBlock ctx={ctx} day={first} onOpen={onOpen} />
       {second !== undefined && (
         <p className="wk-mass-after">
-          <span className="wk-mass-dayname">{shortDayLabel(second.date.toISOString(), ctx.now)}</span>
+          <span className="wk-mass-dayname">{shortDayLabel(second.date.toISOString(), ctx.now, t.lang)}</span>
           {' '}
           <Times masses={onlyMasses(second)} ctx={ctx} />
         </p>

@@ -1,0 +1,11 @@
+import { build } from 'esbuild';
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
+const out = join(tmpdir(), 'daytest');
+await build({ entryPoints: { m: 'src/app/masses/mass.ts' }, bundle: true, format: 'esm', platform: 'node', outdir: out, logLevel: 'error', loader: { '.css': 'empty' }, jsx: 'automatic', define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) } });
+const M = await import(pathToFileURL(join(out, 'm.js')).href);
+const today = new Date('2026-09-29T08:00:00');
+for (const l of [undefined, 'en', 'de']) console.log(l, '|', M.fullDayLabel('2026-09-29T10:00:00', today, l), '|', M.shortDayLabel('2026-10-01T10:00:00', today, l), '|', M.dayLabel('2026-10-01T10:00:00', today, l));

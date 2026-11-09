@@ -86,7 +86,7 @@ export function mapCross(text: string, to: (c: CrossRef) => CrossRef | null): st
 
 /** Ein Name für eine Baza aus ihrem Titel („Historia Anglii" → "historia-anglii"). */
 export function handleFrom(name: string): string {
-  const flat = name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase()
+  const flat = name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase() // i18n-ignore
     .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
   return WORLD_HANDLE.test(flat) ? flat : 'baza';
 }

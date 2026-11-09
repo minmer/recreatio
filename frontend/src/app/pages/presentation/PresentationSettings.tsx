@@ -4,11 +4,13 @@
 
 import { useEffect, useState } from 'react';
 
+import { rich, texts, useT } from '../../core/i18n';
 import { MotionField } from '../motion/MotionField';
 import type { DraftPart } from '../page';
 import { PartSettings } from '../PageBuilder';
 import { ImagePicker, MediaPicker } from '../PageFiles';
 import { partSize } from '../part';
+import { withLang } from '../layout';
 import { partLabel } from '../parts/registry';
 import { COLOR_KEYS, type SlideColors } from '../slides/slides';
 import { DEFAULT_THEMES, type Look, resolveTheme } from '../slides/slideLook';
@@ -24,78 +26,79 @@ import { END, EVERY, goOptions, targetLabel, targetOptions, withGo, withNext } f
 
 const FULL = partSize({ colSpan: 6, rowSpan: 5 });
 
-const ALIGN_LABEL: Record<Align, string> = { start: 'Do początku', center: 'Środek', end: 'Do końca' };
+const ALIGN_LABEL: Record<Align, string> = texts({ start: 'pagePresentation.settings.align.start', center: 'pagePresentation.settings.align.center', end: 'pagePresentation.settings.align.end' });
 
-const COLOR_LABEL: Record<(typeof COLOR_KEYS)[number], string> = { accent: 'Akcent', ink: 'Tekst', ground: 'Tło sceny', muted: 'Tekst drugi' };
+const COLOR_LABEL: Record<(typeof COLOR_KEYS)[number], string> = texts({ accent: 'pagePresentation.settings.color.accent', ink: 'pagePresentation.settings.color.ink', ground: 'pagePresentation.settings.color.ground', muted: 'pagePresentation.settings.color.muted' });
 
 /* 2026-10-19 — Maske, Fortschritt. */
-const MASK_LABEL: Record<Mask['shape'], string> = { circle: 'Koło', ellipse: 'Owal', inset: 'Prostokąt (wcięcia, rogi)' };
-const PROGRESS_LABEL: Record<Place['by'], string> = {
-  scene: 'Wnętrze sceny (od pierwszego do ostatniego kroku)',
-  enter: 'Wejście sceny (przejście z poprzedniej)',
-  leave: 'Wyjście sceny (przejście do następnej)'
-};
+const MASK_LABEL: Record<Mask['shape'], string> = texts({ circle: 'pagePresentation.settings.mask.circle', ellipse: 'pagePresentation.settings.mask.ellipse', inset: 'pagePresentation.settings.mask.inset' });
+const PROGRESS_LABEL: Record<Place['by'], string> = texts({
+  scene: 'pagePresentation.settings.progress.scene',
+  enter: 'pagePresentation.settings.progress.enter',
+  leave: 'pagePresentation.settings.progress.leave'
+});
 
 /* -- Die ganze Präsentation -------------------------------------------------------------- */
 
 export function ShowSettings({ look, show, path, theme, busy, onLook, onShow }: {
   look: Look; show: Show; path: string; theme: ReturnType<typeof resolveTheme>; busy: boolean; onLook: (next: Look) => void; onShow: (next: Show) => void;
 }) {
+  const t = useT();
   const night = look.theme?.night ?? null;
   return (
     <details className="wk-fold pe-show">
-      <summary>Prezentacja: format, pismo, kolory</summary>
+      <summary>{t('pagePresentation.settings.showTitle')}</summary>
       <label className="wk-field">
-        <span>Format</span>
+        <span>{t('pagePresentation.settings.format')}</span>
         <select value={show.format} disabled={busy} onChange={(e) => onShow({ ...show, format: e.target.value as Show['format'] })}>
           {FORMATS.map((one) => <option key={one} value={one}>{FORMAT_LABEL[one]}</option>)}
         </select>
       </label>
       <label className="wk-field">
-        <span>Pismo</span>
+        <span>{t('pagePresentation.settings.fonts')}</span>
         <select value={show.fonts} disabled={busy} onChange={(e) => onShow({ ...show, fonts: e.target.value as Show['fonts'] })}>
           {FONT_PAIRS.map((one) => <option key={one} value={one}>{FONT_LABEL[one]}</option>)}
         </select>
       </label>
       <label className="wk-field">
-        <span>Pasek scen</span>
+        <span>{t('pagePresentation.settings.nav')}</span>
         <select value={show.nav} disabled={busy} onChange={(e) => onShow({ ...show, nav: e.target.value as Show['nav'] })}>
           {NAVS.map((one) => <option key={one} value={one}>{NAV_LABEL[one]}</option>)}
         </select>
       </label>
       {/* 0108 — die Bühne höchstens so breit, und das Tuch hinter allen Szenen. */}
       <label className="wk-field">
-        <span>Szerokość sceny (rem)</span>
-        <input type="number" min={20} max={240} value={show.width ?? ''} placeholder="całe okno" disabled={busy}
+        <span>{t('pagePresentation.settings.width')}</span>
+        <input type="number" min={20} max={240} value={show.width ?? ''} placeholder={t('pagePresentation.settings.wholeWindow')} disabled={busy}
           onChange={(e) => onShow({ ...show, width: e.target.value.trim() === '' ? null : Math.min(240, Math.max(20, Number(e.target.value))) })} />
-        <span className="wk-hint">W tej szerokości liczą się miejsca modułów — na szerokim ekranie obraz zostaje razem (80 rem — jak pokaz Cogita). Tło zostaje na całym ekranie.</span>
+        <span className="wk-hint">{t('pagePresentation.settings.widthHint')}</span>
       </label>
       <details className="wk-fold">
-        <summary>Tło wspólne{show.backdrop.length > 0 ? ` (${show.backdrop.length})` : ''}</summary>
+        <summary>{t('pagePresentation.settings.backdrop')}{show.backdrop.length > 0 ? ` (${show.backdrop.length})` : ''}</summary>
         <p className="wk-hint">
-          Stoi za wszystkimi scenami. Gdy jest, sceny są przezroczyste, a ich własne tła (kolor sceny, jej warstwy) leżą w nim i przechodzą płynnie jedno w drugie — nici, fale i mgła zostają.
+          {t('pagePresentation.settings.backdropHint')}
         </p>
         <LayerEditor path={path} theme={theme} label="" layers={show.backdrop} busy={busy} blank onChange={(backdrop) => onShow({ ...show, backdrop })} />
       </details>
       {/* 2026-10-19 — der Klang der Umgebung: nur auf Wunsch des Gastes, so laut, wie jede Szene sagt. */}
       <details className="wk-fold">
-        <summary>Dźwięk otoczenia{show.sound !== null ? ` — ${show.sound.label || 'jest'}` : ''}</summary>
+        <summary>{t('pagePresentation.settings.sound')}{show.sound !== null ? ` — ${show.sound.label || t('pagePresentation.settings.soundOn')}` : ''}</summary>
         <MediaPicker path={path} kind="audio" value={show.sound?.url ?? ''} busy={busy}
           onPick={(url) => onShow({ ...show, sound: { url, label: show.sound?.label ?? '', volume: show.sound?.volume ?? 0.6 } })} />
         {show.sound !== null && (
           <>
-            <label className="se-inline" title="Gra dopiero, gdy gość kliknie ten przycisk w pasku na dole — w kółko, cichnie, gdy karta jest ukryta.">
-              <span>Napis na przycisku</span>
-              <input value={show.sound.label} disabled={busy} maxLength={60} placeholder="np. Odgłosy ogrodu"
+            <label className="se-inline" title={t('pagePresentation.settings.soundHint')}>
+              <span>{t('pagePresentation.settings.buttonText')}</span>
+              <input value={show.sound.label} disabled={busy} maxLength={60} placeholder={t('pagePresentation.settings.soundPlaceholder')}
                 onChange={(e) => onShow({ ...show, sound: { ...show.sound!, label: e.target.value } })} />
             </label>
-            <Num label="Głośność" value={show.sound.volume} min={0} max={1} step={0.05} busy={busy}
-              onChange={(volume) => onShow({ ...show, sound: { ...show.sound!, volume } })} hint="Na każdej scenie może być ciszej (ustawienia sceny)." />
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onShow({ ...show, sound: null })}>Bez dźwięku</button>
+            <Num label={t('pagePresentation.settings.volume')} value={show.sound.volume} min={0} max={1} step={0.05} busy={busy}
+              onChange={(volume) => onShow({ ...show, sound: { ...show.sound!, volume } })} hint={t('pagePresentation.settings.volumeHint')} />
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onShow({ ...show, sound: null })}>{t('pagePresentation.settings.noSound')}</button>
           </>
         )}
       </details>
-      <ThemeEditor look={look} busy={busy} onChange={onLook} legend="Kolory" />
+      <ThemeEditor look={look} busy={busy} onChange={onLook} legend={t('pagePresentation.settings.colors')} />
       {look.theme !== null && (
         <div className="pe-night">
           <label className="wk-check">
@@ -105,12 +108,12 @@ export function ShowSettings({ look, show, path, theme, busy, onLook, onShow }: 
                 const { mode: _m, night: _n, ...palette } = DEFAULT_THEMES.dark;
                 onLook({ ...look, theme: { ...look.theme, mode: 'light', night: e.target.checked ? palette : null } });
               }} />
-            <span>Inne kolory, gdy urządzenie gościa jest w trybie ciemnym</span>
+            <span>{t('pagePresentation.settings.night')}</span>
           </label>
           {night !== null && look.theme !== null && (
             <div className="se-colors">
               {(['accent', 'ink', 'ground', 'muted'] as const).map((key) => (
-                <ColorField key={key} label={`${COLOR_LABEL[key]} (noc)`} value={night[key]} busy={busy}
+                <ColorField key={key} label={t('pagePresentation.settings.nightColor', { name: COLOR_LABEL[key] })} value={night[key]} busy={busy}
                   onChange={(v) => onLook({ ...look, theme: { ...look.theme!, night: { ...night, [key]: v } } })} />
               ))}
             </div>
@@ -118,8 +121,7 @@ export function ShowSettings({ look, show, path, theme, busy, onLook, onShow }: 
         </div>
       )}
       <p className="wk-hint">
-        Kolor modułu może też być parą „jasny|ciemny” (np. <code>#ece0c9|#2a2113</code>) albo nazwą: <code>accent</code>, <code>ink</code>,
-        {' '}<code>ground</code>, <code>muted</code> — wtedy idzie za kolorami sceny.
+        {rich(t('pagePresentation.settings.colorHint'), { code: (s) => <code>{s}</code> })}
       </p>
     </details>
   );
@@ -145,6 +147,7 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
   scene: Scene; show: Show; first: boolean; next: Scene | undefined; path: string; theme: ReturnType<typeof resolveTheme>; need: number; busy: boolean;
   onChange: (next: Scene) => void;
 }) {
+  const t = useT();
   const colors: SlideColors = scene.colors ?? { accent: null, ink: null, ground: null, muted: null };
   const setColor = (key: (typeof COLOR_KEYS)[number], value: string) => {
     const c: SlideColors = { ...colors, [key]: value.trim() === '' ? null : value };
@@ -155,12 +158,12 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
   return (
     <div className="pe-scene-settings">
       <label className="wk-field">
-        <span>Nazwa (w pasku scen; link „#nazwa” w tekście prowadzi tutaj)</span>
+        <span>{t('pagePresentation.settings.sceneName')}</span>
         <input value={scene.label} disabled={busy} maxLength={80} onChange={(e) => onChange({ ...scene, label: e.target.value })} />
       </label>
 
       <label className="wk-field">
-        <span>Jak ta scena zastępuje poprzednią</span>
+        <span>{t('pagePresentation.settings.change')}</span>
         <select value={scene.change} disabled={busy}
           onChange={(e) => {
             const change = e.target.value as Scene['change'];
@@ -169,71 +172,71 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
           }}>
           {SCENE_CHANGES.map((one) => <option key={one} value={one}>{SCENE_CHANGE_LABEL[one]}</option>)}
         </select>
-        {first && <span className="wk-hint">To pierwsza scena — jej przejście nie jest widoczne.</span>}
+        {first && <span className="wk-hint">{t('pagePresentation.settings.firstScene')}</span>}
       </label>
       {!first && (scene.change === 'fade' || scene.change === 'build' || scene.change === 'rise') && (
         <label className="wk-check">
           <input type="checkbox" checked={scene.keep} disabled={busy} onChange={(e) => onChange({ ...scene, keep: e.target.checked })} />
-          <span>Poprzednia scena zostaje pod spodem, aż przejście się skończy</span>
+          <span>{t('pagePresentation.settings.keep')}</span>
         </label>
       )}
-      <Num label="Czas skoku (ms)" value={scene.duration} min={0} max={4000} step={50} busy={busy} onChange={(duration) => onChange({ ...scene, duration })}
-        hint="Jak długo trwa przejście, gdy wywoła je strzałka albo jeden ruch kółkiem." />
+      <Num label={t('pagePresentation.settings.jumpTime')} value={scene.duration} min={0} max={4000} step={50} busy={busy} onChange={(duration) => onChange({ ...scene, duration })}
+        hint={t('pagePresentation.settings.jumpHint')} />
 
-      <Num label="Kroki" value={scene.steps} min={need} max={50} step={1} busy={busy} onChange={(steps) => onChange({ ...scene, steps: Math.max(need, Math.round(steps)) })}
-        hint="Ile postojów ma scena. Moduł z krokiem jest wtedy wyróżniony." />
+      <Num label={t('pagePresentation.settings.steps')} value={scene.steps} min={need} max={50} step={1} busy={busy} onChange={(steps) => onChange({ ...scene, steps: Math.max(need, Math.round(steps)) })}
+        hint={t('pagePresentation.settings.stepsHint')} />
 
       {/* 0089 — wohin „dalej" führt: die nächste der Liste, eine andere Szene, das Ende oder hinaus. */}
       <label className="wk-field">
-        <span>„Dalej” (strzałki, przewijanie) prowadzi do</span>
+        <span>{t('pagePresentation.settings.nextLeads')}</span>
         <select value={scene.next ?? ''} disabled={busy} onChange={(e) => onChange(withNext(scene, e.target.value === '' ? null : e.target.value))}>
-          <option value="">następnej na liście ({next === undefined ? 'koniec' : next.label || 'Scena'})</option>
+          <option value="">{t('pagePresentation.map.nextInList', { target: next === undefined ? t('pagePresentation.settings.end') : next.label || t('pagePresentation.paths.scene') })}</option>
           {targetOptions(show).filter((o) => o.value !== scene.key).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <span className="wk-hint">Rozgałęzienia, przyciski i linki na zewnątrz — w widoku „Przejścia”.</span>
+        <span className="wk-hint">{t('pagePresentation.settings.branches')}</span>
       </label>
       <label className="wk-check">
         <input type="checkbox" checked={scene.emphasis} disabled={busy} onChange={(e) => onChange({ ...scene, emphasis: e.target.checked })} />
-        <span>Kroki wyróżniają swoje moduły (pozostałe bledną i odsuwają się)</span>
+        <span>{t('pagePresentation.settings.emphasis')}</span>
       </label>
       <label className="se-inline">
-        <span>Nitka między krokami</span>
+        <span>{t('pagePresentation.settings.thread')}</span>
         <select value={scene.thread} disabled={busy} onChange={(e) => onChange({ ...scene, thread: e.target.value as Scene['thread'] })}>
           {THREADS.map((one) => <option key={one} value={one}>{THREAD_LABEL[one]}</option>)}
         </select>
       </label>
-      <Num label="Idzie za wyróżnionym (szeroki)" value={scene.follow.wide} min={0} max={1} step={0.05} busy={busy}
+      <Num label={t('pagePresentation.settings.followWide')} value={scene.follow.wide} min={0} max={1} step={0.05} busy={busy}
         onChange={(wide) => onChange({ ...scene, follow: { ...scene.follow, wide } })} />
-      <Num label="Idzie za wyróżnionym (wąski)" value={scene.follow.tall} min={0} max={1} step={0.05} busy={busy}
+      <Num label={t('pagePresentation.settings.followTall')} value={scene.follow.tall} min={0} max={1} step={0.05} busy={busy}
         onChange={(t) => onChange({ ...scene, follow: { ...scene.follow, tall: t } })} />
 
       <label className="wk-check">
         <input type="checkbox" checked={scene.grow !== null} disabled={busy}
           onChange={(e) => onChange({ ...scene, grow: e.target.checked ? { from: 0.8, to: 1.08 } : null })} />
-        <span>Scena rośnie, gdy po niej idziesz</span>
+        <span>{t('pagePresentation.settings.grow')}</span>
       </label>
       {scene.grow !== null && (
         <>
-          <Num label="Na początku" value={scene.grow.from} min={0.3} max={2} step={0.01} busy={busy} onChange={(from) => onChange({ ...scene, grow: { ...scene.grow!, from } })} />
-          <Num label="Na końcu" value={scene.grow.to} min={0.3} max={2} step={0.01} busy={busy} onChange={(to) => onChange({ ...scene, grow: { ...scene.grow!, to } })} />
+          <Num label={t('pagePresentation.settings.atStart')} value={scene.grow.from} min={0.3} max={2} step={0.01} busy={busy} onChange={(from) => onChange({ ...scene, grow: { ...scene.grow!, from } })} />
+          <Num label={t('pagePresentation.settings.atEnd')} value={scene.grow.to} min={0.3} max={2} step={0.01} busy={busy} onChange={(to) => onChange({ ...scene, grow: { ...scene.grow!, to } })} />
         </>
       )}
 
       {show.sound !== null && (
-        <Num label="Głośność dźwięku otoczenia" value={scene.volume ?? 1} min={0} max={1} step={0.05} busy={busy}
+        <Num label={t('pagePresentation.settings.sceneVolume')} value={scene.volume ?? 1} min={0} max={1} step={0.05} busy={busy}
           onChange={(volume) => onChange({ ...scene, volume: volume >= 1 ? null : volume })}
-          hint="1 — jak w całej prezentacji, 0 — cisza na tej scenie; między scenami przechodzi płynnie." />
+          hint={t('pagePresentation.settings.sceneVolumeHint')} />
       )}
 
       <label className="wk-field">
-        <span>Podpowiedź na dole (np. „Przewiń”)</span>
+        <span>{t('pagePresentation.settings.hintBelow')}</span>
         <input value={scene.hint} disabled={busy} maxLength={60} onChange={(e) => onChange({ ...scene, hint: e.target.value })} />
       </label>
 
       <details className="wk-fold">
-        <summary>Kolory sceny{scene.colors !== null ? ' (własne)' : ''}</summary>
+        <summary>{t('pagePresentation.settings.sceneColors')}{scene.colors !== null ? t('pagePresentation.settings.own') : ''}</summary>
         <div className="se-colors">
-          <span className="wk-hint">Puste — jak cała prezentacja. Także „jasny|ciemny”.</span>
+          <span className="wk-hint">{t('pagePresentation.settings.colorsEmpty')}</span>
           {COLOR_KEYS.map((key) => (
             <ColorField key={key} label={COLOR_LABEL[key]} value={colors[key] ?? ''} busy={busy} allowEmpty onChange={(v) => setColor(key, v)} />
           ))}
@@ -241,12 +244,12 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
       </details>
 
       <details className="wk-fold">
-        <summary>Tło sceny{scene.layers.length > 0 ? ` (${scene.layers.length})` : ''}</summary>
+        <summary>{t('pagePresentation.settings.color.ground')}{scene.layers.length > 0 ? ` (${scene.layers.length})` : ''}</summary>
         {scene.layers.length === 0 ? (
           <div className="wk-actions">
             <button type="button" className="wk-link-btn" disabled={busy}
               onClick={() => onChange({ ...scene, layers: [{ kind: 'gradient', speed: 0, angle: 168, from: theme.ground, via: null, to: theme.ground }] })}>
-              + Warstwa tła
+              {t('pagePresentation.settings.addLayer')}
             </button>
           </div>
         ) : (
@@ -255,26 +258,25 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
       </details>
 
       <details className="wk-fold">
-        <summary>Głębia i chmura słów{scene.words !== null ? ' (ustawione)' : ''}</summary>
+        <summary>{t('pagePresentation.settings.depth')}{scene.words !== null ? t('pagePresentation.settings.isSet') : ''}</summary>
         <p className="wk-hint">
-          Moduły z głębią (z mniejszym od zera) stoją w przestrzeni sceny. Gdy NASTĘPNA scena ma przejście „Przelot”,
-          kamera przelatuje przez tę scenę — bliższe mijają pierwsze, najgłębszy zostaje na chwilę sam.
-          {flown ? ' Następna scena przelatuje przez tę.' : ''}
+          {t('pagePresentation.settings.depthHint')}
+          {flown ? t('pagePresentation.settings.flown') : ''}
         </p>
-        <Num label="Perspektywa (px)" value={scene.depth.perspective} min={300} max={3000} step={50} busy={busy}
+        <Num label={t('pagePresentation.settings.perspective')} value={scene.depth.perspective} min={300} max={3000} step={50} busy={busy}
           onChange={(perspective) => onChange({ ...scene, depth: { ...scene.depth, perspective } })} />
-        <Num label="Przelot kamery (px)" value={scene.depth.travel} min={0} max={6000} step={50} busy={busy}
+        <Num label={t('pagePresentation.settings.travel')} value={scene.depth.travel} min={0} max={6000} step={50} busy={busy}
           onChange={(travel) => onChange({ ...scene, depth: { ...scene.depth, travel } })} />
         <label className="wk-check">
           <input type="checkbox" checked={scene.depth.linger} disabled={busy} onChange={(e) => onChange({ ...scene, depth: { ...scene.depth, linger: e.target.checked } })} />
-          <span>Zwolnij przy najgłębszym (zdanie zostaje chwilę samo)</span>
+          <span>{t('pagePresentation.settings.linger')}</span>
         </label>
         {scene.depth.perspective !== DEPTH.perspective || scene.depth.travel !== DEPTH.travel ? (
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange({ ...scene, depth: DEPTH })}>Domyślna głębia</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange({ ...scene, depth: DEPTH })}>{t('pagePresentation.settings.defaultDepth')}</button>
         ) : null}
 
         <label className="wk-field">
-          <span>Chmura słów — słowa (jedno w wierszu; puste — bez chmury)</span>
+          <span>{t('pagePresentation.settings.words')}</span>
           <textarea rows={4} value={(scene.words?.list ?? []).join('\n')} disabled={busy}
             onChange={(e) => {
               const list = e.target.value.split('\n').map((w) => w.trim()).filter((w) => w !== '');
@@ -284,15 +286,15 @@ export function SceneSettings({ scene, show, first, next, path, theme, need, bus
         {scene.words !== null && (
           <>
             <label className="se-inline">
-              <span>Przed każdym słowem</span>
-              <input value={scene.words.prefix} disabled={busy} maxLength={12} placeholder="np. RE"
+              <span>{t('pagePresentation.settings.prefix')}</span>
+              <input value={scene.words.prefix} disabled={busy} maxLength={12} placeholder={t('pagePresentation.settings.prefixPlaceholder')}
                 onChange={(e) => onChange({ ...scene, words: { ...scene.words!, prefix: e.target.value } })} />
             </label>
-            <Num label="Ile słów w przestrzeni" value={scene.words.count} min={1} max={120} step={1} busy={busy}
+            <Num label={t('pagePresentation.settings.wordCount')} value={scene.words.count} min={1} max={120} step={1} busy={busy}
               onChange={(count) => onChange({ ...scene, words: { ...scene.words!, count } })} />
-            <Num label="Rozrzut (los)" value={scene.words.seed} min={0} max={9999} step={1} busy={busy}
+            <Num label={t('pagePresentation.settings.seed')} value={scene.words.seed} min={0} max={9999} step={1} busy={busy}
               onChange={(seed) => onChange({ ...scene, words: { ...scene.words!, seed } })} />
-            <ColorField label="Kolor słów" value={scene.words.color ?? ''} busy={busy} allowEmpty
+            <ColorField label={t('pagePresentation.settings.wordColor')} value={scene.words.color ?? ''} busy={busy} allowEmpty
               onChange={(v) => onChange({ ...scene, words: { ...scene.words!, color: v.trim() === '' ? null : v } })} />
           </>
         )}
@@ -317,6 +319,7 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
   onDelete: () => void;
   onOpenModule: (moduleId: string) => void;
 }) {
+  const t = useT();
   const piece = readPiece(part.layout);
   const place = piece.places[scene.key];
   const e = placeFor(place, tall);
@@ -326,9 +329,9 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
   /* 2026-10-19 — welcher Schlüssel den Knopf auf dieser Szene trägt: ihr eigener, sonst „*". */
   const goKey = piece.go[scene.key] !== undefined ? scene.key : piece.go[EVERY] !== undefined ? EVERY : null;
   const goLabel = (target: string) => {
-    if (target === 'step') return 'własny krok';
+    if (target === 'step') return t('pagePresentation.settings.ownStep');
     const step = /^step:(\d+)$/.exec(target);
-    return step !== null ? `krok ${Number(step[1]) + 1}` : targetLabel(show, target, 'nigdzie');
+    return step !== null ? t('pagePresentation.settings.stepN', { n: Number(step[1]) + 1 }) : targetLabel(show, target, t('pagePresentation.settings.nowhere'));
   };
   const framed = part.kind === 'image' || media !== null;
 
@@ -339,7 +342,7 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
       </h4>
 
       <details className="wk-fold" open>
-        <summary>Treść</summary>
+        <summary>{t('pagePresentation.settings.content')}</summary>
         <PartSettings
           part={part}
           size={FULL}
@@ -347,75 +350,76 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
           path={path}
           onSet={(patch) => onPart({ ...part, config: { ...part.config, ...patch } })}
           onPickModule={(moduleId) => onPart({ ...part, moduleId })}
+          onLang={(lang) => onPart({ ...part, layout: withLang(part.layout, lang) })}
           onMadeModule={onOpenModule}
         />
       </details>
 
       {/* 0089 — ein Knopf: auf dieser Szene ein Ausgang, mit eigenem Ziel; 2026-10-19 — oder auf jeder seiner Szenen („*"), oder zu einem Schritt. */}
       <details className="wk-fold pe-go" open={goKey !== null}>
-        <summary>Przycisk{goKey !== null ? ` → ${goLabel(piece.go[goKey])}${goKey === EVERY ? ' (na każdej scenie)' : ''}` : ''}</summary>
+        <summary>{t('pagePresentation.settings.button')}{goKey !== null ? ` → ${goLabel(piece.go[goKey])}${goKey === EVERY ? t('pagePresentation.settings.everyScene') : ''}` : ''}</summary>
         <label className="wk-check">
           <input type="checkbox" checked={goKey !== null} disabled={busy}
             onChange={(ev) => onPiece(withGo(piece, goKey ?? scene.key, ev.target.checked ? '' : undefined))} />
-          <span>Na tej scenie to przycisk — kliknięcie prowadzi dalej</span>
+          <span>{t('pagePresentation.settings.isButton')}</span>
         </label>
         {goKey !== null && (
           <>
             <label className="wk-field">
-              <span>Prowadzi do</span>
+              <span>{t('pagePresentation.settings.leadsTo')}</span>
               <select value={piece.go[goKey]} disabled={busy} onChange={(ev) => onPiece(withGo(piece, goKey, ev.target.value))}>
-                <option value="">— nigdzie (jeszcze) —</option>
+                <option value="">{t('pagePresentation.map.nowhereYet')}</option>
                 {goOptions(show, scene.steps).filter((o) => o.value !== scene.key || o.value === END).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              <span className="wk-hint">Linki na zewnątrz dodasz w widoku „Przejścia”.</span>
+              <span className="wk-hint">{t('pagePresentation.settings.linksOutside')}</span>
             </label>
-            <label className="wk-check" title="Np. stały przycisk „Kontakt”, który stoi na wszystkich scenach (z „Stoi też przed pierwszym i po ostatnim”). Cel ustawiony osobno dla sceny ma pierwszeństwo.">
+            <label className="wk-check" title={t('pagePresentation.settings.everyHint')}>
               <input type="checkbox" checked={goKey === EVERY} disabled={busy}
                 onChange={(ev) => {
                   const target = piece.go[goKey];
                   const moved = withGo(piece, goKey, undefined);
                   onPiece(withGo(moved, ev.target.checked ? EVERY : scene.key, target));
                 }} />
-              <span>Ten sam cel na każdej scenie, na której stoi</span>
+              <span>{t('pagePresentation.settings.sameTarget')}</span>
             </label>
           </>
         )}
       </details>
 
       <details className="wk-fold" open>
-        <summary>Miejsce na tej scenie{tall ? ' — wąski ekran' : ''}</summary>
+        <summary>{t('pagePresentation.settings.place')}{tall ? t('pagePresentation.settings.narrowScreen') : ''}</summary>
         {tall && (
           <p className="wk-hint">
-            Na wąskim ekranie: {place.tall === null ? 'jak na szerokim — zmiana tutaj zrobi osobne miejsce.' : 'osobne miejsce. '}
+            {place.tall === null ? t('pagePresentation.settings.tallSame') : t('pagePresentation.settings.tallOwn')}
             {place.tall !== null && (
               <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onPiece({ ...piece, places: { ...piece.places, [scene.key]: { ...place, tall: null } } })}>
-                Jak na szerokim
+                {t('pagePresentation.settings.likeWide')}
               </button>
             )}
           </p>
         )}
         <Num label="x %" value={e.x} min={-50} max={150} step={0.5} busy={busy} onChange={(x) => onPlace({ x })} />
         <Num label="y %" value={e.y} min={-50} max={150} step={0.5} busy={busy} onChange={(y) => onPlace({ y })} />
-        <Num label="Szerokość %" value={e.w} min={1} max={200} step={0.5} busy={busy} onChange={(w) => onPlace({ w })} />
+        <Num label={t('pagePresentation.settings.widthPct')} value={e.w} min={1} max={200} step={0.5} busy={busy} onChange={(w) => onPlace({ w })} />
         <label className="wk-check">
           <input type="checkbox" checked={e.max !== null} disabled={busy} onChange={(ev) => onPlace({ max: ev.target.checked ? 22 : null })} />
-          <span>Najwyżej tyle szerokości (rem) — na dużym ekranie nie rośnie dalej</span>
+          <span>{t('pagePresentation.settings.maxWidth')}</span>
         </label>
-        {e.max !== null && <Num label="Najwyżej (rem)" value={e.max} min={1} max={120} step={0.5} busy={busy} onChange={(max) => onPlace({ max })} />}
+        {e.max !== null && <Num label={t('pagePresentation.settings.maxRem')} value={e.max} min={1} max={120} step={0.5} busy={busy} onChange={(max) => onPlace({ max })} />}
         <label className="wk-check">
           <input type="checkbox" checked={e.h !== null} disabled={busy} onChange={(ev) => onPlace({ h: ev.target.checked ? 30 : null })} />
-          <span>Stała wysokość (pole, obraz w kadrze)</span>
+          <span>{t('pagePresentation.settings.fixedHeight')}</span>
         </label>
-        {e.h !== null && <Num label="Wysokość %" value={e.h} min={1} max={200} step={0.5} busy={busy} onChange={(h) => onPlace({ h })} />}
-        <Num label="Skala" value={e.scale} min={0} max={30} step={0.01} busy={busy} onChange={(scale) => onPlace({ scale })} />
-        <Num label="Obrót °" value={e.rotate} min={-180} max={180} step={1} busy={busy} onChange={(rotate) => onPlace({ rotate })} />
-        <Num label="Krycie" value={place.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => onPlace({ opacity })} />
-        <Num label="Głębia (z)" value={place.z} min={-3000} max={500} step={10} busy={busy} onChange={(z) => onPlace({ z })}
-          hint="0 — płasko. Mniej niż zero — w głąb sceny (widać przy przelocie kamery)." />
+        {e.h !== null && <Num label={t('pagePresentation.settings.heightPct')} value={e.h} min={1} max={200} step={0.5} busy={busy} onChange={(h) => onPlace({ h })} />}
+        <Num label={t('pagePresentation.settings.scale')} value={e.scale} min={0} max={30} step={0.01} busy={busy} onChange={(scale) => onPlace({ scale })} />
+        <Num label={t('pagePresentation.settings.rotate')} value={e.rotate} min={-180} max={180} step={1} busy={busy} onChange={(rotate) => onPlace({ rotate })} />
+        <Num label={t('pagePresentation.settings.opacity')} value={place.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => onPlace({ opacity })} />
+        <Num label={t('pagePresentation.settings.z')} value={place.z} min={-3000} max={500} step={10} busy={busy} onChange={(z) => onPlace({ z })}
+          hint={t('pagePresentation.settings.zHint')} />
         <label className="se-inline">
-          <span>Krok</span>
+          <span>{t('pagePresentation.settings.step')}</span>
           <select value={place.step ?? ''} disabled={busy} onChange={(ev) => onPlace({ step: ev.target.value === '' ? null : Number(ev.target.value) })}>
-            <option value="">— bez kroku</option>
+            <option value="">{t('pagePresentation.settings.noStep')}</option>
             {Array.from({ length: Math.max(scene.steps + 1, (place.step ?? 0) + 1) }, (_, n) => <option key={n} value={n}>{n + 1}</option>)}
           </select>
         </label>
@@ -426,84 +430,84 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
       <FramesField place={place} at={e} steps={scene.steps} busy={busy} onPlace={onPlace} />
 
       <details className="wk-fold">
-        <summary>Wygląd</summary>
+        <summary>{t('pagePresentation.settings.look')}</summary>
         <label className="se-inline">
-          <span>Oprawa</span>
+          <span>{t('pagePresentation.settings.skin')}</span>
           <select value={piece.skin} disabled={busy} onChange={(ev) => onPiece({ ...piece, skin: ev.target.value as Piece['skin'] })}>
             {SKINS.map((one) => <option key={one} value={one}>{SKIN_LABEL[one]}</option>)}
           </select>
         </label>
         {part.kind === 'text' && (
           <label className="se-inline">
-            <span>Tekst jako</span>
+            <span>{t('pagePresentation.settings.textAs')}</span>
             <select value={piece.type} disabled={busy} onChange={(ev) => onPiece({ ...piece, type: ev.target.value as Piece['type'] })}>
               {TEXT_TYPES.map((one) => <option key={one} value={one}>{TEXT_TYPE_LABEL[one]}</option>)}
             </select>
           </label>
         )}
-        <ColorField label="Tło" value={piece.fill ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, fill: v.trim() === '' ? null : v })} />
-        <ColorField label="Pismo" value={piece.ink ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, ink: v.trim() === '' ? null : v })} />
-        <ColorField label="Akcent" value={piece.accent ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, accent: v.trim() === '' ? null : v })} />
+        <ColorField label={t('pagePresentation.settings.fill')} value={piece.fill ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, fill: v.trim() === '' ? null : v })} />
+        <ColorField label={t('pagePresentation.settings.ink')} value={piece.ink ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, ink: v.trim() === '' ? null : v })} />
+        <ColorField label={t('pagePresentation.settings.accent')} value={piece.accent ?? ''} busy={busy} allowEmpty onChange={(v) => onPiece({ ...piece, accent: v.trim() === '' ? null : v })} />
         <label className="se-inline">
-          <span>Punkt miejsca</span>
+          <span>{t('pagePresentation.settings.origin')}</span>
           <select value={piece.origin} disabled={busy} onChange={(ev) => onPiece({ ...piece, origin: ev.target.value as Piece['origin'] })}>
             {ORIGINS.map((one) => <option key={one} value={one}>{ORIGIN_LABEL[one]}</option>)}
           </select>
         </label>
         <label className="se-inline">
-          <span>Wyrównanie</span>
+          <span>{t('pagePresentation.settings.alignLabel')}</span>
           <select value={piece.align} disabled={busy} onChange={(ev) => onPiece({ ...piece, align: ev.target.value as Align })}>
             {ALIGNS.map((one) => <option key={one} value={one}>{ALIGN_LABEL[one]}</option>)}
           </select>
         </label>
         <label className="se-inline">
-          <span>W pionie</span>
+          <span>{t('pagePresentation.settings.valign')}</span>
           <select value={piece.valign} disabled={busy} onChange={(ev) => onPiece({ ...piece, valign: ev.target.value as Align })}>
             {ALIGNS.map((one) => <option key={one} value={one}>{ALIGN_LABEL[one]}</option>)}
           </select>
         </label>
 
         <fieldset className="pe-media">
-          <legend>Obraz w oprawie {media === null ? '' : <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setMedia(null)}>usuń</button>}</legend>
+          <legend>{t('pagePresentation.settings.media')} {media === null ? '' : <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setMedia(null)}>{t('pagePresentation.settings.removeMedia')}</button>}</legend>
           <ImagePicker path={path} value={media?.url ?? ''} busy={busy} onPick={(url) => setMedia({ url })} />
           <label className="se-inline">
-            <span>Adres</span>
-            <input value={media?.url ?? ''} disabled={busy} placeholder="/Hortus.jpg albo wybierz powyżej"
+            <span>{t('pagePresentation.map.address')}</span>
+            <input value={media?.url ?? ''} disabled={busy} placeholder={t('pagePresentation.settings.mediaPlaceholder')}
               onChange={(ev) => (ev.target.value.trim() === '' ? setMedia(null) : setMedia({ url: ev.target.value }))} />
           </label>
           {media !== null && (
             <>
               <label className="se-inline">
-                <span>Gdzie</span>
+                <span>{t('pagePresentation.settings.where')}</span>
                 <select value={media.side} disabled={busy} onChange={(ev) => setMedia({ side: ev.target.value as Media['side'] })}>
-                  <option value="after">Pod tekstem (zajmuje resztę)</option>
-                  <option value="before">Nad tekstem</option>
-                  <option value="behind">Za tekstem</option>
+                  <option value="after">{t('pagePresentation.settings.below')}</option>
+                  <option value="before">{t('pagePresentation.settings.above')}</option>
+                  <option value="behind">{t('pagePresentation.settings.behind')}</option>
                 </select>
               </label>
               <label className="se-inline">
-                <span>Wypełnienie</span>
+                <span>{t('pagePresentation.settings.fit')}</span>
                 <select value={media.fit} disabled={busy} onChange={(ev) => setMedia({ fit: ev.target.value as Media['fit'] })}>
-                  <option value="cover">Kadr</option>
-                  <option value="contain">Całe</option>
+                  <option value="cover">{t('pagePresentation.settings.cover')}</option>
+                  <option value="contain">{t('pagePresentation.settings.contain')}</option>
                 </select>
               </label>
-              {media.fit === 'contain' && <Num label="Wielkość %" value={media.size} min={5} max={100} step={1} busy={busy} onChange={(size) => setMedia({ size })} />}
+              {media.fit === 'contain' && <Num label={t('pagePresentation.settings.size')} value={media.size} min={5} max={100} step={1} busy={busy} onChange={(size) => setMedia({ size })} />}
               {media.fit === 'contain' && (
                 <label className="wk-check">
                   <input type="checkbox" checked={media.max !== null} disabled={busy} onChange={(ev) => setMedia({ max: ev.target.checked ? 13 : null })} />
-                  <span>Najwyżej tyle szerokości (rem)</span>
+                  <span>{t('pagePresentation.settings.maxWidthShort')}</span>
                 </label>
               )}
-              {media.fit === 'contain' && media.max !== null && <Num label="Najwyżej (rem)" value={media.max} min={1} max={80} step={0.5} busy={busy} onChange={(max) => setMedia({ max })} />}
+              {media.fit === 'contain' && media.max !== null && <Num label={t('pagePresentation.settings.maxRem')} value={media.max} min={1} max={80} step={0.5} busy={busy} onChange={(max) => setMedia({ max })} />}
               <label className="se-inline">
-                <span>Środek</span>
-                <input value={media.at} disabled={busy} maxLength={40} placeholder="center, 57% 50%" onChange={(ev) => setMedia({ at: ev.target.value })} />
+                <span>{t('pagePresentation.settings.center')}</span>
+                <input value={media.at} disabled={busy} maxLength={40} placeholder={'center, 57% 50%'} onChange={(ev) => setMedia({ at: ev.target.value })} />
               </label>
-              <Num label="Krycie" value={media.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setMedia({ opacity })} />
+              <Num label={t('pagePresentation.settings.opacity')} value={media.opacity} min={0} max={1} step={0.05} busy={busy} onChange={(opacity) => setMedia({ opacity })} />
               <label className="wk-check">
                 <input type="checkbox" checked={media.fade} disabled={busy} onChange={(ev) => setMedia({ fade: ev.target.checked })} />
-                <span>Miękkie przejście w tekst</span>
+                <span>{t('pagePresentation.settings.fade')}</span>
               </label>
             </>
           )}
@@ -512,28 +516,28 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
 
       {/* 0108 — Bewegungen nach der Uhr: ein Auftritt, wenn die Szene erreicht ist, eine Schleife, solange er zu sehen ist. */}
       <details className="wk-fold" open={piece.motion.length > 0}>
-        <summary>Ruch{piece.motion.length > 0 ? ` (${piece.motion.length})` : ''}</summary>
-        <p className="wk-hint">Po dotarciu sceny (raz) albo w kółko, dopóki widać — przesuwa się, rośnie, obraca, rozjaśnia, rysuje; albo gotowy ruch z pokazu Cogita.</p>
+        <summary>{t('pageMotion.field.motion')}{piece.motion.length > 0 ? ` (${piece.motion.length})` : ''}</summary>
+        <p className="wk-hint">{t('pagePresentation.settings.motionHint')}</p>
         <MotionField value={piece.motion} busy={busy} onChange={(motion) => onPiece({ ...piece, motion })} />
       </details>
 
       <details className="wk-fold">
-        <summary>Pojawienie się</summary>
+        <summary>{t('pagePresentation.settings.arrive')}</summary>
         <label className="se-inline">
-          <span>Jak</span>
+          <span>{t('pagePresentation.settings.how')}</span>
           <select value={piece.arrive} disabled={busy} onChange={(ev) => onPiece({ ...piece, arrive: ev.target.value as Piece['arrive'] })}>
             {ARRIVALS.map((one) => <option key={one} value={one}>{ARRIVAL_LABEL[one]}</option>)}
           </select>
         </label>
-        <Num label="Opóźnienie" value={piece.delay} min={0} max={0.95} step={0.01} busy={busy} onChange={(delay) => onPiece({ ...piece, delay })}
-          hint="Część przejścia, po której zaczyna (0 — od razu, 0,5 — w połowie)." />
-        <Num label="Trwa" value={piece.span} min={0.05} max={1} step={0.01} busy={busy} onChange={(span) => onPiece({ ...piece, span })}
-          hint="Jaką część przejścia zajmuje jego pojawienie się." />
+        <Num label={t('pagePresentation.settings.delay')} value={piece.delay} min={0} max={0.95} step={0.01} busy={busy} onChange={(delay) => onPiece({ ...piece, delay })}
+          hint={t('pagePresentation.settings.delayHint')} />
+        <Num label={t('pagePresentation.settings.span')} value={piece.span} min={0.05} max={1} step={0.01} busy={busy} onChange={(span) => onPiece({ ...piece, span })}
+          hint={t('pagePresentation.settings.spanHint')} />
       </details>
 
       <details className="wk-fold" open={Object.keys(piece.places).length > 1 || piece.hold}>
-        <summary>Wędrówka między scenami</summary>
-        <p className="wk-hint">Zaznacz sceny, na których moduł ma swoje miejsce — przy zmianie sceny przejdzie płynnie z jednego na drugie (także przez sceny bez miejsca).</p>
+        <summary>{t('pagePresentation.settings.travelTitle')}</summary>
+        <p className="wk-hint">{t('pagePresentation.settings.travelHint')}</p>
         <ul className="pe-travel">
           {scenes.map((sc, i) => {
             const has = piece.places[sc.key] !== undefined;
@@ -547,41 +551,41 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
                       else delete places[sc.key];
                       onPiece({ ...piece, places });
                     }} />
-                  <span>{i + 1}. {sc.label || 'Scena'}{sc.key === scene.key ? ' (ta)' : ''}</span>
+                  <span>{i + 1}. {sc.label || t('pagePresentation.paths.scene')}{sc.key === scene.key ? t('pagePresentation.settings.thisOne') : ''}</span>
                 </label>
               </li>
             );
           })}
         </ul>
         <label className="se-inline">
-          <span>Ruch</span>
+          <span>{t('pageMotion.field.motion')}</span>
           <select value={piece.ease} disabled={busy} onChange={(ev) => onPiece({ ...piece, ease: ev.target.value as Piece['ease'] })}>
             {EASES.map((one) => <option key={one} value={one}>{EASE_LABEL[one]}</option>)}
           </select>
         </label>
         <label className="wk-check">
           <input type="checkbox" checked={piece.hold} disabled={busy} onChange={(ev) => onPiece({ ...piece, hold: ev.target.checked })} />
-          <span>Stoi też przed pierwszym i po ostatnim swoim miejscu</span>
+          <span>{t('pagePresentation.settings.hold')}</span>
         </label>
         {Object.keys(piece.places).length > 1 && (
-          <label className="se-inline" title="„Odchodzi i wraca” — ten sam obraz na początku i na końcu opowieści, a w środku go nie ma; stoi wtedy w scenie, na której jest, jak jej własny moduł.">
-            <span>Przez sceny bez miejsca</span>
+          <label className="se-inline" title={t('pagePresentation.settings.betweenHint')}>
+            <span>{t('pagePresentation.settings.between')}</span>
             <select value={piece.between} disabled={busy} onChange={(ev) => onPiece({ ...piece, between: ev.target.value as Piece['between'] })}>
-              <option value="glide">sunie przez nie</option>
-              <option value="leave">odchodzi ze swoją sceną i wraca z następną</option>
+              <option value="glide">{t('pagePresentation.settings.glide')}</option>
+              <option value="leave">{t('pagePresentation.settings.leave')}</option>
             </select>
           </label>
         )}
-        <Num label="Warstwa" value={piece.layer} min={-10} max={20} step={1} busy={busy} onChange={(layer) => onPiece({ ...piece, layer })}
-          hint="Wyżej — z przodu. Wędrujący z ujemną (−1…−5) stoi przed tłem sceny, ale za jej tekstami; od 10 w górę — nad wszystkimi scenami." />
+        <Num label={t('pagePresentation.settings.layer')} value={piece.layer} min={-10} max={20} step={1} busy={busy} onChange={(layer) => onPiece({ ...piece, layer })}
+          hint={t('pagePresentation.settings.layerHint')} />
       </details>
 
       <div className="wk-actions">
         <button type="button" className="wk-link-btn" disabled={busy}
           onClick={() => { const { [scene.key]: _gone, ...places } = piece.places; onPiece({ ...piece, places }); }}>
-          Zdejmij z tej sceny
+          {t('pagePresentation.settings.takeOff')}
         </button>
-        <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={onDelete}>Usuń moduł ze strony</button>
+        <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={onDelete}>{t('pagePresentation.settings.removeModule')}</button>
       </div>
     </section>
   );
@@ -591,14 +595,15 @@ export function PieceSettings({ part, show, scene, scenes, tall, path, busy, onP
 
 /** Wo der Ausschnitt eines Bildes sitzt — getippt, gilt beim Verlassen des Feldes (halbe Eingaben sind keine Punkte). */
 function CropField({ value, busy, onChange }: { value: string | null; busy: boolean; onChange: (crop: string | null) => void }) {
+  const t = useT();
   const [text, setText] = useState(value ?? '');
   useEffect(() => { setText(value ?? ''); }, [value]);
   const bad = text.trim() !== '' && readCrop(text) === null;
   const commit = () => { if (!bad) onChange(text.trim() === '' ? null : readCrop(text)); };
   return (
-    <label className="se-inline" title="Ten punkt obrazu zostaje w widoku, gdy pole zmienia wymiary (np. „50% 58%” — ognisko). Puste — punkt ustawiony w module obrazu.">
-      <span>Punkt kadru{bad ? ' (np. 57% 40%)' : ''}</span>
-      <input value={text} disabled={busy} maxLength={30} placeholder="jak w obrazie" aria-invalid={bad}
+    <label className="se-inline" title={t('pagePresentation.settings.cropHint')}>
+      <span>{t('pagePresentation.settings.cropPoint')}{bad ? t('pagePresentation.settings.cropBad') : ''}</span>
+      <input value={text} disabled={busy} maxLength={30} placeholder={t('pagePresentation.settings.asInPicture')} aria-invalid={bad}
         onChange={(ev) => setText(ev.target.value)} onBlur={commit} onKeyDown={(ev) => { if (ev.key === 'Enter') commit(); }} />
     </label>
   );
@@ -606,38 +611,39 @@ function CropField({ value, busy, onChange }: { value: string | null; busy: bool
 
 /** Was vom Baustein zu sehen ist: Kreis, Oval, Rechteck mit Rundung — oder alles. */
 function MaskField({ mask, busy, onChange }: { mask: Mask | null; busy: boolean; onChange: (mask: Mask | null) => void }) {
+  const t = useT();
   const set = (patch: Partial<Mask>) => onChange({ ...(mask ?? MASK), ...patch });
   return (
     <>
       <label className="se-inline">
-        <span>Maska</span>
+        <span>{t('pagePresentation.settings.maskLabel')}</span>
         <select value={mask?.shape ?? ''} disabled={busy} onChange={(ev) => (ev.target.value === '' ? onChange(null) : set({ shape: ev.target.value as Mask['shape'] }))}>
-          <option value="">— cały moduł</option>
+          <option value="">{t('pagePresentation.settings.wholeModule')}</option>
           {MASK_SHAPES.map((one) => <option key={one} value={one}>{MASK_LABEL[one]}</option>)}
         </select>
       </label>
       {mask?.shape === 'circle' && (
-        <Num label="Promień %" value={mask.r} min={0} max={150} step={1} busy={busy} onChange={(r) => set({ r })} hint="71 — sięga rogów, gdy środek jest w środku." />
+        <Num label={t('pagePresentation.settings.radius')} value={mask.r} min={0} max={150} step={1} busy={busy} onChange={(r) => set({ r })} hint={t('pagePresentation.settings.radiusHint')} />
       )}
       {mask?.shape === 'ellipse' && (
         <>
-          <Num label="Szerokość owalu %" value={mask.rx} min={0} max={300} step={1} busy={busy} onChange={(rx) => set({ rx })} />
-          <Num label="Wysokość owalu %" value={mask.ry} min={0} max={300} step={1} busy={busy} onChange={(ry) => set({ ry })} />
+          <Num label={t('pagePresentation.settings.ovalW')} value={mask.rx} min={0} max={300} step={1} busy={busy} onChange={(rx) => set({ rx })} />
+          <Num label={t('pagePresentation.settings.ovalH')} value={mask.ry} min={0} max={300} step={1} busy={busy} onChange={(ry) => set({ ry })} />
         </>
       )}
       {(mask?.shape === 'circle' || mask?.shape === 'ellipse') && (
         <>
-          <Num label="Środek x %" value={mask.x} min={-100} max={200} step={1} busy={busy} onChange={(x) => set({ x })} />
-          <Num label="Środek y %" value={mask.y} min={-100} max={200} step={1} busy={busy} onChange={(y) => set({ y })} />
+          <Num label={t('pagePresentation.settings.centerX')} value={mask.x} min={-100} max={200} step={1} busy={busy} onChange={(x) => set({ x })} />
+          <Num label={t('pagePresentation.settings.centerY')} value={mask.y} min={-100} max={200} step={1} busy={busy} onChange={(y) => set({ y })} />
         </>
       )}
       {mask?.shape === 'inset' && (
         <>
-          <Num label="Wcięcie z góry %" value={mask.top} min={0} max={100} step={1} busy={busy} onChange={(top) => set({ top })} />
-          <Num label="Wcięcie z prawej %" value={mask.right} min={0} max={100} step={1} busy={busy} onChange={(right) => set({ right })} />
-          <Num label="Wcięcie z dołu %" value={mask.bottom} min={0} max={100} step={1} busy={busy} onChange={(bottom) => set({ bottom })} />
-          <Num label="Wcięcie z lewej %" value={mask.left} min={0} max={100} step={1} busy={busy} onChange={(left) => set({ left })} />
-          <Num label="Rogi (rem)" value={mask.round} min={0} max={20} step={0.1} busy={busy} onChange={(round) => set({ round })} />
+          <Num label={t('pagePresentation.settings.insetTop')} value={mask.top} min={0} max={100} step={1} busy={busy} onChange={(top) => set({ top })} />
+          <Num label={t('pagePresentation.settings.insetRight')} value={mask.right} min={0} max={100} step={1} busy={busy} onChange={(right) => set({ right })} />
+          <Num label={t('pagePresentation.settings.insetBottom')} value={mask.bottom} min={0} max={100} step={1} busy={busy} onChange={(bottom) => set({ bottom })} />
+          <Num label={t('pagePresentation.settings.insetLeft')} value={mask.left} min={0} max={100} step={1} busy={busy} onChange={(left) => set({ left })} />
+          <Num label={t('pagePresentation.settings.corners')} value={mask.round} min={0} max={20} step={0.1} busy={busy} onChange={(round) => set({ round })} />
         </>
       )}
     </>
@@ -654,6 +660,7 @@ const framesText = (place: Place) => (place.frames.length === 0 ? '' : JSON.stri
 function FramesField({ place, at, steps, busy, onPlace }: {
   place: Place; at: Place; steps: number; busy: boolean; onPlace: (patch: Partial<Place>) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(() => framesText(place));
   const [error, setError] = useState(false);
   const said = JSON.stringify(framesJson(place.frames));
@@ -683,26 +690,26 @@ function FramesField({ place, at, steps, busy, onPlace }: {
 
   return (
     <details className="wk-fold" open={place.frames.length > 0}>
-      <summary>Klatki — zmiana z postępem sceny{place.frames.length > 0 ? ` (${place.frames.length})` : ''}</summary>
-      <label className="se-inline" title="Przewijanie (także w tył), klawiatura i pokaz poruszają ten sam postęp — zatrzymany postęp to zatrzymany obraz.">
-        <span>Postęp</span>
+      <summary>{t('pagePresentation.settings.frames')}{place.frames.length > 0 ? ` (${place.frames.length})` : ''}</summary>
+      <label className="se-inline" title={t('pagePresentation.settings.progressHint')}>
+        <span>{t('pagePresentation.settings.progressLabel')}</span>
         <select value={place.by} disabled={busy} onChange={(ev) => onPlace({ by: ev.target.value as Place['by'] })}>
           {PROGRESS.map((one) => <option key={one} value={one}>{PROGRESS_LABEL[one]}</option>)}
         </select>
       </label>
-      {place.by === 'scene' && steps < 2 && place.frames.length > 0 && <p className="wk-error">Scena ma jeden krok — postęp stoi na 0. Dodaj krok w ustawieniach sceny.</p>}
-      <label className="wk-field" title='[{ "at": 0.4, "x": 30, "w": 40, "h": 55, "crop": "50% 60%" }, { "step": 2, "opacity": 0, "tall": { "y": 20 } }] — "at" 0–1 albo "step" (od 0); klatka zmienia tylko to, co podaje; "tall" — jej wartości na telefonie.'>
-        <span>Klatki (JSON){error ? ' — to nie jest lista klatek' : ''}</span>
+      {place.by === 'scene' && steps < 2 && place.frames.length > 0 && <p className="wk-error">{t('pagePresentation.settings.oneStep')}</p>}
+      <label className="wk-field" title={t('pagePresentation.settings.framesHint')}>
+        <span>{t('pagePresentation.settings.framesJson')}{error ? t('pagePresentation.settings.notFrames') : ''}</span>
         <textarea rows={Math.min(12, Math.max(3, text.split('\n').length))} value={text} disabled={busy} spellCheck={false} aria-invalid={error}
           placeholder='[{ "at": 1, "x": 30, "w": 42, "h": 70 }]' onChange={(ev) => type(ev.target.value)} />
       </label>
       <div className="wk-actions">
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={here}>+ Klatka na końcu: miejsce jak teraz</button>
-        {place.frames.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onPlace({ frames: [] })}>Bez klatek</button>}
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={here}>{t('pagePresentation.settings.frameHere')}</button>
+        {place.frames.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onPlace({ frames: [] })}>{t('pagePresentation.settings.noFrames')}</button>}
       </div>
-      <label className="se-inline" title="Przy ustawieniu „mniej ruchu” klatki stoją w jednym miejscu (0–1) — nieruchoma kompozycja z tą samą treścią. Puste: na końcu (przy wyjściu — na początku); klatki z krokami przeskakują z kroku na krok.">
-        <span>Przy „mniej ruchu”</span>
-        <input type="number" min={0} max={1} step={0.05} value={place.still ?? ''} placeholder="koniec" disabled={busy}
+      <label className="se-inline" title={t('pagePresentation.settings.stillHint')}>
+        <span>{t('pagePresentation.settings.still')}</span>
+        <input type="number" min={0} max={1} step={0.05} value={place.still ?? ''} placeholder={t('pagePresentation.settings.stillPlaceholder')} disabled={busy}
           onChange={(ev) => onPlace({ still: ev.target.value.trim() === '' ? null : Math.min(1, Math.max(0, Number(ev.target.value))) })} />
       </label>
     </details>

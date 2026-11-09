@@ -31,7 +31,7 @@ import { usePageLogic } from './pageLogic';
 import { slideLabelOf } from './slides/PageSlides';
 import { partOf } from './parts/registry';
 import { anchorInAddress, anchorOf } from './slides/slides';
-import { BLOCKED_KIND as BLOCKED, BLOCKED_PART_TEXT, reportPath } from '../reports/reportPath';
+import { BLOCKED_KIND as BLOCKED, reportPath } from '../reports/reportPath';
 
 /**
  * 0063 — „#zapisy" IM RASTER. Ein Knopf im Tytuł oder ein Verweis im Text, der
@@ -223,7 +223,7 @@ export function PageParts({ parts, gap: gapRem = 1 }: {
               <p className="wk-card-muted">{messages.get(part.id)}</p>
             ) : part.kind === BLOCKED ? (
               /* 0130 — nach einer Meldung gesperrt: an seiner Stelle nur dieser Satz. */
-              <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
+              <p className="wk-blocked">{t('reports.blockedPart')}</p>
             ) : def === undefined ? (
               <p className="wk-card-unknown">{t('pages.parts.unknownKind', { kind: part.kind })}</p>
             ) : folded ? (

@@ -21,6 +21,7 @@ import { newId } from '../core/ids';
 import { isbn13 } from './isbn';
 import { personName, slug, str, type EntryData, type LibEntry } from './libraryKinds';
 import { call } from '../core/session';
+import { fmtNumber, t, texts } from '../core/i18n';
 
 export interface CatalogName {
   readonly given?: string;
@@ -100,8 +101,8 @@ export function nameOf(text: string, years?: string): CatalogName | null {
 const nameText = (n: CatalogName): string => n.name ?? [n.given, n.surname].filter(Boolean).join(' ');
 
 const BINDING_WORDS: readonly [RegExp, string][] = [
-  [/skrzyd/i, 'soft-flaps'], [/mi[eę]k|broszur|paperback|softcover|\bBC\b/i, 'soft'], [/tward|hardback|hardcover|\bBB\b/i, 'hard'],
-  [/zintegr/i, 'integrated'], [/p[lł][oó]cien|cloth/i, 'cloth'], [/sk[oó]r/i, 'leather'], [/spiral/i, 'spiral']
+  [/skrzyd/i, 'soft-flaps'], [/mi[eę]k|broszur|paperback|softcover|\bBC\b/i, 'soft'], [/tward|hardback|hardcover|\bBB\b/i, 'hard'], // i18n-ignore — Wörter der Kataloge
+  [/zintegr/i, 'integrated'], [/p[lł][oó]cien|cloth/i, 'cloth'], [/sk[oó]r/i, 'leather'], [/spiral/i, 'spiral'] // i18n-ignore
 ];
 
 export function bindingOf(text: string | undefined): string | undefined {
@@ -110,7 +111,7 @@ export function bindingOf(text: string | undefined): string | undefined {
 }
 
 const ORDINALS: Record<string, string> = {
-  pierwsze: '1', drugie: '2', trzecie: '3', czwarte: '4', piąte: '5', szóste: '6', siódme: '7', ósme: '8', dziewiąte: '9', dziesiąte: '10'
+  pierwsze: '1', drugie: '2', trzecie: '3', czwarte: '4', piąte: '5', szóste: '6', siódme: '7', ósme: '8', dziewiąte: '9', dziesiąte: '10' // i18n-ignore — Wörter der Kataloge
 };
 const ROMAN: Record<string, string> = { I: '1', II: '2', III: '3', IV: '4', V: '5', VI: '6', VII: '7', VIII: '8', IX: '9', X: '10' };
 
@@ -394,19 +395,19 @@ export async function lookupIsbn(isbn: string): Promise<CatalogBook[]> {
 /** Eine Zeile zur Auswahl: Ausgabe, Ort, Verlag, Jahr, Seiten, Einband. */
 export function bookLine(book: CatalogBook): string {
   return [
-    book.edition === undefined ? '' : /^\d/.test(book.edition) ? `wyd. ${book.edition}` : book.edition,
+    book.edition === undefined ? '' : /^\d/.test(book.edition) ? t('libraryData.catalog.edition', { n: book.edition }) : book.edition,
     [book.place, [book.publisher, book.year].filter(Boolean).join(' ')].filter(Boolean).join(': '),
-    book.pageCount === undefined ? '' : `${book.pageCount} s.`,
-    book.height === undefined ? '' : `${String(book.height).replace('.', ',')} cm`,
-    book.binding === 'hard' ? 'oprawa twarda' : book.binding === 'soft' ? 'oprawa miękka' : book.binding === undefined ? '' : `oprawa: ${book.binding}`,
+    book.pageCount === undefined ? '' : t('libraryData.catalog.pages', { n: book.pageCount }),
+    book.height === undefined ? '' : t('libraryData.catalog.height', { n: fmtNumber(book.height) }),
+    book.binding === 'hard' ? t('libraryData.catalog.bindingHard') : book.binding === 'soft' ? t('libraryData.catalog.bindingSoft') : book.binding === undefined ? '' : t('libraryData.catalog.binding', { binding: book.binding }),
     book.series ?? ''
   ].filter(Boolean).join(' · ');
 }
 
 export const peopleLine = (book: CatalogBook): string => [
   book.authors.map(nameText).join(', '),
-  book.editors.length > 0 ? `red. ${book.editors.map(nameText).join(', ')}` : '',
-  book.translators.length > 0 ? `tłum. ${book.translators.map(nameText).join(', ')}` : ''
+  book.editors.length > 0 ? t('libraryData.catalog.editors', { list: book.editors.map(nameText).join(', ') }) : '',
+  book.translators.length > 0 ? t('libraryData.catalog.translators', { list: book.translators.map(nameText).join(', ') }) : ''
 ].filter(Boolean).join(' · ');
 
 /* -- Ins Werk ---------------------------------------------------------------------------------- */
@@ -420,11 +421,14 @@ export interface BookPlan {
   readonly filled: readonly string[];
 }
 
-const FILLED_LABEL: Record<string, string> = {
-  title: 'tytuł', subtitle: 'podtytuł', originalTitle: 'tytuł oryginału', authors: 'autorzy', editors: 'redakcja', translators: 'tłumaczenie',
-  edition: 'wydanie', publisher: 'wydawca', place: 'miejsce', year: 'rok', series: 'seria', pageCount: 'liczba stron',
-  height: 'wysokość', width: 'szerokość', length: 'grubość', binding: 'oprawa', language: 'język', isbn: 'ISBN'
-};
+const FILLED_LABEL: Record<string, string> = texts({
+  title: 'libraryData.catalog.field.title', subtitle: 'libraryData.catalog.field.subtitle', originalTitle: 'libraryData.catalog.field.originalTitle',
+  authors: 'libraryData.catalog.field.authors', editors: 'libraryData.catalog.field.editors', translators: 'libraryData.catalog.field.translators',
+  edition: 'libraryData.catalog.field.edition', publisher: 'libraryData.catalog.field.publisher', place: 'libraryData.catalog.field.place',
+  year: 'libraryData.catalog.field.year', series: 'libraryData.catalog.field.series', pageCount: 'libraryData.catalog.field.pageCount',
+  height: 'libraryData.catalog.field.height', width: 'libraryData.catalog.field.width', length: 'libraryData.catalog.field.length',
+  binding: 'libraryData.catalog.field.binding', language: 'libraryData.catalog.field.language', isbn: 'libraryData.catalog.field.isbn'
+});
 
 /**
  * Das Werk aus einer Beschreibung. `existing`: die Daten eines Werks, das

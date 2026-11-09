@@ -59,5 +59,32 @@
     "layoutSign": "With \"text\": true — a declaration to sign on the printout (e.g. parental consent): to read in the form, without a tick box; on the printout above the signature line",
     "designNodes": "Logic nodes: {\"id\",\"kind\",\"x\",\"y\", \"fieldId\"?, \"value\"?, \"op\"?, \"target\"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. \"age\" — age in full years from a question with a date of birth or PESEL (\"fieldId\"), on the day \"value\" (YYYY-MM-DD; empty — today); compared with 18 it shows the fields for minors",
     "designEdges": "Logic connections: {\"id\",\"from\",\"to\",\"port\":\"a\"|\"b\"|\"in\"}"
+  },
+  "qExample": {
+    "given": "First name",
+    "stay": "Accommodation",
+    "stayHelp": "Choose one option",
+    "tent": "Tent",
+    "school": "School",
+    "lodging": "Lodging",
+    "consent": "I consent to my child taking part."
+  },
+  "msg": {
+    "noPassword": "Without the password the questions cannot be sealed — unlock the keys.",
+    "noAreaKey": "You do not have the key of area {area}.",
+    "noLabel": "Question {n} has no text — skipped.",
+    "unknownKind": "Question “{label}”: unknown kind “{kind}” — it will be “line”.",
+    "restoring": "Restoring question “{label}”…",
+    "restored": "“{label}” returns to the form — together with its answers so far.",
+    "settingArea": "Setting the form's area…",
+    "sealedSkip": "Question {id} is sealed with a key you do not have — skipped.",
+    "answersStay": "“{label}”: the answers stay in the previous area — moving them is done in the module.",
+    "sealing": "Sealing question “{label}”…",
+    "noAnswerArea": "“{label}”: no answer area chosen — question skipped.",
+    "noPerson": "The account does not run any person yet — create one in Roles.",
+    "stays": "“{label}” stays: {why}.",
+    "deleteFailed": "could not delete",
+    "designNeedsArea": "Layout and logic require the form's area — set it in the module and import again.",
+    "savingLayout": "Saving the layout…"
   }
 }

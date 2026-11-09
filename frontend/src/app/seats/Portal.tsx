@@ -40,6 +40,10 @@ import { saveParts, type DraftPart } from '../pages/page';
 import { pageSteps, PATH_SHAPE, viewPath } from '../routes';
 import { pageLink } from './seatKeep';
 import { WorkspaceError } from '../core/session';
+import { rich, t as tApp, useT } from '../core/i18n';
+
+const code = (s: string, key: number) => <code key={key}>{s}</code>;
+const wrapCode = (s: string) => `<code>${s}</code>`;
 
 /**
  * Wie ein neues Portal vorgeschlagen wird.
@@ -86,12 +90,12 @@ const mayCarry = (formPage: string, one: PageCard, pages: readonly PageCard[]): 
  * nach unten; nebeneinander zu stellen ist eine Entscheidung, die der treffen
  * soll, der die Seite danach baut.
  */
-const SEED: readonly { kind: string; rowSpan: number; config: Record<string, string> }[] = [
+const SEED: readonly { kind: string; rowSpan: number; config: () => Record<string, string> }[] = [
   {
     /* DER GRUND, warum es das Portal gibt. */
     kind: 'seat-submission',
     rowSpan: 3,
-    config: { title: 'Twoje zgłoszenie' }
+    config: () => ({ title: tApp('seats.portal.seedTitle') })
   },
 ];
 
@@ -122,12 +126,12 @@ export function ownAddress(text: string): { readonly under: string; readonly at:
 /** Dasselbe wie der Dienst (`Form.PortalAt`): ? oder # vorn, keine Leerzeichen, nicht der Platz selbst. */
 export function atProblem(at: string): string | null {
   if (at === '') return null;
-  if (at.length > 300) return 'Dopisek jest za długi (najwyżej 300 znaków).';
-  if (at[0] !== '?' && at[0] !== '#') return 'Dopisek zaczyna się od „?” albo „#”.';
-  if (/[\s<>"'`\\]/.test(at)) return 'Dopisek bez spacji i cudzysłowów.';
-  if (at.indexOf('#') !== at.lastIndexOf('#')) return 'Tylko jedna kotwica „#”.';
-  if (/(^\?|&)miejsce(=|&|#|$)/i.test(at)) return 'Klucz osoby link dopisze sam — usuń „miejsce=…”.';
-  if (at === '?' || at === '#') return 'Po „?” albo „#” coś musi stać.';
+  if (at.length > 300) return tApp('seats.at.long');
+  if (at[0] !== '?' && at[0] !== '#') return tApp('seats.at.start');
+  if (/[\s<>"'`\\]/.test(at)) return tApp('seats.at.spaces');
+  if (at.indexOf('#') !== at.lastIndexOf('#')) return tApp('seats.at.oneAnchor');
+  if (/(^\?|&)miejsce(=|&|#|$)/i.test(at)) return tApp('seats.at.key');
+  if (at === '?' || at === '#') return tApp('seats.at.empty');
   return null;
 }
 
@@ -175,6 +179,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
   const [pages, setPages] = useState<readonly PageCard[]>([]);
   const [wanted, setWanted] = useState('');
   const [own, setOwn] = useState(portalUnder === '' ? portalAt : `${portalUnder}${portalAt}`);
+  const t = useT();
 
   /* Kommt eine andere Einstellung herein (gespeichert, anderswo geändert), steht sie im Feld. */
   useEffect(() => { setOwn(portalUnder === '' ? portalAt : `${portalUnder}${portalAt}`); }, [portalUnder, portalAt]);
@@ -246,7 +251,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
       await setPartConfig(moduleId, dropAt ? { portalUnder: where, portalAt: '' } : { portalUnder: where });
       onSet(where, dropAt ? '' : undefined);
     } catch (e) {
-      said(e, 'Nie udało się zapisać.');
+      said(e, t('seats.portal.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -286,7 +291,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
         kind: one.kind,
         layout: fullWidth(at === 0 ? 1 : 1 + SEED[0].rowSpan, one.rowSpan),
         /* Das Portal entsteht AUS diesem Formular — also zeigt es dessen Antworten, alle. */
-        config: one.kind === 'seat-submission' ? { ...one.config, form: moduleId, show: '*' } : one.config
+        config: one.kind === 'seat-submission' ? { ...one.config(), form: moduleId, show: '*' } : one.config()
       }));
 
       await saveParts(where, parts);
@@ -295,7 +300,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
       onSet(where);
       window.location.hash = viewPath('pages', ...pageSteps(where));
     } catch (e) {
-      said(e, 'Nie udało się założyć portalu.');
+      said(e, t('seats.portal.makeFailed'));
     } finally {
       setBusy(false);
     }
@@ -307,10 +312,10 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
   const ownAt = parsed?.at ?? '';
   const ownBlocker =
     parsed === null ? null
-    : ownUnder === '' ? 'Wpisz adres strony.'
-    : !PATH_SHAPE.test(ownUnder) ? 'Nie rozpoznaję adresu strony — wklej go tak, jak stoi w pasku adresu.'
+    : ownUnder === '' ? t('seats.portal.enterAddress')
+    : !PATH_SHAPE.test(ownUnder) ? t('seats.portal.unknownAddress')
     : !nowhere && pages.length > 0 && !choices.some((one) => one.path === ownUnder)
-      ? `recreatio.pl/${ownUnder} nie może być stroną po wysłaniu tego formularza — wybierz stronę z listy wyżej.`
+      ? t('seats.portal.notAllowed', { path: ownUnder })
     : atProblem(ownAt);
   const ownSame = parsed !== null && ownUnder === portalUnder && ownAt === portalAt;
 
@@ -322,7 +327,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
       await setPartConfig(moduleId, { portalUnder: ownUnder, portalAt: ownAt });
       onSet(ownUnder, ownAt);
     } catch (e) {
-      said(e, 'Nie udało się zapisać adresu.');
+      said(e, t('seats.portal.saveAddressFailed'));
     } finally {
       setBusy(false);
     }
@@ -332,39 +337,31 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
   const taken = pages.some((one) => one.path === path);
 
   const blocker =
-    path === '' ? 'Wpisz adres strony.'
-    : !PATH_SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
-    : taken ? 'Taka strona już jest — wybierz ją wyżej.'
-    : ownerRoleId === null ? 'Nie znaleziono Twojej roli.'
+    path === '' ? t('seats.portal.enterAddress')
+    : !PATH_SHAPE.test(path) ? t('seats.portal.shape')
+    : taken ? t('seats.portal.taken')
+    : ownerRoleId === null ? t('seats.portal.noRole')
     : null;
 
   return (
     <section className="wk-form">
-      <h3 className="wk-h2">Po wysłaniu</h3>
+      <h3 className="wk-h2">{t('seats.portal.title')}</h3>
 
       {/*
         WO DER BOGEN STEHT. Es entscheidet, welche Seite sein Portal tragen
         darf — und es ist das Erste, was fehlt, wenn nichts anzubieten ist.
       */}
       {nowhere ? (
-        <p className="wk-hint">
-          Ten formularz nie stoi jeszcze na żadnej stronie. Portal możesz
-          przygotować już teraz — pamiętaj tylko, że po postawieniu formularza
-          portal musi być tą samą stroną, stroną nad nią lub pod nią albo inną
-          publiczną stroną tego samego właściciela.
-        </p>
+        <p className="wk-hint">{t('seats.portal.nowhere')}</p>
       ) : (
         <p className="wk-hint">
-          Formularz stoi na: {standsOn.map((one) => <code key={one}>recreatio.pl/{one}</code>)
-            .reduce<React.ReactNode[]>((all, one, at) => at === 0 ? [one] : [...all, ', ', one], [])}.
-          {' '}Portalem może być każda publiczna strona tego samego właściciela.
+          {rich(t('seats.portal.standsOn', { pages: standsOn.map((one) => wrapCode(`recreatio.pl/${one}`)).join(', ') }), { code })}
         </p>
       )}
 
       {opens !== null && (
         <p className="wk-warn">
-          Link otwiera <code>recreatio.pl/{opens}{portalAt}</code>
-          {!has && ' — tak wychodzi z ustawień, nikt tego nie wybrał.'}
+          {rich(t(has ? 'seats.portal.opens' : 'seats.portal.opensDerived', { path: `${opens}${portalAt}` }), { code })}
         </p>
       )}
 
@@ -372,24 +369,16 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
         WAS DER LINK TUT — er öffnet DIESE Seite selbst, mit dem Schlüssel des
         Menschen daran (`?miejsce=…`), keine Unterseite mit einem Portal.
       */}
-      <p className="wk-hint">
-        Osoba dostaje link do tej strony z własnym kluczem. Bloki „Zgłoszenie osoby" i
-        „Wiadomość dla osoby" na tej stronie pokażą jej dane; jeśli ich tam nie ma, jej
-        zgłoszenie pojawi się pod treścią strony. Klucz zostaje w jej przeglądarce i działa
-        też na innych stronach tej organizacji.
-      </p>
+      <p className="wk-hint">{t('seats.portal.how')}</p>
 
       {astray && (
-        <p className="wk-blocker">
-          Ta strona nie pasuje już do stron, na których stoi formularz — wybierz inną,
-          inaczej zgłoszenie się nie powiedzie.
-        </p>
+        <p className="wk-blocker">{t('seats.portal.astray')}</p>
       )}
 
       {has && (
         <div className="wk-actions">
           <a className="wk-btn" href={viewPath('pages', ...pageSteps(portalUnder))}>
-            Otwórz tę stronę
+            {t('seats.portal.openPage')}
           </a>
         </div>
       )}
@@ -406,30 +395,26 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
         der Link öffnet den Slajd „Twoje zgłoszenie" statt des ersten.
       */}
       <details className="wk-fold wk-own-address" open={portalAt !== ''}>
-        <summary>Własny adres — z „#” albo parametrami</summary>
+        <summary>{t('seats.portal.ownSummary')}</summary>
         <label className="wk-field">
-          <span>Adres strony po wysłaniu</span>
+          <span>{t('seats.portal.ownLabel')}</span>
           <input
             value={own}
-            placeholder="np. recreatio.pl/#/events/rocket2026#twoje-zgloszenie"
+            placeholder={t('seats.portal.ownPlaceholder')}
             disabled={busy}
             onChange={(e) => setOwn(e.target.value)}
           />
-          <span className="wk-hint">
-            Wklej adres strony (z listy wyżej) i dopisz za nim: „#nazwa-slajdu” — link otworzy ten slajd (nazwa jak w
-            menu slajdów, np. „#twoje-zgloszenie”), „?s=3” — trzeci slajd, „?part=…” — konkretny moduł. Sam dopisek
-            („#…” albo „?…”) dotyczy strony wybranej wyżej. Klucz osoby link doda sam.
-          </span>
+          <span className="wk-hint">{t('seats.portal.ownHint')}</span>
         </label>
         {parsed !== null && ownBlocker === null && (
           <p className="wk-hint">
-            Link osoby: <code>recreatio.pl/{pageLink(ownUnder, '…', '…', ownAt).replace(/%E2%80%A6/g, '…')}</code>
+            {t('seats.portal.personLink')} <code>{`recreatio.pl/${pageLink(ownUnder, '…', '…', ownAt).replace(/%E2%80%A6/g, '…')}`}</code>
           </p>
         )}
         {ownBlocker !== null && !busy && <p className="wk-blocker">{ownBlocker}</p>}
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy || parsed === null || ownBlocker !== null || ownSame} onClick={() => void saveOwn()}>
-            Zapisz adres
+            {t('seats.portal.saveAddress')}
           </button>
           {portalAt !== '' && (
             <button
@@ -438,11 +423,11 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
                 setBusy(true);
                 setFailed(null);
                 try { await setPartConfig(moduleId, { portalAt: '' }); onSet(portalUnder, ''); }
-                catch (e) { said(e, 'Nie udało się zapisać.'); }
+                catch (e) { said(e, t('seats.portal.saveFailed')); }
                 finally { setBusy(false); }
               })()}
             >
-              Bez dopisku
+              {t('seats.portal.noSuffix')}
             </button>
           )}
         </div>
@@ -454,22 +439,19 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
         wollte, konnte es nicht.
       */}
       <details className="wk-fold" open={!has && choices.length === 0}>
-        <summary>Albo załóż nową stronę</summary>
+        <summary>{t('seats.portal.newSummary')}</summary>
 
         <label className="wk-field">
-          <span>Adres</span>
+          <span>{t('seats.portal.address')}</span>
           <input
             value={wanted}
-            placeholder="np. parish/grzegorzki/confirmation/candidate"
+            placeholder={t('seats.portal.newPlaceholder')}
             disabled={busy}
             onChange={(e) => setWanted(e.target.value)}
           />
         </label>
 
-        <p className="wk-hint">
-          Powstanie ze zgłoszeniem tej osoby, które <strong>może poprawić</strong>,
-          i miejscem na wiadomość od kancelarii.
-        </p>
+        <p className="wk-hint">{rich(t('seats.portal.newHint'), { b: (s, key) => <strong key={key}>{s}</strong> })}</p>
 
         {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
 
@@ -480,7 +462,7 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
             disabled={busy || blocker !== null}
             onClick={() => void make()}
           >
-            {busy ? 'Zakładanie…' : 'Załóż i otwórz'}
+            {busy ? t('seats.portal.making') : t('seats.portal.make')}
           </button>
         </div>
       </details>
@@ -503,23 +485,24 @@ function Choose({ now, choices, busy, onPick }: {
   busy: boolean;
   onPick: (path: string) => void;
 }) {
+  const t = useT();
   if (choices.length === 0) return null;
 
   return (
     <label className="wk-field">
-      <span>Strona po wysłaniu</span>
+      <span>{t('seats.portal.pageAfter')}</span>
       <select
         value={now}
         disabled={busy}
         onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}
       >
-        <option value="">— niech usługa wybierze —</option>
+        <option value="">{t('seats.portal.serviceChooses')}</option>
         {/* Was eingestellt ist, steht da — auch wenn es nicht mehr passt. */}
         {now !== '' && !choices.some((one) => one.path === now) && (
-          <option value={now} disabled>recreatio.pl/{now} (nie pasuje)</option>
+          <option value={now} disabled>{t('seats.portal.notFitting', { path: now })}</option>
         )}
         {choices.map((one) => (
-          <option key={one.path} value={one.path}>recreatio.pl/{one.path}</option>
+          <option key={one.path} value={one.path}>{`recreatio.pl/${one.path}`}</option>
         ))}
       </select>
     </label>

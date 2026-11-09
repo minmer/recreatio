@@ -5,11 +5,13 @@
  */
 
 import { str, type LibEntry } from './libraryKinds';
+import { texts } from '../core/i18n';
 
 /** Jak nazywały się rodzaje, których już nie ma. */
-const OLD_KINDS: Readonly<Record<string, string>> = {
-  text: 'Tekst', delivery: 'Wygłoszenie', project: 'Projekt', comment: 'Komentarz', topic: 'Temat', knowledge: 'Wiedza', texttype: 'Rodzaj tekstu'
-};
+const OLD_KINDS: Readonly<Record<string, string>> = texts({
+  text: 'library.oldKind.text', delivery: 'library.oldKind.delivery', project: 'library.oldKind.project', comment: 'library.oldKind.comment',
+  topic: 'library.oldKind.topic', knowledge: 'library.oldKind.knowledge', texttype: 'library.oldKind.texttype'
+});
 
 export const oldKindLabel = (kind: string): string => OLD_KINDS[kind] ?? kind;
 

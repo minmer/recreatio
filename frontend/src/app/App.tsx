@@ -31,6 +31,7 @@ import { phoneHere } from './phone/here';
 import { SignIn } from './shell/SignIn';
 import { Widget } from './pages/Widget';
 import { Loading } from './ui/Loading';
+import { rich, useT } from './core/i18n';
 
 /*
  * 2026-10-17 — NACHGELADEN, WAS EINE ÖFFENTLICHE SEITE NICHT BRAUCHT: der
@@ -59,6 +60,7 @@ const SMS_STEP = 1500;
 const RETRY = 15000;
 
 export function App() {
+  const t = useT();
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
 
   /*
@@ -321,7 +323,7 @@ export function App() {
   }
 
   if (who === undefined) {
-    return <PlainFrame><Loading label="Sprawdzanie…" /></PlainFrame>;
+    return <PlainFrame><Loading label={t('app.checking')} /></PlainFrame>;
   }
 
   if (who === null) {
@@ -368,15 +370,13 @@ export function App() {
         */}
         {linked && view !== 'calendar' && (
           <p className="wk-note">
-            Ta część warsztatu działa tylko z kontem. Link z dostępem, który masz w tej przeglądarce, działa
-            bez logowania na stronach i w <a className="wk-link" href={viewPath('calendar')}>kalendarzu</a>.
+            {rich(t('app.needsAccount'), { link: (s) => <a className="wk-link" href={viewPath('calendar')}>{s}</a> })}
           </p>
         )}
         {/* 2026-10-26 — w wydaniu „sms": SMS-y są w telefonie i działają bez konta (bez sieci też). */}
         {phoneHere() && (
           <p className="wk-note">
-            Bez sieci albo bez konta? SMS-y działają bez logowania:{' '}
-            <a className="wk-link" href={viewPath('sms')} onClick={() => setSignInWanted(false)}>otwórz SMS</a>.
+            {rich(t('app.smsAlone'), { link: (s) => <a className="wk-link" href={viewPath('sms')} onClick={() => setSignInWanted(false)}>{s}</a> })}
           </p>
         )}
         <SignIn onDone={setWho} />

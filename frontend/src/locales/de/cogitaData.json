@@ -1,0 +1,1115 @@
+{
+  "import": {
+    "cardsFailed": "die Karten ließen sich nicht zählen",
+    "notJson": "Das ist kein JSON-Dokument.",
+    "noForms": "Im Dokument gibt es kein Formular — die Liste „forms“ fehlt.",
+    "skippedElsewhere": "Übersprungen (das wird in den Schemata oder in den Einstellungen importiert): {list}.",
+    "sourceText": "Das ist ein Quelltext (\"recreatio/source-text\") — er wird in der Bibliothek importiert, nicht in Cogita: mit einem neuen Werk unter Quellen „Werk mit Text (JSON)“; für ein Werk, das es schon gibt — auf seiner Seite, im Kasten „Quelltext“.",
+    "unknownFormat": "Unbekanntes Format „{format}“. Erwartet: {course}, {schema}, {entities} oder {flow}.",
+    "kindNoRemove": "Art „{name}“: Arten werden nicht per Import gelöscht — Schemata → Art → „Art löschen“ zeigt, was mit ihr verschwindet. Übersprungen.",
+    "builtinGone": "Die eingebaute Art „{builtin}“ gibt es nicht mehr (eingebaute Themen, Wissen und Kommentare gibt es nicht) — übersprungen.",
+    "fieldTypeChange": "Art „{kind}“: Feld „{field}“ ändert seinen Typ ({from} → {to}) — bisherige Werte können „außerhalb des Schemas“ landen.",
+    "fieldsKept": "Art „{kind}“: Felder, die nicht im Dokument stehen, bleiben ({fields}).",
+    "kindRenamed": "Art „{from}“ heißt jetzt „{to}“.",
+    "labelChanged": "Art „{kind}“: Bezeichnungsmuster „{from}“ → „{to}“.",
+    "tellsChanged": "Art „{kind}“: Feld zur Unterscheidung Gleichnamiger „{from}“ → „{to}“.",
+    "systemChanged": "Art „{kind}“: feste Rolle in der Engine „{from}“ → „{to}“.",
+    "readingRemoved": "Art „{kind}“: ohne Lesemuster (wie bisher: Zusammenfassung oder erster Absatz, dann die Textfelder).",
+    "readingNew": "Art „{kind}“: neues Lesemuster.",
+    "nameTwice": "Der Name „@{name}“ steht zweimal im Dokument — der zweite Eintrag ändert den ersten.",
+    "merged": "Die Einträge „@{a}“ und „@{b}“ sind heute ein Eintrag (zusammengeführt) — gespeichert wird einer; was schon darin steht, bleibt.",
+    "nameIsLibraryKey": "Der Name „@{name}“ im Dokument ist auch ein Schlüssel in der Bibliothek — Verweise „@{name}“ in diesem Dokument führen zum Eintrag aus dem Dokument. Gib den Einträgen andere Namen (z. B. „@{name}/ganz/frage“).",
+    "refNowhere": "der Verweis „@{name}“ führt ins Leere (es gibt keinen Eintrag dieses Namens, weder im Dokument noch in der Basis) — übersprungen",
+    "refNowhereLibrary": "der Verweis „@{name}“ führt ins Leere — übersprungen (falls das der Schlüssel eines Werks der Bibliothek ist: diese Basis muss sie nutzen — Mehr → Einstellungen → Quellen)",
+    "noKind": "Eintrag {entry}: diese Art gibt es nicht — übersprungen.",
+    "foreignKind": "Eintrag {entry} ist von der Art „{kind}“ — er wird als Kopie in dieser Basis gespeichert. Meist verweist man auf den vorhandenen Eintrag der Bibliothek mit seinem Schlüssel oder seiner Kennung.",
+    "entryFieldMissing": "Eintrag {entry}, Feld „{field}“: {why}.",
+    "revisionMode": "Wiederholung „{name}“: \"mode\": \"{value}\" — gibt es nicht ({list}); wirkt wie \"temporal\".",
+    "revisionPick": "Wiederholung „{name}“: \"pick\": \"{value}\" — gibt es nicht ({list}); wirkt wie \"weighted\".",
+    "docTwice": "{doc} „@{name}“ steht zweimal im Dokument — das zweite ändert das erste.",
+    "docTitle": "{doc} „{name}“",
+    "docFieldMissing": "{label}, „{path}“: {why}.",
+    "axisNowhere": "{label}: die Achse „{axis}“ führt ins Leere — übersprungen.",
+    "docReplaced": "{doc} „{name}“ gibt es schon — wird durch die Fassung aus dem Dokument ersetzt.",
+    "removeNoEntry": "Löschen „{name}“: diesen Eintrag gibt es in dieser Basis nicht — nichts zu löschen.",
+    "removeForeignEntry": "Löschen „{name}“: dieser Eintrag stammt aus einer anderen Bibliothek — er wird dort gelöscht. Übersprungen.",
+    "removeNoDoc": "Löschen: {doc} „{name}“ — gibt es in dieser Basis nicht, nichts zu löschen.",
+    "removeForeignDoc": "Löschen: {doc} „{name}“ stammt aus einer anderen Bibliothek — übersprungen.",
+    "changedAndRemoved": "„{name}“: dasselbe Dokument ändert und löscht es — es wird nur gelöscht.",
+    "namesOwned": {
+      "one": "{count} Name aus diesem Dokument hat schon einen Eintrag aus dem Dokument „{owner}“ (z. B. „@{example}“) — dieser Import ändert ihn. Ist es eine andere Rekonstruktion desselben Werks, gib ihr einen anderen mittleren Namensteil (z. B. „ganz-2“).",
+      "other": "{count} Namen aus diesem Dokument haben schon einen Eintrag aus dem Dokument „{owner}“ (z. B. „@{example}“) — dieser Import ändert sie. Ist es eine andere Rekonstruktion desselben Werks, gib ihr einen anderen mittleren Namensteil (z. B. „ganz-2“)."
+    },
+    "quoted": "„{name}“",
+    "listedMore": "{list} und {count} weitere",
+    "circle": "Einträge im Kreis — jeder liegt unter einem anderen, keiner unter einem Anfang, daher zeigt sie kein Baum: {list}. Korrigiere ihre Verbindung in der Struktur.",
+    "dangling": "Einträge zeigen nach oben auf sich selbst oder auf einen Eintrag, den es nicht gibt: {list} — im Baum werden sie zu Anfängen, aber eine Ansicht, die Einträge mit leerem Feld als Anfang nimmt (wie „Gedankengang“), zeigt sie nicht. Korrigiere ihre Verbindung in der Struktur.",
+    "summaryKinds": "Arten: {fresh} neu, {changed} zu ändern.",
+    "summaryEntries": "Einträge: {fresh} neu, {changed} zu ändern.",
+    "summaryDocs": "{doc}: {fresh} neu, {changed} zu ändern.",
+    "summaryRemove": "Zu löschen: {count}.",
+    "nothingToImport": "Im Dokument gibt es nichts zu importieren.",
+    "anchorDefault": "Einstieg",
+    "anchorNoEntry": "Einstieg „{name}“: den Eintrag „{entry}“ gibt es nicht — der Einstieg führt zur Ansicht ohne Eintrag.",
+    "anchorForeignEntry": "Einstieg „{name}“: „{entry}“ ist ein Eintrag der Bibliothek oder des Scriptoriums, nicht dieser Basis — übersprungen.",
+    "anchorNoView": "Einstieg „{name}“: die Ansicht „{view}“ gibt es nicht — der Einstieg führt zur Seite des Eintrags.",
+    "anchorNoWork": "Einstieg „{name}“: das Werk „{work}“ ist nicht in den Bibliotheken, die diese Basis nutzt — füge die Bibliothek unter Mehr → Einstellungen → Quellen hinzu.",
+    "anchorNotWork": "Einstieg „{name}“: „{work}“ ist kein Werk der Bibliothek — übersprungen.",
+    "anchorWithoutWork": "Einstieg „{name}“: kein Werk — der Knopf in der Bibliothek erscheint nicht.",
+    "preview": {
+      "structure": "Struktur (+ neu, ~ geändert):",
+      "more": "… (weitere Schritte in der Vorschau ausgelassen)",
+      "anchors": "Einstiege aus der Bibliothek:",
+      "workMissing": "Werk nicht verfügbar",
+      "wholeWork": "ganzes Werk"
+    },
+    "blockedLead": "Nichts gespeichert — der Import zeigt auf etwas, das es nicht gibt:",
+    "flowIssue": "Ablauf „{name}“: {text}",
+    "flowError": "{text} Ohne das gelingt das Speichern nicht.",
+    "where": {
+      "step": "Schritt {n} (Quelle)",
+      "group": "Gruppierung (group.kind)",
+      "columns": "Spalten (Achse)"
+    },
+    "notChosen": "{problem}: zeigt auf ein neues Element — {name} —, das nicht zum Speichern ausgewählt ist; wähle es aus oder hebe die Auswahl dessen auf, was darauf zeigt.",
+    "missingBefore": {
+      "kind": "{problem}: zeigt auf die Art „{id}“, die es nicht gibt (das war schon vor dem Import so) — korrigiere dieses Feld.",
+      "entry": "{problem}: zeigt auf den Eintrag „{id}“, den es nicht gibt (das war schon vor dem Import so) — korrigiere dieses Feld."
+    },
+    "missing": {
+      "kind": "{problem}: zeigt auf die Art „{id}“, die es weder im Dokument noch in der Basis gibt.",
+      "entry": "{problem}: zeigt auf den Eintrag „{id}“, den es weder im Dokument noch in der Basis gibt."
+    },
+    "kindFieldTo": "Art „{kind}“, Feld „{field}“ (to)",
+    "entryTitle": "Eintrag „{name}“",
+    "titleKind": "{title}, Art",
+    "titleField": "{title}, Feld „{field}“",
+    "titleKey": "{title}, „{key}“",
+    "entryField": "Eintrag „{name}“, Feld „{field}“",
+    "removeBlockedField": "Eintrag „{title}“, Feld „{field}“: zeigt im Inhalt auf das zu löschende Element „{target}“ — korrigiere dieses Feld im selben Dokument, lösche auch diesen Eintrag oder lösche nicht.",
+    "removeBlockedDoc": "{title}: zeigt auf das zu löschende Element „{target}“ — korrigiere es im selben Dokument, lösche es mit oder lösche nicht.",
+    "removeBlockedDocKey": "{title}, „{key}“: zeigt auf das zu löschende Element „{target}“ — korrigiere es im selben Dokument, lösche es mit oder lösche nicht.",
+    "removalBlockedLead": "Nichts gespeichert und nichts gelöscht — auf die zu löschenden Elemente zeigt etwas, das bleibt:",
+    "unchecked": {
+      "one": "Nicht alle Quellen dieser Basis sind geladen — {count} Verweis darauf ließ sich nicht prüfen.",
+      "other": "Nicht alle Quellen dieser Basis sind geladen — {count} Verweise darauf ließen sich nicht prüfen."
+    },
+    "nothingToSave": "Nichts zu speichern — das Dokument stimmt mit dem überein, was schon da ist.",
+    "kindTitle": "Art „{name}“",
+    "toBeRemoved": "{title} (zu löschen)",
+    "saving": {
+      "one": "Speichere {count} Element in einem Speichervorgang…",
+      "other": "Speichere {count} Elemente in einem Speichervorgang…"
+    },
+    "savingRemoving": {
+      "one": "Speichere {count} Element und lösche {removed} in einem Speichervorgang…",
+      "other": "Speichere {count} Elemente und lösche {removed} in einem Speichervorgang…"
+    },
+    "sealing": "Versiegle {done} von {total}…",
+    "serviceRejected": "Nichts gespeichert — der Dienst hat diese Elemente nicht angenommen (die übrigen warteten mit ihnen):",
+    "saveFailed": "das Speichern ist fehlgeschlagen",
+    "nothingSaved": "Nichts gespeichert",
+    "nothingSavedBecause": "Nichts gespeichert: {reason}",
+    "bothNew": "neu: {count}",
+    "bothChanged": "geändert: {count}",
+    "kindsLabel": "Arten",
+    "entriesLabel": "Einträge",
+    "removedCount": "gelöscht: {count}",
+    "savedAll": {
+      "one": "Alles in einem Speichervorgang gespeichert ({count} Element) — {parts}.",
+      "other": "Alles in einem Speichervorgang gespeichert ({count} Elemente) — {parts}."
+    },
+    "refreshingAi": "Aktualisiere die Kopie für KI…",
+    "aiRefreshed": "Kopie für KI (MCP) aktualisiert — der Assistent sieht schon diesen Stand.",
+    "aiFailed": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren — sie wird bei der nächsten Änderung aktualisiert.",
+    "aiFailedBecause": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren: {reason} — sie wird bei der nächsten Änderung aktualisiert."
+  },
+  "progress": {
+    "tallyOne": "Antwort {n}: {text}",
+    "tallyMany": "{count} Antworten (z. B. {list}): {text}",
+    "notProgress": "Das ist kein Fortschrittsdokument (ein JSON-Objekt wurde erwartet).",
+    "otherFormat": "Anderes Format: \"{format}\" — erwartet \"{expected}\".",
+    "otherBase": "Das ist der Fortschritt aus einer anderen Wissensbasis — importiere ihn dort, in ihrem „Fortschritt“.",
+    "otherBaseNamed": "Das ist der Fortschritt aus einer anderen Wissensbasis („{name}“) — importiere ihn dort, in ihrem „Fortschritt“.",
+    "noAnswers": "Die Liste \"answers\" fehlt.",
+    "version": "Version {version} — ich kenne Version {known}; ich lese, was ich erkenne.",
+    "unknownTopKey": "Unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "libraryNotObject": "\"library\" ist kein Objekt — übersprungen.",
+    "tooMany": "{count} Antworten — ein Import nimmt die ersten {max}; importiere den Rest getrennt.",
+    "answer": {
+      "notObject": "kein Objekt — übersprungen.",
+      "unknownKey": "unbekannter Schlüssel \"{key}\" — übersprungen.",
+      "noKey": "ohne \"key\" — übersprungen.",
+      "keyTooLong": "\"key\" länger als {max} Zeichen — übersprungen.",
+      "badAt": "\"at\" ist kein Zeitpunkt zwischen 2020 und heute — übersprungen.",
+      "badCorrectness": "\"correctness\" ist keine Zahl von 0 bis 1 — übersprungen.",
+      "clipped": "\"correctness\" außerhalb 0–1 — gekürzt.",
+      "idTwice": "dieselbe \"id\" ein zweites Mal im Dokument — übersprungen.",
+      "momentTwice": "ohne \"id\", dieselbe Karte und derselbe Zeitpunkt \"at\" ein zweites Mal im Dokument — übersprungen.",
+      "badMs": "\"ms\" ist keine Zeit von 0 bis zu einem Tag — übersprungen.",
+      "badGiven": "\"given\" ist kein Text — übersprungen.",
+      "badVia": "\"via\" ist kein Text — übersprungen."
+    },
+    "strange": {
+      "one": "{count} Antwort passt zu keiner Karte dieser Basis (Karte gelöscht, geändert oder aus einer anderen Basis) — sie wird gespeichert, zählt aber nicht, solange es eine solche Karte nicht gibt.",
+      "other": "{count} Antworten passen zu keiner Karte dieser Basis (Karte gelöscht, geändert oder aus einer anderen Basis) — sie werden gespeichert, zählen aber nicht, solange es eine solche Karte nicht gibt."
+    },
+    "cards": {
+      "one": "{count} Karte",
+      "other": "{count} Karten"
+    },
+    "batches": {
+      "one": "{count} neues Paket",
+      "other": "{count} neue Pakete"
+    },
+    "newAnswers": "Neue Antworten: {count} (auf {cards}) — {batches}, für dich versiegelt",
+    "known": "Schon in deinem Fortschritt: {count} — übersprungen",
+    "nothingNew": "Nichts Neues — alle Antworten sind schon da.",
+    "sealing": "Versiegle Paket {n} von {total}…",
+    "added": "Hinzugefügte Antworten: {count}",
+    "waiting": {
+      "one": "{count} Paket wartet auf Internet — es geht von selbst hinaus, wenn die Verbindung zurück ist.",
+      "other": "{count} Pakete warten auf Internet — sie gehen von selbst hinaus, wenn die Verbindung zurück ist."
+    }
+  },
+  "fieldType": {
+    "line": "Textzeile",
+    "text": "Längerer Text",
+    "markup": "Text mit Fußnoten",
+    "number": "Zahl mit Einheit",
+    "date": "Datum (Jahr, Monat oder Tag)",
+    "bool": "Ja / nein / unbekannt",
+    "choice": "Auswahl aus einer Liste",
+    "ref": "Verweis",
+    "media": "Bild, Ton, Film, Dokument",
+    "url": "Webadresse",
+    "list": "Geordnete Liste",
+    "geo": "Ort auf der Karte",
+    "range": "Bereich aus mehreren Abschnitten",
+    "outline": "Gliederung (Überschriften und Texte)",
+    "blocks": "Inhalt in Blöcken (Absätze, Listen, Tabellen)",
+    "json": "Daten in JSON"
+  },
+  "valueState": {
+    "known": "sicher",
+    "approximate": "ungefähr",
+    "disputed": "umstritten",
+    "unknown": "unbekannt",
+    "na": "trifft nicht zu",
+    "pending": "noch zu klären"
+  },
+  "fieldRole": {
+    "title": "Titel",
+    "subtitle": "Untertitel",
+    "name": "Name",
+    "givenNames": "Vornamen",
+    "surname": "Nachname",
+    "authors": "Autoren",
+    "editors": "Herausgabe",
+    "translators": "Übersetzung",
+    "container": "Enthalten in",
+    "volume": "Band",
+    "issue": "Nummer",
+    "edition": "Auflage",
+    "publisher": "Verlag",
+    "place": "Erscheinungsort",
+    "year": "Jahr",
+    "series": "Reihe",
+    "pages": "Seiten",
+    "isbn": "ISBN",
+    "doi": "DOI",
+    "url": "Adresse",
+    "siglum": "Sigel der Übersetzung",
+    "text": "Zitattext",
+    "work": "Quelle",
+    "locator": "Stelle in der Quelle",
+    "description": "Beschreibung",
+    "body": "Inhalt"
+  },
+  "kindProblem": {
+    "labelField": "Das Bezeichnungsmuster verwendet das Feld „{field}“, das diese Art nicht hat.",
+    "readingField": "Das Lesemuster verwendet das Feld „{field}“, das diese Art nicht hat.",
+    "refMissing": "Das Feld „{field}“ verweist auf eine Art, die es nicht gibt.",
+    "noOptions": "Das Feld „{field}“ hat nichts zur Auswahl.",
+    "whenMissing": "Das Feld „{field}“ erscheint nur bei Werten des Feldes „{by}“, das diese Art nicht hat.",
+    "whenNotChoice": "Das Feld „{field}“ hängt vom Feld „{by}“ ab, das keine Auswahl aus einer Liste ist.",
+    "whenValues": "Das Feld „{field}“ hängt von den Werten {values} ab, die es im Feld „{by}“ nicht gibt.",
+    "quoted": "„{value}“",
+    "noFields": "Die Art hat noch kein Feld."
+  },
+  "date": {
+    "bc": "{year} v. Chr.",
+    "monthYear": "{month} {year}",
+    "dayMonthYear": "{dayMonth} {year}"
+  },
+  "value": {
+    "approxPrefix": "ca. ",
+    "noUnit": "Dieses Feld hat keine Einheit.",
+    "wrongUnit": "„{unit}“ misst nicht die Größe: {quantity}.",
+    "yes": "ja",
+    "no": "nein",
+    "unknown": "unbekannt",
+    "file": "Datei",
+    "items": {
+      "one": "{count} Pos.",
+      "other": "{count} Pos."
+    }
+  },
+  "question": {
+    "label": {
+      "prompt": "Frage",
+      "hints": "Hinweise",
+      "explanation": "Erklärung (Text)",
+      "answers": "Richtige Antworten",
+      "options": "Zur Auswahl",
+      "correct": "Welche richtig sind",
+      "feedback": "Ein Satz zu jeder Möglichkeit",
+      "value": "Wahr?",
+      "left": "Linke Seite",
+      "right": "Rechte Seite",
+      "leftLabel": "Überschrift der linken Seite",
+      "rightLabel": "Überschrift der rechten Seite",
+      "show": "Wie viele auf einmal",
+      "share": "Gemeinsame Teile",
+      "fact": "Nach welchem Fakt sie fragt",
+      "items": "In richtiger Reihenfolge",
+      "extra": "Überflüssige Kacheln",
+      "alternatives": "Andere richtige Reihenfolgen",
+      "preview": "Vorschau",
+      "join": "Zwischen den Kacheln",
+      "choices": "Auswahl in den Lücken",
+      "back": "Rückseite",
+      "tolerance": "Toleranz",
+      "relative": "Relative Toleranz",
+      "unit": "Einheit",
+      "quantity": "Größe",
+      "precision": "Genauigkeit des Datums",
+      "task": "Aufgabe",
+      "starter": "Startcode",
+      "createInput": "Testdaten",
+      "reference": "Musterlösung",
+      "cases": "Wie viele Fälle",
+      "tests": "Beispiele",
+      "place": "Ort",
+      "radius": "Radius (m)",
+      "drawing": "Zeichnung (JSON)",
+      "goal": "Ziel (Ausdruck)",
+      "solution": "Lösung",
+      "goals": "Ziele nacheinander",
+      "check": "Wann prüfen",
+      "explain": "Erklärung (Einträge)",
+      "params": "Parameter",
+      "let": "Berechnete Werte",
+      "require": "Bedingungen der Ziehung",
+      "core": "Kernfrage",
+      "about": "Worum es geht",
+      "needs": "Zuerst wissen",
+      "form": "Fragetyp"
+    },
+    "says": {
+      "prompt": "Text der Frage; bei „Wahr oder falsch“ — die Aussage, bei einer Karteikarte — ihre Vorderseite, bei einer Lücke — der Text mit der Lücke [[Wort]] (mehrere Lücken: jede einzeln). Formeln: $…$ im Satz, $$…$$ abgesetzt",
+      "hints": "Hinweise vor der Antwort, von sanft bis konkret (1–3, mit Formeln $…$); jeder aufgedeckte senkt das beste Ergebnis dieser Antwort um ¼",
+      "explanation": "Erklärung, die gleich nach der Antwort aufgeklappt erscheint (2–4 Sätze, Formeln $…$, Quellen [@werk, S. 12])",
+      "answers": "Angenommene Antworten (text, number, date, gap) — die erste ist die Musterantwort; Eintippen braucht nie LaTeX",
+      "options": "Möglichkeiten (one, many) — können Formeln $…$ enthalten",
+      "correct": "Nummern der richtigen Möglichkeiten, ab 0 (one, many)",
+      "feedback": "Ein Satz zu jeder Möglichkeit, in derselben Reihenfolge wie „Zur Auswahl“ (leer: kein Satz) — nach der Antwort steht er unter der gewählten und unter den richtigen (one, many)",
+      "value": "Ob die Aussage wahr ist (truefalse)",
+      "left": "Linke Seite der Paare, z. B. Jahre (match)",
+      "right": "Rechte Seite der Paare, in derselben Reihenfolge, z. B. Ereignisse (match)",
+      "leftLabel": "Über der linken Spalte der Karte, z. B. „Jahr“ (match)",
+      "rightLabel": "Über der rechten Spalte der Karte, z. B. „Ereignis“ (match)",
+      "show": "Lange Liste: so viele Paare (match) oder Aussagen (many) auf einer Karte (2–{max}) — jedes Paar / jede Aussage hat dann eine eigene Karte, die übrigen Plätze füllen zufällige andere; leer: alles auf einer Karte",
+      "share": "Name einer Menge von Teilen: Fragen mit demselben Namen zählen eine Antwort auf denselben Teil gemeinsam — dieselbe Aussage (many, truefalse), dasselbe Paar (match), dasselbe Wort in einer Lücke (gap), denselben benannten Fakt (fact). Z. B. mehrere Fassungen von „Welche Aussagen sind Sätze?“. Leer: Teile nur dieser Frage",
+      "fact": "Name des einen Fakts, nach dem eine Frage ohne Teile fragt (text, number, date, one, flash, order…): Fragen zum selben Fakt teilen ihre Antworten — z. B. „Wann war Grunwald?“ und „Was geschah 1410?“ mit \"fact\": \"Grunwald 1410\". „Wahr oder falsch“: die Aussage, die sie beurteilt (ohne das — der Fragetext), dieselbe wie eine Aussage in „Mehrere aus mehreren“ mit demselben \"share\"",
+      "items": "Elemente in der richtigen Reihenfolge (order); Kacheln der richtigen Antwort in Reihenfolge (build)",
+      "extra": "Kacheln, die nicht gebraucht werden (build); „In Reihenfolge bringen“ zeigt sie nicht",
+      "alternatives": "Andere angenommene Antworten aus Kacheln: eine Liste von Listen, z. B. [[\"$B$\", \"$=$\", \"$A$\"]] (build)",
+      "preview": "math oder text — wie das Gelegte gezeigt wird (build: standardmäßig Formel; order: ohne — keine Vorschau)",
+      "join": "Was in der Vorschau zwischen den Kacheln steht — Text, standardmäßig \" \" (build, order)",
+      "choices": "Für jede Lücke [[…]] der Reihe nach eine Liste FALSCHER Möglichkeiten, z. B. [[\"Satz 2.1\", \"Lemma 3.4\"], []] — eine Lücke mit Liste wird ausgewählt, eine mit leerer Liste eingetippt (gap)",
+      "back": "Was auf der Rückseite der Karteikarte steht (flash)",
+      "tolerance": "Wie weit man danebenliegen darf (Zahl; Datum — in Einheiten der Genauigkeit)",
+      "relative": "Toleranz als Bruchteil des Werts (Zahl)",
+      "unit": "Einheit der Zahl",
+      "quantity": "Welche Größe (number): Torque, Energy, Mass, Length … — dann darf die Antwort eine andere Einheit dieser Größe haben (umgerechnet), und eine Einheit einer anderen Größe ist falsch (12 J bei einer Frage nach dem Drehmoment)",
+      "precision": "year, month oder day",
+      "task": "Beschreibung der Aufgabe (code)",
+      "starter": "Code zum Start, mit def transform(x): (code)",
+      "createInput": "def create_input(seed): … — Daten zum Prüfen (code)",
+      "reference": "def reference(x): … — das Ergebnis, mit dem der Code verglichen wird (code)",
+      "cases": "Mit wie vielen Daten geprüft wird (code)",
+      "tests": "Sichtbare Beispiele: [{\"input\": [3, 1, 2], \"output\": [1, 2, 3], \"note\": \"…\"}] — vor den verdeckten Fällen geprüft (code); darf JSON-Text sein",
+      "place": "Gesuchter Punkt: {\"lat\": …, \"lon\": …} (point)",
+      "radius": "Wie nah man treffen muss, in Metern (point)",
+      "drawing": "Zeichnung zum Bewegen — dasselbe JSON wie im Seitenbaustein „Animation“: vars, sim, controls, rules (mit \"goal\": true — das Ziel), world (Dinge zum Bauen, z. B. eine Waage), elements (interactive)",
+      "goal": "Wann die Antwort richtig ist, z. B. \"abs(x - cel) < 0.5 && y <= 0\" — in der Simulation bis zum Ende gerechnet; leer: Regeln der Zeichnung mit \"goal\": true (interactive)",
+      "solution": "Werte, die die Aufgabe lösen, z. B. \"kat = 45; v0 = 12\" oder Eigenschaften von Dingen \"w2.pos = 5\" — nach einer falschen Antwort gezeigt; leer: \"task.solve\" der Zeichnung (interactive)",
+      "goals": "Mehrere Ziele (Ausdrücke), die NACHEINANDER erreicht werden müssen, z. B. [\"x > 3\", \"y < 1\"] — statt \"goal\" (interactive)",
+      "check": "\"live\" (Standard) — die Zeichnung zeigt einen Treffer schon beim Ausprobieren, bewertet wird nach „Prüfen“; \"submit\" — nichts verrät das Ziel, erst „Prüfen“ bewertet (interactive)",
+      "explain": "Einträge, die nach der Antwort zugeklappt gezeigt werden (z. B. eine Aussage mit Inhalt in Blöcken)",
+      "params": "Werte, die bei jeder Frage gezogen werden: [{\"name\": \"a\", \"random\": [2, 30], \"step\": 1}], {\"name\": \"f\", \"values\": [...]}, seit 2026-11-03 auch Einträge aus der Basis: {\"name\": \"kation\", \"entry\": {\"kind\": \"@rodzaj\", \"where\": \"it.ladunek > 0\"}}, {\"name\": \"zd\", \"entries\": {\"kind\": \"@rodzaj\", \"count\": 4}}; in Texten {a}, {kation.symbol}",
+      "let": "Aus den Parametern berechnet, der Reihe nach: [{\"name\": \"r\", \"value\": \"mod(a, n)\"}] — die Ausdruckssprache der Zeichnungen mit Listen und Einträgen (filter, map, sortby, choose, gcd, lcm, sub, sup …); in Texten {r}, {fmt(x, 2)}",
+      "require": "Bedingungen, die die Ziehung erfüllen muss, z. B. \"a > 2*n\" — es wird neu gezogen (bis zu 60-mal); geht es nicht, entsteht die Karte nicht",
+      "core": "Kernfrage der Themen unter „Worum es geht“: „Prüfe, was du weißt“ fragt sie einmal ab, und ihre Kenntnis sagt, ob das Thema eine „Lücke“ ist (Bedingung mit rel \"core\")",
+      "about": "Einträge, die diese Frage prüft: ihr Ergebnis zählt zu deren Kenntnis, und die Frage selbst wartet, bis du beherrschst, was vor ihnen zu wissen ist",
+      "needs": "Einträge oder Fragen, die beherrscht sein müssen, bevor diese Frage kommt (z. B. „Was ist ein Atom?“ vor „Was ist ein Orbital?“)",
+      "form": "Wie gefragt und geantwortet wird — davon hängt ab, welche Felder unten ausgefüllt werden: {list}"
+    },
+    "inverse": {
+      "about": "Fragen",
+      "needs": "Vor der Frage zu wissen"
+    },
+    "option": {
+      "preview": {
+        "math": "als Formel",
+        "text": "als Text"
+      },
+      "precision": {
+        "year": "Jahr",
+        "month": "Monat",
+        "day": "Tag"
+      },
+      "check": {
+        "live": "Ziel schon beim Ausprobieren sichtbar",
+        "submit": "erst nach „Prüfen“"
+      }
+    },
+    "name": "Frage"
+  },
+  "docKind": {
+    "addform": "Formular zum Hinzufügen",
+    "anchor": "Einstieg aus der Bibliothek",
+    "kind": "Art",
+    "template": "Kartenvorlage",
+    "revision": "Wiederholung",
+    "flow": "Ablauf",
+    "look": "Aussehen",
+    "rules": "Sitzungsregeln",
+    "values": "Werte",
+    "collection": "Sammlung",
+    "view": "Ansicht",
+    "settings": "Einstellungen",
+    "merge": "Zusammenführung",
+    "contribution": "Vorschlag",
+    "reward": "Belohnungen"
+  },
+  "questionGroup": {
+    "write": "Du schreibst die Antwort",
+    "choose": "Du wählst",
+    "connect": "Du verbindest und ordnest",
+    "other": "Andere"
+  },
+  "questionType": {
+    "text": {
+      "label": "Antwort in Worten",
+      "prompt": "Frage",
+      "says": "Die Lernenden tippen die Antwort; es zählt die Ähnlichkeit — ein Tippfehler gibt Teilpunkte. Es kann mehrere richtige Antworten geben."
+    },
+    "number": {
+      "label": "Zahl",
+      "prompt": "Frage",
+      "says": "Die Lernenden tippen eine Zahl, gern mit Einheit; die Toleranz sagt, wie weit man danebenliegen darf."
+    },
+    "date": {
+      "label": "Datum",
+      "prompt": "Frage",
+      "says": "Die Lernenden tippen ein Datum — genau auf Jahr, Monat oder Tag."
+    },
+    "gap": {
+      "label": "Lücke im Text",
+      "prompt": "Text mit Lücke",
+      "says": "Ein Text mit verdecktem Wort — im Inhalt [[Wort]] (oder „…“ und die richtigen Antworten unten); die Lernenden tippen, was fehlt. Mehrere Lücken: jede einzeln; eine Lücke mit „Zur Auswahl“ ist eine Liste zum Auswählen (kann Formeln enthalten), ohne — ein Feld zum Eintippen."
+    },
+    "one": {
+      "label": "Eine aus mehreren",
+      "prompt": "Frage",
+      "says": "Mehrere Möglichkeiten, eine ist richtig; die Reihenfolge wird bei jeder Frage gemischt. Zu jeder Möglichkeit kann ein Satz stehen, den die Lernenden nach der Antwort sehen."
+    },
+    "many": {
+      "label": "Mehrere aus mehreren",
+      "prompt": "Frage",
+      "says": "Mehrere Möglichkeiten, mehrere können richtig sein — alle müssen markiert werden. Jede Aussage zählt einzeln (richtig markiert oder richtig ausgelassen), das Ergebnis ist ihr Mittel; jede ist auch ein eigener Fakt und zählt daher auf jeder Karte, auf der sie steht. Lange Liste mit „Wie viele auf einmal“ — jede Aussage hat ihre eigene Karte. Zu jeder Möglichkeit kann ein Satz für nach der Antwort stehen."
+    },
+    "truefalse": {
+      "label": "Wahr oder falsch",
+      "prompt": "Aussage",
+      "says": "Eine Aussage; die Lernenden sagen, ob sie wahr ist."
+    },
+    "match": {
+      "label": "Paare verbinden",
+      "prompt": "Anweisung",
+      "says": "Zwei Spalten (z. B. Jahr — Ereignis); die Lernenden verbinden sie zu Paaren. Eine lange Liste erscheint in Portionen von einigen Paaren."
+    },
+    "order": {
+      "label": "In Reihenfolge bringen",
+      "prompt": "Anweisung",
+      "says": "Gemischte Elemente; die Lernenden bringen sie in Reihenfolge (ziehen). Mit „Vorschau“ steht das Geordnete zusammen über der Liste — als Formel oder Text."
+    },
+    "build": {
+      "label": "Aus Kacheln bauen",
+      "prompt": "Anweisung",
+      "says": "Die Lernenden setzen die Antwort aus Kacheln zusammen (Formel, Verneinung, Ausdruck, Beweiszeile) und sehen sie sofort zusammengesetzt; es gibt überflüssige Kacheln, und es kann mehrere richtige Reihenfolgen geben."
+    },
+    "flash": {
+      "label": "Karteikarte (du bewertest selbst)",
+      "prompt": "Vorderseite der Karteikarte",
+      "says": "Vorder- und Rückseite; die Lernenden drehen die Karte um und sagen selbst, ob sie es wussten."
+    },
+    "point": {
+      "label": "Ort auf der Karte",
+      "prompt": "Frage",
+      "says": "Die Lernenden zeigen auf einen Punkt der Karte; es zählt, ob er im Radius liegt."
+    },
+    "code": {
+      "label": "Code (Python)",
+      "prompt": "Frage",
+      "says": "Die Lernenden schreiben eine Funktion transform(x) in Python; sichtbare Beispiele prüfen sie (Eingabe → Ergebnis), dann verdeckte Fälle im Vergleich mit der Musterlösung. Jeder Fall hat 2 Sekunden."
+    },
+    "interactive": {
+      "label": "Zeichnung zum Bewegen",
+      "prompt": "Frage",
+      "says": "Die Lernenden stellen die Zeichnung ein (Schieberegler, Ziehen) und prüfen; richtig, wenn die Simulation das Ziel erreicht."
+    }
+  },
+  "questionProblem": {
+    "writePrompt": "Gib ein: {what}.",
+    "text": "Gib mindestens eine richtige Antwort ein.",
+    "gap": "Markiere eine Lücke im Text: [[Wort]] — oder tippe „…“ und die richtige Antwort.",
+    "number": "Gib die richtige Antwort ein — eine Zahl.",
+    "date": "Gib die richtige Antwort ein — ein Datum (z. B. 1410 oder 1410-07-15).",
+    "twoOptions": "Füge mindestens zwei Möglichkeiten hinzu.",
+    "markOne": "Markiere die richtige Möglichkeit.",
+    "markMany": "Markiere die richtigen Möglichkeiten.",
+    "oneOnly": "Bei „Eine aus mehreren“ ist genau eine richtig — markiert sind mehr (wechsle zu „Mehrere aus mehreren“).",
+    "truefalse": "Wähle, ob die Aussage wahr ist.",
+    "order": "Füge mindestens zwei Elemente hinzu, in der richtigen Reihenfolge.",
+    "buildItems": "Füge die Kacheln der richtigen Antwort hinzu, in der richtigen Reihenfolge.",
+    "buildSecond": "Füge eine zweite Kachel hinzu — richtig oder überflüssig.",
+    "match": "Füge mindestens zwei Paare hinzu.",
+    "flash": "Gib ein, was auf der Rückseite steht.",
+    "point": "Zeig den gesuchten Punkt auf der Karte.",
+    "codeTests": "Füge Beispiele (Eingabe → Ergebnis) oder eine Musterlösung mit Testdaten hinzu.",
+    "codeHalf": "Verdeckte Fälle brauchen beides: eine Musterlösung und Testdaten.",
+    "drawing": "Füge die Zeichnung ein (JSON).",
+    "gapLists": "„Zur Auswahl“ hat {lists} Listen, der Text hat {gaps} — eine Liste gehört zur Lücke mit derselben Nummer.",
+    "gaps": {
+      "one": "{count} Lücke",
+      "other": "{count} Lücken"
+    }
+  },
+  "review": {
+    "notNumber": "Das ist keine Zahl.",
+    "notJson": "Das ist kein gültiges JSON.",
+    "docKey": {
+      "name": "Name",
+      "steps": "Schritte",
+      "mode": "Darstellung",
+      "outline": "Struktur",
+      "columns": "Spalten",
+      "group": "Gruppierung",
+      "matrix": "Matrix",
+      "sort": "Sortierung",
+      "graph": "Graph",
+      "kinds": "Arten",
+      "direction": "Richtung",
+      "says": "Beschreibung",
+      "keys": "Tasten",
+      "paste": "Einfügen",
+      "order": "Reihenfolge",
+      "work": "Werk",
+      "locator": "Stellen",
+      "entry": "Eintrag",
+      "view": "Ansicht",
+      "note": "Anmerkung",
+      "query": "Gesucht",
+      "list": "Liste",
+      "rule": "Regel"
+    },
+    "kindName": "Name „{from}“ → „{to}“",
+    "kindLabel": "Bezeichnungsmuster „{from}“ → „{to}“",
+    "newFields": "neue Felder: {fields}",
+    "changedFields": "geänderte Felder: {fields}",
+    "fieldOrder": "andere Reihenfolge der Felder",
+    "kindTells": "unterscheidendes Feld „{from}“ → „{to}“",
+    "kindSystem": "andere feste Rolle",
+    "readingRemoved": "ohne Lesemuster",
+    "readingChanged": "anderes Lesemuster",
+    "fieldRemoved": "(Feld entfernt)",
+    "kinds": "Arten",
+    "nothingPoints": "nichts zeigt darauf",
+    "unlinkedFrom": "der Verweis verschwindet aus: {list}",
+    "removed": "(entfernt)",
+    "unsavedEntry": "Eintrag „{title}“",
+    "unsavedKind": "Art „{name}“",
+    "nothingToSave": "Nichts zu speichern.",
+    "target": {
+      "kind": {
+        "one": "{count} Art",
+        "other": "{count} Arten"
+      },
+      "entity": {
+        "one": "{count} Eintrag",
+        "other": "{count} Einträge"
+      },
+      "doc": {
+        "one": "{count} anderes Element",
+        "other": "{count} andere Elemente"
+      }
+    },
+    "nothingAtAll": "Nichts Neues und nichts zu ändern — das Dokument stimmt mit dem überein, was schon in der Basis ist.",
+    "freshNone": "Neu: nichts.",
+    "fresh": "Neu: {count} — {words}.",
+    "editsNone": "Änderungen an Bestehendem: keine.",
+    "edits": "Änderungen an Bestehendem: {count} in {touched} — {words}.",
+    "touched": {
+      "one": "{count} Element",
+      "other": "{count} Elementen"
+    },
+    "gone": "Zu löschen: {count} — {words} (jedes unten aufgeführt, jedes lässt sich abwählen)."
+  },
+  "reviewPanel": {
+    "checkingWorlds": "Prüfe Verweise auf andere Welten…",
+    "fixEdited": "Korrigiere die geänderten Werte: {list}",
+    "title": "Durchsicht vor dem Speichern",
+    "summary": "Gespeichert wird: {fresh} von {total}{edits}{gone}.",
+    "freshCount": {
+      "one": "{count} neues Element",
+      "other": "{count} neue Elemente"
+    },
+    "summaryEdits": " und {edits} von {total} an Bestehendem",
+    "editsCount": {
+      "one": "{count} Änderung",
+      "other": "{count} Änderungen"
+    },
+    "summaryGone": "; gelöscht werden {on} von {total}",
+    "editsNeedAccept": "Änderungen an Bestehendem werden erst nach dem Annehmen gespeichert — jede lässt sich auch korrigieren.",
+    "allOrNothing": "Alles wird in einem Speichervorgang gespeichert — oder nichts.",
+    "blocked": "So ausgewählt wird nicht gespeichert — es würde auf etwas zeigen, das es nicht geben wird:",
+    "more": "… und {count} weitere",
+    "edits": "Änderungen an Bestehendem",
+    "editsHead": "Änderungen an Bestehendem ({count})",
+    "acceptAll": "Alle annehmen",
+    "rejectAll": "Alle ablehnen",
+    "gone": "Zu löschen",
+    "goneHead": "Zu löschen ({count})",
+    "noneOf": "Keine",
+    "goneNote": "Gelöschte Einträge lassen sich aus dem Versionsverlauf wiederherstellen. Die Antworten der Lernenden bleiben — sie zählen wieder, wenn der Eintrag zurückkommt.",
+    "fresh": "Neu",
+    "freshHead": "Neu ({count})",
+    "marked": "{marked} von {total}",
+    "markedCount": {
+      "one": "{count} ausgewählt",
+      "other": "{count} ausgewählt"
+    },
+    "acceptOne": "Annehmen: {name}",
+    "whole": "Ganzes",
+    "before": "war:",
+    "after": "wird:",
+    "afterEdited": "wird (korrigiert):",
+    "editProposal": "Vorschlag korrigieren",
+    "backToProposal": "Zurück zum Vorschlag",
+    "editedValue": "Korrigierter Wert: {name}",
+    "paragraphsHint": "Absätze werden durch eine Leerzeile getrennt."
+  },
+  "worlds": {
+    "doc": {
+      "flow": "Ablauf",
+      "view": "Ansicht",
+      "revision": "Wiederholung",
+      "collection": "Sammlung",
+      "template": "Vorlage",
+      "look": "Aussehen",
+      "rules": "Regeln",
+      "anchor": "Einstieg",
+      "other": "Dokument"
+    },
+    "detourAt": "{name}, Abstecher „{id}“",
+    "notExternal": "{where}: ein Verweis in eine andere Welt „{ref}“ in einem Feld ohne \"external\": true — er wird gespeichert und als „In anderen Welten“ gezeigt, aber der Editor lässt dort nicht aus anderen Welten wählen; ergänze im Feld der Art \"external\": true.",
+    "refs": {
+      "one": "{count} Verweis",
+      "other": "{count} Verweise"
+    },
+    "sameBase": "„@@{handle}:…“ ist dieselbe Basis ({refs}, z. B. {where}) — innerhalb einer Basis verweist man mit einem einfachen „@name“; diese Verweise werden gespeichert, aber nicht als andere Welt gezeigt.",
+    "unknown": "Unbekannte Welt „@@{handle}“ ({refs}, z. B. {where}) — keine Basis, die du lesen kannst, hat in den Einstellungen den Namen „{handle}“. Die Verweise werden gespeichert; Lernende sehen sie nicht, und unter „Zu erledigen“ stehen sie als abgerissen, bis die Welt gefunden ist (Einstellungen → Andere Welten).",
+    "added": "Welt „{name}“ (@@{handle}) zu den Einstellungen dieser Basis hinzugefügt — Verweise „@@{handle}:…“ führen dorthin.",
+    "unreadable": "Welt „{name}“ (@@{handle}): du kannst sie nicht lesen — {refs} werden gespeichert, lassen sich aber nicht prüfen; sehen können sie nur die, die diese Welt lesen.",
+    "broken": "{where}: „{ref}“ — in der Welt „{name}“ gibt es keinen solchen Eintrag, keine Geschichte und keine Ansicht. Wird als abgerissen gespeichert (Lernende sehen es nicht; „Zu erledigen“).",
+    "notStory": "{where}: „{ref}“ in der Welt „{name}“ ist keine Geschichte — der Abstecher zeigt nur eine Karte mit Link.",
+    "incoming": "Links aus anderen Welten: {list} — dort werden sie abgerissen (sie erscheinen in deren „Zu erledigen“, Lernende sehen sie nicht)."
+  },
+  "generator": {
+    "question": "Frage „{name}“",
+    "questionErrors": "{name}: Generator — {errors} Eine solche Karte entsteht nicht.",
+    "neverDrawn": "{name}: der Generator hat in {failed} von {probes} Versuchen keine Aufgabe gezogen — {why} Diese Karte entsteht nicht.",
+    "sometimesNotDrawn": "{name}: der Generator hat in {failed} von {probes} Versuchen keine Aufgabe gezogen — {why} Dann entsteht die Karte in diesem Durchgang nicht.",
+    "unmet": "Bedingungen nicht erfüllt",
+    "template": "Vorlage „{name}“, Generator „{node}“",
+    "nothing": "{name}: es gibt nichts zu ziehen (params, let oder texts).",
+    "templateErrors": "{name}: {errors} Aus ihm entstehen keine Karten.",
+    "templateNotDrawn": "{name}: für den Eintrag „{entry}“ wurde in {failed} von {probes} Versuchen keine Aufgabe gezogen — {why}"
+  },
+  "landscape": {
+    "circle": "Die Lernreihenfolge („Zuerst wissen“) schließt einen Kreis: {list} — in der Landschaft zählt der Kreis als ein Schritt, und Pfad und Stufen übergehen eine Verbindung. Korrigiere ihn.",
+    "noAxis": "Landschaft „{name}“: die Achsenart „{kind}“ gibt es nicht — die Richtung ergibt sich aus der Nachbarschaft in der Lernreihenfolge.",
+    "noOrder": "Landschaft „{name}“: die Basis hat noch keine Lernreihenfolge (Felder „Zuerst wissen“) — alles, was man nicht kann, liegt auf dem Ring, ohne Berge."
+  },
+  "interactive": {
+    "cannotCompute": "solution „{name}“: lässt sich nicht berechnen („{source}“)",
+    "question": "Frage „{name}“ (Zeichnung)",
+    "moreErrors": "{name}: und {count} weitere Fehler in Ausdrücken.",
+    "notSolved": "{name}: die Lösung (\"solution\") erreicht das Ziel nicht — bis zum Ende mit diesen Werten gerechnet ist das Ziel nicht erfüllt; Lernende sähen nach einer falschen Antwort eine falsche Lösung.",
+    "goalReached": "Ziel der Zeichnung erreicht",
+    "more": "… ({count} weitere)"
+  },
+  "json": {
+    "courseSummary": "Kurs als JSON — Export und Import",
+    "courseLead": "Arten, Einträge (auch Aussagen und Fragen), Kartenvorlagen, Wiederholungen, Abläufe, Sammlungen, Aussehen, Regeln und Werte als ein Dokument. Der Import fügt Neues hinzu und ändert Vorhandenes an Ort und Stelle; er löscht nur, was das Dokument mit „\"remove\": true“ nennt. Vor dem Speichern siehst du jede Änderung: Neues und Löschungen sind ausgewählt (jedes lässt sich abwählen), und Änderungen an Bestehendem müssen angenommen werden — jede lässt sich auch korrigieren.",
+    "courseFile": "kurs-{name}.json",
+    "saveAccepted": "Angenommenes speichern",
+    "readOnly": "In dieser Wissensbasis darfst du nur lesen.",
+    "oneFlow": "Ein Ablauf mit seinem Inhalt",
+    "flowFile": "ablauf-{name}.json",
+    "aiTitle": "Aus einem Text vorbereiten — in deinem eigenen KI-Chat",
+    "aiHint": "Die Anwendung schickt nichts an eine KI. Kopiere den Auftrag in deinen eigenen Chat und füge die Antwort (JSON) oben unter „Import“ ein — du siehst, was entsteht, bevor etwas gespeichert wird.",
+    "what": {
+      "statements": "Aussagen (These und Inhalt in Blöcken)",
+      "entities": "Einträge (Personen, Orte, Werke…)",
+      "questions": "Fragen",
+      "flow": "Ablauf mit Inhalt",
+      "schema": "Arten (Schema)"
+    },
+    "sourcePlaceholder": "Füge den Quelltext ein (ein Kapitel, Notizen, eine Predigt)…",
+    "copied": "Auftrag kopiert",
+    "copyPrompt": "Auftrag für die KI kopieren",
+    "formSummary": "Formular als JSON",
+    "formsSummary": "Formulare zum Hinzufügen als JSON",
+    "formLead": "Das Formular samt den Arten, die es braucht (und Kartenvorlagen, falls das Dokument welche hat) — für eine andere Wissensbasis oder zum Korrigieren als Text. Derselbe „ref“ ändert das vorhandene Formular, ein neuer legt ein Formular an. Gelöscht wird nichts.",
+    "formFile": "formular-{name}.json",
+    "importForm": "Formular importieren",
+    "formDialog": "Formular zum Hinzufügen aus JSON",
+    "formsName": "Formulare zum Hinzufügen",
+    "baseFallback": "basis",
+    "progressSummary": "Mein Fortschritt als JSON",
+    "progressLead": "Deine Antworten in dieser Wissensbasis — Karte, wie gut, wann, wie lange und was angegeben wurde — zum Aufbewahren oder zur Auswertung mit KI. Der Import fügt deinem Fortschritt Antworten hinzu, die noch fehlen; er ändert und löscht nichts und speichert nie für jemand anderen.",
+    "progressFile": "fortschritt-{name}.json",
+    "progressImport": "Zu meinem Fortschritt hinzufügen"
+  },
+  "kindRemoval": {
+    "foreign": "Die Art „{name}“ stammt aus einer anderen Wissensbasis (einer Quelle) — lösche sie dort oder trenne diese Quelle in den Einstellungen.",
+    "fieldRemoved": "das Feld „{field}“ in „{kind}“ wird entfernt",
+    "fieldNarrowed": "das Feld „{field}“ in „{kind}“ zeigt nicht mehr auf „{removed}“",
+    "baseGone": "Die Art „{name}“ verschwindet aus dieser Wissensbasis — die fertige lässt sich später wieder hinzufügen („+ Art“).",
+    "gone": "Die Art „{name}“ verschwindet aus dem Schema.",
+    "remove": {
+      "one": "{count} Eintrag dieser Art wird gelöscht — samt dem Fortschritt seiner Karten.",
+      "other": "{count} Einträge dieser Art werden gelöscht — samt dem Fortschritt ihrer Karten."
+    },
+    "noRemove": "Es gibt keine Einträge dieser Art zu löschen.",
+    "narrow": {
+      "one": "{count} Eintrag hat auch eine andere Art — er bleibt, ohne „{name}“.",
+      "other": "{count} Einträge haben auch eine andere Art — sie bleiben, ohne „{name}“."
+    },
+    "foreignEntries": {
+      "one": "{count} Eintrag stammt aus anderen Wissensbasen — er bleibt dort.",
+      "other": "{count} Einträge stammen aus anderen Wissensbasen — sie bleiben dort."
+    },
+    "unlink": {
+      "one": "{count} anderer Eintrag verweist auf die gelöschten — diese Verweise werden daraus entfernt.",
+      "other": "{count} andere Einträge verweisen auf die gelöschten — diese Verweise werden daraus entfernt."
+    },
+    "schema": "Schema: {line}.",
+    "templatesDropped": "Zu löschende Kartenvorlagen: {list}.",
+    "templatesNarrowed": "Kartenvorlagen, die „{name}“ nicht mehr betreffen: {list}.",
+    "formsDropped": "Zu löschende Formulare zum Hinzufügen: {list}.",
+    "formsNarrowed": "Formulare zum Hinzufügen ohne Schritte dieser Art: {list}.",
+    "collections": {
+      "one": "{count} Sammlung verliert die gelöschten Einträge.",
+      "other": "{count} Sammlungen verlieren die gelöschten Einträge."
+    }
+  },
+  "flowCheck": {
+    "empty": "Der Ablauf hat keinen Schritt — keinen Anfang und kein Ende.",
+    "noStart": "Kein Anfang: das Feld \"start\" zeigt auf keinen Schritt, und Schritte, zu denen nichts führt, gibt es mehr als einen oder keinen — trage \"start\" ein.",
+    "startGuessed": "Das Feld \"start\" zeigt auf keinen Schritt — Anfang ist {step} (der einzige, zu dem nichts führt).",
+    "next": "weiter",
+    "toChapters": "zu den Kapiteln",
+    "noEnd": "Kein Ende: vom Anfang führt kein Weg zum Schritt „Ende“ (auch nicht „Zurück“, „Übergabe“) — füge ihn hinzu und verbinde ihn mit dem letzten Schritt.",
+    "secondStart": "Ein zweiter Anfang: zum Schritt {step} führt nichts — verbinde ihn mit dem Rest oder lösche ihn.",
+    "unreachable": "Der Schritt {step} ist unerreichbar — vom Anfang führt kein Weg zu ihm.",
+    "deadEndOne": "Sackgasse: vom Schritt {step} führt der Ausgang „{exit}“ nirgendwohin — der Ablauf endet dort ohne Schritt „Ende“.",
+    "deadEndMany": "Sackgasse: vom Schritt {step} führen die Ausgänge {exits} nirgendwohin — der Ablauf endet dort ohne Schritt „Ende“.",
+    "loop": "Sackgasse: vom Schritt {step} ist das Ende nicht erreichbar (eine Schleife ohne Ausgang).",
+    "reviewEmpty": "Die Durchsicht {step} hat nichts zu prüfen: dieser Ablauf hat keine Schritte „Frage“.",
+    "threshold": "Durchsicht {step}: \"threshold\" ist eine Zahl von 0 bis 1 (z. B. 0.9) — 0.9 angenommen."
+  },
+  "answerForm": {
+    "text": "Eingetippter Text",
+    "number": "Zahl",
+    "date": "Datum",
+    "one": "Einfachauswahl",
+    "many": "Mehrfachauswahl",
+    "truefalse": "Wahr oder falsch",
+    "order": "Reihenfolge",
+    "match": "Paare zuordnen",
+    "gap": "Lücke im Zitat",
+    "flash": "Karteikarte mit Selbsteinschätzung",
+    "code": "Code (Python)",
+    "point": "Punkt auf einem Bild oder einer Karte",
+    "interactive": "Zeichnung zum Bewegen (z. B. Physik)",
+    "build": "Aus Kacheln bauen"
+  },
+  "check": {
+    "unknownUnit": "Die Einheit „{unit}“ kenne ich nicht.",
+    "wrongQuantity": "„{unit}“ ist eine Einheit der Größe: {kinds} — die Frage betrifft aber die Größe: {quantity}.",
+    "askYear": "Gib das Jahr an.",
+    "askMonth": "Gib Monat und Jahr an.",
+    "askDay": "Gib Tag, Monat und Jahr an."
+  },
+  "logic": {
+    "compare": {
+      "eq": "=",
+      "ne": "≠",
+      "gt": ">",
+      "ge": "≥",
+      "lt": "<",
+      "le": "≤",
+      "contains": "enthält",
+      "filled": "ausgefüllt",
+      "empty": "leer"
+    },
+    "relation": {
+      "self": "dieser Eintrag",
+      "cards": "seine Karten",
+      "before": "was früher zu wissen ist",
+      "up": "worunter er in der Struktur liegt",
+      "chain": "schon gefragte Karten des ganzen Weges davor",
+      "core": "Kernfragen des Themas"
+    },
+    "of": {
+      "self": "dieses Eintrags",
+      "cards": {
+        "any": "einer seiner Karten",
+        "all": "jeder seiner Karten"
+      },
+      "before": {
+        "any": "von etwas, das früher zu wissen ist",
+        "all": "dessen, was früher zu wissen ist"
+      },
+      "up": {
+        "any": "von etwas, worunter er liegt",
+        "all": "dessen, worunter er liegt"
+      },
+      "chain": {
+        "any": "einer der schon gefragten Karten des ganzen Weges davor",
+        "all": "jeder schon gefragten Karte des ganzen Weges davor"
+      },
+      "core": {
+        "any": "einer der Kernfragen des Themas",
+        "all": "jeder Kernfrage des Themas"
+      },
+      "field": {
+        "any": "von etwas, worauf das Feld „{field}“ zeigt",
+        "all": "dessen, worauf das Feld „{field}“ zeigt"
+      }
+    },
+    "band": {
+      "learned": "gelernt (fällig oder bekannt)",
+      "known": "bekannt",
+      "due": "fällig",
+      "unknown": "unbekannt"
+    },
+    "condition": {
+      "value": "Wert",
+      "knowness": "Kenntnis",
+      "answered": "Antwort",
+      "visited": "Besucht",
+      "flow": "Ablauf",
+      "time": "Zeit",
+      "place": "Ort",
+      "zone": "Zone",
+      "and": "UND",
+      "or": "ODER",
+      "not": "NICHT",
+      "xor": "ENTWEDER"
+    },
+    "flowCheck": {
+      "started": "begonnen",
+      "done": "abgeschlossen",
+      "goal": "Ziel erreicht"
+    },
+    "text": {
+      "value": "Wert „{value}“ {op} {than}",
+      "quoted": "„{name}“",
+      "knownessBand": "Kenntnis {who}: {band}",
+      "knowness": "Kenntnis {who} {op} {than}",
+      "answeredRight": "„{name}“ richtig beantwortet",
+      "answeredWrong": "„{name}“ falsch beantwortet",
+      "answered": "„{name}“ beantwortet",
+      "visited": "Schritt „{name}“ gesehen",
+      "flowGoal": "im Ablauf „{name}“ wurde ein Ziel erreicht",
+      "flowGoalNamed": "im Ablauf „{name}“ wurde das Ziel „{goal}“ erreicht",
+      "flowState": "Ablauf „{name}“ {state}",
+      "time": "Zeit",
+      "timeAfter": "ab {at}",
+      "timeBefore": "bis {at}",
+      "timeHours": "Uhrzeit {from}–{to}",
+      "place": "im Umkreis von {radius} m um {lat}, {lon}",
+      "zone": "in der Zone „{name}“",
+      "not": "NICHT ({inner})"
+    }
+  },
+  "rules": {
+    "preset": {
+      "balanced_duel": {
+        "label": "Ausgeglichenes Duell",
+        "says": "Eine Minute pro Frage; nach der ersten Antwort 10 s für die übrigen; Bonus für Tempo und Serie."
+      },
+      "first_strike": {
+        "label": "Wer zuerst kommt",
+        "says": "Es zählt die erste Antwort — danach geht es sofort weiter; ein Fehler kostet Punkte."
+      },
+      "sprint_race": {
+        "label": "Sprint",
+        "says": "12 s pro Frage, dann sofort die nächste; großer Bonus für Tempo."
+      },
+      "accuracy_focus": {
+        "label": "Genauigkeit",
+        "says": "Ohne Eile: 35 s, kein Tempobonus; es zählen Treffsicherheit und Serie."
+      },
+      "streak_master": {
+        "label": "Serienmeister",
+        "says": "Kurze Runden; am meisten bringt eine Serie richtiger Antworten."
+      },
+      "marathon_classic": {
+        "label": "Marathon",
+        "says": "Frage um Frage, geht nach 5 s von selbst weiter."
+      },
+      "async_challenge": {
+        "label": "Herausforderung im eigenen Tempo",
+        "says": "Alle antworten, wann sie wollen, bis die Sitzungszeit endet (30 min)."
+      }
+    },
+    "describe": {
+      "actionNext": "Ergebnis zeigen und weitergehen",
+      "actionReveal": "Ergebnis zeigen",
+      "actionTimer": "Countdown starten",
+      "actionNone": "nichts",
+      "async": "Alle antworten im eigenen Tempo.",
+      "round": "Pro Frage gibt es {seconds} s — danach: {action}.",
+      "first": "Erste Antwort: {action}.",
+      "firstTimed": "Erste Antwort: {action} ({seconds} s für die übrigen).",
+      "all": "Wenn alle geantwortet haben: {action}.",
+      "correct": "Richtige Antwort: {points} Pkt.{more}.",
+      "firstBonus": ", erste richtige +{points}",
+      "speedBonus": ", für Tempo bis +{points}",
+      "streakBonus": ", Serie bis +{points}",
+      "wrong": "Für einen Fehler: −{points}{more}.",
+      "firstWrong": ", erster Fehler −{points}",
+      "wrongStreak": ", Fehlerserie bis −{points}",
+      "nextTimer": "Nächste Frage von selbst nach {seconds} s.",
+      "nextManual": "Nächste Frage — wenn die Leitung klickt.",
+      "session": "Die Sitzung dauert {minutes} min."
+    }
+  },
+  "ruleEditor": {
+    "all": "alle Bedingungen (UND)",
+    "any": "irgendeine (ODER)",
+    "field": "Feld…",
+    "addCondition": "+ Bedingung",
+    "addGroup": "+ Gruppe"
+  },
+  "rule": {
+    "eq": "gleich",
+    "ne": "ungleich",
+    "contains": "enthält",
+    "filled": "ausgefüllt",
+    "empty": "leer",
+    "gt": "größer als / nach",
+    "lt": "kleiner als / vor",
+    "kind": "ist von der Art",
+    "refers": "verweist auf"
+  },
+  "selection": {
+    "retiredTopic": "Die Quelle „Thema“ gibt es nicht mehr — Themen gibt es nicht. Wähle eine Art, eine Sammlung oder eine Liste.",
+    "noGroup": "ohne Gruppe",
+    "outsideOrder": "außerhalb der Lernreihenfolge",
+    "noAxisValue": "ohne Wert auf dieser Achse",
+    "noKind": "ohne Art",
+    "noValue": "ohne Wert",
+    "refUnavailable": "[Verweis nicht verfügbar]"
+  },
+  "step": {
+    "sourceAll": {
+      "label": "Alles",
+      "says": "Jeder Eintrag dieser Wissensbasis (und der Basen, die sie nutzt)."
+    },
+    "sourceKind": {
+      "label": "Art",
+      "says": "Einträge einer Art — auch aus einer Bibliothek oder einem Scriptorium, die diese Basis nutzt (z. B. Zitate, Predigten einer Textart); „Woher“ grenzt auf eine Quelle ein."
+    },
+    "sourceCollection": {
+      "label": "Sammlung",
+      "says": "Einträge einer gespeicherten Sammlung — eines Filters oder einer Liste."
+    },
+    "sourceList": {
+      "label": "Liste",
+      "says": "Ausgewählte Einträge (Kennungen, eine je Zeile)."
+    },
+    "sourceFrom": {
+      "label": "Aus einem Eintrag",
+      "says": "Worauf der gewählte Eintrag zeigt — z. B. eine Predigt: ihre Zitate, Kommentare, Wörter, Stellen aus dem Plan."
+    },
+    "follow": {
+      "label": "Einem Verweis folgen",
+      "says": "Von den gewählten Einträgen weiter: zu dem, worauf sie zeigen (ein Feld oder alle) — oder rückwärts: zu dem, was auf sie zeigt."
+    },
+    "structure": {
+      "label": "Der Struktur folgen",
+      "says": "Von den gewählten Einträgen die Struktur hinab — entlang der Felder, die ihre Arten als „Verbindung in der Struktur“ kennzeichnen — bis ganz zum Ende oder eine Ebene; oder hinauf, zu den Einträgen, unter denen sie liegen. In „Struktur“ zeichnet es einen Baum in der Reihenfolge der Stellen im Werk."
+    },
+    "filterRule": {
+      "label": "Filter",
+      "says": "Behält Einträge, die die Regel erfüllen: Feld, Vergleich, Gruppen von Bedingungen (UND / ODER)."
+    },
+    "filterWhen": {
+      "label": "Kenntnisfilter",
+      "says": "Behält Einträge, für die die Bedingung erfüllt ist — auch dazu, wie gut man sie kennt: dieser Eintrag, seine Karten, was früher zu wissen ist, worunter er liegt, worauf sein Feld zeigt (z. B. Fakten eines Zeitraums erst, wenn der Zeitraum bekannt ist). Ohne Lernende zählt die Kenntnis der Betrachtenden."
+    },
+    "learning": {
+      "label": "Der Lernreihenfolge folgen",
+      "says": "Von den gewählten Einträgen zu dem, was früher zu wissen ist („Zuerst wissen“) — bis zu den Grundlagen oder einen Schritt; oder weiter: zu dem, was darauf aufbaut."
+    }
+  },
+  "listMode": {
+    "table": "Tabelle",
+    "tree": "Baum",
+    "canvas": "Fläche",
+    "matrix": "Matrix",
+    "map": "Karte",
+    "outline": "Struktur",
+    "quilt": "Fortschrittskarte",
+    "landscape": "Landschaft"
+  },
+  "view": {
+    "treeTopics": "Der Baum gruppierte nach Themen — Themen gibt es nicht mehr. Wähle eine Achse (Art) oder ein Feld.",
+    "matrixTopics": "Die Matrix hatte Achsen aus Themen — Themen gibt es nicht mehr. Wähle Achsen: Arten (z. B. Geheimnis × Bereich).",
+    "colKnowness": "Kenntnis",
+    "colDue": "Wann wiederholen",
+    "colLevel": "Lernstufe",
+    "revisionOf": "Wiederholung: {name}",
+    "noKind": "Diese Ansicht hat keine einzelne Art — wähle eine Art unter „Auswahl und Gruppen“.",
+    "noScriptorium": "Diese Basis nutzt kein Scriptorium — füge eines in den Einstellungen hinzu (Quellen).",
+    "noLibrary": "Diese Basis nutzt keine Bibliothek — füge eine in den Einstellungen hinzu (Quellen).",
+    "newText": "Neuer Text"
+  },
+  "visibility": {
+    "wholeBase": "die ganze Basis: Einträge, Fragen samt Antworten, Entwürfe, Wiederholungen und Abläufe",
+    "members": "Mitglieder ihres Bereichs (und die, denen sie einen Link gegeben haben)",
+    "membersNotOpen": "Mitglieder des Bereichs — der Bereich ist öffentlich, aber diese Basis ist noch nicht geöffnet (Einstellungen → Wer liest)",
+    "everyone": "alle — der Bereich ist öffentlich, also lesen alle {whole}",
+    "kind": {
+      "kind": "Art",
+      "template": "Vorlage",
+      "revision": "Wiederholung",
+      "flow": "Ablauf",
+      "collection": "Sammlung",
+      "addform": "Formular",
+      "rules": "Regeln",
+      "values": "Werte",
+      "look": "Aussehen",
+      "view": "Ansicht",
+      "reward": "Belohnungen",
+      "entry": "Eintrag"
+    }
+  },
+  "memory": {
+    "notOwn": "Nichts gespeichert: der zu löschende Eintrag {id} gehört nicht zu dieser Bibliothek.",
+    "saveAndRemove": "Nichts gespeichert: der Eintrag {id} soll zugleich gespeichert und gelöscht werden.",
+    "noFiles": "In der Vorschau gibt es keine Dateien.",
+    "previewNone": "ohne Fortschritt (neue Lernende)",
+    "previewPartial": "auf halbem Weg: untere Stufen bekannt, die nächsten gemischt (fällig, zuletzt falsch, neu), etwas vergessen, weiter oben neu",
+    "previewAll": "alles bekannt",
+    "true": "wahr",
+    "false": "falsch",
+    "codePasses": "Code, der die Fälle besteht",
+    "point": "Punkt",
+    "drawingGoal": "Ziel der Zeichnung",
+    "noCardIn": "In {failed} von {tries} Versuchen entstand keine Karte — Bedingungen (\"require\") nicht erfüllt oder keine Antwort.",
+    "templateNoCard": "Die Vorlage ergab keine Karte — hat irgendein Eintrag ihre Art?"
+  },
+  "anchor": {
+    "chooseWork": "Wähle ein Werk.",
+    "workMissing": "Dieses Werk ist nicht in den Bibliotheken, die diese Basis nutzt (Mehr → Einstellungen → Quellen) — der Knopf in der Bibliothek erscheint trotzdem, aber die Stelle lässt sich nicht prüfen.",
+    "notWork": "Das ist kein Werk aus der Bibliothek.",
+    "placeUnread": "Die Stelle „{locator}“ lässt sich in der Gliederung dieses Werks nicht lesen.",
+    "partUnread": "Der Teil „{part}“ wurde in der Gliederung dieses Werks nicht gelesen — dieser Teil zeigt auf nichts.",
+    "needTarget": "Wähle den Eintrag oder die Ansicht, zu der der Einstieg führt.",
+    "entryGone": "Diesen Eintrag gibt es nicht mehr.",
+    "viewGone": "Diese Ansicht gibt es nicht mehr."
+  },
+  "model": {
+    "memory": {
+      "label": "Gedächtnis: Abstände und Vergessen",
+      "says": "Gekonnt, wenn die letzte Antwort richtig war und noch keine Zeit zum Vergessen war. Eine richtige Antwort nach einer Woche Pause festigt mehr als am nächsten Tag; mit der Zeit sinkt die Kenntnis."
+    },
+    "hierarchy": {
+      "label": "Mit Hierarchie",
+      "says": "Wie „Gedächtnis“ — und dazu: wer das Besondere kann, kann auch das Allgemeine, auf dem es steht (Lernreihenfolge: „Zuerst wissen“)."
+    },
+    "last": {
+      "label": "Letzte Antwort",
+      "says": "Gekonnt, wenn die letzte Antwort richtig war — egal, wann das war."
+    }
+  },
+  "motivation": {
+    "none": "Ohne Extras",
+    "progress": "Fortschrittsbalken",
+    "streaks": "Serien von Lerntagen",
+    "exploration": "Entdeckungskarte",
+    "rewards": "Punkte und Belohnungen"
+  },
+  "store": {
+    "otherSort": "Diese Kennung hat schon einen Eintrag anderer Sorte — nicht gespeichert.",
+    "fromSource": "Das stammt aus „{name}“ — ändere es dort.",
+    "fixingRefs": "Verweise werden korrigiert… ({count})",
+    "notSaved": "{count} Einträge wurden nicht gespeichert: {error}",
+    "removing": "Einträge werden gelöscht… {n} von {total}"
+  },
+  "files": {
+    "tooBig": "Eine Datei darf höchstens {mb} MB groß sein."
+  },
+  "holders": {
+    "loadFailed": "Der Fortschritt ließ sich nicht laden."
+  },
+  "piece": {
+    "objections": "Einwände — Videtur quod",
+    "sedContra": "Sed contra",
+    "respondeo": "Antwort — Respondeo",
+    "replies": "Antworten auf die Einwände"
+  },
+  "anchors": {
+    "name": "Name (so sieht der Knopf in der Bibliothek aus)",
+    "namePlaceholder": "z. B. Gedankengang des ganzen Artikels · Einleitung · Schluss",
+    "work": "Werk aus der Bibliothek",
+    "workSearch": "Werk suchen…",
+    "parts": "Welche Teile es betrifft — leer: das ganze Werk",
+    "partsPlaceholder": "z. B. S. 45–60 · S. 1–3; 27–30 · I q. 2 a. 3 · Kap. 1; Kap. 9",
+    "partsLabel": "Stellen im Werk",
+    "read": "Gelesen als: {place}",
+    "entry": "Führt zum Eintrag (z. B. der Leitfrage)",
+    "entrySearch": "Eintrag suchen…",
+    "view": "In der Ansicht",
+    "entryPage": "— Seite dieses Eintrags —",
+    "note": "Notiz (optional)",
+    "create": "Einstieg anlegen",
+    "removeTitle": "Einstieg „{name}“ löschen?",
+    "removeBody": "Einträge und Ansicht bleiben; aus der Bibliothek verschwindet nur dieser Knopf.",
+    "title": "Einstiege aus der Bibliothek",
+    "lead": "Knöpfe „Im Wissen“ beim Werk in der Bibliothek — für alle, die diese Basis lesen dürfen. Die Bibliothek speichert nichts.",
+    "add": "+ Einstieg aus der Bibliothek",
+    "tabHint": "Ein Einstieg sagt: dieses Werk aus der Bibliothek (ganz oder in Teilen — Anfang, Mitte, Ende, auch mehrere zugleich) erklärt diesen Eintrag, gezeigt in dieser Ansicht. In der Bibliothek erscheint beim Werk ein Knopf „Im Wissen“ — nur für die, die diese Basis lesen dürfen.",
+    "empty": "Noch keine Einstiege. Füge sie hier oder unter einem Eintrag hinzu (z. B. unter der Leitfrage).",
+    "new": "+ Neuer Einstieg"
+  }
+}

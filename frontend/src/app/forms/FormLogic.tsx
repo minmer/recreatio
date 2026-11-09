@@ -37,6 +37,7 @@ import type { OpenField } from './form';
 import { evaluate, GROUP_LABEL, NODE_LABEL, portsOf, roleOf, wouldCycle, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode, type NodeKind, type Port } from './formDesign';
 import { COMPARE_LABEL, COMPARE_OPS, UNARY, type CompareOp } from '../cogita/logic';
 import { newId } from '../core/ids';
+import { useT } from '../core/i18n';
 
 /* -- Wie ein Knoten aussieht ------------------------------------------------------ */
 
@@ -52,6 +53,7 @@ const PORT_LABEL: Record<Port, string> = { a: 'A', b: 'B', in: '' };
 
 function LogicNodeView({ data, selected }: NodeProps<NodeData>) {
   const { node, summary, preview } = data;
+  const t = useT();
   const role = roleOf(node.kind);
   const ports = portsOf(node.kind).filter((p) => !(node.kind === 'compare' && p.port === 'b' && UNARY.includes(node.op ?? 'eq')));
 
@@ -65,7 +67,7 @@ function LogicNodeView({ data, selected }: NodeProps<NodeData>) {
             position={Position.Left}
             className="wk-lhandle"
             style={{ top: `${((i + 1) / (ports.length + 1)) * 100}%` }}
-            title={p.many ? 'dowolnie wiele wejść' : 'jedno wejście'}
+            title={p.many ? t('formsEdit.logic.manyInputs') : t('formsEdit.logic.oneInput')}
           />
           {PORT_LABEL[p.port] !== '' && (
             <span className="wk-lport" style={{ top: `${((i + 1) / (ports.length + 1)) * 100}%` }}>{PORT_LABEL[p.port]}</span>
@@ -78,7 +80,7 @@ function LogicNodeView({ data, selected }: NodeProps<NodeData>) {
 
       {preview !== undefined && (
         <span className={`wk-lnode-val${preview === true ? ' is-yes' : preview === false ? ' is-no' : ''}`}>
-          {preview === true ? 'tak' : preview === false ? 'nie' : preview === '' ? '—' : `„${preview.slice(0, 18)}"`}
+          {preview === true ? t('forms.own.consentOn') : preview === false ? t('formsEdit.logic.no') : preview === '' ? '—' : `„${preview.slice(0, 18)}"`}
         </span>
       )}
 
@@ -94,10 +96,11 @@ const NODE_TYPES = { logic: LogicNodeView };
 
 /* -- Die Palette ------------------------------------------------------------------- */
 
+/* `title` ist der Schlüssel der Überschrift. */
 const PALETTE: readonly { title: string; kinds: readonly NodeKind[] }[] = [
-  { title: 'Wejścia', kinds: ['answer', 'const', 'age'] },
-  { title: 'Logika', kinds: ['compare', 'and', 'or', 'not', 'xor'] },
-  { title: 'Wyjścia', kinds: ['show', 'message', 'label', 'require'] }
+  { title: 'formsEdit.logic.inputs', kinds: ['answer', 'const', 'age'] },
+  { title: 'formsOffice.tab.logic', kinds: ['compare', 'and', 'or', 'not', 'xor'] },
+  { title: 'formsEdit.logic.outputs', kinds: ['show', 'message', 'label', 'require'] }
 ];
 
 const COLUMN: Record<ReturnType<typeof roleOf>, number> = { input: 40, gate: 340, output: 640 };
@@ -119,6 +122,7 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
    */
   locked?: { readonly nodes: ReadonlyMap<string, string>; readonly edges: ReadonlySet<string> };
 }) {
+  const t = useT();
   const lockedNodes = locked?.nodes ?? new Map<string, string>();
   const lockedEdges = locked?.edges ?? new Set<string>();
   const [nodes, setNodes] = useState<readonly LogicNode[]>(design.nodes);
@@ -147,26 +151,26 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
     const walk = (items: readonly LayoutItem[], depth: number) => {
       for (const item of items) {
         const pad = '  '.repeat(depth);
-        if (item.type === 'field') out.push({ id: item.id, label: pad + (byField.get(item.id)?.label ?? 'zapieczętowane pytanie'), field: true });
-        if (item.type === 'text') out.push({ id: item.id, label: `${pad}Tekst: ${item.text.slice(0, 40) || '(pusty)'}`, field: false });
+        if (item.type === 'field') out.push({ id: item.id, label: pad + (byField.get(item.id)?.label ?? t('forms.ext.sealedQuestion')), field: true });
+        if (item.type === 'text') out.push({ id: item.id, label: pad + t('formsEdit.logic.text', { text: item.text.slice(0, 40) || t('formsEdit.logic.empty') }), field: false });
         if (item.type === 'group') {
-          out.push({ id: item.id, label: `${pad}${GROUP_LABEL[item.kind]}: ${item.title || '(bez tytułu)'}`, field: false });
+          out.push({ id: item.id, label: `${pad}${GROUP_LABEL[item.kind]}: ${item.title || t('formsEdit.logic.untitled')}`, field: false });
           walk(item.items, depth + 1);
         }
       }
     };
     walk(layout, 0);
     return out;
-  }, [layout, byField]);
+  }, [layout, byField, t]);
 
   const nameOf = (id: string | undefined) =>
-    id === undefined ? '— wybierz —' : targets.find((t) => t.id === id)?.label.trim() ?? '(usunięte)';
+    id === undefined ? t('formsEdit.logic.choose') : targets.find((one) => one.id === id)?.label.trim() ?? t('formsEdit.logic.removed');
 
   const summary = (n: LogicNode): string => {
     switch (n.kind) {
-      case 'answer': return n.fieldId === undefined ? '— wybierz pytanie —' : byField.get(n.fieldId)?.label ?? '(usunięte pytanie)';
+      case 'answer': return n.fieldId === undefined ? t('formsEdit.logic.chooseQuestion') : byField.get(n.fieldId)?.label ?? t('formsEdit.logic.removedQuestion');
       case 'const': return `„${n.value ?? ''}"`;
-      case 'age': return `${n.fieldId === undefined ? '— wybierz datę albo PESEL —' : byField.get(n.fieldId)?.label ?? '(usunięte pytanie)'}${(n.value ?? '') === '' ? '' : ` · na ${n.value}`}`;
+      case 'age': return `${n.fieldId === undefined ? t('formsEdit.logic.chooseDate') : byField.get(n.fieldId)?.label ?? t('formsEdit.logic.removedQuestion')}${(n.value ?? '') === '' ? '' : ` · ${t('formsEdit.logic.onDay', { date: n.value ?? '' })}`}`;
       case 'compare': return COMPARE_LABEL[n.op ?? 'eq'];
       case 'show':
       case 'require': return nameOf(n.target);
@@ -186,7 +190,7 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
     position: { x: n.x, y: n.y },
     selected: n.id === selected,
     deletable: !lockedNodes.has(n.id),
-    data: { node: n, summary: lockedNodes.has(n.id) ? `${summary(n)} · wymaganie` : summary(n), preview: outcome.values.get(n.id) }
+    data: { node: n, summary: lockedNodes.has(n.id) ? `${summary(n)} · ${t('formsEdit.logic.need')}` : summary(n), preview: outcome.values.get(n.id) }
   }));
 
   const rfEdges: Edge[] = edges.map((e) => {
@@ -282,7 +286,7 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
       for (const item of items) {
         const hideable = under || shown.has(item.id);
         if (item.type === 'group') walk(item.items, hideable);
-        else if (item.type === 'field' && hideable && byField.get(item.id)?.isRequired === true) out.push(byField.get(item.id)?.label ?? 'pytanie');
+        else if (item.type === 'field' && hideable && byField.get(item.id)?.isRequired === true) out.push(byField.get(item.id)?.label ?? t('forms.sheet.question'));
       }
     };
     walk(layout, false);
@@ -294,7 +298,7 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
       <div className="wk-logic-palette">
         {PALETTE.map((group) => (
           <div className="wk-logic-pal-group" key={group.title}>
-            <span className="wk-hint">{group.title}</span>
+            <span className="wk-hint">{t(group.title)}</span>
             {group.kinds.map((kind) => (
               <button key={kind} type="button" className={`wk-lpal wk-lpal-${roleOf(kind)}`} onClick={() => add(kind)}>
                 + {NODE_LABEL[kind]}
@@ -327,8 +331,7 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
         <aside className="wk-side">
           {chosen === null ? (
             <p className="wk-empty">
-              Dodaj węzeł z palety, połącz wyjście (prawa kropka) z wejściem (lewa kropka),
-              kliknij węzeł, żeby go ustawić. Zaznaczony węzeł albo krawędź usuwa klawisz Delete.
+              {t('formsEdit.logic.help')}
             </p>
           ) : (
             <Inspector
@@ -345,23 +348,21 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
 
       {clash.length > 0 && (
         <p className="wk-warn">
-          Logika może ukryć pytania oznaczone jako wymagane: {clash.join(', ')}. Usługa sprawdza „wymagane” bez logiki —
-          kto ich nie zobaczy, nie wyśle formularza. Odznacz „Wymagane” przy pytaniu i dodaj tu węzeł „Wymagane” z tym samym
-          warunkiem co „Pokaż”.
+          {t('formsEdit.logic.clash', { list: clash.join(', ') })}
         </p>
       )}
 
       {/* -- Die Vorschau ------------------------------------------------------ */}
       <details className="wk-fold" open={read.length > 0}>
-        <summary>Podgląd — wpisz przykładowe odpowiedzi</summary>
+        <summary>{t('formsEdit.logic.preview')}</summary>
 
         {read.length === 0 ? (
-          <p className="wk-hint">Logika nie czyta jeszcze żadnej odpowiedzi — dodaj węzeł „Odpowiedź".</p>
+          <p className="wk-hint">{t('formsEdit.logic.readsNothing')}</p>
         ) : (
           <div className="wk-entries-bar">
             {read.map((id) => (
               <label className="wk-field" key={id}>
-                <span>{byField.get(id)?.label ?? 'pytanie'}</span>
+                <span>{byField.get(id)?.label ?? t('forms.sheet.question')}</span>
                 <input value={sample[id] ?? ''} onChange={(e) => setSample((was) => ({ ...was, [id]: e.target.value }))} />
               </label>
             ))}
@@ -369,21 +370,21 @@ export function FormLogic({ design, layout, fields, busy, onSave, locked }: {
         )}
 
         <ul className="wk-card-lines">
-          {targets.filter((t) => outcome.hidden.has(t.id)).map((t) => <li key={`h${t.id}`}>ukryte: {t.label.trim()}</li>)}
-          {[...outcome.labels].map(([id, text]) => <li key={`l${id}`}>nazwa: {nameOf(id)} → „{text}"</li>)}
-          {[...outcome.messages].flatMap(([id, texts]) => texts.map((text, i) => <li key={`m${id}${i}`}>komunikat przy {nameOf(id)}: {text}</li>))}
-          {[...outcome.required].map((id) => <li key={`r${id}`}>wymagane: {nameOf(id)}</li>)}
+          {targets.filter((one) => outcome.hidden.has(one.id)).map((one) => <li key={`h${one.id}`}>{t('formsEdit.logic.hidden', { name: one.label.trim() })}</li>)}
+          {[...outcome.labels].map(([id, text]) => <li key={`l${id}`}>{t('formsEdit.logic.renamed', { name: nameOf(id), text })}</li>)}
+          {[...outcome.messages].flatMap(([id, texts]) => texts.map((text, i) => <li key={`m${id}${i}`}>{t('formsEdit.logic.message', { name: nameOf(id), text })}</li>))}
+          {[...outcome.required].map((id) => <li key={`r${id}`}>{t('formsEdit.logic.required', { name: nameOf(id) })}</li>)}
         </ul>
       </details>
 
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => onSave(nodes, edges)}>
-          Zapisz logikę
+          {t('formsEdit.logic.save')}
         </button>
         {dirty && (
           <button type="button" className="wk-link-btn" disabled={busy}
             onClick={() => { setNodes(design.nodes); setEdges(design.edges); setSelected(null); }}>
-            Cofnij zmiany
+            {t('formsEdit.logic.undo')}
           </button>
         )}
       </div>
@@ -401,24 +402,24 @@ function Inspector({ node, fields, targets, lockedBy, onPatch, onDrop }: {
   onPatch: (change: Partial<LogicNode>) => void;
   onDrop: () => void;
 }) {
-  const fieldTargets = targets.filter((t) => t.field);
+  const fieldTargets = targets.filter((one) => one.field);
+  const t = useT();
 
   return (
     <fieldset className="wk-form wk-bare-fieldset" disabled={lockedBy !== null}>
       <h3 className="wk-h2">{NODE_LABEL[node.kind]}</h3>
       {lockedBy !== null && (
         <p className="wk-hint">
-          Należy do wymagania „{lockedBy}” — można go przesunąć, ale zmienić albo usunąć dopiero po wyłączeniu
-          wymagania (zakładka „Pytania”).
+          {t('formsEdit.logic.locked', { need: lockedBy })}
         </p>
       )}
 
       {node.kind === 'answer' && (
         <label className="wk-field">
-          <span>Odpowiedź na pytanie</span>
+          <span>{t('formsEdit.logic.answerTo')}</span>
           <select value={node.fieldId ?? ''} onChange={(e) => onPatch({ fieldId: e.target.value || undefined })}>
-            <option value="">— wybierz —</option>
-            {fields.map((f) => <option key={f.fieldId} value={f.fieldId}>{f.label ?? 'zapieczętowane pytanie'}</option>)}
+            <option value="">{t('formsEdit.logic.choose')}</option>
+            {fields.map((f) => <option key={f.fieldId} value={f.fieldId}>{f.label ?? t('forms.ext.sealedQuestion')}</option>)}
           </select>
         </label>
       )}
@@ -426,20 +427,19 @@ function Inspector({ node, fields, targets, lockedBy, onPatch, onDrop }: {
       {node.kind === 'age' && (
         <>
           <label className="wk-field">
-            <span>Wiek z pytania (data urodzenia albo PESEL)</span>
+            <span>{t('formsEdit.logic.ageFrom')}</span>
             <select value={node.fieldId ?? ''} onChange={(e) => onPatch({ fieldId: e.target.value || undefined })}>
-              <option value="">— wybierz —</option>
+              <option value="">{t('formsEdit.logic.choose')}</option>
               {fields.filter((f) => f.kind === 'date' || f.kind === 'pesel' || f.identityRole === 'born').map((f) => (
-                <option key={f.fieldId} value={f.fieldId}>{f.label ?? 'zapieczętowane pytanie'}</option>
+                <option key={f.fieldId} value={f.fieldId}>{f.label ?? t('forms.ext.sealedQuestion')}</option>
               ))}
             </select>
           </label>
           <label className="wk-field">
-            <span>Wiek w dniu (puste: dziś)</span>
+            <span>{t('formsEdit.logic.ageOn')}</span>
             <input type="date" value={node.value ?? ''} onChange={(e) => onPatch({ value: e.target.value || undefined })} />
             <span className="wk-hint">
-              Np. dzień wyjazdu. Wynik to pełne lata — połącz go z „Porównanie" (A &lt; 18), żeby pokazać pola dla niepełnoletnich.
-              Bez daty (albo z błędnym PESEL-em) wynik jest pusty i porównanie nie jest spełnione.
+              {t('formsEdit.logic.ageHint')}
             </span>
           </label>
         </>
@@ -447,15 +447,15 @@ function Inspector({ node, fields, targets, lockedBy, onPatch, onDrop }: {
 
       {node.kind === 'const' && (
         <label className="wk-field">
-          <span>Wartość</span>
-          <input value={node.value ?? ''} placeholder="np. 16, tak, Kraków" onChange={(e) => onPatch({ value: e.target.value })} />
-          <span className="wk-hint">Liczby porównuje się jako liczby, resztę jako tekst (bez wielkości liter).</span>
+          <span>{t('formsEdit.logic.value')}</span>
+          <input value={node.value ?? ''} placeholder={t('formsEdit.logic.valuePlaceholder')} onChange={(e) => onPatch({ value: e.target.value })} />
+          <span className="wk-hint">{t('formsEdit.logic.valueHint')}</span>
         </label>
       )}
 
       {node.kind === 'compare' && (
         <label className="wk-field">
-          <span>Jak porównać A z B</span>
+          <span>{t('formsEdit.logic.compare')}</span>
           <select value={node.op ?? 'eq'} onChange={(e) => onPatch({ op: e.target.value as CompareOp })}>
             {COMPARE_OPS.map((op) => <option key={op} value={op}>A {COMPARE_LABEL[op]}{UNARY.includes(op) ? '' : ' B'}</option>)}
           </select>
@@ -464,52 +464,49 @@ function Inspector({ node, fields, targets, lockedBy, onPatch, onDrop }: {
 
       {(node.kind === 'and' || node.kind === 'or' || node.kind === 'xor' || node.kind === 'not') && (
         <p className="wk-hint">
-          {node.kind === 'and' ? 'Prawda, gdy prawdziwe są wszystkie wejścia.'
-            : node.kind === 'or' ? 'Prawda, gdy prawdziwe jest choć jedno wejście.'
-            : node.kind === 'xor' ? 'Prawda, gdy prawdziwych wejść jest nieparzyście wiele (przy dwóch: dokładnie jedno).'
-            : 'Odwraca: prawda staje się fałszem i odwrotnie.'}
-          {' '}Odpowiedź „nie", „0" albo puste pole liczy się jako fałsz.
+          {t(`formsEdit.logic.op.${node.kind}`)}
+          {' '}{t('formsEdit.logic.falsy')}
         </p>
       )}
 
       {node.kind === 'show' && (
         <label className="wk-field">
-          <span>Co pokazać, gdy wejście jest prawdziwe</span>
+          <span>{t('formsEdit.logic.showWhat')}</span>
           <select value={node.target ?? ''} onChange={(e) => onPatch({ target: e.target.value || undefined })}>
-            <option value="">— wybierz —</option>
-            {targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            <option value="">{t('formsEdit.logic.choose')}</option>
+            {targets.map((one) => <option key={one.id} value={one.id}>{one.label}</option>)}
           </select>
-          <span className="wk-hint">Kilka „Pokaż" na jednym celu — muszą być spełnione wszystkie.</span>
+          <span className="wk-hint">{t('formsEdit.logic.showHint')}</span>
         </label>
       )}
 
       {(node.kind === 'message' || node.kind === 'label' || node.kind === 'require') && (
         <label className="wk-field">
-          <span>Przy pytaniu</span>
+          <span>{t('formsEdit.logic.atQuestion')}</span>
           <select value={node.target ?? ''} onChange={(e) => onPatch({ target: e.target.value || undefined })}>
-            <option value="">— wybierz —</option>
-            {fieldTargets.map((t) => <option key={t.id} value={t.id}>{t.label.trim()}</option>)}
+            <option value="">{t('formsEdit.logic.choose')}</option>
+            {fieldTargets.map((one) => <option key={one.id} value={one.id}>{one.label.trim()}</option>)}
           </select>
         </label>
       )}
 
       {node.kind === 'message' && (
         <label className="wk-field">
-          <span>Komunikat pod polem</span>
+          <span>{t('formsEdit.logic.messageLabel')}</span>
           <textarea rows={3} value={node.value ?? ''} onChange={(e) => onPatch({ value: e.target.value })} />
         </label>
       )}
 
       {node.kind === 'label' && (
         <label className="wk-field">
-          <span>Nazwa pola, gdy wejście jest prawdziwe</span>
+          <span>{t('formsEdit.logic.labelLabel')}</span>
           <input value={node.value ?? ''} onChange={(e) => onPatch({ value: e.target.value })} />
         </label>
       )}
 
       {lockedBy === null && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>Usuń węzeł</button>
+          <button type="button" className="wk-link-btn wk-danger" onClick={onDrop}>{t('formsEdit.logic.dropNode')}</button>
         </div>
       )}
     </fieldset>

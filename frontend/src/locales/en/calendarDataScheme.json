@@ -1,0 +1,201 @@
+{
+  "fieldType": {
+    "text": "text",
+    "longtext": "longer text",
+    "number": "number",
+    "choice": "choice",
+    "colour": "liturgical colour",
+    "date": "date",
+    "time": "time",
+    "bool": "yes / no",
+    "bible": "Scripture passage",
+    "person": "person",
+    "link": "link"
+  },
+  "colour": {
+    "white": "white",
+    "red": "red",
+    "green": "green",
+    "violet": "violet",
+    "rose": "rose",
+    "black": "black",
+    "gold": "gold",
+    "blue": "blue"
+  },
+  "universal": {
+    "name": "Universal",
+    "single": "single",
+    "collective": "collective",
+    "list": "Intentions",
+    "item": "intention",
+    "text": "Intention text",
+    "person": "Who celebrates",
+    "giver": "Donor",
+    "giverSays": "Who ordered it — not read out, stays in the parish office.",
+    "offering": "Offering",
+    "offeringSays": "Offering — stays in the parish office.",
+    "listSays": "Mass intentions: the text read at mass and on the notice board, the kind (single / collective), who celebrates.",
+    "says": "The scheme every older appointment has: all kinds and mass intentions."
+  },
+  "yes": "yes",
+  "no": "no",
+  "status": {
+    "waiting": "waiting",
+    "accepted": "accepted",
+    "declined": "declined",
+    "cancelled": "withdrawn",
+    "celebrated": "held"
+  },
+  "intentionStatus": {
+    "waiting": "waiting",
+    "accepted": "accepted",
+    "declined": "declined",
+    "cancelled": "withdrawn",
+    "celebrated": "celebrated"
+  },
+  "recordOutsidePublic": "From outside only public fields can be given.",
+  "read": {
+    "optionsList": "{where}: “options” must be a list — skipped.",
+    "optionNoName": "{where}: option without a name — skipped.",
+    "fieldsList": "{where}: “fields” must be a list — skipped.",
+    "fieldNoName": "{where}: field {n} without a name (“label”) — skipped.",
+    "fieldType": "{where}: “{label}” — unknown type “{type}”, it will be text.",
+    "flowNoNodes": "{where}: flow without “nodes” — skipped.",
+    "nodeNotPlan": "{where}: node {type} doesn’t fit a plan — skipped.",
+    "nodeNotRule": "{where}: node {type} doesn’t fit a rule — skipped.",
+    "listsList": "“lists” must be a list — skipped.",
+    "listNoName": "List {n} without a name (“label”) — skipped.",
+    "listWhere": "List “{label}”",
+    "notObject": "This is not a JSON object.",
+    "notScheme": "This is not a scheme (“format”: {format}).",
+    "schemeNoName": "A scheme needs a name (“name”).",
+    "unknownKind": "Unknown kind “{kind}” — skipped.",
+    "schemeWhere": "Scheme",
+    "notPlan": "This is not a plan (“format”: {format}).",
+    "planNoName": "A plan needs a name (“name”).",
+    "planWhere": "Plan",
+    "planNoFlow": "A plan needs a flow (“flow”).",
+    "otherScheme": "The scheme from the document doesn’t belong to this calendar — choose a scheme in the plan."
+  },
+  "date": {
+    "fixed": "the same day every year (month 1 = January)",
+    "easter": "days from Easter Sunday: −46 Ash Wednesday, +49 Pentecost, +60 Corpus Christi, +68 Most Sacred Heart of Jesus",
+    "advent": "days from the first Sunday of Advent (−7 Christ the King)",
+    "christmasSunday": "Holy Family: the Sunday in the octave of Christmas, and when there is none — 30 December",
+    "baptism": "Baptism of the Lord: the Sunday after 6 January",
+    "nthWeekday": "the n-th weekday of the month (n: 1–5, −1 — the last); with \"month\" only in that month, without it every month (e.g. the first Friday)",
+    "sundayAfter": "the first Sunday AFTER the given day (not on it)"
+  },
+  "test": {
+    "weekday": "weekday",
+    "slot": "mass time — a key from the \"slots\" node (only in the \"mass\" flow)",
+    "time": "the mass starts in this range (one bound is enough)",
+    "season": "liturgical season: {seasons}",
+    "week": "week of the season",
+    "rank": "rank of the celebration (without one — of the day): 1 highest … 13 weekday",
+    "celebration": "\"any\" — there is a celebration, \"none\" — there is none, \"name\" — the celebration’s name contains \"name\"",
+    "festive": "Sunday or holy day of obligation",
+    "sunday": "Sunday",
+    "date": "this day according to a date rule (below)",
+    "between": "day of the year in the range \"MM-DD\" (also across New Year)",
+    "var": "a variable set earlier by a \"set\" node; \"op\": \"=\", \"!=\" or \"contains\"",
+    "mode": "kind of entry",
+    "count": "how many entries of this list are already at this appointment (\"scope\": \"occurrence\") or in the week from Monday (\"week\"); \"mode\" — only of this kind; \"status\": \"live\" (accepted and celebrated, default) or \"all\" (also waiting); \"per\": \"occurrence\" — at how many OTHER appointments of the week there are such entries",
+    "actor": "who adds: \"office\" — those who run the calendar, \"outside\" — someone from outside (their entry waits anyway)",
+    "field": "field of the entry: \"set\" — filled, \"empty\" — empty, \"=\" — equal to \"value\""
+  },
+  "node": {
+    "nodes": "Nodes:",
+    "date": {
+      "title": "Date rule (\"when\", condition \"date\")",
+      "lead": "A date computed anew for every year:",
+      "tail": "Weekday (\"weekday\", \"days\"): 1 = Monday … 7 = Sunday."
+    },
+    "test": {
+      "title": "Condition (\"if\")",
+      "lead": "The \"if\" node has the data {\"test\": …} and two outputs: \"yes\" and \"no\". Comparison \"op\": <, <=, =, >=, >, !=.",
+      "plan": "Day and mass (in a plan):",
+      "rule": "Entry (in a list rule):"
+    },
+    "flow": {
+      "title": "Flow (\"flow\", \"rule\")",
+      "lead": "A flow is a graph as in the editor: {\"v\":1,\"nodes\":[…],\"edges\":[…]}.",
+      "nodes": "{\"id\", \"type\", \"x\", \"y\", \"data\"} — \"id\" unique in the flow; \"x\", \"y\" — place in the editor; \"data\" — the node’s settings",
+      "edges": "{\"id\", \"from\", \"to\", \"out\"} — from the output of node \"from\" to node \"to\"; \"out\": \"out\" (the only output, default), \"yes\" or \"no\" from an \"if\" node",
+      "tail": "A flow runs from the start node along the edges until it reaches an ending node. Unconnected nodes do nothing; nodes of another kind of flow the import skips with a word."
+    },
+    "rule": {
+      "title": "List rule (\"rule\")",
+      "lead": "The rule runs in the browser when someone adds an entry or the office accepts a waiting one. Result: accept, wait or refuse (with a message — the entry is then not created). An entry by someone outside those who run the calendar always waits; the rule runs once more when the office accepts it.",
+      "data": "Data: \"refuse\" and \"wait\" — {\"message\": \"…\"} (what the person adding sees); \"if\" — a condition (below)."
+    },
+    "plan": {
+      "title": "Plan flow (\"flow\")",
+      "lead": "The \"day\" flow runs once for each day of the range and ends with a \"slots\" node (the day’s masses) or \"skip\" (no mass). Then the \"mass\" flow runs once for each mass of the day and ends with \"end\" (create) or \"skip\" (this time does not exist). The first matching path wins — that is how precedence is set.",
+      "dataHead": "Node data:",
+      "season": "the colour of each season ({seasons}) and of special days; the node computes the season, week, rank of the day and colour",
+      "feasts": "celebrations: \"when\" — a date rule (below), \"rank\" 1–13, \"festive\": true — Sunday times, \"title\" — the mass title (without it the name), \"moveIfImpeded\": true — when displaced by a higher rank it moves to the next day; the highest rank wins",
+      "set": "the mass title, a scheme field (by key) or a variable (e.g. \"colour\")",
+      "slots": "masses on Sundays and holy days of obligation and on the other days; \"key\" stays forever — by it the preview recognises masses already planned",
+      "recordText": "For the parishioners",
+      "record": "a fixed entry of a scheme list at this mass",
+      "ifSkipEnd": "\"if\" — a condition (below); \"skip\" and \"end\" without data",
+      "texts": "Texts (\"value\", \"title\", \"text\") may have places to fill: {celebration} {celebrationTitle} {title} {season} {seasonName} {week} {weekRoman} {sundayName} {dayName} {weekday} {colour} {date} {dateWords} {time} {slot} — and every variable from \"set\". Unknown ones stay as they are (the preview shows them)."
+    },
+    "field": {
+      "title": "Field (\"fields[]\")",
+      "key": "a–z, 0–9, _ . - (missing: from the name); stays when the name changes — the values are under it",
+      "label": "name (required)",
+      "level": "\"item\" — the whole appointment (default) or \"day\" — one day of a series (appointment fields only)",
+      "public": "true — the value is visible without a key: mass plan, notice board, printout; otherwise encrypted. For entry fields: only such fields are filled by someone outside those who run the calendar",
+      "required": "true — it can’t be saved without a value",
+      "options": "for \"choice\" and \"colour\": a list of names or {\"value\",\"label\"}",
+      "unit": "for \"number\": a unit (e.g. \"people\")",
+      "onlyKinds": "only for these kinds of appointments (e.g. [\"mass\"])",
+      "says": "explanation of the field",
+      "tail": "Values are text. A liturgical colour is a word: {colours}."
+    },
+    "list": {
+      "title": "List of entries (\"lists[]\")",
+      "lead": "A list of entries at each appointment — e.g. mass intentions or sign-ups for a meeting.",
+      "key": "as for a field; the list \"intencje\" is the mass intentions (also visible in “Masses and services”)",
+      "itemLabel": "what one entry is called (e.g. “intention”)",
+      "modes": "kinds of entry: a list of names or {\"value\",\"label\"} (e.g. [{\"value\":\"single\",\"label\":\"single\"},{\"value\":\"collective\",\"label\":\"collective\"}])",
+      "textLabel": "the public text of an entry and its caption (e.g. “Intention text” — read at mass, in the plan and on the notice board)",
+      "person": "caption of the pinned person (e.g. “Who celebrates”); someone from outside who signs up alone is that person",
+      "fields": "fields of an entry (as above) — encrypted with the key of those who run the calendar",
+      "outside": "true — people who don’t run the calendar also sign up (the entry waits for the office)",
+      "onlyKinds": "the list only for these kinds of appointments",
+      "rule": "the list rule — a flow (below); without it every entry by those who run the calendar is accepted",
+      "says": "explanation of the list"
+    },
+    "usageTitle": "How the app uses this data",
+    "schemeUsage": "- A scheme saved in the calendar settings (“Appointment schemes”) works for the appointments that have it: the appointment editor shows its fields (\"level\": \"day\" fields — for the chosen day of a series), and the appointment details in the Calendar — values and lists.\n- Public mass fields (\"public\": true) go to the public plan (the page module “Masses and services”, e.g. celebration and vestment colour) and to the notice-board printout — when the area that sees the calendar is public. The other values are opened only by the key of that area.\n- Lists of entries stand at each day of an appointment. Those who run the calendar add entries; with \"outside\": true also those who only read it (“Submit”) — such an entry waits, and those who run the calendar see it in “Entries to accept” (bell, “Waiting for you”). Those who run it see all entries, readers — accepted, celebrated and their own.\n- List rules are checked only by the browser — the server doesn’t know them, because the scheme is encrypted.\n- The list \"intencje\" is the mass intentions: the parish office works with it (“Masses and services”), and its accepted and celebrated texts go to the public plan and the printout. Entries of other lists don’t reach the public plan.\n- A calendar plan creates appointments with the chosen scheme and fills its fields and the fixed list entries right away.",
+    "planUsage": "- A saved plan creates nothing by itself. Only “Apply…” (calendar settings → “Plans”) computes the days of the chosen period in the browser and creates single appointments in this calendar.\n- Each one gets: the kind from the plan (without it — from the scheme, and without both — \"mass\"), the plan’s scheme, the title from the flow, field values (also day fields) and a public title if the scheme says so; fixed entries from \"record\" nodes (e.g. the intention “For the parishioners”) are accepted right away.\n- The created appointments are seen by everyone who has the key of the area that sees the calendar: in the Calendar, in “Now”, in “Masses and services” and in page modules; when that area is public — also in the public mass plan and on the notice-board printout.\n- An appointment remembers the plan, the time (\"key\" from \"slots\") and the day: thanks to that the preview recognises masses already planned, and those who run the calendar get “Plans to extend” in “Waiting for you” when the last appointment of the plan falls within two weeks.\n- The plan is encrypted with the key of the area that runs the calendar (the scheme — with the key of the area that sees the appointments).",
+    "scheme": {
+      "title": "Appointment scheme (\"{format}\")",
+      "short": "Appointment scheme",
+      "lead": "A scheme says what the calendar’s appointments are, which fields they have and which lists of entries (intentions, sign-ups). It is encrypted in the browser with the key of the area that sees the calendar’s appointments. The import loads the document into the editor; it is saved only by “Save scheme”. The keys of fields and lists stay — the appointments’ values are under them.",
+      "name": "scheme name (required), e.g. “Mass”",
+      "kind": "kind of appointments: {kinds} — \"mass\" puts the appointment in the mass plan and on the notice board",
+      "kinds": "kinds to choose from for an appointment (instead of one \"kind\")",
+      "publicTitle": "true — public title (plan, notice board), false — encrypted; missing: public for mass, confession and devotion",
+      "fields": "appointment fields (below)",
+      "lists": "lists of entries (below)",
+      "says": "explanation of the scheme",
+      "example": "Example (template “Meeting with sign-ups”):"
+    },
+    "template": "template “{name}”",
+    "planRoot": {
+      "title": "Plan (\"{format}\")",
+      "short": "Plan",
+      "lead": "A plan creates single appointments (e.g. masses) for a chosen period — “Apply…”. Once created, the appointments are not tied to the plan: they are changed like any other; applying the same plan again skips masses already planned. The import loads the document into the editor; it is saved only by “Save plan”.",
+      "name": "plan name (required)",
+      "schemeId": "the scheme of the created appointments — a scheme of THIS calendar; from another calendar it disappears on import (then choose it in the plan)",
+      "kind": "kind of the created appointments (e.g. \"mass\")",
+      "weeks": "how many weeks the “Apply…” window suggests (1–60)",
+      "flow": "the plan flow (below)",
+      "says": "explanation of the plan"
+    }
+  }
+}

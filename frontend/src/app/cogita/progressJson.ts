@@ -184,7 +184,7 @@ export interface ProgressPlan {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const described = (keys: Readonly<Record<string, string>>, key: string): boolean => Object.prototype.hasOwnProperty.call(keys, key);
-const clip = (text: string, n: number) => (text.length <= n ? text : `${text.slice(0, n - 1)}…`);
+const clip = (text: string, n: number) => (text.length <= n ? text : `${text.slice(0, n - 1)}…`); // i18n-ignore
 
 /**
  * Tausende Antworten, und jede könnte dasselbe falsch haben: die Warnungen werden GEZÄHLT, nicht wiederholt —

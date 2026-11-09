@@ -116,5 +116,290 @@
     "saveFailed": "{kind} “{title}”: {error}.",
     "notSaved": "could not be saved",
     "saved": "Saved {n} of {total}."
+  },
+  "markup": {
+    "unreadable": "[reference unavailable]",
+    "infoTitle": "Reports a source: points to a work, quote or person from the Library and does not rest on another statement.",
+    "interpTitle": "Your own thought, a comparison or synthesis — rests on another statement or points to no source.",
+    "info": "Information",
+    "interp": "Interpretation",
+    "answered": "Question — answered",
+    "open": "Open question",
+    "noThesis": "No thesis: the content does not start with a sentence",
+    "longThesis": "Thesis longer than {n} characters",
+    "selfEmbed": "[the statement embeds itself]",
+    "notes": "Footnotes",
+    "back": "Back to the text"
+  },
+  "doc": {
+    "template": "Card template",
+    "revision": "Review",
+    "flow": "Flow",
+    "view": "View",
+    "collection": "Collection",
+    "addform": "Adding form",
+    "kind": "Kind",
+    "rules": "Rules",
+    "values": "Values",
+    "look": "Appearance",
+    "contribution": "Proposal",
+    "anchor": "Entry from the Library",
+    "reward": "Rewards",
+    "entry": "Entry"
+  },
+  "where": {
+    "body": "in the content",
+    "further": "in “Further information”",
+    "blocks": "in the comment's content",
+    "subjects": "about it",
+    "added": "in what was added",
+    "transcript": "in the delivery's transcript",
+    "outline": "in the outline",
+    "plan": "in the plan",
+    "planPoint": "plan, point {n}"
+  },
+  "pick": {
+    "createFailed": "Could not create.",
+    "removeOne": "Remove: {title}",
+    "create": "+ Create {kind}: “{name}”",
+    "knowledge": {
+      "loading": "Loading knowledge bases…",
+      "id": "knowledge base id",
+      "choose": "— choose a knowledge base —",
+      "none": "You have no knowledge base yet —",
+      "create": "create one in Knowledge",
+      "first": "Choose a knowledge base first.",
+      "closed": "You cannot read this knowledge base."
+    },
+    "writing": {
+      "loading": "Loading scriptoria…",
+      "id": "scriptorium id",
+      "choose": "— choose a scriptorium —",
+      "none": "You have no scriptorium yet —",
+      "create": "create one"
+    },
+    "books": {
+      "loading": "Loading libraries…",
+      "id": "library id",
+      "choose": "— choose a library —",
+      "none": "You have no library yet —",
+      "create": "create one",
+      "first": "Choose a library first.",
+      "closed": "You cannot read this library."
+    },
+    "tag": {
+      "members": " — for the area's members",
+      "publicBaseClosed": " — public area, base not opened yet",
+      "publicWaiting": " — public area, awaiting confirmation",
+      "publicWhole": " — fully public",
+      "public": " — public"
+    },
+    "chooseWord": "choose",
+    "all": "all",
+    "dashed": "— {word} —",
+    "add": "+ Add",
+    "elsewhere": "(in another library or unavailable)",
+    "notInBase": "(not in this base) {id}",
+    "baseEmpty": "There is nothing like that in this base yet."
+  },
+  "rel": {
+    "searched": "Searched {libraries} and {bases} open in this tab.",
+    "libraries": {
+      "one": "{count} library",
+      "other": "{count} libraries"
+    },
+    "bases": {
+      "one": "{count} knowledge base",
+      "other": "{count} knowledge bases"
+    },
+    "opening": "Opening…",
+    "searchAll": "Search all you can read",
+    "onPages": "On pages you manage",
+    "checkPages": "Check pages",
+    "checking": "Checking pages…",
+    "checkFailed": "Could not check the pages.",
+    "noPages": "None of your pages shows it.",
+    "edit": "edit",
+    "title": "Connections",
+    "quotesOf": "Quotes from this source: {n}",
+    "quotesBelow": "— list and adding below the fields",
+    "addQuote": "+ Quote (full form)",
+    "citedByTexts": "Texts that cite it",
+    "other": "Other",
+    "inBase": "In the knowledge base “{name}”",
+    "base": "Knowledge base",
+    "thisCites": "This text cites",
+    "passage": "Passage of Scripture",
+    "passagePlaceholder": "e.g. Dz 1,14 · Acts 1:14 · J 3,16-18",
+    "passageUnknown": "I don't recognise this book or place (e.g. “Łk 1,26-38”, “Ps 23”, “1 Kor 13,4-7”).",
+    "nothingPoints": "nothing here points to it"
+  },
+  "area": {
+    "members": "the members of its area",
+    "waiting": "the area's members — the area is public, but the library awaits confirmation in Settings",
+    "everyone": "everyone — the area is public",
+    "keyTaken": "There the key “{from}” was already taken — the entry now has the key “{key}”. The old one stays with the entry, and texts point to it by a fixed link, so nothing broke.",
+    "moveFailed": "Could not move.",
+    "seenScriptorium": "Scriptorium “{name}”: {who}.",
+    "seenLibrary": "Library “{name}”: {who}.",
+    "moveScriptorium": "Move to another scriptorium",
+    "moveLibrary": "Move to another library",
+    "moveLedeScriptorium": "The entry keeps its id — references and embeds keep working. Those who see that scriptorium will see it. This is how a text becomes public: in the scriptorium of a public area.",
+    "moveLedeLibrary": "The entry keeps its id — references and embeds keep working. Those who see that place will see it.",
+    "targetScriptorium": "Target scriptorium",
+    "targetLibrary": "Target library",
+    "public": "public",
+    "forMembers": "for the area's members",
+    "after": "After moving: {who}.",
+    "withType": "Also move the text type “{name}” — without it, readers of that scriptorium will not see this type's fields (other texts of this type keep using it).",
+    "files": "The files ({n}) go together with the entry — encrypted with that area's key; this may take a moment.",
+    "refsWarn": "Whoever sees only one of the libraries will see “{unreadable}” in place of a reference — without title or content.",
+    "refsOut": "The entry refers to {n} others.",
+    "refsIn": "{n} refer to it.",
+    "moving": "Moving…",
+    "moveTo": "Move to “{name}”"
+  },
+  "key": {
+    "pinned": "Texts that named the entry by its old key ({n}) now point to it permanently.",
+    "pinnedSome": "Texts that named the entry by its old key ({n}) now point to it permanently; {failed} in libraries you cannot change — there the old key, kept with the entry, works.",
+    "title": "Citation key",
+    "placeholder": "will be suggested",
+    "hint": "In a text: <a>[@{key}]</a> or <b>[@{key}, s. 12]</b> — a fixed link is saved, so changing the key breaks nothing.",
+    "taken": "Another entry in this library already has this key — a letter will be added.",
+    "elsewhere": "An entry in another library you can see already has this key. Writing [@{key}] in this library chooses this entry; texts save a fixed link, so nothing gets mixed up.",
+    "wrong": "Only letters, digits and the signs . _ : -"
+  },
+  "entryJson": {
+    "importOnly": "Import from JSON",
+    "summary": "JSON import / export",
+    "leadNew": "Paste the description ({kind}) as JSON — e.g. prepared by AI. This entry will be created (and what you point to in it, if you describe it in the same document).",
+    "lead": "This entry as JSON — to correct by hand or with AI. The import changes it in place (fields you leave out stay).",
+    "fileName": "entry"
+  },
+  "remove": {
+    "open": "Delete this entry…",
+    "ask": "Delete “{title}”?",
+    "backlinks": {
+      "one": "{count} entry refers to it — that reference will become empty.",
+      "other": "{count} entries refer to it — these references will become empty."
+    }
+  },
+  "picked": {
+    "pick": "Select: {label}",
+    "removeAsk": {
+      "one": "Delete {count} entry?",
+      "other": "Delete {count} entries?"
+    },
+    "pointing": {
+      "one": "{count} other entry refers to them — these references will show that the entry is gone.",
+      "other": "{count} other entries refer to them — these references will show that the entry is gone."
+    },
+    "foreignStay": {
+      "one": "{count} of the selected is in another library — it stays.",
+      "other": "{count} of the selected are in another library — they stay."
+    },
+    "noUndo": "This cannot be undone from this list.",
+    "removing": "Deleting… {n} of {total}",
+    "removed": {
+      "one": "Deleted {count} entry.",
+      "other": "Deleted {count} entries."
+    },
+    "region": "Selected entries",
+    "count": "Selected: {n}",
+    "all": "Select all ({n})",
+    "none": "Deselect",
+    "remove": "Delete ({n})",
+    "foreign": {
+      "one": "{count} of the selected is in another library — it cannot be deleted here.",
+      "other": "{count} of the selected are in another library — they cannot be deleted here."
+    }
+  },
+  "knowledge": {
+    "wholeWork": "the whole work",
+    "inEdition": "{place} (in the edition: {edition})",
+    "title": "In Knowledge",
+    "one": "In Knowledge: {name} ›",
+    "many": {
+      "one": "In Knowledge: {count} entry ↓",
+      "other": "In Knowledge: {count} entries ↓"
+    }
+  },
+  "editor": {
+    "elsewhere": "This entry is in another library.",
+    "openThere": "Open it there",
+    "missing": "This entry does not exist (or was deleted).",
+    "oldKind": "This entry is of a kind the library no longer keeps. You can look at it and delete it in the “Old entries” tab.",
+    "reload": "Load the newer version",
+    "keepMine": "Keep mine (overwrite)",
+    "readOnly": "You can only read this library.",
+    "tracksLater": "You can add recording tracks after saving the entry.",
+    "filesLater": "You can add sheet music files after saving the entry."
+  },
+  "public": {
+    "closed": "You cannot see this library — its area is not public.",
+    "searchPlaceholder": "Search the quotes…",
+    "search": "Search the quotes",
+    "none": "There are no quotes yet.",
+    "more": "More ({n})"
+  },
+  "basePick": {
+    "label": "From a knowledge base",
+    "title": "From a knowledge base: a word, an entry or a view",
+    "searchPlaceholder": "Search the knowledge bases…",
+    "search": "Search the knowledge bases",
+    "none": "You read no knowledge base.",
+    "view": " · view — inserts a list that lives together with the base",
+    "link": " · link"
+  },
+  "blocks": {
+    "paragraph": "Paragraph",
+    "ordered": "Numbered list",
+    "unordered": "Bullet list",
+    "table": "Table",
+    "form": "Block form",
+    "up": "Up",
+    "down": "Down",
+    "remove": "Remove block",
+    "lede": "The form means something: a numbered list — order (a line of thought), a bullet list — things of equal rank, a table — a comparison (each row compares the same thing).",
+    "prose": "Prose — **bold**, *italic*, footnote [@key, s. 3], embedded statement: ![@id]",
+    "column": "Column {n}",
+    "columnName": "Name of column {n}",
+    "removeColumn": "Remove column {n}",
+    "addColumn": "+ column",
+    "removeRow": "Remove row {n}",
+    "addRow": "+ row",
+    "removeItem": "Remove item {n}",
+    "addItem": "+ item",
+    "textPlaceholder": "text",
+    "text": "Text",
+    "refPlace": "Place of the reference",
+    "removeRef": "Remove reference",
+    "addText": "+ text",
+    "addRef": "+ reference"
+  },
+  "draft": {
+    "new": "New — save it to create it.",
+    "dirty": "Changes…",
+    "failed": "Not saved.",
+    "stale": "Someone changed this entry in the meantime.",
+    "saved": "Saved."
+  },
+  "map": {
+    "noField": "{from} does not refer to: {to}. (You insert a quote in a text in its content: [@{key}].)"
+  },
+  "old": {
+    "title": "Old entries ({n})",
+    "lede": "Entries of kinds this version no longer supports. {where} You can look at them and delete them — they will not disappear by themselves.",
+    "none": "There are no old entries.",
+    "changed": "changed {date}"
+  },
+  "oldKind": {
+    "text": "Text",
+    "delivery": "Delivery",
+    "project": "Project",
+    "comment": "Comment",
+    "topic": "Topic",
+    "knowledge": "Knowledge",
+    "texttype": "Text type"
   }
 }

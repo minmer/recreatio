@@ -19,6 +19,7 @@ import { loadMembers } from '../areas/area';
 import { loadChats, startAreaChat, startSeatChat } from '../chat/chat';
 import { PageChatRoom } from '../chat/PageChatView';
 import type { Ring } from '../core/keys';
+import { useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
 import {
@@ -43,6 +44,7 @@ export function PersonAreas({ registrationId, ring, onError }: {
   const [chats, setChats] = useState<ReadonlyMap<string, string>>(new Map());
   const [writers, setWriters] = useState<ReadonlyMap<string, string | null>>(new Map());
   const [busy, setBusy] = useState<string | null>(null);
+  const t = useT();
 
   const read = useCallback(async () => {
     try {
@@ -65,7 +67,7 @@ export function PersonAreas({ registrationId, ring, onError }: {
       setWriters(who);
       setState(now);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać obszarów osoby.');
+      onError(e instanceof WorkspaceError ? e.message : t('formsData.pa.loadFailed'));
       setState({ registrationId, moduleId: '', ready: false, areas: [] });
     }
   }, [registrationId, ring, onError]);
@@ -76,20 +78,20 @@ export function PersonAreas({ registrationId, ring, onError }: {
     setBusy(what);
     onError(null);
     try { await todo(); } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      onError(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally { setBusy(null); }
   };
 
-  const create = (area: RegistrationArea) => act('Zakładanie obszaru…', async () => {
-    if (ring === null) throw new WorkspaceError('Najpierw podaj hasło.');
+  const create = (area: RegistrationArea) => act(t('formsData.pa.creating'), async () => {
+    if (ring === null) throw new WorkspaceError(t('formsData.va.passwordFirst'));
     const done = await applyVirtualArea(ring, await loadVirtualPlan(area.virtualAreaId), { only: registrationId });
-    if (done.noIssuer) throw new WorkspaceError('Ten obszar zakłada ten, kto prowadzi regułę „' + area.name + '”.');
+    if (done.noIssuer) throw new WorkspaceError(t('formsData.pa.noIssuer', { name: area.name }));
     await read();
   });
 
-  const talk = (area: RegistrationArea, areaId: string) => act('Otwieranie rozmowy…', async () => {
+  const talk = (area: RegistrationArea, areaId: string) => act(t('formsData.pa.openingChat'), async () => {
     const as = writers.get(areaId) ?? null;
-    if (as === null) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+    if (as === null) throw new WorkspaceError(t('formsData.pa.noWriter'));
     const seatId = state?.seatId ?? null;
     const chatId = area.submitterLevel !== 'none' && seatId !== null
       ? await startSeatChat(areaId, as, seatId)
@@ -97,7 +99,7 @@ export function PersonAreas({ registrationId, ring, onError }: {
     setChats(new Map(chats).set(areaId, chatId));
   });
 
-  if (state === null) return <Loading label="Wczytywanie…" />;
+  if (state === null) return <Loading label={t('common.loading')} />;
   if (!state.ready || state.areas.length === 0) return null;
 
   return (
@@ -113,10 +115,10 @@ export function PersonAreas({ registrationId, ring, onError }: {
             </h4>
             {area.areaId === null ? (
               <div className="wk-actions">
-                <span>Ta osoba nie ma jeszcze tego obszaru.</span>
+                <span>{t('formsData.pa.none')}</span>
                 <button type="button" className="wk-btn" disabled={busy !== null || ring === null} data-person-area-create=""
                   onClick={() => void create(area)}>
-                  Załóż
+                  {t('formsData.pa.create')}
                 </button>
               </div>
             ) : chatId !== undefined && ring !== null && as !== null ? (
@@ -125,7 +127,7 @@ export function PersonAreas({ registrationId, ring, onError }: {
               <div className="wk-actions">
                 <button type="button" className="wk-btn" disabled={busy !== null || ring === null || as === null}
                   data-person-area-talk="" onClick={() => void talk(area, area.areaId!)}>
-                  {area.submitterLevel === 'none' || state.seatId == null ? 'Zacznij notatki o tej osobie' : 'Zacznij rozmowę z tą osobą'}
+                  {area.submitterLevel === 'none' || state.seatId == null ? t('formsData.pa.startNotes') : t('formsData.pa.startChat')}
                 </button>
               </div>
             )}

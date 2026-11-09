@@ -1,0 +1,34 @@
+{
+  "ctx": {
+    "locked": "The key is locked — unlock it with your password.",
+    "noPerson": "The account does not manage any person yet.",
+    "roleCannot": "You cannot create an area with this role — choose another.",
+    "archiveArea": "SMS archive",
+    "noAreaKey": "You don't have the key of this area."
+  },
+  "reading": {
+    "copiedOne": "Message copied.",
+    "copiedMany": "Messages copied: {count}.",
+    "copyFailed": "Could not copy.",
+    "size": "Letter size",
+    "smaller": "Smaller letters",
+    "larger": "Larger letters"
+  },
+  "when": {
+    "today": "today {time}",
+    "tomorrow": "tomorrow {time}"
+  },
+  "search": {
+    "people": "People",
+    "peoplePh": "Search people…",
+    "numbers": "Numbers",
+    "numbersPh": "Search numbers…",
+    "messages": "Messages",
+    "messagesPh": "Search in text…"
+  },
+  "jobs": {
+    "noSession": "No session.",
+    "notSms": "This is not the SMS edition of the app.",
+    "unknown": "Unknown job."
+  }
+}

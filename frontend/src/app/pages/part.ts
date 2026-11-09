@@ -27,6 +27,8 @@
 
 import { createElement, type ComponentType } from 'react';
 
+import { appLang, t, texts, type Lang } from '../core/i18n';
+
 /* -- Wie gross er ist — in Worten ------------------------------------------ */
 
 /**
@@ -77,8 +79,8 @@ export function partSize(box: { readonly colSpan: number; readonly rowSpan: numb
 
 /** Wie die Grösse im Editor heisst — „wąski blok", „pełna szerokość · pasek". */
 export const SIZE_WORD: { readonly width: Record<PartWidth, string>; readonly height: Record<PartHeight, string> } = {
-  width: { narrow: 'wąski', medium: 'średni', wide: 'szeroki', full: 'na całą szerokość' },
-  height: { strip: 'pasek', block: 'blok', tall: 'wysoki' }
+  width: texts({ narrow: 'pages.size.narrow', medium: 'pages.size.medium', wide: 'pages.size.wide', full: 'pages.size.full' }),
+  height: texts({ strip: 'pages.size.strip', block: 'pages.size.block', tall: 'pages.size.tall' })
 };
 
 /* -- Was ein Baustein über seine Umgebung wissen darf ----------------------- */
@@ -385,24 +387,24 @@ const shapeOfField = (kind: FieldKind): JsonShape =>
   kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' || kind === 'hide' ? 'ids' : 'line';
 
 /** Was eine Feldart im JSON heisst — für die Beschreibung. */
-const FIELD_SAYS: Record<FieldKind, string> = {
-  line: 'tekst w jednym wierszu',
-  text: 'lista wierszy (albo jeden tekst z \\n)',
-  resource: 'identyfikator zasobu z Rezerwacji — najprościej wybrać w edytorze',
-  form: 'identyfikator modułu „Formularz” — najprościej wybrać w edytorze',
-  questions: '"*" (wszystkie pytania, także dodane później) albo lista identyfikatorów pytań',
-  calendar: 'identyfikator kalendarza grupy — najprościej wybrać w edytorze',
-  calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
-  chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
-  library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
-  scriptorium: 'identyfikator skryptorium — najprościej wybrać w edytorze',
-  knowledge: 'identyfikator bazy wiedzy (Cogita) — najprościej wybrać w edytorze',
-  libraryEntry: 'identyfikator wpisu biblioteki, skryptorium albo bazy wiedzy — najprościej wybrać w edytorze',
-  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
-  page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze',
-  hide: 'lista tego, czego moduł NIE pokazuje (brak albo pusta lista — pokazuje wszystko)',
-  area: 'identyfikator obszaru (np. kursu albo grupy) — najprościej wybrać w edytorze'
-};
+const FIELD_SAYS: Readonly<Record<FieldKind, string>> = texts({
+  line: 'pages.fieldSays.line',
+  text: 'pages.fieldSays.text',
+  resource: 'pages.fieldSays.resource',
+  form: 'pages.fieldSays.form',
+  questions: 'pages.fieldSays.questions',
+  calendar: 'pages.fieldSays.calendar',
+  calendars: 'pages.fieldSays.calendars',
+  chat: 'pages.fieldSays.chat',
+  library: 'pages.fieldSays.library',
+  scriptorium: 'pages.fieldSays.scriptorium',
+  knowledge: 'pages.fieldSays.knowledge',
+  libraryEntry: 'pages.fieldSays.libraryEntry',
+  calendarItem: 'pages.fieldSays.calendarItem',
+  page: 'pages.fieldSays.page',
+  hide: 'pages.fieldSays.hide',
+  area: 'pages.fieldSays.area'
+});
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */
 function storedOf(value: unknown, shape: JsonShape): string | null {
@@ -467,10 +469,14 @@ export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[]
   };
 
   const keys: Record<string, string> = {};
+  /* Getter: der Satz entsteht beim Lesen, in der Sprache von dann. */
   for (const f of fields) {
-    keys[f.key] = `${f.label} — ${FIELD_SAYS[f.kind]}${f.hint === undefined ? '' : ` (${f.hint})`}`
-      /* 2026-10-25 — die Möglichkeiten einer Auswahl, je mit ihrem Satz. */
-      + (f.options === undefined || f.options.length === 0 ? '' : `; możliwe: ${f.options.map((o) => `"${o.value}" (${o.label})`).join(', ')}`);
+    Object.defineProperty(keys, f.key, {
+      enumerable: true, configurable: true,
+      get: () => `${f.label} — ${FIELD_SAYS[f.kind]}${f.hint === undefined ? '' : ` (${f.hint})`}`
+        /* 2026-10-25 — die Möglichkeiten einer Auswahl, je mit ihrem Satz. */
+        + (f.options === undefined || f.options.length === 0 ? '' : t('pages.fieldSays.options', { options: f.options.map((o) => `"${o.value}" (${o.label})`).join(', ') }))
+    });
   }
   for (const e of extra) {
     keys[e.key] = e.says;
@@ -559,19 +565,31 @@ export function definePart<C>(spec: {
   const Peek: PartModule['Peek'] = peek === undefined ? null
     : ({ raw, moduleId }) => createElement(peek, { config: spec.read(raw), moduleId });
 
+  /*
+   * 2026-11-05 — TEXTE ERST BEIM LESEN: Bezeichnung, Zweck, Felder und Streifen sind Getter (ein `texts()`-Getter
+   * oder ein Schlüssel im spec bleibt lebendig), die Beschreibung im JSON entsteht je Sprache der App einmal.
+   */
+  let cached: { lang: Lang; json: PartJson } | null = null;
+  const jsonNow = (): PartJson => {
+    if (spec.json !== undefined) return spec.json;
+    const lang = appLang();
+    if (cached === null || cached.lang !== lang) cached = { lang, json: flatJson(spec.fields, spec.extra ?? [], spec.example, spec.own ?? []) };
+    return cached.json;
+  };
+
   return {
     kind: spec.kind,
-    label: spec.label,
+    get label() { return spec.label; },
     ...(spec.retired === undefined ? {} : { retired: spec.retired }),
-    use: spec.use,
+    get use() { return spec.use; },
     box: spec.box,
     takes: spec.takes ?? false,
-    fields: spec.fields,
+    get fields() { return spec.fields; },
     hasContent: (raw) => spec.hasContent(spec.read(raw)),
     missing: (raw) => spec.missing?.(spec.read(raw)) ?? null,
     View,
     shows: (raw, size) => spec.shows(spec.read(raw), size),
-    strip: spec.strip ?? null,
+    get strip() { return spec.strip ?? null; },
     Peek,
     fullscreen: spec.fullscreen !== undefined && spec.fullscreen !== false,
     fullFor: (raw) => {
@@ -581,7 +599,7 @@ export function definePart<C>(spec: {
     ownArea: spec.ownArea ?? false,
     read: spec.read,
     Editor: spec.Editor ?? null,
-    json: spec.json ?? flatJson(spec.fields, spec.extra ?? [], spec.example, spec.own ?? [])
+    get json() { return jsonNow(); }
   };
 }
 

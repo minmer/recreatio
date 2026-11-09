@@ -14,6 +14,7 @@
  * Plans → dieselben Knoten. Jeder steht einmal; die Vorlagen sind die Beispiele.
  */
 
+import { t } from '../core/i18n';
 import { keyLines, pretty, type JsonNode } from '../core/jsonTree';
 import { ITEM_KINDS, ITEM_LABEL, type ItemKind } from './calendar';
 import {
@@ -38,12 +39,12 @@ const text = (v: unknown, max = 400): string | undefined => (typeof v === 'strin
 
 function readChoices(value: unknown, where: string, warnings: string[]): SchemeChoice[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value)) { warnings.push(`${where}: „options” musi być listą — pominięte.`); return undefined; }
+  if (!Array.isArray(value)) { warnings.push(t('calendarDataScheme.read.optionsList', { where })); return undefined; }
   const out: SchemeChoice[] = [];
   for (const one of value) {
     if (typeof one === 'string' && one.trim() !== '') out.push({ value: one.trim(), label: one.trim() });
     else if (isObject(one) && text(one.label) !== undefined) out.push({ value: text(one.value) ?? text(one.label)!, label: text(one.label)! });
-    else warnings.push(`${where}: opcja bez nazwy — pominięta.`);
+    else warnings.push(t('calendarDataScheme.read.optionNoName', { where }));
   }
   return out;
 }
@@ -53,13 +54,13 @@ const readKinds = (value: unknown): ItemKind[] | undefined =>
 
 function readFields(value: unknown, where: string, warnings: string[]): SchemeField[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) { warnings.push(`${where}: „fields” musi być listą — pominięte.`); return []; }
+  if (!Array.isArray(value)) { warnings.push(t('calendarDataScheme.read.fieldsList', { where })); return []; }
   const out: SchemeField[] = [];
   for (const [i, one] of value.entries()) {
-    if (!isObject(one) || text(one.label) === undefined) { warnings.push(`${where}: pole ${i + 1} bez nazwy („label”) — pominięte.`); continue; }
+    if (!isObject(one) || text(one.label) === undefined) { warnings.push(t('calendarDataScheme.read.fieldNoName', { where, n: i + 1 })); continue; }
     const label = text(one.label, 120)!;
     const type = (SCHEME_FIELD_TYPES as readonly string[]).includes(String(one.type)) ? one.type as SchemeFieldType : 'text';
-    if (one.type !== undefined && type !== one.type) warnings.push(`${where}: „${label}” — nieznany typ „${String(one.type)}”, będzie tekstem.`);
+    if (one.type !== undefined && type !== one.type) warnings.push(t('calendarDataScheme.read.fieldType', { where, label, type: String(one.type) }));
     let key = typeof one.key === 'string' && KEY_PATTERN.test(one.key) ? one.key : keyOf(label, out.map((f) => f.key));
     if (out.some((f) => f.key === key)) key = keyOf(label, out.map((f) => f.key));
     out.push({
@@ -79,12 +80,12 @@ function readFields(value: unknown, where: string, warnings: string[]): SchemeFi
 /** Ein Ablauf — Knoten, die es gibt, und Kanten zwischen ihnen. */
 export function readFlow(value: unknown, kind: 'plan' | 'rule', where: string, warnings: string[]): FlowDoc | null {
   if (value === undefined || value === null) return null;
-  if (!isObject(value) || !Array.isArray(value.nodes)) { warnings.push(`${where}: przebieg bez „nodes” — pominięty.`); return null; }
+  if (!isObject(value) || !Array.isArray(value.nodes)) { warnings.push(t('calendarDataScheme.read.flowNoNodes', { where })); return null; }
   const allowed: readonly string[] = kind === 'plan' ? PLAN_NODES : RULE_NODES;
   const nodes: FlowNode[] = [];
   for (const one of value.nodes) {
     if (!isObject(one) || typeof one.id !== 'string' || !allowed.includes(String(one.type))) {
-      warnings.push(`${where}: węzeł ${isObject(one) ? String(one.type) : '?'} nie pasuje do ${kind === 'plan' ? 'planu' : 'reguły'} — pominięty.`);
+      warnings.push(t(kind === 'plan' ? 'calendarDataScheme.read.nodeNotPlan' : 'calendarDataScheme.read.nodeNotRule', { where, type: isObject(one) ? String(one.type) : '?' }));
       continue;
     }
     nodes.push({
@@ -105,20 +106,21 @@ export function readFlow(value: unknown, kind: 'plan' | 'rule', where: string, w
 
 function readLists(value: unknown, warnings: string[]): RecordList[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) { warnings.push('„lists” musi być listą — pominięte.'); return []; }
+  if (!Array.isArray(value)) { warnings.push(t('calendarDataScheme.read.listsList')); return []; }
   const out: RecordList[] = [];
   for (const [i, one] of value.entries()) {
-    if (!isObject(one) || text(one.label) === undefined) { warnings.push(`Lista ${i + 1} bez nazwy („label”) — pominięta.`); continue; }
+    if (!isObject(one) || text(one.label) === undefined) { warnings.push(t('calendarDataScheme.read.listNoName', { n: i + 1 })); continue; }
     const label = text(one.label, 120)!;
     const key = typeof one.key === 'string' && KEY_PATTERN.test(one.key) && !out.some((l) => l.key === one.key) ? one.key : keyOf(label, out.map((l) => l.key));
-    const rule = readFlow(one.rule, 'rule', `Lista „${label}”`, warnings);
+    const where = t('calendarDataScheme.read.listWhere', { label });
+    const rule = readFlow(one.rule, 'rule', where, warnings);
     out.push({
       key, label,
       ...(text(one.itemLabel, 60) !== undefined ? { itemLabel: text(one.itemLabel, 60) } : {}),
-      ...(readChoices(one.modes, `Lista „${label}”`, warnings) !== undefined ? { modes: readChoices(one.modes, '', []) } : {}),
+      ...(readChoices(one.modes, where, warnings) !== undefined ? { modes: readChoices(one.modes, '', []) } : {}),
       ...(text(one.textLabel, 120) !== undefined ? { textLabel: text(one.textLabel, 120) } : {}),
       ...(text(one.person, 120) !== undefined ? { person: text(one.person, 120) } : {}),
-      fields: readFields(one.fields, `Lista „${label}”`, warnings),
+      fields: readFields(one.fields, where, warnings),
       ...(one.outside === true ? { outside: true } : {}),
       ...(readKinds(one.onlyKinds) !== undefined ? { onlyKinds: readKinds(one.onlyKinds) } : {}),
       ...(rule !== null ? { rule } : {}),
@@ -129,18 +131,18 @@ function readLists(value: unknown, warnings: string[]): RecordList[] {
 }
 
 export function readScheme(value: unknown, warnings: string[]): SchemeDef | null {
-  if (!isObject(value)) { warnings.push('To nie jest obiekt JSON.'); return null; }
-  if (value.format !== undefined && value.format !== SCHEME_FORMAT) { warnings.push(`To nie jest schemat („format”: ${String(value.format)}).`); return null; }
+  if (!isObject(value)) { warnings.push(t('calendarDataScheme.read.notObject')); return null; }
+  if (value.format !== undefined && value.format !== SCHEME_FORMAT) { warnings.push(t('calendarDataScheme.read.notScheme', { format: String(value.format) })); return null; }
   const name = text(value.name, 120);
-  if (name === undefined) { warnings.push('Schemat potrzebuje nazwy („name”).'); return null; }
+  if (name === undefined) { warnings.push(t('calendarDataScheme.read.schemeNoName')); return null; }
   const kind = (ITEM_KINDS as readonly string[]).includes(String(value.kind)) ? value.kind as ItemKind : undefined;
-  if (value.kind !== undefined && kind === undefined) warnings.push(`Nieznany rodzaj „${String(value.kind)}” — pominięty.`);
+  if (value.kind !== undefined && kind === undefined) warnings.push(t('calendarDataScheme.read.unknownKind', { kind: String(value.kind) }));
   return {
     name,
     ...(kind !== undefined ? { kind } : {}),
     ...(readKinds(value.kinds) !== undefined ? { kinds: readKinds(value.kinds) } : {}),
     ...(typeof value.publicTitle === 'boolean' ? { publicTitle: value.publicTitle } : {}),
-    fields: readFields(value.fields, 'Schemat', warnings),
+    fields: readFields(value.fields, t('calendarDataScheme.read.schemeWhere'), warnings),
     lists: readLists(value.lists, warnings),
     ...(text(value.says, 1000) !== undefined ? { says: text(value.says, 1000) } : {})
   };
@@ -148,15 +150,15 @@ export function readScheme(value: unknown, warnings: string[]): SchemeDef | null
 
 /** `schemeIds`: die Schemata DIESES Kalenders — ein Verweis auf ein anderes fällt fort. */
 export function readPlan(value: unknown, schemeIds: readonly string[], warnings: string[]): PlanDef | null {
-  if (!isObject(value)) { warnings.push('To nie jest obiekt JSON.'); return null; }
-  if (value.format !== undefined && value.format !== PLAN_FORMAT) { warnings.push(`To nie jest plan („format”: ${String(value.format)}).`); return null; }
+  if (!isObject(value)) { warnings.push(t('calendarDataScheme.read.notObject')); return null; }
+  if (value.format !== undefined && value.format !== PLAN_FORMAT) { warnings.push(t('calendarDataScheme.read.notPlan', { format: String(value.format) })); return null; }
   const name = text(value.name, 120);
-  if (name === undefined) { warnings.push('Plan potrzebuje nazwy („name”).'); return null; }
-  const flow = readFlow(value.flow, 'plan', 'Plan', warnings);
-  if (flow === null) { warnings.push('Plan potrzebuje przebiegu („flow”).'); return null; }
+  if (name === undefined) { warnings.push(t('calendarDataScheme.read.planNoName')); return null; }
+  const flow = readFlow(value.flow, 'plan', t('calendarDataScheme.read.planWhere'), warnings);
+  if (flow === null) { warnings.push(t('calendarDataScheme.read.planNoFlow')); return null; }
   let schemeId = typeof value.schemeId === 'string' ? value.schemeId : null;
   if (schemeId !== null && !schemeIds.includes(schemeId)) {
-    warnings.push('Schemat z dokumentu nie należy do tego kalendarza — wybierz schemat w planie.');
+    warnings.push(t('calendarDataScheme.read.otherScheme'));
     schemeId = null;
   }
   const kind = (ITEM_KINDS as readonly string[]).includes(String(value.kind)) ? value.kind as ItemKind : undefined;
@@ -174,139 +176,141 @@ export function readPlan(value: unknown, schemeIds: readonly string[], warnings:
 /** Beispiele und ihre Sätze, eine Zeile je Beispiel: `  {"t":"sunday"} — niedziela`. */
 const rows = (pairs: readonly (readonly [string, string])[]): string => pairs.map(([what, says]) => `  ${what} — ${says}`).join('\n');
 
-const nodeLines = (types: readonly FlowNodeType[]): string => rows(types.map((t) => [`"${t}"`, `${NODE_INFO[t].label}: ${NODE_INFO[t].says}`]));
+const nodeLines = (types: readonly FlowNodeType[]): string => rows(types.map((type) => [`"${type}"`, `${NODE_INFO[type].label}: ${NODE_INFO[type].says}`]));
 
 /** Jede Regel eines Datums mit einem Beispiel — ein `Record`, damit keine fehlt. */
 const DATE_ROWS: Readonly<Record<DateRule['r'], readonly [string, string]>> = {
-  fixed: ['{"r":"fixed","month":11,"day":1}', 'co roku ten sam dzień (miesiąc 1 = styczeń)'],
-  easter: ['{"r":"easter","offset":-46}', 'dni od Niedzieli Wielkanocnej: −46 Popielec, +49 Zesłanie Ducha Świętego, +60 Boże Ciało, +68 Najświętsze Serce Pana Jezusa'],
-  advent: ['{"r":"advent","offset":-7}', 'dni od pierwszej niedzieli Adwentu (−7 Jezusa Chrystusa Króla Wszechświata)'],
-  'christmas-sunday': ['{"r":"christmas-sunday"}', 'Święta Rodzina: niedziela w oktawie Narodzenia Pańskiego, a gdy jej nie ma — 30 grudnia'],
-  baptism: ['{"r":"baptism"}', 'Chrzest Pański: niedziela po 6 stycznia'],
-  'nth-weekday': ['{"r":"nth-weekday","n":1,"weekday":5}', 'n-ty dzień tygodnia miesiąca (n: 1–5, −1 — ostatni); z "month" tylko w tym miesiącu, bez niego co miesiąc (np. pierwszy piątek)'],
-  'sunday-after': ['{"r":"sunday-after","month":1,"day":6}', 'pierwsza niedziela PO danym dniu (nie w nim)']
+  fixed: ['{"r":"fixed","month":11,"day":1}', 'calendarDataScheme.date.fixed'],
+  easter: ['{"r":"easter","offset":-46}', 'calendarDataScheme.date.easter'],
+  advent: ['{"r":"advent","offset":-7}', 'calendarDataScheme.date.advent'],
+  'christmas-sunday': ['{"r":"christmas-sunday"}', 'calendarDataScheme.date.christmasSunday'],
+  baptism: ['{"r":"baptism"}', 'calendarDataScheme.date.baptism'],
+  'nth-weekday': ['{"r":"nth-weekday","n":1,"weekday":5}', 'calendarDataScheme.date.nthWeekday'],
+  'sunday-after': ['{"r":"sunday-after","month":1,"day":6}', 'calendarDataScheme.date.sundayAfter']
 };
+/** Zeilen, deren Satz ein Schlüssel ist — übersetzt beim Schreiben. */
+const said = (pairs: readonly (readonly [string, string])[]): [string, string][] => pairs.map(([what, key]) => [what, t(key, { seasons: SEASONS.join(', ') })]);
 
 /** Jede Bedingung mit einem Beispiel — ein `Record`, damit keine fehlt. */
 const TEST_ROWS: Readonly<Record<Test['t'], readonly [string, string]>> = {
-  weekday: ['{"t":"weekday","days":[3]}', 'dzień tygodnia'],
-  slot: ['{"t":"slot","keys":["p1800"]}', 'godzina mszy — klucz z węzła "slots" (tylko w przebiegu "mass")'],
-  time: ['{"t":"time","from":"17:00","to":"21:00"}', 'msza zaczyna się w tym przedziale (wystarczy jedna granica)'],
-  season: ['{"t":"season","seasons":["adwent"]}', `okres liturgiczny: ${SEASONS.join(', ')}`],
-  week: ['{"t":"week","op":">=","n":2}', 'tydzień okresu'],
-  rank: ['{"t":"rank","op":"<=","n":12}', 'ranga obchodu (bez obchodu — dnia): 1 najwyższa … 13 dzień powszedni'],
-  celebration: ['{"t":"celebration","is":"any"}', '"any" — jest obchód, "none" — nie ma, "name" — nazwa obchodu zawiera "name"'],
-  festive: ['{"t":"festive"}', 'niedziela albo święto nakazane'],
-  sunday: ['{"t":"sunday"}', 'niedziela'],
-  date: ['{"t":"date","rule":{"r":"easter","offset":60}}', 'ten dzień według reguły daty (niżej)'],
-  between: ['{"t":"between","from":"12-24","to":"01-06"}', 'dzień roku w przedziale "MM-DD" (także przez Nowy Rok)'],
-  var: ['{"t":"var","name":"colour","op":"=","value":"biały"}', 'zmienna ustawiona wcześniej węzłem "set"; "op": "=", "!=" albo "contains"'],
-  mode: ['{"t":"mode","modes":["single"]}', 'rodzaj wpisu'],
-  count: ['{"t":"count","scope":"occurrence","op":">=","n":1}', 'ile wpisów tej listy jest już przy tym terminie ("scope": "occurrence") albo w tygodniu od poniedziałku ("week"); "mode" — tylko tego rodzaju; "status": "live" (przyjęte i odprawione, domyślnie) albo "all" (także czekające); "per": "occurrence" — przy ilu INNYCH terminach tygodnia są takie wpisy'],
-  actor: ['{"t":"actor","is":"office"}', 'kto dodaje: "office" — prowadzący kalendarz, "outside" — ktoś spoza (jego wpis i tak czeka)'],
-  field: ['{"t":"field","key":"giver","op":"set"}', 'pole wpisu: "set" — wypełnione, "empty" — puste, "=" — równe "value"']
+  weekday: ['{"t":"weekday","days":[3]}', 'calendarDataScheme.test.weekday'],
+  slot: ['{"t":"slot","keys":["p1800"]}', 'calendarDataScheme.test.slot'],
+  time: ['{"t":"time","from":"17:00","to":"21:00"}', 'calendarDataScheme.test.time'],
+  season: ['{"t":"season","seasons":["adwent"]}', 'calendarDataScheme.test.season'],
+  week: ['{"t":"week","op":">=","n":2}', 'calendarDataScheme.test.week'],
+  rank: ['{"t":"rank","op":"<=","n":12}', 'calendarDataScheme.test.rank'],
+  celebration: ['{"t":"celebration","is":"any"}', 'calendarDataScheme.test.celebration'],
+  festive: ['{"t":"festive"}', 'calendarDataScheme.test.festive'],
+  sunday: ['{"t":"sunday"}', 'calendarDataScheme.test.sunday'],
+  date: ['{"t":"date","rule":{"r":"easter","offset":60}}', 'calendarDataScheme.test.date'],
+  between: ['{"t":"between","from":"12-24","to":"01-06"}', 'calendarDataScheme.test.between'],
+  var: ['{"t":"var","name":"colour","op":"=","value":"biały"}', 'calendarDataScheme.test.var'], // i18n-ignore
+  mode: ['{"t":"mode","modes":["single"]}', 'calendarDataScheme.test.mode'],
+  count: ['{"t":"count","scope":"occurrence","op":">=","n":1}', 'calendarDataScheme.test.count'],
+  actor: ['{"t":"actor","is":"office"}', 'calendarDataScheme.test.actor'],
+  field: ['{"t":"field","key":"giver","op":"set"}', 'calendarDataScheme.test.field']
 };
 
 /** Ein Datum, das sich jedes Jahr verschiebt — im Kalender der Feste ("when") und in der Bedingung "date". */
 export const FLOW_DATE_JSON: JsonNode = {
   key: 'flow.date',
-  title: 'Reguła daty ("when", warunek "date")',
-  text: () => `Data liczona na każdy rok od nowa:
-${rows(Object.values(DATE_ROWS))}
-Dzień tygodnia ("weekday", "days"): 1 = poniedziałek … 7 = niedziela.`
+  get title() { return t('calendarDataScheme.node.date.title'); },
+  text: () => `${t('calendarDataScheme.node.date.lead')}
+${rows(said(Object.values(DATE_ROWS)))}
+${t('calendarDataScheme.node.date.tail')}`
 };
 
 /** Die Bedingungen des Knotens "if" — in einem Plan und in einer Regel. */
 export const FLOW_TEST_JSON: JsonNode = {
   key: 'flow.test',
-  title: 'Warunek ("if")',
-  text: () => `Węzeł "if" ma dane {"test": …} i dwa wyjścia: "yes" (tak) i "no" (nie). Porównanie "op": <, <=, =, >=, >, !=.
-Dzień i msza (w planie):
-${rows(PLAN_TESTS.map((t) => TEST_ROWS[t]))}
-Wpis (w regule listy):
-${rows(RULE_TESTS.map((t) => TEST_ROWS[t]))}`,
+  get title() { return t('calendarDataScheme.node.test.title'); },
+  text: () => `${t('calendarDataScheme.node.test.lead')}
+${t('calendarDataScheme.node.test.plan')}
+${rows(said(PLAN_TESTS.map((test) => TEST_ROWS[test])))}
+${t('calendarDataScheme.node.test.rule')}
+${rows(said(RULE_TESTS.map((test) => TEST_ROWS[test])))}`,
   inside: () => [FLOW_DATE_JSON]
 };
 
 /** Wie ein Ablauf gespeichert ist — Knoten und Kanten, gleich in Plan und Regel. */
 export const FLOW_JSON: JsonNode = {
   key: 'flow',
-  title: 'Przebieg ("flow", "rule")',
-  text: () => `Przebieg to graf jak w edytorze: {"v":1,"nodes":[…],"edges":[…]}.
+  get title() { return t('calendarDataScheme.node.flow.title'); },
+  text: () => `${t('calendarDataScheme.node.flow.lead')}
 ${keyLines({
-    'nodes[]': '{"id", "type", "x", "y", "data"} — "id" niepowtarzalny w przebiegu; "x", "y" — miejsce w edytorze; "data" — ustawienia węzła',
-    'edges[]': '{"id", "from", "to", "out"} — z wyjścia węzła "from" do węzła "to"; "out": "out" (jedyne wyjście, domyślnie), "yes" (tak) albo "no" (nie) z węzła "if"'
+    'nodes[]': t('calendarDataScheme.node.flow.nodes'),
+    'edges[]': t('calendarDataScheme.node.flow.edges')
   })}
-Przebieg idzie od węzła startowego po krawędziach, aż dojdzie do węzła kończącego. Węzły bez połączenia nic nie robią; węzły z innego rodzaju przebiegu import pomija ze słowem.`
+${t('calendarDataScheme.node.flow.tail')}`
 };
 
 /** Die Regel einer Liste: wer etwas einträgt, kommt durch sie. */
 export const RULE_FLOW_JSON: JsonNode = {
   key: 'flow.rule',
-  title: 'Reguła listy ("rule")',
-  text: () => `Reguła idzie w przeglądarce, gdy ktoś dodaje wpis albo kancelaria przyjmuje czekający. Wynik: przyjąć, czekać albo odmówić (z komunikatem — wpis wtedy nie powstaje). Wpis kogoś spoza prowadzących czeka zawsze; reguła idzie jeszcze raz, gdy kancelaria go przyjmuje.
-Węzły:
+  get title() { return t('calendarDataScheme.node.rule.title'); },
+  text: () => `${t('calendarDataScheme.node.rule.lead')}
+${t('calendarDataScheme.node.nodes')}
 ${nodeLines(RULE_NODES)}
-Dane: "refuse" i "wait" — {"message": "…"} (co widzi dodający); "if" — warunek (niżej).`,
+${t('calendarDataScheme.node.rule.data')}`,
   inside: () => [FLOW_JSON, FLOW_TEST_JSON]
 };
 
 /** Der Ablauf eines Plans: Tage, ihre Messen, was jede ist. */
 export const PLAN_FLOW_JSON: JsonNode = {
   key: 'flow.plan',
-  title: 'Przebieg planu ("flow")',
-  text: () => `Przebieg "day" idzie raz na każdy dzień zakresu i kończy się węzłem "slots" (msze tego dnia) albo "skip" (bez mszy). Potem przebieg "mass" idzie raz na każdą mszę dnia i kończy się "end" (utwórz) albo "skip" (tej godziny nie ma). Pierwsza pasująca droga wygrywa — tak ustala się pierwszeństwo.
-Węzły:
+  get title() { return t('calendarDataScheme.node.plan.title'); },
+  text: () => `${t('calendarDataScheme.node.plan.lead')}
+${t('calendarDataScheme.node.nodes')}
 ${nodeLines(PLAN_NODES)}
-Dane węzłów:
+${t('calendarDataScheme.node.plan.dataHead')}
 ${keyLines({
-    season: `{"colours":{"adwent":"fioletowy",…}, "special":{"gaudete":"różowy","laetare":"różowy","palm":"czerwony","goodFriday":"czerwony","pentecost":"czerwony"}} — kolor każdego okresu (${SEASONS.join(', ')}) i dni szczególnych; węzeł liczy okres, tydzień, rangę dnia i kolor`,
-    feasts: '{"rows":[{"name","when","rank","colour","festive","title","moveIfImpeded"}]} — obchody: "when" — reguła daty (niżej), "rank" 1–13, "festive": true — godziny niedzielne, "title" — tytuł mszy (bez niego nazwa), "moveIfImpeded": true — wyparty przez wyższą rangę przechodzi na następny dzień; wygrywa najwyższa ranga',
-    set: '{"target":"title"|"field"|"var", "key", "value"} — tytuł mszy, pole schematu (po kluczu) albo zmienna (np. "colour")',
-    slots: '{"festive":[{"key","label","time":"HH:MM","minutes"}], "weekdays":[{"key","label","time","minutes","days":[1,…,6]}]} — msze w niedziele i święta nakazane oraz w pozostałe dni; "key" zostaje na zawsze — po nim podgląd poznaje msze już zaplanowane',
-    record: '{"list":"intencje","mode":"single","text":"Za parafian"} — stały wpis listy schematu przy tej mszy',
-    'if, skip, end': '"if" — warunek (niżej); "skip" i "end" bez danych'
+    season: `{"colours":{"adwent":"fioletowy",…}, "special":{"gaudete":"różowy","laetare":"różowy","palm":"czerwony","goodFriday":"czerwony","pentecost":"czerwony"}} — ${t('calendarDataScheme.node.plan.season', { seasons: SEASONS.join(', ') })}`, // i18n-ignore
+    feasts: `{"rows":[{"name","when","rank","colour","festive","title","moveIfImpeded"}]} — ${t('calendarDataScheme.node.plan.feasts')}`,
+    set: `{"target":"title"|"field"|"var", "key", "value"} — ${t('calendarDataScheme.node.plan.set')}`,
+    slots: `{"festive":[{"key","label","time":"HH:MM","minutes"}], "weekdays":[{"key","label","time","minutes","days":[1,…,6]}]} — ${t('calendarDataScheme.node.plan.slots')}`,
+    record: `{"list":"intencje","mode":"single","text":"${t('calendarDataScheme.node.plan.recordText')}"} — ${t('calendarDataScheme.node.plan.record')}`,
+    'if, skip, end': t('calendarDataScheme.node.plan.ifSkipEnd')
   })}
-Teksty ("value", "title", "text") mogą mieć miejsca do wypełnienia: {celebration} {celebrationTitle} {title} {season} {seasonName} {week} {weekRoman} {sundayName} {dayName} {weekday} {colour} {date} {dateWords} {time} {slot} — i każdą zmienną z "set". Nieznane zostają, jak są (podgląd je pokaże).`,
+${t('calendarDataScheme.node.plan.texts')}`,
   inside: () => [FLOW_JSON, FLOW_DATE_JSON, FLOW_TEST_JSON]
 };
 
 /** Ein Feld — am Termin, an einem Tag der Serie, an einem Eintrag. */
 export const SCHEME_FIELD_JSON: JsonNode = {
   key: 'scheme.field',
-  title: 'Pole ("fields[]")',
+  get title() { return t('calendarDataScheme.node.field.title'); },
   text: () => `${keyLines({
-    key: 'a–z, 0–9, _ . - (brak: z nazwy); zostaje, gdy nazwa się zmienia — pod nim są wartości',
-    label: 'nazwa (wymagana)',
-    type: SCHEME_FIELD_TYPES.map((t) => `"${t}" (${SCHEME_FIELD_LABEL[t]})`).join(', '),
-    level: '"item" — cały termin (domyślnie) albo "day" — jeden dzień serii (tylko pola terminu)',
-    public: 'true — wartość widać bez klucza: plan mszy, gablota, wydruk; inaczej zaszyfrowana. Przy polach wpisu: tylko takie wypełnia ktoś spoza prowadzących',
-    required: 'true — bez wartości nie da się zapisać',
-    options: 'dla "choice" i "colour": lista nazw albo {"value","label"}',
-    unit: 'dla "number": jednostka (np. "osób")',
-    onlyKinds: 'tylko przy tych rodzajach terminów (np. ["mass"])',
-    says: 'objaśnienie pola'
+    key: t('calendarDataScheme.node.field.key'),
+    label: t('calendarDataScheme.node.field.label'),
+    type: SCHEME_FIELD_TYPES.map((type) => `"${type}" (${SCHEME_FIELD_LABEL[type]})`).join(', '),
+    level: t('calendarDataScheme.node.field.level'),
+    public: t('calendarDataScheme.node.field.public'),
+    required: t('calendarDataScheme.node.field.required'),
+    options: t('calendarDataScheme.node.field.options'),
+    unit: t('calendarDataScheme.node.field.unit'),
+    onlyKinds: t('calendarDataScheme.node.field.onlyKinds'),
+    says: t('calendarDataScheme.node.field.says')
   }, '')}
-Wartości są tekstem. Kolor liturgiczny to słowo: ${LITURGICAL_COLOURS.map((c) => c.value).join(', ')}.`
+${t('calendarDataScheme.node.field.tail', { colours: LITURGICAL_COLOURS.map((c) => c.value).join(', ') })}`
 };
 
 /** Eine Liste von Einträgen am Termin. */
 export const RECORD_LIST_JSON: JsonNode = {
   key: 'scheme.list',
-  title: 'Lista wpisów ("lists[]")',
-  text: () => `Lista wpisów przy każdym terminie — np. intencje mszy albo zapisy na spotkanie.
+  get title() { return t('calendarDataScheme.node.list.title'); },
+  text: () => `${t('calendarDataScheme.node.list.lead')}
 ${keyLines({
-    key: 'jak przy polu; lista "intencje" to intencje mszy (widać je też w „Msze i nabożeństwa”)',
-    label: 'nazwa (wymagana)',
-    itemLabel: 'jak nazywa się jeden wpis (np. „intencja”)',
-    modes: 'rodzaje wpisu: lista nazw albo {"value","label"} (np. [{"value":"single","label":"pojedyncza"},{"value":"collective","label":"zbiorowa"}])',
-    textLabel: 'jawny tekst wpisu i jego podpis (np. „Treść intencji” — czytana na mszy, w planie i w gablocie)',
-    person: 'podpis przypiętej osoby (np. „Kto odprawia”); kto wpisuje się sam spoza prowadzących, jest tą osobą',
-    fields: 'pola wpisu (jak wyżej) — zaszyfrowane kluczem prowadzących kalendarz',
-    outside: 'true — wpisują się też osoby, które nie prowadzą kalendarza (wpis czeka na kancelarię)',
-    onlyKinds: 'lista tylko przy tych rodzajach terminów',
-    rule: 'reguła listy — przebieg (niżej); bez niej każdy wpis prowadzących jest przyjęty',
-    says: 'objaśnienie listy'
+    key: t('calendarDataScheme.node.list.key'),
+    label: t('calendarDataScheme.node.field.label'),
+    itemLabel: t('calendarDataScheme.node.list.itemLabel'),
+    modes: t('calendarDataScheme.node.list.modes'),
+    textLabel: t('calendarDataScheme.node.list.textLabel'),
+    person: t('calendarDataScheme.node.list.person'),
+    fields: t('calendarDataScheme.node.list.fields'),
+    outside: t('calendarDataScheme.node.list.outside'),
+    onlyKinds: t('calendarDataScheme.node.list.onlyKinds'),
+    rule: t('calendarDataScheme.node.list.rule'),
+    says: t('calendarDataScheme.node.list.says')
   }, '')}`,
   inside: () => [SCHEME_FIELD_JSON, RULE_FLOW_JSON]
 };
@@ -320,13 +324,8 @@ ${keyLines({
  */
 export const SCHEME_USAGE_JSON: JsonNode = {
   key: 'scheme.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Schemat zapisany w ustawieniach kalendarza („Schematy terminów”) działa przy terminach, które go mają: edytor terminu pokazuje jego pola (pola "level": "day" — przy wybranym dniu serii), a szczegóły terminu w Kalendarzu — wartości i listy.
-- Jawne pola mszy ("public": true) idą do jawnego planu (moduł strony „Msze i nabożeństwa”, np. obchód i kolor szat) i na wydruk do gabloty — gdy obszar, który widzi kalendarz, jest jawny. Pozostałe wartości otwiera tylko klucz tego obszaru.
-- Listy wpisów stoją przy każdym dniu terminu. Prowadzący kalendarz dodają wpisy; przy "outside": true także ci, którzy go tylko czytają („Zgłoś”) — taki wpis czeka, a prowadzący widzą go w „Wpisy do przyjęcia” (dzwonek, „Czeka na Ciebie”). Prowadzący widzą wszystkie wpisy, czytający — przyjęte, odprawione i własne.
-- Reguły list sprawdza tylko przeglądarka — serwer ich nie zna, bo schemat jest zaszyfrowany.
-- Lista "intencje" to intencje mszy: pracuje na niej kancelaria („Msze i nabożeństwa”), a jej przyjęte i odprawione treści idą do jawnego planu i na wydruk. Wpisy innych list do jawnego planu nie trafiają.
-- Plan kalendarza tworzy terminy z wybranym schematem i od razu wypełnia jego pola oraz stałe wpisy list.`
+  get title() { return t('calendarDataScheme.node.usageTitle'); },
+  text: () => t('calendarDataScheme.node.schemeUsage')
 };
 
 /*
@@ -336,51 +335,47 @@ export const SCHEME_USAGE_JSON: JsonNode = {
  */
 export const PLAN_USAGE_JSON: JsonNode = {
   key: 'plan.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Zapisany plan sam niczego nie tworzy. Dopiero „Zastosuj…” (ustawienia kalendarza → „Plany”) liczy w przeglądarce dni wybranego okresu i tworzy pojedyncze terminy w tym kalendarzu.
-- Każdy dostaje: rodzaj z planu (bez niego — ze schematu, a bez obu — "mass"), schemat planu, tytuł z przebiegu, wartości pól (także pól dnia) i jawny tytuł, jeśli tak mówi schemat; stałe wpisy z węzłów "record" (np. intencja „Za parafian”) są od razu przyjęte.
-- Utworzone terminy widzi każdy, kto ma klucz obszaru, który widzi kalendarz: w Kalendarzu, w „Teraz”, w „Msze i nabożeństwa” i w modułach stron; gdy ten obszar jest jawny — także w jawnym planie mszy i na wydruku do gabloty.
-- Termin pamięta plan, godzinę ("key" z "slots") i dzień: dzięki temu podgląd poznaje msze już zaplanowane, a prowadzący kalendarz dostają w „Czeka na Ciebie” „Plany do przedłużenia”, gdy ostatni termin z planu wypada w ciągu dwóch tygodni.
-- Plan jest szyfrowany kluczem obszaru, który prowadzi kalendarz (schemat — kluczem obszaru, który widzi terminy).`
+  get title() { return t('calendarDataScheme.node.usageTitle'); },
+  text: () => t('calendarDataScheme.node.planUsage')
 };
 
 /** Das Schema — die Wurzel neben seinem Import. */
 export const SCHEME_JSON: JsonNode = {
   key: 'scheme',
-  title: `Schemat terminu ("${SCHEME_FORMAT}")`,
-  short: 'Schemat terminu',
-  text: () => `Schemat mówi, czym są terminy kalendarza, jakie mają pola i jakie listy wpisów (intencje, zapisy). Jest szyfrowany w przeglądarce kluczem obszaru, który widzi terminy kalendarza. Import wczytuje dokument do edytora; zapisuje dopiero „Zapisz schemat”. Klucze pól i list zostają — pod nimi są wartości terminów.
+  get title() { return t('calendarDataScheme.node.scheme.title', { format: SCHEME_FORMAT }); },
+  get short() { return t('calendarDataScheme.node.scheme.short'); },
+  text: () => `${t('calendarDataScheme.node.scheme.lead')}
 ${keyLines({
     format: `"${SCHEME_FORMAT}", "version": 1`,
-    name: 'nazwa schematu (wymagana), np. „Msza”',
-    kind: `rodzaj terminów: ${ITEM_KINDS.map((k) => `"${k}" (${ITEM_LABEL[k]})`).join(', ')} — "mass" stawia termin w planie mszy i w gablocie`,
-    kinds: 'rodzaje do wyboru przy terminie (zamiast jednego "kind")',
-    publicTitle: 'true — tytuł jawny (plan, gablota), false — zaszyfrowany; brak: jawny przy mszy, spowiedzi i nabożeństwie',
-    fields: 'pola terminu (niżej)',
-    lists: 'listy wpisów (niżej)',
-    says: 'objaśnienie schematu'
+    name: t('calendarDataScheme.node.scheme.name'),
+    kind: t('calendarDataScheme.node.scheme.kind', { kinds: ITEM_KINDS.map((k) => `"${k}" (${ITEM_LABEL[k]})`).join(', ') }),
+    kinds: t('calendarDataScheme.node.scheme.kinds'),
+    publicTitle: t('calendarDataScheme.node.scheme.publicTitle'),
+    fields: t('calendarDataScheme.node.scheme.fields'),
+    lists: t('calendarDataScheme.node.scheme.lists'),
+    says: t('calendarDataScheme.node.scheme.says')
   })}
-Przykład (szablon „Spotkanie z zapisami”):
-${pretty(exportScheme(SCHEME_TEMPLATES.find((t) => t.id === 'spotkanie-zapisy')?.def ?? SCHEME_TEMPLATES[0].def))}`,
+${t('calendarDataScheme.node.scheme.example')}
+${pretty(exportScheme(SCHEME_TEMPLATES.find((one) => one.id === 'spotkanie-zapisy')?.def ?? SCHEME_TEMPLATES[0].def))}`,
   inside: () => [SCHEME_USAGE_JSON, SCHEME_FIELD_JSON, RECORD_LIST_JSON],
-  samples: () => SCHEME_TEMPLATES.map((t) => ({ label: `szablon „${t.def.name}”`, doc: () => exportScheme(t.def) }))
+  samples: () => SCHEME_TEMPLATES.map((one) => ({ label: t('calendarDataScheme.node.template', { name: one.def.name }), doc: () => exportScheme(one.def) }))
 };
 
 /** Der Plan — die Wurzel neben seinem Import. */
 export const PLAN_JSON: JsonNode = {
   key: 'plan',
-  title: `Plan ("${PLAN_FORMAT}")`,
-  short: 'Plan',
-  text: () => `Plan tworzy pojedyncze terminy (np. msze) na wybrany okres — „Zastosuj…”. Po utworzeniu terminy nie są z planem związane: zmienia się je jak każde inne; drugie zastosowanie tego samego planu pomija msze już zaplanowane. Import wczytuje dokument do edytora; zapisuje dopiero „Zapisz plan”.
+  get title() { return t('calendarDataScheme.node.planRoot.title', { format: PLAN_FORMAT }); },
+  get short() { return t('calendarDataScheme.node.planRoot.short'); },
+  text: () => `${t('calendarDataScheme.node.planRoot.lead')}
 ${keyLines({
     format: `"${PLAN_FORMAT}", "version": 1`,
-    name: 'nazwa planu (wymagana)',
-    schemeId: 'schemat tworzonych terminów — schemat TEGO kalendarza; z innego kalendarza znika przy imporcie (wybierz go wtedy w planie)',
-    kind: 'rodzaj tworzonych terminów (np. "mass")',
-    weeks: 'ile tygodni proponuje okno „Zastosuj…” (1–60)',
-    flow: 'przebieg planu (niżej)',
-    says: 'objaśnienie planu'
+    name: t('calendarDataScheme.node.planRoot.name'),
+    schemeId: t('calendarDataScheme.node.planRoot.schemeId'),
+    kind: t('calendarDataScheme.node.planRoot.kind'),
+    weeks: t('calendarDataScheme.node.planRoot.weeks'),
+    flow: t('calendarDataScheme.node.planRoot.flow'),
+    says: t('calendarDataScheme.node.planRoot.says')
   })}`,
   inside: () => [PLAN_USAGE_JSON, PLAN_FLOW_JSON],
-  samples: () => PLAN_TEMPLATES.map((t) => ({ label: `szablon „${t.def.name}”`, doc: () => exportPlan(t.def) }))
+  samples: () => PLAN_TEMPLATES.map((one) => ({ label: t('calendarDataScheme.node.template', { name: one.def.name }), doc: () => exportPlan(one.def) }))
 };

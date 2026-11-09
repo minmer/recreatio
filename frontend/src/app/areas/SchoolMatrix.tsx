@@ -8,6 +8,7 @@
  * Zuletzt je Klasse, was sie ausserhalb ihrer Programme gehalten hat — das Individuelle.
  */
 
+import { useT } from '../core/i18n';
 import type { LibraryRow } from '../library/library';
 import { str } from '../library/libraryKinds';
 import type { Entry, LibraryStore } from '../library/libraryStore';
@@ -33,16 +34,17 @@ export function SchoolMatrix({ store, library, program, classes, names, programT
   programTexts: ReadonlyMap<string, ReadonlySet<string>>;
   today: string;
 }) {
+  const t = useT();
   const lessons = lessonsOf(program, store);
   const all = realizationsOf(store.all());
   const ofClass = new Map<string, Realization[]>(classes.map((c) => [c, all.filter((r) => r.classAreaId === c)]));
-  const title = str(program.data, 'title').trim() || 'Program';
+  const title = str(program.data, 'title').trim() || t('areasSchool.program');
 
   if (lessons.length === 0) {
-    return <p className="wk-kind-small">„{title}” nie ma jeszcze lekcji — dodaj je w „Programy”.</p>;
+    return <p className="wk-kind-small">{t('areasSchool.matrix.noLessons', { title })}</p>;
   }
   if (classes.length === 0) {
-    return <p className="wk-kind-small">„{title}” nie ma jeszcze klas — zaznacz je w „Programy”.</p>;
+    return <p className="wk-kind-small">{t('areasSchool.matrix.noClasses', { title })}</p>;
   }
 
   /* Die Überschrift einer Zeile steht über ihr, sobald sie wechselt. */
@@ -60,17 +62,17 @@ export function SchoolMatrix({ store, library, program, classes, names, programT
   };
 
   return (
-    <div className="sc-matrix-wrap" role="region" aria-label={`Realizacja programu „${title}”`} tabIndex={0}>
+    <div className="sc-matrix-wrap" role="region" aria-label={t('areasSchool.matrix.label', { title })} tabIndex={0}>
       <table className="sc-matrix" data-matrix={program.id}>
         <thead>
           <tr>
-            <th scope="col" className="sc-matrix-corner">Lekcja</th>
+            <th scope="col" className="sc-matrix-corner">{t('areasSchool.matrix.lesson')}</th>
             {classes.map((c) => {
               const p = progressOf(lessons, ofClass.get(c) ?? []);
               return (
                 <th key={c} scope="col" data-class={c}>
-                  <a className="wk-link" href={viewPath('areas', c, 'profil')}>{names.get(c) ?? 'klasa'}</a>
-                  <span className="sc-matrix-progress" title={`Zrealizowane ${p.done} z ${p.total}`}>{p.done}/{p.total}</span>
+                  <a className="wk-link" href={viewPath('areas', c, 'profil')}>{names.get(c) ?? t('areasSchool.aClass')}</a>
+                  <span className="sc-matrix-progress" title={t('areasSchool.progress.done', { done: p.done, total: p.total })}>{p.done}/{p.total}</span>
                 </th>
               );
             })}
@@ -91,13 +93,13 @@ export function SchoolMatrix({ store, library, program, classes, names, programT
                 </th>
                 {classes.map((c) => {
                   const cell = cellOf((ofClass.get(c) ?? []).filter((r) => r.textId === lesson.textId));
-                  const name = names.get(c) ?? 'klasa';
+                  const name = names.get(c) ?? t('areasSchool.aClass');
                   if (cell === null) {
                     return (
                       <td key={c} data-cell={`${lesson.textId}:${c}`} data-state="none">
                         {library.writes
-                          ? <a className="sc-cell-add" href={newRealizationPath(library.libraryId, lesson.textId, c, today)} aria-label={`Zapisz realizację: ${lesson.title}, ${name}`}>+</a>
-                          : <span className="sc-cell-empty" aria-label="jeszcze nie">–</span>}
+                          ? <a className="sc-cell-add" href={newRealizationPath(library.libraryId, lesson.textId, c, today)} aria-label={t('areasSchool.matrix.add', { lesson: lesson.title, name })}>+</a>
+                          : <span className="sc-cell-empty" aria-label={t('areasSchool.matrix.notYet')}>–</span>}
                       </td>
                     );
                   }
@@ -105,7 +107,7 @@ export function SchoolMatrix({ store, library, program, classes, names, programT
                   return (
                     <td key={c} data-cell={`${lesson.textId}:${c}`} data-state={cell.state} className={`is-${cell.state}`}>
                       <a href={viewPath('scriptorium', library.libraryId, cell.id)} title={said} aria-label={`${lesson.title}, ${name}: ${said}`}>
-                        <span aria-hidden="true">{STATE_SIGN[cell.state]}</span> {cell.state === 'skipped' ? 'do powtórzenia' : shortDay(cell.date)}
+                        <span aria-hidden="true">{STATE_SIGN[cell.state]}</span> {cell.state === 'skipped' ? t('areasSchool.matrix.repeat') : shortDay(cell.date)}
                       </a>
                     </td>
                   );
@@ -114,7 +116,7 @@ export function SchoolMatrix({ store, library, program, classes, names, programT
             );
           })())}
           <tr className="sc-matrix-outside">
-            <th scope="row">Poza programem</th>
+            <th scope="row">{t('areasSchool.matrix.outside')}</th>
             {classes.map((c) => <td key={c} data-outside={c}>{outside(c)}</td>)}
           </tr>
         </tbody>

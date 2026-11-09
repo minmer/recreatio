@@ -26,5 +26,16 @@
   },
   "routes": {
     "noSlug": "Der Teil \"{route}\" benennt keine einzelnen Dinge — \"{slug}\" gehört nicht dahinter."
+  },
+  "checking": "Wird geprüft…",
+  "needsAccount": "Dieser Teil des Arbeitsplatzes funktioniert nur mit einem Konto. Der Link mit Zugang, den du in diesem Browser hast, gilt ohne Anmeldung auf Seiten und im <link>Kalender</link>.",
+  "smsAlone": "Ohne Netz oder ohne Konto? SMS funktionieren ohne Anmeldung: <link>SMS öffnen</link>.",
+  "runner": {
+    "noTask": "Kein Auftrag.",
+    "unknownTask": "Unbekannter Auftrag."
+  },
+  "shell": {
+    "file": "datei",
+    "saveFailed": "Die Datei ließ sich nicht speichern."
   }
 }

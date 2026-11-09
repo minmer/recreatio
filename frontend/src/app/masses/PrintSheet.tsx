@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 
+import { useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { loadPlan } from './mass';
 import { printIntentions, sheetWeek } from './sheet';
@@ -11,6 +12,7 @@ import { printIntentions, sheetWeek } from './sheet';
 /* -- Der Bogen ------------------------------------------------------------- */
 
 export function PrintSheet({ calendarId }: { calendarId: string }) {
+  const t = useT();
   const [week, setWeek] = useState(() => sheetWeek(new Date()));
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -27,21 +29,21 @@ export function PrintSheet({ calendarId }: { calendarId: string }) {
        * dem ÖFFENTLICHEN Plan — genau das, was auch vorgelesen wird.
        */
       const found = await loadPlan(calendarId, start, end);
-      if (!printIntentions(found.masses, start, end)) {
-        setFailed('Nie udało się otworzyć wydruku — przeglądarka mogła zablokować nowe okno.');
+      if (!printIntentions(found.masses, start, end, t.lang)) {
+        setFailed(t('masses.print.blocked'));
       }
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować wydruku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('masses.print.failed'));
     }
   };
 
   return (
     <section className="wk-form">
-      <h4 className="wk-h2">Wydruk do gabloty</h4>
+      <h4 className="wk-h2">{t('masses.print.title')}</h4>
 
       <div className="wk-mo-top">
         <label className="wk-field">
-          <span>Od</span>
+          <span>{t('common.from')}</span>
           <input
             type="date" value={week.from}
             onChange={(e) => setWeek({ ...week, from: e.target.value })}
@@ -49,7 +51,7 @@ export function PrintSheet({ calendarId }: { calendarId: string }) {
         </label>
 
         <label className="wk-field">
-          <span>Do</span>
+          <span>{t('common.to')}</span>
           <input
             type="date" value={week.to}
             onChange={(e) => setWeek({ ...week, to: e.target.value })}
@@ -58,15 +60,14 @@ export function PrintSheet({ calendarId }: { calendarId: string }) {
       </div>
 
       <p className="wk-hint">
-        Arkusz idzie od poniedziałku do niedzieli — tak wisi w gablocie.
-        Intencje zbiorowe dostają osobną stronę, z miejscem na dopiski.
+        {t('masses.print.hint')}
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       <div className="wk-actions">
         <button type="button" className="wk-btn" onClick={() => void print()}>
-          Drukuj intencje (A4)
+          {t('masses.print.print')}
         </button>
 
         <button
@@ -78,7 +79,7 @@ export function PrintSheet({ calendarId }: { calendarId: string }) {
             setWeek(sheetWeek(next));
           }}
         >
-          następny tydzień
+          {t('masses.print.nextWeek')}
         </button>
       </div>
     </section>

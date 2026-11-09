@@ -69,12 +69,12 @@ export const ANSWER_OP_LABEL: Readonly<Record<AnswerOp, string>> = texts({
 
 export type PagePort = 'in' | 'show' | 'done' | 'applies';
 
-export const PORT_LABEL: Readonly<Record<PagePort, string>> = texts({
-  in: 'pages.logic.port.in',
+/* Der Eingang hat keine Beschriftung — nur die Ausgänge sagen, wofür sie stehen. */
+export const PORT_LABEL: Readonly<Record<PagePort, string>> = Object.defineProperty(texts({
   show: 'pages.logic.port.show',
   done: 'pages.logic.port.done',
   applies: 'pages.logic.port.applies'
-});
+}), 'in', { value: '', enumerable: true }) as Readonly<Record<PagePort, string>>;
 
 export interface PageNode {
   readonly id: string;

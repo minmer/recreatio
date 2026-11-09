@@ -59,5 +59,32 @@
     "layoutSign": "Bei \"text\": true — eine Erklärung zum Unterschreiben auf dem Ausdruck (z. B. Zustimmung der Eltern): im Formular zum Lesen, ohne Ankreuzfeld; auf dem Ausdruck über der Unterschriftslinie",
     "designNodes": "Logikknoten: {\"id\",\"kind\",\"x\",\"y\", \"fieldId\"?, \"value\"?, \"op\"?, \"target\"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. \"age\" — Alter in vollen Jahren aus einer Frage mit Geburtsdatum oder PESEL (\"fieldId\"), am Tag \"value\" (JJJJ-MM-TT; leer — heute); mit 18 verglichen zeigt es die Felder für Minderjährige",
     "designEdges": "Logikverbindungen: {\"id\",\"from\",\"to\",\"port\":\"a\"|\"b\"|\"in\"}"
+  },
+  "qExample": {
+    "given": "Vorname",
+    "stay": "Unterkunft",
+    "stayHelp": "Wähle eine Möglichkeit",
+    "tent": "Zelt",
+    "school": "Schule",
+    "lodging": "Unterbringung",
+    "consent": "Ich stimme der Teilnahme meines Kindes zu."
+  },
+  "msg": {
+    "noPassword": "Ohne Passwort lassen sich die Fragen nicht versiegeln — entsperre die Schlüssel.",
+    "noAreaKey": "Du hast den Schlüssel des Bereichs {area} nicht.",
+    "noLabel": "Frage {n} hat keinen Text — übersprungen.",
+    "unknownKind": "Frage „{label}“: unbekannte Art „{kind}“ — sie wird „line“.",
+    "restoring": "Frage „{label}“ wird wiederhergestellt…",
+    "restored": "„{label}“ kehrt ins Formular zurück — samt den bisherigen Antworten.",
+    "settingArea": "Bereich des Formulars wird gesetzt…",
+    "sealedSkip": "Frage {id} ist mit einem Schlüssel versiegelt, den du nicht hast — übersprungen.",
+    "answersStay": "„{label}“: die Antworten bleiben im bisherigen Bereich — verschoben wird im Modul.",
+    "sealing": "Frage „{label}“ wird versiegelt…",
+    "noAnswerArea": "„{label}“: kein Antwortbereich gewählt — Frage übersprungen.",
+    "noPerson": "Das Konto führt noch keine Person — lege eine in den Rollen an.",
+    "stays": "„{label}“ bleibt: {why}.",
+    "deleteFailed": "Löschen fehlgeschlagen",
+    "designNeedsArea": "Aufbau und Logik brauchen den Bereich des Formulars — setze ihn im Modul und importiere noch einmal.",
+    "savingLayout": "Aufbau wird gespeichert…"
   }
 }

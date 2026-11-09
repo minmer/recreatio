@@ -1,5 +1,6 @@
 /** Versioned, strict import contract. The same schema validates imports and generates JSON Schema. */
 import { z } from 'zod';
+import { isLiturgyKind, KIND as KIND_NAMES } from './names';
 
 export const HOURS = ['invitatory', 'readings', 'lauds', 'terce', 'sext', 'none', 'vespers', 'compline', 'mass'] as const;
 export const LAYERS = ['psalter', 'time', 'saints', 'common', 'ordinary', 'lectionary', 'local'] as const;
@@ -114,5 +115,6 @@ export type SourceLayer = typeof LAYERS[number];
 export type ResourceRef = z.infer<typeof ref>;
 export type CalendarContext = { scopes: readonly string[]; country: 'PL' | 'roman'; time_zone: string; language: string; edition_id?: string; office_cycle?: string; optional_observance?: string };
 export const DEFAULT_CONTEXT: CalendarContext = { scopes: ['roman', 'PL'], country: 'PL', time_zone: 'Europe/Warsaw', language: 'pl-PL' };
-export const KIND: Record<EntityType, string> = { canonical_work: 'lit_work', text_edition: 'lit_edition', text_resource: 'lit_text', passage_definition: 'lit_passage', liturgical_template: 'lit_template', calendar_observance: 'lit_observance', liturgical_assignment: 'lit_assignment', liturgical_rule: 'lit_rule', calendar_profile: 'lit_calendar' };
-export const isLiturgyKind = (kind: string): boolean => Object.values(KIND).includes(kind);
+/* Die Arten stehen in `names.ts` (ohne zod); fehlt dort ein Rodzaj des Schemas, scheitert schon diese Zuweisung. */
+export const KIND: Readonly<Record<EntityType, string>> = KIND_NAMES;
+export { isLiturgyKind };

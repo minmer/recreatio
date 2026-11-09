@@ -1,0 +1,124 @@
+{
+  "checking": "Wird geprüft…",
+  "first": {
+    "fallback": {
+      "phone": "Telefonnummer aus der Anmeldung",
+      "email": "E-Mail-Adresse aus der Anmeldung",
+      "date": "Datum aus der Anmeldung"
+    },
+    "fallbackAny": "Antwort aus der Anmeldung",
+    "noKey": "In diesem Browser fehlt der Schlüssel aus dem Link. Öffne den vollständigen Link, den du bekommen hast, noch einmal.",
+    "checkFailed": "Prüfen hat nicht geklappt.",
+    "blocked": "Dieser Link ist gesperrt",
+    "blockedText": "Es gab zu viele fehlgeschlagene Versuche der Bestätigung. Wenn das dein Link ist, bitte die Kanzlei um einen neuen — dieser öffnet sich nicht mehr.",
+    "title": "Bestätige, dass du es bist",
+    "titleWho": "Bestätige, dass du es bist — {who}",
+    "lead": "Du öffnest diesen Link zum ersten Mal. Damit niemand zufällig — zum Beispiel jemand, dem die SMS irrtümlich zuging — deine Angaben sieht, gib an:",
+    "hint": "Wie in der Anmeldung — Gross-/Kleinschreibung und polnische Zeichen spielen keine Rolle. Einmal genügt: danach fragt dieser Link nicht mehr.",
+    "confirm": "Bestätigen",
+    "left": "Verbleibende Versuche: {count}"
+  },
+  "at": {
+    "long": "Der Zusatz ist zu lang (höchstens 300 Zeichen).",
+    "start": "Der Zusatz beginnt mit „?“ oder „#“.",
+    "spaces": "Der Zusatz ohne Leerzeichen und Anführungszeichen.",
+    "oneAnchor": "Nur ein Anker „#“.",
+    "key": "Den Schlüssel der Person hängt der Link selbst an — entferne „miejsce=…“.",
+    "empty": "Nach „?“ oder „#“ muss etwas stehen."
+  },
+  "portal": {
+    "seedTitle": "Deine Anmeldung",
+    "saveFailed": "Konnte nicht gespeichert werden.",
+    "makeFailed": "Das Portal konnte nicht angelegt werden.",
+    "enterAddress": "Gib die Adresse der Seite ein.",
+    "unknownAddress": "Ich erkenne die Adresse der Seite nicht — füge sie so ein, wie sie in der Adresszeile steht.",
+    "notAllowed": "recreatio.pl/{path} kann nicht die Seite nach dem Senden dieses Formulars sein — wähle eine Seite aus der Liste oben.",
+    "saveAddressFailed": "Die Adresse konnte nicht gespeichert werden.",
+    "shape": "Adresse: Kleinbuchstaben, Ziffern und Bindestriche; Teile mit einem Schrägstrich trennen.",
+    "taken": "Diese Seite gibt es schon — wähle sie oben.",
+    "noRole": "Deine Rolle wurde nicht gefunden.",
+    "title": "Nach dem Senden",
+    "nowhere": "Dieses Formular steht noch auf keiner Seite. Das Portal kannst du schon jetzt vorbereiten — denk nur daran, dass das Portal nach dem Platzieren des Formulars dieselbe Seite, eine Seite darüber oder darunter oder eine andere öffentliche Seite desselben Trägers sein muss.",
+    "standsOn": "Das Formular steht auf: {pages}. Portal kann jede öffentliche Seite desselben Trägers sein.",
+    "opens": "Der Link öffnet <code>recreatio.pl/{path}</code>",
+    "opensDerived": "Der Link öffnet <code>recreatio.pl/{path}</code> — so ergibt es sich aus den Einstellungen, niemand hat es gewählt.",
+    "how": "Die Person bekommt einen Link zu dieser Seite mit eigenem Schlüssel. Die Blöcke „Anmeldung der Person“ und „Nachricht an die Person“ auf dieser Seite zeigen ihre Angaben; fehlen sie, erscheint die Anmeldung unter dem Inhalt der Seite. Der Schlüssel bleibt in ihrem Browser und gilt auch auf anderen Seiten dieser Organisation.",
+    "astray": "Diese Seite passt nicht mehr zu den Seiten, auf denen das Formular steht — wähle eine andere, sonst scheitert die Anmeldung.",
+    "openPage": "Diese Seite öffnen",
+    "ownSummary": "Eigene Adresse — mit „#“ oder Parametern",
+    "ownLabel": "Adresse der Seite nach dem Senden",
+    "ownPlaceholder": "z. B. recreatio.pl/#/events/rocket2026#deine-anmeldung",
+    "ownHint": "Füge die Adresse der Seite ein (aus der Liste oben) und hänge an: „#name-der-folie“ — der Link öffnet diese Folie (der Name wie im Folienmenü, z. B. „#deine-anmeldung“), „?s=3“ — die dritte Folie, „?part=…“ — ein bestimmtes Modul. Ein Zusatz allein („#…“ oder „?…“) gilt für die oben gewählte Seite. Den Schlüssel der Person fügt der Link selbst hinzu.",
+    "personLink": "Link der Person:",
+    "saveAddress": "Adresse speichern",
+    "noSuffix": "Ohne Zusatz",
+    "newSummary": "Oder eine neue Seite anlegen",
+    "address": "Adresse",
+    "newPlaceholder": "z. B. parish/grzegorzki/confirmation/candidate",
+    "newHint": "Sie entsteht mit der Anmeldung dieser Person, die sie <b>korrigieren kann</b>, und einem Platz für eine Nachricht der Kanzlei.",
+    "making": "Wird angelegt…",
+    "make": "Anlegen und öffnen",
+    "pageAfter": "Seite nach dem Senden",
+    "serviceChooses": "— der Dienst wählt —",
+    "notFitting": "recreatio.pl/{path} (passt nicht)"
+  },
+  "bar": {
+    "keyless": "In diesem Link fehlt der Schlüssel — du siehst die Seite, aber nicht deine Angaben. Öffne den vollständigen Link, den du bekommen hast.",
+    "gone": "Deinen Platz gibt es nicht — der Link wurde vielleicht zurückgezogen, durch einen neuen ersetzt oder ist abgelaufen. Wenn du einen neuen Link bekommen hast (z. B. per SMS), öffne ihn.",
+    "locked": "Der Schlüssel aus dem Link passt nicht zu diesem Platz. Prüfe, ob der Link beim Kopieren abgeschnitten wurde.",
+    "replaced": "<b>Gespeichert. Dein Link ist jetzt neu</b> — der vorige funktioniert nicht mehr, falls er an eine falsche Nummer ging. Auf diesem Gerät musst du nichts tun; auf anderen öffne den neuen Link.",
+    "worksUntil": "Der Link gilt bis {date}."
+  },
+  "zone": {
+    "submissionWho": "Das siehst du und die Kanzlei, die die Anmeldungen führt.",
+    "noKey": "Ohne den Schlüssel aus der Adresse lässt sich das nicht öffnen.",
+    "steps": "Deine Schritte",
+    "stepsWho": "Das siehst du und die Kanzlei.",
+    "shared": "Gemeinsam für die Gruppe",
+    "sharedWho": "Das sehen alle: {names}.",
+    "sealed": "versiegelt"
+  },
+  "link": {
+    "title": "Dein Link",
+    "hint": "Mit dieser Adresse kommst du hierher zurück — auch auf einem anderen Gerät. Wer sie hat, sieht deine Angaben, also gib sie nicht weiter."
+  },
+  "bind": {
+    "failed": "Zuordnen hat nicht geklappt.",
+    "done": "Fertig. Dieser Platz ist jetzt dir zugeordnet — du findest ihn in deinem Konto, auch ohne diesen Link.",
+    "haveAccount": "Hast du ein Konto? Nach der Anmeldung kannst du diesen Platz dir zuordnen — dann erreichst du ihn ohne Link.",
+    "needPerson": "Um diesen Platz dir zuzuordnen, brauchst du eine <b>Person</b> — ein Konto ist ein Schlüsselbund, kein Mensch. Lege sie im Reiter „Rollen“ an.",
+    "label": "Dir zuordnen — wen dieser Platz betrifft",
+    "person": "Person · {id}",
+    "hint": "Der Schlüssel des Platzes wird mit dem Schlüssel dieser Person verpackt. Der Dienst ist daran nicht beteiligt — er bekommt einen fertigen Umschlag.",
+    "binding": "Wird zugeordnet…",
+    "bind": "Zuordnen"
+  },
+  "page": {
+    "opening": "Wird geöffnet…",
+    "noPlace": "Diesen Platz gibt es nicht",
+    "noPlaceText": "Der Link wurde vielleicht zurückgezogen oder ist abgelaufen.",
+    "yourPlace": "Dein Platz",
+    "isKey": "Dieser Link ist ein Schlüssel, kein Ausweis: wer ihn hat, sieht diese Seite. Gib ihn nicht weiter.",
+    "noKey": "In der Adresse fehlt der Schlüssel — man sieht, dass der Platz existiert, aber nicht seinen Inhalt. Öffne den vollständigen Link, den mit dem zweiten Teil nach dem Schrägstrich.",
+    "yourPage": "<b>Das ist deine Seite.</b> Mit der Zeit geschieht alles hier: Termine und Treffen, Nachrichten der Kanzlei, die Zustimmung zu dem, was du teilst. Komm unter dieselbe Adresse zurück — sie ändert sich nicht."
+  },
+  "verify": {
+    "noToken": "In der Adresse fehlt der Teil nach dem Schrägstrich.",
+    "dead": "Dieser Link funktioniert nicht mehr",
+    "deadHint": "Schreib der Kanzlei — sie schickt einen neuen. Es ist nichts passiert: dieser Link bestätigte nur die Nummer und öffnete sonst nichts.",
+    "done": "Nummer bestätigt",
+    "again": "Diese Nummer war schon bestätigt — alles in Ordnung.",
+    "thanks": "Danke. Die Kanzlei sieht jetzt, dass diese Nummer funktioniert.",
+    "only": "Dieser Link bestätigte nur die Telefonnummer. Er öffnet deine Angaben nicht, ändert nichts und gilt nach dem Gebrauch für niemanden sonst."
+  },
+  "chat": {
+    "giveName": "Gib Vor- und Nachnamen ein."
+  },
+  "entryN": "Anmeldung {n}",
+  "extension": "Ergänzung",
+  "openFailed": "Konnte nicht geöffnet werden.",
+  "newMessages": {
+    "one": "{count} neue Nachricht",
+    "other": "{count} neue Nachrichten"
+  }
+}

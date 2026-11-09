@@ -22,6 +22,7 @@
  */
 
 import type { PlanDef } from '../scheme';
+import { t } from '../../core/i18n';
 import {
   NODE_INFO,
   type Compare, type FeastRow, type FeastsData, type FlowDoc, type FlowNode, type FlowNodeType, type FlowOut, type IfData,
@@ -68,7 +69,8 @@ function graphOf(doc: FlowDoc): Graph {
 /** Der erste Knoten dieser Art — der Einstieg. */
 const entryOf = (doc: FlowDoc, type: FlowNodeType): FlowNode | undefined => doc.nodes.find((n) => n.type === type);
 
-const OUT_LABEL: Record<FlowOut, string> = { out: 'dalej', yes: 'tak', no: 'nie' };
+const outLabel = (out: FlowOut): string => t(`calendarApp.flow.out.${out}`);
+const yesNo = (yes: boolean): string => t(yes ? 'calendarApp.flow.out.yes' : 'calendarApp.flow.out.no');
 
 const label = (node: FlowNode) => NODE_INFO[node.type]?.label ?? node.type;
 
@@ -126,7 +128,8 @@ export function compare(a: number, op: Compare, b: number): boolean {
   }
 }
 
-const SHORT_DAY: Record<Weekday, string> = { 1: 'pn', 2: 'wt', 3: 'śr', 4: 'czw', 5: 'pt', 6: 'sob', 7: 'nd' };
+/* Kurze Wochentage: `calendarApp.flow.dayShort.<1–7>`. */
+const shortDay = (d: Weekday): string => t(`calendarApp.flow.dayShort.d${d}`);
 
 /** „MM-DD" → „17.12". */
 const monthDay = (md: string): string => {
@@ -137,29 +140,36 @@ const monthDay = (md: string): string => {
 /** Eine Bedingung in Worten — für die Fläche und die Vorschau. */
 export function describeTest(test: Test): string {
   switch (test.t) {
-    case 'weekday': return `dzień tygodnia: ${test.days.map((d) => SHORT_DAY[d]).join(', ') || '—'}`;
-    case 'slot': return `godzina mszy: ${test.keys.join(', ') || '—'}`;
-    case 'time': return `msza ${test.from ? `od ${test.from}` : ''}${test.from && test.to ? ' ' : ''}${test.to ? `do ${test.to}` : ''}`.trim();
-    case 'season': return `okres: ${test.seasons.join(', ') || '—'}`;
-    case 'week': return `tydzień ${OP_SIGN[test.op]} ${test.n}`;
-    case 'rank': return `ranga ${OP_SIGN[test.op]} ${test.n}`;
+    case 'weekday': return t('calendarApp.flow.test.weekday', { list: test.days.map(shortDay).join(', ') || '—' });
+    case 'slot': return t('calendarApp.flow.test.slot', { list: test.keys.join(', ') || '—' });
+    case 'time':
+      return test.from && test.to ? t('calendarApp.flow.test.timeBoth', { from: test.from, to: test.to })
+        : test.from ? t('calendarApp.flow.test.timeFrom', { from: test.from })
+          : test.to ? t('calendarApp.flow.test.timeTo', { to: test.to }) : t('calendarApp.flow.test.time');
+    case 'season': return t('calendarApp.flow.test.season', { list: test.seasons.join(', ') || '—' });
+    case 'week': return t('calendarApp.flow.test.week', { op: OP_SIGN[test.op], n: test.n });
+    case 'rank': return t('calendarApp.flow.test.rank', { op: OP_SIGN[test.op], n: test.n });
     case 'celebration':
-      return test.is === 'any' ? 'jest obchód' : test.is === 'none' ? 'brak obchodu' : `obchód zawiera „${test.name ?? ''}”`;
-    case 'festive': return 'dzień świąteczny (niedziela albo święto)';
-    case 'sunday': return 'niedziela';
-    case 'date': return `data: ${describeDateRule(test.rule)}`;
-    case 'between': return `między ${monthDay(test.from)} a ${monthDay(test.to)}`;
-    case 'var': return `zmienna ${test.name} ${test.op === 'contains' ? 'zawiera' : test.op === '=' ? '=' : '≠'} „${test.value}”`;
-    case 'mode': return `rodzaj wpisu: ${test.modes.join(', ') || '—'}`;
+      return test.is === 'any' ? t('calendarApp.flow.test.celebrationAny') : test.is === 'none' ? t('calendarApp.flow.test.celebrationNone')
+        : t('calendarApp.flow.test.celebrationName', { name: test.name ?? '' });
+    case 'festive': return t('calendarApp.flow.test.festive');
+    case 'sunday': return t('calendarApp.flow.test.sunday');
+    case 'date': return t('calendarApp.flow.test.date', { rule: describeDateRule(test.rule) });
+    case 'between': return t('calendarApp.flow.test.between', { from: monthDay(test.from), to: monthDay(test.to) });
+    case 'var': return t(test.op === 'contains' ? 'calendarApp.flow.test.varContains' : 'calendarApp.flow.test.varIs',
+      { name: test.name, op: test.op === '=' ? '=' : '≠', value: test.value });
+    case 'mode': return t('calendarApp.flow.test.mode', { list: test.modes.join(', ') || '—' });
     case 'count': {
-      const where = test.scope === 'occurrence' ? 'na tym terminie' : test.per === 'occurrence' ? 'innych terminów w tygodniu' : 'w tygodniu';
-      const what = test.scope === 'week' && test.per === 'occurrence' ? 'liczba' : 'liczba wpisów';
-      return `${what} ${where}${test.mode ? ` (${test.mode})` : ''}${test.status === 'all' ? ', także czekające' : ''} ${OP_SIGN[test.op]} ${test.n}`;
+      const where = t(test.scope === 'occurrence' ? 'calendarApp.flow.test.countHere' : test.per === 'occurrence' ? 'calendarApp.flow.test.countOthers' : 'calendarApp.flow.test.countWeek');
+      const what = t(test.scope === 'week' && test.per === 'occurrence' ? 'calendarApp.flow.test.countNumber' : 'calendarApp.flow.test.countEntries');
+      const extra = `${test.mode ? ` (${test.mode})` : ''}${test.status === 'all' ? t('calendarApp.flow.test.countWaiting') : ''}`;
+      return t('calendarApp.flow.test.count', { what, where, extra, op: OP_SIGN[test.op], n: test.n });
     }
-    case 'actor': return test.is === 'office' ? 'dodaje kancelaria' : 'dodaje ktoś z zewnątrz';
+    case 'actor': return test.is === 'office' ? t('calendarApp.flow.test.actorOffice') : t('calendarApp.flow.test.actorOutside');
     case 'field':
-      return test.op === 'set' ? `pole ${test.key} wypełnione` : test.op === 'empty' ? `pole ${test.key} puste` : `pole ${test.key} = „${test.value ?? ''}”`;
-    default: return 'nieznany warunek';
+      return test.op === 'set' ? t('calendarApp.flow.test.fieldSet', { key: test.key }) : test.op === 'empty' ? t('calendarApp.flow.test.fieldEmpty', { key: test.key })
+        : t('calendarApp.flow.test.fieldIs', { key: test.key, value: test.value ?? '' });
+    default: return t('calendarApp.flow.test.unknown');
   }
 }
 
@@ -354,7 +364,7 @@ function applyCommon(node: FlowNode, ctx: MutableCtx, draft: MassDraft, slot: Sl
       const special = info.special === null ? undefined : data.special?.[info.special];
       const colour = special ?? data.colours?.[ctx.season];
       if (colour !== undefined && colour !== '') ctx.colour = colour;
-      trace.push(`${label(node)}: ${ctx.seasonName}${ctx.week > 0 ? `, tydzień ${ctx.week}` : ''}${ctx.colour ? `, kolor ${ctx.colour}` : ''}`);
+      trace.push(`${label(node)}: ${ctx.seasonName}${ctx.week > 0 ? t('calendarApp.flow.trace.week', { week: ctx.week }) : ''}${ctx.colour ? t('calendarApp.flow.trace.colour', { colour: ctx.colour }) : ''}`);
       return true;
     }
     case 'feasts': {
@@ -365,7 +375,7 @@ function applyCommon(node: FlowNode, ctx: MutableCtx, draft: MassDraft, slot: Sl
         if (row.colour) ctx.colour = row.colour;
         if (row.festive === true) ctx.festive = true;
       }
-      trace.push(`${label(node)}: ${ctx.celebration?.name ?? 'bez obchodu'}`);
+      trace.push(`${label(node)}: ${ctx.celebration?.name ?? t('calendarApp.flow.trace.noCelebration')}`);
       return true;
     }
     case 'set': {
@@ -377,14 +387,14 @@ function applyCommon(node: FlowNode, ctx: MutableCtx, draft: MassDraft, slot: Sl
         if (data.key === 'colour') ctx.colour = value;
         else ctx.vars[data.key] = value;
       }
-      trace.push(`${label(node)}: ${data.target === 'title' ? 'tytuł' : data.key ?? '?'} = „${value}”`);
+      trace.push(t('calendarApp.flow.trace.set', { node: label(node), key: data.target === 'title' ? t('calendarApp.flow.trace.title') : data.key ?? '?', value }));
       return true;
     }
     case 'record': {
       const data = node.data as unknown as RecordData;
       const text = fillTemplate(String(data.text ?? ''), ctx, slot, draft.title ?? undefined);
       if (data.list) draft.records.push({ list: data.list, ...(data.mode ? { mode: data.mode } : {}), text });
-      trace.push(`${label(node)}: ${data.list ?? '?'} „${text}”`);
+      trace.push(t('calendarApp.flow.trace.record', { node: label(node), list: data.list ?? '?', text }));
       return true;
     }
     default:
@@ -409,7 +419,7 @@ function slotsOf(data: SlotsData, ctx: MutableCtx): SlotRow[] {
  */
 export function planDay(flow: FlowDoc, date: string): PlannedDay {
   if (!isDate(date)) {
-    return { date, ctx: startCtx('2000-01-01'), masses: [], problems: [`Nieczytelna data: ${date}`] };
+    return { date, ctx: startCtx('2000-01-01'), masses: [], problems: [t('calendarApp.flow.problem.badDate', { date })] };
   }
   const graph = graphOf(flow);
   const ctx = startCtx(date);
@@ -420,11 +430,11 @@ export function planDay(flow: FlowDoc, date: string): PlannedDay {
 
   const start = entryOf(flow, 'day');
   if (start === undefined) {
-    problems.push('Brak węzła „Dzień” — plan nie wie, od czego zacząć dzień.');
+    problems.push(t('calendarApp.flow.problem.noDay'));
   } else {
     let node: FlowNode | undefined = start;
     for (let steps = 0; node !== undefined; steps += 1) {
-      if (steps >= MAX_STEPS) { problems.push('Za dużo kroków na ścieżce dnia — czy w planie jest pętla?'); slots = []; break; }
+      if (steps >= MAX_STEPS) { problems.push(t('calendarApp.flow.problem.dayLoop')); slots = []; break; }
       let out: FlowOut = 'out';
       if (node.type === 'day') {
         dayTrace.push(label(node));
@@ -433,26 +443,26 @@ export function planDay(flow: FlowDoc, date: string): PlannedDay {
       } else if (node.type === 'if') {
         const test = (node.data as unknown as IfData).test;
         const yes = test !== undefined && testPlan(test, ctx);
-        dayTrace.push(`${label(node)} (${test === undefined ? 'brak warunku' : describeTest(test)}) → ${yes ? 'tak' : 'nie'}`);
+        dayTrace.push(`${label(node)} (${test === undefined ? t('calendarApp.flow.trace.noTest') : describeTest(test)}) → ${yesNo(yes)}`);
         out = yes ? 'yes' : 'no';
       } else if (node.type === 'slots') {
         slots = slotsOf(node.data as unknown as SlotsData, ctx);
-        dayTrace.push(`${label(node)}: ${slots.length === 0 ? 'brak mszy' : slots.map((s) => s.time).join(', ')}`);
+        dayTrace.push(`${label(node)}: ${slots.length === 0 ? t('calendarApp.flow.trace.noMass') : slots.map((s) => s.time).join(', ')}`);
         break;
       } else if (node.type === 'skip') {
         dayTrace.push(`${label(node)}`);
         slots = [];
         break;
       } else if (node.type === 'end') {
-        problems.push('„Utwórz” na ścieżce dnia — dzień kończy się w „Godzinach mszy” albo „Bez mszy”.');
+        problems.push(t('calendarApp.flow.problem.endOnDay'));
         break;
       } else {
-        problems.push(`Węzeł „${label(node)}” nie należy do ścieżki dnia.`);
+        problems.push(t('calendarApp.flow.problem.notOnDay', { node: label(node) }));
         break;
       }
       const next = graph.outs.get(node.id)?.get(out);
       if (next === undefined) {
-        problems.push(`Ścieżka dnia kończy się w „${label(node)}” — brak połączenia „${OUT_LABEL[out]}” (bez godzin mszy).`);
+        problems.push(t('calendarApp.flow.problem.dayEnds', { node: label(node), out: outLabel(out) }));
         slots = [];
         break;
       }
@@ -476,14 +486,14 @@ function planMass(
 ): PlannedMass | null {
   const ctx: MutableCtx = { ...dayCtx, vars: { ...dayCtx.vars } };
   const draft: MassDraft = { title: dayDraft.title, values: { ...dayDraft.values }, records: [...dayDraft.records] };
-  const trace: string[] = [...dayTrace, `— msza ${slot.time}${slot.label ? ` (${slot.label})` : ''}`];
+  const trace: string[] = [...dayTrace, `— ${t('calendarApp.flow.trace.mass', { time: slot.time })}${slot.label ? ` (${slot.label})` : ''}`];
 
   const start = entryOf(flow, 'mass');
   let node: FlowNode | undefined = start;
-  if (start === undefined) trace.push('(brak węzła „Msza” — msza z tym, co ustawił dzień)');
+  if (start === undefined) trace.push(t('calendarApp.flow.trace.noMassNode'));
 
   for (let steps = 0; node !== undefined; steps += 1) {
-    if (steps >= MAX_STEPS) { problems.push(`Za dużo kroków na ścieżce mszy ${slot.time} — czy w planie jest pętla?`); break; }
+    if (steps >= MAX_STEPS) { problems.push(t('calendarApp.flow.problem.massLoop', { time: slot.time })); break; }
     let out: FlowOut = 'out';
     if (node.type === 'mass') {
       trace.push(label(node));
@@ -492,7 +502,7 @@ function planMass(
     } else if (node.type === 'if') {
       const test = (node.data as unknown as IfData).test;
       const yes = test !== undefined && testPlan(test, ctx, slot);
-      trace.push(`${label(node)} (${test === undefined ? 'brak warunku' : describeTest(test)}) → ${yes ? 'tak' : 'nie'}`);
+      trace.push(`${label(node)} (${test === undefined ? t('calendarApp.flow.trace.noTest') : describeTest(test)}) → ${yesNo(yes)}`);
       out = yes ? 'yes' : 'no';
     } else if (node.type === 'skip') {
       trace.push(label(node));
@@ -501,7 +511,7 @@ function planMass(
       trace.push(label(node));
       break;
     } else {
-      problems.push(`Węzeł „${label(node)}” nie należy do ścieżki mszy.`);
+      problems.push(t('calendarApp.flow.problem.notOnMass', { node: label(node) }));
       break;
     }
     const next = graph.outs.get(node.id)?.get(out);
@@ -533,39 +543,39 @@ export function planRange(plan: PlanDef, from: string, to: string): PlannedDay[]
 export function runRule(flow: FlowDoc | null | undefined, ctx: RuleCtx): RuleResult & { trace: readonly string[] } {
   const fallback = (why: string, trace: string[]): RuleResult & { trace: readonly string[] } => ({
     verdict: ctx.actor === 'office' ? 'allow' : 'wait',
-    ...(ctx.actor === 'office' ? {} : { message: 'Wpis czeka na przyjęcie przez kancelarię.' }),
+    ...(ctx.actor === 'office' ? {} : { message: t('calendarApp.flow.rule.waits') }),
     trace: [...trace, why]
   });
 
-  if (flow === null || flow === undefined) return fallback('(bez reguły)', []);
+  if (flow === null || flow === undefined) return fallback(t('calendarApp.flow.rule.none'), []);
   const start = entryOf(flow, 'record-start');
-  if (start === undefined) return fallback('(reguła bez węzła „Nowy wpis”)', []);
+  if (start === undefined) return fallback(t('calendarApp.flow.rule.noStart'), []);
 
   const graph = graphOf(flow);
   const trace: string[] = [];
   let node: FlowNode | undefined = start;
   for (let steps = 0; node !== undefined; steps += 1) {
-    if (steps >= MAX_STEPS) return fallback('(za dużo kroków — pętla?)', trace);
+    if (steps >= MAX_STEPS) return fallback(t('calendarApp.flow.rule.loop'), trace);
     let out: FlowOut = 'out';
     if (node.type === 'record-start') {
       trace.push(label(node));
     } else if (node.type === 'if') {
       const test = (node.data as unknown as IfData).test;
       const yes = test !== undefined && testRule(test, ctx);
-      trace.push(`${label(node)} (${test === undefined ? 'brak warunku' : describeTest(test)}) → ${yes ? 'tak' : 'nie'}`);
+      trace.push(`${label(node)} (${test === undefined ? t('calendarApp.flow.trace.noTest') : describeTest(test)}) → ${yesNo(yes)}`);
       out = yes ? 'yes' : 'no';
     } else if (node.type === 'allow' || node.type === 'wait' || node.type === 'refuse') {
       trace.push(label(node));
       const message = ((node.data as unknown as MessageData).message ?? '').trim();
       if (node.type === 'allow') return { verdict: 'allow', ...(message ? { message } : {}), trace };
-      if (node.type === 'wait') return { verdict: 'wait', message: message || 'Wpis czeka na przyjęcie przez kancelarię.', trace };
-      return { verdict: 'refuse', message: message || 'Tego wpisu nie można dodać.', trace };
+      if (node.type === 'wait') return { verdict: 'wait', message: message || t('calendarApp.flow.rule.waits'), trace };
+      return { verdict: 'refuse', message: message || t('calendarApp.flow.rule.refused'), trace };
     } else {
-      return fallback(`(węzeł „${label(node)}” nie należy do reguły)`, trace);
+      return fallback(t('calendarApp.flow.rule.notInRule', { node: label(node) }), trace);
     }
     const next = graph.outs.get(node.id)?.get(out);
-    if (next === undefined) return fallback(`(reguła kończy się w „${label(node)}” bez decyzji)`, trace);
+    if (next === undefined) return fallback(t('calendarApp.flow.rule.endsWithout', { node: label(node) }), trace);
     node = graph.byId.get(next);
   }
-  return fallback('(reguła bez decyzji)', trace);
+  return fallback(t('calendarApp.flow.rule.noDecision'), trace);
 }

@@ -25,6 +25,9 @@ import { partOf } from '../pages/parts/registry';
 import { setMemberRoles } from '../roles/memberRole';
 import { createFormGroup, loadModules, readConfig, updateModule, type ModuleRow } from './module';
 import type { ModuleWish } from './moduleWish';
+import { t } from '../core/i18n';
+
+const audienceWord = (audience: 'person' | 'office'): string => t(audience === 'office' ? 'modules.wish.officeOnly' : 'modules.wish.personLink');
 
 export interface ModuleImportOptions {
   /** Fragen und Wymagania, die nicht im Dokument stehen, nehmen („Usuń pozostałe"). */
@@ -53,35 +56,35 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
   const warnings: string[] = [];
 
   if (wish.name !== undefined && wish.name !== row.name) {
-    stage('Zmiana nazwy…');
+    stage(t('modules.imp.renaming'));
     await updateModule(row.moduleId, { name: wish.name }, row);
-    lines.push(`Nazwa: „${wish.name}”.`);
+    lines.push(t('modules.imp.named', { name: wish.name }));
   }
   if (wish.repeat !== undefined && wish.repeat !== repeatOf(row.repeat) && row.extendsId !== null && row.entries === 0) {
-    stage('Zmiana powtarzania…');
+    stage(t('modules.imp.repeating'));
     await updateModule(row.moduleId, { repeat: wish.repeat });
-    lines.push(`Powtarzanie: ${REPEAT_LABEL[wish.repeat]}.`);
+    lines.push(t('modules.wish.repeatLine', { repeat: REPEAT_LABEL[wish.repeat] }));
   }
   if (wish.audience !== undefined && row.extendsId !== null && wish.audience !== row.audience && row.entries === 0) {
-    stage('Zmiana: kto wypełnia…');
+    stage(t('modules.imp.audience'));
     await updateModule(row.moduleId, { audience: wish.audience });
-    lines.push(`Kto wypełnia: ${wish.audience === 'office' ? 'tylko koordynator' : 'osoba przez swój link'}.`);
+    lines.push(t('modules.wish.audienceLine', { who: audienceWord(wish.audience) }));
   }
   if (form && wish.group !== undefined) {
-    stage('Grupa formularzy…');
+    stage(t('modules.imp.group'));
     if (wish.group === null) {
       await updateModule(row.moduleId, { clearGroup: true });
-      lines.push('Grupa: żadna.');
+      lines.push(t('modules.wish.groupNone'));
     } else {
       const wanted = wish.group;
       const known = ((await loadModules()).groups ?? []).find((g) => g.name.toLocaleLowerCase('pl') === wanted.toLocaleLowerCase('pl'));
       /* 0097 — eine neue Gruppe gehört dem Bereich des Formulars: unter seinem Schlüssel liegt ihr Name. */
       if (known === undefined && row.areaId === null) {
-        warnings.push(`Grupa „${wanted}”: formularz nie ma jeszcze obszaru — grupy nie da się założyć.`);
+        warnings.push(t('modules.imp.groupNoArea', { name: wanted }));
       } else {
         const groupId = known?.groupId ?? (await createFormGroup(newId(), wanted, row.areaId!)).groupId;
         await updateModule(row.moduleId, { groupId });
-        lines.push(known === undefined ? `Grupa „${wanted}" założona, formularz w niej.` : `Grupa: „${known.name}".`);
+        lines.push(known === undefined ? t('modules.imp.groupMade', { name: wanted }) : t('modules.imp.groupIs', { name: known.name }));
       }
     }
   }
@@ -89,24 +92,24 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
     const have = readConfig(row.config);
     const patch = replacing(have, wantedConfig(row.kind, have, wish.config));
     if (Object.keys(patch).length > 0) {
-      stage('Zapisywanie treści…');
+      stage(t('modules.imp.savingContent'));
       await setPartConfig(row.moduleId, patch);
-      lines.push('Treść zapisana.');
+      lines.push(t('modules.imp.contentSaved'));
     }
   }
   if (form && row.extendsId === null && wish.memberRoles !== undefined && !sameRoles(wish.memberRoles, memberRolesOf(row))) {
-    stage('Ustawianie ról uczestników…');
+    stage(t('modules.imp.roles'));
     try {
       /* Nur Rollen, die der Importierende hält — eine fremde Kennung nähme sonst der ganzen Liste die Wirkung. */
       const { ring } = await keysFor(who);
       const held = wish.memberRoles.filter((roleId) => ring?.has(roleId) === true);
       for (const roleId of wish.memberRoles) {
-        if (!held.includes(roleId)) warnings.push(`Roli ${roleId.slice(0, 8)}… nie masz — pominięta.`);
+        if (!held.includes(roleId)) warnings.push(t('modules.imp.roleNotHeld', { id: roleId.slice(0, 8) }));
       }
       await setMemberRoles(row.moduleId, held);
-      lines.push(held.length === 0 ? 'Role uczestników: żadne.' : 'Role uczestników ustawione.');
+      lines.push(held.length === 0 ? t('modules.imp.rolesNone') : t('modules.imp.rolesSet'));
     } catch (e) {
-      warnings.push(`Role uczestników nie zostały ustawione: ${e instanceof Error ? e.message : 'nie udało się'}`);
+      warnings.push(t('modules.imp.rolesFailed', { why: e instanceof Error ? e.message : t('modules.imp.failed') }));
     }
   }
   if (form && row.extendsId === null && wish.virtualAreas !== undefined) {
@@ -115,7 +118,7 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
       lines.push(...done.lines);
       warnings.push(...done.warnings);
     } catch (e) {
-      warnings.push(`Obszary osób: ${e instanceof Error ? e.message : 'nie udało się'}`);
+      warnings.push(t('modules.imp.areasFailed', { why: e instanceof Error ? e.message : t('modules.imp.failed') }));
     }
   }
 
@@ -124,7 +127,11 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
     const written = await writeFormContent(who, { moduleId: row.moduleId, areaId: row.areaId }, { questions: wish.questions, design: wish.design },
       { replace: options.replace, answersTo: options.answersTo, onStage: stage, known: options.known, byLabel: options.byLabel });
     ids = written.ids;
-    lines.push(`Pytania: nowe — ${written.added}, zmienione — ${written.changed}, bez zmian — ${written.unchanged}${written.removed > 0 ? `, usunięte — ${written.removed}` : ''}${written.designSaved ? '; układ zapisany' : ''}.`);
+    lines.push(t('modules.imp.questions', {
+      added: written.added, changed: written.changed, unchanged: written.unchanged,
+      removed: written.removed > 0 ? t('modules.imp.removed', { count: written.removed }) : '',
+      design: written.designSaved ? t('modules.imp.designSaved') : ''
+    }));
     warnings.push(...written.warnings);
   }
 

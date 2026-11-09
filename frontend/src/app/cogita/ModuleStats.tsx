@@ -17,6 +17,7 @@ import { spacingFor } from './spacing';
 import { renamer, type Learner } from './learn';
 import { answerIndex } from './measures';
 import type { CogitaLibrary } from './store';
+import { rich, useT } from '../core/i18n';
 import { TexText } from '../ui/tex/Tex';
 
 export function ModuleStats({ lib, learner, cards, title, onBack }: {
@@ -27,6 +28,7 @@ export function ModuleStats({ lib, learner, cards, title, onBack }: {
   title: string;
   onBack: () => void;
 }) {
+  const t = useT();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   /* Neu, sobald eine Antwort dazukommt (der Fortschritt ist dann eine neue Map). */
   const answered = learner?.progress.answers.size ?? 0;
@@ -35,16 +37,16 @@ export function ModuleStats({ lib, learner, cards, title, onBack }: {
   return (
     <div className="cg" data-module-stats="">
       <div className="cg-run-head">
-        <strong><TexText text={title} />: moje statystyki</strong>
-        <button type="button" className="wk-link-btn" onClick={onBack} data-module-stats-back="">Wróć</button>
+        <span>{rich(t('cogitaViewsStats.module.title', { title }), { b: () => <strong><TexText text={title} /></strong> })}</span>
+        <button type="button" className="wk-link-btn" onClick={onBack} data-module-stats-back="">{t('cogitaViewsStats.module.back')}</button>
       </div>
-      {learner === null || byCard === null ? <p className="wk-card-muted">Wczytywanie Twoich postępów…</p>
-        : cards === null ? <p className="wk-card-muted">Liczenie kart…</p> : (
+      {learner === null || byCard === null ? <p className="wk-card-muted">{t('cogitaViewsStats.module.loading')}</p>
+        : cards === null ? <p className="wk-card-muted">{t('cogitaViewsStats.module.countingCards')}</p> : (
           <>
-            {learner.holder.kind === 'local' && <p className="wk-card-muted">Bez konta liczą się odpowiedzi z tej przeglądarki.</p>}
+            {learner.holder.kind === 'local' && <p className="wk-card-muted">{t('cogitaViewsStats.module.local')}</p>}
             <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={spacingFor(lib, learner)} />
             <details className="cg-card" data-module-answers="">
-              <summary>Moje odpowiedzi ({learner.progress.answers.size})</summary>
+              <summary>{t('cogitaViewsStats.module.myAnswers', { count: learner.progress.answers.size })}</summary>
               <AnswerLog progress={learner.progress} cards={cards} shown={cards} />
             </details>
           </>

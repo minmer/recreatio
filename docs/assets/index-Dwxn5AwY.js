@@ -1,1 +1,0 @@
-import{_}from"./preload-helper-BxaVoaJg.js";import{setLangLoader as t}from"./i18n-CnmI5RN2.js";import"./vendor-Za3KE53c.js";const r={en:()=>_(()=>import("./bundle-en-CRKRUr_B.js"),[]),de:()=>_(()=>import("./bundle-de-CrgU5TR7.js"),[]),pl:()=>_(()=>import("./bundle-pl-DYIIWjzV.js"),[])};t(async o=>(await r[o]()).default);

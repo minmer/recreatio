@@ -16,6 +16,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useT } from '../core/i18n';
 
 import { pagePath, pageSteps, viewPath } from '../routes';
 import { formatBible, parseBible, type BibleSpan } from './bible';
@@ -48,6 +49,7 @@ const FIRST_ROWS = 8;
 
 function RowList({ rows }: { rows: readonly Row[] }) {
   const [all, setAll] = useState(false);
+  const t = useT();
   const shown = all ? rows : rows.slice(0, FIRST_ROWS);
   return (
     <>
@@ -59,7 +61,7 @@ function RowList({ rows }: { rows: readonly Row[] }) {
           </li>
         ))}
       </ul>
-      {rows.length > FIRST_ROWS && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? 'Pokaż mniej' : `Pokaż wszystkie (${rows.length})`}</button>}
+      {rows.length > FIRST_ROWS && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? t('libraryData.quotes.showLess') : t('libraryData.quotes.showAll', { n: rows.length })}</button>}
     </>
   );
 }
@@ -74,13 +76,14 @@ function Reach({ store }: { store: LibraryStore }) {
   const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
   const stores = loadedStores();
   const bases = stores.filter((s) => !isBooks(s)).length;
+  const t = useT();
   return (
     <p className="lib-rel-where">
-      Przeszukano {stores.length - bases} bibliotek i {bases} baz wiedzy otwartych w tej karcie.{' '}
+      {t('library.rel.searched', { libraries: t('library.rel.libraries', { count: stores.length - bases }), bases: t('library.rel.bases', { count: bases }) })}{' '}
       {state !== 'done' && (
         <button type="button" className="wk-link-btn" disabled={state === 'busy'}
           onClick={() => { setState('busy'); void store.openEverything().finally(() => setState('done')); }}>
-          {state === 'busy' ? 'Otwieranie…' : 'Szukaj we wszystkich, które możesz czytać'}
+          {state === 'busy' ? t('library.rel.opening') : t('library.rel.searchAll')}
         </button>
       )}
     </p>
@@ -92,20 +95,21 @@ function Reach({ store }: { store: LibraryStore }) {
 function UsedOnPages({ store, entry }: { store: LibraryStore; entry: Entry }) {
   const [pages, setPages] = useState<readonly PageUse[] | 'busy' | 'failed' | null>(null);
   const list = typeof pages === 'object' && pages !== null ? pages : null;
-  const look = () => { setPages('busy'); void pagesUsing(new Set([entry.id]), (t) => refTarget(store, t)?.id).then(setPages, () => setPages('failed')); };
+  const t = useT();
+  const look = () => { setPages('busy'); void pagesUsing(new Set([entry.id]), (token) => refTarget(store, token)?.id).then(setPages, () => setPages('failed')); };
   return (
     <>
-      <p className="lib-box-sub">Na stronach, które prowadzisz</p>
-      {pages === null && <button type="button" className="wk-link-btn" onClick={look}>Sprawdź strony</button>}
-      {pages === 'busy' && <p className="lib-rel-where">Sprawdzanie stron…</p>}
-      {pages === 'failed' && <p className="wk-error">Nie udało się sprawdzić stron.</p>}
-      {list !== null && list.length === 0 && <p className="lib-rel-where">Żadna z Twoich stron go nie pokazuje.</p>}
+      <p className="lib-box-sub">{t('library.rel.onPages')}</p>
+      {pages === null && <button type="button" className="wk-link-btn" onClick={look}>{t('library.rel.checkPages')}</button>}
+      {pages === 'busy' && <p className="lib-rel-where">{t('library.rel.checking')}</p>}
+      {pages === 'failed' && <p className="wk-error">{t('library.rel.checkFailed')}</p>}
+      {list !== null && list.length === 0 && <p className="lib-rel-where">{t('library.rel.noPages')}</p>}
       {list !== null && list.length > 0 && (
         <ul className="lib-rel">
           {list.map((page) => (
             <li key={page.path}>
               <a href={pagePath(page.path)}>{page.title}</a>
-              <span className="lib-rel-where"> — {page.parts.map((p) => p.label).join(', ')} · <a href={viewPath('pages', ...pageSteps(page.path))}>edytuj</a></span>
+              <span className="lib-rel-where"> — {page.parts.map((p) => p.label).join(', ')} · <a href={viewPath('pages', ...pageSteps(page.path))}>{t('library.rel.edit')}</a></span>
             </li>
           ))}
         </ul>
@@ -130,32 +134,33 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
   const others = rowsOf(fromBooks.filter((h) => !KIND_ORDER.includes(h.from.kind)));
   const bases = [...new Set(fromBases.map((h) => h.store))].map((s) => ({ store: s, rows: rowsOf(fromBases.filter((h) => h.store === s)) }));
   const names = openedLibraryNames();
+  const t = useT();
   const cited = entry.kind === 'text' || entry.kind === 'delivery'
     ? citedKeys(...markupsOf(entry)).map((k) => refTarget(store, k) as Entry | undefined).filter((e): e is Entry => e !== undefined) : [];
 
   return (
     <section className="lib-box">
-      <h2 className="lib-box-h">Powiązania</h2>
+      <h2 className="lib-box-h">{t('library.rel.title')}</h2>
       {entry.kind === 'work' && (
         <>
-          <p className="lib-box-sub">Cytaty z tego źródła: {new Set(quotes.map((q) => q.from.id)).size} <span className="lib-rel-where">— lista i dodawanie pod polami</span></p>
-          {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'quote', `work=${entry.id}`)}>+ Cytat (pełny formularz)</a>}
+          <p className="lib-box-sub">{t('library.rel.quotesOf', { n: new Set(quotes.map((q) => q.from.id)).size })} <span className="lib-rel-where">{t('library.rel.quotesBelow')}</span></p>
+          {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'quote', `work=${entry.id}`)}>{t('library.rel.addQuote')}</a>}
         </>
       )}
       {byKind.map((g) => (
         <div key={g.kind}>
-          <p className="lib-box-sub">{g.kind === 'text' ? 'Przywołują go teksty' : kindOf(g.kind)?.plural ?? g.kind}</p>
+          <p className="lib-box-sub">{g.kind === 'text' ? t('library.rel.citedByTexts') : kindOf(g.kind)?.plural ?? g.kind}</p>
           <RowList rows={g.rows} />
         </div>
       ))}
-      {others.length > 0 && <><p className="lib-box-sub">Inne</p><RowList rows={others} /></>}
+      {others.length > 0 && <><p className="lib-box-sub">{t('library.rel.other')}</p><RowList rows={others} /></>}
       {bases.map((b) => (
         <div key={b.store.libraryId}>
-          <p className="lib-box-sub">W bazie wiedzy „{names.get(b.store.libraryId) ?? 'Baza wiedzy'}”</p>
+          <p className="lib-box-sub">{t('library.rel.inBase', { name: names.get(b.store.libraryId) ?? t('library.rel.base') })}</p>
           <RowList rows={b.rows} />
         </div>
       ))}
-      {cited.length > 0 && <><p className="lib-box-sub">Ten tekst przywołuje</p><RowList rows={cited.map((c) => ({ entry: c, store, places: [] }))} /></>}
+      {cited.length > 0 && <><p className="lib-box-sub">{t('library.rel.thisCites')}</p><RowList rows={cited.map((c) => ({ entry: c, store, places: [] }))} /></>}
       <UsedOnPages store={store} entry={entry} />
       <Reach store={store} />
     </section>
@@ -173,12 +178,13 @@ export function Relations({ store, library, entry }: { store: LibraryStore; libr
 export function PassageBox({ store, work }: { store: LibraryStore; work: Entry }) {
   const [query, setQuery] = useState('');
   const spans = useMemo(() => parseBible(query), [query]);
+  const t = useT();
   return (
     <section className="lib-box">
-      <h2 className="lib-box-h">Fragment Pisma</h2>
-      <input value={query} aria-label="Fragment Pisma" placeholder="np. Dz 1,14 · Acts 1:14 · J 3,16-18"
+      <h2 className="lib-box-h">{t('library.rel.passage')}</h2>
+      <input value={query} aria-label={t('library.rel.passage')} placeholder={t('library.rel.passagePlaceholder')}
         onChange={(e) => setQuery(e.target.value)} />
-      {query.trim() !== '' && spans.length === 0 && <p className="wk-warn">Nie rozpoznaję tej księgi albo miejsca (np. „Łk 1,26-38”, „Ps 23”, „1 Kor 13,4-7”).</p>}
+      {query.trim() !== '' && spans.length === 0 && <p className="wk-warn">{t('library.rel.passageUnknown')}</p>}
       <PassageList store={store} spans={spans} work={work} />
     </section>
   );
@@ -190,6 +196,7 @@ export function PassageBox({ store, work }: { store: LibraryStore; work: Entry }
  * `work`: die Ausgabe, in der man steht — andere tragen ihr Siglum.
  */
 export function PassageList({ store, spans, work }: { store: LibraryStore; spans: readonly BibleSpan[]; work?: Entry }) {
+  const t = useT();
   const found = passageHits(referenceIndex(loadedStores(), isBooks), spans);
   const rows = new Map<string, { entry: Entry; store: LibraryStore; places: string[] }>();
   for (const one of found) {
@@ -202,12 +209,12 @@ export function PassageList({ store, spans, work }: { store: LibraryStore; spans
   if (spans.length === 0) return null;
   return (
     <>
-      <p className="lib-box-sub">{formatBible(spans)} — {rows.size === 0 ? 'nic tu nie wskazuje' : `${rows.size} ${rows.size === 1 ? 'wpis' : 'wpisów'}`}</p>
+      <p className="lib-box-sub">{formatBible(spans)} — {rows.size === 0 ? t('library.rel.nothingPoints') : t('library.list.entries', { count: rows.size })}</p>
       {rows.size > 0 && (
         <ul className="lib-rel">
           {[...rows.values()].map((row) => (
             <li key={row.entry.id}>
-              <span className="lib-rel-kind">{isBooks(row.store) ? kindOf(row.entry.kind)?.label ?? row.entry.kind : 'Baza wiedzy'}</span>{' '}
+              <span className="lib-rel-kind">{isBooks(row.store) ? kindOf(row.entry.kind)?.label ?? row.entry.kind : t('library.rel.base')}</span>{' '}
               <a href={hitHref(row.entry, row.store)}>{hitTitle(row.entry, row.store)}</a>
               <span className="lib-rel-where"> — {row.places.join('; ')}</span>
             </li>

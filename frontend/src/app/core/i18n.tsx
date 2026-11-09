@@ -260,7 +260,8 @@ export function useT(): T {
  * `section` (die Wahl des Menschen für diesen Teil der Anwendung). `lang` geht vor `section`;
  * ohne beide gilt die Sprache darüber. Bis die Sprache geladen ist, steht die darüber.
  */
-export function LangScope({ lang, section, children }: { lang?: Lang | null; section?: Section; children: ReactNode }) {
+/* `bare`: nur die Sprache, kein Rahmen im DOM — wo Regeln mit `>` (`.wk-card > …`) an den Kindern hängen (Bausteine einer Seite). */
+export function LangScope({ lang, section, bare = false, children }: { lang?: Lang | null; section?: Section; bare?: boolean; children: ReactNode }) {
   const parent = useLang();
   useSyncExternalStore(subscribe, () => S.version, () => S.version);
   const wanted = (isLang(lang) ? lang : null) ?? (section !== undefined ? sectionLang(section) : null) ?? parent;
@@ -269,6 +270,7 @@ export function LangScope({ lang, section, children }: { lang?: Lang | null; sec
     if (!langLoaded(wanted)) void loadLang(wanted).then(() => bump((n) => n + 1));
   }, [wanted]);
   const now = langLoaded(wanted) ? wanted : parent;
+  if (bare) return <LangContext.Provider value={now}>{children}</LangContext.Provider>;
   return (
     <LangContext.Provider value={now}>
       <div lang={now} style={{ display: 'contents' }}>{children}</div>

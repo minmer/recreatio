@@ -18,6 +18,7 @@ import {
   enteredText, fieldKind, fieldShown, fieldUnit, plainOf, quantityEnvelope } from './schema';
 import { QUESTION } from './kinds';
 import { TexText } from '../ui/tex/Tex';
+import { useT } from '../core/i18n';
 import { QuestionFields, QuestionPreview } from './QuestionFields';
 import { tidyQuestion } from './questionTypes';
 import { kindById, parseQuantity, unitById } from '../core/quantities';
@@ -54,6 +55,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   const { lib, writes, me } = useCtx();
   const existing = entityId === null ? undefined : lib.entity(entityId);
   /* 2026-10-23 — ohne eingebaute Inhalte: ein neuer Eintrag beginnt beim ersten eigenen Rodzaj (sonst als Pytanie, das bleibt eingebaut). */
+  const t = useT();
   const fallback = lib.kinds[0]?.id ?? 'question';
   const [kinds, setKinds] = useState<readonly string[]>(existing?.kinds ?? newKinds ?? [fallback]);
   const [data, setData] = useState<Record<string, unknown>>({ ...(existing?.data ?? {}) });
@@ -68,7 +70,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, existing === undefined ? '' : JSON.stringify(existing)]);
 
-  if (entityId !== null && existing === undefined) return <p className="wk-empty">Tego wpisu nie ma (albo został połączony z innym).</p>;
+  if (entityId !== null && existing === undefined) return <p className="wk-empty">{t('cogitaEdit.entity.missing')}</p>;
 
   const draft: Entity = { id: entityId ?? 'new', kinds, data };
   const look = lib.look;
@@ -93,7 +95,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   const save = () => run(async () => {
     const saved = await lib.saveEntity({ ...(entityId === null ? {} : { id: entityId }), kinds, data: asks ? tidyQuestion(data) : data });
     setDirty(false);
-    setSaid('Zapisano.');
+    setSaid(t('cogitaEdit.entity.saved'));
     if (entityId === null) onDone(saved.id);
   });
 
@@ -109,9 +111,9 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
       <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); if (writes) void save(); }}>
         <div className="cg-row-between">
           {/* 2026-11-01 — das Etikett mit seinen Wzory gesetzt. */}
-          <h2 className="wk-h2">{entityId === null ? 'Nowy wpis' : <TexText text={labelOf(draft, look, 0, false, true)} />}</h2>
+          <h2 className="wk-h2">{entityId === null ? t('cogitaEdit.entity.new') : <TexText text={labelOf(draft, look, 0, false, true)} />}</h2>
           <span className="cg-row">
-            {dirty && <span className="cg-tag is-warn">niezapisane</span>}
+            {dirty && <span className="cg-tag is-warn">{t('cogitaEdit.entity.unsaved')}</span>}
           </span>
         </div>
         <KindsRow kinds={kinds} writes={writes} onChange={(k) => { setKinds(k); setDirty(true); }} />
@@ -128,13 +130,13 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
           <FieldEditor key={field.key} field={field} raw={data[field.key]} writes={writes} onChange={(v) => change(field.key, v)} onOpen={onOpen} />
         ))}
         {outside.length > 0 && (
-          <fieldset className="cg"><legend>Poza schematem</legend>
-            <p className="wk-hint">Te wartości zostały po zmianie rodzaju — pole usunięto albo zmienił się jego typ. Zostają, dopóki nie zdecydujesz.</p>
+          <fieldset className="cg"><legend>{t('cogitaEdit.entity.outside')}</legend>
+            <p className="wk-hint">{t('cogitaEdit.entity.outsideHint')}</p>
             {outside.map((o) => (
               <div key={o.key} className="cg-row">
                 <code>{o.key}</code> <span className="cg-muted">{JSON.stringify(o.raw).slice(0, 120)}</span>
-                <span className="cg-tag">{o.reason === 'removed' ? 'pole usunięte' : 'inny typ'}</span>
-                {writes && <button type="button" className="wk-link-btn" onClick={() => change(o.key, undefined)}>usuń wartość</button>}
+                <span className="cg-tag">{o.reason === 'removed' ? t('cogitaEdit.entity.fieldRemoved') : t('cogitaEdit.entity.otherType')}</span>
+                {writes && <button type="button" className="wk-link-btn" onClick={() => change(o.key, undefined)}>{t('cogitaEdit.entity.removeValue')}</button>}
               </div>
             ))}
           </fieldset>
@@ -143,13 +145,13 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {said !== null && !dirty && <p className="wk-hint">{said}</p>}
         {writes && (
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy || !dirty}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
+            <button type="submit" className="wk-btn" disabled={busy || !dirty}>{busy ? t('common.saving') : t('common.save')}</button>
             {entityId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => {
               /* 2026-11-05 (Prompt 24) — was andere Welten hierher verlinkt, wird dort zerwany: vorher nennen. */
               const incoming = me === null ? '' : incomingText(await incomingLinksFor(me, lib, new Set([entityId])).catch(() => []));
-              if (!(await askText(`Usunąć ten wpis? Zostanie w historii wersji.${incoming === '' ? '' : `\n\n${incoming}`}`))) return;
+              if (!(await askText(`${t('cogitaEdit.entity.askDelete')}${incoming === '' ? '' : `\n\n${incoming}`}`))) return;
               void run(async () => { await lib.remove(entityId); onDone(null); });
-            }}>Usuń</button>}
+            }}>{t('common.delete')}</button>}
           </div>
         )}
       </form>
@@ -158,9 +160,9 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {asks && <QuestionPreview id={entityId ?? 'new'} data={data} lib={lib} />}
         {existing !== undefined && knowledgeLike && changedLinks.length > 0 && (
           <div className="cg-card">
-            <strong>Zmieniło się, o czym jest ten wpis</strong>
+            <strong>{t('cogitaEdit.entity.linksChanged')}</strong>
             <span className="cg-muted"><TexText text={changedLinks.map((id) => entityNameTex(lib, id)).join(', ')} /></span>
-            {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.markChecked(existing.id))}>Sprawdzone</button>}
+            {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.markChecked(existing.id))}>{t('cogitaEdit.entity.checked')}</button>}
           </div>
         )}
         {/* 2026-11-05 (Prompt 23, A2/A3) — eine Folie einer Erzählung: „Zobacz w opowieści“ und die Fragen zu ihr („Ćwicz“). */}
@@ -181,20 +183,21 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
 /* -- Arten -------------------------------------------------------------------------------- */
 
 function KindsRow({ kinds, writes, onChange }: { kinds: readonly string[]; writes: boolean; onChange: (k: readonly string[]) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const [adding, setAdding] = useState('');
   return (
     <div className="cg-row">
-      <span className="cg-muted">Rodzaje:</span>
+      <span className="cg-muted">{t('cogitaEdit.entity.kinds')}</span>
       {kinds.map((k, i) => (
         <span key={k} className="cg-tag">
-          {lib.kind(k)?.name ?? k}{i === 0 ? ' (etykieta)' : ''}
-          {writes && kinds.length > 1 && <button type="button" className="wk-link-btn" aria-label="Usuń rodzaj" onClick={() => onChange(kinds.filter((x) => x !== k))}>×</button>}
+          {lib.kind(k)?.name ?? k}{i === 0 ? t('cogitaEdit.entity.labelKind') : ''}
+          {writes && kinds.length > 1 && <button type="button" className="wk-link-btn" aria-label={t('cogitaEdit.entity.removeKind')} onClick={() => onChange(kinds.filter((x) => x !== k))}>×</button>}
         </span>
       ))}
       {writes && (
-        <select value={adding} onChange={(e) => { if (e.target.value !== '') onChange([...kinds, e.target.value]); setAdding(''); }} aria-label="Dodaj rodzaj">
-          <option value="">+ rodzaj</option>
+        <select value={adding} onChange={(e) => { if (e.target.value !== '') onChange([...kinds, e.target.value]); setAdding(''); }} aria-label={t('cogitaEdit.entity.addKind')}>
+          <option value="">{t('cogitaEdit.entity.addKindOption')}</option>
           {lib.kinds.filter((k) => !kinds.includes(k.id)).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
       )}
@@ -206,13 +209,14 @@ function KindsRow({ kinds, writes, onChange }: { kinds: readonly string[]; write
 
 /** 2026-10-23 — exportiert: das Skryptorium füllt die Felder eines Rodzaj tekstu mit demselben Feld. */
 export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+  const t = useT();
   const whole = field.type === 'list' || field.type === 'outline';
   const many = field.multi && !whole ? (Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw]) : null;
   const kind = fieldKind(field);
   const label = <span>{field.label}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}{kind !== undefined ? ` (${kindById(kind)?.label ?? kind})` : ''}</span></span>;
 
   if (field.type === 'outline') {
-    return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Skryptorium ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;
+    return <div className="wk-field">{label}<span className="wk-hint">{t('cogitaEdit.entity.outline', { n: Array.isArray(raw) ? raw.length : 0 })}</span></div>;
   }
   /* 2026-10-23 — Treść w blokach: Absätze, Listen, Tabellen mit echten Verweisen — die Teza ist der erste Satz. */
   if (field.type === 'blocks') return <BlocksField field={field} raw={raw} writes={writes} onChange={onChange} label={label} />;
@@ -228,10 +232,10 @@ export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: F
               if (v === undefined) next.splice(i, 1); else next[i] = v;
               onChange(next);
             }} />
-            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń wartość" onClick={() => onChange(many.filter((_, j) => j !== i))}>×</button>}
+            {writes && <button type="button" className="wk-link-btn" aria-label={t('cogitaEdit.entity.removeValueAria')} onClick={() => onChange(many.filter((_, j) => j !== i))}>×</button>}
           </div>
         ))}
-        {writes && <button type="button" className="wk-link-btn" onClick={() => onChange([...many, field.uncertain ? { value: '', state: 'known' } : ''])}>+ wartość</button>}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => onChange([...many, field.uncertain ? { value: '', state: 'known' } : ''])}>{t('cogitaEdit.entity.addValue')}</button>}
         <Says field={field} />
       </fieldset>
     );
@@ -251,12 +255,13 @@ const Says = ({ field }: { field: FieldDef }) => (field.says === undefined ? nul
 
 /** 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle: „Ps 110", „s. 23"; gelesen, wenn das Ziel eine Bibel ist. */
 function PlaceInput({ field, target, locator, writes, onChange }: { field: FieldDef; target: unknown; locator: string; writes: boolean; onChange: (locator: string | undefined) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const entity = typeof target === 'string' ? lib.entity(target) : undefined;
   const bible = entity?.data.workType === 'bible';
   return (
     <span className="cg-row">
-      <input value={locator} disabled={!writes} aria-label={`Miejsce: ${field.label}`} placeholder={bible ? 'Ps 110, Łk 1,46-55' : 's. 23, rozdz. 4'} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} />
+      <input value={locator} disabled={!writes} aria-label={t('cogitaEdit.entity.place', { field: field.label })} placeholder={bible ? t('cogitaEdit.entity.placeBible') : t('cogitaEdit.entity.placeBook')} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} />
       {locator !== '' && <span className="cg-muted"><TexText text={placeText(entity, locator, entity === undefined ? '' : lib.labelTex(entity))} /></span>}
       {/* 2026-10-24 — hat das Werk einen Text: die Stelle darin (`library/SourceJump.tsx`). */}
       {/* 2026-10-25 — mit dem Speicher des Werks: lädt die Bibliothek mit dem Text später, erscheint der Link dann (wie in der Struktura). */}
@@ -272,6 +277,7 @@ function PlaceInput({ field, target, locator, writes, onChange }: { field: Field
  * anderen Grösse wird nicht angenommen.
  */
 function QuantityInput({ field, env, writes, onEnvelope }: { field: FieldDef; env: Record<string, unknown>; writes: boolean; onEnvelope: (patch: { value: number; unit: string; si: number } | null) => void }) {
+  const t = useT();
   const shown = (): string => {
     const value = typeof env.value === 'number' ? env.value : null;
     if (value === null) return '';
@@ -285,8 +291,8 @@ function QuantityInput({ field, env, writes, onEnvelope }: { field: FieldDef; en
   const commit = () => {
     if (draft.trim() === '') { setSaid(null); onEnvelope(null); return; }
     const read = parseQuantity(draft);
-    if (read === null) { setSaid('To nie jest liczba.'); return; }
-    if (read.unitText !== '' && read.unit === undefined) { setSaid(`Nie znam jednostki „${read.unitText}”.`); return; }
+    if (read === null) { setSaid(t('cogitaEdit.entity.notNumber')); return; }
+    if (read.unitText !== '' && read.unit === undefined) { setSaid(t('cogitaEdit.entity.unknownUnit', { unit: read.unitText })); return; }
     const made = quantityEnvelope(field, read.value, read.unit);
     if ('error' in made) { setSaid(made.error); return; }
     setSaid(null);
@@ -294,7 +300,7 @@ function QuantityInput({ field, env, writes, onEnvelope }: { field: FieldDef; en
   };
   return (
     <span className="cg-row">
-      <input value={draft} disabled={!writes} inputMode="decimal" aria-label={field.label} placeholder={`np. 12 ${fieldUnit(field)?.symbol ?? ''}`.trim()}
+      <input value={draft} disabled={!writes} inputMode="decimal" aria-label={field.label} placeholder={t('cogitaEdit.entity.quantityPh', { unit: fieldUnit(field)?.symbol ?? '' }).trim()}
         onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }} />
       {said !== null && <span className="wk-error">{said}</span>}
     </span>
@@ -303,6 +309,7 @@ function QuantityInput({ field, env, writes, onEnvelope }: { field: FieldDef; en
 
 /** Ein Wert — in seiner Hülle, wenn das Feld unsicher sein darf (Stand, Quelle, Notiz) oder eine Stelle trägt (Schritt 11). */
 function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+  const t = useT();
   /* 2026-10-23 (Schritt 13) — ein Grössenfeld: die Hülle { value, unit, si } (bei einem unsicheren Feld mit Stand, Quelle, Notiz darin). */
   if (fieldKind(field) !== undefined && fieldUnit(field) !== undefined && !field.uncertain) {
     const env: Record<string, unknown> = isEnvelope(raw) ? raw : raw === undefined ? {} : { value: raw };
@@ -339,31 +346,33 @@ function OneValue({ field, raw, writes, onChange, onOpen }: { field: FieldDef; r
         {withValue && (fieldKind(field) !== undefined && fieldUnit(field) !== undefined
           ? <QuantityInput field={field} env={env} writes={writes} onEnvelope={(made) => set(made === null ? { value: undefined, unit: undefined, si: undefined } : made)} />
           : <PlainValue field={field} value={env.value} writes={writes} onChange={(v) => set({ value: v })} onOpen={onOpen} />)}
-        <select value={state} disabled={!writes} onChange={(e) => set({ state: e.target.value })} aria-label="Pewność">
+        <select value={state} disabled={!writes} onChange={(e) => set({ state: e.target.value })} aria-label={t('cogitaEdit.entity.certainty')}>
           {VALUE_STATES.map((s) => <option key={s} value={s}>{VALUE_STATE_LABEL[s]}</option>)}
         </select>
       </div>
       {field.locator === true && <PlaceInput field={field} target={env.value} locator={typeof env.locator === 'string' ? env.locator : ''} writes={writes} onChange={(locator) => set({ locator })} />}
       <SourceRow source={source} writes={writes} onChange={(s) => set({ source: s })} />
-      <input value={typeof env.note === 'string' ? env.note : ''} placeholder="notatka" disabled={!writes} onChange={(e) => set({ note: e.target.value })} />
+      <input value={typeof env.note === 'string' ? env.note : ''} placeholder={t('cogitaEdit.entity.note')} disabled={!writes} onChange={(e) => set({ note: e.target.value })} />
     </div>
   );
 }
 
 function SourceRow({ source, writes, onChange }: { source: Record<string, unknown>; writes: boolean; onChange: (s: Record<string, unknown> | undefined) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const work = typeof source.work === 'string' ? source.work : null;
   return (
     <div className="cg-row">
-      <span className="cg-muted">Źródło:</span>
-      {writes ? <EntityPicker lib={lib} kinds={['work']} refs value={work} placeholder="dzieło z biblioteki (źródła tej bazy)" onPick={(id) => onChange(id === null ? undefined : { ...source, work: id })} />
+      <span className="cg-muted">{t('cogitaEdit.entity.source')}</span>
+      {writes ? <EntityPicker lib={lib} kinds={['work']} refs value={work} placeholder={t('cogitaEdit.entity.sourceWork')} onPick={(id) => onChange(id === null ? undefined : { ...source, work: id })} />
         : <span>{work === null ? '—' : <TexText text={entityNameTex(lib, work)} />}</span>}
-      {work !== null && <input value={typeof source.locator === 'string' ? source.locator : ''} placeholder="s. 23, J 3,16" disabled={!writes} onChange={(e) => onChange({ ...source, locator: e.target.value || undefined })} />}
+      {work !== null && <input value={typeof source.locator === 'string' ? source.locator : ''} placeholder={t('cogitaEdit.entity.sourcePlace')} disabled={!writes} onChange={(e) => onChange({ ...source, locator: e.target.value || undefined })} />}
     </div>
   );
 }
 
 function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDef; value: unknown; writes: boolean; onChange: (v: unknown) => void; onOpen: (id: string) => void }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
   const [busy, setBusy] = useState(false);
@@ -383,7 +392,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       return (
         <span className="cg-row">
           <input value={text} disabled={!writes} placeholder="1410, 1410-07, 1410-07-15, -1000" onChange={(e) => onChange(e.target.value)} />
-          <span className="cg-muted">{text === '' ? '' : date === null ? 'nieczytelna data' : dateText(date)}</span>
+          <span className="cg-muted">{text === '' ? '' : date === null ? t('cogitaEdit.entity.badDate') : dateText(date)}</span>
         </span>
       );
     }
@@ -391,7 +400,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       return (
         <select value={value === true ? 'yes' : value === false ? 'no' : value === 'unknown' ? 'unknown' : ''} disabled={!writes}
           onChange={(e) => onChange(e.target.value === 'yes' ? true : e.target.value === 'no' ? false : e.target.value === 'unknown' ? 'unknown' : undefined)}>
-          <option value="">—</option><option value="yes">tak</option><option value="no">nie</option><option value="unknown">nie wiadomo</option>
+          <option value="">—</option><option value="yes">{t('common.yes')}</option><option value="no">{t('common.no')}</option><option value="unknown">{t('cogitaEdit.entity.unknown')}</option>
         </select>
       );
     case 'choice':
@@ -409,7 +418,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
           <span className="cg-row">
             {writes ? <EntityPicker lib={lib} kinds={field.to} refs {...creatorFor(lib, field.to, writes)} value={id} onPick={(next) => onChange(next ?? undefined)} />
               : <span>{id === null ? '—' : <TexText text={entityNameTex(lib, id)} />}</span>}
-            {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
+            {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>{t('cogitaEdit.entity.open')}</button>}
           </span>
         </CrossRefEditor>
       );
@@ -432,19 +441,19 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
               })();
             }} />
           )}
-          {busy && <span className="wk-hint">Wgrywanie i szyfrowanie…</span>}
+          {busy && <span className="wk-hint">{t('cogitaEdit.entity.uploading')}</span>}
         </span>
       );
     }
     case 'list':
-      return <textarea rows={3} value={Array.isArray(value) ? value.join('\n') : text} disabled={!writes} placeholder="jedna pozycja w wierszu, w kolejności" onChange={(e) => onChange(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean))} />;
+      return <textarea rows={3} value={Array.isArray(value) ? value.join('\n') : text} disabled={!writes} placeholder={t('cogitaEdit.entity.listPh')} onChange={(e) => onChange(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean))} />;
     case 'geo': {
       const geo = isObject(value) && typeof value.lat === 'number' && typeof value.lon === 'number' ? value as unknown as GeoPoint : null;
       return (
         <span className="cg">
           <span className="cg-row">
-            <input type="number" step="any" placeholder="szerokość" value={geo?.lat ?? ''} disabled={!writes} onChange={(e) => onChange({ lat: Number(e.target.value), lon: geo?.lon ?? 0 })} />
-            <input type="number" step="any" placeholder="długość" value={geo?.lon ?? ''} disabled={!writes} onChange={(e) => onChange({ lat: geo?.lat ?? 0, lon: Number(e.target.value) })} />
+            <input type="number" step="any" placeholder={t('cogitaEdit.entity.lat')} value={geo?.lat ?? ''} disabled={!writes} onChange={(e) => onChange({ lat: Number(e.target.value), lon: geo?.lon ?? 0 })} />
+            <input type="number" step="any" placeholder={t('cogitaEdit.entity.lon')} value={geo?.lon ?? ''} disabled={!writes} onChange={(e) => onChange({ lat: geo?.lat ?? 0, lon: Number(e.target.value) })} />
           </span>
           <GeoMap zoom={geo === null ? 6 : 13} center={geo ?? { lat: 51.9, lon: 19.1 }} marks={geo === null ? [] : [{ ...geo, kind: 'pin' }]} onPick={writes ? (at) => onChange({ lat: Number(at.lat.toFixed(6)), lon: Number(at.lon.toFixed(6)) }) : undefined} height="14rem" />
         </span>
@@ -472,22 +481,23 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
 
 /** Auszeichnung mit Vorschau — und ein Verweis auf einen Eintrag, aus der Suche eingefügt [C3]. */
 function MarkupInput({ value, writes, onChange, onOpen }: { value: string; writes: boolean; onChange: (v: string) => void; onOpen: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const [linking, setLinking] = useState(false);
   return (
     <span className="cg">
       <textarea rows={4} value={value} disabled={!writes} onChange={(e) => onChange(e.target.value)} />
       {writes && (linking
-        ? <EntityPicker lib={lib} refs value={null} placeholder="do którego wpisu?" onPick={(id) => {
+        ? <EntityPicker lib={lib} refs value={null} placeholder={t('cogitaEdit.entity.linkTo')} onPick={(id) => {
             setLinking(false);
             if (id === null) return;
             const entity = lib.entity(id);
             /* 2026-11-01 — der Wortlaut des Verweises mit seinen Wzory (`$…$`), wenn er die Klammern des Verweises nicht stört. */
             const tex = entity === undefined ? '' : lib.labelTex(entity);
-            const name = entity === undefined ? 'wpis' : tex.includes(']]') || tex.includes('|@') ? lib.label(entity) : tex;
+            const name = entity === undefined ? t('cogitaEdit.entity.entryWord') : tex.includes(']]') || tex.includes('|@') ? lib.label(entity) : tex;
             onChange(`${value}${value.endsWith(' ') || value === '' ? '' : ' '}[[${name}|@${id}]]`);
           }} />
-        : <button type="button" className="wk-link-btn" onClick={() => setLinking(true)}>+ odwołanie do wpisu</button>)}
+        : <button type="button" className="wk-link-btn" onClick={() => setLinking(true)}>{t('cogitaEdit.entity.addLink')}</button>)}
       {value.trim() !== '' && <div className="cg-card"><Markup text={value} onEntity={onOpen} lib={lib} /></div>}
     </span>
   );
@@ -500,6 +510,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const links = lib.backlinks(entity.id);
   /*
@@ -520,7 +531,7 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
   const by = new Map<string, string[]>();
   for (const l of links) by.set(l.label, [...(by.get(l.label) ?? []), l.from]);
   return (
-    <Section title="Odwołują się tutaj">
+    <Section title={t('cogitaEdit.entity.backlinks')}>
       {[...by.entries()].map(([label, ids]) => (
         <div key={label}>
           <span className="cg-muted">{label}:</span>{' '}
@@ -529,7 +540,7 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
       ))}
       {more.size > 0 && (
         <div>
-          <span className="cg-muted">Wspominają go:</span>{' '}
+          <span className="cg-muted">{t('cogitaEdit.entity.mentions')}</span>{' '}
           {[...more.values()].map(({ hit, places }, i) => (
             <span key={hit.from.id}>
               {i > 0 && ', '}
@@ -549,17 +560,18 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
 const moreHits = (id: string) => referenceIndex(loadedStores(), isBooksStore).to(id);
 
 function EntityCards({ entity }: { entity: Entity }) {
+  const t = useT();
   const { lib } = useCtx();
   const cards = useAsync(() => lib.cardsFor(entity.id, 'preview'), [entity.id, lib.revision]);
-  if (cards === undefined) return <Section title="Karty"><span className="wk-hint">Liczenie kart…</span></Section>;
-  if (cards === null || cards.length === 0) return <Section title="Karty"><span className="wk-hint">Z tego wpisu nie powstaje jeszcze żadna karta — dodaj szablon dla jego rodzaju albo napisz pytanie.</span></Section>;
+  if (cards === undefined) return <Section title={t('cogitaEdit.entity.cards')}><span className="wk-hint">{t('cogitaEdit.entity.counting')}</span></Section>;
+  if (cards === null || cards.length === 0) return <Section title={t('cogitaEdit.entity.cards')}><span className="wk-hint">{t('cogitaEdit.entity.noCards')}</span></Section>;
   return (
-    <Section title={`Karty (${cards.length})`}>
+    <Section title={t('cogitaEdit.entity.cardsN', { n: cards.length })}>
       <ul className="cg-muted">
         {/* 2026-11-01 — Frage und Antwort je eine Zeile, ihre Wzory gesetzt. */}
         {cards.slice(0, 12).map((c) => {
           const prompt = plainOf(c.prompt.map((p) => p.text).join(' '), 'inline');
-          return <li key={c.key}>{prompt === '' ? '(obraz/dźwięk)' : <TexText text={prompt} />} → <strong><TexText text={answerText(c)} /></strong></li>;
+          return <li key={c.key}>{prompt === '' ? t('cogitaEdit.entity.media') : <TexText text={prompt} />} → <strong><TexText text={answerText(c)} /></strong></li>;
         })}
       </ul>
     </Section>
@@ -567,18 +579,19 @@ function EntityCards({ entity }: { entity: Entity }) {
 }
 
 function Merge({ entity, onMerged }: { entity: Entity; onMerged: () => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const [other, setOther] = useState<string | null>(null);
   const { busy, failed, run } = useBusy();
   return (
-    <Section title="Połącz z duplikatem">
-      <span className="wk-hint">Wszystkie odwołania do duplikatu przejdą na ten wpis; duplikat zniknie (zostanie w historii).</span>
-      <EntityPicker lib={lib} kinds={entity.kinds} value={other} onPick={setOther} placeholder="który wpis to duplikat?" />
+    <Section title={t('cogitaEdit.entity.merge')}>
+      <span className="wk-hint">{t('cogitaEdit.entity.mergeHint')}</span>
+      <EntityPicker lib={lib} kinds={entity.kinds} value={other} onPick={setOther} placeholder={t('cogitaEdit.entity.mergeWhich')} />
       {other !== null && other !== entity.id && (
         <button type="button" className="wk-btn" disabled={busy} onClick={async () => {
-          if (!(await askText(`Połączyć „${entityName(lib, other)}" z „${lib.label(entity)}"?`))) return;
+          if (!(await askText(t('cogitaEdit.entity.askMerge', { other: entityName(lib, other), name: lib.label(entity) })))) return;
           void run(async () => { await lib.merge(entity.id, other); setOther(null); onMerged(); });
-        }}>{busy ? 'Łączenie…' : 'Połącz'}</button>
+        }}>{busy ? t('cogitaEdit.entity.merging') : t('cogitaEdit.entity.mergeDo')}</button>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </Section>
@@ -586,29 +599,30 @@ function Merge({ entity, onMerged }: { entity: Entity; onMerged: () => void }) {
 }
 
 function History({ entityId, onRestored }: { entityId: string; onRestored: () => void }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const [open, setOpen] = useState(false);
   const versions = useAsync(open ? () => loadVersions(lib.libraryId, entityId).then((r) => r.versions) : null, [open, entityId, lib.revision]);
   const { busy, failed, run } = useBusy();
   const keys = useMemo(() => (me === null ? null : areaKeys(me.ring, lib.areaId)), [me, lib.areaId]);
   return (
-    <Section title="Historia wersji">
-      {!open ? <button type="button" className="wk-link-btn" onClick={() => setOpen(true)}>Pokaż wcześniejsze wersje</button>
+    <Section title={t('cogitaEdit.entity.history')}>
+      {!open ? <button type="button" className="wk-link-btn" onClick={() => setOpen(true)}>{t('cogitaEdit.entity.showVersions')}</button>
         : versions === undefined ? <Loading lines={2} />
-        : versions === null ? <span className="wk-hint">Historia nie jest dostępna.</span>
-        : versions.length === 0 ? <span className="wk-hint">Nie ma jeszcze wcześniejszych wersji.</span>
+        : versions === null ? <span className="wk-hint">{t('cogitaEdit.entity.noHistory')}</span>
+        : versions.length === 0 ? <span className="wk-hint">{t('cogitaEdit.entity.noVersions')}</span>
         : (
           <ul className="cg-muted">
             {versions.map((v) => (
               <li key={v.version} className="cg-row">
-                <span>v{v.version} · {new Date(v.writtenAt).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}{v.byMe ? ' · Ty' : ''}</span>
+                <span>v{v.version} · {new Date(v.writtenAt).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' })}{v.byMe ? t('cogitaEdit.entity.byMe') : ''}</span>
                 <button type="button" className="wk-link-btn" disabled={busy || keys === null} onClick={() => void run(async () => {
                   const doc = await openVersion(lib.libraryId, entityId, v.version, await keys!);
-                  if (doc === null) throw new Error('Tej wersji nie da się otworzyć.');
+                  if (doc === null) throw new Error(t('cogitaEdit.entity.versionUnreadable'));
                   const entry = lib.entry(entityId);
                   await lib.store.save({ id: entityId, kind: entry?.kind ?? doc.kind, ...(entry?.key === undefined ? {} : { key: entry.key }), data: doc.data });
                   onRestored();
-                })}>przywróć</button>
+                })}>{t('cogitaEdit.entity.restore')}</button>
               </li>
             ))}
           </ul>
@@ -625,6 +639,7 @@ function History({ entityId, onRestored }: { entityId: string; onRestored: () =>
  * gerechnet wird: die Teza (der erste Satz) und ob sie eine Frage ist.
  */
 function BlocksField({ field, raw, writes, onChange, label }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; label: ReactNode }) {
+  const t = useT();
   const { lib } = useCtx();
   const blocks = blocksIn(raw, true);
   const thesis = thesisOf(blocks);
@@ -634,11 +649,11 @@ function BlocksField({ field, raw, writes, onChange, label }: { field: FieldDef;
       <legend>{label}</legend>
       <BlocksEditor blocks={blocks} readOnly={!writes}
         onChange={(next) => onChange(next.length === 0 ? undefined : next.map(blockData))}
-        shown={(ref) => { const e = lib.entity(ref); return { text: e === undefined ? '[odwołanie niedostępne]' : entityName(lib, ref), readable: e !== undefined }; }}
-        Picker={({ onPick }) => <EntityPicker lib={lib} refs value={null} placeholder="Szukaj wpisu (Pismo, cytat, inna wypowiedź…)" onPick={(id) => { if (id !== null) onPick(id); }} />} />
-      <p className="lib-cm-lede">Teza (pierwsze zdanie): {thesis === '' ? '—' : <>„<TexText text={thesis} />”</>}{isQuestion(blocks) ? ' — to pytanie; odpowiedzią będzie wypowiedź, która się do niego odwoła.' : ''}</p>
-      {problem === 'missing' && blocks.length > 0 && <p className="wk-warn">Zacznij od zdania, które mówi najważniejsze — to teza (nazwa wpisu, pierwsza strona karty w nauce).</p>}
-      {problem === 'long' && <p className="wk-warn">Pierwsze zdanie ma ponad {THESIS_LIMIT} znaków — skróć tezę, rozwinięcie zostaw na dalsze zdania.</p>}
+        shown={(ref) => { const e = lib.entity(ref); return { text: e === undefined ? t('cogitaEdit.entity.linkUnavailable') : entityName(lib, ref), readable: e !== undefined }; }}
+        Picker={({ onPick }) => <EntityPicker lib={lib} refs value={null} placeholder={t('cogitaEdit.entity.searchEntry')} onPick={(id) => { if (id !== null) onPick(id); }} />} />
+      <p className="lib-cm-lede">{t('cogitaEdit.entity.thesis')} {thesis === '' ? '—' : <>„<TexText text={thesis} />”</>}{isQuestion(blocks) ? t('cogitaEdit.entity.thesisQuestion') : ''}</p>
+      {problem === 'missing' && blocks.length > 0 && <p className="wk-warn">{t('cogitaEdit.entity.thesisMissing')}</p>}
+      {problem === 'long' && <p className="wk-warn">{t('cogitaEdit.entity.thesisLong', { n: THESIS_LIMIT })}</p>}
       <Says field={field} />
     </fieldset>
   );

@@ -18,6 +18,7 @@
  * Reine Rechnung — `CogitaLibrary.removeKind` führt sie aus.
  */
 
+import { t } from '../core/i18n';
 import { readAddForm } from './addForm';
 import type { GraphNode } from './graph';
 import { fieldsOf, refIndex, valuesOf, type Entity, type KindDef, type Lookup } from './schema';
@@ -81,11 +82,7 @@ export function withoutRefs(entity: Entity, look: Pick<Lookup, 'kind'>, gone: Re
   return changed ? data : null;
 }
 
-const count = (n: number, one: string, few: string, many: string): string => {
-  const last = n % 10;
-  const teen = n % 100 >= 12 && n % 100 <= 14;
-  return `${n} ${n === 1 ? one : !teen && last >= 2 && last <= 4 ? few : many}`;
-};
+const quotedList = (names: readonly string[]): string => names.map((n) => t('cogitaData.import.quoted', { name: n })).join(', ');
 
 export function planKindRemoval(input: {
   readonly kind: KindDef;
@@ -102,7 +99,7 @@ export function planKindRemoval(input: {
   const id = kind.id;
   const empty: KindRemoval = { kind, blocked: null, remove: [], narrow: [], foreign: 0, unlink: [], kinds: [], templates: [], forms: [], collections: [], lines: [] };
   if (!isBase && !isOwn(id)) {
-    return { ...empty, blocked: `Rodzaj „${kind.name}” pochodzi z innej bazy wiedzy (źródła) — usuń go tam albo odłącz to źródło w Ustawieniach.` };
+    return { ...empty, blocked: t('cogitaData.kindRemoval.foreign', { name: kind.name }) };
   }
 
   const of = input.entities.filter((e) => e.kinds.includes(id));
@@ -134,8 +131,8 @@ export function planKindRemoval(input: {
     const fields = k.fields.flatMap((f) => {
       if (f.type !== 'ref' || f.to === undefined || !f.to.includes(id)) return [f];
       touched = true;
-      if (f.to.length === 1) { fieldLines.push(`pole „${f.label}” w „${k.name}” zostanie usunięte`); return []; }
-      fieldLines.push(`pole „${f.label}” w „${k.name}” przestanie wskazywać na „${kind.name}”`);
+      if (f.to.length === 1) { fieldLines.push(t('cogitaData.kindRemoval.fieldRemoved', { field: f.label, kind: k.name })); return []; }
+      fieldLines.push(t('cogitaData.kindRemoval.fieldNarrowed', { field: f.label, kind: k.name, removed: kind.name }));
       return [{ ...f, to: f.to.filter((t) => t !== id) }];
     });
     if (touched) kinds.push({ ...k, fields });
@@ -145,12 +142,12 @@ export function planKindRemoval(input: {
   const templates: DocChange[] = [];
   const templateDropped: string[] = [];
   const templateNarrowed: string[] = [];
-  for (const t of input.templates) {
-    if (!isOwn(t.id)) continue;
-    const ks = strings(t.data.kinds);
+  for (const tpl of input.templates) {
+    if (!isOwn(tpl.id)) continue;
+    const ks = strings(tpl.data.kinds);
     if (!ks.includes(id)) continue;
-    if (ks.length === 1) { templates.push({ id: t.id, data: null }); templateDropped.push(name(t, 'Szablon')); }
-    else { templates.push({ id: t.id, data: { ...t.data, kinds: ks.filter((k) => k !== id) } }); templateNarrowed.push(name(t, 'Szablon')); }
+    if (ks.length === 1) { templates.push({ id: tpl.id, data: null }); templateDropped.push(name(tpl, t('cogitaData.worlds.doc.template'))); }
+    else { templates.push({ id: tpl.id, data: { ...tpl.data, kinds: ks.filter((k) => k !== id) } }); templateNarrowed.push(name(tpl, t('cogitaData.worlds.doc.template'))); }
   }
 
   const forms: DocChange[] = [];
@@ -181,17 +178,17 @@ export function planKindRemoval(input: {
 
   const foreign = of.length - own.length;
   const lines = [
-    isBase ? `Rodzaj „${kind.name}” zniknie z tej bazy wiedzy — gotowy można później dodać z powrotem („+ Rodzaj”).` : `Rodzaj „${kind.name}” zniknie ze schematu.`,
-    remove.length > 0 ? `${count(remove.length, 'wpis tego rodzaju zostanie usunięty', 'wpisy tego rodzaju zostaną usunięte', 'wpisów tego rodzaju zostanie usuniętych')} — razem z postępami ich kart.` : 'Nie ma wpisów tego rodzaju do usunięcia.',
-    narrow.length > 0 ? `${count(narrow.length, 'wpis ma', 'wpisy mają', 'wpisów ma')} też inny rodzaj — zostaną, bez „${kind.name}”.` : '',
-    foreign > 0 ? `${count(foreign, 'wpis pochodzi', 'wpisy pochodzą', 'wpisów pochodzi')} z innych baz wiedzy — tam zostaną.` : '',
-    unlink.length > 0 ? `${count(unlink.length, 'inny wpis odwołuje', 'inne wpisy odwołują', 'innych wpisów odwołuje')} się do usuwanych — te odwołania zostaną z nich wyjęte.` : '',
-    ...fieldLines.map((l) => `Schemat: ${l}.`),
-    templateDropped.length > 0 ? `Szablony kart do usunięcia: ${templateDropped.map((n) => `„${n}”`).join(', ')}.` : '',
-    templateNarrowed.length > 0 ? `Szablony kart, które przestaną dotyczyć „${kind.name}”: ${templateNarrowed.map((n) => `„${n}”`).join(', ')}.` : '',
-    formDropped.length > 0 ? `Formularze dodawania do usunięcia: ${formDropped.map((n) => `„${n}”`).join(', ')}.` : '',
-    formNarrowed.length > 0 ? `Formularze dodawania bez kroków tego rodzaju: ${formNarrowed.map((n) => `„${n}”`).join(', ')}.` : '',
-    collections.length > 0 ? `${count(collections.length, 'zbiór straci', 'zbiory stracą', 'zbiorów straci')} usuwane wpisy.` : ''
+    isBase ? t('cogitaData.kindRemoval.baseGone', { name: kind.name }) : t('cogitaData.kindRemoval.gone', { name: kind.name }),
+    remove.length > 0 ? t('cogitaData.kindRemoval.remove', { count: remove.length }) : t('cogitaData.kindRemoval.noRemove'),
+    narrow.length > 0 ? t('cogitaData.kindRemoval.narrow', { count: narrow.length, name: kind.name }) : '',
+    foreign > 0 ? t('cogitaData.kindRemoval.foreignEntries', { count: foreign }) : '',
+    unlink.length > 0 ? t('cogitaData.kindRemoval.unlink', { count: unlink.length }) : '',
+    ...fieldLines.map((l) => t('cogitaData.kindRemoval.schema', { line: l })),
+    templateDropped.length > 0 ? t('cogitaData.kindRemoval.templatesDropped', { list: quotedList(templateDropped) }) : '',
+    templateNarrowed.length > 0 ? t('cogitaData.kindRemoval.templatesNarrowed', { name: kind.name, list: quotedList(templateNarrowed) }) : '',
+    formDropped.length > 0 ? t('cogitaData.kindRemoval.formsDropped', { list: quotedList(formDropped) }) : '',
+    formNarrowed.length > 0 ? t('cogitaData.kindRemoval.formsNarrowed', { list: quotedList(formNarrowed) }) : '',
+    collections.length > 0 ? t('cogitaData.kindRemoval.collections', { count: collections.length }) : ''
   ].filter((l) => l !== '');
   return { kind, blocked: null, remove, narrow: narrowed, foreign, unlink, kinds, templates, forms, collections, lines };
 }

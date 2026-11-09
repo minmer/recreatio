@@ -9,6 +9,8 @@
  * Verglichen wird immer die dreizehnstellige Form.
  */
 
+import { t } from '../core/i18n';
+
 const chars = (text: string): string => text.replace(/[^0-9Xx]/g, '').toUpperCase();
 
 function check13(twelve: string): string {
@@ -48,8 +50,8 @@ export function isbnProblem(text: string): string | null {
   if (text.trim() === '') return null;
   if (isbnsIn(text).length > 0) return null;
   const n = chars(text).length;
-  if (n !== 10 && n !== 13) return `ISBN ma 10 albo 13 znaków, a tu jest ${n}.`;
-  return 'Cyfra kontrolna się nie zgadza — sprawdź numer.';
+  if (n !== 10 && n !== 13) return t('libraryData.isbn.length', { n });
+  return t('libraryData.isbn.checkDigit');
 }
 
 /** Lesbar gruppiert („978-836311045-1") — richtig trennen liesse sich nur mit den Tabellen der Verlage. */

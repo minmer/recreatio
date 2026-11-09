@@ -2,7 +2,7 @@ import { TexText } from '../ui/tex/Tex';
 import type { Words } from './lang';
 import type { PathNext } from './PathMap';
 
-/** Keep continuing, optional reading, prerequisites and completed paths distinct. */
+/** 2026-11-08 — „Co dalej" am Ende einer Erzählung: weiter, freiwillige Umwege, noch gesperrt und schon getan — getrennt. */
 export function StoryNextChoices({ choices, W, reviewOpen, onReview, onRestart }: {
   readonly choices: readonly PathNext[];
   readonly W: Words;

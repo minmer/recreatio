@@ -38,6 +38,7 @@
  */
 
 import { citedKeys, plainText } from './libraryMarkup';
+import { t } from '../core/i18n';
 
 export type Run = { readonly text: string } | { readonly ref: string; readonly locator?: string };
 export type Cell = readonly Run[];
@@ -48,10 +49,10 @@ export type CommentBlock =
   | { readonly type: 'table'; readonly columns: readonly string[]; readonly rows: readonly (readonly Cell[])[] };
 
 export const BLOCK_TYPES = [
-  { value: 'paragraph', label: 'Akapit' },
-  { value: 'ordered', label: 'Lista numerowana' },
-  { value: 'unordered', label: 'Lista punktów' },
-  { value: 'table', label: 'Tabela' }
+  { value: 'paragraph', get label() { return t('library.blocks.paragraph'); } },
+  { value: 'ordered', get label() { return t('library.blocks.ordered'); } },
+  { value: 'unordered', get label() { return t('library.blocks.unordered'); } },
+  { value: 'table', get label() { return t('library.blocks.table'); } }
 ] as const;
 
 const rec = (value: unknown): Record<string, unknown> | null =>
@@ -244,7 +245,7 @@ export function blocksText(blocks: readonly CommentBlock[]): string {
 export function blocksTitle(blocks: readonly CommentBlock[], whole = false): string {
   const plain = (text: string): string =>
     text.replace(/!?\[@[^\]]*\]/g, ' ').replace(/\^\[[^\]]*\]/g, ' ').replace(/[*_#>`]/g, '').replace(/\s+/g, ' ').trim();
-  const clip = (text: string): string => (whole || text.length <= 90 ? text : `${text.slice(0, 89).trimEnd()}…`);
+  const clip = (text: string): string => (whole || text.length <= 90 ? text : `${text.slice(0, 89).trimEnd()}…`); // i18n-ignore
   const thesis = thesisOf(blocks);
   if (thesis !== '') return clip(thesis);
   for (const block of blocks) {

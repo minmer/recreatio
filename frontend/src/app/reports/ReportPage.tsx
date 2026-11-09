@@ -21,15 +21,17 @@ import { Loading } from '../ui/Loading';
 import { isReportKind, reportAnyPath, reportStatusPath, type ReportKind } from './reportPath';
 import { KIND_WORDS, reportStatus, STATE_WORDS, targetOf, targetOfAddress, type ReportStatus, type ReportTarget } from './reports';
 import { ReportForm, whatText, type ReportWhat } from './ReportForm';
+import { t as tApp, useT, type T } from '../core/i18n';
 
 const said = (e: unknown, fallback: string) => (e instanceof WorkspaceError ? e.message : fallback);
 
-const day = (iso: string) => new Date(iso).toLocaleString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const day = (iso: string, t: T) => new Date(iso).toLocaleString(t.locale, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function ReportPage({ slug, tail }: { slug: string | null; tail: readonly string[] }) {
+  const t = useT();
   return (
     <div className="wk-report-page" data-report-page={slug ?? ''}>
-      <h1 className="wk-h1">{slug === 'stan' ? 'Stan zgłoszenia' : 'Zgłoś treść'}</h1>
+      <h1 className="wk-h1">{slug === 'stan' ? t('reports.page.statusTitle') : t('reports.reportContent')}</h1>
       {slug === 'stan' ? <StatusCheck />
         : isReportKind(slug) && (tail[0] ?? '') !== '' ? <ReportOne kind={slug} id={tail[0]} />
         : <ReportAddress />}
@@ -39,10 +41,9 @@ export function ReportPage({ slug, tail }: { slug: string | null; tail: readonly
 
 /** Wohin es geht — einmal oben, damit niemand rät. */
 function Lede() {
+  const t = useT();
   return (
-    <p className="wk-lede">
-      Zgłoszenie trafia do operatora serwisu ({operatorLine()}), który decyduje, czy treść zablokować. Zgłosić możesz to, co widzisz.
-    </p>
+    <p className="wk-lede">{t('reports.page.lede', { operator: operatorLine() })}</p>
   );
 }
 
@@ -51,6 +52,7 @@ function Lede() {
 function ReportOne({ kind, id }: { kind: ReportKind; id: string }) {
   const [target, setTarget] = useState<ReportTarget | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -67,18 +69,18 @@ function ReportOne({ kind, id }: { kind: ReportKind; id: string }) {
       } catch (e) {
         if (!alive) return;
         setTarget(null);
-        setFailed(said(e, 'Nie udało się sprawdzić, co zgłaszasz.'));
+        setFailed(said(e, t('reports.page.targetFailed')));
       }
     })();
     return () => { alive = false; };
-  }, [kind, id]);
+  }, [kind, id, t]);
 
-  if (target === undefined) return <Loading label="Sprawdzanie…" lines={2} />;
+  if (target === undefined) return <Loading label={t('seats.checking')} lines={2} />;
   if (target === null) {
     return (
       <>
         <p className="wk-error" role="alert">{failed}</p>
-        <p><a className="wk-link" href={reportAnyPath()}>Podaj adres strony, którą chcesz zgłosić</a></p>
+        <p><a className="wk-link" href={reportAnyPath()}>{t('reports.page.giveAddress')}</a></p>
       </>
     );
   }
@@ -97,6 +99,7 @@ function ReportAddress() {
   const [target, setTarget] = useState<ReportTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const look = async () => {
     setBusy(true);
@@ -104,7 +107,7 @@ function ReportAddress() {
     try {
       setTarget(await targetOfAddress(address.trim()));
     } catch (e) {
-      setFailed(said(e, 'Nie udało się znaleźć tej strony.'));
+      setFailed(said(e, t('reports.page.notFound')));
     } finally {
       setBusy(false);
     }
@@ -115,7 +118,7 @@ function ReportAddress() {
       <>
         <Lede />
         <Choose target={target} />
-        <p><button type="button" className="wk-link-btn" onClick={() => setTarget(null)}>Inny adres</button></p>
+        <p><button type="button" className="wk-link-btn" onClick={() => setTarget(null)}>{t('reports.page.otherAddress')}</button></p>
       </>
     );
   }
@@ -125,14 +128,14 @@ function ReportAddress() {
       <Lede />
       <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (address.trim() !== '' && !busy) void look(); }}>
         <label className="wk-field">
-          <span>Adres strony</span>
-          <input type="text" value={address} disabled={busy} placeholder="np. recreatio.pl/#/parafia/ogloszenia" data-report-address=""
+          <span>{t('reports.page.address')}</span>
+          <input type="text" value={address} disabled={busy} placeholder={t('reports.page.addressPlaceholder')} data-report-address=""
             onChange={(e) => setAddress(e.target.value)} />
         </label>
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy || address.trim() === ''}>{busy ? 'Szukanie…' : 'Dalej'}</button>
-          <a className="wk-link" href={reportStatusPath()}>Mam kod zgłoszenia — sprawdź stan</a>
+          <button type="submit" className="wk-btn" disabled={busy || address.trim() === ''}>{busy ? t('reports.page.searching') : t('common.next')}</button>
+          <a className="wk-link" href={reportStatusPath()}>{t('reports.page.haveCode')}</a>
         </div>
       </form>
     </>
@@ -159,13 +162,13 @@ function optionsOf(target: ReportTarget): readonly Option[] {
   for (const one of counted) total.set(one.word, Math.max(total.get(one.word) ?? 0, one.n));
 
   return [
-    { key: target.itemId, what: page, label: `Całą stronę${target.title === null ? '' : ` „${target.title}”`}`, show: null },
+    { key: target.itemId, what: page, label: target.title === null ? tApp('reports.page.wholePage') : tApp('reports.page.wholePageTitled', { title: target.title }), show: null },
     ...counted.map(({ part, word, n }) => ({
       key: part.itemId,
       what: { itemKind: part.itemKind, itemId: part.itemId, path: target.path, title: target.title } as ReportWhat,
       label: part.itemKind === 'file'
-        ? `Plik: ${word}`
-        : `Moduł: ${word}${(total.get(word) ?? 1) > 1 ? ` (${n}.)` : ''}`,
+        ? tApp('reports.page.file', { name: word })
+        : (total.get(word) ?? 1) > 1 ? tApp('reports.page.moduleN', { name: word, n }) : tApp('reports.page.module', { name: word }),
       show: part.itemKind === 'part' && target.path !== null ? `${pagePath(target.path)}?part=${encodeURIComponent(part.itemId)}` : null
     }))
   ];
@@ -176,12 +179,13 @@ function Choose({ target }: { target: ReportTarget }) {
   const [chosen, setChosen] = useState<string | null>(options.length === 1 ? options[0].key : null);
   const [going, setGoing] = useState(false);
   const picked = options.find((one) => one.key === chosen) ?? null;
+  const t = useT();
 
   if (going && picked !== null) {
     return (
       <>
         <ReportForm what={picked.what} />
-        <p><button type="button" className="wk-link-btn" onClick={() => setGoing(false)}>Wybierz coś innego</button></p>
+        <p><button type="button" className="wk-link-btn" onClick={() => setGoing(false)}>{t('reports.page.chooseOther')}</button></p>
       </>
     );
   }
@@ -190,21 +194,21 @@ function Choose({ target }: { target: ReportTarget }) {
   return (
     <div className="wk-form">
       <fieldset className="ui-choices">
-        <legend className="wk-report-legend">Co dokładnie zgłaszasz?</legend>
+        <legend className="wk-report-legend">{t('reports.page.whatExactly')}</legend>
         {options.map((one) => (
           <label key={one.key} className="ui-choice" data-report-option={one.what.itemKind}>
             <input type="radio" name="report-target" checked={chosen === one.key} onChange={() => setChosen(one.key)} />
             <span className="ui-choice-title">{one.label}</span>
             {one.show !== null && (
               <span className="ui-choice-text">
-                <a className="wk-link" href={one.show} target="_blank" rel="noopener noreferrer">pokaż na stronie</a>
+                <a className="wk-link" href={one.show} target="_blank" rel="noopener noreferrer">{t('reports.page.showOnPage')}</a>
               </span>
             )}
           </label>
         ))}
       </fieldset>
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={picked === null} onClick={() => setGoing(true)}>Dalej</button>
+        <button type="button" className="wk-btn" disabled={picked === null} onClick={() => setGoing(true)}>{t('common.next')}</button>
       </div>
     </div>
   );
@@ -217,6 +221,7 @@ function StatusCheck() {
   const [status, setStatus] = useState<ReportStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const look = async () => {
     setBusy(true);
@@ -225,7 +230,7 @@ function StatusCheck() {
     try {
       setStatus(await reportStatus(receipt));
     } catch (e) {
-      setFailed(said(e, 'Nie udało się sprawdzić.'));
+      setFailed(said(e, t('seats.first.checkFailed')));
     } finally {
       setBusy(false);
     }
@@ -233,29 +238,29 @@ function StatusCheck() {
 
   return (
     <>
-      <p className="wk-lede">Wpisz kod, który dostałeś po wysłaniu zgłoszenia.</p>
+      <p className="wk-lede">{t('reports.page.enterCode')}</p>
       <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (receipt.trim() !== '' && !busy) void look(); }}>
         <label className="wk-field">
-          <span>Kod zgłoszenia</span>
+          <span>{t('reports.page.code')}</span>
           <input type="text" className="wk-report-code" value={receipt} disabled={busy} autoComplete="off" spellCheck={false} data-report-receipt-input=""
             onChange={(e) => setReceipt(e.target.value)} />
         </label>
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy || receipt.trim() === ''}>{busy ? 'Sprawdzanie…' : 'Sprawdź'}</button>
+          <button type="submit" className="wk-btn" disabled={busy || receipt.trim() === ''}>{busy ? t('seats.checking') : t('reports.page.check')}</button>
         </div>
       </form>
 
       {status !== null && (
         <dl className="wk-report-status" data-report-state={status.state}>
-          <div><dt>Co</dt><dd>{KIND_WORDS[status.itemKind] ?? status.itemKind}</dd></div>
-          <div><dt>Stan</dt><dd><strong>{STATE_WORDS[status.state] ?? status.state}</strong></dd></div>
-          <div><dt>Wysłane</dt><dd>{day(status.receivedAt)}</dd></div>
-          {status.decidedAt !== null && <div><dt>Decyzja</dt><dd>{day(status.decidedAt)}</dd></div>}
+          <div><dt>{t('reports.page.what')}</dt><dd>{KIND_WORDS[status.itemKind] ?? status.itemKind}</dd></div>
+          <div><dt>{t('reports.page.state')}</dt><dd><strong>{STATE_WORDS[status.state] ?? status.state}</strong></dd></div>
+          <div><dt>{t('reports.page.sent')}</dt><dd>{day(status.receivedAt, t)}</dd></div>
+          {status.decidedAt !== null && <div><dt>{t('reports.page.decision')}</dt><dd>{day(status.decidedAt, t)}</dd></div>}
         </dl>
       )}
 
-      <p><a className="wk-link" href={reportAnyPath()}>Zgłoś inną treść</a></p>
+      <p><a className="wk-link" href={reportAnyPath()}>{t('reports.page.another')}</a></p>
     </>
   );
 }

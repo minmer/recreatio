@@ -17,6 +17,7 @@ import { blocksKeyOf, blocksOf, thesisOf } from './blocks';
 import type { Entry, LibraryStore } from './libraryStore';
 import type { Hit } from './refIndex';
 import { planOf, pointNumbers } from '../scriptorium/sermon';
+import { t, texts } from '../core/i18n';
 
 /** Eine Bibliothek (`books`) — nicht eine Baza wiedzy. */
 export const isBooksStore = (store: Pick<LibraryStore, 'libraryId'>): boolean => openedLibraryKind(store.libraryId) !== 'knowledge';
@@ -34,11 +35,11 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
 }
 
 /** Die Dokumente einer Baza wiedzy — mit Namen und Weg. */
-export const DOC_LABEL: Readonly<Record<string, string>> = {
-  template: 'Szablon karty', revision: 'Powtórka', flow: 'Przebieg', view: 'Widok', collection: 'Zbiór',
-  addform: 'Formularz dodawania', kind: 'Rodzaj', rules: 'Zasady', values: 'Wartości', look: 'Wygląd', contribution: 'Propozycja',
-  anchor: 'Wejście z Biblioteki', reward: 'Nagrody'
-};
+export const DOC_LABEL: Readonly<Record<string, string>> = texts({
+  template: 'library.doc.template', revision: 'library.doc.revision', flow: 'library.doc.flow', view: 'library.doc.view', collection: 'library.doc.collection',
+  addform: 'library.doc.addform', kind: 'library.doc.kind', rules: 'library.doc.rules', values: 'library.doc.values', look: 'library.doc.look', contribution: 'library.doc.contribution',
+  anchor: 'library.doc.anchor', reward: 'library.doc.reward'
+});
 const DOC_TAB: Readonly<Record<string, readonly string[]>> = {
   template: ['karty'], revision: ['powtorki'], flow: ['przebiegi'], view: ['wpisy', 'widok'], addform: ['schemat', 'formularz'], reward: ['nagrody']
 };
@@ -62,7 +63,7 @@ export function baseEntryTitle(entry: LibEntry, store: Lookup): string {
   const thesis = blocksKey === null ? '' : thesisOf(blocksOf(entry.data, blocksKey));
   const said = name || thesis || str(entry.data, 'prompt') || [str(entry.data, 'givenNames'), str(entry.data, 'surname')].filter(Boolean).join(' ')
     || plainText(str(entry.data, 'text')).replace(/\s+/g, ' ');
-  return said === '' ? 'Wpis' : clip(said, 90);
+  return said === '' ? t('library.doc.entry') : clip(said, 90);
 }
 
 /** Wohin ein Klick führt: in die Bibliothek, ins Skryptorium (2026-10-23) oder in die Baza wiedzy (ihr Reiter). */
@@ -76,10 +77,10 @@ export function hitHref(entry: Entry, store: LibraryStore): string {
   return cogitaPath(entry.libraryId, 'wpisy', entry.id);
 }
 
-const WHERE: Readonly<Record<string, string>> = {
-  body: 'w treści', further: 'w „Dalszych informacjach”', blocks: 'w treści komentarza', subjects: 'o nim', added: 'w tym, co doszło',
-  transcript: 'w zapisie wygłoszenia', outline: 'w zarysie', text: 'w treści'
-};
+const WHERE: Readonly<Record<string, string>> = texts({
+  body: 'library.where.body', further: 'library.where.further', blocks: 'library.where.blocks', subjects: 'library.where.subjects', added: 'library.where.added',
+  transcript: 'library.where.transcript', outline: 'library.where.outline', text: 'library.where.body'
+});
 
 /** Wo im Zeigenden — „plan, punkt 2.1 · Dz 1,14". */
 export function whereText(hit: Hit<LibraryStore>): string {
@@ -87,7 +88,7 @@ export function whereText(hit: Hit<LibraryStore>): string {
   let part = WHERE[field] ?? '';
   if (field === 'plan') {
     const number = at === undefined ? undefined : pointNumbers(planOf(hit.from.data)).get(at);
-    part = number === undefined ? 'w planie' : `plan, punkt ${number}`;
+    part = number === undefined ? t('library.where.plan') : t('library.where.planPoint', { n: number });
   }
   return [part, locator].filter(Boolean).join(' · ');
 }

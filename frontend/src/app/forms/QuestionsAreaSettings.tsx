@@ -12,6 +12,7 @@ import { AreaPick } from '../areas/AreaPick';
 import type { Ring } from '../core/keys';
 import { questionsAreaOf, type ModuleRow } from '../modules/module';
 import { moveQuestions } from './questionsArea';
+import { useT } from '../core/i18n';
 
 export function QuestionsAreaSettings({ module, areas, ring, busy, onAct }: {
   module: ModuleRow;
@@ -23,6 +24,7 @@ export function QuestionsAreaSettings({ module, areas, ring, busy, onAct }: {
   const own = module.areaId;
   const now = questionsAreaOf(module);
   const [picked, setPicked] = useState(now ?? '');
+  const t = useT();
   useEffect(() => { setPicked(now ?? ''); }, [now]);
 
   if (own === null || now === null) return null;
@@ -32,30 +34,30 @@ export function QuestionsAreaSettings({ module, areas, ring, busy, onAct }: {
   const ownRow = areas.find((a) => a.areaId === own);
   const choices = ownRow === undefined || led.some((a) => a.areaId === own) ? led : [ownRow, ...led];
 
-  const name = (areaId: string) => areas.find((a) => a.areaId === areaId)?.name ?? 'obszar';
+  const name = (areaId: string) => areas.find((a) => a.areaId === areaId)?.name ?? t('formsEdit.qarea.area');
   const isPublic = (areaId: string) => areas.find((a) => a.areaId === areaId)?.publicLevel !== 'none';
   const ownLeads = led.some((a) => a.areaId === own);
 
   return (
-    <section className="wk-field wk-questions-area" aria-label="Gdzie widać pytania">
-      <span>Pytania widać w obszarze</span>
+    <section className="wk-field wk-questions-area" aria-label={t('formsEdit.qarea.where')}>
+      <span>{t('formsEdit.qarea.label')}</span>
       <p className="wk-questions-area-now">
-        „{name(now)}” — {isPublic(now) ? 'jawny: pytania przeczyta każdy, kto otworzy stronę' : 'niejawny: pytania przeczyta tylko ten, kto czyta ten obszar'}.
-        {now !== own && <> Odpowiedzi trafiają do obszaru formularza „{name(own)}”.</>}
+        {t(isPublic(now) ? 'formsEdit.qarea.public' : 'formsEdit.qarea.private', { name: name(now) })}
+        {now !== own && <> {t('formsEdit.qarea.answersTo', { name: name(own) })}</>}
       </p>
       {ownLeads && (
         <div className="wk-questions-area-pick">
-          <AreaPick label="Pytania widać w obszarze" areas={areas} only={choices} value={picked} onChange={setPicked} disabled={busy || ring === null} />
+          <AreaPick label={t('formsEdit.qarea.label')} areas={areas} only={choices} value={picked} onChange={setPicked} disabled={busy || ring === null} />
           <button
             type="button" className="wk-btn wk-btn-small" disabled={busy || ring === null || picked === '' || picked === now}
-            onClick={() => void onAct('Przepieczętowywanie pytań…', () => moveQuestions(ring!, module.moduleId, picked === own ? null : picked))}
+            onClick={() => void onAct(t('formsOffice.msg.resealing'), () => moveQuestions(ring!, module.moduleId, picked === own ? null : picked))}
           >
-            Przenieś pytania
+            {t('formsEdit.qarea.move')}
           </button>
         </div>
       )}
       <p className="wk-questions-area-why">
-        Odpowiedzi zawsze zostają w obszarze formularza. Pytania przenosi do innego obszaru tylko ten, kto prowadzi oba obszary.
+        {t('formsEdit.qarea.why')}
       </p>
     </section>
   );

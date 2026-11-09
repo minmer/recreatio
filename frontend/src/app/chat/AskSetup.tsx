@@ -76,7 +76,8 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
     const paths = found?.pages.length ? found.pages : ctx.path === null ? [] : [ctx.path];
     const pages = await Promise.all(paths.map((path) => loadPage(path).catch(() => null)));
     setParentId(replyArea?.parentAreaId ?? suggestedAskParent(askParents(areaList.areas, found?.areaId ?? null), pages.map((p) => p?.responsible?.areaId)));
-    setController(found?.areaId == null ? null : (await publicAreaController(found.areaId)).controller);
+    /* Ohne Antwort über den Verantwortlichen bleibt der Rest der Einrichtung trotzdem offen. */
+    setController(found?.areaId == null ? null : (await publicAreaController(found.areaId).catch(() => null))?.controller ?? null);
     setRow(found);
     setShownAs(found?.areaName ?? '');
     if (found?.areaId == null) { setAnswerers([]); setForms([]); return; }

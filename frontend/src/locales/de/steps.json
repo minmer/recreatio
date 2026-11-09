@@ -1,0 +1,297 @@
+{
+  "weekday": {
+    "mon": {
+      "short": "Mo",
+      "many": "montags"
+    },
+    "tue": {
+      "short": "Di",
+      "many": "dienstags"
+    },
+    "wed": {
+      "short": "Mi",
+      "many": "mittwochs"
+    },
+    "thu": {
+      "short": "Do",
+      "many": "donnerstags"
+    },
+    "fri": {
+      "short": "Fr",
+      "many": "freitags"
+    },
+    "sat": {
+      "short": "Sa",
+      "many": "samstags"
+    },
+    "sun": {
+      "short": "So",
+      "many": "sonntags"
+    }
+  },
+  "date": {
+    "sameMonth": "{from}.–{to}"
+  },
+  "time": {
+    "hours": {
+      "one": "{count} Std.",
+      "other": "{count} Std."
+    },
+    "minutes": {
+      "one": "{count} Min.",
+      "other": "{count} Min."
+    }
+  },
+  "terms": {
+    "one": "{count} Termin",
+    "other": "{count} Termine"
+  },
+  "schedule": {
+    "noDates": "keine Termine in diesem Zeitraum",
+    "noDatesChanged": "keine Termine in diesem Zeitraum (Termin geändert oder aus dem Kalender entfernt)",
+    "daily": "täglich",
+    "any": "an einem beliebigen Tag",
+    "onDays": "{days}"
+  },
+  "presence": {
+    "yes": "ich komme",
+    "maybe": "weiß ich noch nicht",
+    "no": "ich komme nicht"
+  },
+  "presenceThey": {
+    "yes": "kommt",
+    "maybe": "weiß nicht",
+    "no": "kommt nicht"
+  },
+  "attendance": {
+    "present": "anwesend",
+    "absent": "abwesend",
+    "excused": "entschuldigt abwesend"
+  },
+  "times": {
+    "one": "{count}-mal",
+    "other": "{count}-mal"
+  },
+  "chatTarget": {
+    "seat": "in den Chats mit den Leitenden",
+    "seatNamed": "im Chat mit den Leitenden „{name}“",
+    "area": "in den Gruppenchats",
+    "areaNamed": "im Gruppenchat „{name}“",
+    "channel": "in den Kanälen",
+    "channelNamed": "im Kanal „{name}“",
+    "all": "in allen Chats",
+    "allNamed": "in allen Chats „{name}“"
+  },
+  "auto": {
+    "confirm": "Daten prüfen und bestätigen",
+    "confirmHelp": "Nach dem Öffnen des Links prüft die Person ihre Daten — vor allem die Kontakte — und bestätigt sie mit einem Knopf.",
+    "fill": "Ausfüllen: {name}",
+    "officeFills": "Füllt die Koordination aus — die Person sieht es nicht."
+  },
+  "sealed": {
+    "task": "Aufgabe (versiegelt)",
+    "booking": "Terminwahl (versiegelt)",
+    "chat": "Nachrichten lesen (versiegelt)",
+    "learn": "Lernen (versiegelt)",
+    "step": "Schritt (versiegelt)"
+  },
+  "booking": {
+    "none": "kein Termin",
+    "noneTitle": "{label} — die Person hat noch keinen Termin gewählt",
+    "was": "Termin war {when}",
+    "at": "Termin {when}",
+    "waits": "wartet",
+    "waitsLong": "(wartet auf Bestätigung)",
+    "wasLong": "(schon vorbei)",
+    "pick": "Den Termin wählst du in der Reservierung.",
+    "pickIn": "Den Termin wählst du in der Reservierung „{name}“.",
+    "chosen": "Gewählter Termin: {when}.",
+    "chosenWaiting": "Gewählter Termin: {when} — wartet auf Bestätigung."
+  },
+  "chat": {
+    "upToDate": "✓ auf dem neuesten Stand",
+    "toRead": "zu lesen",
+    "read": "Lesen"
+  },
+  "sheet": {
+    "title": "Anwesenheitsliste",
+    "hint": "Aufgaben mit Terminen aus dem Kalender: wer kommt, wer es noch nicht weiß, wer nicht kommt — und nach dem Termin, wer da war.",
+    "noDates": "Im Zeitraum der Aufgabe gibt es keine Termine — Termin geändert oder aus dem Kalender entfernt.",
+    "date": "Termin",
+    "noAnswer": "ohne Antwort {count}",
+    "attendance": "anwesend {present} · abwesend {absent} · entschuldigt {excused}",
+    "answerOf": "{name}: Antwort",
+    "yes": "Kommt",
+    "maybe": "Weiß nicht",
+    "no": "Kommt nicht",
+    "dutyOf": "{name}: Funktion",
+    "attendanceOf": "{name}: Anwesenheit",
+    "present": "✓ Anwesend",
+    "absent": "Abwesend",
+    "excused": "Entschuldigt",
+    "nobody": "Noch hat sich niemand gemeldet."
+  },
+  "task": "Aufgabe",
+  "saveFailed": "Speichern fehlgeschlagen.",
+  "duty": "Funktion",
+  "noDuty": "ohne Funktion",
+  "status": {
+    "done": "erledigt",
+    "todo": "zu erledigen",
+    "overdue": "überfällig",
+    "read": "gelesen",
+    "unread": "ungelesen"
+  },
+  "list": {
+    "nothing": "Hier gibt es nichts zu tun.",
+    "allDone": "Alles erledigt. Danke!",
+    "doneOf": "Erledigt: {done} von {total}.",
+    "progress": "Fortschritt",
+    "due": "bis {date}",
+    "confirmHint": "Prüfe deine Daten in der Anmeldung und bestätige sie.",
+    "officeTicks": "Die Kanzlei hakt das ab, sobald sie es erhält.",
+    "pickDate": "Termin wählen",
+    "collapse": "Zuklappen",
+    "view": "Ansehen",
+    "fill": "Ausfüllen",
+    "undo": "Rückgängig",
+    "markDone": "Erledigt",
+    "tick": "Abhaken",
+    "formClosed": "Dieses Formular ist bereits geschlossen.",
+    "auto": "automatisch",
+    "personTicks": "hakt die Person ab",
+    "hidden": "die Person sieht das nicht",
+    "chatRead": "Neue Nachrichten {where} — alles gelesen.",
+    "chatUnread": "Neue Nachrichten {where} — noch ungelesen.",
+    "learnReached": "Lernen bis {pct}% Wissen — erreicht. Fortschritt: Lernen → Wissensbasis → Fortschritt.",
+    "learnNotYet": "Lernen bis {pct}% Wissen — noch nicht. Fortschritt: Lernen → Wissensbasis → Fortschritt."
+  },
+  "word": {
+    "yes": "ja",
+    "no": "nein",
+    "maybe": "weiß ich noch nicht",
+    "none": "keine Antwort"
+  },
+  "card": {
+    "done": "✓ erledigt",
+    "waiting": "wartet auf Antwort",
+    "yesN": "ja {count}",
+    "noN": "nein {count}",
+    "need": "nötig {need}",
+    "starts": "Beginnt am {day}.",
+    "startsAt": "Beginnt am {day}, {at}.",
+    "today": "Heute, {at}.",
+    "next": "Als Nächstes: {day}, {at}.",
+    "reporting": "Beendet — antworten kannst du bis {day}.",
+    "over": "Beendet.",
+    "present": "Anwesenheit: {done}.",
+    "presentOf": "Anwesenheit: {done} von {needed}.",
+    "doneN": "Erledigt: {done}.",
+    "doneOf": "Erledigt: {done} von {needed}.",
+    "noDays": "In diesem Zeitraum gibt es keine Tage dieser Aufgabe (Termin geändert oder aus dem Kalender entfernt).",
+    "how": "Klicke auf einen Tag: einmal — <yes>ja</yes>, zweimal — <no>nein</no>, dreimal — <maybe>weiß ich noch nicht</maybe>, viermal — keine Antwort.",
+    "prevMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "dutyOf": "{day}: Funktion",
+    "dutyColon": "Funktion:",
+    "whatDo": "was möchtest du tun?",
+    "full": "belegt",
+    "free": "frei {count}",
+    "noDates": "In diesem Zeitraum gibt es keine Termine (Termin geändert oder aus dem Kalender entfernt).",
+    "answerOf": "{day}: Antwort",
+    "duty": "Funktion",
+    "dutyLabel": "Funktion:",
+    "attendanceOf": "{day}: Anwesenheit"
+  },
+  "problem": {
+    "period": "gib den Zeitraum an",
+    "endBeforeStart": "Ende vor Beginn",
+    "weekdays": "wähle die Wochentage",
+    "showFrom": "„sichtbar ab“ nach dem Beginn",
+    "reportUntil": "„eintragen bis“ vor dem Ende",
+    "item": "wähle einen Termin aus dem Kalender",
+    "capacity": "Personen pro Funktion: eine Zahl von 1 bis 500 oder leer"
+  },
+  "editor": {
+    "taskWrong": "Aufgabe „{name}“: {problem}.",
+    "unbooked": "Markierung „{name}“: wähle, wo die Person einen Termin wählt.",
+    "unlearned": "Markierung „{name}“: wähle die Bibliothek, aus der die Person lernen soll.",
+    "saveFailed": "Die Schritte konnten nicht gespeichert werden.",
+    "noKey": "Aufgaben und Markierungen werden mit dem Schlüssel des Formularbereichs versiegelt — stelle den Bereich unter „Einstellungen“ ein oder öffne das Formular mit einem Konto, das diesen Bereich liest.",
+    "unreadable": "Einige Aufgaben oder Markierungen lassen sich mit diesem Schlüssel nicht lesen — Speichern überschreibt sie.",
+    "tasksTitle": "Aufgaben für Personen",
+    "tasksHint": "Die Person antwortet im Kalender zu jedem Tag der Aufgabe; die Kanzlei sieht es bei der Person und kann für sie eintragen.",
+    "noTasks": "Noch keine Aufgabe.",
+    "addTask": "+ Aufgabe hinzufügen",
+    "marksTitle": "Markierungen",
+    "marksHint": "Was in den Daten nicht zu sehen ist („Einverständnis der Eltern abgegeben“). Abgehakt von der Kanzlei, von der Person über ihren Link — oder von der Markierung selbst (gewählter Termin, gelesene Nachrichten).",
+    "noMarks": "Noch keine.",
+    "mark": "Markierung",
+    "markHint": "z. B. Einverständnis der Eltern abgegeben",
+    "markHelp": "Erklärung für die Person (optional)",
+    "markHelpHint": "z. B. Das Einverständnisformular liegt in der Sakristei.",
+    "ticks": "Abgehakt von",
+    "byOffice": "der Kanzlei",
+    "byPerson": "der Person selbst",
+    "byBooking": "von selbst — wenn die Person einen Termin wählt",
+    "byChat": "von selbst — wenn die Person die Nachrichten liest",
+    "byLearn": "von selbst — wenn die Person gelernt hat (Wissensbasis)",
+    "in": "In",
+    "dateIn": "Termin in",
+    "personSees": "die Person sieht sie",
+    "due": "Frist",
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "addMark": "+ Markierung hinzufügen",
+    "readLabel": "Neue Nachrichten lesen",
+    "addRead": "+ Hinzufügen: Nachrichten lesen",
+    "learnLabel": "Lernen",
+    "addLearn": "+ Hinzufügen: lernen",
+    "save": "Aufgaben und Markierungen speichern",
+    "revert": "Änderungen verwerfen",
+    "unnamed": "Aufgaben und Markierungen ohne Namen werden nicht gespeichert.",
+    "autoTitle": "Automatisch gezählter Fortschritt",
+    "autoHint": "Aus dem Link der Person und aus Unterformularen — bei jeder Person zu sehen.",
+    "confirmWho": "die Person, nach dem ersten Öffnen des Links",
+    "personFills": "füllt die Person über ihren Link aus",
+    "officeFills": "füllt die Koordination aus, die Person sieht es nicht",
+    "closed": "geschlossen",
+    "noQuestions": "keine Fragen — zählt nicht, bis du welche hinzufügst",
+    "mapNote": "<b>Die Schritte der Person ordnest du auf der Seite an</b> — in der „Logikkarte der Seite“, unter den Bausteinen: Jeder Schritt ist ein Knoten, der erledigt ist, wenn erfüllt ist, was du daran anschließt. Aufgaben und Markierungen kann die Karte als Eingänge nutzen („Markierung“; eine Aufgabe zählt, wenn die Person genug Tage markiert hat).",
+    "taskHint": "z. B. Rosenkranz in der Kirche",
+    "taskHelp": "Beschreibung für die Person — wo, was mitbringen (optional)",
+    "taskHelpHint": "z. B. Pfarrkirche, Seitenschiff.",
+    "toLower": "bis",
+    "when": "Wann",
+    "weekly": "an gewählten Wochentagen",
+    "once": "einmal, an einem beliebigen Tag des Zeitraums",
+    "fromCalendar": "Termine aus dem Kalender (Treffen, Gottesdienst, Feier)",
+    "calendar": "Kalender",
+    "itemHint": "Die Person sieht die Termine dieses Eintrags aus dem obigen Zeitraum — verschoben wie im Kalender, ohne abgesagte. Eine Reihe (z. B. wöchentliche Treffen): Stelle den Zeitraum ein, aus dem die Termine zählen.",
+    "askEach": "Vor jedem Termin fragen: <em>ich komme / weiß ich noch nicht / ich komme nicht</em>",
+    "dutiesHint": "Funktionen zur Wahl für die, die kommen (z. B. Ministranten: Kreuz, Kerzen, Weihrauch) — leeres „Personen“: ohne Grenze.",
+    "dutyHint": "z. B. Weihrauch",
+    "capacity": "Personen",
+    "addDuty": "+ Funktion hinzufügen",
+    "weekdays": "Wochentage",
+    "hour": "Uhrzeit",
+    "duration": "Dauer (Min.)",
+    "doneWhen": "Erledigt, wenn",
+    "answerEachDate": "die Person zu jedem Termin antwortet (ich komme / ich komme nicht)",
+    "answerEachDay": "die Person zu jedem Tag antwortet (ja / nein)",
+    "presentTimes": "eine bestimmte Anzahl Male anwesend",
+    "doneTimes": "eine bestimmte Anzahl Male erledigt",
+    "howMany": "wie oft",
+    "marksDone": "Erledigung markiert",
+    "byOfficeList": "die Kanzlei (Anwesenheitsliste)",
+    "showFrom": "Sichtbar ab",
+    "reportUntil": "Eintragen bis",
+    "emptyItem": "(leer: sofort · bis eine Woche nach dem Ende)",
+    "emptyPlan": "(leer: ab Beginn des Zeitraums · bis eine Woche nach dem Ende)",
+    "fix": "Zu korrigieren: {problem}.",
+    "previewItem": "Die Person sieht die Termine aus dem Zeitraum {period}{ask}{duty}.",
+    "previewAsk": " und antwortet vor jedem: ich komme / weiß ich noch nicht / ich komme nicht",
+    "previewDuty": ", wählt dann eine Funktion",
+    "preview": "Die Person sieht: {plan}"
+  }
+}

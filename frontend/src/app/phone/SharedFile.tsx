@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { fmtDate, useT } from '../core/i18n';
 import { Icon } from '../ui/icons';
 import { fetchShare, ShareGone, shareInfo } from './share';
 import { openShare, secretOf, shareKeys, shownAs, sizeText, type ShareHead } from './shareSeal';
@@ -25,7 +26,7 @@ type State =
   | { readonly step: 'ready'; readonly head: ShareHead; readonly url: string; readonly expiresAt: string }
   | { readonly step: 'failed'; readonly message: string };
 
-const until = (at: string) => new Date(at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+const until = (at: string) => fmtDate(new Date(at), { day: 'numeric', month: 'long', year: 'numeric' });
 
 /**
  * Erst zeichnen lassen, dann rechnen: sonst stünde „Odszyfrowywanie" erst da, wenn es
@@ -40,6 +41,7 @@ const painted = () => new Promise<void>((resolve) => {
 });
 
 export function SharedFile({ secret: text }: { secret: string }) {
+  const t = useT();
   const secret = useMemo(() => secretOf(text), [text]);
   const [state, setState] = useState<State>({ step: 'info' });
   const made = useRef<string | null>(null);
@@ -50,7 +52,7 @@ export function SharedFile({ secret: text }: { secret: string }) {
   /* Gleich beim Öffnen: fragen, ob es den Link noch gibt — dann holen, dann öffnen. */
   useEffect(() => {
     if (secret === null) {
-      setState({ step: 'failed', message: 'Ten link jest niepełny — sprawdź, czy skopiowano go w całości.' });
+      setState({ step: 'failed', message: t('phoneShare.file.incomplete') });
       return undefined;
     }
     let alive = true;
@@ -70,7 +72,7 @@ export function SharedFile({ secret: text }: { secret: string }) {
           if (alive && percent !== percentShown) { percentShown = percent; setState({ step: 'loading', size, done, expiresAt }); }
         });
       } catch (e) {
-        if (alive) setState({ step: 'failed', message: e instanceof ShareGone ? e.message : 'Nie udało się pobrać pliku.' });
+        if (alive) setState({ step: 'failed', message: e instanceof ShareGone ? e.message : t('phoneShare.file.downloadFailed') });
         return;
       }
       if (!alive) return;
@@ -81,7 +83,7 @@ export function SharedFile({ secret: text }: { secret: string }) {
       try {
         opened = await openShare(secret, sealed);
       } catch {
-        if (alive) setState({ step: 'failed', message: 'Ten link jest uszkodzony albo niepełny — pliku nie da się odszyfrować.' });
+        if (alive) setState({ step: 'failed', message: t('phoneShare.file.broken') });
         return;
       }
       if (!alive) return;
@@ -101,27 +103,27 @@ export function SharedFile({ secret: text }: { secret: string }) {
       {busy && (
         <section className="ph-shared-busy" aria-live="polite" aria-busy="true">
           <h1 className="ph-shared-name">
-            {state.step === 'info' ? 'Otwieranie pliku…' : state.step === 'loading' ? 'Pobieranie zaszyfrowanego pliku…' : 'Odszyfrowywanie pliku…'}
+            {state.step === 'info' ? t('phoneShare.file.opening') : state.step === 'loading' ? t('phoneShare.file.downloading') : t('phoneShare.file.decrypting')}
           </h1>
           {state.step === 'loading' && state.size > 0 ? (
             <>
-              <progress className="wk-progress ph-shared-bar" value={Math.min(state.done, state.size)} max={state.size} aria-label="Pobieranie pliku" />
+              <progress className="wk-progress ph-shared-bar" value={Math.min(state.done, state.size)} max={state.size} aria-label={t('phoneShare.file.downloadBar')} />
               <p className="ph-shared-meta">
-                {Math.min(100, Math.floor((100 * state.done) / state.size))}% · {sizeText(state.done)} z {sizeText(state.size)}
-                {state.expiresAt !== '' ? ` · link ważny do ${until(state.expiresAt)}` : ''}
+                {t('phoneShare.file.progress', { percent: Math.min(100, Math.floor((100 * state.done) / state.size)), done: sizeText(state.done), size: sizeText(state.size) })}
+                {state.expiresAt !== '' ? ` · ${t('phoneShare.file.validUntil', { date: until(state.expiresAt) })}` : ''}
               </p>
             </>
           ) : (
             <>
-              <div className="ph-shared-wait" role="progressbar" aria-label={state.step === 'opening' ? 'Odszyfrowywanie pliku' : 'Otwieranie pliku'}>
+              <div className="ph-shared-wait" role="progressbar" aria-label={state.step === 'opening' ? t('phoneShare.file.decryptingBar') : t('phoneShare.file.openingBar')}>
                 <span />
               </div>
-              {state.step === 'opening' && <p className="ph-shared-meta">{sizeText(state.size)} — to już ostatni krok.</p>}
+              {state.step === 'opening' && <p className="ph-shared-meta">{t('phoneShare.file.lastStep', { size: sizeText(state.size) })}</p>}
             </>
           )}
           <p className="ph-shared-patience">
             <Icon name="lock" />
-            Prosimy o chwilę cierpliwości: plik jest pobierany i odszyfrowywany tutaj, w Twojej przeglądarce. Przy dużym pliku może to potrwać.
+            {t('phoneShare.file.patience')}
           </p>
         </section>
       )}
@@ -129,13 +131,13 @@ export function SharedFile({ secret: text }: { secret: string }) {
       {state.step === 'ready' && (
         <>
           <h1 className="ph-shared-name">{state.head.name}</h1>
-          <p className="ph-shared-meta">{sizeText(state.head.size)} · odszyfrowano{state.expiresAt !== '' ? ` · link ważny do ${until(state.expiresAt)}` : ''}</p>
+          <p className="ph-shared-meta">{sizeText(state.head.size)} · {t('phoneShare.file.decrypted')}{state.expiresAt !== '' ? ` · ${t('phoneShare.file.validUntil', { date: until(state.expiresAt) })}` : ''}</p>
           {kind === 'image' && <img className="ph-shared-media" src={state.url} alt={state.head.name} />}
           {kind === 'video' && <video className="ph-shared-media" src={state.url} controls playsInline preload="metadata" />}
           {kind === 'audio' && <audio src={state.url} controls preload="metadata" />}
           <div className="wk-actions">
-            <a className="wk-btn" href={state.url} download={state.head.name}><Icon name="download" />Pobierz</a>
-            {kind === 'pdf' && <a className="wk-btn wk-btn-quiet" href={state.url} target="_blank" rel="noopener noreferrer"><Icon name="external" />Otwórz</a>}
+            <a className="wk-btn" href={state.url} download={state.head.name}><Icon name="download" />{t('common.download')}</a>
+            {kind === 'pdf' && <a className="wk-btn wk-btn-quiet" href={state.url} target="_blank" rel="noopener noreferrer"><Icon name="external" />{t('common.open')}</a>}
           </div>
         </>
       )}
@@ -143,7 +145,7 @@ export function SharedFile({ secret: text }: { secret: string }) {
       {state.step === 'failed' && <p className="wk-error">{state.message}</p>}
 
       <p className="ph-shared-note">
-        Plik jest zaszyfrowany. Klucz jest tylko w tym linku — recreatio.pl go nie zna. Kto ma ten link, może otworzyć plik.
+        {t('phoneShare.file.note')}
       </p>
     </div>
   );

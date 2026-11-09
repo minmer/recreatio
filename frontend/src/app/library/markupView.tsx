@@ -13,7 +13,7 @@ import { blocksKeyOf, blocksOf, THESIS_LIMIT } from './blocks';
 import { aboutLine, isAnswered, statementOf, statementRole } from './statement';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
-import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
+import { parseInline, parseMarkup, unreadable, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 import { later } from '../ui/later';
 import { Glue, glue, Tex } from '../ui/tex/Tex';
 import { texPieces } from '../core/tex';
@@ -56,7 +56,7 @@ export interface MarkupLinkTo {
 
 export const MarkupLinks = createContext<MarkupLinkTo>({});
 
-/** Every readable citation can lead to its source, even without a transcribed passage. */
+/** 2026-11-08 — jede lesbare Quelle eines Przypis führt zu ihrem Eintrag („Otwórz źródło"), auch ohne abgeschriebenen Text. */
 function CitationSource({ entry, look }: { entry: LibEntry; look: Lookup }) {
   const t = useT();
   const to = useContext(MarkupLinks);
@@ -80,7 +80,7 @@ export function OwnRef({ token, locator = '', label, look }: { token: string; lo
   const entry = look === undefined ? undefined : refTarget(look, token);
   const said = label !== undefined && label.length > 0 ? <Inlines list={label} notes={null} look={look} /> : null;
   if (token.startsWith('@@')) return <>{to.cross !== undefined ? to.cross(token, said) : <span className="lib-own-ref is-cross">{said}</span>}</>;
-  if (entry === undefined || look === undefined) return <span className="lib-own-ref is-unreadable">{said ?? UNREADABLE}</span>;
+  if (entry === undefined || look === undefined) return <span className="lib-own-ref is-unreadable">{said ?? unreadable()}</span>;
   const text = said ?? `${ownTitle(entry, look)}${locator === '' ? '' : `, ${locator}`}`;
   const href = to.hrefOf?.(entry);
   if (href !== undefined) return <a className="lib-own-ref" href={href}>{text}</a>;
@@ -250,6 +250,7 @@ export function StatementBody({ entry, look, notes, prefix, path = new Set() }: 
  * (`author`), dazu eine Teza, die fehlt oder zu lang ist.
  */
 export function StatementMarks({ entry, look, author = false }: { entry: LibEntry; look: Lookup; author?: boolean }) {
+  const t = useT();
   const statement = statementOf(entry, look);
   if (statement === null) return null;
   const role = statementRole(entry, look);
@@ -258,12 +259,12 @@ export function StatementMarks({ entry, look, author = false }: { entry: LibEntr
   return (
     <p className="lib-stmts">
       <span className={`lib-stmt ${role === 'information' ? 'is-info' : 'is-interp'}`}
-        title={role === 'information' ? 'Zdaje sprawę ze źródła: wskazuje dzieło, cytat albo osobę z Biblioteki i nie opiera się na innej wypowiedzi.' : 'Własna myśl, porównanie albo synteza — opiera się na innej wypowiedzi albo nie wskazuje żadnego źródła.'}>
-        {role === 'information' ? 'Informacja' : 'Interpretacja'}
+        title={role === 'information' ? t('library.markup.infoTitle') : t('library.markup.interpTitle')}>
+        {role === 'information' ? t('library.markup.info') : t('library.markup.interp')}
       </span>
-      {statement.question && <span className={`lib-stmt is-question${answered ? '' : ' is-open'}`}>{answered ? 'Pytanie — jest odpowiedź' : 'Pytanie otwarte'}</span>}
-      {problem === 'missing' && <span className="lib-stmt is-warn">Brak tezy: treść nie zaczyna się od zdania</span>}
-      {problem === 'long' && <span className="lib-stmt is-warn">Teza dłuższa niż {THESIS_LIMIT} znaków</span>}
+      {statement.question && <span className={`lib-stmt is-question${answered ? '' : ' is-open'}`}>{answered ? t('library.markup.answered') : t('library.markup.open')}</span>}
+      {problem === 'missing' && <span className="lib-stmt is-warn">{t('library.markup.noThesis')}</span>}
+      {problem === 'long' && <span className="lib-stmt is-warn">{t('library.markup.longThesis', { n: THESIS_LIMIT })}</span>}
     </p>
   );
 }
@@ -361,6 +362,7 @@ export function QuoteBody({ text }: { text: string }) {
 }
 
 export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { blocks: readonly Block[]; look: Lookup; notes: Notes | null; prefix: string; path?: ReadonlySet<string> }) {
+  const t = useT();
   return (
     <>
       {blocks.map((b, i) => {
@@ -403,10 +405,10 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
           );
           case 'embed': {
             const quote = refTarget(look, b.key);
-            if (quote === undefined) return <p key={i} className="lib-missing">{UNREADABLE}</p>;
+            if (quote === undefined) return <p key={i} className="lib-missing">{unreadable()}</p>;
             /* 2026-10-23 — jede Aussage (ein Eintrag mit Feld blocks, z. B. ein Komentarz): ihre Bausteine, mit Tabellen. */
             if (blocksKeyOf(quote, look) !== null) {
-              if (path.has(quote.id)) return <p key={i} className="lib-missing">[wypowiedź osadza samą siebie]</p>;
+              if (path.has(quote.id)) return <p key={i} className="lib-missing">{t('library.markup.selfEmbed')}</p>;
               return <aside key={i} className="lib-comment is-embedded"><StatementBody entry={quote} look={look} notes={notes} prefix={prefix} path={path} /></aside>;
             }
             /* 2026-10-22 (Schritt 11) — ein Widok einer Baza wiedzy: was er jetzt wählt („wszystkie psalmy jutrzni niedzielnej"). */
@@ -431,15 +433,16 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
 
 /** Die Fussnoten unter einem Text — mit dem Sprung zurück an ihre Stelle. */
 export function NoteList({ notes, prefix }: { notes: Notes; prefix: string }) {
+  const t = useT();
   if (notes.list.length === 0) return null;
   return (
     <section className="lib-notes">
-      <h3 className="lib-section">Przypisy</h3>
+      <h3 className="lib-section">{t('library.markup.notes')}</h3>
       <ol>
         {notes.list.map((note) => (
           <li key={note.n} id={`${prefix}fn-${note.n}`}>
             {note.body}{' '}
-            <a className="lib-back" href={`#${prefix}fnref-${note.n}`} aria-label="Wróć do tekstu" onClick={(e) => jump(e, `${prefix}fnref-${note.n}`)}>↩</a>
+            <a className="lib-back" href={`#${prefix}fnref-${note.n}`} aria-label={t('library.markup.back')} onClick={(e) => jump(e, `${prefix}fnref-${note.n}`)}>↩</a>
           </li>
         ))}
       </ol>

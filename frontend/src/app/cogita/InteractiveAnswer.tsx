@@ -20,6 +20,7 @@ import type { Card } from './cardBasics';
 import { answerWorld, drawingOfText, liveWithGoals, liveWithoutGoals, solutionValues, solutionWorld, type InteractiveSpec } from './interactive';
 import type { Program } from '../pages/motion/liveRun';
 import { later } from '../ui/later';
+import { useT } from '../core/i18n';
 
 const Live = later(() => import('../pages/motion/LiveDrawing').then((m) => m.LiveDrawing));
 
@@ -38,11 +39,12 @@ function useDrawing(spec: InteractiveSpec | null, answering = false) {
 }
 
 export function InteractiveAnswer({ card, disabled, onSubmit }: { card: Card; disabled?: boolean; onSubmit: (given: unknown) => void }) {
+  const t = useT();
   const spec = specOf(card);
   const drawing = useDrawing(spec, true);
   const program = useRef<Program | null>(null);
   const onProgram = useCallback((p: Program) => { program.current = p; }, []);
-  if (spec === null || drawing === null) return <p className="wk-error">Ten rysunek jest pusty albo nie jest poprawnym JSON.</p>;
+  if (spec === null || drawing === null) return <p className="wk-error">{t('cogitaLearnRun.interactive.broken')}</p>;
   const submit = () => {
     const world = program.current?.worldSnapshot() ?? null;
     onSubmit({ vars: program.current?.snapshot() ?? {}, ...(world === null ? {} : { world }) });
@@ -52,7 +54,7 @@ export function InteractiveAnswer({ card, disabled, onSubmit }: { card: Card; di
       {/* Ein Bild zum Vermuten steht still, bis die Karte geprüft wird — „Sprawdź" ist hier der Knopf der Karte. */}
       <Live drawing={drawing} identity={`${card.key}|${card.fingerprint}|${JSON.stringify(spec.fixed)}`} fixed={spec.fixed} onProgram={onProgram} locked={disabled === true} checkOutside />
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={disabled} onClick={submit}>Sprawdź</button>
+        <button type="button" className="wk-btn" disabled={disabled} onClick={submit}>{t('cogitaLearnRun.card.check')}</button>
       </div>
     </div>
   );
@@ -60,6 +62,7 @@ export function InteractiveAnswer({ card, disabled, onSubmit }: { card: Card; di
 
 /** Nach der Antwort: was mit den eigenen Werten geschah — und auf Wunsch die Lösung. */
 export function InteractiveReplay({ card, given }: { card: Card; given: unknown }) {
+  const t = useT();
   const spec = specOf(card);
   const drawing = useDrawing(spec);
   const [showSolution, setShowSolution] = useState(false);
@@ -75,7 +78,7 @@ export function InteractiveReplay({ card, given }: { card: Card; given: unknown 
       <Live drawing={drawing} identity={`${card.key}|replay|${JSON.stringify(values)}`} fixed={values} replay={world} start locked />
       {spec.solution !== null && (
         <button type="button" className="wk-link-btn" onClick={() => setShowSolution((was) => !was)}>
-          {showSolution ? 'Pokaż moją próbę' : 'Pokaż rozwiązanie'}
+          {showSolution ? t('cogitaLearnRun.interactive.showMine') : t('cogitaLearnRun.build.showSolution')}
         </button>
       )}
     </div>

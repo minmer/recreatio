@@ -26,8 +26,8 @@ export async function readLang(lang) {
 
 export async function useLocale(lang = 'pl') {
   const store = (globalThis.__recreatioI18n ??= { app: 'en', dicts: {}, loading: {}, loader: null, version: 0, listeners: new Set() });
-  store.dicts.en = await readLang('en');
-  if (lang !== 'en') store.dicts[lang] = await readLang(lang);
+  /* Alle drei: manche Prüfungen vergleichen auch deutsche und englische Ausgaben (`tIn('de', …)`). */
+  for (const one of ['en', 'de', 'pl']) store.dicts[one] = await readLang(one);
   store.app = lang;
   store.version += 1;
   return store;

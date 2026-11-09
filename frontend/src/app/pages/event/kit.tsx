@@ -26,7 +26,7 @@ import {
 } from '../part';
 import { FilePicker, ImagePicker } from '../PageFiles';
 import { plural } from '../../core/plural';
-import { t, useT } from '../../core/i18n';
+import { appLang, t, useT, type Lang } from '../../core/i18n';
 import { onTheme } from '../../core/theme';
 
 /* -- Duldsame Leser (Altbestand: contracts.ts) ------------------------------------ */
@@ -412,7 +412,7 @@ export function defineEventPart<C>(spec: {
     const now = read(raw);
     return (
       <div className="pe">
-        <TextRow label={t('pagesEvent.part.title')} value={raw.title ?? ''} placeholder={spec.label} onChange={(title) => onSet({ title })} />
+        <TextRow label={t('pagesEvent.part.title')} value={raw.title ?? ''} placeholder={t(spec.label)} onChange={(title) => onSet({ title })} />
         <AreaRow label={t('pagesEvent.part.intro')} rows={2} value={raw.intro ?? ''} onChange={(intro) => onSet({ intro })} />
         <spec.Edit config={now.config} ctx={ctx} busy={busy} onChange={(next) => onSet({ json: JSON.stringify(next) })} />
       </div>
@@ -430,7 +430,8 @@ export function defineEventPart<C>(spec: {
     const now = read(raw);
     return { title: now.title, intro: now.intro, ...asRecord(now.config) };
   };
-  const json: PartJson = {
+  /* 2026-11-05 — die Beschreibung erst beim Lesen, je Sprache der App einmal (Bezeichnung und Sätze können Getter sein). */
+  const jsonFor = (): PartJson => ({
     example: toJson({ title: spec.label, json: JSON.stringify(spec.example()) }),
     /* Getter: der Text erst beim Lesen, in der Sprache von dann. */
     keys: {
@@ -449,22 +450,28 @@ export function defineEventPart<C>(spec: {
       return out;
     },
     own: []
+  });
+  let cached: { lang: Lang; json: PartJson } | null = null;
+  const json = (): PartJson => {
+    const lang = appLang();
+    if (cached === null || cached.lang !== lang) cached = { lang, json: jsonFor() };
+    return cached.json;
   };
 
   const module = definePart<EventConfig<C>>({
     kind: spec.kind,
-    label: spec.label,
-    use: spec.use,
+    get label() { return spec.label; },
+    get use() { return spec.use; },
     box: spec.box,
     fields: [],
     read,
     hasContent: (c) => spec.hasContent(c.config),
     shows: (c, size) => spec.shows(c.config, size),
-    strip: spec.strip,
+    get strip() { return spec.strip; },
     fullscreen: spec.fullscreen,
     Editor,
-    example: { title: spec.label, json: JSON.stringify(spec.example()) },
-    json,
+    get example() { return { title: spec.label, json: JSON.stringify(spec.example()) }; },
+    get json() { return json(); },
     View: ({ config, ctx }) => (
       <EvRoot className={`wk-evp-${spec.kind}`}>
         {config.title !== '' && spec.ownHeading !== true && <h2 className="wk-card-title">{config.title}</h2>}
@@ -474,7 +481,11 @@ export function defineEventPart<C>(spec: {
     )
   });
 
-  return { ...module, blank: spec.blank, example: spec.example };
+  /* Die Eigenschaften samt Gettern übernehmen — ein Spread läse sie jetzt und hielte sie fest. */
+  return Object.defineProperties(Object.defineProperties({}, Object.getOwnPropertyDescriptors(module)), {
+    blank: { value: spec.blank, enumerable: true },
+    example: { value: spec.example, enumerable: true }
+  }) as PartModule & { readonly blank: () => C; readonly example: () => C };
 }
 
 /** Polnisch zählt dreifach: 1 punkt, 3 punkty, 12 punktów. */

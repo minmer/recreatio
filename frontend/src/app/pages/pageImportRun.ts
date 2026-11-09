@@ -27,12 +27,12 @@ import { keysFor } from '../core/ringOf';
 import { applyModuleWish } from '../modules/moduleImport';
 import { keepOwn } from './part';
 import { partOf } from './parts/registry';
-import { count } from './event/kit';
 import type { ImageChoice } from './ImageNeeds';
 import { imageRef, uploadPageFile } from './pageImages';
 import { previewImageNeeds, readImageNeeds, resolveImageNeeds } from './pageImageNeeds';
 import { writeLook } from './slides/slideLook';
 import { WorkspaceError, type Who } from '../core/session';
+import { t } from '../core/i18n';
 
 /** Die Seite, wie sie gerade ist — ohne Menü, Namen und Fragen (die holt der Export selbst). */
 export type PageNowBase = Omit<PageNow, 'menu' | 'names' | 'forms'>;
@@ -133,10 +133,10 @@ export async function placeImages(input: {
         refs.set(need.key, imageRef(choice.id));
         continue;
       }
-      hooks.stage(`Wgrywanie plików strony (${sent + 1}/${sending})…`);
+      hooks.stage(t('pages.run.uploading', { n: sent + 1, total: sending }));
       const made = await uploadPageFile(path, choice.file, choice.file.name, choice.type).catch((e: unknown) => {
-        throw new WorkspaceError(`Plik „${need.label}” (${choice.file.name}): ${e instanceof WorkspaceError ? e.message : 'nie udało się wgrać.'}`
-          + (sent > 0 ? ` Wgrane wcześniej (${sent}) są już w plikach strony — ponowny import ich nie powtórzy.` : ''));
+        throw new WorkspaceError(t('pages.run.fileFailed', { label: need.label, name: choice.file.name, why: e instanceof WorkspaceError ? e.message : t('pages.run.uploadFailed') })
+          + (sent > 0 ? t('pages.run.uploadedBefore', { sent }) : ''));
       });
       sent += 1;
       refs.set(need.key, imageRef(made.id));
@@ -151,8 +151,10 @@ export async function placeImages(input: {
   return {
     doc: resolved.doc,
     refs,
-    lines: refs.size === 0 ? [] : [`Pliki strony: wgrane — ${sent}${refs.size > sent ? `, z plików strony — ${refs.size - sent}` : ''}; wstawione w ${count(resolved.placed, 'miejsce', 'miejsca', 'miejsc')}.`],
-    warnings: resolved.missing.length === 0 ? [] : [`Bez pliku zostały puste miejsca: ${resolved.missing.map((key) => `„${labelOf(key)}”`).join(', ')} — plik dodasz w edytorze.`]
+    lines: refs.size === 0 ? [] : [refs.size > sent
+      ? t('pages.run.filesLineKept', { sent, kept: refs.size - sent, count: resolved.placed })
+      : t('pages.run.filesLine', { sent, count: resolved.placed })],
+    warnings: resolved.missing.length === 0 ? [] : [t('pages.run.emptyPlaces', { names: resolved.missing.map((key) => t('pages.json.quoted', { name: labelOf(key) })).join(', ') })]
   };
 }
 
@@ -169,7 +171,7 @@ export async function placeAppointments(
   const { ring, graph } = await keysFor(who);
   const person = graph.roles.find((r) => r.kind === 'person') ?? null;
   if (ring === null || person === null) {
-    warnings.push('Terminy pominięte — najpierw podaj hasło.');
+    warnings.push(t('pages.run.noPassword'));
     return done;
   }
   const all = await loadCalendars().then((r) => r.calendars, () => [] as readonly CalendarRow[]);
@@ -181,7 +183,7 @@ export async function placeAppointments(
   const { importAppointments } = await import('../calendar/appointmentsImport');
   const placed = await importAppointments(ring, person.id, done.appointments, chosen, stage);
   warnings.push(...placed.warnings);
-  if (placed.created > 0) lines.push(`Kalendarz: dodano ${count(placed.created, 'termin', 'terminy', 'terminów')} (z punktami programu).`);
+  if (placed.created > 0) lines.push(t('pages.run.calendar', { count: placed.created }));
 
   const missing = new Set<string>();
   const resolve = (kind: string, config: Readonly<Record<string, string>>) => {
@@ -191,7 +193,7 @@ export async function placeAppointments(
   };
   const parts = done.parts.map((p) => ({ ...p, config: resolve(p.kind, p.config) }));
   const configs = new Map([...done.configs].map(([id, config]) => [id, resolve(done.parts.find((p) => p.id === id)?.kind ?? '', config)] as const));
-  for (const name of missing) warnings.push(`„@${name}” zostało w module — ten termin albo kalendarz nie powstał.`);
+  for (const name of missing) warnings.push(t('pages.run.refLeft', { name }));
   return { ...done, parts, configs };
 }
 
@@ -225,9 +227,9 @@ export async function runPageImport(input: {
 
   if (done.title !== undefined || done.lead !== undefined) {
     const title = done.title ?? now.title;
-    if (title.trim() === '') warnings.push('Strona nie ma tytułu — tekst strony nie został zapisany.');
+    if (title.trim() === '') warnings.push(t('pages.run.noTitle'));
     else {
-      stage('Zapisywanie tytułu…');
+      stage(t('pages.run.savingTitle'));
       await savePage(path, { title, lead: done.lead !== undefined ? done.lead : now.lead.trim() === '' ? null : now.lead.trim() });
     }
   }
@@ -244,7 +246,7 @@ export async function runPageImport(input: {
     });
   }
 
-  stage('Zapisywanie modułów…');
+  stage(t('pages.editor.savingModules'));
   await saveParts(path, parts);
 
   /* Ein Modul, das auch woanders steht, folgt dem Entwurf nicht — es bekommt seinen Inhalt eigens. */
@@ -259,10 +261,10 @@ export async function runPageImport(input: {
     const kept = def === undefined ? wanted : keepOwn(def.json, have, wanted);
     if (sameConfig(have, kept)) continue;
     try {
-      stage('Zapisywanie treści modułów…');
+      stage(t('pages.run.savingContent'));
       await setPartConfig(moduleOf.get(id)!, replacing(have, kept));
     } catch (e) {
-      warnings.push(`Treść modułu ${partOf(part.kind)?.label ?? part.kind}: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
+      warnings.push(t('pages.run.contentFailed', { name: partOf(part.kind)?.label ?? part.kind, why: e instanceof WorkspaceError ? e.message : t('pages.run.saveFailed') }));
     }
   }
 
@@ -273,7 +275,7 @@ export async function runPageImport(input: {
       const module = modules.find((m) => m.moduleId === moduleOf.get(id));
       if (module === undefined || module.name === name) continue;
       try { await updateModule(module.moduleId, { name }, module); } catch (e) {
-        warnings.push(`Nazwa „${name}”: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
+        warnings.push(t('pages.run.nameFailed', { name, why: e instanceof WorkspaceError ? e.message : t('pages.run.saveFailed') }));
       }
     }
     /*
@@ -300,38 +302,38 @@ export async function runPageImport(input: {
           const written = await writeFormContent(who, { moduleId, areaId: null }, { questions: wish.questions, design: wish.design },
             { replace: choices.replaceQuestions, answersTo: choices.answersTo, onStage: stage, known: choices.knownQuestions?.(moduleId), byLabel: choices.questionsByLabel });
           if (written.ids.size > 0) questions.set(moduleId, written.ids);
-          lines.push(`Formularz: nowe pytania — ${written.added}, zmienione — ${written.changed}${written.designSaved ? '; układ zapisany' : ''}.`);
-          warnings.push(...written.warnings, 'Wymagania, role i obszary osób tego formularza pominięte — zaimportuj je w jego module.');
+          lines.push(t(written.designSaved ? 'pages.run.formLineDesign' : 'pages.run.formLine', { added: written.added, changed: written.changed }));
+          warnings.push(...written.warnings, t('pages.run.formSkipped'));
         }
       } catch (e) {
-        warnings.push(`Formularz ${name}: ${e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się'}.`);
+        warnings.push(t('pages.run.formFailed', { name, why: e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : t('pages.run.failed') }));
       }
     }
   }
 
   if (done.mode !== undefined || done.look !== undefined) {
-    stage('Zapisywanie wyglądu…');
+    stage(t('pages.run.savingLook'));
     await savePageLook(path, { mode: done.mode ?? now.mode, theme: writeLook(done.look ?? now.look) });
   }
 
   if (done.menu !== undefined) {
-    stage('Zapisywanie menu…');
+    stage(t('pages.run.savingMenu'));
     try {
       if (done.menu === null) await saveMenu(path, []);
       else if ('items' in done.menu) await saveMenu(path, done.menu.items);
       else await adoptMenuOf(path, done.menu.from);
     } catch (e) {
-      warnings.push(`Menu: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
+      warnings.push(t('pages.run.menuFailed', { why: e instanceof WorkspaceError ? e.message : t('pages.run.saveFailed') }));
     }
   }
 
   if (done.logic !== undefined) {
-    stage('Zapisywanie mapy logiki…');
+    stage(t('pages.run.savingLogic'));
     await savePageLogic(path, done.logic);
   }
 
   if (done.subject !== undefined) {
-    stage('Zapisywanie wyboru na stronie…');
+    stage(t('pages.run.savingSubject'));
     await savePageSubject(path, done.subject);
   }
 

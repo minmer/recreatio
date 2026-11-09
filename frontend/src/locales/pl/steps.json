@@ -1,0 +1,305 @@
+{
+  "weekday": {
+    "mon": {
+      "short": "pn",
+      "many": "poniedziałki"
+    },
+    "tue": {
+      "short": "wt",
+      "many": "wtorki"
+    },
+    "wed": {
+      "short": "śr",
+      "many": "środy"
+    },
+    "thu": {
+      "short": "czw",
+      "many": "czwartki"
+    },
+    "fri": {
+      "short": "pt",
+      "many": "piątki"
+    },
+    "sat": {
+      "short": "sob",
+      "many": "soboty"
+    },
+    "sun": {
+      "short": "ndz",
+      "many": "niedziele"
+    }
+  },
+  "date": {
+    "sameMonth": "{from}–{to}"
+  },
+  "time": {
+    "hours": {
+      "one": "{count} godz.",
+      "few": "{count} godz.",
+      "many": "{count} godz.",
+      "other": "{count} godz."
+    },
+    "minutes": {
+      "one": "{count} min",
+      "few": "{count} min",
+      "many": "{count} min",
+      "other": "{count} min"
+    }
+  },
+  "terms": {
+    "one": "{count} termin",
+    "few": "{count} terminy",
+    "many": "{count} terminów",
+    "other": "{count} terminu"
+  },
+  "schedule": {
+    "noDates": "brak terminów w tym okresie",
+    "noDatesChanged": "brak terminów w tym okresie (termin zmieniony albo usunięty z kalendarza)",
+    "daily": "codziennie",
+    "any": "w dowolnym dniu",
+    "onDays": "w {days}"
+  },
+  "presence": {
+    "yes": "będę",
+    "maybe": "jeszcze nie wiem",
+    "no": "nie będę"
+  },
+  "presenceThey": {
+    "yes": "będzie",
+    "maybe": "nie wie",
+    "no": "nie będzie"
+  },
+  "attendance": {
+    "present": "obecność",
+    "absent": "nieobecność",
+    "excused": "nieobecność usprawiedliwiona"
+  },
+  "times": {
+    "one": "{count} raz",
+    "few": "{count} razy",
+    "many": "{count} razy",
+    "other": "{count} razy"
+  },
+  "chatTarget": {
+    "seat": "w rozmowach z prowadzącymi",
+    "seatNamed": "w rozmowie z prowadzącymi „{name}\"",
+    "area": "w rozmowach grup",
+    "areaNamed": "w rozmowie grupy „{name}\"",
+    "channel": "w kanałach",
+    "channelNamed": "w kanale „{name}\"",
+    "all": "we wszystkich rozmowach",
+    "allNamed": "we wszystkich rozmowach „{name}\""
+  },
+  "auto": {
+    "confirm": "Sprawdzenie i potwierdzenie danych",
+    "confirmHelp": "Po otwarciu linku osoba przegląda swoje dane — zwłaszcza kontakty — i potwierdza je jednym przyciskiem.",
+    "fill": "Uzupełnij: {name}",
+    "officeFills": "Wypełnia koordynator — osoba tego nie widzi."
+  },
+  "sealed": {
+    "task": "Zadanie (zapieczętowane)",
+    "booking": "Wybór terminu (zapieczętowany)",
+    "chat": "Przeczytaj wiadomości (zapieczętowane)",
+    "learn": "Naucz się (zapieczętowane)",
+    "step": "Krok (zapieczętowany)"
+  },
+  "booking": {
+    "none": "bez terminu",
+    "noneTitle": "{label} — osoba nie wybrała jeszcze terminu",
+    "was": "termin był {when}",
+    "at": "termin {when}",
+    "waits": "czeka",
+    "waitsLong": "(czeka na potwierdzenie)",
+    "wasLong": "(już był)",
+    "pick": "Termin wybierasz w rezerwacji.",
+    "pickIn": "Termin wybierasz w rezerwacji „{name}\".",
+    "chosen": "Wybrany termin: {when}.",
+    "chosenWaiting": "Wybrany termin: {when} — czeka na potwierdzenie."
+  },
+  "chat": {
+    "upToDate": "✓ na bieżąco",
+    "toRead": "do przeczytania",
+    "read": "Czytaj"
+  },
+  "sheet": {
+    "title": "Lista obecności",
+    "hint": "Zadania z terminami z kalendarza: kto będzie, kto jeszcze nie wie, kto nie będzie — i po terminie, kto był.",
+    "noDates": "W okresie zadania nie ma terminów — termin zmieniony albo usunięty z kalendarza.",
+    "date": "Termin",
+    "noAnswer": "bez odpowiedzi {count}",
+    "attendance": "obecność {present} · nieobecność {absent} · usprawiedliwiona {excused}",
+    "answerOf": "{name}: odpowiedź",
+    "yes": "Będzie",
+    "maybe": "Nie wie",
+    "no": "Nie będzie",
+    "dutyOf": "{name}: funkcja",
+    "attendanceOf": "{name}: obecność",
+    "present": "✓ Obecność",
+    "absent": "Nieobecność",
+    "excused": "Usprawiedliwiona",
+    "nobody": "Nikt jeszcze się nie zgłosił."
+  },
+  "task": "Zadanie",
+  "saveFailed": "Nie udało się zapisać.",
+  "duty": "funkcja",
+  "noDuty": "bez funkcji",
+  "status": {
+    "done": "zrobione",
+    "todo": "do zrobienia",
+    "overdue": "po terminie",
+    "read": "przeczytane",
+    "unread": "nieprzeczytane"
+  },
+  "list": {
+    "nothing": "Nie ma tu nic do zrobienia.",
+    "allDone": "Wszystko zrobione. Dziękujemy!",
+    "doneOf": "Zrobione {done} z {total}.",
+    "progress": "Postęp",
+    "due": "do {date}",
+    "confirmHint": "Przejrzyj swoje dane w zgłoszeniu i potwierdź je.",
+    "officeTicks": "Odhacza kancelaria, gdy to otrzyma.",
+    "pickDate": "Wybierz termin",
+    "collapse": "Zwiń",
+    "view": "Zobacz",
+    "fill": "Uzupełnij",
+    "undo": "Cofnij",
+    "markDone": "Zrobione",
+    "tick": "Odhacz",
+    "formClosed": "Ten formularz jest już zamknięty.",
+    "auto": "automatycznie",
+    "personTicks": "odhacza osoba",
+    "hidden": "osoba tego nie widzi",
+    "chatRead": "Nowe wiadomości {where} — wszystko przeczytane.",
+    "chatUnread": "Nowe wiadomości {where} — jeszcze nieprzeczytane.",
+    "learnReached": "Nauka do {pct}% znajomości — osiągnięte. Postępy: Nauka → baza wiedzy → Postępy.",
+    "learnNotYet": "Nauka do {pct}% znajomości — jeszcze nie. Postępy: Nauka → baza wiedzy → Postępy."
+  },
+  "word": {
+    "yes": "tak",
+    "no": "nie",
+    "maybe": "jeszcze nie wiem",
+    "none": "bez odpowiedzi"
+  },
+  "card": {
+    "done": "✓ wykonane",
+    "waiting": "czeka na odpowiedź",
+    "yesN": "tak {count}",
+    "noN": "nie {count}",
+    "need": "potrzeba {need}",
+    "starts": "Zaczyna się {day}.",
+    "startsAt": "Zaczyna się {day}, {at}.",
+    "today": "Dziś, {at}.",
+    "next": "Najbliżej: {day}, {at}.",
+    "reporting": "Zakończone — odpowiadać można do {day}.",
+    "over": "Zakończone.",
+    "present": "Obecność: {done}.",
+    "presentOf": "Obecność: {done} z {needed}.",
+    "doneN": "Zrobione: {done}.",
+    "doneOf": "Zrobione: {done} z {needed}.",
+    "noDays": "W tym okresie nie ma dni tego zadania (termin zmieniony albo usunięty z kalendarza).",
+    "how": "Kliknij dzień: raz — <yes>tak</yes>, dwa razy — <no>nie</no>, trzy razy — <maybe>jeszcze nie wiem</maybe>, cztery razy — bez odpowiedzi.",
+    "prevMonth": "Poprzedni miesiąc",
+    "nextMonth": "Następny miesiąc",
+    "dutyOf": "{day}: funkcja",
+    "dutyColon": "funkcja:",
+    "whatDo": "co chcesz robić?",
+    "full": "zajęte",
+    "free": "wolne {count}",
+    "noDates": "W tym okresie nie ma terminów (termin zmieniony albo usunięty z kalendarza).",
+    "answerOf": "{day}: odpowiedź",
+    "duty": "Funkcja",
+    "dutyLabel": "Funkcja:",
+    "attendanceOf": "{day}: obecność"
+  },
+  "problem": {
+    "period": "podaj okres",
+    "endBeforeStart": "koniec przed początkiem",
+    "weekdays": "wybierz dni tygodnia",
+    "showFrom": "„widoczne od\" po początku",
+    "reportUntil": "„zaznaczać do\" przed końcem",
+    "item": "wybierz termin z kalendarza",
+    "capacity": "ile osób w funkcji: liczba od 1 do 500 albo puste"
+  },
+  "editor": {
+    "taskWrong": "Zadanie „{name}\": {problem}.",
+    "unbooked": "Znacznik „{name}\": wybierz, przy czym osoba wybiera termin.",
+    "unlearned": "Znacznik „{name}\": wybierz bibliotekę, z której osoba ma się nauczyć.",
+    "saveFailed": "Nie udało się zapisać kroków.",
+    "noKey": "Zadania i znaczniki pieczętuje się kluczem obszaru formularza — ustaw obszar w „Ustawieniach\" albo otwórz formularz kontem, które ten obszar czyta.",
+    "unreadable": "Części zadań lub znaczników nie da się odczytać tym kluczem — zapisanie ich nadpisze.",
+    "tasksTitle": "Zadania dla osób",
+    "tasksHint": "Osoba odpowiada w kalendarzu przy każdym dniu zadania; kancelaria widzi to przy osobie i może wpisać za nią.",
+    "noTasks": "Jeszcze żadnego zadania.",
+    "addTask": "+ Dodaj zadanie",
+    "marksTitle": "Znaczniki",
+    "marksHint": "To, czego nie widać w danych („Zgoda rodzica dostarczona”). Odhacza kancelaria, osoba w swoim linku — albo znacznik sam (wybrany termin, przeczytane wiadomości).",
+    "noMarks": "Jeszcze żadnego.",
+    "mark": "Znacznik",
+    "markHint": "np. Zgoda rodzica dostarczona",
+    "markHelp": "Wyjaśnienie dla osoby (opcjonalnie)",
+    "markHelpHint": "np. Formularz zgody jest w zakrystii.",
+    "ticks": "Odhacza",
+    "byOffice": "kancelaria",
+    "byPerson": "osoba sama",
+    "byBooking": "sam — gdy osoba wybierze termin",
+    "byChat": "sam — gdy osoba przeczyta wiadomości",
+    "byLearn": "sam — gdy osoba się nauczy (baza wiedzy)",
+    "in": "W",
+    "dateIn": "Termin w",
+    "personSees": "osoba go widzi",
+    "due": "Termin",
+    "up": "Wyżej",
+    "down": "Niżej",
+    "addMark": "+ Dodaj znacznik",
+    "readLabel": "Przeczytaj nowe wiadomości",
+    "addRead": "+ Dodaj: przeczytaj wiadomości",
+    "learnLabel": "Naucz się",
+    "addLearn": "+ Dodaj: naucz się",
+    "save": "Zapisz zadania i znaczniki",
+    "revert": "Cofnij zmiany",
+    "unnamed": "Zadania i znaczniki bez nazwy nie zostaną zapisane.",
+    "autoTitle": "Postęp liczony sam",
+    "autoHint": "Z linku osoby i z podformularzy — widać go przy każdej osobie.",
+    "confirmWho": "osoba, po pierwszym otwarciu linku",
+    "personFills": "wypełnia osoba przez swój link",
+    "officeFills": "wypełnia koordynator, osoba tego nie widzi",
+    "closed": "zamknięte",
+    "noQuestions": "bez pytań — nie liczy się, dopóki ich nie dodasz",
+    "mapNote": "<b>Kroki osoby układasz na stronie</b> — w „Mapie logiki strony\", pod modułami: każdy krok to węzeł, który jest zrobiony, gdy spełnione jest to, co do niego podłączysz. Zadania i znaczniki mapa może używać jako wejść („Znacznik\"; zadanie liczy się, gdy osoba zaznaczyła dość dni).",
+    "taskHint": "np. Różaniec w kościele",
+    "taskHelp": "Opis dla osoby — gdzie, co zabrać (opcjonalnie)",
+    "taskHelpHint": "np. Kościół parafialny, boczna nawa.",
+    "toLower": "do",
+    "when": "Kiedy",
+    "weekly": "w wybrane dni tygodnia",
+    "once": "raz, w dowolnym dniu okresu",
+    "fromCalendar": "terminy z kalendarza (spotkanie, nabożeństwo, uroczystość)",
+    "calendar": "Kalendarz",
+    "itemHint": "Osoba zobaczy terminy tego wpisu z okresu powyżej — przesunięte tak jak w kalendarzu, bez odwołanych. Seria (np. spotkania co tydzień): ustaw okres, z którego terminy się liczą.",
+    "askEach": "Pytaj przed każdym terminem: <em>będę / jeszcze nie wiem / nie będę</em>",
+    "dutiesHint": "Funkcje do wyboru dla tych, którzy będą (np. ministranci: krzyż, świece, kadzidło) — puste „ile osób\": bez limitu.",
+    "dutyHint": "np. Kadzidło",
+    "capacity": "ile osób",
+    "addDuty": "+ Dodaj funkcję",
+    "weekdays": "Dni tygodnia",
+    "hour": "Godzina",
+    "duration": "Czas trwania (min)",
+    "doneWhen": "Zrobione, gdy",
+    "answerEachDate": "osoba odpowie na każdy termin (będę / nie będę)",
+    "answerEachDay": "osoba odpowie przy każdym dniu (tak / nie)",
+    "presentTimes": "obecność określoną liczbę razy",
+    "doneTimes": "wykonane określoną liczbę razy",
+    "howMany": "ile razy",
+    "marksDone": "Wykonanie zaznacza",
+    "byOfficeList": "kancelaria (lista obecności)",
+    "showFrom": "Widoczne od",
+    "reportUntil": "Zaznaczać do",
+    "emptyItem": "(puste: od razu · do tygodnia po końcu)",
+    "emptyPlan": "(puste: od początku okresu · do tygodnia po końcu)",
+    "fix": "Do poprawienia: {problem}.",
+    "previewItem": "Osoba zobaczy terminy z okresu {period}{ask}{duty}.",
+    "previewAsk": " i odpowie przed każdym: będę / jeszcze nie wiem / nie będę",
+    "previewDuty": ", potem wybierze funkcję",
+    "preview": "Osoba zobaczy: {plan}"
+  }
+}

@@ -4,6 +4,7 @@
  * dem Import wären)? Was nicht gelingt, steht als Warnung da: so eine Aufgabe käme nach dem Import gar nicht als Karte.
  */
 
+import { t } from '../core/i18n';
 import { rngOf } from './cardBasics';
 import { drawInstance, readParamsSpec, specErrors, type GenWorld, type ParamsSpec } from './generator';
 import { readGraph } from './graph';
@@ -67,11 +68,11 @@ export function generatorImportWarnings(lib: CogitaLibrary, plan: PlanPart): str
     if (!e.kinds.includes('question')) continue;
     const spec = readParamsSpec(e.data);
     if (spec === null) continue;
-    const name = `Pytanie „${clip(typeof e.data.prompt === 'string' ? e.data.prompt : e.id, 60)}”`;
+    const name = t('cogitaData.generator.question', { name: clip(typeof e.data.prompt === 'string' ? e.data.prompt : e.id, 60) });
     const errors = specErrors(spec);
-    if (errors.length > 0) { out.push(`${name}: generator — ${errors.join(' ')} Taka karta nie powstanie.`); continue; }
+    if (errors.length > 0) { out.push(t('cogitaData.generator.questionErrors', { name, errors: errors.join(' ') })); continue; }
     const { failed, why } = probe(spec, worldNow(), e.id);
-    if (failed > 0) out.push(`${name}: generator nie wylosował zadania w ${failed} z ${PROBES} prób — ${why ?? 'warunki niespełnione'}${failed === PROBES ? ' Ta karta nie powstanie.' : ' Wtedy karta w danym przebiegu nie powstaje.'}`);
+    if (failed > 0) out.push(t(failed === PROBES ? 'cogitaData.generator.neverDrawn' : 'cogitaData.generator.sometimesNotDrawn', { name, failed, probes: PROBES, why: why ?? t('cogitaData.generator.unmet') }));
   }
   for (const d of plan.docs) {
     if (d.kind !== 'template') continue;
@@ -83,13 +84,13 @@ export function generatorImportWarnings(lib: CogitaLibrary, plan: PlanPart): str
     const self = tkinds.flatMap((k) => w.pool(k))[0];
     for (const node of nodes) {
       const spec = readParamsSpec(node.config);
-      const name = `Szablon „${clip(typeof d.data.name === 'string' ? d.data.name : d.id, 60)}”, generator „${node.id}”`;
-      if (spec === null) { out.push(`${name}: nie ma nic do losowania (params, let albo texts).`); continue; }
+      const name = t('cogitaData.generator.template', { name: clip(typeof d.data.name === 'string' ? d.data.name : d.id, 60), node: node.id });
+      if (spec === null) { out.push(t('cogitaData.generator.nothing', { name })); continue; }
       const errors = specErrors(spec);
-      if (errors.length > 0) { out.push(`${name}: ${errors.join(' ')} Karty z niego nie powstaną.`); continue; }
+      if (errors.length > 0) { out.push(t('cogitaData.generator.templateErrors', { name, errors: errors.join(' ') })); continue; }
       if (self === undefined) continue;
       const { failed, why } = probe(spec, { ...w, self }, `${d.id}:${node.id}`);
-      if (failed > 0) out.push(`${name}: dla wpisu „${clip(w.look.entity(self.id) === undefined ? self.id : String(self.data.name ?? self.id), 40)}” nie wylosował zadania w ${failed} z ${PROBES} prób — ${why ?? 'warunki niespełnione'}`);
+      if (failed > 0) out.push(t('cogitaData.generator.templateNotDrawn', { name, entry: clip(w.look.entity(self.id) === undefined ? self.id : String(self.data.name ?? self.id), 40), failed, probes: PROBES, why: why ?? t('cogitaData.generator.unmet') }));
     }
   }
   return out;

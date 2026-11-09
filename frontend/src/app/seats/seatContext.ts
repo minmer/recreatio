@@ -20,6 +20,7 @@ import { createContext, useContext } from 'react';
 
 import type { OwnAnswer } from '../forms/submissions';
 import type { SubmittedValue } from './seat';
+import { t } from '../core/i18n';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatForm } from '../steps/steps';
 
@@ -87,4 +88,4 @@ export const useSeats = (): readonly SeatView[] => useContext(SeatContext);
 
 /** Wie ein Platz in einer Liste heisst: der Name, den er trägt, sonst seine Stelle. */
 export const seatName = (seat: SeatView, at: number): string =>
-  seat.recipientName?.trim() || `Zgłoszenie ${at + 1}`;
+  seat.recipientName?.trim() || t('seats.entryN', { n: at + 1 });

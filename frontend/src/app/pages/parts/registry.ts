@@ -84,6 +84,12 @@ export const palette = (): readonly PartModule[] => PARTS.filter((one) => one.re
 const KEY_IN = /\b[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+/g;
 const tx = (s: string): string => (s.includes('.') ? s.replace(KEY_IN, (k) => (hasKey(k) ? t(k) : k)) : s);
 
+const exampleTx = (value: unknown): unknown =>
+  typeof value === 'string' ? (/^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+$/.test(value) && hasKey(value) ? t(value) : value)
+  : Array.isArray(value) ? value.map(exampleTx)
+  : typeof value === 'object' && value !== null ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, exampleTx(v)]))
+  : value;
+
 function localized(def: PartModule): PartModule {
   /* Je Sprache (und ob ihr Wörterbuch schon da ist) einmal gerechnet — dieselben Objekte für React. */
   const memo = <V>(make: () => V): (() => V) => {
@@ -104,6 +110,8 @@ function localized(def: PartModule): PartModule {
   })));
   const json = memo((): PartJson => ({
     ...def.json,
+    /* Im Beispiel nur Werte, die ganz ein Schlüssel sind (der Titel eines Ereignisbausteins ist sein Name) — der Rest ist Inhalt. */
+    example: exampleTx(def.json.example) as PartJson['example'],
     keys: Object.fromEntries(Object.entries(def.json.keys).map(([k, v]) => [k, tx(v)]))
   }));
   const strip = memo(() => (def.strip === null ? null : { title: tx(def.strip.title), open: tx(def.strip.open) }));

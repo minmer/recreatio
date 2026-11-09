@@ -94,7 +94,7 @@ function MapView({ config, side }: { config: MapConfig; side: boolean }) {
                   <span>{point.label}</span>
                 </button>
                 {point.detail !== null && <p>{point.detail}</p>}
-                <a className="ev-map-legend-link" href={googleMapsHref(point)} target="_blank" rel="noreferrer noopener">Google Maps ↗</a>
+                <a className="ev-map-legend-link" href={googleMapsHref(point)} target="_blank" rel="noreferrer noopener">Google Maps ↗</a>{/* i18n-ignore — Name */}
               </li>
             ))}
           </ol>
@@ -209,7 +209,7 @@ export const mapPart = defineEventPart<MapConfig>({
       { label: 'Start', lat: 50.0619, lon: 19.9369, detail: 'Miejsce zbiórki', isStop: true }, // i18n-ignore
       { label: 'Meta', lat: 50.8118, lon: 19.0967, detail: 'Jasna Góra', isStop: true } // i18n-ignore
     ],
-    tracks: [{ name: 'Dzień 1', color: null, points: [[50.0619, 19.9369], [50.2803, 19.5594], [50.8118, 19.0967]] }],
+    tracks: [{ name: 'Dzień 1', color: null, points: [[50.0619, 19.9369], [50.2803, 19.5594], [50.8118, 19.0967]] }], // i18n-ignore
     zoom: 9,
     showTrack: true,
     note: null

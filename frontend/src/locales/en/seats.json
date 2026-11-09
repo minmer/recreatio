@@ -1,0 +1,124 @@
+{
+  "checking": "Checking…",
+  "first": {
+    "fallback": {
+      "phone": "Phone number from the submission",
+      "email": "E-mail address from the submission",
+      "date": "Date from the submission"
+    },
+    "fallbackAny": "Answer from the submission",
+    "noKey": "This browser doesn't have the key from the link. Open the full link you received again.",
+    "checkFailed": "Could not check.",
+    "blocked": "This link is blocked",
+    "blockedText": "There were too many failed confirmation attempts. If this is your link, ask the office for a new one — this one won't open any more.",
+    "title": "Confirm it's you",
+    "titleWho": "Confirm it's you — {who}",
+    "lead": "You're opening this link for the first time. So that nobody by chance — for example someone who got the text message by mistake — sees your details, enter:",
+    "hint": "As in the submission — letter case and Polish characters don't matter. Once is enough: after that this link won't ask again.",
+    "confirm": "Confirm",
+    "left": "Attempts left: {count}"
+  },
+  "at": {
+    "long": "The suffix is too long (at most 300 characters).",
+    "start": "The suffix starts with “?” or “#”.",
+    "spaces": "The suffix without spaces and quotes.",
+    "oneAnchor": "Only one anchor “#”.",
+    "key": "The link adds the person's key itself — remove “miejsce=…”.",
+    "empty": "Something has to follow “?” or “#”."
+  },
+  "portal": {
+    "seedTitle": "Your submission",
+    "saveFailed": "Could not save.",
+    "makeFailed": "Could not create the portal.",
+    "enterAddress": "Enter the page address.",
+    "unknownAddress": "I don't recognise the page address — paste it as it stands in the address bar.",
+    "notAllowed": "recreatio.pl/{path} can't be the page after sending this form — choose a page from the list above.",
+    "saveAddressFailed": "Could not save the address.",
+    "shape": "Address: lower-case letters, digits and hyphens; separate parts with a slash.",
+    "taken": "Such a page already exists — choose it above.",
+    "noRole": "Your role was not found.",
+    "title": "After sending",
+    "nowhere": "This form isn't on any page yet. You can prepare the portal now — just remember that once the form is placed, the portal must be the same page, a page above or below it, or another public page of the same owner.",
+    "standsOn": "The form is on: {pages}. Any public page of the same owner can be the portal.",
+    "opens": "The link opens <code>recreatio.pl/{path}</code>",
+    "opensDerived": "The link opens <code>recreatio.pl/{path}</code> — that's what the settings give, nobody chose it.",
+    "how": "The person gets a link to this page with their own key. The blocks “Person's submission” and “Message for the person” on this page show their details; if they aren't there, the submission appears below the page content. The key stays in their browser and also works on other pages of this organisation.",
+    "astray": "This page no longer fits the pages the form is on — choose another, otherwise the submission will fail.",
+    "openPage": "Open this page",
+    "ownSummary": "Own address — with “#” or parameters",
+    "ownLabel": "Page address after sending",
+    "ownPlaceholder": "e.g. recreatio.pl/#/events/rocket2026#your-submission",
+    "ownHint": "Paste the page address (from the list above) and add after it: “#slide-name” — the link opens that slide (the name as in the slide menu, e.g. “#your-submission”), “?s=3” — the third slide, “?part=…” — a particular module. A suffix alone (“#…” or “?…”) applies to the page chosen above. The link adds the person's key itself.",
+    "personLink": "Person's link:",
+    "saveAddress": "Save address",
+    "noSuffix": "No suffix",
+    "newSummary": "Or create a new page",
+    "address": "Address",
+    "newPlaceholder": "e.g. parish/grzegorzki/confirmation/candidate",
+    "newHint": "It will be created with this person's submission, which they <b>can correct</b>, and a place for a message from the office.",
+    "making": "Creating…",
+    "make": "Create and open",
+    "pageAfter": "Page after sending",
+    "serviceChooses": "— let the service choose —",
+    "notFitting": "recreatio.pl/{path} (doesn't fit)"
+  },
+  "bar": {
+    "keyless": "This link is missing the key — you see the page, but not your details. Open the full link you received.",
+    "gone": "Your place doesn't exist — the link may have been withdrawn, replaced by a new one or expired. If you received a new link (e.g. by text message), open it.",
+    "locked": "The key from the link doesn't fit this place. Check that the link wasn't cut off while copying.",
+    "replaced": "<b>Saved. Your link is now new</b> — the previous one stopped working, in case it reached a wrong number. On this device you don't need to do anything; on others open the new link.",
+    "worksUntil": "The link works until {date}."
+  },
+  "zone": {
+    "submissionWho": "You and the office running the sign-ups see this.",
+    "noKey": "Without the key from the address this can't be opened.",
+    "steps": "Your steps",
+    "stepsWho": "You and the office see this.",
+    "shared": "Shared with the group",
+    "sharedWho": "Everyone sees this: {names}.",
+    "sealed": "sealed"
+  },
+  "link": {
+    "title": "Your link",
+    "hint": "With this address you come back here — also on another device. Whoever has it sees your details, so don't pass it on."
+  },
+  "bind": {
+    "failed": "Could not assign.",
+    "done": "Done. This place is now assigned to you — you'll find it in your account, also without this link.",
+    "haveAccount": "Have an account? After signing in you can assign this place to yourself — then you'll reach it without the link.",
+    "needPerson": "To assign this place to yourself, you need a <b>person</b> — an account is a bunch of keys, not a human. Create one in the “Roles” tab.",
+    "label": "Assign to yourself — who this place is about",
+    "person": "Person · {id}",
+    "hint": "The place's key will be wrapped with this person's key. The service takes no part in this — it gets a ready envelope.",
+    "binding": "Assigning…",
+    "bind": "Assign"
+  },
+  "page": {
+    "opening": "Opening…",
+    "noPlace": "This place doesn't exist",
+    "noPlaceText": "The link may have been withdrawn or expired.",
+    "yourPlace": "Your place",
+    "isKey": "This link is a key, not an ID: whoever has it sees this page. Don't pass it on.",
+    "noKey": "The address is missing the key — you can see that the place exists, but not its content. Open the full link, the one with the second part after the slash.",
+    "yourPage": "<b>This is your page.</b> Over time everything will happen here: appointments and meetings, messages from the office, consent to what you share. Come back to the same address — it won't change."
+  },
+  "verify": {
+    "noToken": "The address is missing the part after the slash.",
+    "dead": "This link no longer works",
+    "deadHint": "Write to the office — they'll send a new one. Nothing happened: this link only confirmed the number and opened nothing else.",
+    "done": "Number confirmed",
+    "again": "This number was already confirmed — everything is fine.",
+    "thanks": "Thank you. The office now sees that this number works.",
+    "only": "This link confirmed only the phone number. It doesn't open your details, changes nothing and after use works for nobody else."
+  },
+  "chat": {
+    "giveName": "Enter first and last name."
+  },
+  "entryN": "Submission {n}",
+  "extension": "Supplement",
+  "openFailed": "Could not open.",
+  "newMessages": {
+    "one": "{count} new message",
+    "other": "{count} new messages"
+  }
+}

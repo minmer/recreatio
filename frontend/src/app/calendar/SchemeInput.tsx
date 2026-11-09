@@ -5,6 +5,7 @@
  * Wert ist immer Text (`schemeValues.ts`).
  */
 
+import { useT } from '../core/i18n';
 import { LITURGICAL_COLOURS, colourClass, type SchemeField } from './scheme';
 import type { Candidate } from './PeoplePicker';
 
@@ -18,6 +19,7 @@ export function SchemeInput({ field, value, onChange, people, autoFocus = false,
   disabled?: boolean;
   id?: string;
 }) {
+  const t = useT();
   const label = field.label;
   switch (field.type) {
     case 'longtext':
@@ -40,7 +42,8 @@ export function SchemeInput({ field, value, onChange, people, autoFocus = false,
       );
     case 'colour': {
       const options = field.options && field.options.length > 0 ? field.options : LITURGICAL_COLOURS;
-      const swatch = colourClass(options.find((o) => o.value === value)?.label ?? value);
+      const found = options.find((o) => o.value === value);
+      const swatch = colourClass(found?.label) ?? colourClass(found?.value ?? value);
       return (
         <span className="wk-sc-colour">
           <span className={`wk-lc${swatch === null ? ' is-none' : ` ${swatch}`}`} aria-hidden="true" />
@@ -60,24 +63,24 @@ export function SchemeInput({ field, value, onChange, people, autoFocus = false,
       return (
         <select id={id} aria-label={label} value={value} disabled={disabled} autoFocus={autoFocus} onChange={(e) => onChange(e.target.value)}>
           <option value="">—</option>
-          <option value="tak">tak</option>
-          <option value="nie">nie</option>
+          <option value="tak">{t('calendarDataScheme.yes')}</option>
+          <option value="nie">{t('calendarDataScheme.no')}</option>
         </select>
       );
     case 'person':
       return (
         <select id={id} aria-label={label} value={value} disabled={disabled || people === null} autoFocus={autoFocus} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{people === null ? 'Wczytywanie osób…' : '—'}</option>
+          <option value="">{people === null ? t('calendarData.schemeInput.loadingPeople') : '—'}</option>
           {(people ?? []).map((p) => <option key={p.roleId} value={p.roleId}>{p.name}</option>)}
           {value !== '' && !(people ?? []).some((p) => p.roleId === value) && <option value={value}>{value}</option>}
         </select>
       );
     case 'link':
       return <input id={id} type="text" inputMode="url" spellCheck={false} aria-label={label} value={value} maxLength={1000} disabled={disabled}
-        autoFocus={autoFocus} placeholder="https://…" onChange={(e) => onChange(e.target.value)} />;
+        autoFocus={autoFocus} placeholder={t('calendarData.schemeInput.linkPlaceholder')} onChange={(e) => onChange(e.target.value)} />;
     case 'bible':
       return <input id={id} aria-label={label} value={value} maxLength={400} disabled={disabled} autoFocus={autoFocus}
-        placeholder="np. Iz 7,10-14; Ps 24; Rz 1,1-7; Mt 1,18-24" onChange={(e) => onChange(e.target.value)} />;
+        placeholder={t('calendarData.schemeInput.biblePlaceholder')} onChange={(e) => onChange(e.target.value)} />;
     case 'text':
     default:
       return <input id={id} aria-label={label} value={value} maxLength={400} disabled={disabled} autoFocus={autoFocus} onChange={(e) => onChange(e.target.value)} />;

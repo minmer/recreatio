@@ -43,6 +43,7 @@ import { convert, measures, parseQuantity } from '../core/quantities';
 import { childrenOf, parentsOf } from './structure';
 import { allBuilds, allNeeds, levelLabel, type PrerequisiteGraph } from './prerequisites';
 import { readCondition } from './logic';
+import { t, texts } from '../core/i18n';
 import { EMPTY_GAUGE, itemHolds, relSourceOf, type Gauge } from './knowing';
 
 /** 2026-10-25 — wie viele Einträge „Idź po strukturze" höchstens erreicht (ein Kreis endet ohnehin). */
@@ -66,16 +67,16 @@ function ruleNumber(field: FieldDef | undefined, want: string): number | null {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const lines = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => str(x).trim()).filter((x) => x !== '') : typeof v === 'string' ? v.split('\n').map((x) => x.trim()).filter((x) => x !== '') : []);
-const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 /* -- Die Regel (aus den Zbiory) -------------------------------------------------------------- */
 
 export type Compare = 'eq' | 'ne' | 'contains' | 'filled' | 'empty' | 'gt' | 'lt' | 'kind' | 'refers';
 
-export const COMPARE_LABEL: Record<Compare, string> = {
-  eq: 'równe', ne: 'różne od', contains: 'zawiera', filled: 'wypełnione', empty: 'puste',
-  gt: 'większe niż / po', lt: 'mniejsze niż / przed', kind: 'jest rodzaju', refers: 'odwołuje się do'
-};
+export const COMPARE_LABEL: Readonly<Record<Compare, string>> = texts({
+  eq: 'cogitaData.rule.eq', ne: 'cogitaData.rule.ne', contains: 'cogitaData.rule.contains', filled: 'cogitaData.rule.filled', empty: 'cogitaData.rule.empty',
+  gt: 'cogitaData.rule.gt', lt: 'cogitaData.rule.lt', kind: 'cogitaData.rule.kind', refers: 'cogitaData.rule.refers'
+});
 
 export interface Condition {
   readonly field?: string;
@@ -187,17 +188,22 @@ export interface Step {
 }
 
 /** Wie ein Schritt heisst und was er tut — derselbe Satz im Widok und am Knoten der Powtórka. */
+/* 2026-11-05 — in der Sprache der Anwendung (`cogitaData.step.<schritt>.*`), beim Lesen geholt. */
+const stepWords = (key: string): { readonly label: string; readonly says: string } => ({
+  get label() { return t(`cogitaData.step.${key}.label`); },
+  get says() { return t(`cogitaData.step.${key}.says`); }
+});
 export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; readonly says: string }>> = {
-  'source.all': { label: 'Wszystko', says: 'Każdy wpis tej bazy wiedzy (i baz, z których korzysta).' },
-  'source.kind': { label: 'Rodzaj', says: 'Wpisy jednego rodzaju — także z biblioteki albo skryptorium, z których korzysta ta baza (np. cytaty, kazania jednego rodzaju tekstu); „Skąd" zawęża do jednego źródła.' },
-  'source.collection': { label: 'Zbiór', says: 'Wpisy zapisanego zbioru — filtra albo listy.' },
-  'source.list': { label: 'Lista', says: 'Wybrane wpisy (identyfikatory, jeden w wierszu).' },
-  'source.from': { label: 'Z wpisu', says: 'To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu.' },
-  follow: { label: 'Idź po odwołaniu', says: 'Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie.' },
-  structure: { label: 'Idź po strukturze', says: 'Od wybranych wpisów w dół struktury — po polach, które ich rodzaje oznaczają jako „połączenie w strukturze” — do samego końca albo o jeden poziom; albo w górę, do wpisów, pod którymi leżą. W „Strukturze” rysuje drzewo w kolejności miejsc w dziele.' },
-  'filter.rule': { label: 'Filtr', says: 'Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB).' },
-  'filter.when': { label: 'Filtr znajomości', says: 'Zostawia wpisy, dla których warunek jest spełniony — także o tym, jak dobrze się je zna: ten wpis, jego karty, to, co trzeba znać wcześniej, to, pod czym leży, to, na co wskazuje jego pole (np. fakty okresu dopiero, gdy okres jest znany). Bez uczącego się liczy się znajomość oglądającego.' },
-  learning: { label: 'Idź po kolejności nauki', says: 'Od wybranych wpisów do tego, co trzeba znać wcześniej („Najpierw trzeba znać”) — do samych podstaw albo o jeden krok; albo dalej: do tego, co na nich buduje.' }
+  'source.all': stepWords('sourceAll'),
+  'source.kind': stepWords('sourceKind'),
+  'source.collection': stepWords('sourceCollection'),
+  'source.list': stepWords('sourceList'),
+  'source.from': stepWords('sourceFrom'),
+  follow: stepWords('follow'),
+  structure: stepWords('structure'),
+  'filter.rule': stepWords('filterRule'),
+  'filter.when': stepWords('filterWhen'),
+  learning: stepWords('learning')
 };
 
 const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'structure', 'filter.rule', 'filter.when', 'learning'];
@@ -314,7 +320,7 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
 }
 
 /** Was ein alter Schritt „Temat" sagt. */
-export const RETIRED_TOPIC = 'Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.';
+export const retiredTopic = (): string => t('cogitaData.selection.retiredTopic');
 
 /**
  * Die Schritte der Reihe nach — ohne Quelle beginnt es bei allem. Quellen am
@@ -327,7 +333,7 @@ export function runSteps(ctx: SelectContext, steps: readonly Step[]): { ids: str
   let leading = true;
   for (const step of steps) {
     if (step.type === 'source.collection' && ctx.collection(str(step.config.collection)) === undefined) problems.push('Nie ma takiego zbioru.');
-    if (step.config[RETIRED_STEP] === 'source.topic') problems.push(RETIRED_TOPIC);
+    if (step.config[RETIRED_STEP] === 'source.topic') problems.push(retiredTopic());
     const got = pick(ctx, step, now);
     if (leading && isSource(step.type) && now !== null) { for (const id of got) now.add(id); continue; }
     if (!isSource(step.type)) leading = false;
@@ -455,7 +461,7 @@ export function axisValues(ctx: SelectContext, axis: Axis): { value: Entity; hea
     if (axis.group === undefined) return null;
     const target = targetsOf(e, look, axis.group)[0];
     const head = target === undefined ? undefined : ctx.entity(target);
-    return head === undefined ? { key: '', label: 'bez grupy' } : { key: head.id, label: labelOf(head, look) };
+    return head === undefined ? { key: '', label: t('cogitaData.selection.noGroup') } : { key: head.id, label: labelOf(head, look) };
   };
   const placed = values.map((value) => ({ value, head: headOf(value) }));
   if (axis.group === undefined) return placed;
@@ -583,7 +589,7 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
     }
     return [
       ...[...levels.keys()].sort((a, b) => a - b).map((at) => ({ key: `level:${at}`, label: levelLabel(at), ids: levels.get(at)! })),
-      ...(rest.length > 0 ? [{ key: '', label: 'poza kolejnością nauki', ids: rest }] : [])
+      ...(rest.length > 0 ? [{ key: '', label: t('cogitaData.selection.outsideOrder'), ids: rest }] : [])
     ];
   }
   if (grouping.by === 'axis') {
@@ -600,7 +606,7 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
     const shown = values.filter((v) => options.all === true || groups.has(v.value.id));
     return [
       ...shown.map(({ value, head }) => ({ key: value.id, label: labelOf(value, look), ids: groups.get(value.id)?.ids ?? [], ...(head === null ? {} : { head }) })),
-      ...(rest.length > 0 ? [{ key: '', label: 'bez wartości na tej osi', ids: rest }] : [])
+      ...(rest.length > 0 ? [{ key: '', label: t('cogitaData.selection.noAxisValue'), ids: rest }] : [])
     ];
   }
   for (const id of ids) {
@@ -608,7 +614,7 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
     if (e === undefined) continue;
     if (grouping.by === 'kind') {
       const kind = e.kinds[0] ?? '';
-      put(kind, look.kind(kind)?.name ?? (kind || 'bez rodzaju'), id);
+      put(kind, look.kind(kind)?.name ?? (kind || t('cogitaData.selection.noKind')), id);
       continue;
     }
     const field = fieldsOf(e, look).find((f) => f.key === grouping.field);
@@ -618,7 +624,7 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
       for (const v of values) {
         if (typeof v !== 'string') continue;
         const target = ctx.entity(v);
-        put(v, target === undefined ? '[odwołanie niedostępne]' : labelOf(target, look), id);
+        put(v, target === undefined ? t('cogitaData.selection.refUnavailable') : labelOf(target, look), id);
       }
     } else {
       const text = fieldText(e, field, look);
@@ -628,6 +634,6 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
   const sorted = [...groups.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label, 'pl', { numeric: true }));
   return [
     ...sorted.map(([key, g]) => ({ key, label: g.label, ids: g.ids })),
-    ...(rest.length > 0 ? [{ key: '', label: grouping.by === 'field' ? 'bez wartości' : 'bez rodzaju', ids: rest }] : [])
+    ...(rest.length > 0 ? [{ key: '', label: grouping.by === 'field' ? t('cogitaData.selection.noValue') : t('cogitaData.selection.noKind'), ids: rest }] : [])
   ];
 }

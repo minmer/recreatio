@@ -147,8 +147,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">{t('library.view.isKnowledge')} <a href={viewPath('knowledge', libraryId)}>{t('library.view.openKnowledge')}</a></p>;
     if (current === null && writing.has(libraryId)) return <p className="wk-note">{t('library.view.isScriptorium')} <a href={viewPath('scriptorium', libraryId)}>{t('library.view.openScriptorium')}</a></p>;
     if (current === null) return <p className="wk-empty">{t('library.view.missing')} <a href={viewPath('library')}>{t('library.view.allLibraries')}</a></p>;
-    if (current.kind === 'liturgy') return <LiturgyHome me={me} library={current} trail={trail.slice(1)} />;
-    return <LibraryHome me={me} library={current} libraries={libraries.filter(l => l.kind === 'books')} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
+    if (libraryKindOf(current) === 'liturgy') return <LiturgyHome me={me} library={current} trail={trail.slice(1)} />;
+    return <LibraryHome me={me} library={current} libraries={libraries.filter((l) => libraryKindOf(l) === 'books')} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
 
   return <LibraryList me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
@@ -191,7 +191,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
   return (
     <>
       <h1 className="wk-h1">{t('library.list.title')}</h1>
-      <p className="wk-lede">{t('liturgy.libraryLede')}</p>
+      <p className="wk-lede">{t('library.list.lede')}</p>
 
       {libraries.length > 0 && (
         <ul className="lib-libraries">
@@ -199,7 +199,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
             <li key={one.libraryId}>
               <a className="lib-library" href={viewPath('library', one.libraryId)}>
                 <span className="lib-library-name">{one.name}</span>
-                <span>{t(one.kind === 'liturgy' ? 'liturgy.name' : 'liturgy.sourcesCollection')}</span>
+                {libraryKindOf(one) === 'liturgy' && <span className="lib-library-meta">{t('liturgy.name')}</span>}
                 <span className="lib-library-meta">{t('library.list.meta', { entries: t('library.list.entries', { count: one.entries }), area: areaName(one.areaId), who: audienceWords(one) })}{one.writes ? '' : t('library.list.readOnly')}</span>
               </a>
             </li>

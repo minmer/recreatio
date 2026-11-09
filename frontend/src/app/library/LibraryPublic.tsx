@@ -21,6 +21,7 @@ import { QuoteFigure } from './LibraryText';
 import { usePageLibrary } from './libraryOpen';
 import type { PartSize } from '../pages/part';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 /* -- Die Zitate ---------------------------------------------------------------------------------- */
 
@@ -39,6 +40,7 @@ export function QuotesCard({ library, title, work, size, whole = false }: {
   const take = size.height === 'strip' ? 1 : daily ? (size.width === 'narrow' || size.width === 'medium' ? 1 : 2) : 20;
   const { store, revision, state } = usePageLibrary(library === '' ? null : library);
   const [query, setQuery] = useState('');
+  const t = useT();
   const [chosenWork, setChosenWork] = useState(work);
   const [shown, setShown] = useState(take);
 
@@ -54,7 +56,7 @@ export function QuotesCard({ library, title, work, size, whole = false }: {
     if (store === null) return [];
     const found = new Map<string, string>();
     for (const q of all) for (const id of ids(q.data, 'work')) { const w = store.get(id); if (w !== undefined) found.set(id, entryTitle(w, store)); }
-    return [...found].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+    return [...found].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, t.locale));
   }, [store, all]);
   const matching = useMemo(() => {
     let list = chosenWork === '' ? all : all.filter((q) => ids(q.data, 'work').includes(chosenWork));
@@ -62,8 +64,8 @@ export function QuotesCard({ library, title, work, size, whole = false }: {
     return list;
   }, [all, chosenWork, query, store]);
 
-  if (state === 'loading') return <Loading label="Wczytywanie…" />;
-  if (store === null) return <p className="wk-card-text">Tej biblioteki nie widzisz — jej obszar nie jest publiczny.</p>;
+  if (state === 'loading') return <Loading label={t('common.loading')} />;
+  if (store === null) return <p className="wk-card-text">{t('library.public.closed')}</p>;
 
   const items = daily
     ? Array.from({ length: Math.min(take, matching.length) }, (_, i) => matching[(dayNumber() + i) % matching.length])
@@ -74,20 +76,20 @@ export function QuotesCard({ library, title, work, size, whole = false }: {
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
       {big && (
         <div className="lib-quotes-tools">
-          <input type="search" value={query} placeholder="Szukaj w cytatach…" aria-label="Szukaj w cytatach" onChange={(e) => setQuery(e.target.value)} />
+          <input type="search" value={query} placeholder={t('library.public.searchPlaceholder')} aria-label={t('library.public.search')} onChange={(e) => setQuery(e.target.value)} />
           {works.length > 1 && work === '' && (
-            <div className="lib-topics" role="group" aria-label="Źródła">
-              <button type="button" className={chosenWork === '' ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenWork('')}>wszystkie</button>
+            <div className="lib-topics" role="group" aria-label={t('libraryKinds.work.plural')}>
+              <button type="button" className={chosenWork === '' ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenWork('')}>{t('library.pick.all')}</button>
               {works.map((w) => <button key={w.id} type="button" className={chosenWork === w.id ? 'lib-chip is-on' : 'lib-chip'} onClick={() => setChosenWork(w.id)}>{w.name}</button>)}
             </div>
           )}
         </div>
       )}
-      {items.length === 0 && <p className="wk-card-text">{query === '' ? 'Nie ma jeszcze cytatów.' : 'Nic nie znaleziono.'}</p>}
+      {items.length === 0 && <p className="wk-card-text">{query === '' ? t('library.public.none') : t('library.search.none')}</p>}
       {items.length > 0 && (
         <ul className="lib-quote-list">{items.map((q) => <li key={q.id}><QuoteFigure entry={q} look={store} full={big || size.height !== 'strip'} /></li>)}</ul>
       )}
-      {big && items.length < matching.length && <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + take)}>Więcej ({matching.length - items.length})</button>}
+      {big && items.length < matching.length && <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + take)}>{t('library.public.more', { n: matching.length - items.length })}</button>}
     </div>
   );
 }

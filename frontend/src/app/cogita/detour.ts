@@ -16,6 +16,7 @@
  * nachgemessen in `scripts/app-detour-check.mjs`.
  */
 
+import { t } from '../core/i18n';
 import { DETOUR_DEPTH, type Flow } from './flow';
 import type { GraphNode } from './graph';
 
@@ -123,27 +124,27 @@ export interface DetourProblem {
 export function detourProblems(flow: Pick<Flow, 'id' | 'name' | 'graph'>, all: readonly Pick<Flow, 'id' | 'name' | 'graph'>[], resolve: (ref: string) => string | null): DetourProblem[] {
   const out: DetourProblem[] = [];
   const list = all.some((f) => f.id === flow.id) ? all.map((f) => (f.id === flow.id ? flow : f)) : [...all, flow];
-  const nameOf = (id: string) => `„${list.find((f) => f.id === id)?.name ?? id}”`;
+  const nameOf = (id: string) => t('cogitaLearnLogic.detour.quoted', { name: list.find((f) => f.id === id)?.name ?? id });
   for (const d of detoursIn(flow)) {
     /* 2026-11-05 (Prompt 24) — in eine andere Baza: geprüft beim Import gegen jene (`worldsImport.ts`); hier nur, dass es freiwillig bleibt. */
     if (d.cross === true) {
       const node = flow.graph.nodes.find((n) => n.id === d.step);
-      if (node !== undefined && (node.config.optional === false || node.config.required === true)) out.push({ level: 'warning', step: d.step, text: `Zagłębienie w innym świecie („${d.flow}”) jest zawsze nieobowiązkowe — "optional": false nie obowiązuje.` });
+      if (node !== undefined && (node.config.optional === false || node.config.required === true)) out.push({ level: 'warning', step: d.step, text: t('cogitaLearnLogic.detour.crossOptional', { flow: d.flow }) });
       continue;
     }
     const to = d.flow === '' ? null : resolve(d.flow);
     if (to === null || !list.some((f) => f.id === to)) {
-      out.push({ level: 'warning', step: d.step, text: d.flow === '' ? 'Zagłębienie nie wskazuje opowieści ("flow") — uczący się zobaczy tylko „Dalej”.' : `Zagłębienie wskazuje opowieść „${d.flow}”, której nie ma ani w dokumencie, ani w bazie — uczący się zobaczy tylko „Dalej”.` });
+      out.push({ level: 'warning', step: d.step, text: d.flow === '' ? t('cogitaLearnLogic.detour.noFlow') : t('cogitaLearnLogic.detour.missing', { flow: d.flow }) });
     } else if (to === flow.id) {
-      out.push({ level: 'error', step: d.step, text: `Zagłębienie prowadzi do tej samej opowieści ${nameOf(flow.id)} — opowieść nie może wejść sama w siebie.` });
+      out.push({ level: 'error', step: d.step, text: t('cogitaLearnLogic.detour.self', { name: nameOf(flow.id) }) });
     }
   }
   for (const ring of detourCycles(list, resolve)) {
     if (!ring.includes(flow.id) || ring[0] === ring[1]) continue;
-    out.push({ level: 'error', text: `Zagłębienia tworzą koło: ${ring.map(nameOf).join(' → ')} — opowieść nie może przez zagłębienia wrócić do siebie. Usuń jedno z nich.` });
+    out.push({ level: 'error', text: t('cogitaLearnLogic.detour.cycle', { ring: ring.map(nameOf).join(' → ') }) });
   }
   const deep = detourTooDeep(list, resolve, flow.id);
-  if (deep !== null) out.push({ level: 'warning', text: `Zagłębienia idą głębiej niż ${DETOUR_DEPTH} poziomy: ${deep.map(nameOf).join(' → ')} — najgłębszego odtwarzacz nie zaproponuje.` });
+  if (deep !== null) out.push({ level: 'warning', text: t('cogitaLearnLogic.detour.deep', { depth: DETOUR_DEPTH, chain: deep.map(nameOf).join(' → ') }) });
   return out;
 }
 

@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 
 import type { TexMacros } from '../core/tex';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 import { selectedText, TexMacrosContext, useTexApi } from '../ui/tex/Tex';
 import { viewPath } from '../routes';
 import { containerPath, type OpenLibrary } from './library';
@@ -58,16 +59,17 @@ export function SourceReader({ store, library, workId, at, writable }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const texts = useMemo(() => textsOfWork(finderOf(store), workId), [store, store.revision, workId]);
   const [textId, setTextId] = useState<string | null>(null);
-  const text = texts.find((t) => t.entry.id === textId) ?? texts[0];
+  const t = useT();
+  const text = texts.find((x) => x.entry.id === textId) ?? texts[0];
 
-  if (work === undefined) return <p className="wk-empty">Tego dzieła nie ma (albo nie masz do niego dostępu). <a href={viewPath('library', library.libraryId)}>Wróć do biblioteki</a></p>;
+  if (work === undefined) return <p className="wk-empty">{t('librarySource.reader.noWork')} <a href={viewPath('library', library.libraryId)}>{t('librarySource.reader.backToLibrary')}</a></p>;
   const title = kindOf('work')!.title(work.data, store);
   const back = containerPath((work as Entry).libraryId ?? library.libraryId, work.id);
   if (text === undefined) {
     return (
       <div className="src-reader">
         <a className="wk-link" href={back}>← {title}</a>
-        <p className="wk-empty">To dzieło nie ma jeszcze tekstu, który możesz czytać. Dodasz go na stronie dzieła („Tekst źródła”).</p>
+        <p className="wk-empty">{t('librarySource.reader.noText')}</p>
       </div>
     );
   }
@@ -78,9 +80,9 @@ export function SourceReader({ store, library, workId, at, writable }: {
         <h1 className="wk-h1">{title}</h1>
         {texts.length > 1 && (
           <label className="wk-field">
-            <span>Tekst</span>
+            <span>{t('librarySource.reader.text')}</span>
             <select value={text.entry.id} onChange={(e) => setTextId(e.target.value)}>
-              {texts.map((t, i) => <option key={t.entry.id} value={t.entry.id}>Tekst {i + 1} — {t.manifest.parts.length} części</option>)}
+              {texts.map((x, i) => <option key={x.entry.id} value={x.entry.id}>{t('librarySource.reader.textN', { n: i + 1, parts: t('librarySource.box.parts', { count: x.manifest.parts.length }) })}</option>)}
             </select>
           </label>
         )}
@@ -100,6 +102,7 @@ function Reading({ store, library, work, text, at, writable }: {
   writable: readonly OpenLibrary[];
 }) {
   const { manifest } = text;
+  const t = useT();
   const textLibrary = (text.entry as Entry).libraryId ?? library.libraryId;
   const here = (locator?: string) => viewPath('library', textLibrary, work.id, 'tekst', ...(locator === undefined || locator === '' ? [] : [locator]));
   const atPlace = useMemo(() => (at === '' ? null : placeInManifest(manifest, at)), [manifest, at]);
@@ -156,7 +159,7 @@ function Reading({ store, library, work, text, at, writable }: {
   const [besideId, setBesideId] = useState('');
   const beside = editions.find((e) => e.work.id === besideId);
 
-  if (part === undefined) return <p className="wk-empty">Ten tekst nie ma jeszcze żadnej części.</p>;
+  if (part === undefined) return <p className="wk-empty">{t('librarySource.reader.noParts')}</p>;
   const at0 = manifest.parts.indexOf(part);
   const before = at0 > 0 ? manifest.parts[at0 - 1] : undefined;
   const after = at0 >= 0 ? manifest.parts[at0 + 1] : undefined;
@@ -166,8 +169,8 @@ function Reading({ store, library, work, text, at, writable }: {
     <TexMacrosContext.Provider value={manifest.edition.macros ?? NO_MACROS}>
     <TextRefsContext.Provider value={refs}>
     <div className="src-layout">
-      <nav className="src-toc" aria-label="Części tekstu">
-        <h2 className="lib-box-h">Części</h2>
+      <nav className="src-toc" aria-label={t('librarySource.reader.tocLabel')}>
+        <h2 className="lib-box-h">{t('librarySource.reader.toc')}</h2>
         <ol>
           {manifest.parts.map((p) => (
             <li key={p.id}>
@@ -184,15 +187,15 @@ function Reading({ store, library, work, text, at, writable }: {
       <div className="src-main">
         <div className="src-tools">
           <form className="src-go" onSubmit={submitGo}>
-            <input value={go} onChange={(e) => setGo(e.target.value)} placeholder={manifest.scheme === 'bible' ? 'J 21,15' : labelled ? 's. 45 · Twierdzenie 2.3' : manifest.scheme === 'pages' ? 's. 45' : 'miejsce'} aria-label="Przejdź do miejsca" />
-            <button type="submit" className="wk-btn wk-btn-quiet">Przejdź</button>
+            <input value={go} onChange={(e) => setGo(e.target.value)} placeholder={manifest.scheme === 'bible' ? 'J 21,15' : labelled ? t('librarySource.reader.goLabelled') : manifest.scheme === 'pages' ? 's. 45' : t('librarySource.reader.goPlace')} aria-label={t('librarySource.reader.goLabel')} />
+            <button type="submit" className="wk-btn wk-btn-quiet">{t('librarySource.reader.go')}</button>
           </form>
           <TextSearch store={store} manifest={manifest} onPick={(hit) => { setChosen(hit.part.id); setFocus([hit.index]); }} />
           {editions.length > 0 && (
             <label className="src-beside">
-              <span>Obok</span>
+              <span>{t('librarySource.reader.beside')}</span>
               <select value={besideId} onChange={(e) => setBesideId(e.target.value)}>
-                <option value="">— inne wydanie —</option>
+                <option value="">{t('librarySource.reader.otherEdition')}</option>
                 {editions.map((e) => <option key={e.work.id} value={e.work.id}>{kindOf('work')!.title(e.work.data, store)}</option>)}
               </select>
             </label>
@@ -203,17 +206,17 @@ function Reading({ store, library, work, text, at, writable }: {
         {/* 2026-10-25 (Wywód) — die Wejścia z Biblioteki, die diesen Teil berühren (aus lesbaren Bazy wiedzy, nichts gespeichert). */}
         <ReaderAnchors store={store} work={work} part={part} scheme={manifest.scheme} />
         <h2 className="src-part-h">{part.label}</h2>
-        {data === undefined || (withTex && katex === undefined) ? <Loading lines={4} label={data === undefined ? 'Otwieranie tekstu…' : 'Składanie wzorów…'} />
-          : data === null ? <p className="wk-empty">Tej części nie da się teraz otworzyć.</p>
+        {data === undefined || (withTex && katex === undefined) ? <Loading lines={4} label={data === undefined ? t('librarySource.reader.opening') : t('librarySource.reader.typesetting')} />
+          : data === null ? <p className="wk-empty">{t('librarySource.reader.partFailed')}</p>
           : beside === undefined
             ? <Picked store={store} work={work} manifest={manifest} blocks={data.blocks} writable={writable}>
               <div className="src-flow"><SourceFlow blocks={data.blocks} prefix={prefix} hits={hits} /></div>
             </Picked>
             : <Parallel store={store} work={work} manifest={manifest} part={part} blocks={data.blocks} prefix={prefix} hits={hits} other={beside.texts[0]!} writable={writable} />}
-        {withTex && katex === null && <p className="wk-note">Wzory pokazane jako kod LaTeX — moduł do ich składania nie wczytał się (brak sieci?).</p>}
+        {withTex && katex === null && <p className="wk-note">{t('librarySource.reader.texMissing')}</p>}
         {/* 2026-11-01 — weiterlesen wie im Buch: die Teile davor und danach. */}
         {data != null && (before !== undefined || after !== undefined) && (
-          <nav className="src-partnav" aria-label="Sąsiednie części">
+          <nav className="src-partnav" aria-label={t('librarySource.reader.neighbours')}>
             {before !== undefined ? <button type="button" className="wk-btn wk-btn-quiet" onClick={() => pick(before)}>← {before.label}</button> : <span />}
             {after !== undefined && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => pick(after)}>{after.label} →</button>}
           </nav>
@@ -230,17 +233,18 @@ function Reading({ store, library, work, text, at, writable }: {
 function TextSearch({ store, manifest, onPick }: { store: LibraryStore; manifest: TextManifest; onPick: (hit: TextHit) => void }) {
   const [query, setQuery] = useState('');
   const [state, setState] = useState<{ busy: string | null; hits: TextHit[] | null }>({ busy: null, hits: null });
+  const t = useT();
   const run = async (e: FormEvent) => {
     e.preventDefault();
     /* Ein Zeichen allein nur als Symbol („∫", „ε") — ein Buchstabe fände alles. */
     if (query.trim().length < 2 && !/^[^A-Za-z0-9]$/.test(query.trim())) return;
-    setState({ busy: 'Otwieranie tekstu…', hits: null });
+    setState({ busy: t('librarySource.reader.opening'), hits: null });
     const loaded: { part: ManifestPart; data: PartData }[] = [];
     let done = 0;
     for (const p of manifest.parts) {
       const entry = await openPart(store, p.id);
       done += 1;
-      if (manifest.parts.length > 3) setState({ busy: `Otwieranie części ${done} z ${manifest.parts.length}…`, hits: null });
+      if (manifest.parts.length > 3) setState({ busy: t('librarySource.reader.openingPart', { n: done, total: manifest.parts.length }), hits: null });
       if (entry !== null) loaded.push({ part: p, data: readPart(entry.data) });
     }
     setState({ busy: null, hits: searchParts(loaded, query) });
@@ -248,11 +252,11 @@ function TextSearch({ store, manifest, onPick }: { store: LibraryStore; manifest
   return (
     <div className="src-search">
       <form className="src-go" onSubmit={(e) => void run(e)}>
-        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj w tekście" aria-label="Szukaj w całym tekście" />
-        <button type="submit" className="wk-btn wk-btn-quiet" disabled={state.busy !== null}>Szukaj</button>
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('librarySource.reader.searchPlaceholder')} aria-label={t('librarySource.reader.searchLabel')} />
+        <button type="submit" className="wk-btn wk-btn-quiet" disabled={state.busy !== null}>{t('common.search')}</button>
       </form>
       {state.busy !== null && <Loading lines={1} label={state.busy} />}
-      {state.hits !== null && (state.hits.length === 0 ? <p className="wk-empty">Nie znaleziono.</p> : (
+      {state.hits !== null && (state.hits.length === 0 ? <p className="wk-empty">{t('librarySource.reader.notFound')}</p> : (
         <ul className="lib-search-hits src-hits">
           {state.hits.map((hit) => (
             <li key={`${hit.part.id}-${hit.index}`}>
@@ -282,6 +286,7 @@ function Picked({ store, work, manifest, blocks, writable, children }: {
   const box = useRef<HTMLDivElement>(null);
   const [pick, setPick] = useState<Pick | null>(null);
   const [copied, setCopied] = useState(false);
+  const t = useT();
   const indexOf = (node: Node | null): number | null => {
     const el = node === null ? null : (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement);
     const block = el?.closest('[data-block]');
@@ -308,13 +313,13 @@ function Picked({ store, work, manifest, blocks, writable, children }: {
     <div ref={box} onMouseUp={onUp} onKeyUp={onUp} onTouchEnd={onUp}>
       {children}
       {pick !== null && (
-        <div className="src-pick" role="region" aria-label="Zaznaczony fragment">
+        <div className="src-pick" role="region" aria-label={t('librarySource.reader.selection')}>
           <span className="src-pick-text">„{pick.text.length > 90 ? `${pick.text.slice(0, 89)}…` : pick.text}”{pick.locator === '' ? '' : `, ${pick.locator}`}</span>
-          {into !== undefined && <a className="wk-btn" href={viewPath('library', into.libraryId, 'nowy', 'quote', preset)}>Dodaj cytat</a>}
+          {into !== undefined && <a className="wk-btn" href={viewPath('library', into.libraryId, 'nowy', 'quote', preset)}>{t('libraryData.quotes.addQuote')}</a>}
           <button type="button" className="wk-btn wk-btn-quiet" onClick={() => {
             void navigator.clipboard.writeText(`„${pick.text}” (${kindOf('work')!.title(work.data, store)}${pick.locator === '' ? '' : `, ${pick.locator}`})`).then(() => setCopied(true), () => setCopied(false));
-          }}>{copied ? 'Skopiowano' : 'Kopiuj z miejscem'}</button>
-          <button type="button" className="wk-link-btn" onClick={() => { window.getSelection()?.removeAllRanges(); setPick(null); }}>Zamknij</button>
+          }}>{copied ? t('common.copied') : t('librarySource.reader.copyWithPlace')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => { window.getSelection()?.removeAllRanges(); setPick(null); }}>{t('common.close')}</button>
         </div>
       )}
     </div>
@@ -343,6 +348,7 @@ function Parallel({ store, work, manifest, part, blocks, prefix, hits, other, wr
   writable: readonly OpenLibrary[];
 }) {
   const [theirs, setTheirs] = useState<SourceBlock[] | null | undefined>(undefined);
+  const t = useT();
   useEffect(() => {
     let alive = true;
     const mine = rangeOf(part, manifest);
@@ -358,8 +364,8 @@ function Parallel({ store, work, manifest, part, blocks, prefix, hits, other, wr
     return () => { alive = false; };
   }, [store, part, manifest, other]);
 
-  if (theirs === undefined) return <Loading lines={4} label="Otwieranie drugiego wydania…" />;
-  if (theirs === null) return <p className="wk-empty">Drugie wydanie nie ma tej części (albo nie ma w niej miejsc tej struktury — strony się nie przenoszą).</p>;
+  if (theirs === undefined) return <Loading lines={4} label={t('librarySource.reader.openingOther')} />;
+  if (theirs === null) return <p className="wk-empty">{t('librarySource.reader.otherMissing')}</p>;
 
   /* Zeilen an den Stellen der Struktur (`alignEditions`): jeder Block mit eigener Stelle beginnt eine. */
   const { rows, rest } = alignEditions(blocks, theirs, manifest, other.manifest);

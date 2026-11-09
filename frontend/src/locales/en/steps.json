@@ -1,0 +1,297 @@
+{
+  "weekday": {
+    "mon": {
+      "short": "Mon",
+      "many": "Mondays"
+    },
+    "tue": {
+      "short": "Tue",
+      "many": "Tuesdays"
+    },
+    "wed": {
+      "short": "Wed",
+      "many": "Wednesdays"
+    },
+    "thu": {
+      "short": "Thu",
+      "many": "Thursdays"
+    },
+    "fri": {
+      "short": "Fri",
+      "many": "Fridays"
+    },
+    "sat": {
+      "short": "Sat",
+      "many": "Saturdays"
+    },
+    "sun": {
+      "short": "Sun",
+      "many": "Sundays"
+    }
+  },
+  "date": {
+    "sameMonth": "{from}–{to}"
+  },
+  "time": {
+    "hours": {
+      "one": "{count} hr",
+      "other": "{count} hrs"
+    },
+    "minutes": {
+      "one": "{count} min",
+      "other": "{count} min"
+    }
+  },
+  "terms": {
+    "one": "{count} date",
+    "other": "{count} dates"
+  },
+  "schedule": {
+    "noDates": "no dates in this period",
+    "noDatesChanged": "no dates in this period (the date was changed or removed from the calendar)",
+    "daily": "daily",
+    "any": "on any day",
+    "onDays": "on {days}"
+  },
+  "presence": {
+    "yes": "I'll be there",
+    "maybe": "I don't know yet",
+    "no": "I won't be there"
+  },
+  "presenceThey": {
+    "yes": "will be there",
+    "maybe": "doesn't know",
+    "no": "won't be there"
+  },
+  "attendance": {
+    "present": "present",
+    "absent": "absent",
+    "excused": "excused absence"
+  },
+  "times": {
+    "one": "{count} time",
+    "other": "{count} times"
+  },
+  "chatTarget": {
+    "seat": "in the chats with the leaders",
+    "seatNamed": "in the chat with the leaders “{name}”",
+    "area": "in the group chats",
+    "areaNamed": "in the group chat “{name}”",
+    "channel": "in the channels",
+    "channelNamed": "in the channel “{name}”",
+    "all": "in all chats",
+    "allNamed": "in all chats “{name}”"
+  },
+  "auto": {
+    "confirm": "Checking and confirming the data",
+    "confirmHelp": "After opening the link the person reviews their data — especially the contacts — and confirms it with one button.",
+    "fill": "Fill in: {name}",
+    "officeFills": "Filled in by the coordinator — the person doesn't see it."
+  },
+  "sealed": {
+    "task": "Task (sealed)",
+    "booking": "Choosing a date (sealed)",
+    "chat": "Read the messages (sealed)",
+    "learn": "Learn (sealed)",
+    "step": "Step (sealed)"
+  },
+  "booking": {
+    "none": "no date",
+    "noneTitle": "{label} — the person hasn't chosen a date yet",
+    "was": "date was {when}",
+    "at": "date {when}",
+    "waits": "waiting",
+    "waitsLong": "(waiting for confirmation)",
+    "wasLong": "(already past)",
+    "pick": "You choose the date in the booking.",
+    "pickIn": "You choose the date in the booking “{name}”.",
+    "chosen": "Chosen date: {when}.",
+    "chosenWaiting": "Chosen date: {when} — waiting for confirmation."
+  },
+  "chat": {
+    "upToDate": "✓ up to date",
+    "toRead": "to read",
+    "read": "Read"
+  },
+  "sheet": {
+    "title": "Attendance list",
+    "hint": "Tasks with dates from the calendar: who will be there, who doesn't know yet, who won't — and after the date, who was there.",
+    "noDates": "There are no dates in the task's period — the date was changed or removed from the calendar.",
+    "date": "Date",
+    "noAnswer": "no answer {count}",
+    "attendance": "present {present} · absent {absent} · excused {excused}",
+    "answerOf": "{name}: answer",
+    "yes": "Will be there",
+    "maybe": "Doesn't know",
+    "no": "Won't be there",
+    "dutyOf": "{name}: role",
+    "attendanceOf": "{name}: attendance",
+    "present": "✓ Present",
+    "absent": "Absent",
+    "excused": "Excused",
+    "nobody": "Nobody has signed up yet."
+  },
+  "task": "Task",
+  "saveFailed": "Could not save.",
+  "duty": "role",
+  "noDuty": "no role",
+  "status": {
+    "done": "done",
+    "todo": "to do",
+    "overdue": "overdue",
+    "read": "read",
+    "unread": "unread"
+  },
+  "list": {
+    "nothing": "There is nothing to do here.",
+    "allDone": "All done. Thank you!",
+    "doneOf": "Done {done} of {total}.",
+    "progress": "Progress",
+    "due": "by {date}",
+    "confirmHint": "Review your data in the registration and confirm it.",
+    "officeTicks": "The office ticks this off when it receives it.",
+    "pickDate": "Choose a date",
+    "collapse": "Collapse",
+    "view": "View",
+    "fill": "Fill in",
+    "undo": "Undo",
+    "markDone": "Done",
+    "tick": "Tick off",
+    "formClosed": "This form is already closed.",
+    "auto": "automatically",
+    "personTicks": "ticked off by the person",
+    "hidden": "the person doesn't see this",
+    "chatRead": "New messages {where} — all read.",
+    "chatUnread": "New messages {where} — not read yet.",
+    "learnReached": "Learning up to {pct}% knowledge — reached. Progress: Learning → knowledge base → Progress.",
+    "learnNotYet": "Learning up to {pct}% knowledge — not yet. Progress: Learning → knowledge base → Progress."
+  },
+  "word": {
+    "yes": "yes",
+    "no": "no",
+    "maybe": "I don't know yet",
+    "none": "no answer"
+  },
+  "card": {
+    "done": "✓ completed",
+    "waiting": "waiting for an answer",
+    "yesN": "yes {count}",
+    "noN": "no {count}",
+    "need": "needed {need}",
+    "starts": "Starts {day}.",
+    "startsAt": "Starts {day}, {at}.",
+    "today": "Today, {at}.",
+    "next": "Next: {day}, {at}.",
+    "reporting": "Finished — you can answer until {day}.",
+    "over": "Finished.",
+    "present": "Attendance: {done}.",
+    "presentOf": "Attendance: {done} of {needed}.",
+    "doneN": "Done: {done}.",
+    "doneOf": "Done: {done} of {needed}.",
+    "noDays": "There are no days of this task in this period (the date was changed or removed from the calendar).",
+    "how": "Click a day: once — <yes>yes</yes>, twice — <no>no</no>, three times — <maybe>I don't know yet</maybe>, four times — no answer.",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "dutyOf": "{day}: role",
+    "dutyColon": "role:",
+    "whatDo": "what do you want to do?",
+    "full": "taken",
+    "free": "free {count}",
+    "noDates": "There are no dates in this period (the date was changed or removed from the calendar).",
+    "answerOf": "{day}: answer",
+    "duty": "Role",
+    "dutyLabel": "Role:",
+    "attendanceOf": "{day}: attendance"
+  },
+  "problem": {
+    "period": "give the period",
+    "endBeforeStart": "end before start",
+    "weekdays": "choose the weekdays",
+    "showFrom": "“visible from” after the start",
+    "reportUntil": "“mark until” before the end",
+    "item": "choose a date from the calendar",
+    "capacity": "people per role: a number from 1 to 500 or empty"
+  },
+  "editor": {
+    "taskWrong": "Task “{name}”: {problem}.",
+    "unbooked": "Marker “{name}”: choose where the person picks a date.",
+    "unlearned": "Marker “{name}”: choose the library the person should learn from.",
+    "saveFailed": "Could not save the steps.",
+    "noKey": "Tasks and markers are sealed with the key of the form's area — set the area in “Settings” or open the form with an account that reads this area.",
+    "unreadable": "Some tasks or markers cannot be read with this key — saving will overwrite them.",
+    "tasksTitle": "Tasks for people",
+    "tasksHint": "The person answers in the calendar for each day of the task; the office sees it with the person and can enter it for them.",
+    "noTasks": "No tasks yet.",
+    "addTask": "+ Add task",
+    "marksTitle": "Markers",
+    "marksHint": "What doesn't show in the data (“Parental consent delivered”). Ticked off by the office, by the person through their link — or by the marker itself (a chosen date, messages read).",
+    "noMarks": "None yet.",
+    "mark": "Marker",
+    "markHint": "e.g. Parental consent delivered",
+    "markHelp": "Explanation for the person (optional)",
+    "markHelpHint": "e.g. The consent form is in the sacristy.",
+    "ticks": "Ticked off by",
+    "byOffice": "the office",
+    "byPerson": "the person themselves",
+    "byBooking": "itself — when the person chooses a date",
+    "byChat": "itself — when the person reads the messages",
+    "byLearn": "itself — when the person has learned (knowledge base)",
+    "in": "In",
+    "dateIn": "Date in",
+    "personSees": "the person sees it",
+    "due": "Due",
+    "up": "Up",
+    "down": "Down",
+    "addMark": "+ Add marker",
+    "readLabel": "Read the new messages",
+    "addRead": "+ Add: read messages",
+    "learnLabel": "Learn",
+    "addLearn": "+ Add: learn",
+    "save": "Save tasks and markers",
+    "revert": "Undo changes",
+    "unnamed": "Tasks and markers without a name won't be saved.",
+    "autoTitle": "Progress counted automatically",
+    "autoHint": "From the person's link and from sub-forms — shown with every person.",
+    "confirmWho": "the person, after first opening the link",
+    "personFills": "filled in by the person through their link",
+    "officeFills": "filled in by the coordinator, the person doesn't see it",
+    "closed": "closed",
+    "noQuestions": "no questions — doesn't count until you add some",
+    "mapNote": "<b>You arrange the person's steps on the page</b> — in the “Page logic map”, under the modules: each step is a node that is done when what you connect to it is met. The map can use tasks and markers as inputs (“Marker”; a task counts when the person has marked enough days).",
+    "taskHint": "e.g. Rosary in the church",
+    "taskHelp": "Description for the person — where, what to bring (optional)",
+    "taskHelpHint": "e.g. Parish church, side aisle.",
+    "toLower": "to",
+    "when": "When",
+    "weekly": "on chosen weekdays",
+    "once": "once, on any day of the period",
+    "fromCalendar": "dates from the calendar (meeting, service, celebration)",
+    "calendar": "Calendar",
+    "itemHint": "The person will see this entry's dates from the period above — moved as in the calendar, without cancelled ones. A series (e.g. weekly meetings): set the period from which the dates count.",
+    "askEach": "Ask before each date: <em>I'll be there / I don't know yet / I won't be there</em>",
+    "dutiesHint": "Roles to choose for those who will come (e.g. altar servers: cross, candles, incense) — empty “people”: no limit.",
+    "dutyHint": "e.g. Incense",
+    "capacity": "people",
+    "addDuty": "+ Add role",
+    "weekdays": "Weekdays",
+    "hour": "Time",
+    "duration": "Duration (min)",
+    "doneWhen": "Done when",
+    "answerEachDate": "the person answers for every date (I'll be there / I won't)",
+    "answerEachDay": "the person answers for every day (yes / no)",
+    "presentTimes": "present a set number of times",
+    "doneTimes": "done a set number of times",
+    "howMany": "how many times",
+    "marksDone": "Completion marked by",
+    "byOfficeList": "the office (attendance list)",
+    "showFrom": "Visible from",
+    "reportUntil": "Mark until",
+    "emptyItem": "(empty: at once · until a week after the end)",
+    "emptyPlan": "(empty: from the start of the period · until a week after the end)",
+    "fix": "To fix: {problem}.",
+    "previewItem": "The person will see the dates from the period {period}{ask}{duty}.",
+    "previewAsk": " and answer before each: I'll be there / I don't know yet / I won't be there",
+    "previewDuty": ", then choose a role",
+    "preview": "The person will see: {plan}"
+  }
+}

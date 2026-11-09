@@ -22,7 +22,7 @@
 import type { ReactNode } from 'react';
 
 import { FormControllerNote } from '../areas/AreaController';
-import { plural } from '../core/plural';
+import { fmtDate, useT } from '../core/i18n';
 import { questionsAreaOf, updateModule } from '../modules/module';
 import { QuestionsAreaSettings } from './QuestionsAreaSettings';
 import { ModuleSettings } from '../modules/ModuleSettings';
@@ -60,6 +60,7 @@ export function FormOffice(props: FormOfficeProps) {
     setShowHidden, setSkipped, setTab, setTidyOpen, showHidden, shutAreas, skipped, staleNotice, stepInfo, straighten,
     submissions, tab, tableToo, tidyFields, tidyOpen
   } = useFormOffice(props);
+  const t = useT();
 
   return (
     <>
@@ -74,7 +75,7 @@ export function FormOffice(props: FormOfficeProps) {
       {ring === null && (
         <Unlock
           who={who}
-          why="Bez hasła nie da się ani zapieczętować pytania, ani otworzyć odpowiedzi."
+          why={t('formsOffice.unlockWhy')}
           onDone={() => void look()}
         />
       )}
@@ -82,21 +83,21 @@ export function FormOffice(props: FormOfficeProps) {
       {/* 0096 — das Hauptformular und seine Unterformulare: öffnen, bearbeiten, eines dazu; die Karte. */}
       {module !== undefined && module.kind === 'form' && <FormFamily module={module} onChanged={() => void onModuleChanged?.()} />}
 
-      <div className="wk-tabs" role="tablist" aria-label="Formularz">
+      <div className="wk-tabs" role="tablist" aria-label={t('forms.sheet.form')}>
         <FormTab now={tab} mine="people" onPick={setTab}>
-          Zgłoszenia
+          {t('formsOffice.tab.people')}
           {(submissions.length > 0 ? submissions.length : module?.entries ?? 0) > 0 && (
             <span className="wk-tab-n">{submissions.length > 0 ? submissions.length : module?.entries ?? 0}</span>
           )}
         </FormTab>
-        <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
-        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Kroki</FormTab>}
-        {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
+        <FormTab now={tab} mine="questions" onPick={setTab}>{t('formsOffice.tab.questions')}</FormTab>
+        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>{t('formsOffice.tab.steps')}</FormTab>}
+        {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>{t('common.settings')}</FormTab>}
         {/* Werkzeuge: leiser, rechts — da, ohne umzuschalten. */}
         <span className="wk-tab-tools">
-          {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
-          {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
-          {(!isExtension || tableToo) && <FormTab now={tab} mine="entries" onPick={setTab}>Tabela</FormTab>}
+          {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>{t('formsOffice.tab.layout')}</FormTab>}
+          {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>{t('formsOffice.tab.logic')}</FormTab>}
+          {(!isExtension || tableToo) && <FormTab now={tab} mine="entries" onPick={setTab}>{t('formsOffice.tab.entries')}</FormTab>}
         </span>
       </div>
 
@@ -128,8 +129,8 @@ export function FormOffice(props: FormOfficeProps) {
             nichts mehr an — es bleibt stehen, mit allem, was eingegangen ist.
           */}
           <div className="wk-field">
-            <span>Przyjmowanie zgłoszeń</span>
-            <div className="wk-seg" role="group" aria-label="Przyjmowanie zgłoszeń">
+            <span>{t('formsOffice.accepting')}</span>
+            <div className="wk-seg" role="group" aria-label={t('formsOffice.accepting')}>
               {([false, true] as const).map((closed) => (
                 <button
                   key={String(closed)}
@@ -137,15 +138,15 @@ export function FormOffice(props: FormOfficeProps) {
                   aria-pressed={module.closed === closed}
                   className={module.closed === closed ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
                   disabled={busy !== null || module.closed === closed}
-                  onClick={() => void moduleAct(closed ? 'Zamykanie…' : 'Otwieranie…',
+                  onClick={() => void moduleAct(closed ? t('formsOffice.closing') : t('forms.ext.opening'),
                     () => updateModule(module.moduleId, { closed }))}
                 >
-                  {closed ? 'Zamknięte' : 'Otwarte'}
+                  {closed ? t('formsOffice.closed') : t('formsOffice.open')}
                 </button>
               ))}
             </div>
             {module.closed && (
-              <span className="wk-hint">Formularz stoi na stronie, ale nie przyjmuje nowych zgłoszeń.</span>
+              <span className="wk-hint">{t('formsOffice.closedHint')}</span>
             )}
           </div>
 
@@ -184,7 +185,7 @@ export function FormOffice(props: FormOfficeProps) {
             <ExtensionOf
               row={module!}
               busy={busy !== null}
-              onRepeat={(repeat) => moduleAct('Zapisywanie…', () => updateModule(module!.moduleId, { repeat }))}
+              onRepeat={(repeat) => moduleAct(t('common.saving'), () => updateModule(module!.moduleId, { repeat }))}
             />
           ) : (
             <>
@@ -227,7 +228,7 @@ export function FormOffice(props: FormOfficeProps) {
                 base={module!}
                 extensions={stepInfo?.extensions ?? []}
                 busy={busy !== null}
-                onCreated={() => act('Zakładanie rozszerzenia…', async () => { await onModuleChanged?.(); })}
+                onCreated={() => act(t('formsOffice.creatingExt'), async () => { await onModuleChanged?.(); })}
                 onError={setFailed}
               />
             </>
@@ -244,7 +245,7 @@ export function FormOffice(props: FormOfficeProps) {
 
       {tab === 'steps' && module !== undefined && !isExtension && (
         stepInfo === null ? (
-          <Loading label="Wczytywanie kroków…" />
+          <Loading label={t('formsOffice.loadingSteps')} />
         ) : (
           <StepsEditor
             key={stepsKey(stepInfo.steps)}
@@ -287,8 +288,7 @@ export function FormOffice(props: FormOfficeProps) {
           */}
           {module !== undefined && module.areaId === null && (
             <p className="wk-warn">
-              Formularz nie ma własnego obszaru — pytania trafiają pod klucz obszaru odpowiedzi.
-              Ustaw obszar formularza w zakładce „Ustawienia".
+              {t('formsOffice.noArea')}
             </p>
           )}
 
@@ -332,7 +332,7 @@ export function FormOffice(props: FormOfficeProps) {
           {removedNote !== null && <p className="wk-done" role="status">{removedNote}</p>}
 
           {fields.length === 0 ? (
-            <p className="wk-empty">Jeszcze żadnego pytania.</p>
+            <p className="wk-empty">{t('formsOffice.noQuestions')}</p>
           ) : (
             <ul className="wk-list">
               {fields.map((f) => editing === f.fieldId && ring !== null ? (
@@ -345,7 +345,7 @@ export function FormOffice(props: FormOfficeProps) {
                     busy={busy !== null}
                     optionsOf={locks.options.get(f.fieldId)}
                     onCancel={() => setEditing(null)}
-                    onSave={(change) => void act('Zapisywanie pytania…', async () => {
+                    onSave={(change) => void act(t('formsOffice.savingQuestion'), async () => {
                       await saveField(f, change);
                       setEditing(null);
                     })}
@@ -354,17 +354,17 @@ export function FormOffice(props: FormOfficeProps) {
               ) : (
                 <li className="wk-row" key={f.fieldId}>
                   <span>
-                    <strong>{f.label ?? 'zapieczętowane'}</strong>
+                    <strong>{f.label ?? t('forms.card.sealed')}</strong>
                     <span className="wk-row-side">
                       {' · '}{KIND_LABEL[f.kind]}
-                      {f.isRequired && ' · wymagane'}
-                      {f.personOnly === true ? ' · wpisuje i poprawia tylko osoba' : !f.selfEdit && ' · po wysłaniu tylko do odczytu'}
+                      {f.isRequired && ` · ${t('formsOffice.required')}`}
+                      {f.personOnly === true ? ` · ${t('formsOffice.personOnly')}` : !f.selfEdit && ` · ${t('formsOffice.readOnlyAfter')}`}
                       {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
                       {' · → '}{areaLabel(f.areaId)}
                     </span>
                     {locks.fields.has(f.fieldId) && (
-                      <span className="wk-tag wk-tag-need" title="Nie da się go usunąć, dopóki wymaganie jest zaznaczone — można je przesunąć i zmienić jego treść.">
-                        wymaganie: {locks.fields.get(f.fieldId)}
+                      <span className="wk-tag wk-tag-need" title={t('formsOffice.lockedTitle')}>
+                        {t('formsOffice.lockedTag', { need: locks.fields.get(f.fieldId) ?? '' })}
                       </span>
                     )}
                   </span>
@@ -374,22 +374,22 @@ export function FormOffice(props: FormOfficeProps) {
                       type="button" className="wk-link-btn" disabled={busy !== null || ring === null || f.label === null}
                       onClick={() => setEditing(f.fieldId)}
                     >
-                      Edytuj
+                      {t('common.edit')}
                     </button>
                     {' · '}
                     <button
                       type="button" className="wk-link-btn" disabled={busy !== null || locks.fields.has(f.fieldId)}
-                      title={locks.fields.has(f.fieldId) ? `Należy do wymagania „${locks.fields.get(f.fieldId)}” — najpierw je odznacz.` : undefined}
-                      onClick={() => void act('Usuwanie…', async () => {
+                      title={locks.fields.has(f.fieldId) ? t('formsOffice.lockedDelete', { need: locks.fields.get(f.fieldId) ?? '' }) : undefined}
+                      onClick={() => void act(t('formsOffice.deleting'), async () => {
                         setRemovedNote(null);
                         const done = await removeField(f.fieldId);
                         /* 0086 — mit Antworten: vom Formular genommen, nicht gelöscht. */
                         if (done.kept === true) {
-                          setRemovedNote(`„${f.label ?? 'Pytanie'}” zdjęto z formularza — nikt go już nie dostanie, a dotychczasowe odpowiedzi zostają w zgłoszeniach. Można je przywrócić niżej.`);
+                          setRemovedNote(t('formsOffice.takenOff', { label: f.label ?? t('formsOffice.question') }));
                         }
                       })}
                     >
-                      Usuń
+                      {t('common.delete')}
                     </button>
                   </span>
                 </li>
@@ -400,23 +400,23 @@ export function FormOffice(props: FormOfficeProps) {
           {/* 0086 — VOM FORMULAR GENOMMEN: ihre Antworten bleiben; zurückholen geht. */}
           {removedFields.length > 0 && (
             <details className="wk-fold wk-taken-off">
-              <summary>Zdjęte z formularza ({removedFields.length}) — ich odpowiedzi zostają w zgłoszeniach</summary>
+              <summary>{t('formsOffice.takenOffList', { count: removedFields.length })}</summary>
               <ul className="wk-list">
                 {removedFields.map((f) => (
                   <li className="wk-row wk-row-muted" key={f.fieldId}>
                     <span>
-                      <strong>{f.label ?? 'zapieczętowane'}</strong>
+                      <strong>{f.label ?? t('forms.card.sealed')}</strong>
                       <span className="wk-row-side">
                         {' · '}{KIND_LABEL[f.kind]}
-                        {f.removedAt != null && ` · zdjęte ${new Date(f.removedAt).toLocaleDateString('pl-PL')}`}
+                        {f.removedAt != null && ` · ${t('formsOffice.takenOffAt', { date: fmtDate(new Date(f.removedAt), { dateStyle: 'short' }, t.lang) })}`}
                       </span>
                     </span>
                     <span className="wk-row-side">
                       <button
                         type="button" className="wk-link-btn" disabled={busy !== null}
-                        onClick={() => void act('Przywracanie…', async () => { setRemovedNote(null); await restoreField(f.fieldId); })}
+                        onClick={() => void act(t('formsOffice.restoring'), async () => { setRemovedNote(null); await restoreField(f.fieldId); })}
                       >
-                        Przywróć
+                        {t('formsOffice.restore')}
                       </button>
                     </span>
                   </li>
@@ -447,24 +447,22 @@ export function FormOffice(props: FormOfficeProps) {
       {(tab === 'layout' || tab === 'logic') && module !== undefined && (
         module.areaId === null ? (
           <p className="wk-warn">
-            Układ i logika są zapieczętowane kluczem obszaru formularza — ustaw go najpierw
-            w zakładce „Ustawienia".
+            {t('formsOffice.designNoArea')}
           </p>
         ) : ring === null ? (
-          <p className="wk-empty">Bez hasła nie da się ani odczytać, ani zapieczętować układu.</p>
+          <p className="wk-empty">{t('formsOffice.designNoPassword')}</p>
         ) : designLocked ? (
           <p className="wk-warn">
-            Ten formularz ma zapisany układ, ale nie masz klucza, którym go zapieczętowano
-            — nie da się go ani odczytać, ani nadpisać.
+            {t('formsOffice.designLocked')}
           </p>
         ) : fields.length === 0 ? (
-          <p className="wk-empty">Najpierw pytania — układ i logika na nich się opierają.</p>
+          <p className="wk-empty">{t('formsOffice.designNoQuestions')}</p>
         ) : tab === 'layout' ? (
           <FormLayout
             layout={layout}
             fields={byId}
             busy={busy !== null}
-            onSave={(next) => void act('Zapisywanie układu…',
+            onSave={(next) => void act(t('formsFormat.msg.savingLayout'),
               () => saveDesignNow({ ...current, layout: next }))}
           />
         ) : (
@@ -474,7 +472,7 @@ export function FormOffice(props: FormOfficeProps) {
             fields={fields}
             locked={locks}
             busy={busy !== null}
-            onSave={(nodes, edges) => void act('Zapisywanie logiki…',
+            onSave={(nodes, edges) => void act(t('formsOffice.savingLogic'),
               () => saveDesignNow({ ...current, layout, nodes, edges }))}
           />
         )
@@ -485,28 +483,28 @@ export function FormOffice(props: FormOfficeProps) {
       {readsHere(tab) && (
         <>
           {areasHere.length === 0 ? (
-            <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
+            <p className="wk-empty">{t('formsOffice.noQuestionsNoEntries')}</p>
           ) : readAreas === null ? (
             <div className="wk-actions">
               <button
                 type="button" className="wk-btn"
                 disabled={busy !== null || ring === null}
-                onClick={() => openAll('Otwieranie zgłoszeń…')}
+                onClick={() => openAll(t('formsOffice.openingEntries'))}
               >
-                Otwórz zgłoszenia
+                {t('formsOffice.openEntries')}
               </button>
             </div>
           ) : areasHere.length > 1 && (
             /* Welche Bereiche offen sind — ALLE zugleich — und welche nicht. */
             <p className="wk-hint">
-              Otwarte razem: {readAreas.map((id) => areaLabel(id)).join(' · ') || 'żaden'}
-              {shutAreas.length > 0 && <> · bez klucza: {shutAreas.map((id) => areaLabel(id)).join(' · ')}</>}
+              {t('formsOffice.openTogether', { list: readAreas.map((id) => areaLabel(id)).join(' · ') || t('formsOffice.none') })}
+              {shutAreas.length > 0 && <> · {t('formsOffice.noKey', { list: shutAreas.map((id) => areaLabel(id)).join(' · ') })}</>}
             </p>
           )}
 
           {reading !== null && (
             <p className="wk-hint" role="status">
-              Otwieranie zgłoszeń: {reading.done} z {reading.total}…
+              {t('formsOffice.openingProgress', { done: reading.done, total: reading.total })}
             </p>
           )}
 
@@ -526,15 +524,15 @@ export function FormOffice(props: FormOfficeProps) {
               )}
               <button
                 type="button" className="ui-filter" aria-pressed={showHidden}
-                title="Pokaż też ukryte zgłoszenia"
+                title={t('formsOffice.showHiddenTitle')}
                 onClick={() => {
                   /* Mit dem NEUEN Wert lesen — der Zustand ist beim Aufruf noch der alte. */
                   const hidden = !showHidden;
                   setShowHidden(hidden);
-                  openAll('Wczytywanie…', hidden);
+                  openAll(t('common.loading'), hidden);
                 }}
               >
-                <Icon name="eye" />Ukryte
+                <Icon name="eye" />{t('formsOffice.hidden')}
               </button>
             </div>
           )}
@@ -550,7 +548,7 @@ export function FormOffice(props: FormOfficeProps) {
           submissions={submissions}
           opened={opened}
           stepInfo={isExtension ? null : stepInfo}
-          fileName={module?.name ?? conf.title ?? 'zgloszenia'}
+          fileName={module?.name ?? conf.title ?? t('formsOffice.fileName')}
           onSave={ring === null ? undefined : saveTable}
           canAdd={!isExtension}
         />
@@ -579,34 +577,34 @@ export function FormOffice(props: FormOfficeProps) {
                 disabled={busy !== null || crooked.length === 0}
                 onClick={() => setTidyOpen((was) => !was)}
               >
-                {crooked.length === 0 ? 'Uporządkuj dane' : `Uporządkuj dane (${crooked.length})`}
+                {crooked.length === 0 ? t('formsOffice.tidy') : t('formsOffice.tidyCount', { count: crooked.length })}
               </button>
               <span className="wk-hint">
                 {crooked.length === 0
-                  ? 'Numery telefonu i adresy są już zapisane w jednej postaci.'
-                  : [
-                    [crooked.filter((c) => c.kind === 'phone').length, 'numer', 'numery', 'numerów'] as const,
-                    [crooked.filter((c) => c.kind === 'address').length, 'adres', 'adresy', 'adresów'] as const
-                  ].filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`).join(' i ')
-                    + ' zapisano inaczej, niż zapisuje je reszta bazy.'}
+                  ? t('formsOffice.tidyDone')
+                  : t('formsOffice.tidyFound', {
+                    list: [
+                      ['formsOffice.numbers', crooked.filter((c) => c.kind === 'phone').length] as const,
+                      ['formsOffice.addresses', crooked.filter((c) => c.kind === 'address').length] as const
+                    ].filter(([, n]) => n > 0).map(([key, n]) => t(key, { count: n })).join(t('formsOffice.and'))
+                  })}
               </span>
             </div>
           )}
           {tidyOpen && crooked.length > 0 && (
             <section className="wk-tidy">
               <p className="wk-hint">
-                Numery jako +48 600 700 800, adresy tak, jak w kartotece (ulica i numer, miejscowość, kod i poczta).
-                Zaznaczone „sprawdź" nie dało się rozpoznać na pewno — są odznaczone.
+                {t('formsOffice.tidyHint')}
               </p>
               <TidyList
                 items={crooked.map((c) => ({ key: crookedKey(c), before: c.value, after: c.tidy, doubt: c.doubt }))}
                 skipped={skipped} busy={busy !== null} onToggle={(key) => setSkipped((was) => toggled(was, key))} />
               <div className="wk-actions">
                 <button type="button" className="wk-btn" disabled={busy !== null || crooked.every((c) => skipped.has(crookedKey(c)))}
-                  onClick={() => void act('Porządkowanie…', straighten)}>
-                  Zapisz zaznaczone ({crooked.filter((c) => !skipped.has(crookedKey(c))).length})
+                  onClick={() => void act(t('formsOffice.tidying'), straighten)}>
+                  {t('formsOffice.saveTicked', { count: crooked.filter((c) => !skipped.has(crookedKey(c))).length })}
                 </button>
-                <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => setTidyOpen(false)}>Anuluj</button>
+                <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={() => setTidyOpen(false)}>{t('common.cancel')}</button>
               </div>
             </section>
           )}
@@ -627,11 +625,11 @@ export function FormOffice(props: FormOfficeProps) {
             extData={extData}
             ring={ring}
             busy={busy !== null}
-            onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
+            onHide={(s) => void act(s.hidden ? t('formsOffice.restoring') : t('formsOffice.hiding'), async () => {
               await hideSubmission(s.registrationId, !s.hidden);
               await reread();
             })}
-            onRemove={(s) => void act('Usuwanie…', async () => {
+            onRemove={(s) => void act(t('formsOffice.deleting'), async () => {
               await removeSubmission(s.registrationId);
               await reread();
             })}
@@ -644,7 +642,7 @@ export function FormOffice(props: FormOfficeProps) {
             <ListJsonPanel
               who={who}
               formId={partId}
-              formName={module?.name ?? conf.title ?? 'Formularz'}
+              formName={module?.name ?? conf.title ?? t('forms.sheet.form')}
               extensions={stepInfo?.extensions ?? []}
               onDone={reread}
             />

@@ -111,5 +111,278 @@
     "publicWarn": "This area is public: anyone, without an account, will read {whole} of this base. If something should stay for chosen people, create the base in a closed area.",
     "creating": "Creating…",
     "create": "Create"
+  },
+  "card": {
+    "true": "true",
+    "false": "false",
+    "trueLabel": "True",
+    "falseLabel": "False",
+    "codeAnswer": "code that passes all cases",
+    "pointAnswer": "the marked point",
+    "drawingAnswer": "the drawing's goal reached",
+    "dateHint": {
+      "year": "year, e.g. 1410",
+      "month": "e.g. 7.1410 or July 1410",
+      "day": "e.g. 15.07.1410 or 15 July 1410"
+    },
+    "datePart": {
+      "year": "year",
+      "month": "month",
+      "day": "day"
+    },
+    "none": "none",
+    "near": "close · ",
+    "rightIs": "right: ",
+    "number": "number",
+    "numberUnit": "number, possibly with a unit",
+    "answerPlaceholder": "answer",
+    "answer": "Answer",
+    "answerHow": "Answer — {how}",
+    "check": "Check",
+    "checkSome": "Check ({k} of {n})",
+    "pairOf": "{label} — pair {n}",
+    "matchHint": "Pick an item on one side, then its pair on the other. Picking it again breaks the pair.",
+    "knew": "I knew it",
+    "partly": "Partly",
+    "notKnew": "I didn't know it",
+    "showAnswer": "Show answer",
+    "pointHint": "Point to a spot on the question's image.",
+    "pairsRight": {
+      "one": "{right} of {count} pair right",
+      "other": "{right} of {count} pairs right"
+    },
+    "right": "right",
+    "wrong": "wrong",
+    "noPair": "no pair",
+    "rightHinted": "Right — with a hint (<s></s>)",
+    "verdictRight": "Right!",
+    "almost": "Almost (<s></s>)",
+    "wrongShare": "Not quite (<s></s>).",
+    "verdictWrong": "Not quite.",
+    "noAnswer": "No answer.",
+    "correctIs": "Correct: ",
+    "also": " · also: ",
+    "yours": " · your answer: ",
+    "diff": "Character-by-character comparison",
+    "explanation": "Explanation",
+    "hintN": "Hint {n}",
+    "hintCost": "Each hint lowers the score of this answer by {pct}%.",
+    "hintOf": "Hint {n}/{all}"
+  },
+  "code": {
+    "loading": "Starting Python… (the first time about 10 MB are downloaded)",
+    "checking": "Checking: case {k} of {n}…",
+    "startFailed": "Could not start Python.",
+    "examplesHead": {
+      "one": "Example — this is how <c>transform(x)</c> should work:",
+      "other": "Examples — this is how <c>transform(x)</c> should work:"
+    },
+    "returns": "returns",
+    "field": "Code: function transform(x)",
+    "nothing": "This question has nothing to check yet.",
+    "plan": "Check: {what} — {s} s for each. The function <c>transform(x)</c> gets one input and returns a result.",
+    "examples": {
+      "one": "{count} example",
+      "other": "{count} examples"
+    },
+    "hidden": {
+      "one": "{count} hidden case",
+      "other": "{count} hidden cases"
+    },
+    "and": " and ",
+    "check": "Check code",
+    "right": "right",
+    "skippedBroken": "skipped (question error)",
+    "notRun": "not run",
+    "broken": "question error",
+    "timeout": "time exceeded",
+    "error": "error",
+    "wrong": "wrong",
+    "exampleN": "Example {n}",
+    "hiddenN": "Hidden {n}",
+    "why": "Why:",
+    "errorLabel": "Error:",
+    "printed": "Printed by print:",
+    "of": "{k} of {n}",
+    "sum": {
+      "one": "{passed} of {count} case right",
+      "other": "{passed} of {count} cases right"
+    },
+    "sumParts": " (examples: {examples}, hidden: {hidden})",
+    "invalid": "The code did not run:",
+    "tooLong": "Too long:",
+    "note": "Note:",
+    "caption": "Check results, case by case",
+    "colCase": "Case",
+    "colInput": "Input",
+    "colExpected": "Expected",
+    "colGot": "Your result",
+    "colResult": "Result"
+  },
+  "build": {
+    "preview": "Answer preview",
+    "empty": "Your answer will appear here.",
+    "added": "Added: {text}, position {at}.",
+    "removed": "Removed: {text}.",
+    "lifted": "Picked up: {text}, position {at} of {n}.",
+    "liftedKeys": "Picked up: {text}, position {at} of {n}. Arrows move, space drops, Escape cancels, Delete removes.",
+    "dropped": "Dropped at position {at} of {n}.",
+    "cancelled": "Cancelled — the tile went back to its place.",
+    "moved": "Moved to position {at} of {n}.",
+    "lineEmpty": "Your answer — empty",
+    "line": {
+      "one": "Your answer — {count} tile",
+      "other": "Your answer — {count} tiles"
+    },
+    "pick": "Pick tiles below…",
+    "tileRole": "draggable tile",
+    "tile": "{text}, position {at} of {n}",
+    "tileRight": "{text}, position {at} of {n}, right",
+    "tileWrong": "{text}, position {at} of {n}, wrong",
+    "bank": "Tiles to choose from",
+    "add": "Add: {text}",
+    "cleared": "Answer cleared.",
+    "clear": "Clear",
+    "inPlace": "{right} of {n} in the right place",
+    "showMine": "Show my answer",
+    "showSolution": "Show the solution"
+  },
+  "order": {
+    "droppedSame": "Dropped in the same place.",
+    "cancelledShort": "Cancelled.",
+    "liftedKeys": "Picked up: {text}, position {at} of {n}. Arrows move, space drops, Escape cancels.",
+    "cancelled": "Cancelled — the item went back to its place.",
+    "list": "Order — drag or use the arrows",
+    "itemRole": "draggable item",
+    "itemWrong": "{text}, position {at} of {n}, wrong — right position {place}",
+    "yours": "yours: {at}",
+    "up": "Up: {text}",
+    "down": "Down: {text}",
+    "neighbours": "{k} of {n} neighbour pairs in the right order",
+    "showMine": "Show my order",
+    "showRight": "Show the correct order"
+  },
+  "gap": {
+    "choose": "{label}: choose",
+    "pick": "choose…",
+    "label": "Gap {k} of {n}",
+    "right": {
+      "one": "{right} of {count} gap right",
+      "other": "{right} of {count} gaps right"
+    }
+  },
+  "interactive": {
+    "broken": "This drawing is empty or not valid JSON.",
+    "showMine": "Show my attempt"
+  },
+  "matrix": {
+    "add": "{row} × {col}: add",
+    "addHere": "Add here",
+    "empty": "empty"
+  },
+  "part": {
+    "checking": "Checking…",
+    "nothing": "Nothing to review now.",
+    "cards": {
+      "one": " — {count} card",
+      "other": " — {count} cards"
+    },
+    "open": "open"
+  },
+  "step": {
+    "done": "done",
+    "overdue": "overdue",
+    "todo": "to do",
+    "until": " · by {date}",
+    "noBase": "The course's knowledge base is not available from this link — ask the leaders.",
+    "measuring": "Counting how much you already know…",
+    "noCards": "This knowledge base has no cards yet.",
+    "share": "You know {share} — goal: {goal} · {name}",
+    "howMuch": "How much you already know",
+    "fold": "Fold",
+    "review": "Review",
+    "learn": "Learn",
+    "fromBase": "From knowledge base",
+    "choose": "— choose —",
+    "unavailable": "(unavailable) {id}",
+    "allCards": "— all cards of the knowledge base —",
+    "deleted": "(deleted)",
+    "doneAt": "Done at",
+    "percent": "% knowledge"
+  },
+  "pathRun": {
+    "noQuestions": "There are no questions for this yet."
+  },
+  "away": {
+    "opening": "Opening…",
+    "checking": "Checking the device…",
+    "sealed": "Offline reviews are sealed with your key.",
+    "title": "Learning offline",
+    "none": "There is nothing to learn offline on this device. It is prepared online: sign in, choose “Key kept on this device” (Account → Security and keys) and go once through a review the author marked “Keep on devices without internet”. Then you can sign in here without the network.",
+    "signInFailed": "Could not sign in without internet.",
+    "signInTitle": "Sign in without internet",
+    "signInLede": "This device checks the password — without the service. When the network is back, we sign you in with the same key, without asking for the password.",
+    "account": "Account",
+    "login": "Account name",
+    "password": "Password",
+    "computing": "Computing the key…",
+    "signIn": "Sign in without internet",
+    "signedIn": "Signed in without internet: <b>{login}</b>.",
+    "signOut": "Sign out",
+    "here": "On this device without internet",
+    "nothing": "Nothing. An author can mark a review “Keep on devices without internet” — then after the first run online it stays here (only when the key is kept on this device).",
+    "broken": "Review (does not open)",
+    "saved": "saved {date}",
+    "waiting": {
+      "one": "{count} answer packet is waiting for the internet — it will be sent when the network is back and you are signed in.",
+      "other": "{count} answer packets are waiting for the internet — they will be sent when the network is back and you are signed in."
+    },
+    "openingRun": "Opening the review…",
+    "notHere": "This review is not on this device.",
+    "all": "All offline reviews"
+  },
+  "lesson": {
+    "card": "Card",
+    "mastered": "Mastered",
+    "masteredOf": {
+      "one": "{done} of {count} card",
+      "other": "{done} of {count} cards"
+    },
+    "firstTry": "Right the first time",
+    "time": "Learning time",
+    "practise": "To practise",
+    "practiseN": "To practise ({n})",
+    "hinted": "with a hint",
+    "again": "Practise these again ({n})"
+  },
+  "goal": {
+    "title": "Daily goal",
+    "today": "Today {k} of {n}",
+    "reached": "goal reached",
+    "left": " · {cards} to go",
+    "streak": {
+      "one": "Streak: {count} day in a row",
+      "other": "Streak: {count} days in a row"
+    },
+    "week": "Last 7 days",
+    "day": "{day}: {cards}",
+    "dayMet": "{day}: {cards} — goal reached"
+  },
+  "public": {
+    "loading": "Loading the review…",
+    "noRead": "You cannot read this knowledge base — a review without an account works in a base from a public area (or with a link to it).",
+    "noRevision": "This review is not in the knowledge base."
+  },
+  "intro": {
+    "failed": "That did not work — try again.",
+    "text": "Introduce yourself and the course leader (“{course}”) will see your progress — and it will wait for you on another device with this link too.",
+    "given": "First name",
+    "surname": "Surname",
+    "busy": "One moment…",
+    "go": "Introduce yourself and learn",
+    "linkPerson": "the person from the link",
+    "you": "you",
+    "asOffice": "You are learning as {who} — the course leader sees your progress too.",
+    "asOwn": "You are learning as {who} — progress stays in your account."
   }
 }
