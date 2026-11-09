@@ -77,6 +77,53 @@ for (const [rel, uses] of seen) {
 }
 for (const rel of Object.keys(ALLOWED)) if (!seen.has(rel) && rel !== 'cogita/worldmap/wmState.ts') fail(`exemption ${rel} is stale`, 'the file no longer uses an entry point — remove it from ALLOWED');
 
+/*
+  Step 3 §2.5 — JEDE STELLE, nicht nur jede Datei: in den Dateien, die die Regel fragen müssen, steht bei jedem Aufruf eines
+  Einstiegs (±WINDOW Zeilen) die Regel oder ihr Bereich (reviewable / mayReview / reviewScope / scope / review: true) — sonst
+  kann eine Datei an einer Stelle fragen und an einer anderen eine ungefilterte Liste bauen. Ausnahmen je Stelle, mit Grund.
+*/
+const WINDOW = 12;
+const SITE_RULE = /\breviewable\b|\bmayReview\b|\breviewScope\b|\bscope\b|\breview:\s*true\b/;
+const SITE_OK = {
+  /* Datei → Muster der Zeile mit dem Aufruf → [Grund, Beleg: ein Muster, das in der Datei stehen muss]. */
+  'cogita/revision.ts': {
+    '\\beligible\\(': ['eligible() leaves out s.fixed.blocked, which is built from reviewable() when the session starts', /const open = \(c: Card\) => !s\.fixed\.blocked\.has\(c\.key\);[\s\S]*if \(input\.review != null\) for \(const k of byKey\.keys\(\)\) if \(!reviewable\(k, input\.review\)/],
+    '\\bspacerFor\\(': ['spacerFor() skips s.fixed.blocked (built from reviewable())', /function spacerFor[\s\S]{0,400}!s\.fixed\.blocked\.has\(k\)/]
+  },
+  'cogita/LandscapeView.tsx': {
+    '\\bdueCards\\b': ['dueCards is filtered with mayReview where it is built', /const dueCards = useMemo\(\(\) => \{[\s\S]{0,500}!mayReview\(c\.key, reviewScope\)/],
+    'revisionContext\\(': ['planFrom practises chosen topics — learning, not a regular review', /const planFrom = async \(graph: Graph\)/]
+  }
+};
+function uncoveredSites(text) {
+  const lines = text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:])\/\/.*$/gm, '$1').split('\n');
+  const out = [];
+  lines.forEach((line, i) => {
+    if (!ENTRY.some((re) => re.test(line))) return;
+    if (/^\s*(export\s+)?(async\s+)?function\b|^\s*export\s+const\b/.test(line)) return; /* eine Definition, kein Aufruf */
+    const win = lines.slice(Math.max(0, i - WINDOW), i + WINDOW + 1).join('\n');
+    if (!SITE_RULE.test(win)) out.push({ line: i + 1, full: line, text: line.trim().slice(0, 90) });
+  });
+  return out;
+}
+/* Selbstprüfung: eine Datei, die an einer Stelle fragt und an einer anderen nicht — die Prüfung je Datei sah das nicht. */
+{
+  const sample = ['const a = cards.filter((c) => reviewable(c.key, scope));', 'const x = dueAt(a);', ...Array(30).fill('// …'), 'const y = dueAt(cards);'].join('\n');
+  const found = uncoveredSites(sample).map((s) => s.line);
+  if (found.length === 1 && found[0] === 33) ok('Step 3 §2.5: a call site without the rule is found even when the file asks elsewhere');
+  else fail('Step 3 §2.5: a call site without the rule is found even when the file asks elsewhere', `found ${JSON.stringify(found)}`);
+}
+for (const rel of REQUIRED) {
+  const text = await readFile(join(ROOT, rel), 'utf8');
+  for (const [pat, [why, proof]] of Object.entries(SITE_OK[rel] ?? {})) {
+    if (proof.test(text)) ok(`Step 3 §2.5: ${rel} — sites matching ${pat} exempt: ${why}`);
+    else fail(`Step 3 §2.5: ${rel} — exemption for ${pat} no longer holds`, why);
+  }
+  const bad = uncoveredSites(text).filter((s) => !Object.keys(SITE_OK[rel] ?? {}).some((pat) => new RegExp(pat).test(s.full)));
+  if (bad.length === 0) ok(`Step 3 §2.5: every call site in ${rel} asks the rule`);
+  else fail(`Step 3 §2.5: every call site in ${rel} asks the rule`, bad.map((s) => `${rel}:${s.line} ${s.text}`).join('\n  '));
+}
+
 /* Step 3 §2.4 — die schwachen Zeichen der Sechsecke (LandscapeView) zählen nur Karten, die wiederholt werden dürfen. */
 {
   const lv = await readFile(join(ROOT, 'cogita/LandscapeView.tsx'), 'utf8');
