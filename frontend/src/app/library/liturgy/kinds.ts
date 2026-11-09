@@ -8,12 +8,12 @@ export const LITURGY_KINDS: readonly LibKind[] = Object.entries(KIND).map(([type
   kind, get label() { return t(`liturgy.types.${type}`); }, get plural() { return t(`liturgy.types.${type}`); },
   get says() { return t('liturgy.normalized'); }, keyed: true,
   fields: [
-    { key: 'title', get label() { return t('liturgy.title'); }, type: 'line' },
-    { key: 'id', get label() { return t('liturgy.identifier'); }, type: 'line' },
-    { key: 'language', get label() { return t('liturgy.language'); }, type: 'line' },
-    { key: 'resource_type', get label() { return t('liturgy.type'); }, type: 'line' },
-    { key: 'text', get label() { return t('liturgy.text'); }, type: 'text' },
-    { key: 'references', get label() { return t('liturgy.references'); }, type: 'refs', to: Object.values(KIND) }
+    { key: 'title', get label() { return t('liturgy.title'); }, type: 'line', says: '' },
+    { key: 'id', get label() { return t('liturgy.identifier'); }, type: 'line', says: '' },
+    { key: 'language', get label() { return t('liturgy.language'); }, type: 'line', says: '' },
+    { key: 'resource_type', get label() { return t('liturgy.type'); }, type: 'line', says: '' },
+    { key: 'text', get label() { return t('liturgy.text'); }, type: 'text', says: '' },
+    { key: 'references', get label() { return t('liturgy.references'); }, type: 'refs', says: '', to: Object.values(KIND) }
   ],
   title: data => typeof data.title === 'string' ? data.title : String(data.id ?? kind),
   sort: e => String(e.data.title ?? e.data.id ?? ''), example: { data: { title: type } }

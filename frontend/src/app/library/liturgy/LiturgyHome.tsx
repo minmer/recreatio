@@ -138,7 +138,7 @@ function CompositionView({ composition: c, libraryId, details }: { composition: 
     {c.day.date !== c.requestedDate && <p>{c.day.date} · {c.day.selected.title}</p>}
     {!c.complete && <p className="wk-note">{t('liturgy.incomplete')}</p>}
     {c.slots.map(s => s.status === 'omitted' && !details || !s.required && s.status === 'missing' && !details ? null : <section key={s.name} className={`lit-slot is-${s.status}`}>
-      <h3>{t(`liturgy.slots.${s.label}`) === `liturgy.slots.${s.label}` ? s.label : t(`liturgy.slots.${s.label}`)}</h3>
+      <h3>{t(`liturgy.slots.${s.label.replace(/\./g, '_')}`) === `liturgy.slots.${s.label.replace(/\./g, '_')}` ? s.label : t(`liturgy.slots.${s.label.replace(/\./g, '_')}`)}</h3>
       {s.status !== 'ready' && <p className="lit-status">{t(`liturgy.status.${s.status}`)}</p>}
       {s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}<TextBlocks blocks={s.blocks} />{s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}
       {s.resourceId && <a className="lit-meta" href={viewPath('library', libraryId, s.resourceId)}>{s.resourceId}</a>}

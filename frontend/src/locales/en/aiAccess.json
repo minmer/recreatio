@@ -47,7 +47,8 @@
   "part": {
     "books": "Library",
     "writing": "Scriptorium",
-    "knowledge": "Knowledge base"
+    "knowledge": "Knowledge base",
+    "liturgy": "Liturgy"
   },
   "days": {
     "30": "a month",
