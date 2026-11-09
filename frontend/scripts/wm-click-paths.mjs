@@ -62,7 +62,7 @@ try {
       await sleep(80);
     }
   };
-  const shot = async (name) => writeFile(join(outDir, `${name}.png`), await page.screenshot());
+  const shot = async (name) => writeFile(join(outDir, `${name}.webp`), await page.screenshot({ format: 'webp', quality: 82 }));
   const clickAt = async (x, y) => {
     await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
     await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });

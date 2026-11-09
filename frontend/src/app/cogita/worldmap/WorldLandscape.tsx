@@ -51,7 +51,7 @@ import { keepLayout, storedLayout } from './wmStore';
 import { HOME } from './wmTypes';
 import './worldmap.css';
 
-/** Die Farben der Themen: wie im Krajobraz die acht des Bereichs, sonst grau (hell und dunkel). */
+/** Die Farben der Themen: wie im Krajobraz die acht des Bereichs, reihum (hell und dunkel). */
 const TOPIC = {
   light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
   dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
@@ -148,7 +148,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     for (const id of world.order) { const k = keys.get(id) ?? id; if (!order.includes(k)) order.push(k); }
     const pal = dark ? TOPIC.dark : TOPIC.light;
     const index = new Map(order.map((k, i) => [k, i] as const));
-    return (id: string): Rgb => { const i = index.get(keys.get(id) ?? id) ?? 99; return hex(i < pal.length ? pal[i] : dark ? NONE.dark : NONE.light); };
+    /* Wie im Krajobraz (spec §4.2 „wie heute"): die acht Farben reihum über die obersten Gebiete; grau nur ohne Gebiet. */
+    return (id: string): Rgb => { const i = index.get(keys.get(id) ?? id); return hex(i === undefined ? (dark ? NONE.dark : NONE.light) : pal[i % pal.length]); };
   }, [world, keys, dark]);
   const colours = useMemo(() => lineColours(lines, dark ? 'dark' : 'light'), [lines, dark]);
 
