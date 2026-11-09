@@ -312,6 +312,7 @@ public static partial class Library
         ("books", "books") => true,
         ("knowledge", "knowledge") => true,
         ("writing", "writing") => true,
+        ("liturgy", "liturgy") => true,
         _ => false
     };
 

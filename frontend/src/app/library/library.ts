@@ -37,7 +37,7 @@ export type PublishedAs = 'explicit' | 'implicit';
  * 2026-10-23 — und `writing`: ein Skryptorium (Texte, Wygłoszenia, Projekte,
  * eigene Rodzaje tekstów); die Bibliothek hält seitdem nur Quellen.
  */
-export type LibraryKind = 'books' | 'knowledge' | 'writing';
+export type LibraryKind = 'books' | 'knowledge' | 'writing' | 'liturgy';
 
 export interface LibraryRow {
   readonly libraryId: string;
@@ -57,7 +57,7 @@ export interface LibraryRow {
   readonly areaRuleAt?: string | null;
 }
 
-export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : row.kind === 'writing' ? 'writing' : 'books');
+export const libraryKindOf = (row: { readonly kind?: string | null }): LibraryKind => (row.kind === 'knowledge' ? 'knowledge' : row.kind === 'writing' ? 'writing' : row.kind === 'liturgy' ? 'liturgy' : 'books');
 
 export interface OpenLibrary extends LibraryRow {
   readonly name: string;
@@ -114,7 +114,7 @@ async function newest(ring: Ring, areaId: string): Promise<{ epoch: number; key:
 export async function createLibrary(ring: Ring, areaId: string, name: string, kind: LibraryKind = 'books'): Promise<string> {
   const libraryId = newId();
   const { epoch, key } = await newest(ring, areaId);
-  const fallback = kind === 'knowledge' ? 'Baza wiedzy' : kind === 'writing' ? 'Skryptorium' : 'Biblioteka';
+  const fallback = kind === 'knowledge' ? 'Baza wiedzy' : kind === 'writing' ? 'Skryptorium' : kind === 'liturgy' ? 'Liturgia' : 'Biblioteka';
   await call('/workspace/libraries', {
     method: 'POST',
     body: JSON.stringify({ libraryId, areaId, epoch, kind, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || fallback)) })
@@ -293,3 +293,7 @@ export async function openLibraryName(key: Uint8Array | undefined, libraryId: st
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (value: string): boolean => UUID.test(value);
+
+/** Encrypted revision history, available to editors of this collection only. */
+export const loadEntryHistory = (libraryId: string, entryId: string): Promise<{ entries: readonly SealedEntry[] }> =>
+  call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}/history`);

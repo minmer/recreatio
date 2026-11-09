@@ -206,7 +206,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
             return (
               <li key={s.id} className="cg-row">
                 <strong>{s.name}</strong>
-                <span className="cg-tag">{s.kind === 'books' ? t('cogitaEditSettings.sources.kindBooks') : s.kind === 'writing' ? t('cogitaEditSettings.sources.kindWriting') : t('cogitaEditSettings.sources.kindKnowledge')}</span>
+                <span className="cg-tag">{s.kind === 'liturgy' ? t('liturgy.name') : s.kind === 'books' ? t('cogitaEditSettings.sources.kindBooks') : s.kind === 'writing' ? t('cogitaEditSettings.sources.kindWriting') : t('cogitaEditSettings.sources.kindKnowledge')}</span>
                 {where !== null && <span className="cg-muted">{where}</span>}
                 {missing.has(s.id) ? <span className="cg-tag is-warn">{t('cogitaEditSettings.sources.unavailable')}</span>
                   : open !== undefined ? <span className="cg-tag is-ok">{t('cogitaEditSettings.sources.entries', { count: open.store.all().length })}</span>
@@ -221,7 +221,7 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
         <div className="cg-row">
           <select value={pick} aria-label={t('cogitaEditSettings.sources.add')} onChange={(e) => setPick(e.target.value)}>
             <option value="">{t('cogitaEditSettings.sources.addPlaceholder')}</option>
-            {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'knowledge' ? t('cogitaEditSettings.kind.knowledge') : libraryKindOf(l) === 'writing' ? t('cogitaEditSettings.kind.writing') : t('cogitaEditSettings.kind.books')}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
+            {choices.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name} ({libraryKindOf(l) === 'liturgy' ? t('liturgy.name') : libraryKindOf(l) === 'knowledge' ? t('cogitaEditSettings.kind.knowledge') : libraryKindOf(l) === 'writing' ? t('cogitaEditSettings.kind.writing') : t('cogitaEditSettings.kind.books')}{areaName(l.areaId) === null ? '' : ` · ${areaName(l.areaId)}`})</option>)}
           </select>
           <button type="button" className="wk-btn" disabled={busy || pick === ''} onClick={() => {
             const row = libraries.find((l) => l.libraryId === pick);

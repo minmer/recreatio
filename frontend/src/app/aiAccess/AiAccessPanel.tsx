@@ -23,8 +23,8 @@ import {
   type AiAccessList, type AiAccessRow, type AiPart
 } from './aiAccess';
 
-const PART_NAME: Readonly<Record<LibraryKind, string>> = { books: 'Biblioteka', writing: 'Skryptorium', knowledge: 'Baza wiedzy' };
-const PART_ORDER: Readonly<Record<LibraryKind, number>> = { books: 0, writing: 1, knowledge: 2 };
+const PART_NAME: Readonly<Record<LibraryKind, string>> = { books: 'Biblioteka', writing: 'Skryptorium', knowledge: 'Baza wiedzy', liturgy: 'Liturgia' };
+const PART_ORDER: Readonly<Record<LibraryKind, number>> = { books: 0, writing: 1, knowledge: 2, liturgy: 3 };
 const DAYS_LABEL: Readonly<Record<number, string>> = { 7: 'tydzień', 30: 'miesiąc', 90: '3 miesiące', 365: 'rok' };
 
 interface Container {

@@ -25,6 +25,7 @@
  * zitiert wird über die Teile hinweg.
  */
 
+import { LITURGY_KINDS } from './liturgy/kinds';
 import { blockMarkups, blockRefs, blocksOf, blocksTitle, statementBlocks } from './blocks';
 import { mapRefTokens } from './libraryMarkup';
 import { TEXT_SCHEMES, workLocatorKey } from './locations';
@@ -778,7 +779,7 @@ export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
 export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE];
 
 /** Alle Arten, die diese Fassung kennt — gelesen, zitiert und gezeigt wird über die Teile hinweg. */
-export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS];
+export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS, ...LITURGY_KINDS];
 
 export const isLibraryKind = (kind: string): boolean => LIBRARY_KINDS.some((k) => k.kind === kind);
 export const isWritingKind = (kind: string): boolean => WRITING_KINDS.some((k) => k.kind === kind);
@@ -808,6 +809,7 @@ export function entrySort(entry: LibEntry, look: Lookup): string {
 
 /** Worauf ein Eintrag in seinen Feldern zeigt (Verweise in einem Text kommen aus `libraryMarkup`). */
 export function fieldRefs(entry: LibEntry): string[] {
+  if (entry.kind.startsWith('lit_')) return Array.isArray(entry.data._refs) ? entry.data._refs.filter((id): id is string => typeof id === 'string') : [];
   const def = kindOf(entry.kind);
   if (def === undefined) return [];
   const out: string[] = [];

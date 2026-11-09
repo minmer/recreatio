@@ -41,6 +41,7 @@ public static partial class Library
         app.MapDelete("/workspace/library/{id:guid}", DeleteAsync);
 
         app.MapGet("/workspace/library/{id:guid}/entries", EntriesAsync);
+        app.MapGet("/workspace/library/{id:guid}/entry/{entryId:guid}/history", HistoryAsync);
         app.MapPut("/workspace/library/{id:guid}/entry/{entryId:guid}", SaveAsync);
         app.MapDelete("/workspace/library/{id:guid}/entry/{entryId:guid}", RemoveAsync);
         /* 2026-10-23 — viele auf einmal (Zaznaczone → Usuń, „Stare wpisy"): wie einzeln, in einer Transaktion. */
@@ -112,6 +113,7 @@ public static partial class Library
         "" or "books" => "books",
         "knowledge" => "knowledge",
         "writing" => "writing",
+        "liturgy" => "liturgy",
         _ => null
     };
 
@@ -219,7 +221,7 @@ public static partial class Library
         if (name is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
 
         var kind = LibraryKind(body.Kind);
-        if (kind is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Biblioteka (books), baza wiedzy (knowledge) albo skryptorium (writing)."); return; }
+        if (kind is null) { await Fail(ctx, StatusCodes.Status400BadRequest, "Biblioteka (books), baza wiedzy (knowledge), skryptorium (writing) albo liturgia (liturgy)."); return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 

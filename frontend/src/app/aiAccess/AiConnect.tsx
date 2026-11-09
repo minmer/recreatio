@@ -25,7 +25,7 @@ import {
   type AiAccessRow, type ConnectRequest
 } from './aiAccess';
 
-const PART_NAME: Readonly<Record<LibraryKind, string>> = { books: 'Biblioteka', writing: 'Skryptorium', knowledge: 'Baza wiedzy' };
+const PART_NAME: Readonly<Record<LibraryKind, string>> = { books: 'Biblioteka', writing: 'Skryptorium', knowledge: 'Baza wiedzy', liturgy: 'Liturgia' };
 
 interface AreaLinks {
   readonly area: AreaRow;

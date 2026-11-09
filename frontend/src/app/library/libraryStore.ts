@@ -18,7 +18,7 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
+  forgetLibraryNames, loadEntries, loadEntryHistory, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
   type EntryDoc, type EntrySource, type LibraryRow, type PublishedAs, type PutEntryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -174,8 +174,8 @@ export class LibraryStore implements Lookup {
   peers(): LibraryStore[] {
     if (this.peerSource !== null) return this.peerSource().filter((s) => s !== this && s.loaded);
     const mine = openedLibraryKind(this.libraryId);
-    if (this.ring === null || (mine !== 'books' && mine !== 'writing')) return [];
-    const wanted = (kind: string | undefined) => kind === 'books' || (mine === 'writing' && kind === 'writing');
+    if (this.ring === null || (mine !== 'books' && mine !== 'writing' && mine !== 'liturgy')) return [];
+    const wanted = (kind: string | undefined) => kind === 'books' || kind === 'liturgy' || (mine === 'writing' && kind === 'writing');
     return [...stores.values()].filter((s) => s !== this && s.loaded && wanted(openedLibraryKind(s.libraryId)));
   }
 
@@ -444,6 +444,16 @@ export class LibraryStore implements Lookup {
 
   useKeys(source: (areaId: string, epochs: readonly number[]) => Promise<ReadonlyMap<number, Uint8Array>>): void {
     this.keySource = source;
+  }
+
+  /** Old revisions remain encrypted; unavailable epochs are reported, never treated as empty texts. */
+  async history(id: string): Promise<Entry[]> {
+    if (this.own(id) === undefined) throw new WorkspaceError('Nie ma tego wpisu w tej bibliotece.');
+    const { entries } = await loadEntryHistory(this.libraryId, id);
+    const keys = await this.keysFor(entries.map(e => e.epoch));
+    const opened = await Promise.all(entries.map(e => this.opened(keys, e)));
+    if (opened.some(e => e === null)) throw new WorkspaceError('Brakuje klucza wcześniejszej wersji.');
+    return opened.filter((e): e is Entry => e !== null);
   }
 
   private async keysFor(epochs: Iterable<number>): Promise<ReadonlyMap<number, Uint8Array>> {

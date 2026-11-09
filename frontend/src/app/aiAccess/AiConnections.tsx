@@ -33,7 +33,7 @@ import {
 } from './aiAccess';
 
 const DAY_CHOICES = [30, 90, 365] as const;
-const PART_ORDER: Readonly<Record<LibraryKind, number>> = { books: 0, writing: 1, knowledge: 2 };
+const PART_ORDER: Readonly<Record<LibraryKind, number>> = { books: 0, writing: 1, knowledge: 2, liturgy: 3 };
 
 interface Container {
   readonly libraryId: string;

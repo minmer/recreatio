@@ -33,6 +33,7 @@
  * gemacht ([s. 46] für einen Seitenwechsel, [^3] für einen Przypis, [?] für Unsicheres).
  */
 
+import { LITURGY_KINDS } from '../library/liturgy/kinds';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
 import { CogitaLibrary } from '../cogita/store';
@@ -169,6 +170,7 @@ Struktura (np. wywód artykułu): pole odwołania z "structure": "up" — ten wp
 ${MARKUP_DOC}`;
 
 const NOTES: Readonly<Record<LibraryKind, () => string>> = {
+  liturgy: () => `Liturgia: canonical works, editions, texts, passages, observances, templates, assignments and explicit rules. Stable canonical IDs are in data.id; references name resources, never copied daily texts. Drafts and missing dependencies are not approved liturgical content.`,
   books: () => `## Biblioteka — źródła
 Dzieła ("work"), cytaty ("quote") i osoby ("person"); cytat wskazuje swoje dzieło, dzieło — autorów, tłumaczy, książkę albo czasopismo, w którym jest. "key" to klucz cytowania: w tekstach [@klucz, s. 23].
 ${BIBLE_DOC}`,
@@ -258,7 +260,7 @@ export function refsOf(entry: { readonly id: string; readonly data: Readonly<Rec
 
 /** Bibliothek oder Skryptorium: die Einträge der Arten dieses Teils (alte Arten bleiben unter „Stare wpisy", nicht hier). */
 function sourceEntries(part: ScopePart, look: Lookup): SnapshotEntry[] {
-  const own = new Set((part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).map((k) => k.kind));
+  const own = new Set((part.kind === 'liturgy' ? LITURGY_KINDS : part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).map((k) => k.kind));
   const out: SnapshotEntry[] = [];
   for (const entry of part.store.all()) {
     const def = kindOf(entry.kind);
@@ -419,7 +421,7 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
 function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: readonly SnapshotEntry[]): SnapshotKind[] {
   if (part.kind === 'knowledge' && lib !== undefined) return lib.kinds.map((k) => cogitaKind(k));
   const used = new Set(entries.map((e) => e.kind));
-  const kinds = (part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).filter((k) => used.has(k.kind)).map(libKind);
+  const kinds = (part.kind === 'liturgy' ? LITURGY_KINDS : part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).filter((k) => used.has(k.kind)).map(libKind);
   /* Ein Rodzaj tekstu ist eine Art: seine Felder stehen neben den festen eines Textes. */
   const types = part.kind === 'writing'
     ? part.store.all().filter((e) => e.kind === 'texttype').map((e) => cogitaKind(textTypeKind(e), typeof e.data.name === 'string' && e.data.name.trim() !== '' ? e.data.name.trim() : 'Rodzaj tekstu'))
