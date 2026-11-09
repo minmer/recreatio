@@ -60,7 +60,7 @@ import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
 import { reviewable, stateOf, type LearnerInput } from './wmState';
 import { useServerRuns } from './useServerRuns';
-import { keepLayout, storedLayout } from './wmStore';
+import { layoutPass } from './wmStore';
 import { HOME } from './wmTypes';
 import { diffPlaces, keepMode, keptMode, litPlaces, packPlace, shownOfPlace, WORLD_MODES, type WorldMode, type WorldPlayback } from './wmViews';
 import './worldmap.css';
@@ -222,13 +222,13 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     /* Erst, wenn die Farben feststehen (Orte ohne Verbindung stehen am Rand bei ihresgleichen). */
     if (!regionsDone) return undefined;
     let alive = true;
-    const stored = relay > 0 ? undefined : storedLayout(lib)?.positions;
-    const gi = geometryInputOf(world, lines, { ...(stored === undefined ? {} : { previous: stored }), ...(relay > 0 ? { mode: 'full' as const } : {}), color: (id) => keys.get(id) });
-    void geometryFor(gi).then((g) => {
-      if (!alive) return;
-      setGeometry(g);
-      setGeometryRuns((n) => n + 1);
-      if (writes) void keepLayout(lib, g).catch(() => false);
+    /* Step 3 · 8 — die Neulage gilt für diese eine Rechnung: gelegt und gespeichert, gilt wieder die gespeicherte Lage. */
+    const asked = relay;
+    void layoutPass(lib, { full: asked > 0, save: writes }, (previous, full) =>
+      geometryFor(geometryInputOf(world, lines, { ...(previous === undefined ? {} : { previous }), ...(full ? { mode: 'full' as const } : {}), color: (id) => keys.get(id) }))
+    ).then(({ geometry: g, saved }) => {
+      if (alive) { setGeometry(g); setGeometryRuns((n) => n + 1); }
+      void saved.then((done) => { if (done) setRelay((r) => (r === asked ? 0 : r)); });
     });
     return () => { alive = false; };
   }, [world, lines, keys, relay, regionsDone]); // eslint-disable-line react-hooks/exhaustive-deps

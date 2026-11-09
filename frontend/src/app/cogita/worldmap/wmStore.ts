@@ -57,3 +57,19 @@ export async function keepLayout(lib: Pick<CogitaLibrary, 'docs' | 'writes' | 's
   await lib.saveDoc('worldmap', layoutDoc(g), stored?.id ?? lib.docs('worldmap')[0]?.id);
   return true;
 }
+
+/**
+ * Step 3 · 8 — EINE RECHNUNG DER GESTALT. Ohne `full`: von der gespeicherten Lage aus. Mit `full` („Ułóż całą mapę od nowa"):
+ * die ganze Karte neu. Die Gestalt kommt sofort; `saved` sagt danach, ob ein Wunsch nach Neulage erfüllt ist (gelegt UND
+ * gespeichert) — dann geht jede spätere Rechnung wieder von der gespeicherten Lage aus. Scheitert das Speichern, bleibt er.
+ */
+export async function layoutPass(
+  lib: Pick<CogitaLibrary, 'docs' | 'writes' | 'saveDoc'>,
+  opts: { readonly full: boolean; readonly save: boolean },
+  compute: (previous: StoredLayout['positions'] | undefined, full: boolean) => Promise<Geometry>
+): Promise<{ readonly geometry: Geometry; readonly saved: Promise<boolean> }> {
+  const previous = opts.full ? undefined : storedLayout(lib)?.positions;
+  const geometry = await compute(previous, opts.full);
+  const saved = (opts.save ? keepLayout(lib, geometry).then(() => true, () => false) : Promise.resolve(true)).then((ok) => opts.full && ok);
+  return { geometry, saved };
+}

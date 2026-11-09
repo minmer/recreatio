@@ -166,6 +166,24 @@ for (const entry of ['src/app/cogita/worldmap/wmGeometry.worker.ts', 'src/app/co
   check('stored layout: another version of the computation is ignored', ST.storedLayout(lib(true, [{ id: 'x', data: { ...saved[0].data, params: 'old' } }])), null);
   const back = GEO.geometryOf(shapeOf(F.boskoWorld().input, { previous: stored.positions }).gi);
   check('stored layout: a learner computes the same map from it', JSON.stringify(back.nodes) === JSON.stringify(g.nodes), true);
+
+  /* Step 3 · 8 — „Ułóż całą mapę od nowa" gilt für eine Rechnung: gelegt und gespeichert → wieder von der gespeicherten Lage. */
+  if (typeof ST.layoutPass !== 'function') check('Step 3 · 8: one layout pass (full on request, then from the stored layout)', 'layoutPass missing', 'present');
+  else {
+    const docs = [];
+    const lib2 = { writes: true, docs: (k) => (k === 'worldmap' ? docs : []), saveDoc: async (kind, data, id) => { docs.splice(0, docs.length, { id: id ?? 'doc-2', data }); return { id: id ?? 'doc-2', data }; } };
+    const asked = [];
+    const compute = async (previous, full) => { asked.push([previous === undefined ? 'none' : 'stored', full]); return g; };
+    const p1 = await ST.layoutPass(lib2, { full: true, save: true }, compute);
+    const done1 = await p1.saved;
+    const p2 = await ST.layoutPass(lib2, { full: false, save: true }, compute);
+    check('Step 3 · 8: a full pass ignores the stored layout and, once saved, fulfils the request; the next pass starts from the stored layout', [asked, done1, await p2.saved], [[['none', true], ['stored', false]], true, false]);
+    const failing = { ...lib2, docs: () => [], saveDoc: async () => { throw new Error('offline'); } };
+    check('Step 3 · 8: a full pass whose save fails keeps the request', await (await ST.layoutPass(failing, { full: true, save: true }, compute)).saved, false);
+  }
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
+  check('Step 3 · 8: the map resets the request once the pass is laid and saved', /layoutPass\(/.test(src) && /setRelay\(\(r\) => \(r === asked \? 0 : r\)\)/.test(src), true);
 }
 
 console.log(`\ntimings ${JSON.stringify(timings)}`);
