@@ -1,7 +1,7 @@
 # Cogita World Map: Step 2 report
 
 **Date:** 9 November 2026
-**Branch:** `cogita/world-map` (PR B), stacked on `cogita/world-map-server` (PR A, #6); base `main` `8e05c08a`, merged with `main` `122be75c` in the second pass
+**Branch:** `cogita/world-map` (PR B), stacked on `cogita/world-map-server` (PR A, #6); base `main` `8e05c08a`, merged with `main` up to `3a65eff7` in the second pass
 **Follows:** `STEP2_DECISIONS.md` §3 — PR A first, then PR B with parts 1–6, one commit per part
 
 ## Summary
@@ -132,6 +132,7 @@ A review of the first report against the decisions and the spec found three gaps
 **Merge with `main`** (`a2efd1c3` on PR A, `bef1e8ab` on PR B).
 - `main` had a new commit (`122be75c`) whose site build deleted `docs/world-map/STEP1_REPORT.md`, the file this branch had moved to `documentation/world-map/`. PR A could not merge.
 - Both branches now include `main`; the moved file is kept.
+- Before pushing, `main` had three more commits (up to `3a65eff7`, the liturgy formats). Both branches include them too (`4fe2f986`, `87f5446c`). Only the generated `ImportFormats.json` conflicted; it was regenerated from the merged sources (57 formats, with the liturgy formats and `guide-world-map`), and `import-formats.mjs --check` passes.
 
 **1 · The dead code is gone** (`0b557c4b`, decision 2).
 
@@ -201,7 +202,7 @@ What a learner sees in the world view now:
 | 3 · Geometry | Track test green; 1,000 places < 3 s; 5,000 places < 20 s; adding 10 places moves no existing place | **41/41** (`app-wm-geometry-check`). Clearance: 0 violations and 0 straight fallbacks on every world. Timings are below. |
 | 4 · Presentation | Screenshots desktop and phone, light and dark; smooth rotation with 1,000 places; no transparency | **26/26** (`app-wm-presentation-check`); screenshots in §3, retaken after the second pass. Rotating 1,000 places over 180 steps (headless Edge, slider): draw time avg 3.3 ms, p95 3.7 ms, max 4.8 ms per frame (before the second pass: 3.3 / 3.6 / 3.9). No `globalAlpha` < 1 and no rgba/hsla/transparent/opacity in the renderer; distant places, and the grey of a mode, are mixed with the background. |
 | 5 · Interaction | The four click paths | **38/38** (`scripts/wm-click-paths.mjs`, results in `step2/click-paths.json`): the four paths, the extra run path, path 6 of the second pass, and no page exceptions. Plus **34/34** (`app-wm-interaction-check`) and **27/27** (`app-wm-views-check`). The paths are listed below. |
-| 6 · Guide | Guide retrievable via MCP | `AiMcpTools.ListImportFormats()` lists `guide-world-map` and `GetImportFormat("guide-world-map")` returns it: **648/648** backend checks. `app-wm-guide-check` **16/16**. `import-formats.mjs --check` OK. |
+| 6 · Guide | Guide retrievable via MCP | `AiMcpTools.ListImportFormats()` lists `guide-world-map` and `GetImportFormat("guide-world-map")` returns it: **646/646** backend checks after merging `main` `3a65eff7` (648/648 before; that `main` changed the liturgy MCP checks). `app-wm-guide-check` **16/16**. `import-formats.mjs --check` OK. |
 
 **Part 3 timings** (`app-wm-geometry-check`, this machine):
 
@@ -242,14 +243,14 @@ In the preview, a map goes from course JSON to its first frame in about 2.6 s fo
    - **Portals.** The one link into another world in the fixture is not shown to a learner, because they cannot read that world. A writer sees it on the pillar and in the panel.
    - **Motion off.** With "Animacje: wyłączone", the change is shown at once.
 
-**Other suites** (after the second pass, on the branch merged with `main` `122be75c`).
+**Other suites** (after the second pass, on the branch merged with `main` `3a65eff7`).
 - `tsc` is clean, and `app:i18n` holds (ratchet 1, unchanged).
 - `app-json-check` (23) and `app-json-parts-check` (13) pass. `app-json-check` failed on the original base, because `ImportFormats.json` was stale.
 - `app-landscape-check` 70 and `app-levels-check` 22 test only live code now (second pass, 1).
 - `app-import-check` 69, `app-worldmap-check` 109, `app-regions-check` 112, `app-library-check` 25, `app-preview-check` 7 and `app-learn-sync-check` 41 pass.
 - `app-selfcheck-check` passes (92). In the first report it timed out; this time it finished.
 - Failures that are not this work's, unchanged:
-  - `app-style-check`: `wk-hint` 554 > 548, identical on `main` `122be75c`. The inline-style count is at its limit (90); the world-map files add neither.
+  - `app-style-check`: `wk-hint` 554 > 548, identical on `main` `122be75c` and on this branch merged with `main` `3a65eff7`. The inline-style count is at its limit (90); the world-map files add neither.
   - `app-cogita-check`: the four JSON examples of the book guide (482 checks pass before it, then the check stops on the missing example).
 
 ---
