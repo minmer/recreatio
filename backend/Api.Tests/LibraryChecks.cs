@@ -22,6 +22,10 @@ internal static class LibraryChecks
         check(!Library.MayMove("books", "knowledge", true) && !Library.MayMove(null, "books", true) && !Library.MayMove("books", null, true), "never from a library into a knowledge base, never from or to nothing");
         check(Library.LibraryKind("writing") == "writing" && Library.LibraryKind("") == "books" && Library.LibraryKind("knowledge") == "knowledge" && Library.LibraryKind("comments") is null, "the three containers: books, knowledge, writing");
 
+        check(Library.LibraryKind("liturgy") == "liturgy", "liturgical collections are independent of books");
+        check(Library.MayMove("liturgy", "liturgy", false) && !Library.MayMove("liturgy", "books", true) && !Library.MayMove("liturgy", "knowledge", true), "liturgical resources stay in liturgical collections");
+        check(new[] { "lit_work", "lit_edition", "lit_text", "lit_passage", "lit_template", "lit_observance", "lit_assignment", "lit_rule", "lit_calendar", "lit_import" }.All(Library.IsKind), "all normalized liturgical records use valid entry kinds");
+
         /* 2026-10-22 — wo ein Eintrag liegt: Kennungen, jede einmal, höchstens 400. */
         var a = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecea";
         var b = "01a0f4c1-bab6-7be5-bdfc-6f198a63eceb";

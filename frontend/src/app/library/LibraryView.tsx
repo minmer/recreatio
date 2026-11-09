@@ -57,6 +57,7 @@ import { later } from '../ui/later';
 import { t as tApp, useT } from '../core/i18n';
 
 /* 2026-10-24 — der Czytnik eines Textes kommt erst, wenn einer gelesen wird. */
+const LiturgyHome = later(() => import('./liturgy/LiturgyHome').then((m) => m.LiturgyHome));
 const SourceReader = later(() => import('./SourceReader').then((m) => m.SourceReader));
 
 /** Ein Reiter: Wort in der Adresse, Art — und (2026-10-26) welche Einträge der Art er zeigt. */
@@ -113,7 +114,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         const [rows, found] = await Promise.all([loadLibraries(), loadAreas()]);
         const opened = await openLibraries(me.ring, rows.libraries);
         if (!alive) return;
-        const books = opened.filter((one) => libraryKindOf(one) === 'books');
+        const books = opened.filter((one) => libraryKindOf(one) === 'books' || libraryKindOf(one) === 'liturgy');
         setLibraries(books);
         /* Die anderen lesbaren Bibliotheken im Hintergrund — sie sind die Nachbarn der offenen. */
         for (const one of books) void storeOf(me.ring, one).sync().catch(() => undefined);
@@ -146,7 +147,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">{t('library.view.isKnowledge')} <a href={viewPath('knowledge', libraryId)}>{t('library.view.openKnowledge')}</a></p>;
     if (current === null && writing.has(libraryId)) return <p className="wk-note">{t('library.view.isScriptorium')} <a href={viewPath('scriptorium', libraryId)}>{t('library.view.openScriptorium')}</a></p>;
     if (current === null) return <p className="wk-empty">{t('library.view.missing')} <a href={viewPath('library')}>{t('library.view.allLibraries')}</a></p>;
-    return <LibraryHome me={me} library={current} libraries={libraries} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
+    if (current.kind === 'liturgy') return <LiturgyHome me={me} library={current} trail={trail.slice(1)} />;
+    return <LibraryHome me={me} library={current} libraries={libraries.filter(l => l.kind === 'books')} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
 
   return <LibraryList me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
@@ -163,6 +165,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
   const writable = areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && a.heldEpochs > 0);
   const personal = areas.find((a) => a.personal === true);
   const [name, setName] = useState('');
+  const [collectionKind, setCollectionKind] = useState<'books' | 'liturgy'>('books');
   const [areaId, setAreaId] = useState(personal?.areaId ?? '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -173,7 +176,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
     setFailed(null);
     try {
       const area = areaId === '' ? await ensurePrivateArea(me.ring, me.person, areas) : areaId;
-      const id = await createLibrary(me.ring, area, name.trim() === '' ? t('library.list.defaultName') : name);
+      const id = await createLibrary(me.ring, area, name.trim() === '' ? t(collectionKind === 'liturgy' ? 'liturgy.name' : 'library.list.defaultName') : name, collectionKind);
       onChanged();
       window.location.hash = viewPath('library', id);
     } catch (e) {
@@ -188,7 +191,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
   return (
     <>
       <h1 className="wk-h1">{t('library.list.title')}</h1>
-      <p className="wk-lede">{t('library.list.lede')}</p>
+      <p className="wk-lede">{t('liturgy.libraryLede')}</p>
 
       {libraries.length > 0 && (
         <ul className="lib-libraries">
@@ -196,6 +199,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
             <li key={one.libraryId}>
               <a className="lib-library" href={viewPath('library', one.libraryId)}>
                 <span className="lib-library-name">{one.name}</span>
+                <span>{t(one.kind === 'liturgy' ? 'liturgy.name' : 'liturgy.sourcesCollection')}</span>
                 <span className="lib-library-meta">{t('library.list.meta', { entries: t('library.list.entries', { count: one.entries }), area: areaName(one.areaId), who: audienceWords(one) })}{one.writes ? '' : t('library.list.readOnly')}</span>
               </a>
             </li>
@@ -205,6 +209,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
 
       <form className="wk-form lib-new" onSubmit={(e) => { e.preventDefault(); void create(); }}>
         <h2 className="wk-h2">{libraries.length === 0 ? t('library.list.createFirst') : t('library.list.createNew')}</h2>
+        <label className="wk-field"><span>{t('liturgy.collectionType')}</span><select value={collectionKind} onChange={e => setCollectionKind(e.target.value as 'books' | 'liturgy')}><option value="books">{t('liturgy.sourcesCollection')}</option><option value="liturgy">{t('liturgy.name')}</option></select></label>
         <label className="wk-field">
           <span>{t('library.list.name')}</span>
           <input value={name} placeholder={t('library.list.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
