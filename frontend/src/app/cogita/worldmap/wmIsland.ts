@@ -30,9 +30,9 @@ export interface Island {
 export const SHORE = 105;
 export const BEACH = 14;
 /** Abstand der Bäume von Säulen und Gleisen (Einheiten). */
-export const TREE_CLEAR = 14;
+export const TREE_CLEAR = 20;
 export const MAX_TREES = 1800;
-const STEP = 26;
+const STEP = 36;
 
 const hash = (x: number, y: number, k: number): number => {
   let h = (Math.imul(x | 0, 73856093) ^ Math.imul(y | 0, 19349663) ^ Math.imul(k, 83492791)) >>> 0;
@@ -98,7 +98,7 @@ export function islandOf(input: IslandInput): Island {
       if (hash(gx, gy, 1) > 0.15 + grove * 0.55) continue;
       const x = (gx + 0.15 + hash(gx, gy, 2) * 0.7) * STEP, y = (gy + 0.15 + hash(gx, gy, 3) * 0.7) * STEP;
       if (!onLand(x, y) || !clear(x, y)) continue;
-      trees.push([x, y, 5 + hash(gx, gy, 4) * 4]);
+      trees.push([x, y, 9 + hash(gx, gy, 4) * 6]);
     }
   }
   return { land, trees };

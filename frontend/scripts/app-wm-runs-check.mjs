@@ -141,16 +141,25 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   let never = R.startRun('n', 'P', ['x'], T0);
   for (let i = 0; i < 10 && !R.runDone(never); i += 1) never = R.runAnswer(never, 'x', 0);
   check('session: a card that never sits is asked at most MAX_ASKS times', never.attempts, R.MAX_ASKS);
-  /* 2026-11-09 (Eigentümer) — Karten derselben Sache: sitzt eine beim ersten Mal, fragt der Durchgang die anderen nicht mehr. */
-  const same = { p1: R.sameKey({ key: 'p1', entity: 'e', template: 't' }), p2: R.sameKey({ key: 'p2', entity: 'e', template: 't' }), p3: R.sameKey({ key: 'p3', entity: 'e', template: 't' }), q: R.sameKey({ key: 'q' }), f1: R.sameKey({ key: 'f1', facts: ['e#a'] }), f2: R.sameKey({ key: 'f2', facts: ['e#a'], entity: 'e', template: 'u' }) };
-  let g = R.startRun('grp', 'P', Object.keys(same), T0, same);
+  /* 2026-11-09/10 (Eigentümer) — es reicht, wenn alle Infos gefragt wurden, nicht jede Kombination. */
+  const facts = { p1: R.factsOfCard({ key: 'p1', entity: 'e', template: 't' }), p2: R.factsOfCard({ key: 'p2', entity: 'e', template: 't' }), p3: R.factsOfCard({ key: 'p3', entity: 'e', template: 't' }), q: R.factsOfCard({ key: 'q' }), f1: R.factsOfCard({ key: 'f1', facts: ['e#a'] }), f2: R.factsOfCard({ key: 'f2', facts: ['e#a'], entity: 'e', template: 'u' }) };
+  let g = R.startRun('grp', 'P', Object.keys(facts), T0, facts);
   const asked = [];
   for (let i = 0; i < 20 && !R.runDone(g); i += 1) { const k = R.runCard(g); asked.push(k); g = R.runAnswer(g, k, 1); }
   const grec = R.finishRun(g, T0 + 1, ['me']);
-  check('same thing: one card of each group is asked (entry + template, or the same facts), the others count with it', [asked.length, new Set(asked.map((k) => same[k])).size, grec.cards, grec.firstTry, R.perfectRun(grec)], [3, 3, 6, 6, true]);
-  let w = R.startRun('grp', 'P', Object.keys(same), T0, same);
+  check('same thing: one card of each group is asked (entry + template, or the same facts), the others count with it', [asked.length, grec.cards, grec.firstTry, R.perfectRun(grec)], [3, 6, 6, true]);
+  /* Sechs Paare, jede Karte fragt vier davon (alle 15 Kombinationen): sobald jedes Paar einmal sass, ist der Rest erledigt. */
+  const pairs = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const combos = [];
+  for (let i = 0; i < 6; i += 1) for (let j = i + 1; j < 6; j += 1) combos.push(pairs.filter((_, k) => k !== i && k !== j));
+  const comboFacts = Object.fromEntries(combos.map((c, i) => [`m${i}`, R.factsOfCard({ key: `m${i}`, facts: c.map((x) => `list#${x}`) })]));
+  let m = R.startRun('combo', 'P', Object.keys(comboFacts), T0, comboFacts);
+  const askedM = [];
+  for (let i = 0; i < 40 && !R.runDone(m); i += 1) { const k = R.runCard(m); askedM.push(k); m = R.runAnswer(m, k, 1); }
+  check('combinations: 15 cards of 4 out of 6 pairs — asked only until every pair was in a right card, not all 15', [askedM.length < 15 && askedM.every((k, i) => comboFacts[k].some((f) => !askedM.slice(0, i).flatMap((x) => comboFacts[x]).includes(f))), new Set(askedM.flatMap((k) => comboFacts[k])).size, R.finishRun(m, T0 + 1, ['me']).firstTry], [true, 6, 15]);
+  let w = R.startRun('grp', 'P', Object.keys(facts), T0, facts);
   const asked2 = [];
-  for (let i = 0; i < 30 && !R.runDone(w); i += 1) { const k = R.runCard(w); asked2.push(k); w = R.runAnswer(w, k, asked2.filter((x) => x === k).length === 1 && same[k] === same.p1 ? 0 : 1); }
+  for (let i = 0; i < 30 && !R.runDone(w); i += 1) { const k = R.runCard(w); asked2.push(k); w = R.runAnswer(w, k, asked2.filter((x) => x === k).length === 1 && k.startsWith('p') ? 0 : 1); }
   check('same thing: a wrong answer does not cover the others — each is asked', ['p1', 'p2', 'p3'].every((k) => asked2.includes(k)), true);
 }
 

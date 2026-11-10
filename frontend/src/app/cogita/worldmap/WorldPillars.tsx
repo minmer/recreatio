@@ -45,8 +45,12 @@ export function fitText(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text
 }
 
 /** Bäume: ihre mittlere Grösse (Einheiten) und ab wie vielen Bildpunkten sie aufrecht im Bild stehen. */
-const TREE_SIZE = 7;
+const TREE_SIZE = 12;
 const TREE_UPRIGHT = 4.5;
+
+/** Der Ring der Oberseite: die äussere Hälfte des Radius. */
+const RING_OUT = 0.97;
+const RING_IN = 0.5;
 
 /** Ab diesem Zoom tragen gesperrte Wege ihr Schloss (fern bleibt die Karte ruhig). */
 const LOCKS_FROM = 0.9;
@@ -94,6 +98,8 @@ export interface PillarsProps {
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
   readonly full?: boolean;
+  /** Ein Feld steht unter der Karte (schmal): die Karte wird niedriger, damit beides zu sehen ist — nichts liegt verdeckt. */
+  readonly squeeze?: boolean;
   /** Die Ansicht („Co umiem", „Do odkrycia", …): nur diese Orte farbig, die anderen grau und deckend. `null`: alle. */
   readonly lit?: ReadonlySet<string> | null;
   /** Verweise in andere Welten je Ort: das Zeichen des Portals auf der Säule. */
@@ -319,7 +325,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false, full = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -341,7 +347,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const fitCam = useCallback((w: number, h: number, rot = -20, fore = FORE_FIRST): WorldCam => fitView(disks, w, h, rot, fore), [disks]);
   /* Auf einem schmalen Schirm folgt die Höhe des Bildes der Gestalt der Welt (sonst bliebe es halb leer). */
   const narrow = !full && size.w > 0 && size.w < 640;
-  const stageH = narrow ? stageHeightFor(disks, size.w, -20, FORE_FIRST, 260, Math.round(window.innerHeight * 0.75)) : null;
+  const stageH = !full && squeeze && size.w > 0 && size.w < 800 ? Math.max(220, Math.round(window.innerHeight * 0.42))
+    : narrow ? stageHeightFor(disks, size.w, -20, FORE_FIRST, 260, Math.round(window.innerHeight * 0.75)) : null;
   const zoomMax = useRef(40);
   zoomMax.current = size.w === 0 ? 40 : maxZoom(disks, pillarWidth, size.w, size.h);
   const camRef = useRef<WorldCam | null>(keptCam(memoryKey));
@@ -659,31 +666,41 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       if (chosen === p.id) { ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 2.5; ctx.stroke(); }
       else if (a.outline > 0) { ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 0.5 + 2.5 * a.outline; ctx.stroke(); }
       else if (meant) { ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.8; ctx.stroke(); }
-      /* Die Stufen: der obere Rand in gleich grosse Bögen; erreicht leuchtet, eben erreicht leuchtet auf. */
-      if (p.levels > 0 && rx > 3.5) {
-        const gap = Math.min(0.12, Math.PI / (p.levels * 6));
-        for (let i = 0; i < p.levels; i += 1) {
-          const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / p.levels + gap, a1 = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / p.levels - gap;
-          const fresh = a.flash > 0 && i >= a.from && i < a.level;
-          ctx.beginPath(); ctx.ellipse(X, Yt, rx * 0.93, ry * 0.93, 0, a0, a1);
-          ctx.strokeStyle = rgbCss(i < a.level ? pal.lit : mix(side, pal.ink, 0.25));
-          ctx.lineWidth = Math.max(1.4, Math.min(3, rx * 0.12)) * (fresh ? 1 + 1.4 * a.flash : 1);
-          ctx.stroke();
+      /*
+        2026-11-10 (Eigentümer) — DER RING DER OBERSEITE (die äussere Hälfte des Radius): vor der Eroberung die Stufen als breite
+        Teile (erreicht leuchtet, eben erreicht leuchtet auf); erobert zeigt er, wie ALLE Karten sitzen (gekonnt grün, im Lernen
+        gelb, verblasst orange) — kein Punkt mehr. Der Stern „Mistrzowsko" steht in der Mitte.
+      */
+      if (rx > 3.5) {
+        const band = (a0: number, a1: number, colour: string) => {
+          ctx.beginPath();
+          ctx.ellipse(X, Yt, rx * RING_OUT, ry * RING_OUT, 0, a0, a1);
+          ctx.ellipse(X, Yt, rx * RING_IN, ry * RING_IN, 0, a1, a0, true);
+          ctx.closePath();
+          ctx.fillStyle = colour;
+          ctx.fill();
+        };
+        const k = p.knowledge;
+        const all = k.known + k.learning + k.faded;
+        if (a.conquered && all > 0) {
+          let at = -Math.PI / 2;
+          for (const [n, colour] of [[k.known, DOT.green], [k.learning, DOT.yellow], [k.faded, DOT.orange]] as const) {
+            if (n <= 0) continue;
+            const span = (n / all) * Math.PI * 2;
+            band(at, at + span, colour);
+            at += span;
+          }
+        } else if (p.levels > 0) {
+          const gap = Math.min(0.08, Math.PI / (p.levels * 8));
+          for (let i = 0; i < p.levels; i += 1) {
+            const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / p.levels + gap, a1 = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / p.levels - gap;
+            const fresh = a.flash > 0 && i >= a.from && i < a.level;
+            band(a0, a1, rgbCss(i < a.level ? (fresh ? mix(pal.lit, pal.surface, 0.35 * a.flash) : pal.lit) : mix(top, pal.ink, 0.16)));
+          }
         }
       }
-      /*
-        2026-11-10 (Eigentümer) — DIE OBERSEITE: der Name in ihrer Mitte (wie auf den Sechsecken), der Stern „Mistrzowsko"
-        mittig darüber, der Punkt der Kenntnis mittig darunter. Ohne Namen: der Stern in der Mitte, der Punkt darunter.
-      */
       const named = nameOnTop(rx, ry);
-      const starAt = named ? Yt - ry * 0.52 : Yt;
-      const dotAt = named || p.perfect ? Yt + ry * 0.52 : Yt;
-      if (a.dot !== null && rx > 3) {
-        const dr = Math.max(2.2, Math.min(rx * 0.2, named ? ry * 0.3 / v.fore : rx * 0.2));
-        ctx.fillStyle = DOT[a.dot];
-        ctx.beginPath(); ctx.ellipse(X, dotAt, dr, dr * v.fore, 0, 0, Math.PI * 2); ctx.fill();
-      }
-      if (p.perfect && rx > 4) drawStar(ctx, X, starAt, Math.max(4, Math.min(11, rx * 0.24, named ? ry * 0.42 : rx)), rgbCss(pal.star), rgbCss(pal.ink));
+      if (p.perfect && rx > 4) drawStar(ctx, X, Yt, Math.max(4, Math.min(12, rx * RING_IN * 0.8, ry * RING_IN * 1.6)), rgbCss(pal.star), rgbCss(pal.ink));
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
@@ -697,7 +714,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.font = NAME_FONT;
         const text = fitText(ctx, p.label, Math.min(NAME_MAX, Math.max(rx * 2.6, 130)));
         const w = ctx.measureText(text).width + 6;
-        const y = Yt;
+        /* Mit Stern: der Name über ihm (der Stern bleibt in der Mitte frei). */
+        const y = p.perfect ? Yt - ry * 0.62 : Yt;
         if (X >= 0 && X <= size.w && y >= 9 && y <= size.h - 9) {
           const x = Math.max(w / 2 + 4, Math.min(size.w - w / 2 - 4, X));
           labels.push({ key: p.id, text, x, y, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
@@ -920,7 +938,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const d = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
       const s = Math.max(0.01, Math.min(zoomMax.current, two.current.cam.s * (d / Math.max(1, two.current.d))));
       const rot = two.current.cam.rot - ((ang - two.current.a) * 180) / Math.PI;
-      setCam({ ...two.current.cam, s, rot });
+      /* 2026-11-10 — zwei Finger gemeinsam nach unten oder oben: neigen (wie Strg + Ziehen; nach unten neigt nach unten). */
+      const fore = two.current.cam.fore + ((a.y + b.y) / 2 - two.current.my) * 0.004;
+      setCam({ ...two.current.cam, s, rot, fore });
       return;
     }
     const dr = drag.current;
@@ -1023,6 +1043,17 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     };
     return () => { delete el.wmLocate; delete el.wmLanes; };
   });
+
+  /* Der gewählte Ort bleibt im Bild (auch wenn die Karte für ein Feld niedriger wird): sonst schiebt sich die Karte zu ihm. */
+  useEffect(() => {
+    const c = camRef.current;
+    const p = chosen === null ? undefined : scene.byId.get(chosen);
+    if (c === null || p === undefined || size.w === 0) return;
+    const [x, y] = toScr(viewOf(c, size.w, size.h), p.x, p.y, 0);
+    const m = 40;
+    if (x < m || x > size.w - m || y < m * 1.5 || y > size.h - m) setCam({ ...c, cx: p.x, cy: p.y });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, size.w, size.h]);
 
   useImperativeHandle(ref, () => ({
     fit: () => { if (size.w > 0) setCam(fitCam(size.w, size.h, camRef.current?.rot ?? -20, camRef.current?.fore ?? FORE_FIRST)); },

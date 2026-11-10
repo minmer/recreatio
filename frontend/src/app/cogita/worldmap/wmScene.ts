@@ -36,6 +36,8 @@ export interface ScenePlace {
   readonly station: boolean;
   /** „Mistrzowsko" — ein Stern auf der Säule. */
   readonly perfect: boolean;
+  /** Wie die Karten des Ortes sitzen (gekonnt, im Lernen, verblasst/neu) — der Ring eines eroberten Ortes. */
+  readonly knowledge: { readonly known: number; readonly learning: number; readonly faded: number };
 }
 
 /**
@@ -95,7 +97,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       id, label: p.label, x: pos[0], y: pos[1], r: g.radii[id] ?? 28, ...(p.block === undefined ? {} : { block: p.block }),
       color: opts.placeColour(id), sat: st?.saturation ?? 'never', missing: st?.height ?? p.cards.length, total: p.cards.length,
       conquered: st?.conquered === true, levels: state.settings.levels, level: st?.level ?? 0, dot: st?.dot ?? null,
-      station: lines.stations.has(id), perfect: st?.perfect === true
+      station: lines.stations.has(id), perfect: st?.perfect === true,
+      knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length }
     });
   }
   const byId = new Map(places.map((p) => [p.id, p] as const));

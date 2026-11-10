@@ -343,18 +343,27 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. Esc oder × beendet es. ---------------------- */
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [full, setFull] = useState(false);
+  /*
+    Das ganze Dokument geht ins Vollbild, die Karte liegt darüber (fest, über der Seite, unter Dialogen): so bleiben Erzählungen,
+    Fragen und Dialoge, die in einem Portal oder selbst im Vollbild laufen, sichtbar (2026-11-10, Eigentümer).
+  */
+  const askedFull = useRef(false);
   useEffect(() => {
-    const sync = () => setFull(document.fullscreenElement !== null && document.fullscreenElement === hostRef.current);
+    const sync = () => { if (document.fullscreenElement === null && askedFull.current) { askedFull.current = false; setFull(false); } };
     document.addEventListener('fullscreenchange', sync);
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
   const toggleFull = () => {
-    const el = hostRef.current;
-    if (el === null) return;
-    if (document.fullscreenElement !== null) { void document.exitFullscreen().catch(() => undefined); return; }
+    if (full) {
+      askedFull.current = false;
+      setFull(false);
+      if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    setFull(true);
+    const root = document.documentElement;
     /* Ohne die Schnittstelle (manche Telefone): das ganze Fenster, ohne den Rest der Seite. */
-    if (typeof el.requestFullscreen !== 'function') { setFull((f) => !f); return; }
-    void el.requestFullscreen().catch(() => setFull((f) => !f));
+    if (typeof root.requestFullscreen === 'function') void root.requestFullscreen().then(() => { askedFull.current = true; }, () => undefined);
   };
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
   const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);
@@ -585,7 +594,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
-              onLead={(id) => lead(id)} full={full} />}
+              onLead={(id) => lead(id)} full={full} squeeze={hasSide} />}
           {scene !== null && (
             <button type="button" className="cg-wm-fullbtn" onClick={toggleFull} aria-pressed={full} title={full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')} data-world-full={full ? '1' : '0'}>
               {full ? '×' : '⛶'} <span>{full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')}</span>

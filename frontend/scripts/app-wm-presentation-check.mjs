@@ -152,7 +152,7 @@ for (const theme of ['light', 'dark']) {
   check('trees: upright near (trunk and crown, sorted with the pillars), flat far', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== ')], [true, true, true]);
   const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
   check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
-  check('full screen: the host asks the browser for full screen, only the map stays', [has(ls, 'el.requestFullscreen()'), has(ls, 'is-full')], [true, true]);
+  check('full screen: the host asks the browser for full screen, only the map stays', [has(ls, 'root.requestFullscreen()'), has(ls, 'is-full')], [true, true]);
 }
 
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */

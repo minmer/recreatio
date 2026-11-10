@@ -5,8 +5,8 @@
 
 /*
   Das Feld steht neben der Karte, wenn der Platz reicht (gemessen an der Karte selbst, nicht am Fenster; ab 50rem, in der App
-  ab etwa 1 100 px Fensterbreite). Step 3 §3 — schmaler: das Feld ist ein Blatt über dem unteren Teil der Karte (klebt am unteren
-  Rand des Fensters, höchstens die Hälfte hoch), die Karte bleibt darüber sichtbar — nicht mehr unter der ganzen Seite.
+  ab etwa 1 100 px Fensterbreite). Schmaler (2026-11-10, Eigentümer: nichts darf verdeckt sein): die Karte wird niedriger
+  (WorldPillars squeeze), das Feld steht darunter und blättert für sich; der gewählte Ort bleibt im Bild.
 */
 .cg-wm-host { display: grid; gap: var(--wk-space-2); container-type: inline-size; }
 .cg-wm-body { display: grid; gap: var(--wk-space-3); grid-template-columns: minmax(0, 1fr); }
@@ -14,12 +14,8 @@
   .cg-wm-body.has-side { grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); align-items: start; }
 }
 @container (max-width: 49.99rem) {
-  .cg-wm-body.has-side > .cg-wm-side {
-    position: sticky; bottom: 0; z-index: 5; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain;
-    margin-top: calc(-1 * min(50vh, 22rem)); padding: var(--wk-space-2) var(--wk-space-2) var(--wk-space-3);
-    border-radius: var(--wk-radius) var(--wk-radius) 0 0; background: var(--wk-surface); border: 1px solid var(--wk-line);
-    box-shadow: var(--wk-shadow-pop);
-  }
+  /* 2026-11-10 — nichts verdeckt die Karte: sie wird niedriger (WorldPillars squeeze), das Feld steht darunter und blättert für sich. */
+  .cg-wm-body.has-side > .cg-wm-side { max-height: 52vh; overflow-y: auto; overscroll-behavior: contain; }
 }
 .cg-wm-main { position: relative; display: grid; gap: var(--wk-space-2); min-width: 0; }
 
@@ -32,8 +28,10 @@
 /* Vollbild (2026-11-10): nur die Karte; Werkzeuge und das Feld liegen über ihr. */
 .cg-wm-fullbtn { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 4; display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
 .cg-wm-fullbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
-.cg-wm-host.is-full { position: fixed; inset: 0; z-index: 1000; display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
-.cg-wm-host.is-full > :not(.cg-wm-body) { display: none; }
+.cg-wm-host.is-full { position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) - 1); display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
+.cg-wm-host.is-full > :not(.cg-wm-body):not(.cg-ls-run) { display: none; }
+/* Im Vollbild läuft auch eine Erzählung, eine Frage oder ein Durchgang über den ganzen Schirm (blättert für sich). */
+.cg-wm-host.is-full > .cg-ls-run { height: 100%; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: var(--wk-space-4) clamp(var(--wk-space-3), 4vw, var(--wk-space-8)); }
 .cg-wm-host.is-full .cg-wm-body { display: block; position: relative; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main { display: block; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main > :not(.cg-wm-mapwrap) { display: none; }

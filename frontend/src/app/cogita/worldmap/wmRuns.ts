@@ -2,9 +2,10 @@
  * 2026-11-09 — EROBERN DURCH DURCHGÄNGE (spec §7, Entscheidungen 7, 8, 9).
  * <code>
  *   Durchgang  fragt jede Karte eines Ortes einmal, gemischt; eine falsche kommt am Ende wieder, bis sie sitzt (höchstens
- *              MAX_ASKS Mal; Entscheidung 7: „one" = richtig beim zweiten Mal, „any" = auch später). Karten derselben Sache
- *              (dieselben Fakten, sonst derselbe Eintrag aus derselben Vorlage) fragt er nicht mehr, sobald eine davon beim
- *              ersten Mal sitzt: sie zählen wie diese (2026-11-09, Wunsch des Eigentümers).
+ *              MAX_ASKS Mal; Entscheidung 7: „one" = richtig beim zweiten Mal, „any" = auch später). Eine Karte, deren
+ *              Fakten (was sie fragt) alle schon in Karten sassen, die beim ersten Mal richtig waren — auch verteilt über
+ *              verschiedene Kombinationen —, fragt er nicht mehr; sie zählt wie richtig (2026-11-10, Eigentümer: „es reicht,
+ *              wenn alle Infos gefragt wurden, nicht jede Kombination").
  *              Jede Antwort ist eine gewöhnliche Antwort (`via: "run:<id>"`); der Durchgang selbst ist ein Stapel `run`,
  *              nur für den Halter versiegelt (ohne Schlüssel des Bereichs, Entscheidung 9)
  *   zählen     „first": richtig beim ersten Mal · „one": dazu richtig nach der einen Korrektur · „any": richtig überhaupt
@@ -292,9 +293,11 @@ export interface RunSession {
   readonly later: Readonly<Record<string, number>>;
   /** Wie oft jede Karte gefragt wurde. */
   readonly asked: Readonly<Record<string, number>>;
-  /** Je Karte: was sie fragt (Karten mit derselben Sache stehen für einander). */
-  readonly same: Readonly<Record<string, string>>;
-  /** Karten, die nicht mehr gefragt wurden, weil dieselbe Sache schon beim ersten Mal sass. */
+  /** Je Karte: was sie fragt (ihre Fakten). */
+  readonly facts: Readonly<Record<string, readonly string[]>>;
+  /** Fakten, die schon in einer Karte sassen (beim ersten Mal richtig). */
+  readonly known: readonly string[];
+  /** Karten, die nicht mehr gefragt wurden, weil alles, was sie fragen, schon sass. */
   readonly covered: readonly string[];
   readonly attempts: number;
   /** Ab hier kommen die Wiederholungen der falschen Karten. */
@@ -316,18 +319,18 @@ export function shuffled<T>(list: readonly T[], seed: string): T[] {
 export const MAX_ASKS = 4;
 
 /**
- * Was eine Karte fragt, als Schlüssel: ihre Fakten (`Card.facts`), sonst ihr Eintrag mit ihrer Vorlage (eine Vorlage, die
- * mehrere Karten aus einem Eintrag macht — Richtungen, Auswahlen), sonst nur sie selbst.
+ * Was eine Karte fragt: ihre Fakten (`Card.facts` — eine Kombination fragt mehrere, z. B. vier von sechs Paaren), sonst ihr
+ * Eintrag mit ihrer Vorlage (eine Vorlage, die mehrere Karten aus einem Eintrag macht), sonst nur sie selbst.
  */
-export function sameKey(card: { readonly key: string; readonly facts?: readonly string[]; readonly entity?: string; readonly template?: string }): string {
-  if (card.facts !== undefined && card.facts.length > 0) return `f:${card.facts.slice().sort().join('|')}`;
-  if (card.entity !== undefined && card.template !== undefined) return `e:${card.entity}|${card.template}`;
-  return `k:${card.key}`;
+export function factsOfCard(card: { readonly key: string; readonly facts?: readonly string[]; readonly entity?: string; readonly template?: string }): string[] {
+  if (card.facts !== undefined && card.facts.length > 0) return [...new Set(card.facts)];
+  if (card.entity !== undefined && card.template !== undefined) return [`e:${card.entity}|${card.template}`];
+  return [`k:${card.key}`];
 }
 
-export function startRun(id: string, place: string, cards: readonly string[], now: number, same: Readonly<Record<string, string>> = {}): RunSession {
+export function startRun(id: string, place: string, cards: readonly string[], now: number, facts: Readonly<Record<string, readonly string[]>> = {}): RunSession {
   const order = shuffled(cards, id);
-  return { id, place, startedAt: now, order, queue: order, first: {}, second: {}, later: {}, asked: {}, same, covered: [], attempts: 0, retrying: false };
+  return { id, place, startedAt: now, order, queue: order, first: {}, second: {}, later: {}, asked: {}, facts, known: [], covered: [], attempts: 0, retrying: false };
 }
 
 export const runCard = (s: RunSession): string | null => s.queue[0] ?? null;
@@ -341,18 +344,21 @@ export function runAnswer(s: RunSession, card: string, correctness: number): Run
   const asked = { ...s.asked, [card]: n };
   let first = s.first;
   let covered = s.covered;
+  let known = s.known;
   let second = s.second;
   let later = s.later;
   if (n === 1) {
     first = { ...first, [card]: correctness };
-    /* Dieselbe Sache sass beim ersten Mal: die anderen Karten dazu fragt der Durchgang nicht mehr. */
-    const key = s.same[card];
-    if (right && key !== undefined) {
-      const twins = rest.filter((k) => k !== card && s.same[k] === key && first[k] === undefined);
-      if (twins.length > 0) {
-        rest = rest.filter((k) => !twins.includes(k));
-        first = { ...first, ...Object.fromEntries(twins.map((k) => [k, 1])) };
-        covered = [...covered, ...twins];
+    /* Was diese Karte fragt, sitzt: jede Karte, deren Fakten nun alle sassen (auch aus anderen Kombinationen), fällt weg. */
+    const mine = s.facts[card];
+    if (right && mine !== undefined && mine.length > 0) {
+      const have = new Set([...known, ...mine]);
+      known = [...have];
+      const done = rest.filter((k) => k !== card && first[k] === undefined && (s.facts[k]?.length ?? 0) > 0 && s.facts[k]!.every((f) => have.has(f)));
+      if (done.length > 0) {
+        rest = rest.filter((k) => !done.includes(k));
+        first = { ...first, ...Object.fromEntries(done.map((k) => [k, 1])) };
+        covered = [...covered, ...done];
       }
     }
   } else if (n === 2) second = { ...second, [card]: correctness };
@@ -360,7 +366,7 @@ export function runAnswer(s: RunSession, card: string, correctness: number): Run
   const queue = right || n >= MAX_ASKS ? rest : [...rest, card];
   /* Die erste Runde ist vorbei, sobald keine Karte der gemischten Reihenfolge mehr vorn wartet. */
   const retrying = queue.length > 0 && queue.every((k) => first[k] !== undefined);
-  return { ...s, first, second, later, asked, covered, queue, attempts: s.attempts + 1, retrying };
+  return { ...s, first, second, later, asked, known, covered, queue, attempts: s.attempts + 1, retrying };
 }
 
 export const runDone = (s: RunSession): boolean => s.queue.length === 0;
