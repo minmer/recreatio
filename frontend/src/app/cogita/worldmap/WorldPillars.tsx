@@ -1045,7 +1045,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
         /* 2026-11-10 (Eigentümer) — ein Zweig mit eigenem Tor: ein kleines Schloss an seinem Anfang, dabei der verlangte Turm. */
         if (l.requires.length > 0 && len >= 20) {
-          const at = along(sp, Math.min(0.3, 12 / len));
+          let at = along(sp, Math.min(0.3, 12 / len));
+          for (let q = 0.12; q < 0.6 && pickAt(grid, at.x, at.y) !== null; q += 0.06) at = along(sp, q);
           drawLock(ctx, at.x, at.y, 5.5, 'place', rgbCss(mix(pal.ink, pal.land, 0.25)), halo0);
           if (near) {
             const names = l.requires.map((id) => scene.byId.get(id)?.label ?? id);
@@ -1066,6 +1067,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         for (let k = 0; k < count; k += 1) {
           const i = count === n ? k : Math.round((k * (n - 1)) / Math.max(1, count - 1));
           const at = along(sp, (k + 1) / (count + 1));
+          /* Hinter (oder auf) einer Säule: nicht gezeichnet (die Spur liegt dort unter ihr). */
+          if (pickAt(grid, at.x, at.y) !== null) continue;
           const seenHere = l.seen[i] === true;
           ctx.lineWidth = 1.6;
           ctx.beginPath();
@@ -1408,6 +1411,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     drag.current = null;
     if (dr === null || dr.id !== e.pointerId || dr.moved) return;
     const p = local(e);
+    /* Eine Gabelung oder ein Tor ist über den Säulen gezeichnet: ihr Zeichen gewinnt. */
+    const jn0 = hitJunction(p.x, p.y);
+    if (jn0 !== null && onPickJunction !== undefined) { onPickJunction(jn0); return; }
     const id = hit(p.x, p.y, seenGrid.current ?? gridRef.current);
     if (id !== null) {
       /* Eine Scheibe (nah, als Streifen zu sehen): zu dem Turm, für den sie steht — gleitend, mit dem Weg zurück. */
@@ -1429,8 +1435,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       onPick?.(id); onHover?.(id, { x: p.x, y: p.y }); return;
     }
     if (hitHome(p.x, p.y)) { onPickHome?.(); return; }
-    const jn = hitJunction(p.x, p.y);
-    if (jn !== null && onPickJunction !== undefined) { onPickJunction(jn); return; }
     const lane = hitLane(p.x, p.y);
     if (lane !== null) { onPickLane?.(lane); return; }
     onPick?.(null);
@@ -1479,7 +1483,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const want = kind === 'label' ? scene.places.find((p) => p.label === id)?.id : id;
         const d = drawnRef.current.find((x) => x.id === want);
         if (d === undefined) return null;
-        for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want) return [d.x, y];
+        for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want && hitJunction(d.x, y) === null) return [d.x, y];
         return null;
       }
       if (kind === 'disc') {
@@ -1489,13 +1493,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const d = discsRef.current.find((x) => x.id === place);
         if (d === undefined) return null;
         const y = d.base + d.ry - (i + 0.5) * d.step;
-        return inside(d.x, y) && hit(d.x, y) === place && discAt(d, d.x, y) === i ? [d.x, y] : null;
+        return inside(d.x, y) && hit(d.x, y) === place && hitJunction(d.x, y) === null && discAt(d, d.x, y) === i ? [d.x, y] : null;
       }
       if (kind === 'junction') {
         const j = scene.junctions.find((x) => x.id === id);
         if (j === undefined) return null;
         const [jx, jy] = toScr(v, j.x, j.y, 0);
-        return inside(jx, jy) && hit(jx, jy) === null && hitJunction(jx, jy) === id ? [jx, jy] : null;
+        return inside(jx, jy) && hitJunction(jx, jy) === id ? [jx, jy] : null;
       }
       if (kind === 'home') {
         if (scene.home === null) return null;

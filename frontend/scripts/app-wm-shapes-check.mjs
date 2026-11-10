@@ -350,7 +350,7 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
     const po = w.g.positions[j.from], pj = w.g.positions[j.id];
     let near = Infinity, rn = 0;
     for (const id of j.out) { const t = w.lines.sections.get(id).to; const p = w.g.positions[t]; const d = Math.hypot(p[0] - po[0], p[1] - po[1]); if (d < near) { near = d; rn = w.g.radii[t]; } }
-    const start = w.g.radii[j.from] + 6 + 2, end = near - rn - 6 - 2;
+    const [start, end] = GEO.forkStretch(w.g.radii[j.from], near, rn);
     return (Math.hypot(pj[0] - po[0], pj[1] - po[1]) - start) / (end - start);
   };
   const r = [0, 1, 3, 12].map((n) => Math.round(share(SH.forkAfter(n)) * 100) / 100);

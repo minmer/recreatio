@@ -672,7 +672,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     return (
       <div className="cg-wm-bubble" ref={(el) => { if (el !== null) { el.style.left = `${hover.x}px`; el.style.top = `${hover.y}px`; } }} role="status" data-world-bubble={p.id}>
         <strong>{p.label}</strong>
-        <span>{p.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: p.missing })}</span>
+        {/* 2026-11-10 — wie im Feld: die Karten des Turms selbst (was davor fehlt, zeigen seine Scheiben und die Zeile darunter). */}
+        <span>{p.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: p.own })}</span>
         {/* 2026-11-10 (Eigentümer: „nur, was nötig ist") — gesperrt: wie viele Türme fehlen (welche, zeigt das Feld); sonst die Länge des Weges. */}
         {missing.length > 0 && (
           <span className="cg-wm-breq" data-world-bubble-required={missing.length} data-world-bubble-open={open} data-world-bubble-done={done}>

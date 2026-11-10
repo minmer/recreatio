@@ -105,6 +105,8 @@ export interface PathMapProps {
   readonly next?: readonly PathNext[];
   /** 2026-11-04 (Prompt 11) — Knöpfe des Gastgebers im Kopf (breiter / schmaler neben einer Erzählung). */
   readonly tools?: ReactNode;
+  /** 2026-11-10 — schon im Vollbild (der Plan einer Erzählung): kein eigener Knopf „Vollbild". */
+  readonly noWhole?: boolean;
 }
 
 const HEX = (r: number): string => [-90, -30, 30, 90, 150, 210].map((a) => `${(Math.cos((a * Math.PI) / 180) * r).toFixed(1)},${(Math.sin((a * Math.PI) / 180) * r).toFixed(1)}`).join(' ');
@@ -141,7 +143,7 @@ export const PATH_STATE_WORDS: Readonly<Record<PathState, string>> = texts({ don
 /** Eine Seite des Fensters über einem Knoten (eine Kennung der Karte oder ein Knoten der Reihe danach). */
 const NEXT = 'next:';
 
-export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title: titleIn, collapsible = false, open: openIn, onOpen, words: wordsGiven, noun = 'parts', next, tools, branches, returnAt = null }: PathMapProps) {
+export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title: titleIn, collapsible = false, open: openIn, onOpen, words: wordsGiven, noun = 'parts', next, tools, branches, returnAt = null, noWhole = false }: PathMapProps) {
   const T = wordsGiven ?? wordsIn('pl');
   const title = titleIn ?? (wordsGiven === undefined ? undefined : T.pathTitle);
   const stateWords: Readonly<Record<PathState, string>> = { done: T.done, available: T.open, locked: T.locked };
@@ -428,7 +430,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.max(zMin, z - 1))} disabled={zoom <= zMin} aria-label={T.zoomOut} data-path-zoom="out">−</button>
       <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.min(steps - 1, z + 1))} disabled={zoom >= steps - 1} aria-label={T.zoomIn} data-path-zoom="in">+</button>
       <button type="button" className="cg-pm-tool is-text" onClick={() => setZoom(canFit ? -1 : 0)} disabled={canFit ? zoom === -1 : zoom === 0} data-path-zoom="fit">{T.fit}</button>
-      <button type="button" className="cg-pm-tool is-text" onClick={() => { setWhole(!whole); setZoom(0); }} aria-pressed={whole} data-path-whole="">{whole ? T.close : T.full}</button>
+      {!noWhole && <button type="button" className="cg-pm-tool is-text" onClick={() => { setWhole(!whole); setZoom(0); }} aria-pressed={whole} data-path-whole="">{whole ? T.close : T.full}</button>}
     </span>
   );
   const head = (title !== undefined || collapsible || open) && (

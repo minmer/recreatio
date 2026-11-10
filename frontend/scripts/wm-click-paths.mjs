@@ -88,6 +88,12 @@ try {
       await sleep(500);
       at = await locate();
     }
+    /* 2026-11-10 — jede Prüfung legt die Welt neu an (neue Kennungen, andere Lage): verdeckt ein Turm die Stelle, die Karte drehen. */
+    for (let turn = 0; turn < 3 && at === null; turn += 1) {
+      await ev(`(() => { const r = document.querySelector('[data-world-rotate]'); if (!r) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(r, String((Number(r.value) + 90) % 360)); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await sleep(400);
+      at = await locate();
+    }
     if (at === null) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`not on the map: ${kind} ${id}`); }
     await clickAt(at[0], at[1]);
   };
@@ -466,7 +472,7 @@ try {
     await clickMap('place', magone.id);
     await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
     let disc = null;
-    for (let i = 0; i < 14 && disc === null; i += 1) {
+    for (let i = 0; i < 18 && (disc === null || Number(await canvas('wmDiscNames')) === 0); i += 1) {
       const at = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('place', ${JSON.stringify(magone.id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
       if (at !== null) await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: at[0], y: at[1], deltaX: 0, deltaY: -260 });
       await sleep(250);
@@ -493,6 +499,7 @@ try {
     await waitFor(`document.querySelector('[data-world-overview]')`, 'the overview of the way');
     const ov = await ev(`({ steps: [...document.querySelectorAll('[data-world-overview-step]')].map((x) => x.dataset.worldOverviewStep), target: document.querySelector('[data-world-overview-target]')?.dataset.worldOverviewTarget, start: document.querySelector('[data-world-overview-start]')?.dataset.worldOverviewStart })`);
     check(P, 'a double click opens the overview: every step in order, then the goal; nothing started yet', ov.steps.length >= 3 && ov.target === magone.id && await ev(`document.querySelector('[data-world-running]') === null`), ov);
+    await sleep(500);
     await shot('p8-overview');
     await click('[data-world-overview-start]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step from the overview');

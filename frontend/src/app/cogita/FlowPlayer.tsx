@@ -814,7 +814,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
               branches={(id) => (routeShown ? callerBranches?.get(id) ?? null : null)} returnAt={routeShown ? callerReturn : null} />
           </div>
         )}
-        <PathMap key={running.id} model={pathModelNow} marks={routeShown ? pathNow : plainMarks(pathNow)} size="full" words={W}
+        <PathMap key={running.id} model={pathModelNow} marks={routeShown ? pathNow : plainMarks(pathNow)} size="full" words={W} noWhole
           branches={(id) => (routeShown ? branchMap.get(id) ?? null : null)}
           actions={(id) => {
             const x = detourAt(id);

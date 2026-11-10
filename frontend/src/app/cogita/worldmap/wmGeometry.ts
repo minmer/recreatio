@@ -5,7 +5,7 @@
  * Rein — der Worker (`wmGeometry.worker.ts`) und die Prüfungen rechnen damit; nichts davon kennt React oder Texte.
  */
 
-import { HOME_R, hash01, JUNCTION_R, layout, packParts, R } from './wmLayout';
+import { HOME_R, hash01, JUNCTION_GAP, JUNCTION_R, layout, packParts, R } from './wmLayout';
 import { routeTracks, type Obstacle, type Track } from './wmTracks';
 import { isJunction, type Lines, type World } from './wmTypes';
 
@@ -34,6 +34,14 @@ export const FORK_MIN = 0.1;
 export const FORK_MAX = 0.45;
 /** Der Anteil: mehr Folien vor der Gabelung (gegenüber der Länge ihrer Zweige) — weiter vom Ausgang, in den Grenzen. */
 export const forkShare = (before: number, after: number): number => (before + after <= 0 ? FORK_MIN : Math.max(FORK_MIN, Math.min(FORK_MAX, before / (before + after))));
+/**
+ * Das freie Stück des Weges vom Ausgang zum nächsten Ziel (Abstand von der Mitte des Ausgangs): von dort, wo die Gabelung den
+ * Mindestabstand zum Ausgang hat, bis dort, wo sie ihn zum Ziel hat (`JUNCTION_GAP` zwischen den Rändern).
+ */
+export const forkStretch = (ro: number, near: number, rNear: number): readonly [number, number] => {
+  const start = ro + JUNCTION_R + JUNCTION_GAP;
+  return [start, Math.max(start, near - rNear - JUNCTION_R - JUNCTION_GAP)];
+};
 
 export interface Geometry {
   readonly version: string;
@@ -170,7 +178,7 @@ export function geometryOf(input: GeometryInput): Geometry {
         zwischen 10 % und 45 % des Weges zum nächsten Ziel") — gemessen auf dem freien Stück zwischen den Rändern.
       */
       const w = input.junctionSteps?.[id] ?? [0, 1];
-      const start = ro + JUNCTION_R + 2, end = Math.max(start, near - rNear - JUNCTION_R - 2);
+      const [start, end] = forkStretch(ro, near, rNear);
       const dist = start + forkShare(w[0], w[1]) * (end - start);
       const base = Math.atan2(cy - o[1], cx - o[0]);
       /* Weggedreht (±15°-Schritte), bis kein anderer Turm den Knoten berührt. */
@@ -178,7 +186,7 @@ export function geometryOf(input: GeometryInput): Geometry {
       for (let k = 0; k < 9; k += 1) {
         const turn = (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 12);
         const x = o[0] + Math.cos(base + turn) * dist, y = o[1] + Math.sin(base + turn) * dist;
-        const clear = layoutNodes.every((n) => n.id === id || n.id === from || junctions.has(n.id) || Math.hypot(positions[n.id][0] - x, positions[n.id][1] - y) >= n.r + JUNCTION_R + 0.5 * R);
+        const clear = layoutNodes.every((n) => n.id === id || n.id === from || (junctions.has(n.id) && !placedJ.has(n.id)) || Math.hypot(positions[n.id][0] - x, positions[n.id][1] - y) >= n.r + JUNCTION_R + JUNCTION_GAP);
         if (clear) { best = [x, y]; break; }
       }
       positions[id] = [Math.round(best[0] * 10) / 10, Math.round(best[1] * 10) / 10];
