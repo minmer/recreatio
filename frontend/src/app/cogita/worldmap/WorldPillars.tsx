@@ -180,6 +180,8 @@ export interface PillarsProps {
   readonly onLead?: (place: string) => void;
   /** 2026-11-10 — Doppelklick auf freien Boden: die ganze Karte, ohne Weg (die Karte passt sich selbst ein). */
   readonly onPlain?: () => void;
+  /** 2026-11-10 — direkt unter dem Bild der Karte (der Weg Schritt für Schritt): die Karte bleibt ganz zu sehen. */
+  readonly under?: React.ReactNode;
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
   readonly full?: boolean;
@@ -415,7 +417,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, onPlain, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -1468,6 +1470,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
       wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
       wmDiscs?: () => { id: string; discs: readonly string[] }[];
+      wmLookAt?: (place: string, zoom: number) => boolean;
     };
     const el = canvasRef.current as Hooked | null;
     if (el === null) return undefined;
@@ -1475,6 +1478,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
     el.wmJunctionList = () => scene.junctions.map((j) => ({ id: j.id, kind: j.kind, ways: j.ways.length, before: j.before.slides, open: j.open }));
     el.wmDiscs = () => scene.places.filter((p) => p.discs.length > 0).map((p) => ({ id: p.id, discs: p.discs }));
+    /* Für Prüfungen: die Kamera auf einen Turm, mit diesem Zoom (die Grenzen gelten wie sonst). */
+    el.wmLookAt = (place, zoom) => { const p = scene.byId.get(place); const c = camRef.current; if (p === undefined || c === null) return false; setCam({ ...c, cx: p.x, cy: p.y, s: zoom }); return true; };
     el.wmLocate = (kind, id) => {
       const c = camRef.current;
       if (c === null) return null;
@@ -1518,7 +1523,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       return null;
     };
-    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; };
   });
 
   /*
@@ -1572,6 +1577,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           </nav>
         )}
       </div>
+      {under}
       {c !== null && (
         <div className="cg-wm-tools" data-world-tools="">
           <button type="button" className="cg-rm-tool" onClick={() => zoomAt(1.5, size.w / 2, size.h / 2)} aria-label={t('cogitaWorld.map.zoomIn')} title={t('cogitaWorld.map.zoomIn')} data-world-zoom="in">+</button>

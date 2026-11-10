@@ -204,7 +204,7 @@ export function FlowPlayer(props: FlowPlayerProps) {
   return <LangScope lang={props.content.lang ?? null}><FlowPlayerIn {...props} /></LangScope>;
 }
 
-function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel }: {
+function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel, endToClose = false }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
@@ -222,6 +222,11 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   onAnswer?: (step: string, card: Card, correctness: number, given: unknown) => void;
   /** 2026-11-03 (Prompt 5) — vor einer Erzählung ihre Sperre prüfen (aus nur in einer Sitzung, die der Gastgeber führt). */
   gate?: boolean;
+  /**
+   * 2026-11-10 (Eigentümer: „läuft eine Navigation, wird diese Seite übersprungen") — am Ende keine Seite „Wie es weitergeht":
+   * gleich zurück (`onClose`); den nächsten Schritt sagt der Weg auf der Karte.
+   */
+  endToClose?: boolean;
 }) {
   const flow = useMemo(() => resolveFlow(given, content.flow), [given, content]);
   /* Ein Ablauf beim Namen: der gegebene selbst (vielleicht ungespeichert), sonst der der Baza. */
@@ -996,6 +1001,9 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     );
   }
 
+  if ((state.ended || current === undefined) && endToClose && onClose !== undefined) {
+    return <EndToClose onClose={onClose} />;
+  }
   if (state.ended || current === undefined) {
     /*
       2026-11-04 (Prompt 11) — DAS ENDE: was nach dieser Erzählung kommt — EIN grosser Knopf zum naheliegenden Nächsten (das
@@ -1372,6 +1380,14 @@ interface StoryCrumb { readonly label: string; readonly id?: string; readonly ru
  * 2026-11-05 (Prompt 18) — DIE KOPFZEILE DES SPIELERS: „‹ Mapa" (woher er kam), die Brotkrumen (lange Namen gekürzt, ganz im
  * Hinweis), „⋯" mit „Od początku" und „Zapomnij postęp" (fragt nach); darunter der Fortschritt „4 z 14".
  */
+/** Das Ende ohne eigene Seite: einmal zurück (nachdem der Stand gespeichert ist — ein Augenblick). */
+function EndToClose({ onClose }: { onClose: () => void }) {
+  const ref = useRef(onClose);
+  ref.current = onClose;
+  useEffect(() => { const id = window.setTimeout(() => ref.current(), 150); return () => window.clearTimeout(id); }, []);
+  return null;
+}
+
 function StoryHead({ W, back, crumbs, menu, progress }: {
   W: ReturnType<typeof words>;
   back: { readonly label: string; readonly run: () => void; readonly detour?: string } | null;

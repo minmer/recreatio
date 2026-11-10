@@ -480,8 +480,7 @@ try {
     await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
     let disc = null;
     for (let i = 0; i < 18 && (disc === null || Number(await canvas('wmDiscNames')) === 0); i += 1) {
-      const at = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('place', ${JSON.stringify(magone.id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
-      if (at !== null) await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: at[0], y: at[1], deltaX: 0, deltaY: -260 });
+      await ev(`document.querySelector('[data-world-canvas]').wmLookAt(${JSON.stringify(magone.id)}, ${(0.6 * Math.pow(1.35, i)).toFixed(3)})`);
       await sleep(250);
       disc = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('disc', ${JSON.stringify(`${magone.id}#0`)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
     }

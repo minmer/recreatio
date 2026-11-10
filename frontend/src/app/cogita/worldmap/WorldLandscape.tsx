@@ -727,7 +727,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
       <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
-        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} />
+        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose={tt !== null} />
       </div>
     ) : running.kind === 'run' && learner !== null ? (
       <div className="cg-ls-run" data-world-running="run">
@@ -825,7 +825,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
               onPickJunction={(id) => setChosen({ kind: 'junction', id })}
               onLead={(id) => { setGoal(id); lead(id, undefined, 'overview'); }} onPlain={() => { setChosen(null); setHover(null); setOverview(false); setAskNext(false); setPlain(true); }}
-              full={full !== null} squeeze={hasSide} />}
+              full={full !== null} squeeze={hasSide} under={wayCard} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
               <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('screen')} title={t('cogitaWorld.map.fullSays')} data-world-full="screen">⛶ <span>{t('cogitaWorld.map.fullOn')}</span></button>
@@ -833,7 +833,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             </div>
           )}
           {bubble}
-          {wayCard}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
           {shownMode === 'discover' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="discover">{T.nothingReady}</div>}
           {shownMode === 'gaps' && (

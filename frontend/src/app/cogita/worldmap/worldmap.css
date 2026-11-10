@@ -304,8 +304,8 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 /* 2026-11-10 — der Weg Schritt für Schritt unten auf der Karte (nicht in einem eigenen Reiter): offen als Karte, sonst als schmale Leiste. */
 .cg-wm-waycard { margin-top: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); animation: cg-wm-slide-in 260ms ease-out both; }
 .cg-wm-host.is-full .cg-wm-mapwrap { display: flex; flex-direction: column; height: calc(100vh - var(--cg-wm-bar)); }
-.cg-wm-host.is-full .cg-wm-mapwrap > .cg-wm { flex: 1 1 auto; min-height: 0; height: auto; }
-.cg-wm-host.is-full .cg-wm-mapwrap .cg-wm-stage { height: 100%; }
+.cg-wm-host.is-full .cg-wm-mapwrap > .cg-wm { flex: 1 1 auto; min-height: 0; height: auto; display: flex; flex-direction: column; }
+.cg-wm-host.is-full .cg-wm-mapwrap .cg-wm-stage { flex: 1 1 auto; height: auto; }
 .cg-wm-host.is-full .cg-wm-waycard { flex: 0 0 auto; margin: 0; border-width: 1px 0 0; border-radius: 0; max-height: 40vh; overflow-y: auto; }
 .cg-wm-nextview.is-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(13rem, 19rem); gap: var(--wk-space-3); align-items: start; max-width: none; }
 @container (max-width: 40rem) { .cg-wm-nextview.is-card { grid-template-columns: minmax(0, 1fr); } }
@@ -332,3 +332,6 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-parts.is-centre { padding-inline: calc(50% - 2.3rem); scroll-behavior: smooth; }
 .cg-wm-wbtn { display: flex; flex-direction: column; align-items: center; gap: var(--wk-space-1); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .cg-wm-wbtn:hover .cg-wm-wdot, .cg-wm-wbtn:focus-visible .cg-wm-wdot { border-color: var(--wk-ink); }
+.cg-wm-waymain .cg-wm-allparts { margin: 0; max-width: none; font-size: var(--wk-text-sm); }
+.cg-wm-wayhead strong { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-wm-wayhead .cg-wm-meta { white-space: nowrap; }
