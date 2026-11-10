@@ -114,7 +114,9 @@
     "relay": "Re-lay the whole map",
     "places": "All places ({count})",
     "leadHint": "Double-click: take me there",
-    "turnHint": "Ctrl + drag: turn and tilt"
+    "turnHint": "Ctrl + drag: turn and tilt",
+    "fullOn": "Full screen",
+    "fullOff": "Close full screen"
   },
   "panel": {
     "close": "Close",

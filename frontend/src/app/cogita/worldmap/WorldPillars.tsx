@@ -24,7 +24,7 @@ import type { LockSymbol } from './wmConditions';
 import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from './wmPick';
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
-import { showsName, type Scene, type ScenePlace, type SceneLane } from './wmScene';
+import { nameOnTop, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
@@ -43,6 +43,10 @@ export function fitText(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text
   while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (ctx.measureText(`${text.slice(0, mid).trimEnd()}…`).width <= max) lo = mid; else hi = mid - 1; }
   return `${text.slice(0, lo).trimEnd()}…`;
 }
+
+/** Bäume: ihre mittlere Grösse (Einheiten) und ab wie vielen Bildpunkten sie aufrecht im Bild stehen. */
+const TREE_SIZE = 7;
+const TREE_UPRIGHT = 4.5;
 
 /** Ab diesem Zoom tragen gesperrte Wege ihr Schloss (fern bleibt die Karte ruhig). */
 const LOCKS_FROM = 0.9;
@@ -88,6 +92,8 @@ export interface PillarsProps {
   /** Doppelklick (Doppeltippen) auf eine Säule: „Prowadź mnie tutaj". */
   readonly onLead?: (place: string) => void;
   readonly compact?: boolean;
+  /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
+  readonly full?: boolean;
   /** Die Ansicht („Co umiem", „Do odkrycia", …): nur diese Orte farbig, die anderen grau und deckend. `null`: alle. */
   readonly lit?: ReadonlySet<string> | null;
   /** Verweise in andere Welten je Ort: das Zeichen des Portals auf der Säule. */
@@ -116,6 +122,8 @@ interface Palette {
   readonly land: Rgb;
   readonly tree: Rgb;
   readonly treeShade: Rgb;
+  readonly treeLight: Rgb;
+  readonly trunk: Rgb;
   /** Die Farbe des Sterns „Mistrzowsko". */
   readonly star: Rgb;
 }
@@ -157,6 +165,8 @@ function readPalette(el: HTMLElement): Palette {
     land: dark ? mix(floor, [44, 64, 40], 0.45) : mix(floor, [204, 222, 178], 0.45),
     tree: dark ? [62, 104, 62] : [110, 158, 96],
     treeShade: dark ? [34, 58, 36] : [76, 116, 70],
+    treeLight: dark ? [92, 140, 88] : [150, 196, 128],
+    trunk: dark ? [74, 56, 38] : [124, 92, 60],
     star: dark ? [244, 196, 64] : [214, 158, 20]
   };
 }
@@ -250,6 +260,8 @@ function drawLock(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
 }
 
 interface GroundLayer {
+  /** Die Bäume flach im Boden (fern) — sonst stehen sie im Bild. */
+  readonly flat: boolean;
   readonly canvas: HTMLCanvasElement;
   /** Bildpunkte je Einheit. */
   readonly k: number;
@@ -307,7 +319,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false, full = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -328,7 +340,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   /* Step 3 §2.8 — eingepasst nach der gedrehten, geneigten Gestalt (nicht nach einem Kreis). */
   const fitCam = useCallback((w: number, h: number, rot = -20, fore = FORE_FIRST): WorldCam => fitView(disks, w, h, rot, fore), [disks]);
   /* Auf einem schmalen Schirm folgt die Höhe des Bildes der Gestalt der Welt (sonst bliebe es halb leer). */
-  const narrow = size.w > 0 && size.w < 640;
+  const narrow = !full && size.w > 0 && size.w < 640;
   const stageH = narrow ? stageHeightFor(disks, size.w, -20, FORE_FIRST, 260, Math.round(window.innerHeight * 0.75)) : null;
   const zoomMax = useRef(40);
   zoomMax.current = size.w === 0 ? 40 : maxZoom(disks, pillarWidth, size.w, size.h);
@@ -401,9 +413,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
     g.fillStyle = rgbCss(pal.land);
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
+    /* Bäume: nah stehen sie aufrecht (im Bild, mit den Säulen); auf dem Boden nur ihr Schatten — fern die flache Krone. */
+    const flat = v.s * TREE_SIZE < TREE_UPRIGHT;
     for (const [tx, ty, ts] of island.trees) {
-      g.fillStyle = rgbCss(pal.treeShade);
-      g.beginPath(); g.arc(tx + ts * 0.35, ty + ts * 0.3, ts, 0, Math.PI * 2); g.fill();
+      g.fillStyle = rgbCss(mix(pal.treeShade, pal.land, flat ? 0 : 0.45));
+      g.beginPath(); g.ellipse(tx + ts * 0.35, ty + ts * 0.3, ts, ts * 0.8, 0, 0, Math.PI * 2); g.fill();
+      if (!flat) continue;
       g.fillStyle = rgbCss(pal.tree);
       g.beginPath(); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); g.fill();
     }
@@ -469,7 +484,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.beginPath(); g.arc(hm.x, hm.y, hm.r, 0, Math.PI * 2); g.fill();
       g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 2 * px; g.stroke();
     }
-    return { canvas, k, x0, y0, w: cw, h: ch, stamp: `${sceneId.current}:${stampOf}:${pal.dark ? 'd' : 'l'}`, deep };
+    return { canvas, k, x0, y0, w: cw, h: ch, stamp: `${sceneId.current}:${stampOf}:${pal.dark ? 'd' : 'l'}`, deep, flat };
   };
 
   const draw = useCallback(() => {
@@ -492,7 +507,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     let gl = groundRef.current;
     const stamp = `${sceneId.current}:${stampOf}:${pal.dark ? 'd' : 'l'}`;
     const need = (layer: GroundLayer | null): boolean => {
-      if (layer === null || layer.stamp !== stamp || layer.deep !== (v.s >= DEEP_FROM)) return true;
+      if (layer === null || layer.stamp !== stamp || layer.deep !== (v.s >= DEEP_FROM) || layer.flat !== (v.s * TREE_SIZE < TREE_UPRIGHT)) return true;
       const half = Math.hypot(size.w, size.h) / (2 * v.s * v.fore);
       const e = scene.extent;
       const wantX0 = Math.max(e.cx - e.radius - 140, v.cx - half), wantX1 = Math.min(e.cx + e.radius + 140, v.cx + half);
@@ -536,6 +551,34 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
 
     /* Säulen von hinten nach vorn. */
     const list = scene.places.map((p) => ({ p, d: depth(v, p.x, p.y) })).sort((x, y) => x.d - y.d);
+    /* Die Bäume im Bild (nah): wie das Haus aufrecht — Stamm, Krone mit Schatten und Licht; vor und hinter den Säulen. */
+    const upright = v.s * TREE_SIZE >= TREE_UPRIGHT;
+    const trees: { x: number; y: number; s: number; d: number }[] = [];
+    if (upright) {
+      for (const [tx, ty, ts] of island.trees) {
+        const [sx, sy] = toScr(v, tx, ty, 0);
+        const sz = ts * v.s;
+        if (sx < -sz * 2 || sx > size.w + sz * 2 || sy < -sz * 3 || sy > size.h + sz * 2) continue;
+        trees.push({ x: sx, y: sy, s: sz, d: depth(v, tx, ty) });
+      }
+      trees.sort((a, b) => a.d - b.d);
+    }
+    let ti = 0;
+    const treesUpTo = (d: number) => {
+      for (; ti < trees.length && trees[ti].d <= d; ti += 1) {
+        const tr = trees[ti];
+        const lift = tr.s * 1.25 * v.lift;
+        ctx.fillStyle = rgbCss(pal.trunk);
+        ctx.fillRect(tr.x - tr.s * 0.14, tr.y - lift, tr.s * 0.28, lift + tr.s * 0.1);
+        const cy = tr.y - lift - tr.s * 0.35 * v.lift;
+        ctx.fillStyle = rgbCss(pal.treeShade);
+        ctx.beginPath(); ctx.ellipse(tr.x, cy, tr.s * 0.8, tr.s * (0.55 + 0.25 * v.lift), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = rgbCss(pal.tree);
+        ctx.beginPath(); ctx.ellipse(tr.x - tr.s * 0.12, cy - tr.s * 0.1, tr.s * 0.62, tr.s * (0.42 + 0.2 * v.lift), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = rgbCss(pal.treeLight);
+        ctx.beginPath(); ctx.ellipse(tr.x - tr.s * 0.3, cy - tr.s * 0.25, tr.s * 0.22, tr.s * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    };
     let dmin = Infinity, dmax = -Infinity;
     for (const it of list) { dmin = Math.min(dmin, it.d); dmax = Math.max(dmax, it.d); }
     const drawn: DrawnPillar[] = [];
@@ -570,6 +613,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     let litCount = 0;
     let portalSigns = 0;
     for (const { p, d: dp } of list) {
+      treesUpTo(dp);
       const [X, Yb] = toScr(v, p.x, p.y, 0);
       const rx = p.r * pillarWidth * v.s, ry = rx * v.fore;
       if (X + rx < -40 || X - rx > size.w + 40 || Yb + ry < -40) continue;
@@ -627,32 +671,40 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.stroke();
         }
       }
-      /* Der Punkt der Kenntnis — nur auf eroberten Orten. */
+      /*
+        2026-11-10 (Eigentümer) — DIE OBERSEITE: der Name in ihrer Mitte (wie auf den Sechsecken), der Stern „Mistrzowsko"
+        mittig darüber, der Punkt der Kenntnis mittig darunter. Ohne Namen: der Stern in der Mitte, der Punkt darunter.
+      */
+      const named = nameOnTop(rx, ry);
+      const starAt = named ? Yt - ry * 0.52 : Yt;
+      const dotAt = named || p.perfect ? Yt + ry * 0.52 : Yt;
       if (a.dot !== null && rx > 3) {
+        const dr = Math.max(2.2, Math.min(rx * 0.2, named ? ry * 0.3 / v.fore : rx * 0.2));
         ctx.fillStyle = DOT[a.dot];
-        ctx.beginPath(); ctx.ellipse(X, Yt, Math.max(2.2, rx * 0.2), Math.max(2.2, rx * 0.2) * v.fore, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(X, dotAt, dr, dr * v.fore, 0, 0, Math.PI * 2); ctx.fill();
       }
-      /* „Mistrzowsko": ein Stern auf der Oberseite (die höchste Auszeichnung eines Ortes). */
-      if (p.perfect && rx > 4) drawStar(ctx, X - rx * 0.55, Yt - ry * 0.35, Math.max(4, Math.min(11, rx * 0.26)), rgbCss(pal.star), rgbCss(pal.ink));
+      if (p.perfect && rx > 4) drawStar(ctx, X, starAt, Math.max(4, Math.min(11, rx * 0.24, named ? ry * 0.42 : rx)), rgbCss(pal.star), rgbCss(pal.ink));
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
       const hPx = Yb - Yt;
-      if (showsName(rx, hPx)) {
+      if (named) {
         /*
-          Step 3 · 11/12 — der Name wird gemessen (die Kollision rechnet mit seiner wahren Breite) und, wenn nötig, auf
-          NAME_MAX gekürzt; ein Name, der über den Rand ginge, rückt ins Bild — ist sein Ort selbst draussen, fällt er weg.
+          Step 3 · 11/12 — der Name wird gemessen (die Kollision rechnet mit seiner wahren Breite) und auf die Oberseite gekürzt;
+          ein Name, der über den Rand ginge, rückt ins Bild — ist sein Ort selbst draussen, fällt er weg. 2026-11-10: auf der
+          Oberseite der Säule, in ihrer Mitte.
         */
         ctx.font = NAME_FONT;
-        const text = fitText(ctx, p.label, NAME_MAX);
+        const text = fitText(ctx, p.label, Math.min(NAME_MAX, Math.max(rx * 2.6, 130)));
         const w = ctx.measureText(text).width + 6;
-        const y = Yt - ry - 9;
+        const y = Yt;
         if (X >= 0 && X <= size.w && y >= 9 && y <= size.h - 9) {
           const x = Math.max(w / 2 + 4, Math.min(size.w - w / 2 - 4, X));
           labels.push({ key: p.id, text, x, y, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
         }
       }
     }
+    treesUpTo(Infinity);
     /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
     const grid = pickGrid(drawn);
     gridRef.current = grid;

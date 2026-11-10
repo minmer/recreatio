@@ -144,8 +144,19 @@ for (const theme of ['light', 'dark']) {
   check('controls: a double click (or double tap) on a pillar leads there', /onLead\(id\)/.test(src) && /now - last\.at < 380/.test(src), true);
 }
 
+/* -- 2026-11-10 (Eigentümer): Oberseite, Bäume, Vollbild, „Prowadź mnie tutaj" beginnt den Weg ---------------------------- */
+{
+  const has = (text, needle) => text.includes(needle);
+  const src = await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8');
+  check('top: the name stands in the middle of the top face, the star centred above it, the dot below', [has(src, 'const y = Yt;'), has(src, 'drawStar(ctx, X, starAt,'), has(src, 'ctx.ellipse(X, dotAt,')], [true, true, true]);
+  check('trees: upright near (trunk and crown, sorted with the pillars), flat far', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== ')], [true, true, true]);
+  const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
+  check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
+  check('full screen: the host asks the browser for full screen, only the map stays', [has(ls, 'el.requestFullscreen()'), has(ls, 'is-full')], [true, true]);
+}
+
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */
-check('names: shown when r_px > 24 + 0.32 · h_px', [SC.showsName(30, 10), SC.showsName(30, 30), SC.showsName(24, 0)], [true, false, false]);
+check('names: on the top of the pillar once it has room (diameter ≥ 46 px, top ≥ 7 px)', [SC.nameOnTop(30, 10), SC.nameOnTop(20, 10), SC.nameOnTop(30, 5)], [true, false, false]);
 check('view: landscape.style "world" is read, anything else stays hex', [V.readLandscape({ style: 'world' }).style, V.readLandscape({ style: 'other' }).style, V.readLandscape({}).style], ['world', undefined, undefined]);
 
 /* -- Nichts ist durchsichtig (§4.2): der Zeichner deckt immer ganz ------------------------------------------------------------ */

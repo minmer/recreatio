@@ -130,7 +130,9 @@
     "relay": "Ułóż mapę od nowa",
     "places": "Wszystkie miejsca ({count})",
     "leadHint": "Dwuklik: prowadź mnie tutaj",
-    "turnHint": "Ctrl + przeciągnij: obróć i pochyl"
+    "turnHint": "Ctrl + przeciągnij: obróć i pochyl",
+    "fullOn": "Pełny ekran",
+    "fullOff": "Zamknij pełny ekran"
   },
   "panel": {
     "close": "Zamknij",

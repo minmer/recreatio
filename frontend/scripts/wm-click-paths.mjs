@@ -192,7 +192,12 @@ try {
     }
     const order = await ev(`({ count: Number(document.querySelector('[data-world-order]').dataset.worldOrder), names: [...document.querySelectorAll('[data-world-order-item]')].map((li) => li.querySelector('.cg-ref').textContent) })`);
     check(P, `the target has 3 missing prerequisites (after learning ${learned} cards of the others)`, order.count === 3 && order.names.length === 3 && order.names.every((x) => keep.has(x)), order);
+    /* 2026-11-10 — „Prowadź mnie tutaj" beginnt den Weg: der erste Schritt läuft gleich; zurück zur Karte steht der Fahrplan da. */
     await click('[data-world-panel="place"] [data-world-lead]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the way to start');
+    const firstKind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
+    check(P, `"take me there" starts the first step at once (${firstKind})`, ['story', 'learn', 'run'].includes(firstKind), firstKind);
+    if (firstKind === 'story') await click('[data-flow-close]'); else await click('[data-world-back]');
     await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation panel');
     const before = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), stops: [...p.querySelectorAll('[data-world-stop]')].map((s, i) => ({ i, key: s.dataset.worldStop, state: s.dataset.worldStopState, turns: Number(s.querySelector('[data-world-turns]')?.dataset.worldTurns ?? 0) })) }; })()`);
     check(P, 'the timetable lists every step, the current one first', before.steps >= 6 && before.stops[0].state === 'current', { steps: before.steps, stops: before.stops.map((s) => s.key) });

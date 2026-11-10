@@ -80,8 +80,9 @@ export interface Scene {
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
-/** §4.3 — ein Name erscheint erst nah: wenn der gezeichnete Radius grösser ist als 24 + 0,32 · Höhe (Bildpunkte). */
-export const showsName = (radiusPx: number, heightPx: number): boolean => radiusPx > 24 + 0.32 * heightPx;
+/** 2026-11-10 (Eigentümer) — der Name steht AUF der Säule, in der Mitte ihrer Oberseite (wie auf den Sechsecken), sobald dort Platz ist. */
+export const NAME_MIN = 46;
+export const nameOnTop = (radiusPx: number, topHalfPx: number): boolean => radiusPx * 1.8 >= NAME_MIN && topHalfPx >= 7;
 
 export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geometry, opts: { readonly placeColour: (place: string) => Rgb; readonly lineColour: ReadonlyMap<string, LineColour>; readonly fallback: Rgb }): Scene {
   const places: ScenePlace[] = [];

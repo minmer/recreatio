@@ -300,9 +300,16 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setNote(null);
     setRunning({ kind: 'story', key: `story:${full.id}:${Date.now()}`, flow: full, jump: step === null ? null : { step, at: Date.now(), ...(exit === undefined ? {} : { exit }) } });
   };
+  /*
+    „Prowadź mnie tutaj" (Knopf oder Doppelklick auf die Säule): die Navigation steht UND ihr erster Schritt beginnt gleich
+    (2026-11-10, Eigentümer: „es soll den Weg beginnen") — das Feld des Ortes schliesst sich, der Fahrplan bleibt.
+  */
+  const startNav = useRef<string | null>(null);
   const lead = (target: string, via?: string) => {
     const choices = new Map<string, string>(nav !== null && nav.target === target ? nav.choices : []);
     if (via !== undefined) for (const k of lines.sections.get(via)?.introduces ?? []) for (const p of world.cardPlaces.get(k) ?? []) choices.set(p, via);
+    startNav.current = target;
+    setChosen(null);
     setNav({ target, choices });
   };
   const act: PanelActions = {
@@ -324,6 +331,30 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     }
     if (step.kind === 'learn' || step.kind === 'know') { startCards(step.cards, nameOf(step.place), false); return; }
     if (step.kind === 'run') act.run(step.place);
+  };
+  useEffect(() => {
+    if (startNav.current === null || tt === null || tt.target !== startNav.current || learner === null) return;
+    startNav.current = null;
+    const first = tt.upcoming[0];
+    if (first !== undefined) go(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tt]);
+
+  /* -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. Esc oder × beendet es. ---------------------- */
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const sync = () => setFull(document.fullscreenElement !== null && document.fullscreenElement === hostRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  const toggleFull = () => {
+    const el = hostRef.current;
+    if (el === null) return;
+    if (document.fullscreenElement !== null) { void document.exitFullscreen().catch(() => undefined); return; }
+    /* Ohne die Schnittstelle (manche Telefone): das ganze Fenster, ohne den Rest der Seite. */
+    if (typeof el.requestFullscreen !== 'function') { setFull((f) => !f); return; }
+    void el.requestFullscreen().catch(() => setFull((f) => !f));
   };
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
   const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);
@@ -472,7 +503,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   })();
 
   const host = (body: ReactNode) => (
-    <div className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}`} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
+    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full ? ' is-full' : ''}`} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
       data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
       {body}
       {more}
@@ -554,7 +585,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
-              onLead={(id) => { lead(id); setChosen({ kind: 'place', id }); }} />}
+              onLead={(id) => lead(id)} full={full} />}
+          {scene !== null && (
+            <button type="button" className="cg-wm-fullbtn" onClick={toggleFull} aria-pressed={full} title={full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')} data-world-full={full ? '1' : '0'}>
+              {full ? '×' : '⛶'} <span>{full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')}</span>
+            </button>
+          )}
           {bubble}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
           {shownMode === 'discover' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="discover">{T.nothingReady}</div>}

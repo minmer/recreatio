@@ -114,7 +114,9 @@
     "relay": "Die ganze Karte neu legen",
     "places": "Alle Orte ({count})",
     "leadHint": "Doppelklick: führ mich hin",
-    "turnHint": "Strg + Ziehen: drehen und neigen"
+    "turnHint": "Strg + Ziehen: drehen und neigen",
+    "fullOn": "Vollbild",
+    "fullOff": "Vollbild beenden"
   },
   "panel": {
     "close": "Schließen",
