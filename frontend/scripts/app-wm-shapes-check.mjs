@@ -379,6 +379,19 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   const c = made.input.cards.filter((x) => x.about[0] === 'A').map((x) => x.key);
   const due = open(made, F.fakeLearner({ levels: { A: 1 }, knowness: Object.fromEntries(c.map((k, i) => [k, i === 0 ? 0.5 : 2])) }));
   check('goal: a conquered tower with cards due for review carries a flag (also far away); others none', [due.scene.byId.get('A').due, due.scene.byId.get('B').due], [true, false]);
+  const many = open(made, F.fakeLearner({ levels: { A: 1 }, knowness: Object.fromEntries(c.map((k, i) => [k, i < 2 ? 0.5 : 2])) }));
+  check('due flag: its colour says how much — green little, orange more, red a lot (1 of 3 / 2 of 3 cards due)', [SC.dueLevel(0.1), SC.dueLevel(0.3), SC.dueLevel(0.6), SC.dueLevel(due.scene.byId.get('A').dueShare), SC.dueLevel(many.scene.byId.get('A').dueShare)], ['few', 'some', 'many', 'some', 'many']);
+}
+
+/* Ein Klick auf eine Gabelung oder einen eroberten Turm: seine Wege und Abhängigkeiten (Bögen) wie im Weg. */
+{
+  const made = SH.gates();
+  const w = open(made, F.fakeLearner({ levels: { A: 1, K: 1, B: 1 } }));
+  const J = junctionOf(w, made.choice);
+  const fj = FO.nodeFocus(w.state, w.lines, J.id);
+  check('a clicked fork shows its ways and the dependency into it (K → fork, as an arc)', [[...fj.remaining].map((id) => w.lines.sections.get(id).to).sort(), [...fj.gates].map((id) => w.lines.links.find((l) => l.id === id)?.from)], [['B', 'C', J.id].sort(), ['K']]);
+  const fb = FO.nodeFocus(w.state, w.lines, 'Z');
+  check('a clicked tower shows what it needs as arcs in the air (also when conquered)', [...(fb.arcs ?? [])].map(([a]) => a).sort(), ['B', 'K']);
 }
 
 /* §5 Der geführte Weg: zuerst die nötige Wiederholung, nur was das Ziel braucht, er endet erst am Ziel. */

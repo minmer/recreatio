@@ -30,6 +30,35 @@ export interface RouteFocus {
   readonly gates: ReadonlySet<string>;
   /** 2026-11-10 — der jetzige Schritt: die erste Spur des Weges, die noch zu gehen ist (sie sticht hervor). */
   readonly current: string | null;
+  /** 2026-11-10 — weitere Abhängigkeiten als Bögen in der Luft (von → zu: Türme, Knoten). */
+  readonly arcs?: readonly (readonly [string, string])[];
+}
+
+/**
+ * 2026-11-10 (Eigentümer: „ein Klick auf eine Gabelung oder einen Turm zeigt die Abhängigkeiten wie im Weg") — EIN KNOTEN ODER EIN
+ * EROBERTER TURM: seine Wege (offen kräftig, gegangen dezent), woher er kommt (vom Haus), und als Bögen, was er verlangt.
+ */
+export function nodeFocus(state: WorldState, lines: Lines, id: string): RouteFocus | null {
+  const j = lines.junctions.get(id);
+  const place = state.world.places.get(id);
+  if (j === undefined && place === undefined) return null;
+  const remaining = new Set<string>();
+  const done = new Set<string>();
+  const nodes = new Set<string>(j === undefined ? [] : [id]);
+  const passed = new Set<string>();
+  const travelled = (s: string) => state.sections.get(s)?.travelled === true;
+  /* Woher: der Weg vom Haus her (dezent), über Knoten zu ihm. */
+  const into = [...lines.sections.values()].filter((s) => s.to === id && s.from !== s.to);
+  const from = j !== undefined ? j.from : null;
+  for (const s of state.routeTo(from ?? id) ?? []) done.add(s);
+  for (const s of into) if (from === null || s.from === from) { if (travelled(s.id)) done.add(s.id); else remaining.add(s.id); }
+  /* Wohin: die Wege einer Gabelung. */
+  for (const s of j?.out ?? []) { if (travelled(s)) done.add(s); else remaining.add(s); const t = lines.sections.get(s)?.to; if (t !== undefined && !isJunction(t)) passed.add(t); }
+  for (const s of [...done, ...remaining]) { const x = lines.sections.get(s); for (const n of [x?.from, x?.to]) if (n !== undefined && n !== HOME) { if (isJunction(n)) nodes.add(n); else passed.add(n); } }
+  if (place !== undefined) passed.add(id);
+  const gates = new Set(lines.links.filter((l) => l.to === id || (j !== undefined && j.out.includes(l.section))).map((l) => l.id));
+  const arcs = (place?.needs ?? []).map((n) => [n, id] as const);
+  return { missing: new Set(), passed, remaining, done, nodes, gates, current: null, arcs };
 }
 
 /** Was hervorgehoben ist, wenn der Weg dieses Plans gezeigt wird. Alles, was hier fehlt, ist grau. */

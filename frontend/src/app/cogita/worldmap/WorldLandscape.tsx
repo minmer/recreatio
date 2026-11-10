@@ -57,7 +57,7 @@ import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, type FinishSnap } from './wmFinish';
 import { followPlan, keepNav, keptNav, navMarks, stepKey, type NavSession, type Timetable } from './wmNav';
-import { routeFocus, sectionFocus } from './wmFocus';
+import { nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
@@ -665,7 +665,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const laneFocus = useMemo(() => (chosen?.kind !== 'section' ? null
     : sectionFocus(state, lines, chosen.id, (target, via) => planRoute(state, target, { choices: new Map([[target, via]]) }))), [chosen, state, lines]);
   useEffect(() => { if (chosen !== null) setPlain(false); }, [chosen]);
-  const focus = useMemo(() => (plain ? null : laneFocus ?? (focusPlan === null ? null : routeFocus(focusPlan, state, lines))), [plain, laneFocus, focusPlan, state, lines]);
+  const focus = useMemo(() => (plain ? null : laneFocus ?? (focusPlan !== null ? routeFocus(focusPlan, state, lines)
+    : chosen?.kind === 'junction' || (chosen?.kind === 'place' && state.places.get(chosen.id)?.conquered === true) ? nodeFocus(state, lines, chosen.id) : null)),
+  [plain, laneFocus, focusPlan, state, lines, chosen]);
   const route = hoverWay !== null ? hoverWay.next : plain ? null : focus !== null ? [...focus.remaining] : shownWay?.next ?? marks?.next ?? null;
   const faint = hoverWay !== null ? hoverWay.later : plain ? null : focus !== null ? [...focus.done]
     : shownWay !== null

@@ -45,8 +45,10 @@ export interface ScenePlace {
    * nicht eroberte Voraussetzung (auch mittelbar) einmal; unten, was zuerst zu tun ist, oben eine unmittelbare Voraussetzung.
    */
   readonly discs: readonly string[];
-  /** Erobert, und Karten sind fällig (zu wiederholen): ein kleines Fähnchen, auch von weit. */
+  /** Erobert, und Karten sind fällig (zu wiederholen): ein Fähnchen, auch von weit. */
   readonly due: boolean;
+  /** 2026-11-11 — wie viel zu wiederholen ist (Anteil der Karten): die Farbe des Fähnchens (`dueLevel`). */
+  readonly dueShare: number;
 }
 
 /**
@@ -104,6 +106,12 @@ export interface SceneLane {
   /** Türme, die das eigene Tor dieses Pfades verlangt und die noch nicht erobert sind (ein Schloss an seinem Anfang). */
   readonly requires: readonly string[];
 }
+
+/**
+ * 2026-11-11 (Eigentümer: „das Fähnchen der Wiederholung grösser: grün wenig, orange mehr, rot viel") — die Stufe nach dem Anteil
+ * der Karten, die zu wiederholen sind: unter 20 % grün, unter 50 % orange, sonst rot.
+ */
+export const dueLevel = (share: number): 'few' | 'some' | 'many' => (share < 0.2 ? 'few' : share < 0.5 ? 'some' : 'many');
 
 /** Wie eine Spur gezeichnet wird (Bildpunkte): Breite, Strich (leer: durchgezogen), Ton. Rein — `app-wm-shapes-check` prüft es. */
 export interface LaneStroke {
@@ -211,7 +219,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length },
       own: st?.missing ?? p.cards.length,
       discs: st === undefined || st.conquered ? [] : state.conquestOrder(id).filter((x) => x !== id),
-      due: st?.dot === 'orange'
+      due: st?.dot === 'orange',
+      dueShare: st === undefined || st.total === 0 ? 0 : (st.unseen + st.learning) / st.total
     });
   }
   const byId = new Map(places.map((p) => [p.id, p] as const));

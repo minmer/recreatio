@@ -25,7 +25,7 @@ import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from '
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
 import { greyPlace, greySection, type RouteFocus } from './wmFocus';
-import { laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
+import { dueLevel, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
@@ -120,16 +120,20 @@ function curvedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: n
   ctx.restore();
 }
 
-/** Ein kleines Fähnchen „fällig" (Schirmpunkte, deckend). */
-function drawDue(ctx: CanvasRenderingContext2D, x: number, y: number, pal: { readonly surface: Rgb; readonly ink: Rgb }): void {
+/** Die Farben des Fähnchens „fällig": wenig, mehr, viel zu wiederholen. */
+const DUE_COLOUR: Readonly<Record<'few' | 'some' | 'many', string>> = { few: '#2f9e57', some: '#e2701b', many: '#d33a2c' };
+
+/** Das Fähnchen „fällig" (Schirmpunkte, deckend) — gross genug, um es von weit zu sehen; die Farbe sagt, wie viel. */
+function drawDue(ctx: CanvasRenderingContext2D, x: number, y: number, pal: { readonly surface: Rgb; readonly ink: Rgb }, colour: string): void {
+  const h = 24;
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 14); ctx.stroke();
-  ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 0.7, y - 14); ctx.lineTo(x + 9, y - 11); ctx.lineTo(x + 0.7, y - 8); ctx.closePath();
-  ctx.fillStyle = '#e2701b'; ctx.fill();
+  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+  ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 0.9, y - h); ctx.lineTo(x + 16, y - h + 5.5); ctx.lineTo(x + 0.9, y - h + 11); ctx.closePath();
+  ctx.fillStyle = colour; ctx.fill();
   ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 1; ctx.stroke();
   ctx.restore();
 }
@@ -871,10 +875,15 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
       }
       const named = nameOnTop(rx, ry);
-      /* 2026-11-10 (Eigentümer) — der Stern „Mistrzowsko" mitten auf dem Turm; der Name bleibt, wo er ist (über dem Stern). */
-      if (p.perfect && rx > 4) drawStar(ctx, X, Yt, Math.max(4, Math.min(12, rx * RING_IN * 0.8, ry * RING_IN * 1.6)), rgbCss(pal.star), rgbCss(pal.ink));
+      /* 2026-11-10 (Eigentümer: „der Stern schwebt über dem Turm, räumlich wie das Haus") — aufrecht über der Oberseite, sein Schatten auf ihr; der Name bleibt in der Mitte. */
+      if (p.perfect && rx > 3) {
+        const sr = Math.max(5, Math.min(14, rx * 0.42));
+        ctx.fillStyle = rgbCss(mix(top, pal.ink, 0.25));
+        ctx.beginPath(); ctx.ellipse(X, Yt, sr * 0.8, sr * 0.8 * v.fore, 0, 0, Math.PI * 2); ctx.fill();
+        drawStar(ctx, X, Yt - ry - sr * 1.6, sr, rgbCss(pal.star), rgbCss(pal.ink));
+      }
       /* Fällige Karten an einem eroberten Turm: ein kleines Fähnchen, auch von weit. */
-      if (p.due) { drawDue(ctx, X + Math.max(3, rx * 0.55), Yt - Math.max(1, ry * 0.3), pal); dueFlags += 1; }
+      if (p.due) { drawDue(ctx, X + Math.max(3, rx * 0.55), Yt - Math.max(1, ry * 0.3), pal, DUE_COLOUR[dueLevel(p.dueShare)]); dueFlags += 1; }
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
@@ -911,8 +920,24 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     let arcs = 0;
     if (focus !== null) {
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      for (const lk of scene.links) {
-        if (!focus.gates.has(lk.id)) continue;
+      /* Die Tore des Weges und (ein gewählter Knoten oder eroberter Turm) was er verlangt — jedes Paar einmal. */
+      const at = (id: string): { p: readonly [number, number]; r: number } | null => {
+        const p = scene.byId.get(id);
+        if (p !== undefined) return { p: [p.x, p.y], r: p.r };
+        const j = scene.junctions.find((x) => x.id === id);
+        if (j !== undefined) return { p: [j.x, j.y], r: j.r };
+        return null;
+      };
+      const pairs = new Set<string>();
+      const list: { a: readonly [number, number]; b: readonly [number, number]; ra: number; rb: number; met: boolean }[] = [];
+      for (const lk of scene.links) if (focus.gates.has(lk.id) && !pairs.has(`${lk.from}>${lk.to}`)) { pairs.add(`${lk.from}>${lk.to}`); list.push(lk); }
+      for (const [from, to] of focus.arcs ?? []) {
+        const a = at(from), b = at(to);
+        if (a === null || b === null || pairs.has(`${from}>${to}`)) continue;
+        pairs.add(`${from}>${to}`);
+        list.push({ a: a.p, b: b.p, ra: a.r, rb: b.r, met: scene.byId.get(from)?.conquered === true });
+      }
+      for (const lk of list) {
         const [ax, ay] = lk.a, [bx, by] = lk.b;
         const d = Math.hypot(bx - ax, by - ay) || 1;
         const ux = (bx - ax) / d, uy = (by - ay) / d;
@@ -1165,6 +1190,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
       /* 2026-11-10 (Eigentümer: „nur, was nötig ist") — jeder Name einmal (ein Zweig heisst nach seinem Ziel). */
       const named = new Set<string>();
+      const nameBoxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
       for (const { l, sp, len, on } of items) {
         if (named.has(l.name)) continue;
         /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
@@ -1195,9 +1221,11 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           }
           if (pick !== null) break;
         }
-        const use = pick ?? (on ? fallback : null);
+        /* Ersatzweise auf einem Turm, nie auf einem anderen Namen. */
+        const use = pick ?? (on && fallback !== null && !nameBoxes.some((b) => fallback!.box.x0 < b.x1 && fallback!.box.x1 > b.x0 && fallback!.box.y0 < b.y1 && fallback!.box.y1 > b.y0) ? fallback : null);
         if (use === null) continue;
         boxes.push(use.box);
+        nameBoxes.push(use.box);
         ctx.save();
         ctx.translate(use.cx, use.cy);
         ctx.rotate(use.a);
