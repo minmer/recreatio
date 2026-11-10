@@ -15,7 +15,7 @@
 import type { Facts } from '../logic';
 import { bandOf, describeCondition, evaluateCondition, costOf, type CardBand, type ConditionResult, type ConditionView, type LearnerContext, type LockSymbol, type Missing } from './wmConditions';
 import { stepOwner } from './wmLines';
-import { HOME, type Lines, type Section, type TicketPart, type World } from './wmTypes';
+import { HOME, isJunction, type Lines, type Section, type TicketPart, type World } from './wmTypes';
 
 export interface FlowProgress {
   readonly visited: ReadonlySet<string>;
@@ -257,12 +257,31 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     if (openAt === null) return false;
     return openAt === 0 || (levels > 0 && ps.level >= Math.min(openAt, levels));
   };
+  /*
+    2026-11-10 — EIN KNOTEN ZWISCHEN TÜRMEN (Gabelung, Tor) ist offen, wenn eine Spur zu ihm offen ist und ihr Tor erfüllt:
+    die Zweige einer Gabelung öffnen sich mit dem Weg zu ihr; ein Tor-Knoten erst, wenn alles, was die Linie verlangt, sitzt.
+  */
+  const tickets = new Map<string, TicketState>();
+  for (const s of lines.sections.values()) tickets.set(s.id, ticketOf(s));
+  const intoNode = new Map<string, Section[]>();
+  for (const s of lines.sections.values()) if (isJunction(s.to) && s.from !== s.to) { const l = intoNode.get(s.to) ?? []; l.push(s); intoNode.set(s.to, l); }
+  const nodeMemo = new Map<string, boolean>();
+  const nodeOpen = (id: string): boolean => {
+    if (id === HOME) return true;
+    if (!isJunction(id)) return towerOpen(id);
+    const was = nodeMemo.get(id);
+    if (was !== undefined) return was;
+    nodeMemo.set(id, false);
+    const ok = (intoNode.get(id) ?? []).some((s) => tickets.get(s.id)?.met === true && nodeOpen(s.from));
+    nodeMemo.set(id, ok);
+    return ok;
+  };
   const sections = new Map<string, SectionState>();
   for (const s of lines.sections.values()) {
-    const ticket = ticketOf(s);
+    const ticket = tickets.get(s.id)!;
     const was = travelled.get(s.id) === true;
     sections.set(s.id, {
-      ticket, travelled: was, open: s.from === HOME || towerOpen(s.from),
+      ticket, travelled: was, open: nodeOpen(s.from),
       cost: s.from === s.to || !Number.isFinite(ticket.cost) ? Infinity : 1 + ticket.cost - (was ? 0.5 : 0),
       fresh: s.introduces.filter((k) => band(k) === 'unseen'),
       seen: s.steps.map((x) => seenStep(s, x))

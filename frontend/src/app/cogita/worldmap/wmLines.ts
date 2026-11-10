@@ -21,7 +21,7 @@
 import { exitsOf, type Flow } from '../flow';
 import { readTicketCondition, unknownTypes } from './wmConditions';
 import { byCode, shownEntries } from './wmGraph';
-import { HOME, type Line, type LineBranch, type Lines, type Section, type SectionKind, type Station, type TicketPart, type WmCondition, type WmIssue, type World } from './wmTypes';
+import { HOME, isJunction, type DetourLoop, type GateLink, type Junction, type Line, type LineBranch, type Lines, type Section, type SectionKind, type Station, type TicketPart, type WmCondition, type WmIssue, type World } from './wmTypes';
 
 /** Der Anfang einer Linie, bevor feststeht, woher sie kommt (R3, R4). */
 const START = '~start';
@@ -179,6 +179,9 @@ function dagOf(g: XGraph): Dag {
 
 /* -- Beim Gehen ----------------------------------------------------------------------------------------------------------------- */
 
+/** Ein Abstecher an seiner Stelle (so viele Schritte des Abschnitts davor). */
+interface LoopAt { step: string; target: string; at: number }
+
 interface Build {
   id: string;
   line: string;
@@ -193,6 +196,8 @@ interface Build {
   ticket: TicketPart[];
   start?: { step: string; exit?: string };
   callers?: string[];
+  loops: LoopAt[];
+  variant?: { choice: string; index: number; of: number };
 }
 
 interface Pending {
@@ -201,6 +206,7 @@ interface Pending {
   slides: number;
   asks: string[];
   ticket: TicketPart[];
+  loops: LoopAt[];
   start?: { step: string; exit?: string };
 }
 
@@ -218,9 +224,17 @@ interface End {
   gate: TicketPart[];
   /** Nach einem Zusammentreffen: in welchem Zweig es weitergeht, sobald der nächste Halt erreicht ist. */
   converge: string | null;
+  /**
+   * 2026-11-10 — die Abschnitte, die eben an diesem Halt ankamen, als eine Wegfolie ihn verliess: kommt danach noch etwas zu
+   * ihm (oder endet der Weg hier), gehört es doch zu ihnen.
+   */
+  left: Build[];
+  /** In einer Verpackung (`Section.variant`): jeder hier begonnene Abschnitt trägt sie. */
+  variant: { choice: string; index: number; of: number } | null;
 }
 
-const emptyPending = (): Pending => ({ steps: [], questions: [], slides: 0, asks: [], ticket: [] });
+const emptyPending = (): Pending => ({ steps: [], questions: [], slides: 0, asks: [], ticket: [], loops: [] });
+const clonePending = (p: Pending): Pending => ({ steps: [...p.steps], questions: [...p.questions], slides: p.slides, asks: [...p.asks], ticket: [...p.ticket], loops: [...p.loops], ...(p.start === undefined ? {} : { start: p.start }) });
 /** Die Tore, die noch warten (aus dem Ticket von „pending" und den wartenden). */
 const gatesOf = (e: End): TicketPart[] => [...e.pending.ticket.filter((t) => t.source === 'gate'), ...e.gate];
 /** Dasselbe Tor (derselbe Schritt, dieselbe Bedingung), von mehreren Enden mitgebracht, zählt einmal. */
@@ -239,7 +253,7 @@ const mergePending = (list: readonly Pending[]): Pending => {
   const start = list.find((p) => p.start !== undefined)?.start;
   return {
     steps: [...new Set(list.flatMap((p) => p.steps))], questions: [...new Set(list.flatMap((p) => p.questions))], slides: Math.max(...list.map((p) => p.slides)), asks: [...new Set(list.flatMap((p) => p.asks))],
-    ticket: list.flatMap((p) => p.ticket), ...(start === undefined ? {} : { start })
+    ticket: list.flatMap((p) => p.ticket), loops: list.flatMap((p) => p.loops), ...(start === undefined ? {} : { start })
   };
 };
 
@@ -265,27 +279,23 @@ interface Walked {
   readonly stepFlow: Map<string, string>;
   /** Die Erzählung hat einen Przegląd (auf der Karte ein ↻ am Ende). */
   readonly review: boolean;
+  /** 2026-11-10 — die Gabelungen dieser Linie als eigene Knoten (`from` kann noch START sein). */
+  readonly junctions: { readonly id: string; readonly step: string; readonly from: string; readonly before: { slides: number; questions: number } }[];
 }
 
 /** Eine Linie gehen. */
-function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id: string) => string | null): Walked {
+function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id: string) => string | null, explainedBy: (entry: string) => readonly string[] = () => []): Walked {
   const issues: WmIssue[] = [];
   const g = expand(flow, resolve);
   const dag = dagOf(g);
   const stepFlow = new Map<string, string>();
   for (const n of g.nodes.values()) if (n.flow !== flow.id) stepFlow.set(n.id, n.flow);
 
-  /* Der Przegląd: ab dem Schritt `review` (wenn er nicht der Anfang ist) und jeder Schritt „review". */
+  /*
+    Der Przegląd: jeder Schritt „review" hält nicht und führt nichts ein. 2026-11-10 (Eigentümer: „was nach einem Przegląd
+    kommt, verschwindet still") — was danach kommt (eine Schlussfolie, eine Gabelung), wird gezeichnet wie alles andere.
+  */
   const reviewBlock = new Set<string>();
-  if (flow.review !== undefined && flow.review !== flow.start && dag.index.has(flow.review)) {
-    const stack = [flow.review];
-    while (stack.length > 0) {
-      const id = stack.pop()!;
-      if (reviewBlock.has(id)) continue;
-      reviewBlock.add(id);
-      for (const o of dag.next(id)) stack.push(o.to);
-    }
-  }
   for (const n of g.nodes.values()) if (n.type === 'review') reviewBlock.add(n.id);
 
   /* Was ein Schritt zeigt und fragt. */
@@ -310,6 +320,25 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   /* R2 — ein Ablauf, der keinen Ort zeigt, hält an den Orten seiner Fragen. */
   const showsPlaces = dag.order.some((id) => { const n = g.nodes.get(id)!; return !reviewBlock.has(id) && showOf(n) !== null; });
   const isSlide = (n: XNode) => n.type === 'show' || n.type === 'scene';
+  /* 2026-11-10 (Eigentümer) — eine Karte ist auch dort eingeführt, wo die Folie gezeigt wird, die sie erklärt („explain"). */
+  const explainedHere = (n: XNode): string[] => (isSlide(n) ? [...new Set(shownEntries(n).flatMap((id) => explainedBy(id)))].filter((k) => world.cards.has(k)) : []);
+  /** Der Halt eines Schrittes (R1, R2). */
+  const stopOf = (n: XNode): string | null => { const shown = showOf(n); return showsPlaces ? shown : shown ?? asksPlace(n); };
+  /** Der erste Halt vorwärts von einem Schritt (bis `until`) — welchen Turm eine Möglichkeit zuerst erreicht. */
+  const firstStopFrom = (from: string, until: string): string | null => {
+    const seen = new Set<string>();
+    const queue = [from];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      if (id === until || id === SINK || seen.has(id)) continue;
+      seen.add(id);
+      const n = g.nodes.get(id);
+      if (n === undefined) continue;
+      if (!reviewBlock.has(id)) { const stop = stopOf(n); if (stop !== null) return stop; }
+      for (const o of dag.next(id)) queue.push(o.to);
+    }
+    return null;
+  };
 
   /* (c) Ein Tor: ein „condition", dessen einer Ausgang die Linie verlässt (ins Leere, zurück, oder nur noch zum Ende). */
   const contentAhead = new Map<string, boolean>();
@@ -338,6 +367,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   const branches = new Map<string, { id: string; parent: string | null; fork: LineBranch['fork'] }>([[flow.id, { id: flow.id, parent: null, fork: null }]]);
   const calls: Call[] = [];
   const forks: { place: string; step: string; branches: string[] }[] = [];
+  const junctions: { id: string; step: string; from: string; before: { slides: number; questions: number } }[] = [];
   const meetings: string[] = [];
   const trunkStops: string[] = [];
   let counter = 0;
@@ -351,6 +381,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       kind: e.stop === START ? 'entry' : 'main',
       steps: [...e.pending.steps], questions: [...e.pending.questions], slides: e.pending.slides, introduces: [...e.pending.asks],
       ticket: oneGateEach([...e.pending.ticket, ...(leaves ? e.gate : [])]),
+      loops: [...e.pending.loops],
+      ...(e.variant === null ? {} : { variant: e.variant }),
       ...(e.pending.start !== undefined ? { start: e.pending.start } : e.stop === START && flow.start !== null ? { start: { step: flow.start } } : firstStep !== null ? { start: { step: firstStep } } : {})
     };
     counter += 1;
@@ -358,8 +390,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
     if (leaves) e.gate = [];
     return sec;
   };
-  const addTo = (e: End, step: string, slide: boolean, asks: readonly string[]) => {
-    const fresh = asks.filter((k) => !e.seen.has(k));
+  const addTo = (e: End, step: string, slide: boolean, asks: readonly string[], taught: readonly string[] = []) => {
+    const fresh = [...asks, ...taught].filter((k) => !e.seen.has(k));
     for (const k of fresh) e.seen.add(k);
     if (e.secs.length === 0) {
       e.pending.steps.push(step);
@@ -375,6 +407,27 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       s.slides += slide ? 1 : 0;
       for (const k of fresh) if (!s.introduces.includes(k)) s.introduces.push(k);
     }
+  };
+  /*
+    2026-11-10 (Eigentümer: „die Wegfolien vor der Gabelung verschwinden im ersten Abschnitt jedes Zweiges") — EINE WEGFOLIE (eine
+    Folie ohne Ort) nach dem Inhalt eines Turms verlässt ihn: sie gehört zum Weg zum nächsten Halt (oder zur Gabelung), nicht zur
+    Ankunft am Turm. Kommt danach wieder etwas zu diesem Turm (oder endet der Weg hier), gehört das Wartende doch zur Ankunft.
+  */
+  const leave = (e: End) => { if (e.secs.length === 0) return; e.left = e.secs; e.secs = []; };
+  const resume = (e: End) => {
+    if (e.secs.length > 0 || e.left.length === 0) return;
+    const p = e.pending;
+    for (const s of e.left) {
+      const base = s.steps.length;
+      s.steps.push(...p.steps);
+      s.questions.push(...p.questions);
+      s.slides += p.slides;
+      for (const k of p.asks) if (!s.introduces.includes(k)) s.introduces.push(k);
+      for (const l of p.loops) s.loops.push({ ...l, at: base + l.at });
+    }
+    e.secs = e.left;
+    e.left = [];
+    e.pending = { ...emptyPending(), ticket: p.ticket, ...(p.start === undefined ? {} : { start: p.start }) };
   };
   /** Was noch ohne Abschnitt ist, bekommt einen am Ort selbst (Inhalt ohne Weg). */
   const settle = (e: End) => {
@@ -409,16 +462,33 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
         issues.push({ code: 'dangling', level: 'warning', ids: [flow.id, n.orig], data: { field: 'flow', to: str(n.config.flow) || '—' } });
         return ends;
       }
-      for (const e of live) calls.push({ caller: flow.id, branch: e.branch, station: e.stop, step: n.orig, target: target.id, kind: n.type === 'detour' ? 'detour' : 'handoff' });
+      for (const e of live) {
+        calls.push({ caller: flow.id, branch: e.branch, station: e.stop, step: n.orig, target: target.id, kind: n.type === 'detour' ? 'detour' : 'handoff' });
+        /* 2026-11-10 — der Abstecher an genau seiner Stelle: auf der Karte eine Schleife dort. */
+        if (n.type !== 'detour') continue;
+        if (e.secs.length > 0) for (const s of e.secs) s.loops.push({ step: n.orig, target: target.id, at: s.steps.length });
+        else e.pending.loops.push({ step: n.orig, target: target.id, at: e.pending.steps.length });
+      }
       return ends;
     }
     const asks = cardsOfStep(n);
-    const shown = showOf(n);
-    const stop = showsPlaces ? shown : shown ?? asksPlace(n);
+    const stop = stopOf(n);
     const slide = isSlide(n);
+    const taught = explainedHere(n);
     if (stop === null && asks.length === 0 && !slide) return ends;
-    const moving = stop !== null ? live.filter((e) => e.stop !== stop) : [];
-    if (moving.length === 0) { for (const e of live) addTo(e, id, slide, asks); return ends; }
+    if (stop === null) {
+      /* Eine Wegfolie verlässt den Turm; eine Frage zu dem Turm, den man eben verliess, gehört doch noch zu ihm. */
+      const pathSlide = showsPlaces && slide && asks.length === 0;
+      const asked = asks.length > 0 ? asksPlace(n) : null;
+      for (const e of live) {
+        if (pathSlide) leave(e);
+        else if (asked !== null && asked === e.stop) resume(e);
+        addTo(e, id, slide, asks, taught);
+      }
+      return ends;
+    }
+    const moving = live.filter((e) => e.stop !== stop);
+    if (moving.length === 0) { for (const e of live) { resume(e); addTo(e, id, slide, asks, taught); } return ends; }
     /* Ein neuer Halt. Mehrere offene Enden mit demselben Halt werden zuerst eins; sonst bekommt jedes seinen letzten Abschnitt. */
     const target = stop!;
     const staying = live.filter((e) => e.stop === target);
@@ -433,7 +503,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
         e.seen = new Set([...e.seen].filter((k) => list.every((x) => x.seen.has(k))));
         e.gate = list.flatMap((x) => x.gate);
       }
-      const fresh = asks.filter((k) => !e.seen.has(k));
+      const fresh = [...asks, ...taught].filter((k) => !e.seen.has(k));
       for (const k of fresh) e.seen.add(k);
       const sec = newSection(e, target, n.orig);
       sec.steps.push(id);
@@ -443,13 +513,14 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       created.push(sec);
       seenAll.push(e.seen);
     }
-    for (const e of staying) { addTo(e, id, slide, asks); settle(e); created.push(...e.secs); seenAll.push(e.seen); }
+    for (const e of staying) { resume(e); addTo(e, id, slide, asks, taught); settle(e); created.push(...e.secs); seenAll.push(e.seen); }
     const converge = live.find((e) => e.converge !== null)?.converge ?? null;
     const branch = converge ?? live[0].branch;
     const seen = new Set([...seenAll[0]].filter((k) => seenAll.every((s) => s.has(k))));
     if (live.length > 1) meetings.push(target);
     /* Was an diesem Halt noch wartet (die Enden, die hier standen, sind schon auf ihren Abschnitten), wartet weiter. */
-    const merged: End = { branch, stop: target, secs: created, pending: emptyPending(), seen, gate: oneGateEach(staying.flatMap(gatesOf)), converge: null };
+    const variant = live.every((e) => e.variant === live[0].variant) ? live[0].variant : null;
+    const merged: End = { branch, stop: target, secs: created, pending: emptyPending(), seen, gate: oneGateEach(staying.flatMap(gatesOf)), converge: null, left: [], variant };
     if (branch === flow.id) markTrunk(target);
     return [...ends.filter((e) => !live.includes(e)), merged];
   };
@@ -481,23 +552,71 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       if (fork !== null) {
         const n = g.nodes.get(at)!;
         const parent = ends.find((e) => e.converge !== null)?.converge ?? ends[0]?.branch ?? flow.id;
-        const station = ends[0]?.stop ?? START;
+        let station = ends[0]?.stop ?? START;
+        /*
+          2026-11-10 (Eigentümer: „die Gabelung sitzt am Turm statt auf dem Weg") — EINE GABELUNG LIEGT ZWISCHEN DEN TÜRMEN: führen
+          die Möglichkeiten zu verschiedenen Türmen, ist die Wahl ein eigener Knoten. Der Weg vom Turm (mit den Wegfolien seither)
+          endet an ihm, jeder Zweig beginnt an ihm. Führen alle zum selben Turm (dieselben Karten anders verpackt), ist es keine
+          Gabelung: jede Möglichkeit wird eine Verpackung (`Section.variant`).
+        */
+        const firsts = fork.map((f) => firstStopFrom(f.to, join));
+        const towers = new Set(firsts.filter((x): x is string => x !== null));
+        const J = towers.size >= 2 ? `~j:${flow.id}:${n.orig}` : null;
+        const packaging = J === null && towers.size === 1 && firsts.filter((x) => x !== null).length >= 2;
+        if (J !== null) {
+          let before = { slides: 0, questions: 0 };
+          const from = station;
+          for (const e of ends) {
+            if (e.stop === J) continue;
+            const sec = newSection(e, J, e.pending.steps[0] ?? n.orig);
+            before = { slides: Math.max(before.slides, sec.slides), questions: Math.max(before.questions, sec.questions.length) };
+            e.pending = emptyPending();
+            e.secs = [];
+            e.left = [];
+            e.stop = J;
+          }
+          if (!junctions.some((j) => j.id === J)) junctions.push({ id: J, step: n.orig, from, before });
+          station = J;
+        }
+        /* Eine Verpackung mitten im Inhalt eines Turms: jede Möglichkeit bekommt ihre eigene Ankunft (dieselbe bis hierher). */
+        const variantSecs = new Map<End, Build[][]>();
+        if (packaging) {
+          for (const e of ends) {
+            if (e.secs.length === 0) continue;
+            variantSecs.set(e, fork.map((_, i) => e.secs.map((s) => {
+              const c: Build = { ...s, id: `${s.id}~v${i}`, steps: [...s.steps], questions: [...s.questions], introduces: [...s.introduces], ticket: [...s.ticket], loops: [...s.loops], variant: { choice: n.orig, index: i, of: fork.length } };
+              sections.push(c);
+              return c;
+            })));
+            for (const s of e.secs) { const at0 = sections.indexOf(s); if (at0 >= 0) sections.splice(at0, 1); }
+          }
+        }
         const children: End[] = [];
         const made: string[] = [];
-        for (const f of fork) {
+        fork.forEach((f, i) => {
           const id = `${flow.id}/${at}:${f.exit}`;
           made.push(id);
           branches.set(id, { id, parent, fork: { step: n.orig, exit: f.exit, label: f.label } });
           /* (b) — die Bedingung der Möglichkeit, mit der der Zweig beginnt. */
           const option = n.type === 'choice' ? (Array.isArray(n.config.options) ? n.config.options : [])[Number(f.exit.slice(1))] : undefined;
           const ticket: TicketPart[] = isObject(option) && option.condition !== undefined && option.condition !== null ? [{ source: 'option', step: n.orig, condition: readTicketCondition(option.condition) }] : [];
-          /* Step 3 · 5 — ein Tor vor der Gabel kommt vor allem Inhalt des Zweiges: sein erster Abschnitt nimmt es (auch einer am Ort). */
-          const spawned = ends.map((e): End => ({
-            branch: id, stop: e.stop, secs: [], pending: { ...emptyPending(), ticket: [...ticket, ...gatesOf(e)], start: { step: n.orig, exit: f.exit } },
-            seen: new Set(e.seen), gate: [], converge: null
-          }));
+          /*
+            Step 3 · 5 — ein Tor vor der Gabel kommt vor allem Inhalt des Zweiges: sein erster Abschnitt nimmt es (auch einer am Ort).
+            An einer Gabelung hat es schon der Weg zu ihr genommen; vor einer Verpackung bleibt das Wartende bei jeder Möglichkeit.
+          */
+          const spawned = ends.map((e): End => {
+            const own = variantSecs.get(e)?.[i];
+            return {
+              branch: id, stop: e.stop, secs: own ?? [], left: [],
+              pending: J !== null
+                ? { ...emptyPending(), ticket: [...ticket], start: { step: n.orig, exit: f.exit } }
+                : { ...clonePending(e.pending), ticket: [...ticket, ...e.pending.ticket, ...e.gate], start: { step: n.orig, exit: f.exit } },
+              seen: new Set(e.seen), gate: [], converge: null,
+              variant: packaging ? { choice: n.orig, index: i, of: fork.length } : e.variant
+            };
+          });
           children.push(...walk(f.to, join, spawned));
-        }
+        });
         forks.push({ place: station, step: n.orig, branches: made });
         ends = join === SINK ? children : joinAt(children, parent);
         at = join === SINK ? null : join;
@@ -523,14 +642,15 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       const seen = new Set([...children[0].seen].filter((k) => children.every((e) => e.seen.has(k))));
       if (stop !== START) meetings.push(stop);
       if (parent === flow.id && stop !== START) markTrunk(stop);
-      return [{ branch: parent, stop, secs: children.flatMap((e) => e.secs), pending: mergePending(children.filter((e) => e.secs.length === 0).map((e) => e.pending)), seen, gate: children.flatMap((e) => e.gate), converge: null }];
+      return [{ branch: parent, stop, secs: children.flatMap((e) => e.secs), pending: mergePending(children.filter((e) => e.secs.length === 0).map((e) => e.pending)), seen, gate: children.flatMap((e) => e.gate), converge: null, left: [], variant: null }];
     }
     for (const e of children) e.converge = parent;
     return children;
   };
 
-  const ends = walk(g.start, SINK, [{ branch: flow.id, stop: START, secs: [], pending: emptyPending(), seen: new Set(), gate: [], converge: null }]);
-  for (const e of ends) settle(e);
+  const ends = walk(g.start, SINK, [{ branch: flow.id, stop: START, secs: [], pending: emptyPending(), seen: new Set(), gate: [], converge: null, left: [], variant: null }]);
+  /* Endet der Weg nach Wegfolien ohne neuen Halt, gehören sie zur letzten Ankunft. */
+  for (const e of ends) { resume(e); settle(e); }
 
   /* Für Autoren: Inhalt, den kein Weg erreicht; ein Anfang, der nicht die erste Folie ist (Entscheidung, Korrektur 7). */
   const unreached = flow.graph.nodes.filter((n) => (n.type === 'show' || n.type === 'question' || n.type === 'scene') && !dag.index.has(n.id)).map((n) => n.id);
@@ -540,7 +660,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   if (firstSlide !== undefined && startNode !== undefined && (startNode.type === 'show' || startNode.type === 'scene') && startNode.id !== firstSlide.id) {
     issues.push({ code: 'flowStartsLate', level: 'info', ids: [flow.id, startNode.id, firstSlide.id], data: { step: startNode.id, first: firstSlide.id } });
   }
-  return { flow, sections, branches, ends, calls, forks, meetings, trunkStops, issues, stepFlow, review: reviewBlock.size > 0 };
+  return { flow, sections, branches, ends, calls, forks, meetings, trunkStops, issues, stepFlow, review: reviewBlock.size > 0, junctions };
 }
 
 const exitLabel = (n: { type: string; config: Readonly<Record<string, unknown>> }, exit: string): string => {
@@ -585,7 +705,7 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
     const id = queue.shift()!;
     if (isLine.has(id)) continue;
     isLine.add(id);
-    const w = walkLine(byId.get(id)!, world, resolve, placeOfShown);
+    const w = walkLine(byId.get(id)!, world, resolve, placeOfShown, (entry) => explainOf.get(entry) ?? []);
     walked.set(id, w);
     for (const c of w.calls) if (!isLine.has(c.target)) queue.push(c.target);
   }
@@ -618,8 +738,8 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
   const depthOf = (p: string) => world.places.get(p)?.depth ?? -1;
 
   /** (a) — was die Einheit verlangt: Orte (ihre Karten im Band „znane"), Einheiten mit Linie („bestanden"); dazu der tiefste Ort. */
-  const unitTicket = (unit: string | undefined, skipLine: string | null, firstStop: string | null = null): { parts: TicketPart[]; start: string | null } => {
-    if (unit === undefined) return { parts: [], start: null };
+  const unitTicket = (unit: string | undefined, skipLine: string | null, firstStop: string | null = null): { parts: TicketPart[]; start: string | null; places: string[] } => {
+    if (unit === undefined) return { parts: [], start: null, places: [] };
     const parts: TicketPart[] = [];
     const candidates: string[] = [];
     const seen = new Set<string>([unit]);
@@ -647,7 +767,7 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
     }
     /* Verlangt die Einheit ihren ersten Halt selbst, beginnt die Linie dort (mitten in der Welt); sonst am tiefsten Verlangten. */
     const start = firstStop !== null && candidates.includes(firstStop) ? firstStop : candidates.slice().sort((a, b) => depthOf(b) - depthOf(a))[0] ?? null;
-    return { parts, start };
+    return { parts, start, places: [...new Set(candidates)].filter((p) => world.places.has(p)) };
   };
 
   const sections = new Map<string, Section>();
@@ -658,29 +778,66 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
   const callerStations = new Set<string>();
   const midStarts = new Set<string>();
 
-  /* Erst die Anfänge (R3) aller Linien, die keine Vertiefungen sind — die Abstecher davor brauchen sie. */
-  const isDeepening = (id: string): boolean => { const c = calledBy.get(id); return c !== undefined && [...c.keys()].some((x) => x !== id && drawn.has(x)); };
-  const starts = new Map<string, { start: string; parts: TicketPart[] }>();
+  /*
+    Erst die Anfänge (R3) aller Linien, die keine Vertiefungen sind — die Abstecher davor brauchen sie.
+    2026-11-10 (Eigentümer: „ein Abstecher verschluckt seinen eigenen Weg") — eine Erzählung mit eigener Einheit behält ihren
+    eigenen Anfang, auch wenn eine andere sie als Abstecher ruft (der Abstecher steht dort zusätzlich als Schleife). Nur eine
+    Erzählung ohne Einheit, die nur gerufen wird, ist eine Vertiefung (Ein- und Rückfahrt am Rufer, R4).
+  */
+  const isDeepening = (id: string): boolean => {
+    if (drawn.get(id)?.flow.unit !== undefined) return false;
+    const c = calledBy.get(id);
+    return c !== undefined && [...c.keys()].some((x) => x !== id && drawn.has(x));
+  };
+  const starts = new Map<string, { start: string; parts: TicketPart[]; places: string[] }>();
   for (const [id, w] of drawn) {
     if (isDeepening(id)) continue;
     const t = unitTicket(w.flow.unit, null, w.trunkStops[0] ?? w.sections[0]?.to ?? null);
-    starts.set(id, { start: t.start ?? HOME, parts: t.parts });
+    starts.set(id, { start: t.start ?? HOME, parts: t.parts, places: t.places });
   }
+  const junctions = new Map<string, { id: string; kind: 'fork' | 'gate'; line: string; step?: string; from: string; before: { slides: number; questions: number } }>();
+  const links: GateLink[] = [];
+  const loopsAt: { section: string; line: string; loop: LoopAt }[] = [];
   for (const [id, w] of drawn) {
     for (const [k, v] of w.stepFlow) stepFlow.set(k, v);
     const callers = calledBy.get(id);
     const deepening = isDeepening(id);
     const out: Section[] = [];
-    const finalStops = [...new Set(w.ends.map((e) => e.stop).filter((s) => s !== START))];
+    const finalStops = [...new Set(w.ends.map((e) => e.stop).filter((s) => s !== START && !isJunction(s)))];
     let start: string | null = null;
+    /* Wo eine Gabelung am Anfang des Ablaufs hängt (vor jedem Halt): der Anfang der Linie. */
+    let startNode: string = HOME;
     const sectionBranch = new Map<string, string[]>();
-    const keep = (s: Section) => { out.push(s); sections.set(s.id, s); const l = sectionBranch.get(s.branch) ?? []; l.push(s.id); sectionBranch.set(s.branch, l); };
+    const keep = (s: Section) => {
+      out.push(s); sections.set(s.id, s);
+      const l = sectionBranch.get(s.branch) ?? []; l.push(s.id); sectionBranch.set(s.branch, l);
+      for (const loop of (s as Partial<Build>).loops ?? []) loopsAt.push({ section: s.id, line: id, loop });
+    };
 
     if (!deepening) {
       const t = starts.get(id)!;
       start = t.start;
       if (start !== HOME) midStarts.add(start);
-      for (const b of w.sections) keep(b.from === START ? { ...b, from: t.start, ticket: [...t.parts, ...b.ticket] } : b);
+      /*
+        2026-11-10 (Eigentümer: „Tore sind unsichtbar") — VERLANGT DIE EINHEIT MEHRERE TÜRME, beginnt die Linie an einem Tor: von
+        jedem verlangten Turm führt eine Spur dorthin (der tiefste trägt den Weg, die anderen kommen als Spuren dazu).
+      */
+      /* Beginnt die Linie mit dem Inhalt des Turms, an dem sie beginnt (mitten in der Welt), führen die Spuren zu ihm selbst. */
+      const firstStop = w.trunkStops[0] ?? w.sections[0]?.to ?? null;
+      if (t.places.length >= 2 && firstStop === t.start) {
+        for (const p of t.places) if (p !== t.start) links.push({ id: `${id}:needs:${p}`, from: p, to: t.start, section: w.sections[0]?.id ?? id, line: id });
+      }
+      if (t.places.length >= 2 && firstStop !== t.start) {
+        const gate = `~g:${id}`;
+        startNode = gate;
+        junctions.set(gate, { id: gate, kind: 'gate', line: id, from: t.start, before: { slides: 0, questions: 0 } });
+        keep({ id: `${id}:gate`, line: id, branch: id, from: t.start, to: gate, kind: 'main', steps: [], questions: [], slides: 0, introduces: [], ticket: [...t.parts], ...(w.flow.start === null ? {} : { start: { step: w.flow.start } }) });
+        for (const p of t.places) if (p !== t.start) links.push({ id: `${id}:needs:${p}`, from: p, to: gate, section: `${id}:gate`, line: id });
+        for (const b of w.sections) keep(b.from === START ? { ...b, from: gate } : b);
+      } else {
+        startNode = t.start;
+        for (const b of w.sections) keep(b.from === START ? { ...b, from: t.start, ticket: [...t.parts, ...b.ticket] } : b);
+      }
     } else {
       /* R4 — je rufendem Ort eine Einfahrt (mit „Wymaga" ohne die eigene Erzählung des Rufers) und eine Rückfahrt. */
       const stations = new Map<string, Set<string>>();
@@ -695,6 +852,7 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
       }
       const stationList = [...stations.keys()].sort(byCode);
       for (const place of stationList) callerStations.add(place);
+      startNode = stationList[0] ?? HOME;
       const t = unitTicket(w.flow.unit, null);
       for (const b of w.sections) {
         if (b.from !== START) { keep(b); continue; }
@@ -719,6 +877,8 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
       l.push({ line: id, step: f.step, branches: f.branches });
       forkAt.set(place, l);
     }
+    /* Die Gabelungen als eigene Knoten (eine am Anfang des Ablaufs hängt am Anfang der Linie). */
+    for (const j of w.junctions) junctions.set(j.id, { id: j.id, kind: 'fork', line: id, step: j.step, from: j.from === START ? startNode : j.from, before: j.before });
     for (const m of w.meetings) if (m !== START) meetingPlaces.add(m);
     lines.set(id, {
       id, name: w.flow.name, ...(w.flow.unit === undefined ? {} : { unit: w.flow.unit }),
@@ -794,10 +954,52 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
     }
   }
 
+  /*
+    2026-11-10 (Eigentümer: „Tore sind unsichtbar") — WOHER EIN TOR KOMMT: verlangt die Möglichkeit eines Zweiges (oder ein Tor
+    im Ablauf) einen Turm, führt von ihm eine Spur zum Anfang des gesperrten Weges (bei einem Zweig: zur Gabelung).
+  */
+  const placesIn = (c: WmCondition, found: string[]): void => {
+    if (c.type === 'not') return;
+    const of = typeof c.of === 'string' ? c.of : '';
+    if (of !== '' && (world.places.has(of) || world.blocks.has(of))) found.push(of);
+    for (const x of c.items ?? []) placesIn(x, found);
+  };
+  const linkSeen = new Set(links.map((l) => `${l.from}>${l.to}`));
+  for (const s of sections.values()) {
+    if (s.kind === 'return') continue;
+    for (const p of s.ticket) {
+      if (p.source === 'unit') continue;
+      const req: string[] = [];
+      placesIn(p.condition, req);
+      for (const r of req) {
+        if (r === s.from || r === s.to || linkSeen.has(`${r}>${s.from}`)) continue;
+        linkSeen.add(`${r}>${s.from}`);
+        links.push({ id: `${s.id}:needs:${r}`, from: r, to: s.from, section: s.id, line: s.line });
+      }
+    }
+  }
+  /* Die Gabelungen und Tore mit den Abschnitten, die an ihnen abfahren. */
+  const outOfJunction = new Map<string, string[]>();
+  for (const s of sections.values()) if (isJunction(s.from)) { const l = outOfJunction.get(s.from) ?? []; l.push(s.id); outOfJunction.set(s.from, l); }
+  const junctionMap = new Map<string, Junction>([...junctions].map(([id, j]) => [id, { ...j, out: outOfJunction.get(id) ?? [] }] as const));
+  /* Die Abstecher als Schleifen: mit den Schritten der gerufenen Erzählung (Folie oder Frage). */
+  const marksOfFlow = (target: string): ('slide' | 'question')[] => {
+    const w = walked.get(target);
+    const out: ('slide' | 'question')[] = [];
+    if (w !== undefined && w.sections.length > 0) {
+      const seen = new Set<string>();
+      for (const s of w.sections) for (const st of s.steps) { if (seen.has(st)) continue; seen.add(st); out.push(s.questions.includes(st) ? 'question' : 'slide'); }
+      return out;
+    }
+    for (const n of byId.get(target)?.graph.nodes ?? []) if (n.type === 'show' || n.type === 'scene' || n.type === 'question') out.push(n.type === 'question' ? 'question' : 'slide');
+    return out;
+  };
+  const loops: DetourLoop[] = loopsAt.filter((x) => sections.has(x.section)).map(({ section, line, loop }) => ({ section, line, step: loop.step, target: loop.target, at: loop.at, marks: marksOfFlow(loop.target) }));
+
   /* Dieselbe Meldung nur einmal (ein Tor nach einem Treffpunkt steht an jedem ankommenden Abschnitt). */
   const once = new Map<string, WmIssue>();
   for (const i of issues) { const k = `${i.code}|${i.ids.join('|')}|${JSON.stringify(i.data ?? {})}`; if (!once.has(k)) once.set(k, i); }
-  return { lines, sections, stations, introducedBy, issues: [...once.values()], stepFlow };
+  return { lines, sections, stations, introducedBy, issues: [...once.values()], stepFlow, junctions: junctionMap, links, loops };
 }
 
 /** Wo der Spieler einen Schritt der Linie öffnet: ein eingebetteter (`<subflow>>…`) am Unterablauf-Schritt der Linie selbst. */

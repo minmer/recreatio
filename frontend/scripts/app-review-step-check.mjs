@@ -94,6 +94,8 @@ check('4: 2 von 4 → 80 % → noch nicht', !M.reviewResult(plan, 2, 0.9).passed
 check('4: ohne Fragen zdany', M.reviewResult(M.reviewPlan([], () => false), 0, 0.9).passed);
 const cardOf = (id) => ({ key: `k:${id}`, question: id, entity: id, about: [`t:${id}`] });
 check('4: die Karten des Ablaufs, jede einmal', M.reviewCards(flow, rc, cardOf, () => undefined).map((c) => c.key).join() === 'k:qa,k:qb,k:qc');
+/* 2026-11-10 — mit dem Schritt des Przeglądu (der Spieler gibt ihn mit): ohne Gabelung dieselben Karten (Gabelungen: app-mountain-check). */
+check('4: mit dem Schritt des Przeglądu, ohne Gabelung — dieselben', M.reviewCards(flow, rc, cardOf, () => undefined, 'rv').map((c) => c.key).join() === 'k:qa,k:qb,k:qc');
 
 /* 5. Die Ścieżka. */
 const work = M.stepWorkOf((n) => (typeof n.config.of === 'string' ? [n.config.of] : []));

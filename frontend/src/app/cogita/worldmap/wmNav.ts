@@ -30,6 +30,8 @@ export interface Timetable {
   readonly upcoming: readonly PlanStep[];
   /** Karten, die bis zum Ziel fehlen. */
   readonly cards: number;
+  /** 2026-11-10 — der ganze Weg auf der Karte (zusammenhängend, auch gefahrene Spuren). */
+  readonly route: readonly string[];
 }
 
 /**
@@ -37,12 +39,12 @@ export interface Timetable {
  * verschwindet, ist nicht erledigt. Sonst ist erledigt, was im alten Plan vor dem Neuen stand und nun fehlt.
  */
 export function followPlan(prev: Timetable | null, plan: Plan, replanned = false): Timetable {
-  if (prev === null || prev.target !== plan.target) return { target: plan.target, done: [], upcoming: plan.steps, cards: plan.cards };
-  if (replanned) return { ...prev, upcoming: plan.steps, cards: plan.cards };
+  if (prev === null || prev.target !== plan.target) return { target: plan.target, done: [], upcoming: plan.steps, cards: plan.cards, route: plan.route };
+  if (replanned) return { ...prev, upcoming: plan.steps, cards: plan.cards, route: plan.route };
   const now = new Set(plan.steps.map(stepKey));
   const had = new Set(prev.done.map(stepKey));
   const newly = prev.upcoming.filter((s) => !now.has(stepKey(s)) && !had.has(stepKey(s)));
-  return { target: plan.target, done: [...prev.done, ...newly], upcoming: plan.steps, cards: plan.cards };
+  return { target: plan.target, done: [...prev.done, ...newly], upcoming: plan.steps, cards: plan.cards, route: plan.route };
 }
 
 /** Wie viele kommende Schritte das Fenster zeigt (der jetzige und 4 danach). */
@@ -68,12 +70,13 @@ export interface NavMarks {
 }
 
 export function navMarks(tt: Timetable, lines: Lines): NavMarks {
-  const next: string[] = [];
+  /* 2026-11-10 (Eigentümer: „der ganze Weg leuchtet als eine Linie") — der ganze Weg kräftig, nichts blass. */
+  const next: string[] = [...new Set(tt.route)];
   const later: string[] = [];
   const forks = new Set<string>();
-  tt.upcoming.forEach((s, i) => {
+  tt.upcoming.forEach((s) => {
     if (s.kind !== 'travel') return;
-    (i < WINDOW_NEXT ? next : later).push(s.section);
+    if (!next.includes(s.section)) next.push(s.section);
     if (s.alternatives.length > 0) forks.add(lines.sections.get(s.section)?.from ?? HOME);
   });
   const first = tt.upcoming[0];

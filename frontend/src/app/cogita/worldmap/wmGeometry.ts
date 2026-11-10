@@ -5,9 +5,9 @@
  * Rein — der Worker (`wmGeometry.worker.ts`) und die Prüfungen rechnen damit; nichts davon kennt React oder Texte.
  */
 
-import { HOME_R, hash01, layout, packParts, R } from './wmLayout';
+import { HOME_R, hash01, JUNCTION_R, layout, packParts, R } from './wmLayout';
 import { routeTracks, type Obstacle, type Track } from './wmTracks';
-import type { Lines, World } from './wmTypes';
+import { isJunction, type Lines, type World } from './wmTypes';
 
 export const HOME_ID = '~home';
 /** Steigt, wenn sich die Rechnung ändert (gespeicherte Lagen und Gleise einer anderen Fassung gelten nicht). */
@@ -78,10 +78,14 @@ export function geometryOf(input: GeometryInput): Geometry {
   /* Knoten: Orte ausserhalb von Blöcken, die Blöcke, das Haus (wenn eine Linie dort beginnt). */
   const usesHome = input.sections.some(([a, b]) => a === HOME_ID || b === HOME_ID);
   const colorOf = new Map(input.places.map((p) => [p.id, p.color] as const));
-  const layoutNodes: { id: string; r: number; color?: string }[] = [];
+  const layoutNodes: { id: string; r: number; color?: string; small?: boolean }[] = [];
   for (const p of input.places) if (!blockOf.has(p.id)) layoutNodes.push({ id: p.id, r: R, ...(p.color === undefined ? {} : { color: p.color }) });
   for (const [id, pack] of packs) layoutNodes.push({ id, r: pack.disc, ...(colorOf.get(pack.parts[0]) === undefined ? {} : { color: colorOf.get(pack.parts[0])! }) });
   if (usesHome) layoutNodes.push({ id: HOME_ID, r: HOME_R });
+  /* 2026-11-10 — Gabelungen und Tore: kleine Knoten zwischen den Türmen. */
+  const junctions = new Set<string>();
+  for (const [a, b] of input.sections) for (const x of [a, b]) if (isJunction(x)) junctions.add(x);
+  for (const id of [...junctions].sort()) { layoutNodes.push({ id, r: JUNCTION_R, small: true }); nodeOf[id] = id; }
 
   const trackPairs = new Map<string, [string, string]>();
   const inner = new Map<string, [string, string]>();

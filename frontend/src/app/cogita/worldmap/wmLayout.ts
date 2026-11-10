@@ -25,7 +25,16 @@ export interface LayoutNode {
   readonly r: number;
   /** Die Farbe (eine Gruppe): Orte ohne Verbindung stehen am Rand bei ihresgleichen. */
   readonly color?: string;
+  /**
+   * 2026-11-10 — ein Knoten zwischen Türmen (Gabelung, Tor): klein, darf näher an anderen stehen (JUNCTION_GAP), und seine Gleise
+   * sind kürzer (die Gabelung liegt zwischen den Türmen, nicht einen ganzen Turmabstand weit weg).
+   */
+  readonly small?: boolean;
 }
+
+/** 2026-11-10 — der Radius eines Knotens zwischen Türmen und was um ihn frei bleibt. */
+export const JUNCTION_R = 6;
+export const JUNCTION_GAP = 1.1 * R;
 
 export interface LayoutInput {
   readonly nodes: readonly LayoutNode[];
@@ -125,6 +134,9 @@ export function layout(input: LayoutInput): LayoutResult {
   const n = nodes.length;
   const index = new Map(nodes.map((nd, i) => [nd.id, i] as const));
   const rad = Float64Array.from(nodes, (nd) => nd.r);
+  /* 2026-11-10 — Knoten zwischen Türmen: kleiner Abstand, kürzere Gleise. */
+  const small = Uint8Array.from(nodes, (nd) => (nd.small === true ? 1 : 0));
+  const gapOf = (i: number, j: number) => (small[i] === 1 || small[j] === 1 ? JUNCTION_GAP : GAP);
   const xs = new Float64Array(n);
   const ys = new Float64Array(n);
   const fixed = new Uint8Array(n);
@@ -175,7 +187,7 @@ export function layout(input: LayoutInput): LayoutResult {
   const free = (i: number, x: number, y: number): boolean => {
     const gx = Math.floor(x / cellSize), gy = Math.floor(y / cellSize);
     for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) {
-      for (const j of occupied.get(`${gx + ox},${gy + oy}`) ?? []) if (Math.hypot(xs[j] - x, ys[j] - y) < rad[i] + rad[j] + GAP + 0.5) return false;
+      for (const j of occupied.get(`${gx + ox},${gy + oy}`) ?? []) if (Math.hypot(xs[j] - x, ys[j] - y) < rad[i] + rad[j] + gapOf(i, j) + 0.5) return false;
     }
     return true;
   };
@@ -216,7 +228,7 @@ export function layout(input: LayoutInput): LayoutResult {
     for (const i of wave) {
       let sx = 0, sy = 0, c = 0;
       for (const j of nb[i]) if (has[j] === 1) { sx += xs[j]; sy += ys[j]; c += 1; }
-      const [x, y] = nearestFree(i, sx / c, sy / c, angleOf(i), 3.4 * R + rad[i]);
+      const [x, y] = nearestFree(i, sx / c, sy / c, angleOf(i), (small[i] === 1 ? 1.9 * R : 3.4 * R) + rad[i]);
       put(i, x, y);
     }
   }
@@ -244,7 +256,7 @@ export function layout(input: LayoutInput): LayoutResult {
       const k = push * share * relax;
       if (!fi) { xs[i] -= ux * k; ys[i] -= uy * k; }
       if (!fj) { xs[j] += ux * k; ys[j] += uy * k; }
-    }, 1, slack);
+    }, 1, slack, gapOf);
     return worst;
   }
   for (let it = 0; it < iterations; it += 1) {
@@ -293,7 +305,7 @@ export function layout(input: LayoutInput): LayoutResult {
       dx /= d; dy /= d;
       fx[i] += dx * f; fy[i] += dy * f; fx[j] -= dx * f; fy[j] -= dy * f;
     };
-    for (const [i, j] of tracks) spring(i, j, 3.4 * R, 0.05);
+    for (const [i, j] of tracks) spring(i, j, small[i] === 1 || small[j] === 1 ? 1.9 * R : 3.4 * R, 0.05);
     for (const [i, j] of prereqs) spring(i, j, 5 * R, 0.01);
     for (const i of moving) {
       if (!active(i)) continue;
@@ -333,7 +345,7 @@ export function layout(input: LayoutInput): LayoutResult {
     const crowded = (i: number) => {
       const gx = Math.floor(xs[i] / cellSize), gy = Math.floor(ys[i] / cellSize);
       for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) {
-        for (const j of occupied.get(`${gx + ox},${gy + oy}`) ?? []) if (j !== i && Math.hypot(xs[j] - xs[i], ys[j] - ys[i]) < rad[i] + rad[j] + GAP - 0.01) return true;
+        for (const j of occupied.get(`${gx + ox},${gy + oy}`) ?? []) if (j !== i && Math.hypot(xs[j] - xs[i], ys[j] - ys[i]) < rad[i] + rad[j] + gapOf(i, j) - 0.01) return true;
       }
       return false;
     };
@@ -393,7 +405,7 @@ function extent(xs: Float64Array, ys: Float64Array, rad: Float64Array, has: Uint
 }
 
 /** Jedes Paar näher als r_a + r_b + 2,1 R (über ein Gitter): `push` = wie viel fehlt, (ux, uy) von i nach j. */
-function collide(xs: Float64Array, ys: Float64Array, rad: Float64Array, idx: readonly number[], hit: (i: number, j: number, push: number, ux: number, uy: number) => void, factor: number, slack = 0): void {
+function collide(xs: Float64Array, ys: Float64Array, rad: Float64Array, idx: readonly number[], hit: (i: number, j: number, push: number, ux: number, uy: number) => void, factor: number, slack = 0, gapOf: (i: number, j: number) => number = () => GAP): void {
   let maxR = 0;
   for (const i of idx) maxR = Math.max(maxR, rad[i]);
   const cell = 2 * maxR + GAP + slack;
@@ -414,7 +426,7 @@ function collide(xs: Float64Array, ys: Float64Array, rad: Float64Array, idx: rea
         let dx = xs[j] - xs[i], dy = ys[j] - ys[i];
         let d = Math.hypot(dx, dy);
         if (d < 0.01) { dx = Math.cos(i * 7 + j); dy = Math.sin(i * 7 + j); d = 0.01; }
-        const min = rad[i] + rad[j] + GAP + slack;
+        const min = rad[i] + rad[j] + gapOf(i, j) + slack;
         if (d >= min) continue;
         hit(i, j, (min - d) * factor, dx / d, dy / d);
       }

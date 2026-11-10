@@ -19,7 +19,7 @@
  * </code>
  */
 
-import { evaluateCondition, register, type LearnerContext } from './wmConditions';
+import { register, type LearnerContext } from './wmConditions';
 import type { WmCondition, World } from './wmTypes';
 
 export const DAY = 24 * 60 * 60 * 1000;
@@ -263,28 +263,29 @@ register({
   describe: (c, ctx, r) => ({ symbol: 'knowledge', key: 'cogitaWorld.condition.conquered', params: { name: typeof c.of === 'string' ? ctx.world.places.get(c.of)?.label ?? c.of : '' }, action: r.met ? 'none' : 'learn' })
 });
 
-/** Die Freigabe eines Durchgangs: jede Karte erschienen, jede direkte Voraussetzung erobert. */
+/**
+ * Die Freigabe eines Durchgangs: jede direkte Voraussetzung erobert. 2026-11-10 (Eigentümer: „es heisst immer noch, man müsse vor
+ * dem Erobern alle unbekannten Fragen wiederholen") — die Karten des Turms müssen NICHT erschienen sein: man darf ihn jederzeit zu
+ * erobern versuchen (der Durchgang fragt alle Karten; wie viele nie gefragt wurden, steht dabei) oder vorher wiederholen.
+ */
 export function runUnlock(world: World, place: string): WmCondition {
   const needs = world.places.get(place)?.needs ?? [];
-  return { type: 'and', items: [{ type: 'knowness', of: place, band: 'learned' }, ...needs.map((n) => ({ type: 'conquered', of: n }))] };
+  return { type: 'and', items: needs.map((n) => ({ type: 'conquered', of: n })) };
 }
 
 export type RunGate =
   | { readonly kind: 'none' }
   | { readonly kind: 'conquered' }
   | { readonly kind: 'ready'; readonly level: number }
-  | { readonly kind: 'locked'; readonly level: number; readonly unseen: readonly string[]; readonly needs: readonly string[] };
+  | { readonly kind: 'locked'; readonly level: number; readonly needs: readonly string[] };
 
-/** KANN EIN DURCHGANG BEGINNEN — und für welche Stufe; sonst warum nicht. */
+/** KANN EIN DURCHGANG BEGINNEN — und für welche Stufe; sonst warum nicht (eine Voraussetzung ist nicht erobert). */
 export function runGate(ctx: LearnerContext, place: string, progress: LevelProgress, levels: number): RunGate {
   if (levels <= 0) return { kind: 'none' };
   if (progress.level >= levels) return { kind: 'conquered' };
   const level = progress.level + 1;
-  const unlock = evaluateCondition(runUnlock(ctx.world, place), { ...ctx, subject: place });
-  if (!unlock.met) {
-    const needs = (ctx.world.places.get(place)?.needs ?? []).filter((n) => ctx.conquered?.(n) !== true);
-    return { kind: 'locked', level, unseen: unlock.missing?.new ?? [], needs };
-  }
+  const needs = (ctx.world.places.get(place)?.needs ?? []).filter((n) => ctx.conquered?.(n) !== true);
+  if (needs.length > 0) return { kind: 'locked', level, needs };
   return { kind: 'ready', level };
 }
 

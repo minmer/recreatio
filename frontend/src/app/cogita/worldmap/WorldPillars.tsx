@@ -93,6 +93,8 @@ export interface PillarsProps {
   readonly onPick?: (place: string | null) => void;
   readonly onPickLane?: (section: string) => void;
   readonly onPickHome?: () => void;
+  /** 2026-11-10 — eine Gabelung oder ein Tor angeklickt. */
+  readonly onPickJunction?: (id: string) => void;
   /** Doppelklick (Doppeltippen) auf eine Säule: „Prowadź mnie tutaj". */
   readonly onLead?: (place: string) => void;
   readonly compact?: boolean;
@@ -325,7 +327,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -488,6 +490,29 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.strokeStyle = rgbCss(mix(pal.ink, pal.land, on ? 0.35 : 0.85));
       g.lineWidth = (on ? 1.8 : 0.8) * px;
       g.beginPath(); g.arc(p.x, p.y, p.r * pillarWidth + 7, 0, Math.PI * 2); g.stroke();
+    }
+    /*
+      2026-11-10 (Eigentümer: „Tore werden gezeichnet") — VON JEDEM VERLANGTEN TURM EINE SPUR ZU SEINEM TOR: zu einer Gabelung,
+      einem Tor-Knoten oder zum gesperrten Turm. Gestrichelt, solange der verlangte Turm nicht erobert ist; am Ende ein Pfeil.
+    */
+    for (const lk of scene.links) {
+      const [ax, ay] = lk.a, [bx, by] = lk.b;
+      const d = Math.hypot(bx - ax, by - ay) || 1;
+      const ux = (bx - ax) / d, uy = (by - ay) / d;
+      const sx = ax + ux * (lk.ra * pillarWidth + 3), sy = ay + uy * (lk.ra * pillarWidth + 3);
+      const ex = bx - ux * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4), ey = by - uy * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4);
+      const bend = lk.kind === 'gate' ? 0.1 : 0.16;
+      const mx = (sx + ex) / 2 - uy * d * bend, my = (sy + ey) / 2 + ux * d * bend;
+      g.strokeStyle = rgbCss(mix(pal.ink, pal.land, lk.met ? 0.55 : lk.kind === 'gate' ? 0.25 : 0.4));
+      g.lineWidth = (lk.kind === 'gate' ? 1.5 : 1.1) * px;
+      g.setLineDash(lk.met ? [] : [4 * px, 3.5 * px]);
+      g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+      g.setLineDash([]);
+      const aa = Math.atan2(ey - my, ex - mx);
+      const al = 5 * px;
+      g.beginPath();
+      g.moveTo(ex - Math.cos(aa - 0.45) * al, ey - Math.sin(aa - 0.45) * al); g.lineTo(ex, ey); g.lineTo(ex - Math.cos(aa + 0.45) * al, ey - Math.sin(aa + 0.45) * al);
+      g.stroke();
     }
     /* Das Haus: eine runde Platte. */
     if (scene.home !== null) {
@@ -745,6 +770,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     }
     const topOf = (id: string): [number, number] | null => {
       if (id === HOME_MARK && scene.home !== null) { const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0); return [hx, hy - Math.max(6, Math.min(16, scene.home.r * v.s * 0.55)) * 1.7]; }
+      const jn = scene.junctions.find((x) => x.id === id);
+      if (jn !== undefined) { const [jx, jy] = toScr(v, jn.x, jn.y, 0); return [jx, jy - 8]; }
       const d = drawn.find((x) => x.id === id);
       if (d !== undefined) return [d.x, d.top];
       const p = scene.byId.get(id);
@@ -807,12 +834,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const boxes: { x0: number; y0: number; x1: number; y1: number }[] = drawn.map((d) => ({ x0: d.x - d.rx - 2, y0: d.top - d.ry - 2, x1: d.x + d.rx + 2, y1: d.bottom + 2 }));
       for (const l of placed) if (l.shown) boxes.push({ x0: l.x - l.w / 2, y0: l.y - 9, x1: l.x + l.w / 2, y1: l.y + 9 });
       const deepNow = v.s >= DEEP_FROM;
-      const want = scene.lanes.filter((l) => l.name !== '' && !(l.deep && !deepNow) && (l.state === 'grow' || shown.has(l.section)));
       /* Die gezeigten zuerst (sie gewinnen), dann die längsten. */
       const lenOf = (pts: readonly number[]) => { let s = 0; for (let i = 2; i < pts.length; i += 2) s += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]); return s; };
       const screenOf = (l: SceneLane) => { const pts = withRims(l, pillarWidth); const out: number[] = []; for (let i = 0; i < pts.length; i += 2) { const [sx, sy] = toScr(v, pts[i], pts[i + 1], 0); out.push(sx, sy); } return out; };
-      const items = want.map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; })
-        .filter((x) => x.len >= 36)
+      /* 2026-11-10 (Eigentümer: „die Punkte immer, auf jedem Pfad") — jeder Pfad trägt seine Schritte; Namen nur die kräftigen und gezeigten. */
+      const every = scene.lanes.filter((l) => !(l.deep && !deepNow)).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; }).filter((x) => x.len >= 14);
+      const items = every.filter((x) => x.l.name !== '' && (x.l.state === 'grow' || x.on) && x.len >= 36)
         .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.l.state === 'grow') - Number(a.l.state === 'grow') || b.len - a.len);
       /*
         2026-11-10 (Eigentümer: „nicht als Text, sondern als Punkte auf dem Pfad") — DIE SCHRITTE AUF DEM PFAD: je Folie ein
@@ -822,9 +849,27 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         dazu: der nächste Schritt nach Gesehenem trägt einen Ring („jetzt"), und wo die Erzählung mit dem Przegląd endet, ein ↻.
       */
       let markCount = 0;
+      let variantCount = 0;
       const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
-      for (const { l, sp, len } of items) {
+      for (const { l, sp, len } of every) {
         const col = l.state === 'locked' ? mix(l.color, pal.land, 0.45) : l.color;
+        /* Dieselben Karten anders verpackt: die weiteren Verpackungen als kleine Bögen neben dem Pfad, wo sie verschieden sind. */
+        if (l.variants !== null && len >= 30) {
+          ctx.strokeStyle = rgbCss(mix(col, pal.land, 0.3)); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+          for (let k = 1; k <= l.variants.more; k += 1) {
+            const off = (k % 2 === 1 ? 1 : -1) * (6 + 4 * Math.floor((k - 1) / 2));
+            ctx.beginPath();
+            for (let q = 0; q <= 16; q += 1) {
+              const u = q / 16;
+              const at = along(sp, l.variants.from + (l.variants.to - l.variants.from) * u);
+              const bump = Math.sin(Math.PI * u) * off;
+              const x = at.x - Math.sin(at.a) * bump, y = at.y + Math.cos(at.a) * bump;
+              if (q === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+          }
+          variantCount += 1;
+        }
         const n = l.marks.length;
         const room = Math.max(0, Math.floor((len - 26) / 10));
         const count = Math.min(n, room);
@@ -872,6 +917,73 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
       }
       canvas.dataset.wmPathMarks = String(markCount);
+      canvas.dataset.wmVariants = String(variantCount);
+      /*
+        2026-11-10 (Eigentümer: „ein Abstecher ist eine Schleife an genau diesem Schritt") — DIE ABSTECHER: eine kleine Schleife neben
+        dem Pfad an der Stelle des Schrittes, mit den Schritten der gerufenen Erzählung als Punkte.
+      */
+      let loopCount = 0;
+      const laneAt = new Map(every.map((x) => [x.l.section, x] as const));
+      for (const lp of scene.loops) {
+        const it = laneAt.get(lp.section);
+        if (it === undefined || it.len < 30) continue;
+        const at = along(it.sp, lp.at);
+        const nx = -Math.sin(at.a), ny = Math.cos(at.a);
+        const R0 = 10;
+        const cx = at.x + nx * R0, cy = at.y + ny * R0;
+        ctx.strokeStyle = rgbCss(lp.color); ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(cx, cy, R0, 0, Math.PI * 2); ctx.stroke();
+        const n = Math.min(lp.marks.length, 9);
+        const a0 = Math.atan2(-ny, -nx);
+        for (let k = 0; k < n; k += 1) {
+          const i = n === lp.marks.length ? k : Math.round((k * (lp.marks.length - 1)) / Math.max(1, n - 1));
+          const ang = a0 + ((k + 1) / (n + 1)) * Math.PI * 2;
+          const px = cx + Math.cos(ang) * R0, py = cy + Math.sin(ang) * R0;
+          ctx.beginPath();
+          if (lp.marks[i] === 'question') { const r = 3.2; ctx.moveTo(px, py - r); ctx.lineTo(px + r, py); ctx.lineTo(px, py + r); ctx.lineTo(px - r, py); ctx.closePath(); }
+          else ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+          ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(lp.color); ctx.lineWidth = 1.3;
+          ctx.fill(); ctx.stroke();
+        }
+        loopCount += 1;
+      }
+      canvas.dataset.wmLoops = String(loopCount);
+      /*
+        2026-11-10 (Eigentümer: „eine Gabelung ist ein eigener Punkt zwischen den Türmen") — DIE KNOTEN: eine Gabelung (Gabelzeichen)
+        oder ein Tor (Bogen); am Weg und nah steht dabei, wie viele Folien vor ihr liegen und wie viele Wege von ihr ausgehen.
+      */
+      const route0 = new Set(route ?? []);
+      let junctionCount = 0;
+      const jLabels: { text: string; x: number; y: number }[] = [];
+      for (const j of scene.junctions) {
+        const [x, y] = toScr(v, j.x, j.y, 0);
+        if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) continue;
+        const r = Math.max(5, Math.min(9, j.r * v.s * 1.1 + 2));
+        const col = j.open ? j.color : mix(j.color, pal.land, 0.45);
+        ctx.fillStyle = rgbCss(pal.surface); ctx.strokeStyle = rgbCss(col); ctx.lineWidth = chosen === j.id ? 3 : 2;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = rgbCss(mix(col, pal.ink, 0.3)); ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (j.kind === 'fork') { const q = r * 0.55; ctx.moveTo(x - q, y); ctx.lineTo(x, y); ctx.lineTo(x + q * 0.8, y - q * 0.75); ctx.moveTo(x, y); ctx.lineTo(x + q * 0.8, y + q * 0.75); }
+        else { const q = r * 0.48; ctx.moveTo(x - q, y + q); ctx.lineTo(x - q, y - q * 0.2); ctx.arc(x, y - q * 0.2, q, Math.PI, 0); ctx.lineTo(x + q, y + q); }
+        ctx.stroke();
+        boxes.push({ x0: x - r - 2, y0: y - r - 2, x1: x + r + 2, y1: y + r + 2 });
+        junctionCount += 1;
+        const onWay = chosen === j.id || j.ways.some((w) => route0.has(w.section)) || v.s >= 1.6;
+        if (!onWay) continue;
+        const ways = j.kind === 'fork' ? t('cogitaWorld.map.junctionWays', { count: j.ways.length }) : t('cogitaWorld.map.junctionGate', { count: scene.links.filter((lk) => lk.to === j.id).length + 1 });
+        const text = j.kind === 'fork' && j.before.slides > 0 ? `${t('cogitaWorld.map.junctionBefore', { count: j.before.slides })} ${ways}` : ways.charAt(0).toLocaleUpperCase() + ways.slice(1);
+        jLabels.push({ text, x, y: y - r - 9 });
+      }
+      canvas.dataset.wmJunctions = String(junctionCount);
+      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      for (const lb of jLabels) {
+        const w = ctx.measureText(lb.text).width;
+        ctx.lineWidth = 3.5; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(lb.text, lb.x, lb.y);
+        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(lb.text, lb.x, lb.y);
+        boxes.push({ x0: lb.x - w / 2 - 2, y0: lb.y - 8, x1: lb.x + w / 2 + 2, y1: lb.y + 8 });
+      }
+      canvas.dataset.wmJunctionLabels = String(jLabels.length);
       ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       let nameCount = 0;
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
@@ -993,6 +1105,20 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const [hx, hy] = toScr(viewOf(c, size.w, size.h), scene.home.x, scene.home.y, 0);
     return Math.hypot(x - hx, y - hy) < Math.max(14, scene.home.r * c.s);
   };
+  /** 2026-11-10 — eine Gabelung oder ein Tor unter dem Zeiger. */
+  const hitJunction = (x: number, y: number): string | null => {
+    const c = camRef.current;
+    if (c === null) return null;
+    const v = viewOf(c, size.w, size.h);
+    let best: string | null = null;
+    let bd = Infinity;
+    for (const j of scene.junctions) {
+      const [jx, jy] = toScr(v, j.x, j.y, 0);
+      const d = Math.hypot(x - jx, y - jy);
+      if (d < Math.max(10, j.r * v.s * 1.1 + 6) && d < bd) { bd = d; best = j.id; }
+    }
+    return best;
+  };
   const hitLane = (x: number, y: number): string | null => {
     const c = camRef.current;
     if (c === null) return null;
@@ -1107,6 +1233,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       onPick?.(id); onHover?.(id, { x: p.x, y: p.y }); return;
     }
     if (hitHome(p.x, p.y)) { onPickHome?.(); return; }
+    const jn = hitJunction(p.x, p.y);
+    if (jn !== null && onPickJunction !== undefined) { onPickJunction(jn); return; }
     const lane = hitLane(p.x, p.y);
     if (lane !== null) { onPickLane?.(lane); return; }
     onPick?.(null);
@@ -1137,11 +1265,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     type Hooked = HTMLCanvasElement & {
       wmLocate?: (kind: string, id: string) => [number, number] | null;
       wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
+      wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
     };
     const el = canvasRef.current as Hooked | null;
     if (el === null) return undefined;
     const label = (id: string) => (id === HOME_MARK ? HOME_MARK : scene.byId.get(id)?.label ?? id);
     el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
+    el.wmJunctionList = () => scene.junctions.map((j) => ({ id: j.id, kind: j.kind, ways: j.ways.length, before: j.before.slides, open: j.open }));
     el.wmLocate = (kind, id) => {
       const c = camRef.current;
       if (c === null) return null;
@@ -1153,6 +1283,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         if (d === undefined) return null;
         for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want) return [d.x, y];
         return null;
+      }
+      if (kind === 'junction') {
+        const j = scene.junctions.find((x) => x.id === id);
+        if (j === undefined) return null;
+        const [jx, jy] = toScr(v, j.x, j.y, 0);
+        return inside(jx, jy) && hit(jx, jy) === null && hitJunction(jx, jy) === id ? [jx, jy] : null;
       }
       if (kind === 'home') {
         if (scene.home === null) return null;
@@ -1170,7 +1306,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       return null;
     };
-    return () => { delete el.wmLocate; delete el.wmLanes; };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; };
   });
 
   /*

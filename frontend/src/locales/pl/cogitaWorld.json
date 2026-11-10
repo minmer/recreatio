@@ -148,7 +148,45 @@
     "fullNext": "Dalej",
     "pageOn": "Cała strona",
     "fullSays": "Cały ekran — Esc wraca do całej strony",
-    "pageSays": "Mapa wypełnia okno przeglądarki; Esc ją zamyka"
+    "pageSays": "Mapa wypełnia okno przeglądarki; Esc ją zamyka",
+    "forkOf": "Rozwidlenie na „{line}”",
+    "gateOf": "Brama „{line}”",
+    "junctionBefore": {
+      "one": "{count} slajd, potem",
+      "few": "{count} slajdy, potem",
+      "many": "{count} slajdów, potem",
+      "other": "{count} slajdu, potem"
+    },
+    "junctionWays": {
+      "one": "rozwidlenie: {count} droga",
+      "few": "rozwidlenie: {count} drogi",
+      "many": "rozwidlenie: {count} dróg",
+      "other": "rozwidlenie: {count} drogi"
+    },
+    "junctionGate": {
+      "one": "brama: {count} wieża",
+      "few": "brama: spotykają się {count} wieże",
+      "many": "brama: spotyka się {count} wież",
+      "other": "brama: spotyka się {count} wieży"
+    },
+    "needsFirst": {
+      "one": "Zamknięta — najpierw {count} wieża:",
+      "few": "Zamknięta — najpierw {count} wieże:",
+      "many": "Zamknięta — najpierw {count} wież:",
+      "other": "Zamknięta — najpierw {count} wieży:"
+    },
+    "reqOpen": {
+      "one": "{count} otwarta teraz",
+      "few": "{count} otwarte teraz",
+      "many": "{count} otwartych teraz",
+      "other": "{count} otwartej teraz"
+    },
+    "reqDone": {
+      "one": "{count} zdobyta",
+      "few": "{count} zdobyte",
+      "many": "{count} zdobytych",
+      "other": "{count} zdobytej"
+    }
   },
   "panel": {
     "close": "Zamknij",
@@ -233,7 +271,51 @@
     "towerFirstLevel": "najpierw poziom {level} wieży startowej",
     "prepareN": "Najpierw powtórz, czego nie znam ({count})",
     "prepareSays": "Tylko karty, które jeszcze nie siedzą — dobre przygotowanie do przebiegu.",
-    "conquerSays": "Odpowiedz na wszystkie karty ({count}) — to zdobywa wieżę"
+    "conquerSays": "Odpowiedz na wszystkie karty ({count}) — to zdobywa wieżę",
+    "requiresFirst": {
+      "one": "Najpierw zdobądź {count} wieżę:",
+      "few": "Najpierw zdobądź {count} wieże:",
+      "many": "Najpierw zdobądź {count} wież:",
+      "other": "Najpierw zdobądź {count} wieży:"
+    },
+    "req": {
+      "done": "zdobyta",
+      "open": "otwarta",
+      "locked": "zamknięta"
+    },
+    "conquerNow": "Zdobywaj teraz",
+    "conquerUnseen": {
+      "one": "Padnie każde z {all} pytań — {count} z nich nie zadano ci jeszcze nigdy.",
+      "few": "Padnie każde z {all} pytań — {count} z nich nie zadano ci jeszcze nigdy.",
+      "many": "Padnie każde z {all} pytań — {count} z nich nie zadano ci jeszcze nigdy.",
+      "other": "Padnie każde z {all} pytań — {count} z nich nie zadano ci jeszcze nigdy."
+    },
+    "exploreFirst": "Najpierw odkryj drogę",
+    "exploreSays": {
+      "one": "Opowieść wyjaśnia {count} kartę, której jeszcze nie znasz.",
+      "few": "Opowieść wyjaśnia {count} karty, których jeszcze nie znasz.",
+      "many": "Opowieść wyjaśnia {count} kart, których jeszcze nie znasz.",
+      "other": "Opowieść wyjaśnia {count} karty, których jeszcze nie znasz."
+    },
+    "noStory": {
+      "one": "Żadna opowieść nie wyjaśnia {count} karty — uczysz się jej bezpośrednio.",
+      "few": "Żadna opowieść nie wyjaśnia {count} kart — uczysz się ich bezpośrednio.",
+      "many": "Żadna opowieść nie wyjaśnia {count} kart — uczysz się ich bezpośrednio.",
+      "other": "Żadna opowieść nie wyjaśnia {count} karty — uczysz się ich bezpośrednio."
+    },
+    "questionsN": {
+      "one": "{count} pytanie",
+      "few": "{count} pytania",
+      "many": "{count} pytań",
+      "other": "{count} pytania"
+    },
+    "styles": {
+      "one": "{count} sposób wyjaśnienia",
+      "few": "{count} sposoby wyjaśnienia",
+      "many": "{count} sposobów wyjaśnienia",
+      "other": "{count} sposobu wyjaśnienia"
+    },
+    "gateFrom": "Tu spotykają się drogi z: {names}."
   },
   "nav": {
     "target": "Cel: {name}",
@@ -258,7 +340,13 @@
     "arrived": "Jesteś na miejscu: {name}",
     "startHere": "Zacznij tutaj",
     "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}",
-    "review": "Powtórka przed odkrywaniem: {to}"
+    "review": "Powtórka przed odkrywaniem: {to}",
+    "runUnseen": {
+      "one": "{count} karta nigdy niezadana",
+      "few": "{count} karty nigdy niezadane",
+      "many": "{count} kart nigdy niezadanych",
+      "other": "{count} karty nigdy niezadanej"
+    }
   },
   "issue": {
     "title": {

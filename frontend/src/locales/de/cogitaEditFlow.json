@@ -84,6 +84,7 @@
     "reviewBranch": "Diese Durchsicht liegt nur auf einigen Wegen — setze sie in den gemeinsamen Teil, nachdem sich die Wege treffen.",
     "reviewEmpty": "Diese Durchsicht hat keine Pflichtfragen (keine liegt auf jedem Weg) — sie wäre sofort bestanden.",
     "noAssessment": "Das Sechseck hat keine gemeinsame Prüfung: keine Frage und keine Durchsicht liegt auf jedem Weg.",
+    "noAssessmentBranch": "Der Zweig „{route}“ hat keine Prüfung: keine Frage und keine Durchsicht liegt auf jedem Weg durch ihn.",
     "tooManyRoutes": "Mehr als {count} Wege — geprüft wurden nur die ersten {count}.",
     "questionMissing": "Die Frage „{ref}“ gibt es nicht.",
     "uncheckable": "Die Frage „{name}“ nennt weder ein Thema („about“) noch erklärende Folien („explain“) — ob sie vorbereitet ist, lässt sich nicht prüfen.",

@@ -65,8 +65,9 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('bosko: place kinds are derived from "about" (slides drop out)', [...world.placeKinds], ['temat']);
   check('bosko: the base is the transitive closure', [...world.base('kuglarz')].sort(), ['becchi', 'sen']);
 
-  check('bosko: six lines — four stories and two deepenings', [...lines.lines.values()].map((l) => [l.id, l.deepening]),
-    [['f/L1', false], ['f/L2', false], ['f/L3', false], ['f/L4', false], ['f/sny', true], ['f/misje', true]]);
+  /* 2026-11-10 (Eigentümer) — eine Erzählung mit eigener Einheit behält ihren Anfang, auch wenn eine andere sie als Abstecher ruft. */
+  check('bosko: six lines — every story with its own unit keeps its own start (also the ones called as detours)', [...lines.lines.values()].map((l) => [l.id, l.deepening]),
+    [['f/L1', false], ['f/L2', false], ['f/L3', false], ['f/L4', false], ['f/sny', false], ['f/misje', false]]);
   check('R3: a unit without prerequisites starts at Home', lines.lines.get('f/L1').start, HOME);
   check('R3: a unit that requires its own first place starts there (mid-world)', [lines.lines.get('f/L3').start, lines.lines.get('f/L4').start], ['narodz', 'domkos']);
   check('R3: the first section carries the unit\'s Wymaga', sec('f/L4:0').ticket.map((t) => [t.source, t.condition.type, t.condition.of ?? t.condition.flow]), [['unit', 'knowness', 'domkos'], ['unit', 'story', 'f/L2']]);
@@ -78,12 +79,13 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('review block: re-asked cards are introduced once', ['q/antoni/0', 'q/antoni/1', 'q/comollo/0'].map((k) => l2.filter((s) => s.introduces.includes(k)).length), [1, 1, 1]);
   check('review block: the review steps belong to no section', l2.some((s) => s.steps.includes('review0')), false);
 
-  /* Drei Zweige an einem Umsteigeort. */
-  const domkos = lines.stations.get('domkos');
-  const fork = domkos.forks.find((f) => f.step === bx.fork);
-  check('branches: the station domkos offers the 3-way choice of L4', fork?.branches.length, 3);
-  const firsts = fork.branches.map((b) => lines.lines.get('f/L4').branches.find((x) => x.id === b).sections.map(sec)[0]);
-  check('branches: each branch starts at the station', firsts.map((s) => [s.from, s.to]), [['domkos', 'warsz'], ['domkos', 'cagrua'], ['domkos', 'savio']]);
+  /* 2026-11-10 (Eigentümer) — drei Zweige: die Wahl ist ein eigener Knoten zwischen den Türmen, nicht der Umsteigeort domkos. */
+  const J = [...lines.junctions.values()].find((j) => j.step === bx.fork);
+  check('branches: the 3-way choice of L4 is its own node after domkos', [J?.kind, J?.from, J?.out.length], ['fork', 'domkos', 3]);
+  const firsts = J.out.map(sec);
+  check('branches: each branch starts at the fork node', firsts.map((s) => [s.from, s.to]), [[J.id, 'warsz'], [J.id, 'cagrua'], [J.id, 'savio']]);
+  check('branches: the way from domkos to the fork carries what lies between (here nothing)', lineSecs('f/L4').filter((s) => s.to === J.id).map((s) => [s.from, s.steps.length]), [['domkos', 0]]);
+  check('gates: the option condition is drawn as a track from comollo to the fork', lines.links.filter((l) => l.section === firsts[1].id).map((l) => [l.from, l.to]), [['comollo', J.id]]);
   check('branches: the player opens a branch at the choice with its exit', firsts.map((s) => s.start), [{ step: bx.fork, exit: 'o0' }, { step: bx.fork, exit: 'o1' }, { step: bx.fork, exit: 'o2' }]);
   check('(b) the option condition is the ticket of its branch', firsts.map((s) => s.ticket.map((t) => [t.source, t.condition.of])), [[], [['option', 'comollo']], []]);
   check('branches: they meet at magone, which becomes a station', [lines.stations.has('magone'), lineSecs('f/L4').filter((s) => s.to === 'magone').map((s) => s.from).sort()], [true, ['cagrua', 'savio', 'warsz']]);
@@ -91,14 +93,18 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('(c) a gate (one exit leaves the line) is the ticket of the next section', sec('f/L1:18').ticket.map((t) => [t.source, t.condition.type, t.condition.of]), [['gate', 'knowness', 'w_sny']]);
   check('(c) the review loop\'s value conditions are no gates', [...lines.sections.values()].some((s) => s.ticket.some((t) => t.condition.type === 'value')), false);
 
-  /* Abstecher: beginnt und endet am rufenden Ort, je Rufer (Korrektur 3). */
+  /*
+    2026-11-10 (Eigentümer) — „Sny" hat eine eigene Einheit (sie verlangt L1): ein eigener Weg ab dem Ende von L1. Wo L1 und L2 sie
+    als Abstecher rufen, steht an genau diesem Schritt eine Schleife (mit den Schritten von „Sny").
+  */
   const sny = lineSecs('f/sny');
-  check('R4: a deepening has one entry per calling place', sny.filter((s) => s.kind === 'entry').map((s) => [s.from, s.to, s.callers]), [['becchi', 'w_sny', ['f/L2']], ['sen', 'w_sny', ['f/L1']]]);
-  check('R4: … is drawn once inside', sny.filter((s) => s.kind === 'main').map((s) => [s.from, s.to]), [['w_sny', 'w_bosko']]);
-  check('R4: … and returns to every caller', sny.filter((s) => s.kind === 'return').map((s) => [s.from, s.to]), [['w_bosko', 'becchi'], ['w_bosko', 'sen']]);
-  check('R4: entering from the caller\'s own story needs no "story passed"', sny.filter((s) => s.kind === 'entry').map((s) => s.ticket.map((t) => t.condition.type)), [['story'], []]);
-  check('R4: calling places are stations', ['becchi', 'sen', 'isc'].map((p) => lines.stations.has(p)), [true, true, true]);
-  check('lines: who calls a deepening, how often', [...lines.lines.get('f/sny').calledBy.entries()].sort(), [['f/L1', 1], ['f/L2', 1]]);
+  check('detour with its own unit: its own track from where its unit starts it (the end of L1)', sny.map((s) => [s.from, s.to]), [['pozeg', 'w_sny'], ['w_sny', 'w_bosko']]);
+  const snyLoops = lines.loops.filter((l) => l.target === 'f/sny');
+  check('detour: a loop at the calling step of each caller (after sen on L1, after becchi on L2)', snyLoops.map((l) => [l.line, sec(l.section).to]).sort(), [['f/L1', 'sen'], ['f/L2', 'becchi']]);
+  check('detour: the loop sits after the steps that came before the call', snyLoops.every((l) => l.at > 0 && l.at <= sec(l.section).steps.length), true);
+  check('detour: the loop shows the steps of the called story', snyLoops[0].marks.length, sny.reduce((n, s) => n + s.steps.length, 0));
+  check('R4: places where lines meet are stations', ['becchi', 'isc'].map((p) => lines.stations.has(p)), [true, true]);
+  check('lines: who calls a detour, how often', [...lines.lines.get('f/sny').calledBy.entries()].sort(), [['f/L1', 1], ['f/L2', 1]]);
 
   const introduced = new Set(lines.introducedBy.keys());
   const touched = new Set([...lines.sections.values()].flatMap((s) => [s.from, s.to]));
@@ -145,17 +151,19 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   const gateSec = fresh.sections.get('f/L1:18');
   check('ticket: a knowledge gate is locked for a new learner', [gateSec.ticket.met, gateSec.ticket.symbol, gateSec.ticket.missing.new.length], [false, 'knowledge', world.places.get('w_sny').cards.length]);
   const src = fresh.sources(world.places.get('w_sny').cards[1]);
-  check('sources: the sections that introduce a card, cheapest first', src.map((s) => s.section), ['f/sny:0@sen', 'f/sny:0@becchi']);
-  check('sources: a card that no line asks has none (learn directly)', fresh.sources(world.places.get('w_sny').cards.at(-1)).length, 0);
+  /* 2026-11-10 — „Sny" hat seinen eigenen Weg; eine Karte ist auch dort eingeführt, wo die Folie gezeigt wird, die sie erklärt. */
+  check('sources: the sections that introduce a card, cheapest first', src.map((s) => s.section), ['f/sny:0']);
+  check('sources: a card explained by a shown slide is introduced there (explain counts, not only questions)', fresh.sources(world.places.get('w_sny').cards.at(-1)).map((s) => s.section), ['f/sny:0']);
+  check('sources: a card whose slide no story shows has none (learn directly)', fresh.sources(world.places.get('w_kapl').cards[0]).length, 0);
   const learned = {};
   for (const k of world.places.get('w_sny').cards) learned[k] = 0.5;
   const after = S.stateOf(world, lines, F.fakeLearner({ knowness: learned }), { levels: 0, knownShare: 1 });
   check('learn directly → the lock is gone', after.sections.get('f/L1:18').ticket.met, true);
-  const reviewOnly = S.stateOf(world, lines, F.fakeLearner({ knowness: learned }), { levels: 0, knownShare: 1 }).sections.get('f/L4:2');
+  const reviewOnly = S.stateOf(world, lines, F.fakeLearner({ knowness: learned }), { levels: 0, knownShare: 1 }).sections.get('f/L4:3');
   check('review only: a ticket with unseen cards is not review-only', [reviewOnly.ticket.met, reviewOnly.ticket.reviewOnly], [false, false]);
   const due = {};
   for (const k of world.places.get('comollo').cards) due[k] = 0.5;
-  const ro = S.stateOf(world, lines, F.fakeLearner({ knowness: due }), { levels: 0, knownShare: 1 }).sections.get('f/L4:2').ticket;
+  const ro = S.stateOf(world, lines, F.fakeLearner({ knowness: due }), { levels: 0, knownShare: 1 }).sections.get('f/L4:3').ticket;
   check('review only: nothing new, only reviews', [ro.met, ro.reviewOnly, ro.symbol, ro.missing.new.length, ro.missing.review.length], [false, true, 'review', 0, world.places.get('comollo').cards.length]);
   const story = fresh.sections.get('f/L4:0').ticket;
   check('a unit as requirement: "that story passed" with the story lock', [story.met, story.parts.map((p) => p.view.symbol)], [false, ['knowledge', 'story']]);
@@ -302,11 +310,12 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('plan: runs of a place come after the runs of its prerequisites', idx((s) => s.kind === 'run' && s.place === 'savio') > idx((s) => s.kind === 'run' && s.place === 'domkos'), true);
   check('plan: cards to go', pl.cards, missing.reduce((sum, p) => sum + world.places.get(p).cards.length, 0));
   const travelWarsz = pl.steps.find((s) => s.kind === 'travel' && s.place === 'warsz');
-  check('plan: the cheapest section introduces the cards', travelWarsz.section, 'f/L1:14');
+  check('plan: the cheapest track into the tower (here the branch of the fork after domkos, walking back from savio)', travelWarsz.section, 'f/L4:2');
   /* 2026-11-09 (Teil 5) — zwei Linien bringen je andere Karten eines Ortes: fährt der Plan beide, ist die zweite eine Ergänzung. */
-  check('plan: a section the plan travels anyway for the same place is no branch option', [pl.steps.filter((s) => s.kind === 'travel' && s.place === 'warsz').map((s) => s.section), travelWarsz.alternatives.map((a) => a.section)], [['f/L1:14', 'f/L4:1'], []]);
+  /* 2026-11-10 (Eigentümer) — EIN Weg führt zu jedem Turm (dort entscheidet man: gleich erobern oder erst wiederholen); ein anderer Weg in denselben Turm ist eine Möglichkeit. */
+  check('plan: one story track leads to each tower; another track into the same tower is an option', [pl.steps.filter((s) => s.kind === 'travel' && s.place === 'warsz').map((s) => s.section), travelWarsz.alternatives.map((a) => a.section)], [['f/L4:2'], ['f/L1:14']]);
   const travelMagone = pl.steps.find((s) => s.kind === 'travel' && s.place === 'magone');
-  check('plan: other branches to the same knowledge are branch options', [travelMagone.section, travelMagone.alternatives.map((a) => a.section)], ['f/L4:4', ['f/L4:5', 'f/L4:6']]);
+  check('plan: other branches to the same knowledge are branch options', [travelMagone.section, travelMagone.alternatives.map((a) => a.section)], ['f/L4:5', ['f/L4:6', 'f/L4:7']]);
   const chosen = P.plan(st, 'magone', { choices: new Map([['magone', 'f/L4:6']]) });
   check('plan: choosing an option recomputes from there', chosen.steps.filter((s) => s.kind === 'travel' && s.place === 'magone').map((s) => s.section)[0], 'f/L4:6');
   const zero = P.plan(S.stateOf(world, lines, learner, { levels: 0, knownShare: 1 }), 'magone');
@@ -359,8 +368,8 @@ for (const [n, m, budget] of [[1000, 40, 2500], [5000, 150, 8000]]) {
   const ms = performance.now() - t0;
   check(`generated ${n}: all places read`, w.places.size, n);
   check(`generated ${n}: every story is a line with sections`, [...ls.lines.values()].filter((l) => !l.deepening).length >= m && [...ls.lines.values()].every((l) => l.sections.length > 0), true);
-  check(`generated ${n}: sections join places (or Home)`, [...ls.sections.values()].every((s) => (s.from === HOME || w.places.has(s.from)) && w.places.has(s.to)), true);
-  check(`generated ${n}: stations with 3-way forks exist`, [...ls.stations.values()].some((s) => s.forks.some((f) => f.branches.length >= 2)), true);
+  check(`generated ${n}: sections join places, Home or the nodes between towers`, [...ls.sections.values()].every((s) => (s.from === HOME || w.places.has(s.from) || T.isJunction(s.from)) && (w.places.has(s.to) || T.isJunction(s.to))), true);
+  check(`generated ${n}: forks are nodes of their own with 2 or more ways`, [...ls.junctions.values()].some((j) => j.kind === 'fork' && j.out.length >= 2), true);
   check(`generated ${n}: model within ${budget} ms (took ${Math.round(ms)})`, ms < budget, true);
 }
 
@@ -379,11 +388,16 @@ for (const [n, m, budget] of [[1000, 40, 2500], [5000, 150, 8000]]) {
   check('broken: a flow without places is not drawn', [ls.lines.has('f/empty'), ls.lines.has('f/ghostunit')], [false, false]);
   check('broken: the place without a line stands free', [...ls.sections.values()].some((s) => s.to === 'lonely' || s.from === 'lonely'), false);
   const st = S.stateOf(w, ls, F.fakeLearner({}), { levels: 0, knownShare: 1 });
-  const qr = st.sections.get('f/mid:1');
-  check('broken: an unknown condition type locks (fails closed)', [qr.ticket.met, qr.ticket.unknown, qr.ticket.symbol, qr.cost], [false, true, 'unknown', Infinity]);
-  check('broken: … even inside "and"', st.sections.get('f/mid:3').ticket.unknown, true);
-  const later = st.sections.get('f/mid:0');
-  check('broken: a section requiring cards introduced only later shows their source', [later.ticket.missing.new.includes('q/C/0'), st.sources('q/C/0').map((s) => s.section)], [true, ['f/mid:3', 'f/mid:4']]);
+  /* 2026-11-10 — die Wahl führt zu verschiedenen Türmen: ein eigener Knoten; die Bedingung der Möglichkeit sperrt ihren Zweig. */
+  const sectionTo = (from, to) => [...ls.sections.values()].find((s) => s.line === 'f/mid' && (from === null || s.from === from) && s.to === to);
+  const qrSec = [...ls.sections.values()].find((s) => s.line === 'f/mid' && s.ticket.some((p) => p.source === 'option'));
+  const qr = st.sections.get(qrSec.id);
+  check('broken: an unknown condition type locks (fails closed)', [T.isJunction(qrSec.from), qrSec.to, qr.ticket.met, qr.ticket.unknown, qr.ticket.symbol, qr.cost], [true, 'X', false, true, 'unknown', Infinity]);
+  check('broken: … even inside "and"', st.sections.get(sectionTo('X', 'C').id).ticket.unknown, true);
+  /* Die Einheit verlangt zwei Türme (B und C): die Linie beginnt an einem Tor, ihr Ticket steht auf dem Weg zum Tor. */
+  const later = st.sections.get('f/mid:gate');
+  check('broken: a section requiring cards introduced only later shows their source', [later.ticket.missing.new.includes('q/C/0'), st.sources('q/C/0').map((s) => s.section)], [true, [sectionTo('X', 'C').id, sectionTo('Y', 'C').id]]);
+  check('broken: required towers come as tracks — the second of the unit to its gate, the one of the gate step to each gated path', ls.links.filter((l) => l.line === 'f/mid').map((l) => [l.from, l.to]), [['B', '~g:f/mid'], ['A', 'X'], ['A', 'Y']]);
   check('broken: the line starting mid-world starts at its required place', ls.lines.get('f/mid').start, 'C');
   check('broken: the unit requiring the stage\'s prerequisite instead of the stage', [...w.issues, ...ls.issues].filter((i) => i.code === 'requiresSiblingPrerequisite').map((i) => i.ids), [['u/deep', 'u/stage']]);
   check('broken: members of a unit its story never detours to', [...w.issues, ...ls.issues].filter((i) => i.code === 'membersNotDetoured').map((i) => i.ids), [['u/stage', 'u/member']]);

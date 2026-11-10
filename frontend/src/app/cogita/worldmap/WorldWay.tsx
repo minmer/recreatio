@@ -75,7 +75,7 @@ export function WayChain({ parts, ctx, target, big = false, more = 0 }: {
 }
 
 /** Wie viele Teile jeder Art (für die Zeile über der Kette). */
-function countLine(steps: readonly PlanStep[], ctx: PanelCtx): string {
+export function countLine(steps: readonly PlanStep[], ctx: PanelCtx): string {
   const n = (k: PlanStep['kind']) => steps.filter((s) => s.kind === k).length;
   return ([['travel', n('travel')], ['review', n('review')], ['learn', n('learn') + n('know')], ['run', n('run')]] as const)
     .filter(([, c]) => c > 0).map(([k, c]) => ctx.t(`cogitaWorld.way.count.${k}`, { count: c })).join(' · ');
@@ -96,7 +96,7 @@ export function WayPreview({ plan, ctx }: { plan: Plan; ctx: PanelCtx }) {
 }
 
 /** Im Vollbild: der Weg und die Einladung zum nächsten Teil. */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -105,6 +105,8 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd }: {
   onGo: (step: PlanStep) => void;
   onMap: () => void;
   onEnd: () => void;
+  /** 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man noch nicht kann. */
+  onPrepare?: (step: PlanStep) => void;
 }) {
   const { t, nameOf } = ctx;
   const all = tt.done.length + tt.upcoming.length;
@@ -139,6 +141,7 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd }: {
           {stepMeta(next, ctx, rules) !== '' && <p className="cg-wm-meta">{stepMeta(next, ctx, rules)}</p>}
           <div className="wk-actions">
             {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
+            {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
             <button type="button" className="wk-link-btn" onClick={onMap} data-world-next-map="">{t('cogitaWorld.way.toMap')}</button>
             <button type="button" className="wk-link-btn" onClick={onEnd} data-world-next-stop="">{t('cogitaWorld.nav.end')}</button>
           </div>

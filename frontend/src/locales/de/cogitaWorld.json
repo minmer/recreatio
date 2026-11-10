@@ -132,7 +132,33 @@
     "fullNext": "Weiter",
     "pageOn": "Ganze Seite",
     "fullSays": "Der ganze Bildschirm — Esc führt zurück zur ganzen Seite",
-    "pageSays": "Die Karte füllt das Fenster des Browsers; Esc schliesst sie"
+    "pageSays": "Die Karte füllt das Fenster des Browsers; Esc schliesst sie",
+    "forkOf": "Gabelung auf „{line}“",
+    "gateOf": "Tor von „{line}“",
+    "junctionBefore": {
+      "one": "{count} Folie, dann",
+      "other": "{count} Folien, dann"
+    },
+    "junctionWays": {
+      "one": "Gabelung: {count} Weg",
+      "other": "Gabelung: {count} Wege"
+    },
+    "junctionGate": {
+      "one": "Tor: {count} Turm",
+      "other": "Tor: {count} Türme treffen sich"
+    },
+    "needsFirst": {
+      "one": "Gesperrt — erst {count} Turm:",
+      "other": "Gesperrt — erst {count} Türme:"
+    },
+    "reqOpen": {
+      "one": "{count} jetzt offen",
+      "other": "{count} jetzt offen"
+    },
+    "reqDone": {
+      "one": "{count} erobert",
+      "other": "{count} erobert"
+    }
   },
   "panel": {
     "close": "Schließen",
@@ -207,7 +233,39 @@
     "towerFirstLevel": "erst Stufe {level} des Startturms erreichen",
     "prepareN": "Erst wiederholen, was ich nicht kann ({count})",
     "prepareSays": "Nur die Karten, die noch nicht sitzen — eine gute Vorbereitung auf den Durchgang.",
-    "conquerSays": "Alle {count} Karten beantworten — das erobert den Turm"
+    "conquerSays": "Alle {count} Karten beantworten — das erobert den Turm",
+    "requiresFirst": {
+      "one": "Erst {count} Turm erobern:",
+      "other": "Erst {count} Türme erobern:"
+    },
+    "req": {
+      "done": "erobert",
+      "open": "offen",
+      "locked": "gesperrt"
+    },
+    "conquerNow": "Jetzt erobern",
+    "conquerUnseen": {
+      "one": "Alle {all} Karten werden gefragt — {count} davon wurde dir nie gestellt.",
+      "other": "Alle {all} Karten werden gefragt — {count} davon wurden dir nie gestellt."
+    },
+    "exploreFirst": "Erst den Weg erkunden",
+    "exploreSays": {
+      "one": "Eine Erzählung erklärt {count} Karte, die du noch nicht kennst.",
+      "other": "Eine Erzählung erklärt {count} Karten, die du noch nicht kennst."
+    },
+    "noStory": {
+      "one": "{count} Karte erklärt keine Erzählung — sie wird direkt gelernt.",
+      "other": "{count} Karten erklärt keine Erzählung — sie werden direkt gelernt."
+    },
+    "questionsN": {
+      "one": "{count} Frage",
+      "other": "{count} Fragen"
+    },
+    "styles": {
+      "one": "{count} Erklärweise",
+      "other": "{count} Erklärweisen"
+    },
+    "gateFrom": "Hier treffen sich die Wege von {names}."
   },
   "nav": {
     "target": "Ziel: {name}",
@@ -230,7 +288,11 @@
     "arrived": "Du bist da: {name}",
     "startHere": "Hier beginnen",
     "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}",
-    "review": "Wiederholen, bevor du {to} erkundest"
+    "review": "Wiederholen, bevor du {to} erkundest",
+    "runUnseen": {
+      "one": "{count} Karte nie gefragt",
+      "other": "{count} Karten nie gefragt"
+    }
   },
   "issue": {
     "title": {

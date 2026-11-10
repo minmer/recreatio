@@ -106,11 +106,11 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   check('run gate: L2 of sen is ready at once (no gap)', gate(st, 'sen'), { kind: 'ready', level: 2 });
   const kug = gate(st, 'kuglarz');
   check('run gate: every card appeared, but the prerequisite sen is not conquered', [kug.kind, kug.needs], ['locked', ['sen']]);
-  const unseen = gate(stateFor(learnedAll(['becchi', 'sen'])), 'kuglarz');
-  check('run gate: cards that never appeared lock it too', [unseen.kind, unseen.unseen.length], ['locked', cardsOf('kuglarz').length]);
+  /* 2026-11-10 (Eigentümer) — nie gefragte Karten sperren den Durchgang nicht mehr: man darf jederzeit zu erobern versuchen. */
+  check('run gate: cards that never appeared do not lock it (its prerequisites are conquered)', gate(stateFor(learnedAll(['becchi'])), 'antoni'), { kind: 'ready', level: 1 });
   check('run gate: no levels, no runs', R.runGate(st.ctx, 'sen', levels.get('sen'), 0).kind, 'none');
   const unlock = R.runUnlock(world, 'kuglarz');
-  check('run unlock is a condition of the one language', [unlock.type, unlock.items.map((i) => i.type)], ['and', ['knowness', 'conquered']]);
+  check('run unlock is a condition of the one language: only the prerequisites', [unlock.type, unlock.items.map((i) => i.type)], ['and', ['conquered']]);
   /* reviewable aus den Durchgängen. */
   const scope = { world, settings: { levels: 3 }, places: new Map([...world.places.keys()].map((p) => [p, { conquered: (levels.get(p)?.level ?? 0) >= 3 }])) };
   check('reviewable from runs: becchi conquered → its cards; sen not yet', [S.reviewable(cardsOf('becchi')[0], scope), S.reviewable(cardsOf('sen')[0], scope)], [true, false]);

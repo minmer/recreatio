@@ -47,21 +47,26 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
 /* -- Klickpfad 1 als Modell: Abschnitt mit Schloss → Quellen → direkt lernen → Schloss fort ---------------------------------- */
 {
   const st = S.stateOf(world, lines, F.fakeLearner({}), { levels: 0, knownShare: 1 });
-  const s = st.sections.get('f/L4:2');
+  /* 2026-11-10 — die Gabelung ist ein eigener Knoten: der Zweig „Do studentów" ist der zweite Weg ab ihm. */
+  const branchId = [...lines.junctions.values()].find((j) => j.step === bx.fork).out[1];
+  const s = st.sections.get(branchId);
   check('ticket: the branch "Do studentów" needs „Comollo" (the condition of its option)', [s.ticket.met, s.ticket.symbol, s.ticket.parts.map((p) => [p.part.source, p.part.condition.type, p.part.condition.of])], [false, 'knowledge', [['option', 'knowness', 'comollo']]]);
   check('ticket: its missing cards are the cards of „Comollo"', s.ticket.missing.new.slice().sort(), world.places.get('comollo').cards.slice().sort());
   const groups = {};
-  for (const k of s.ticket.missing.new) { const src = st.sources(k).find((x) => x.section !== 'f/L4:2'); const key = src?.section ?? 'direct'; groups[key] = (groups[key] ?? 0) + 1; }
-  check('sources: 10 cards from a line (open now), 3 with no slide — learn directly', [groups, st.sections.get('f/L2:4').ticket.met], [{ 'f/L2:4': 10, direct: 3 }, true]);
+  for (const k of s.ticket.missing.new) { const src = st.sources(k).find((x) => x.section !== branchId); const key = src?.section ?? 'direct'; groups[key] = (groups[key] ?? 0) + 1; }
+  /* 2026-11-10 — eine Karte ist eingeführt, wo sie gefragt wird ODER wo die Folie gezeigt wird, die sie erklärt: alle 13 auf ihrer Linie, keine direkt. */
+  check('sources: every card of Comollo comes from its line (asked or explained by a shown slide) — none to learn directly', [groups, st.sections.get('f/L2:4').ticket.met], [{ 'f/L2:4': 13 }, true]);
   const after = S.stateOf(world, lines, F.fakeLearner({ knowness: Object.fromEntries(s.ticket.missing.new.map((k) => [k, 3])) }), { levels: 0, knownShare: 1 });
-  check('learn directly: the lock is gone (ticket met, a finite step on the way)', [after.sections.get('f/L4:2').ticket.met, Number.isFinite(after.sections.get('f/L4:2').cost)], [true, true]);
+  check('learn directly: the lock is gone (ticket met, a finite step on the way)', [after.sections.get(branchId).ticket.met, Number.isFinite(after.sections.get(branchId).cost)], [true, true]);
 }
 
 /* -- Klickpfad 2 als Modell: Umsteigeort mit 3 Zweigen → einen wählen ----------------------------------------------------- */
 {
+  /* 2026-11-10 (Eigentümer) — die Gabelung liegt zwischen den Türmen: ein eigener Knoten nach domkos, von ihm drei Wege. */
   const station = lines.stations.get('domkos');
-  check('station: one story splits here into 3 branches', station.forks.map((f) => [f.line, f.step, f.branches.length]), [['f/L4', 'ch2', 3]]);
-  check('station: each branch leaves from here with its choice and exit', ['f/L4:1', 'f/L4:2', 'f/L4:3'].map((id) => [station.out.includes(id), lines.sections.get(id).start]), [[true, { step: 'ch2', exit: 'o0' }], [true, { step: 'ch2', exit: 'o1' }], [true, { step: 'ch2', exit: 'o2' }]]);
+  const J = [...lines.junctions.values()].find((j) => j.from === 'domkos' && j.kind === 'fork');
+  check('fork: one story splits after domkos into 3 branches, at a node of its own', [J.line, J.step, J.out.length, station.out.some((id) => lines.sections.get(id).to === J.id)], ['f/L4', 'ch2', 3, true]);
+  check('fork: each branch leaves the node with its choice and exit', J.out.map((id) => [lines.sections.get(id).from === J.id, lines.sections.get(id).start]), [[true, { step: 'ch2', exit: 'o0' }], [true, { step: 'ch2', exit: 'o1' }], [true, { step: 'ch2', exit: 'o2' }]]);
   const flows = new Map(bx.input.flows.map((f) => [f.id, f]));
   const flow = flows.get('f/L4');
   const facts = { values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0), flow: () => undefined };
@@ -84,22 +89,36 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   const plan0 = P.plan(st, 'magone');
   const tt0 = N.followPlan(null, plan0);
   check('timetable: a new plan has nothing done, every step upcoming', [tt0.done.length, tt0.upcoming.length, tt0.target], [0, plan0.steps.length, 'magone']);
-  const turnAt = tt0.upcoming.findIndex((s) => s.kind === 'travel' && s.alternatives.length > 0);
+  const turnAt = tt0.upcoming.findIndex((s) => s.kind === 'travel' && s.place === 'magone');
   const turn = tt0.upcoming[turnAt];
-  check('timetable: a branch option on the way (another branch to the same knowledge)', [turn.place, turn.section, turn.alternatives.map((a) => a.section)], ['magone', 'f/L4:4', ['f/L4:5', 'f/L4:6']]);
+  check('timetable: a branch option on the way (another track into the same tower)', [turn.place, turn.section, turn.alternatives.map((a) => a.section)], ['magone', 'f/L4:5', ['f/L4:6', 'f/L4:7']]);
   const plan1 = P.plan(st, 'magone', { choices: new Map([['magone', 'f/L4:6']]) });
   const tt1 = N.followPlan(tt0, plan1, true);
   check('timetable: choosing recomputes from that stop — the stop is the chosen branch, nothing marked done', [tt1.done.length, N.stepKey(tt1.upcoming[turnAt]), tt1.upcoming.slice(0, turnAt).map(N.stepKey)], [0, 'travel:f/L4:6', tt0.upcoming.slice(0, turnAt).map(N.stepKey)]);
   /* Der Lernende fährt den ersten Abschnitt: seine Karten sind eingeführt → der Schritt ist erledigt. */
   const first = tt1.upcoming[0];
   check('timetable: the first step is a travel', first.kind, 'travel');
-  const st2 = S.stateOf(world, lines, F.fakeLearner({ knowness: { ...known(world.order.filter((p) => !missing.includes(p))), ...Object.fromEntries(first.cards.map((k) => [k, 0.5])) } }), { levels: 0, knownShare: 1 });
+  /* 2026-11-10 — eine Fahrt ist erledigt, wenn ihr Weg gegangen ist (die Erzählung gelesen), nicht schon, wenn ihre Karten bekannt sind. */
+  const firstSec = lines.sections.get(first.section);
+  const st2 = S.stateOf(world, lines, F.fakeLearner({ knowness: { ...known(world.order.filter((p) => !missing.includes(p))), ...Object.fromEntries(first.cards.map((k) => [k, 0.5])) }, progress: { [firstSec.line]: { visited: [...firstSec.steps] } } }), { levels: 0, knownShare: 1 });
   const tt2 = N.followPlan(tt1, P.plan(st2, 'magone', { choices: new Map([['magone', 'f/L4:6']]) }));
-  check('timetable: after learning, the travelled step counts as done', [tt2.done.map(N.stepKey), tt2.upcoming.some((s) => N.stepKey(s) === N.stepKey(first))], [[N.stepKey(first)], false]);
+  check('timetable: after travelling it, the step counts as done', [tt2.done.map(N.stepKey), tt2.upcoming.some((s) => N.stepKey(s) === N.stepKey(first))], [[N.stepKey(first)], false]);
   /* 2026-11-10 — ein Weg ist offen nur vom Haus oder von einem eroberten Turm; der Plan erobert den Turm vorher. */
-  const startOk = (sid) => { const x = lines.sections.get(sid); return x.from === T.HOME || st.places.get(x.from)?.conquered === true; };
+  /* 2026-11-10 — ein Weg ab einer Gabelung ist offen, wenn der Weg zu ihr offen ist (hier: ab einem eroberten Turm). */
+  const nodeOk = (id) => id === T.HOME || st.places.get(id)?.conquered === true || (T.isJunction(id) && [...lines.sections.values()].some((x) => x.to === id && nodeOk(x.from)));
+  const startOk = (sid) => nodeOk(lines.sections.get(sid).from);
   check('lanes: a section is open exactly when it starts at home or at a conquered tower', [...st.sections].every(([sid, x]) => x.open === startOk(sid)) && [...st.sections.values()].some((x) => !x.open), true);
-  check('plan: every ride starts at home, at a conquered tower, or at a tower the plan conquers before it', plan0.steps.every((x, i) => x.kind !== 'travel' || startOk(x.section) || plan0.steps.slice(0, i).some((y) => (y.kind === 'run' || y.kind === 'know') && y.place === lines.sections.get(x.section).from)), true);
+  const conqueredBefore = (place, i) => plan0.steps.slice(0, i).some((y) => (y.kind === 'run' || y.kind === 'know') && y.place === place);
+  const startPlace = (sid) => { let at = lines.sections.get(sid).from; let guard = 0; while (T.isJunction(at) && guard < 8) { guard += 1; at = lines.junctions.get(at)?.from ?? at; } return at; };
+  check('plan: every ride starts at home, at a conquered tower, or at a tower the plan conquers before it (through its fork)', plan0.steps.every((x, i) => x.kind !== 'travel' || startOk(x.section) || conqueredBefore(startPlace(x.section), i)), true);
+  /* 2026-11-10 (Eigentümer: „der Weg ist zusammenhängend") — jede Spur des Weges beginnt dort, wo eine frühere endet (oder am Haus). */
+  const reached = new Set([T.HOME]);
+  let gaps = 0;
+  for (const id of plan0.route) {
+    const x = lines.sections.get(id);
+    if (reached.has(x.from) || reached.has(x.to)) { reached.add(x.from); reached.add(x.to); } else gaps += 1;
+  }
+  check('plan: the route is continuous — no jumps', gaps, 0);
   /* 2026-11-10 — ab wann sich die Pfade eines Turms öffnen (`openAt`): 0 sofort, k ab Stufe k, sonst die Eroberung. */
   {
     const from = [...lines.sections.values()].find((x) => x.from !== T.HOME && x.from !== x.to && world.places.has(x.from)).from;
@@ -117,13 +136,13 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   const lastStep = sec.steps[sec.steps.length - 1];
   const st3 = S.stateOf(world, lines, F.fakeLearner({ knowness: known(world.order.filter((p) => !missing.includes(p))), progress: { [sec.line]: { visited: [...sec.steps] } } }), { levels: 0, knownShare: 1 });
   const tt3 = N.followPlan(tt1, P.plan(st3, 'magone', { choices: new Map([['magone', 'f/L4:6']]) }));
-  check('way: a story read without answers is done; its cards are learned next, the ride is not offered again', [st3.sections.get(first.section).travelled, tt3.done.map(N.stepKey), tt3.upcoming.some((x) => N.stepKey(x) === N.stepKey(first)), tt3.upcoming.some((x) => x.kind === 'learn' && first.cards.every((k) => x.cards.includes(k)))], [true, [N.stepKey(first)], false, true]);
+  check('way: a story read without answers is done; its cards are learned at its tower, the ride is not offered again', [st3.sections.get(first.section).travelled, tt3.done.map(N.stepKey), tt3.upcoming.some((x) => N.stepKey(x) === N.stepKey(first)), tt3.upcoming.some((x) => (x.kind === 'learn' || x.kind === 'know') && first.cards.every((k) => x.cards.includes(k)))], [true, [N.stepKey(first)], false, true]);
   check('way: every part of the way has its own key (review before a ride by its section)', [N.stepKey({ kind: 'review', place: 'p', section: 's', cards: [] }), N.stepKey({ kind: 'run', place: 'p', level: 2, upTo: 3 })], ['review:s', 'run:p:2']);
   const w = P.timetableWindow(['d1', 'd2', 'd3'], ['c', 'n1', 'n2', 'n3', 'n4', 'n5', 'n6']);
   check('window: 2 done above, the current one, 4 below, the rest by scrolling', [w.done, w.current, w.next, w.hiddenAbove, w.hiddenBelow], [['d2', 'd3'], 'c', ['n1', 'n2', 'n3', 'n4'], 1, 2]);
   const marks = N.navMarks(tt1, lines);
-  const travels = tt1.upcoming.map((s, i) => [s, i]).filter(([s]) => s.kind === 'travel');
-  check('map: the next steps glow, later ones are faint', [marks.next, marks.later], [travels.filter(([, i]) => i < N.WINDOW_NEXT).map(([s]) => s.section), travels.filter(([, i]) => i >= N.WINDOW_NEXT).map(([s]) => s.section)]);
+  /* 2026-11-10 (Eigentümer: „der ganze Weg leuchtet als eine Linie") — der ganze Weg kräftig, auch gefahrene Spuren, nichts blass. */
+  check('map: the whole route glows as one line', [marks.next.slice().sort(), marks.later], [[...new Set(tt1.route)].sort(), []]);
   check('map: the pennant stands where the current step begins, the flag at the target', [marks.start, marks.target], [N.stepPlace(tt1.upcoming[0], lines), 'magone']);
   check('map: a fork where one can turn', marks.forks.includes(lines.sections.get(tt1.upcoming[turnAt].section).from), true);
   /* Die Sitzung: ein Neuladen behält Ziel und Abzweigungen, nichts geht ins Konto. */

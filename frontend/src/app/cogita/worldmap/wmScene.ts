@@ -80,6 +80,53 @@ export interface SceneLane {
   /** 2026-11-10 — der vereinfachte innere Weg: der Abschnitt beginnt an einer Wahl (Gabel) / endet mit dem Przegląd (↻). */
   readonly forkStart: boolean;
   readonly review: boolean;
+  /**
+   * 2026-11-10 — DIESELBEN KARTEN, ANDERS VERPACKT: so viele weitere Verpackungen laufen neben dem Pfad (eine kleine Schleife),
+   * zwischen den Anteilen `from`…`to` seiner Länge (dort, wo die Verpackungen verschieden sind). Null: keine.
+   */
+  readonly variants: { readonly more: number; readonly from: number; readonly to: number } | null;
+}
+
+/** 2026-11-10 — ein Knoten zwischen Türmen auf der Karte: eine Gabelung (k Wege) oder ein Tor (wo verlangte Türme zusammenkommen). */
+export interface SceneJunction {
+  readonly id: string;
+  readonly kind: 'fork' | 'gate';
+  readonly line: string;
+  readonly x: number;
+  readonly y: number;
+  readonly r: number;
+  readonly color: Rgb;
+  /** Die Folien (und Fragen) zwischen dem Turm und der Gabelung. */
+  readonly before: { readonly slides: number; readonly questions: number };
+  /** Je Weg, der hier abfährt: wohin und wie viele Folien/Fragen. */
+  readonly ways: readonly { readonly section: string; readonly to: string; readonly slides: number; readonly questions: number }[];
+  /** Offen: man kann ihn erreichen (die Spur zu ihm ist offen). */
+  readonly open: boolean;
+}
+
+/**
+ * 2026-11-10 (Eigentümer: „Tore werden gezeichnet") — EINE SPUR VON EINEM VERLANGTEN TURM ZU SEINEM TOR: zu einer Gabelung, einem
+ * Tor-Knoten oder zum gesperrten Turm selbst. `met`: der verlangte Turm ist erobert.
+ */
+export interface SceneLink {
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
+  readonly a: readonly [number, number];
+  readonly b: readonly [number, number];
+  readonly ra: number;
+  readonly rb: number;
+  readonly met: boolean;
+  readonly kind: 'gate' | 'requires';
+}
+
+/** 2026-11-10 — ein Abstecher als Schleife an seiner Stelle eines Pfades (Anteil `at` seiner Länge), mit den Schritten der gerufenen Erzählung. */
+export interface SceneLoop {
+  readonly section: string;
+  readonly target: string;
+  readonly at: number;
+  readonly marks: readonly ('slide' | 'question')[];
+  readonly color: Rgb;
 }
 
 export interface Scene {
@@ -89,6 +136,9 @@ export interface Scene {
   readonly home: { readonly x: number; readonly y: number; readonly r: number } | null;
   readonly tracks: readonly { readonly key: string; readonly points: readonly number[]; readonly lanes: number }[];
   readonly lanes: readonly SceneLane[];
+  readonly junctions: readonly SceneJunction[];
+  readonly links: readonly SceneLink[];
+  readonly loops: readonly SceneLoop[];
   /** Mitte und Halbmesser der ganzen Welt. */
   readonly extent: { readonly cx: number; readonly cy: number; readonly radius: number };
 }
@@ -141,9 +191,34 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   const byLine = new Map<string, Section[]>();
   for (const s of lines.sections.values()) { const l = byLine.get(s.line) ?? []; l.push(s); byLine.set(s.line, l); }
   const lineSections = (line: string): readonly Section[] => byLine.get(line) ?? [];
+  /*
+    2026-11-10 — VERPACKUNGEN: dieselbe Strecke mehrmals (je Verpackung ein Abschnitt). Gezeichnet wird einer — der, auf dem der
+    Lernende am weitesten ist —, die anderen als Schleife daneben, zwischen dem gemeinsamen Anfang und dem gemeinsamen Ende.
+  */
+  const groups = new Map<string, Section[]>();
+  for (const s of lines.sections.values()) {
+    if (s.variant === undefined || s.from === s.to) continue;
+    const k = `${s.line}|${s.from}|${s.to}|${s.variant.choice}`;
+    const l = groups.get(k) ?? []; l.push(s); groups.set(k, l);
+  }
+  const shownOf = new Map<string, string>();
+  const variantsOf = new Map<string, SceneLane['variants']>();
+  for (const list of groups.values()) {
+    const seenCount = (s: Section) => (state.sections.get(s.id)?.seen ?? []).filter(Boolean).length;
+    const rep = list.slice().sort((a, b) => seenCount(b) - seenCount(a) || (a.variant!.index - b.variant!.index))[0];
+    for (const s of list) shownOf.set(s.id, rep.id);
+    if (list.length < 2) continue;
+    let pre = 0;
+    while (list.every((s) => s.steps[pre] !== undefined && s.steps[pre] === rep.steps[pre])) pre += 1;
+    let suf = 0;
+    while (suf < rep.steps.length - pre && list.every((s) => s.steps.length - 1 - suf >= pre && s.steps[s.steps.length - 1 - suf] === rep.steps[rep.steps.length - 1 - suf])) suf += 1;
+    const n = Math.max(1, rep.steps.length);
+    variantsOf.set(rep.id, { more: list.length - 1, from: pre / (n + 1), to: Math.min(1, (n - suf + 1) / (n + 1)) });
+  }
   const lanes: SceneLane[] = [];
   for (const s of lines.sections.values()) {
     if (s.from === s.to) continue;
+    if ((shownOf.get(s.id) ?? s.id) !== s.id) continue;
     const a = nodeOf(s.from), b = nodeOf(s.to);
     const st = state.sections.get(s.id);
     const colour = opts.lineColour.get(s.line);
@@ -173,11 +248,69 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       marks: s.steps.map((x) => (s.questions.includes(x) ? 'question' as const : 'slide' as const)), seen: st?.seen ?? [],
       forkStart: s.start?.exit !== undefined,
       review: lines.lines.get(s.line)?.review === true && s.kind !== 'return' && !lineSections(s.line).some((o) => o.id !== s.id && o.branch === s.branch && o.from === s.to),
-      kind: s.kind === 'return' ? 'back' : lines.lines.get(s.line)?.deepening === true || s.kind === 'entry' ? 'deepening' : s.branch !== s.line ? 'branch' : 'main',
-      color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null
+      kind: s.kind === 'return' ? 'back' : lines.lines.get(s.line)?.deepening === true ? 'deepening' : s.branch !== s.line ? 'branch' : 'main',
+      color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null,
+      variants: variantsOf.get(s.id) ?? null
     });
   }
   const tracks = g.tracks.map((t) => ({ key: pairKey(t.a, t.b), points: t.points, lanes: lanesOf.get(pairKey(t.a, t.b))?.length ?? 1 }));
+
+  /* -- 2026-11-10: Gabelungen und Tore, ihre Spuren, die verlangten Türme, die Abstecher ------------------------------------ */
+  const junctions: SceneJunction[] = [];
+  for (const j of lines.junctions.values()) {
+    const pos = g.positions[j.id];
+    if (pos === undefined) continue;
+    const seen = new Set<string>();
+    const ways: { section: string; to: string; slides: number; questions: number }[] = [];
+    for (const id of j.out) {
+      const shown = shownOf.get(id) ?? id;
+      if (seen.has(shown)) continue;
+      seen.add(shown);
+      const s = lines.sections.get(shown);
+      if (s !== undefined) ways.push({ section: s.id, to: s.to, slides: s.slides, questions: s.questions.length });
+    }
+    junctions.push({
+      id: j.id, kind: j.kind, line: j.line, x: pos[0], y: pos[1], r: g.radii[j.id] ?? 6,
+      color: opts.lineColour.get(j.line)?.color ?? opts.fallback, before: j.before, ways,
+      open: j.out.some((id) => state.sections.get(id)?.open === true)
+    });
+  }
+  const links: SceneLink[] = [];
+  const at = (id: string): { p: readonly [number, number]; r: number } | null => {
+    const p = g.positions[id];
+    if (p === undefined) return null;
+    return { p, r: id === HOME_ID ? 0 : g.radii[id] ?? 28 };
+  };
+  const conqueredOf = (p: string) => state.places.get(p)?.conquered === true || (world.blocks.get(p)?.parts.every((x) => state.places.get(x)?.conquered === true) ?? false);
+  for (const l of lines.links) {
+    const a = at(l.from), b = at(l.to);
+    if (a === null || b === null) continue;
+    links.push({ id: l.id, from: l.from, to: l.to, a: a.p, b: b.p, ra: a.r, rb: b.r, met: conqueredOf(l.from), kind: 'gate' });
+  }
+  /*
+    Ein gesperrter Turm (eine seiner Voraussetzungen ist nicht erobert): von jeder seiner Voraussetzungen eine Spur zu ihm —
+    ausser sie ist schon zu sehen (ein Weg von ihr hierher, oder eine Spur von ihr zu dem Knoten, von dem der Weg hierher kommt).
+  */
+  const into = new Map<string, Section[]>();
+  for (const s of lines.sections.values()) if (s.from !== s.to) { const l = into.get(s.to) ?? []; l.push(s); into.set(s.to, l); }
+  const shownBy = (need: string, place: string): boolean => (into.get(place) ?? []).some((s) => s.from === need
+    || (lines.junctions.get(s.from)?.from === need) || lines.links.some((l) => l.from === need && l.to === s.from));
+  for (const p of world.places.values()) {
+    if (state.places.get(p.id)?.conquered === true || p.needs.every((n) => state.places.get(n)?.conquered === true)) continue;
+    for (const n of p.needs) {
+      if (shownBy(n, p.id)) continue;
+      const a = at(n), b = at(p.id);
+      if (a === null || b === null) continue;
+      links.push({ id: `${n}>${p.id}`, from: n, to: p.id, a: a.p, b: b.p, ra: a.r, rb: b.r, met: state.places.get(n)?.conquered === true, kind: 'requires' });
+    }
+  }
+  const loops: SceneLoop[] = [];
+  for (const l of lines.loops) {
+    const shown = shownOf.get(l.section) ?? l.section;
+    const s = lines.sections.get(shown);
+    if (s === undefined || s.from === s.to) continue;
+    loops.push({ section: shown, target: l.target, at: Math.max(0.05, Math.min(0.95, (l.at + 0.5) / Math.max(1, s.steps.length + 1))), marks: l.marks, color: opts.lineColour.get(l.target)?.color ?? opts.lineColour.get(l.line)?.color ?? opts.fallback });
+  }
 
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const id of Object.keys(g.positions)) { const [x, y] = g.positions[id]; const r = g.radii[id] ?? 28; x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); }
@@ -186,5 +319,5 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   let radius = 60;
   for (const id of Object.keys(g.positions)) { const [x, y] = g.positions[id]; radius = Math.max(radius, Math.hypot(x - cx, y - cy) + (g.radii[id] ?? 28)); }
   const extent = Number.isFinite(x0) ? { cx, cy, radius } : { cx: 0, cy: 0, radius: 200 };
-  return { places, byId, blocks, home, tracks, lanes, extent };
+  return { places, byId, blocks, home, tracks, lanes, junctions, links, loops, extent };
 }

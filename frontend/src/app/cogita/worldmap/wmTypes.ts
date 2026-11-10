@@ -11,6 +11,13 @@ import type { Flow } from '../flow';
 /** Der Startpunkt: flach auf dem Boden. Linien ohne Voraussetzungen beginnen hier. */
 export const HOME = '~home';
 
+/**
+ * 2026-11-10 (Eigentümer, „das Modell der Karte") — KNOTEN ZWISCHEN DEN TÜRMEN: eine Gabelung (`~j:<Linie>:<Wahl>`) liegt auf dem
+ * Weg, nicht am Turm — der Weg kommt vom Turm über seine Wegfolien zu ihr, von ihr fährt je Zweig ein Weg zu seinem Turm. Ein
+ * Tor (`~g:<Linie>`) ist der Punkt, an dem die Wege aller Türme zusammenkommen, die eine Linie verlangt.
+ */
+export const isJunction = (id: string): boolean => id.startsWith('~j:') || id.startsWith('~g:');
+
 /* -- Eingang ------------------------------------------------------------------------------------------------------------ */
 
 /** Ein Verweis eines Eintrags mit der Rolle, die sein Feld im Schema erklärt. */
@@ -148,6 +155,42 @@ export interface TicketPart {
 
 export type SectionKind = 'entry' | 'main' | 'return';
 
+/** 2026-11-10 — ein Abstecher an genau seiner Stelle im Weg: auf der Karte eine Schleife (`at`: so viele Schritte des Abschnitts davor). */
+export interface DetourLoop {
+  readonly section: string;
+  readonly line: string;
+  readonly step: string;
+  readonly target: string;
+  readonly at: number;
+  /** Die Schritte der gerufenen Erzählung als Zeichen (Folie oder Frage). */
+  readonly marks: readonly ('slide' | 'question')[];
+}
+
+/** 2026-11-10 — ein Knoten zwischen Türmen (`isJunction`): eine Gabelung oder ein Tor. */
+export interface Junction {
+  readonly id: string;
+  readonly kind: 'fork' | 'gate';
+  readonly line: string;
+  /** Die Wahl (bei einer Gabelung). */
+  readonly step?: string;
+  /** Woher der Weg zum Knoten kommt (ein Turm, das Haus oder ein anderer Knoten). */
+  readonly from: string;
+  /** Die Abschnitte, die hier abfahren. */
+  readonly out: readonly string[];
+  /** Was zwischen dem Turm und dem Knoten liegt (die Wegfolien). */
+  readonly before: { readonly slides: number; readonly questions: number };
+}
+
+/** 2026-11-10 — WOHER EIN TOR KOMMT: eine Spur vom verlangten Turm zum Tor (eine Gabelung, ein Tor-Knoten oder der Anfang eines Weges). */
+export interface GateLink {
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
+  /** Der Abschnitt, den das Tor sperrt. */
+  readonly section: string;
+  readonly line: string;
+}
+
 export interface Section {
   readonly id: string;
   /** Die Linie (die Kennung ihres Ablaufs). */
@@ -170,6 +213,12 @@ export interface Section {
   readonly start?: { readonly step: string; readonly exit?: string };
   /** Bei Ein- und Rückfahrt eines Abstechers: die rufenden Linien. */
   readonly callers?: readonly string[];
+  /**
+   * 2026-11-10 — DIESELBEN KARTEN IN ANDERER VERPACKUNG: eine Wahl, deren Möglichkeiten zum selben Turm führen und sich wieder
+   * treffen (für Kinder, für die Schule, für Erwachsene). Jede Möglichkeit ist ein eigener Abschnitt; die Karte zeichnet einen
+   * und die anderen als kleine Schleife daneben.
+   */
+  readonly variant?: { readonly choice: string; readonly index: number; readonly of: number };
 }
 
 export interface LineBranch {
@@ -217,5 +266,11 @@ export interface Lines {
   readonly introducedBy: ReadonlyMap<string, readonly string[]>;
   /** Eingebettete Schritte (`<subflow>>…`): der Ablauf, dem sie gehören. */
   readonly stepFlow: ReadonlyMap<string, string>;
+  /** 2026-11-10 — Gabelungen und Tore zwischen den Türmen. */
+  readonly junctions: ReadonlyMap<string, Junction>;
+  /** 2026-11-10 — die Spuren von verlangten Türmen zu ihren Toren. */
+  readonly links: readonly GateLink[];
+  /** 2026-11-10 — Abstecher als Schleifen an ihrer Stelle. */
+  readonly loops: readonly DetourLoop[];
   readonly issues: readonly WmIssue[];
 }

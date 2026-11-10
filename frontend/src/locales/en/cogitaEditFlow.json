@@ -84,6 +84,7 @@
     "reviewBranch": "This review lies on only some paths — put the review into the shared part after the paths meet.",
     "reviewEmpty": "This review has no required questions (none on every path) — it would pass at once.",
     "noAssessment": "The hexagon has no shared assessment: no question and no review lies on every path.",
+    "noAssessmentBranch": "The branch “{route}” has no assessment: no question and no review lies on every path through it.",
     "tooManyRoutes": "More than {count} paths — only the first {count} were checked.",
     "questionMissing": "The question “{ref}” does not exist.",
     "uncheckable": "The question “{name}” names neither a topic (“about”) nor explaining slides (“explain”) — its coverage cannot be checked.",

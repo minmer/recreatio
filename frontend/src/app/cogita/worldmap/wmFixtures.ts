@@ -335,6 +335,9 @@ export function brokenWorld(): WorldInput {
   t('P', 3, [], [ref('mix', 'A', { part: 'up', prerequisite: 'up' })]);
   /* Eine Karte über etwas, das es nicht gibt. */
   cards.push({ key: 'q/ghost', question: 'q/ghost', about: ['nowhere'] });
+  /* Eine Karte, die keine Folie erklärt und keine Erzählung fragt (2026-11-10: die anderen führt ihre gezeigte Folie ein). */
+  entries.push({ id: 'q/A/plain', kinds: ['question'], label: 'Temat A — bez slajdu', refs: [ref('about', 'A')] });
+  cards.push({ key: 'q/A/plain', question: 'q/A/plain', about: ['A'] });
   for (const id of ['A', 'B', 'C', 'X', 'Y', 'Z', 'D', 'P']) entries.push({ id: `s/${id}`, kinds: ['slajd'], label: `Slajd ${id}`, refs: [ref('o_czym', id)] });
   entries.push({ id: 'note', kinds: ['notatka'], label: 'Notatka bez miejsca', refs: [] });
 

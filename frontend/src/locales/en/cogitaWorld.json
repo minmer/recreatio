@@ -132,7 +132,33 @@
     "fullNext": "Next",
     "pageOn": "Full page",
     "fullSays": "The whole screen — Esc goes back to the full page",
-    "pageSays": "The map fills the browser window; Esc closes it"
+    "pageSays": "The map fills the browser window; Esc closes it",
+    "forkOf": "Fork on “{line}”",
+    "gateOf": "Gate of “{line}”",
+    "junctionBefore": {
+      "one": "{count} slide, then",
+      "other": "{count} slides, then"
+    },
+    "junctionWays": {
+      "one": "fork: {count} way",
+      "other": "fork: {count} ways"
+    },
+    "junctionGate": {
+      "one": "gate: {count} tower",
+      "other": "gate: {count} towers meet"
+    },
+    "needsFirst": {
+      "one": "Locked — first {count} tower:",
+      "other": "Locked — first {count} towers:"
+    },
+    "reqOpen": {
+      "one": "{count} open now",
+      "other": "{count} open now"
+    },
+    "reqDone": {
+      "one": "{count} conquered",
+      "other": "{count} conquered"
+    }
   },
   "panel": {
     "close": "Close",
@@ -207,7 +233,39 @@
     "towerFirstLevel": "reach level {level} of the start tower first",
     "prepareN": "First review what I don't know ({count})",
     "prepareSays": "Only the cards that do not stick yet — a good preparation before the run.",
-    "conquerSays": "Answer all {count} cards — this conquers the tower"
+    "conquerSays": "Answer all {count} cards — this conquers the tower",
+    "requiresFirst": {
+      "one": "First conquer {count} tower:",
+      "other": "First conquer {count} towers:"
+    },
+    "req": {
+      "done": "conquered",
+      "open": "open",
+      "locked": "locked"
+    },
+    "conquerNow": "Conquer now",
+    "conquerUnseen": {
+      "one": "All {all} cards are asked — {count} of them was never asked to you.",
+      "other": "All {all} cards are asked — {count} of them were never asked to you."
+    },
+    "exploreFirst": "Explore the way first",
+    "exploreSays": {
+      "one": "A story explains {count} card you have not met yet.",
+      "other": "A story explains {count} cards you have not met yet."
+    },
+    "noStory": {
+      "one": "{count} card is explained by no story — it is learned directly.",
+      "other": "{count} cards are explained by no story — they are learned directly."
+    },
+    "questionsN": {
+      "one": "{count} question",
+      "other": "{count} questions"
+    },
+    "styles": {
+      "one": "{count} explanation style",
+      "other": "{count} explanation styles"
+    },
+    "gateFrom": "The ways of {names} meet here."
   },
   "nav": {
     "target": "Target: {name}",
@@ -230,7 +288,11 @@
     "arrived": "You are there: {name}",
     "startHere": "Start here",
     "runAll": "all right first time: straight to level {upTo}",
-    "review": "Review before exploring {to}"
+    "review": "Review before exploring {to}",
+    "runUnseen": {
+      "one": "{count} card never asked",
+      "other": "{count} cards never asked"
+    }
   },
   "issue": {
     "title": {

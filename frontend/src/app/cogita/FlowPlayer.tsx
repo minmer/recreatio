@@ -179,7 +179,7 @@ export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: Gr
     /* 2026-11-05 (Prompt 23, D4) — ein Przegląd in einem Schritt: so viele Fragen, wie er prüft (die der Erzählung). */
     if (node.type === 'review') {
       const rc = reviewOf(flow, node);
-      const asked = rc === null ? [] : reviewCards(flow, rc, content.card, (r) => content.flow(content.flowRef?.(r) ?? r));
+      const asked = rc === null ? [] : reviewCards(flow, rc, content.card, (r) => content.flow(content.flowRef?.(r) ?? r), node.id);
       return { slides: 0, questions: asked.length, shown: [], asked: [...new Set(asked.flatMap((c) => (c.about ?? []).length > 0 ? [...c.about!] : [c.entity ?? c.question]))] };
     }
     return base(node);
@@ -1177,7 +1177,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
       case 'review': {
         const rc = reviewOf(running, current)!;
         return (
-          <ReviewStep key={`${current.id}:${visit}`} cards={reviewCards(running, rc, content.card, flowOf)} known={(card) => marksOf !== null && isKnown(card, marksOf)} threshold={rc.threshold} W={W}
+          <ReviewStep key={`${current.id}:${visit}`} cards={reviewCards(running, rc, content.card, flowOf, current.id)} known={(card) => marksOf !== null && isKnown(card, marksOf)} threshold={rc.threshold} W={W}
             onAnswer={(card, outcome, given) => {
               learner?.record(card, outcome.correctness, { via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
               onAnswer?.(current.id, card, outcome.correctness, given);

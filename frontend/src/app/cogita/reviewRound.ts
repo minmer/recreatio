@@ -12,13 +12,19 @@
 import type { Card } from './cardBasics';
 import { cardsInFlow } from './flowAsk';
 import type { Flow, ReviewConfig } from './flow';
-import { mandatoryQuestionSteps } from './mountain';
+import { reviewQuestionSteps } from './mountain';
 
-/** Die Karten, die der Przegląd prüft (in der Reihenfolge der Schritte). */
-export function reviewCards(flow: Flow, rc: Pick<ReviewConfig, 'of'>, cardOf: (id: string) => Card | null, flows: (ref: string) => Flow | undefined): Card[] {
+/**
+ * Die Karten, die der Przegląd prüft (in der Reihenfolge der Schritte). `step`: der Schritt des Przeglądu in `flow` — liegt er in
+ * einem Zweig einer Gabelung, prüft er dessen Pflichtfragen (mit den gemeinsamen davor); ohne ihn wie bisher.
+ */
+export function reviewCards(flow: Flow, rc: Pick<ReviewConfig, 'of'>, cardOf: (id: string) => Card | null, flows: (ref: string) => Flow | undefined, step?: string): Card[] {
   const target = rc.of === 'story' || rc.of === '' ? flow : flows(rc.of) ?? flow;
-  /* 2026-11-06 — mit Wahlen: nur die Pflichtfragen (auf jedem Weg) — derselbe Przegląd, welcher Weg auch gewählt wurde (`mountain.ts`). */
-  const counted = mandatoryQuestionSteps(target);
+  /*
+    2026-11-06 — mit Wahlen: nur die Pflichtfragen (auf jedem Weg) — derselbe Przegląd, welcher Weg auch gewählt wurde (`mountain.ts`).
+    2026-11-10 — in einem Zweig einer Gabelung: die Pflichtfragen dieses Zweiges (eine andere Erzählung: ihre gemeinsamen).
+  */
+  const counted = reviewQuestionSteps(target, target.id === flow.id ? step : undefined);
   return cardsInFlow({ ...target, graph: { ...target.graph, nodes: target.graph.nodes.filter((n) => n.type !== 'question' || counted.has(n.id)) } }, cardOf);
 }
 

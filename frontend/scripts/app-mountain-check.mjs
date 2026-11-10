@@ -2,6 +2,9 @@
  * 2026-11-06 — EIN SECHSECK, ZWEI WEGE INNEN, EIN GEMEINSAMER GIPFEL (`cogita/mountain.ts`), ohne Datenbank: ein Ablauf mit
  * `unit`, eine Wahl („choice") zwischen zwei Abschnitten (`subflow`, enden mit „Powrót"), gemeinsame Fragen, ein gemeinsamer
  * Przegląd und ein Ende. Jeder Weg allein erreicht denselben Gipfel; ungültige Formen werden beim Namen gewarnt.
+ * 2026-11-10 — Gabelungen (7.): eine Wahl, deren Zweige sich nie wieder treffen (eigene Türme, eigene Enden) — ihre Fragen zählen
+ * für ihren Zweig, ein Zweig genügt, ein Przegląd am Ende eines Zweiges ist richtig; eine Wahl, die sich wieder trifft, wie bisher.
+ * Ziele (8.): ein Ziel nur in einem Zweig zählt nur für ihn (der letzte Lauf sagt, welcher); „Powtórz przegląd" im eigenen Zweig.
  *
  *   node scripts/app-mountain-check.mjs
  */
@@ -216,6 +219,133 @@ const during = SP.storyMarks(sp, { visited: ['intro', 'wybor', 'segF', 'q1'], st
 const atEnd = SP.storyMarks(sp, { visited: ['intro', 'wybor', 'segF', 'q1', 'q2', 'przeglad', 'koniec'], step: 'koniec', ended: true });
 check('progress: before the choice both roads count; once one is taken the other no longer counts — the same total as at the end',
   [before.total - during.total, during.total === atEnd.total, atEnd.done === atEnd.total], [1, true, true]);
+
+/* -- 7. Gabelungen (2026-11-10): Zweige zu eigenen Türmen, jeder mit eigenem Ende --------------------------------------- */
+/*
+  „Dwie wieże" (unit U): Ścieżka → Wybór (hold) → Wieża A (Folie, QA1, QA2, Przegląd, Koniec A) | Wieża B (Folie, QB1, Koniec B).
+  Die Möglichkeiten treffen sich nie wieder — eine Gabelung: jeder Zweig hat eigene Pflichtfragen, einer genügt.
+*/
+const FORK_Q = { Q0: { about: ['U'], explain: [] }, QA1: { about: ['TA'], explain: ['FA', 'FA2'] }, QA2: { about: ['TA'], explain: ['FA'] }, QB1: { about: ['TB'], explain: ['FB'] }, QK: { about: ['FA'], explain: [] } };
+const towers = ({ shared = false, loop = false, reviewB = false } = {}) => flowOf('G', {
+  name: 'Dwie wieże', unit: 'U',
+  graph: {
+    nodes: [
+      node('path', 'show', { of: 'U' }), ...(shared ? [node('q0', 'question', { of: 'Q0' })] : []),
+      node('fork', 'choice', { hold: true, options: [{ label: 'Wieża A' }, { label: 'Wieża B' }] }),
+      node('a1', 'show', { of: 'FA' }), node('qa1', 'question', { of: 'QA1' }), node('qa2', 'question', { of: 'QA2' }),
+      node('ra', 'review', { of: 'story', threshold: 1 }), ...(loop ? [node('again', 'choice', { options: ['Spróbuj jeszcze raz', 'Zakończ'] })] : []), node('ea', 'end'),
+      node('b1', 'show', { of: 'FB' }), node('qb1', 'question', { of: 'QB1' }), ...(reviewB ? [node('rb', 'review', { of: 'story', threshold: 1 })] : []), node('eb', 'end')
+    ],
+    edges: [
+      ...(shared ? [edge('path', 'next', 'q0'), ...asked('q0', 'fork')] : [edge('path', 'next', 'fork')]),
+      edge('fork', 'o0', 'a1'), edge('fork', 'o1', 'b1'),
+      edge('a1', 'next', 'qa1'), ...asked('qa1', 'qa2'), ...asked('qa2', 'ra'), edge('ra', 'passed', 'ea'),
+      ...(loop ? [edge('ra', 'notyet', 'again'), edge('again', 'o0', 'path'), edge('again', 'o1', 'ea')] : [edge('ra', 'notyet', 'ea')]),
+      edge('b1', 'next', 'qb1'), ...(reviewB ? [...asked('qb1', 'rb'), edge('rb', 'passed', 'eb'), edge('rb', 'notyet', 'eb')] : asked('qb1', 'eb'))
+    ]
+  }
+});
+const G = towers();
+const keyCard = (id) => ({ key: id, question: id });
+const branchesOf = (f) => MT.forkRoutes(f).map((r) => [r.picks, [...r.mandatory]]);
+check('a choice whose options never meet again is a fork', [...MT.forkChoices(G)], ['fork']);
+check('… choices whose options meet again are none (the hexagon, a question on one route)', [[...MT.forkChoices(M)], [...MT.forkChoices(branchQ)]], [[], []]);
+check('without a fork: exactly one branch, its required questions as before', [branchesOf(M), branchesOf(plain)], [[[{}, ['q1', 'q2']]], [[{}, ['a', 'b']]]]);
+check('each branch has its own required questions', branchesOf(G), [[{ fork: 'o0' }, ['qa1', 'qa2']], [{ fork: 'o1' }, ['qb1']]]);
+check('… the required questions of the story: those of every branch', [...MT.mandatoryQuestionSteps(G)], ['qa1', 'qa2', 'qb1']);
+check('the fork (own ends, a review at the end of one branch): no branchQuestion, reviewBranch or noAssessment — no warning at all', texts(G, { G }, FORK_Q), []);
+check('„all known": one branch is enough — A known, B not', FF.flowQuestionsKnown(G, keyCard, (k) => k === 'QA1' || k === 'QA2'), true);
+check('… B alone is enough too', FF.flowQuestionsKnown(G, keyCard, (k) => k === 'QB1'), true);
+check('… half of A and nothing of B is not', FF.flowQuestionsKnown(G, keyCard, (k) => k === 'QA1'), false);
+check('the review at the end of branch A asks only A’s questions', RV.reviewCards(G, { of: 'story' }, keyCard, () => undefined, 'ra').map((c) => c.question), ['QA1', 'QA2']);
+const GS = towers({ shared: true });
+check('a shared question before the fork belongs to every branch', branchesOf(GS).map(([, m]) => m), [['q0', 'qa1', 'qa2'], ['q0', 'qb1']]);
+check('… the review in branch A asks the shared one and A’s, not B’s', RV.reviewCards(GS, { of: 'story' }, keyCard, () => undefined, 'ra').map((c) => c.question), ['Q0', 'QA1', 'QA2']);
+check('… without the step of the review (as before): only what every branch shares', RV.reviewCards(GS, { of: 'story' }, keyCard, () => undefined).map((c) => c.question), ['Q0']);
+check('… „all known" needs the shared one too', [FF.flowQuestionsKnown(GS, keyCard, (k) => k === 'QB1'), FF.flowQuestionsKnown(GS, keyCard, (k) => k === 'QB1' || k === 'Q0')], [false, true]);
+check('… no mountain warning', texts(GS, { G: GS }, FORK_Q), []);
+const GL = towers({ loop: true });
+check('„Spróbuj jeszcze raz" back to the path does not join the branches: still the one fork, the retry choice is none', [...MT.forkChoices(GL)], ['fork']);
+check('… the same branches, no mountain warning', [branchesOf(GL), texts(GL, { G: GL }, FORK_Q)], [[[{ fork: 'o0' }, ['qa1', 'qa2']], [{ fork: 'o1' }, ['qb1']]], []]);
+const GE = flowOf('GE', {
+  name: 'Wieża bez pytań', unit: 'U',
+  graph: {
+    nodes: [node('path', 'show', { of: 'U' }), node('fork', 'choice', { hold: true, options: ['Wieża A', 'Wieża B'] }), node('a1', 'show', { of: 'FA' }), node('qa1', 'question', { of: 'QA1' }), node('ea', 'end'), node('b1', 'show', { of: 'FB' }), node('eb', 'end')],
+    edges: [edge('path', 'next', 'fork'), edge('fork', 'o0', 'a1'), edge('fork', 'o1', 'b1'), edge('a1', 'next', 'qa1'), ...asked('qa1', 'ea'), edge('b1', 'next', 'eb')]
+  }
+});
+check('a branch without a question or a review on every path: warned by its name, only it', texts(GE, { GE }, FORK_Q),
+  ['The branch “Wieża B” has no assessment: no question and no review lies on every path through it.']);
+/*
+  Opakowania w gałęzi A: Dzieci | Szkoła | Dorośli — dieselben Karten, die Wege treffen sich vor der gemeinsamen Frage: eine Wahl wie
+  bisher, keine Gabelung. Ungültig (`bad`): eine Frage nur bei „Dzieci", ein Przegląd nur bei „Szkoła", „Dorośli" bereitet QA1 nicht vor.
+*/
+const packing = (bad = false) => flowOf('H', {
+  name: 'Wieże z opakowaniami', unit: 'U',
+  graph: {
+    nodes: [
+      node('path', 'show', { of: 'U' }), node('fork', 'choice', { hold: true, options: ['Wieża A', 'Wieża B'] }),
+      node('pack', 'choice', { options: ['Dzieci', 'Szkoła', 'Dorośli'] }),
+      node('kids', 'show', { of: 'FA' }), node('school', 'show', { of: 'FA' }), node('adults', 'show', { of: bad ? 'X' : 'FA2' }),
+      ...(bad ? [node('qk', 'question', { of: 'QK' }), node('rs', 'review', { of: 'story' })] : []),
+      node('qa1', 'question', { of: 'QA1' }), node('ra', 'review', { of: 'story' }), node('ea', 'end'),
+      node('b1', 'show', { of: 'FB' }), node('qb1', 'question', { of: 'QB1' }), node('eb', 'end')
+    ],
+    edges: [
+      edge('path', 'next', 'fork'), edge('fork', 'o0', 'pack'), edge('fork', 'o1', 'b1'),
+      edge('pack', 'o0', 'kids'), edge('pack', 'o1', 'school'), edge('pack', 'o2', 'adults'),
+      ...(bad ? [edge('kids', 'next', 'qk'), ...asked('qk', 'qa1'), edge('school', 'next', 'rs'), edge('rs', 'passed', 'qa1'), edge('rs', 'notyet', 'qa1')] : [edge('kids', 'next', 'qa1'), edge('school', 'next', 'qa1')]),
+      edge('adults', 'next', 'qa1'), ...asked('qa1', 'ra'), edge('ra', 'passed', 'ea'), edge('ra', 'notyet', 'ea'),
+      edge('b1', 'next', 'qb1'), ...asked('qb1', 'eb')
+    ]
+  }
+});
+const H = packing();
+check('a packaging choice inside a branch (its options meet again) is no fork', [...MT.forkChoices(H)], ['fork']);
+check('… the branch’s required questions are those after the packagings meet', branchesOf(H), [[{ fork: 'o0' }, ['qa1']], [{ fork: 'o1' }, ['qb1']]]);
+check('… every packaging is still a route of its own', MT.routesOf(H).routes.map((r) => r.picks), [{ fork: 'o0', pack: 'o0' }, { fork: 'o0', pack: 'o1' }, { fork: 'o0', pack: 'o2' }, { fork: 'o1' }]);
+check('… the valid form: no mountain warning', texts(H, { H }, FORK_Q), []);
+const HB = packing(true);
+const hb = MT.mountainProblems(HB, ctxFor({ H: HB }, FORK_Q));
+check('… a question on one packaging only: warned as before', hb.filter((p) => p.text.includes('lies on only some paths') && p.text.includes('“QK”')).map((p) => p.step), ['qk']);
+check('… a review on one packaging only: warned as before — the one at the end of the branch is not', hb.filter((p) => p.text.includes('This review lies on only some paths')).map((p) => p.step), ['rs']);
+check('… coverage per packaging route; branch B is not checked for A’s question', hb.filter((p) => p.text.includes('does not prepare')).map((p) => p.text),
+  ['The path “Wieża A → Dorośli” does not prepare the question “QA1”: it shows neither its topic nor one of its explaining slides.']);
+check('… nothing else', hb.length, 3);
+/* Zwei Möglichkeiten zum selben Schritt zählen je einmal: eine dritte, die an ihm vorbeiführt, macht ihn nicht zur Pflicht. */
+const twice = flowOf('T', {
+  name: 'Dwie możliwości do jednego kroku',
+  graph: {
+    nodes: [node('w', 'choice', { options: ['A', 'B', 'C'] }), node('x', 'show', { of: 'F1' }), node('y', 'show', { of: 'F2' }), node('q', 'question', { of: 'Q1' }), node('z', 'question', { of: 'Q2' }), node('e', 'end')],
+    edges: [edge('w', 'o0', 'x'), edge('w', 'o1', 'x'), edge('w', 'o2', 'y'), edge('x', 'next', 'q'), ...asked('q', 'z'), edge('y', 'next', 'z'), ...asked('z', 'e')]
+  }
+});
+check('two options to the same step, a third past it: the step is not on every route (each edge counted once), no fork', [[...MT.mandatoryQuestionSteps(twice)], [...MT.forkChoices(twice)]], [['z'], []]);
+
+/* -- 8. Ziele mit Gabelungen (2026-11-10): ein Ziel nur in einem Zweig zählt nur für ihn; „Powtórz przegląd" im eigenen Zweig -- */
+/* In G liegt der Przegląd (sein Ziel „przeglad") nur in Turm A. Der letzte Lauf (`visited`) sagt, welchen Zweig der Lernende zu Ende ging. */
+const runB = ['path', 'fork', 'b1', 'qb1', 'eb'];
+const runA = ['path', 'fork', 'a1', 'qa1', 'qa2', 'ra', 'ea'];
+const doneWith = (visited, goals = []) => ({ started: true, done: true, goals, visited });
+check('the review’s goal lies at the review steps writing its value', [G.goals.map((g) => g.id), [...MT.goalSteps(G, G.goals[0])]], [['przeglad'], ['ra']]);
+check('branch B walked to its end: passed and completed — the review of tower A does not hold it back', [FF.storyStage(G, doneWith(runB)), FF.storyCompleted(G, doneWith(runB))], ['passed', true]);
+check('branch A walked to its end without its review passed: „review", not completed; with it: passed',
+  [FF.storyStage(G, doneWith(runA)), FF.storyCompleted(G, doneWith(runA)), FF.storyStage(G, doneWith(runA, ['przeglad']))], ['review', false, 'passed']);
+check('… the branch is not known (no run, or no end in the last run — „od początku"): every goal, as before',
+  [FF.storyStage(G, { started: true, done: true, goals: [] }), FF.storyStage(G, doneWith(['path'])), FF.storyStage(G, doneWith(['path'], ['przeglad']))], ['review', 'review', 'passed']);
+check('… without a fork nothing changes (the hexagon: its shared review is every route’s goal)', [FF.storyStage(M, doneWith(['intro', 'wybor', 'segF', 'q1', 'q2', 'przeglad', 'koniec'])), FF.storyStage(M, doneWith(['intro', 'koniec'], ['przeglad']))], ['review', 'passed']);
+const G2 = towers({ reviewB: true });
+const runB2 = ['path', 'fork', 'b1', 'qb1', 'rb', 'eb'];
+check('a review at the end of each branch: one goal (the same value) for both — failing B’s is „review", passing it is passed',
+  [[...MT.goalSteps(G2, G2.goals[0])], FF.storyStage(G2, doneWith(runB2)), FF.storyStage(G2, doneWith(runB2, ['przeglad']))], [['ra', 'rb'], 'review', 'passed']);
+check('„Powtórz przegląd" goes to the review of the learner’s own branch (without the run: the flow’s review, as before)',
+  [FF.reviewStart(G2, runB2), FF.reviewStart(G2, runA), FF.reviewStart(G2), G2.review], ['rb', 'ra', 'ra', 'ra']);
+check('… each review asks its own branch’s questions; no mountain warning', [RV.reviewCards(G2, { of: 'story' }, keyCard, () => undefined, 'rb').map((c) => c.question), texts(G2, { G: G2 }, FORK_Q)], [['QB1'], []]);
+const posB = new Map([['G', { flow: 'G', step: 'eb', visited: runB, at: 5, done: true }]]);
+check('the facts of a story with forks carry its last run; any other story’s facts stay as they were',
+  [FF.flowFactsOf(posB, [{ id: 'G', forked: true }]).get('G'), FF.flowFactsOf(posB, [{ id: 'G' }]).get('G')], [doneWith(runB), { started: true, done: true, goals: [] }]);
+check('… a base marks its stories with forks', FF.flowRefsOf({ docs: () => [{ id: 'G', data: { graph: G.graph, start: 'path' } }, { id: 'M', data: { graph: M.graph, start: 'intro' } }, { id: 'P', data: { name: 'Bez grafu' } }] }).map((r) => [r.id, r.forked === true]),
+  [['G', true], ['M', false], ['P', false]]);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

@@ -43,10 +43,10 @@ import { holdStore } from '../worldPlay';
 import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
-import { AuthorList, HomePanel, NavPanel, PlacePanel, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
+import { AuthorList, HomePanel, JunctionPanel, NavPanel, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
 import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
-import { NextView, PartIcon, WayPreview } from './WorldWay';
+import { countLine, NextView, PartIcon, WayPreview } from './WorldWay';
 import { authorIssues } from './wmAuthors';
 import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
 import { lineColours, oklch, type Rgb } from './wmColors';
@@ -57,7 +57,7 @@ import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, type FinishSnap } from './wmFinish';
 import { followPlan, keepNav, keptNav, navMarks, stepKey, type NavSession, type Timetable } from './wmNav';
-import { plan as planRoute, type PlanStep } from './wmPlan';
+import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
@@ -88,7 +88,7 @@ type Running =
   | { readonly kind: 'cards'; readonly key: string; readonly source: RunSource }
   | { readonly kind: 'run'; readonly key: string; readonly place: string };
 
-type Chosen = { readonly kind: 'place' | 'section' | 'home'; readonly id: string };
+type Chosen = { readonly kind: 'place' | 'section' | 'home' | 'junction'; readonly id: string };
 
 export interface WorldLandscapeProps {
   readonly view: ViewDoc;
@@ -254,6 +254,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Namen ------------------------------------------------------------------------------------------------------------- */
   const nameOf = useCallback((id: string): string => {
     if (id === HOME) return t('cogitaWorld.map.start');
+    /* 2026-11-10 — eine Gabelung oder ein Tor heisst nach seiner Linie. */
+    const jn = lines.junctions.get(id);
+    if (jn !== undefined) return t(jn.kind === 'gate' ? 'cogitaWorld.map.gateOf' : 'cogitaWorld.map.forkOf', { line: lines.lines.get(jn.line)?.name ?? '' });
     return world.places.get(id)?.label ?? world.blocks.get(id)?.label ?? world.entries.get(id)?.label ?? lines.lines.get(id)?.name ?? flowById.get(id)?.name ?? id;
   }, [world, lines, flowById, t]);
 
@@ -332,6 +335,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     show: (kind, id) => { setChosen({ kind, id }); if (kind === 'place') pillars.current?.focus(id); },
     ...(onOpen === undefined ? {} : { open: onOpen })
   };
+  /* 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man gesehen hat und noch nicht kann (und was keine Erzählung erreicht). */
+  const prepareStep = (step: PlanStep) => { if (step.kind === 'run' && step.prepare.length > 0) startCards(step.prepare, nameOf(step.place), false); };
   const go = (step: PlanStep) => {
     if (tt !== null) wayPartNext.current = { n: tt.done.length + 1, all: tt.done.length + tt.upcoming.length, kind: step.kind, text: stepText(step, panel), at: Date.now() };
     if (step.kind === 'travel') {
@@ -525,7 +530,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   }, [finished, state, levels, tt, progress, events, learner, rewards, eff.levels, lines]);
   useEffect(() => { if (finStats !== null && !finStats.worth) setFinished(null); }, [finStats]);
   /* Der Weg zu einem gewählten Ort, der nicht gleich erreichbar ist (im Feld des Ortes, bevor man ihn beginnt). */
-  const wayPlan = useMemo(() => (chosen?.kind === 'place' && learner !== null && state.places.get(chosen.id)?.conquered === false ? planRoute(state, chosen.id) : null), [chosen, state, learner]);
+  const wayPlan = useMemo(() => (chosen?.kind === 'place' && state.places.get(chosen.id)?.conquered === false ? planRoute(state, chosen.id) : null), [chosen, state]);
   const orderIndex = useMemo(() => new Map(world.order.map((id, i) => [id, i] as const)), [world]);
   const playSeq = useRef(0);
   const playback = useMemo((): WorldPlayback | null => {
@@ -605,24 +610,24 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
 
   /* -- Zeigen: die Blase, der Weg, die Navigation ---------------------------------------------------------------------- */
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
-  const routeTo = useMemo(() => (hover === null ? null : state.routeTo(hover.id)), [hover, state]);
   /*
-    2026-11-10 (Eigentümer: „der Weg über ein Ziel sieht anders aus als direkt gewählt") — EIN WEG, EINE GESTALT: ob ein Turm
-    angeklickt, überfahren oder als Ziel der Navigation gewählt ist — gezeigt wird derselbe Plan (`wmPlan`), gleich gezeichnet:
-    die nächsten Fahrten kräftig, spätere blass. Ohne Lernenden oder bei einem eroberten Turm: der kürzeste Weg vom Haus.
+    2026-11-10 (Eigentümer: „der Weg über ein Ziel sieht anders aus als direkt gewählt" — „die Zahlen in Blase und Feld stimmen
+    überein") — EIN PLAN, EINE GESTALT: ob ein Turm angeklickt, überfahren oder als Ziel der Navigation gewählt ist — gezeigt wird
+    derselbe Plan (`wmPlan`), sein ganzer Weg als eine Linie; Blase und Feld zählen aus ihm. Bei einem eroberten Turm: der
+    kürzeste Weg vom Haus.
   */
-  const wayOf = useCallback((id: string): { next: readonly string[]; later: readonly string[] } | null => {
-    if (learner !== null && state.places.get(id)?.conquered === false) {
-      const m = navMarks(followPlan(null, planRoute(state, id)), lines);
-      return { next: m.next, later: m.later };
-    }
+  const planFor = useCallback((id: string) => (state.places.get(id)?.conquered === false ? planRoute(state, id) : null), [state]);
+  const hoverPlan = useMemo(() => (hover === null ? null : planFor(hover.id)), [hover, planFor]);
+  const wayOf = useCallback((id: string, pl: Plan | null): { next: readonly string[]; later: readonly string[] } | null => {
+    if (pl !== null) return { next: [...new Set(pl.route)], later: [] };
     const r = state.routeTo(id);
     return r === null ? null : { next: r, later: [] };
-  }, [learner, state, lines]);
-  const hoverWay = useMemo(() => (hover === null ? null : wayOf(hover.id)), [hover, wayOf]);
+  }, [state]);
+  const hoverWay = useMemo(() => (hover === null ? null : wayOf(hover.id, hoverPlan)), [hover, hoverPlan, wayOf]);
   /* Ein angeklickter Turm: sein Weg bleibt sichtbar, bis etwas anderes gewählt ist; die Navigation zu ihm: derselbe Weg. */
-  const chosenWay = useMemo(() => (chosen?.kind === 'place' ? (nav?.target === chosen.id && marks !== null ? { next: marks.next, later: marks.later } : wayOf(chosen.id))
-    : chosen?.kind === 'section' ? { next: [chosen.id], later: [] } : null), [chosen, wayOf, nav, marks]);
+  const chosenWay = useMemo(() => (chosen?.kind === 'place' ? (nav?.target === chosen.id && marks !== null ? { next: marks.next, later: marks.later } : wayOf(chosen.id, wayPlan))
+    : chosen?.kind === 'section' ? { next: [chosen.id], later: [] }
+      : chosen?.kind === 'junction' ? { next: lines.junctions.get(chosen.id)?.out ?? [], later: [] } : null), [chosen, wayOf, nav, marks, wayPlan, lines]);
   const shownWay = hoverWay ?? chosenWay;
   const route = shownWay?.next ?? marks?.next ?? null;
   const faint = shownWay !== null
@@ -632,13 +637,27 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (hover === null || scene === null) return null;
     const p = scene.byId.get(hover.id);
     if (p === undefined) return null;
-    const sum = routeTo === null ? null : state.summary(routeTo);
+    /* 2026-11-10 (Eigentümer: „ein gesperrter Turm erklärt sich selbst") — was er verlangt (auch mittelbar), offen oder gesperrt. */
+    const req = p.conquered ? [] : requiredTowers(state, p.id);
+    const missing = req.filter((x) => x.state !== 'done');
+    const open = missing.filter((x) => x.state === 'open').length;
+    const done = req.length - missing.length;
     return (
       <div className="cg-wm-bubble" ref={(el) => { if (el !== null) { el.style.left = `${hover.x}px`; el.style.top = `${hover.y}px`; } }} role="status" data-world-bubble={p.id}>
         <strong>{p.label}</strong>
         <span>{p.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: p.missing })}</span>
-        {sum === null ? <span className="cg-muted">{t('cogitaWorld.map.noRoute')}</span>
-          : <span className="cg-muted">{t('cogitaWorld.map.fromHome')} {t('cogitaWorld.map.sections', { count: sum.sections })} · {t('cogitaWorld.map.fresh', { count: sum.fresh })} · {t('cogitaWorld.map.review', { count: sum.review })}</span>}
+        {missing.length > 0 && (
+          <span className="cg-wm-breq" data-world-bubble-required={missing.length} data-world-bubble-open={open}>
+            <span>{t('cogitaWorld.map.needsFirst', { count: missing.length })} {t('cogitaWorld.map.reqOpen', { count: open })}{done > 0 ? ` · ${t('cogitaWorld.map.reqDone', { count: done })}` : ''}</span>
+            <span className="cg-wm-breqlist">
+              {missing.slice(0, 4).map((x) => <span key={x.id} className={`cg-wm-breqitem is-${x.state}`}>{nameOf(x.id)}</span>)}
+              {missing.length > 4 && <span className="cg-wm-breqitem is-more">+{missing.length - 4}</span>}
+            </span>
+          </span>
+        )}
+        {hoverPlan !== null && hoverPlan.steps.length > 0
+          ? <span className="cg-muted" data-world-bubble-parts={hoverPlan.steps.length}>{t('cogitaWorld.way.preview', { count: hoverPlan.steps.length })} · {countLine(hoverPlan.steps, panel)}</span>
+          : !p.conquered && hoverPlan !== null && hoverPlan.route.length === 0 && state.routeTo(p.id) === null ? <span className="cg-muted">{t('cogitaWorld.map.noRoute')}</span> : null}
         {!p.conquered && <span className="cg-muted">{t('cogitaWorld.map.leadHint')}</span>}
       </div>
     );
@@ -680,7 +699,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   if (full === null && askNext && tt !== null) {
     return host(
       <div className="cg-wm-nextpage" data-world-next-page="">
-        <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onMap={() => setAskNext(false)} onEnd={() => { setNav(null); setAskNext(false); }} />
+        <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onPrepare={prepareStep} onMap={() => setAskNext(false)} onEnd={() => { setNav(null); setAskNext(false); }} />
       </div>
     );
   }
@@ -726,13 +745,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             ? <p className="cg-ls-busy" role="status" data-world-computing="">{t('cogitaWorld.map.computing')}</p>
             : <WorldPillars ref={pillars} scene={scene} pillarWidth={pillarWidth} heightScale={heightScale} t={t} compact={compact}
               memoryKey={scope}
-              route={route} faint={faint} chosen={chosen?.kind === 'place' ? chosen.id : null}
+              route={route} faint={faint} chosen={chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null}
               marks={marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
               lit={lit} portals={portals} goal={goal} playback={lastPlay.current} onPlayback={onPlayback}
               onHover={(id, at) => setHover(id === null || at === null ? null : { id, x: at.x, y: at.y })}
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
+              onPickJunction={(id) => setChosen({ kind: 'junction', id })}
               onLead={(id) => lead(id)} full={full !== null} squeeze={hasSide} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
@@ -787,7 +807,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         <div className="cg-wm-side" data-world-side="">
           {note !== null && <p className="wk-note" role="status" data-world-note="">{note}</p>}
           {sideNav && tt !== null && (
-            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => setNav(null)}
+            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onPrepare={prepareStep} onEnd={() => setNav(null)}
               onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
           )}
           {chosen?.kind === 'place' && (
@@ -799,6 +819,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           )}
           {chosen?.kind === 'section' && <SectionPanel id={chosen.id} ctx={panel} onClose={() => setChosen(null)} />}
           {chosen?.kind === 'home' && <HomePanel ctx={panel} onClose={() => setChosen(null)} />}
+          {chosen?.kind === 'junction' && <JunctionPanel id={chosen.id} ctx={panel} onClose={() => setChosen(null)} />}
         </div>
       )}
     </div>
@@ -841,10 +862,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       )}
       {tab === 'next' && tt !== null && (
         <div className="cg-wm-fullview is-page" data-full-view="next" data-enter={enter}>
-          <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onMap={() => setFullTab('map')} onEnd={() => { setNav(null); setFullTab('map'); }} />
+          <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onPrepare={prepareStep} onMap={() => setFullTab('map')} onEnd={() => { setNav(null); setFullTab('map'); }} />
           <details className="cg-wm-allparts" data-world-all-parts="">
             <summary>{t('cogitaWorld.map.fullPath')}</summary>
-            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => { setNav(null); setFullTab('map'); }}
+            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onPrepare={prepareStep} onEnd={() => { setNav(null); setFullTab('map'); }}
               onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
           </details>
         </div>

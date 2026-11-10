@@ -86,6 +86,7 @@
     "reviewBranch": "Ten przegląd leży tylko na niektórych drogach — umieść go we wspólnej części, po spotkaniu dróg.",
     "reviewEmpty": "Ten przegląd nie ma pytań obowiązkowych (żadne nie leży na każdej drodze) — zaliczyłby się od razu.",
     "noAssessment": "Sześciokąt nie ma wspólnego sprawdzenia: żadne pytanie ani przegląd nie leży na każdej drodze.",
+    "noAssessmentBranch": "Gałąź „{route}” nie ma sprawdzenia: żadne pytanie ani przegląd nie leży na każdej drodze przez nią.",
     "tooManyRoutes": "Więcej niż {count} dróg — sprawdzono tylko pierwsze {count}.",
     "questionMissing": "Pytania „{ref}” nie ma.",
     "uncheckable": "Pytanie „{name}” nie wskazuje ani tematu („about”), ani slajdów wyjaśnienia („explain”) — nie da się sprawdzić, czy droga je przygotowuje.",

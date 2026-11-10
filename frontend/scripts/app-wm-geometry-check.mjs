@@ -46,7 +46,9 @@ const minGap = (g) => {
     const [x, y] = g.positions[id];
     for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) for (const j of grid.get(`${Math.floor(x / cell) + ox},${Math.floor(y / cell) + oy}`) ?? []) {
       if (j <= id) continue;
-      worst = Math.min(worst, Math.hypot(g.positions[j][0] - x, g.positions[j][1] - y) - g.radii[id] - g.radii[j]);
+      /* 2026-11-10 — ein Knoten zwischen Türmen (Gabelung, Tor) darf näher stehen (JUNCTION_GAP); gemessen wird der Rest gegen seinen Abstand. */
+      const small = id.startsWith('~j:') || id.startsWith('~g:') || j.startsWith('~j:') || j.startsWith('~g:');
+      worst = Math.min(worst, Math.hypot(g.positions[j][0] - x, g.positions[j][1] - y) - g.radii[id] - g.radii[j] - (small ? LAY.JUNCTION_GAP - LAY.GAP : 0));
     }
   }
   return worst;
