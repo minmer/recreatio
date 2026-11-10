@@ -74,6 +74,9 @@ export interface SceneLane {
   readonly slides: number;
   /** Die Art: Hauptpfad, Abzweig (eine Wahl), Vertiefung (ein Abstecher hin) oder Rückweg. */
   readonly kind: 'main' | 'branch' | 'deepening' | 'back';
+  /** 2026-11-10 — die Schritte des Abschnitts als Zeichen auf dem Pfad: Folie oder Frage, und ob schon gesehen. */
+  readonly marks: readonly ('slide' | 'question')[];
+  readonly seen: readonly boolean[];
 }
 
 export interface Scene {
@@ -160,6 +163,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       section: s.id, line: s.line, branch: s.branch, fromId: s.from, toId: s.to, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
       name: lines.lines.get(s.line)?.name ?? '', slides: s.slides,
+      marks: s.steps.map((x) => (s.questions.includes(x) ? 'question' as const : 'slide' as const)), seen: st?.seen ?? [],
       kind: s.kind === 'return' ? 'back' : lines.lines.get(s.line)?.deepening === true || s.kind === 'entry' ? 'deepening' : s.branch !== s.line ? 'branch' : 'main',
       color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null
     });

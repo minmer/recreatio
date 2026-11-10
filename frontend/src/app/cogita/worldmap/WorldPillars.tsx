@@ -814,18 +814,56 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const items = want.map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; })
         .filter((x) => x.len >= 36)
         .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.l.state === 'grow') - Number(a.l.state === 'grow') || b.len - a.len);
+      /*
+        2026-11-10 (Eigentümer: „nicht als Text, sondern als Punkte auf dem Pfad") — DIE SCHRITTE AUF DEM PFAD: je Folie ein
+        Punkt, je Frage eine Raute, in ihrer Reihenfolge; gesehen: gefüllt in der Farbe des Pfades, sonst hohl. Passen nicht alle,
+        stehen so viele da, wie Platz haben (gleichmässig ausgewählt). Am Anfang ein kleines Zeichen der Art: Abzweig (Gabel),
+        Vertiefung (hinab), Rückweg (Bogen zurück); der Hauptpfad trägt keins.
+      */
+      let markCount = 0;
+      const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
+      for (const { l, sp, len } of items) {
+        const col = l.state === 'locked' ? mix(l.color, pal.land, 0.45) : l.color;
+        const n = l.marks.length;
+        const room = Math.max(0, Math.floor((len - 26) / 10));
+        const count = Math.min(n, room);
+        for (let k = 0; k < count; k += 1) {
+          const i = count === n ? k : Math.round((k * (n - 1)) / Math.max(1, count - 1));
+          const at = along(sp, (k + 1) / (count + 1));
+          const seenHere = l.seen[i] === true;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          if (l.marks[i] === 'question') {
+            const r = 4.4;
+            ctx.moveTo(at.x, at.y - r); ctx.lineTo(at.x + r, at.y); ctx.lineTo(at.x, at.y + r); ctx.lineTo(at.x - r, at.y); ctx.closePath();
+          } else ctx.arc(at.x, at.y, 3.3, 0, Math.PI * 2);
+          ctx.fillStyle = seenHere ? rgbCss(col) : halo0;
+          ctx.strokeStyle = seenHere ? halo0 : rgbCss(col);
+          ctx.fill(); ctx.stroke();
+          markCount += 1;
+        }
+        if (l.kind !== 'main' && len >= 44) {
+          const at = along(sp, Math.min(0.35, 14 / len));
+          const r = 6.5;
+          ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(at.x, at.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.save(); ctx.translate(at.x, at.y); ctx.rotate(at.a);
+          ctx.strokeStyle = rgbCss(mix(col, pal.ink, 0.35)); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+          ctx.beginPath();
+          if (l.kind === 'branch') { ctx.moveTo(-3, 0); ctx.lineTo(0, 0); ctx.lineTo(3, -2.6); ctx.moveTo(0, 0); ctx.lineTo(3, 2.6); }
+          else if (l.kind === 'deepening') { ctx.moveTo(-2.6, -1.4); ctx.lineTo(0, 1.4); ctx.lineTo(2.6, -1.4); ctx.moveTo(-2.6, -3.6); ctx.lineTo(0, -0.8); ctx.lineTo(2.6, -3.6); }
+          else { ctx.arc(0, 0, 2.6, -Math.PI * 0.9, Math.PI * 0.6); ctx.moveTo(-2.6, -0.8); ctx.lineTo(-2.2, 1.6); ctx.lineTo(0, 0.6); }
+          ctx.stroke(); ctx.restore();
+        }
+      }
+      canvas.dataset.wmPathMarks = String(markCount);
       ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       let nameCount = 0;
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
       for (const { l, sp, len, on } of items) {
         /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
         const text = fitText(ctx, l.name, Math.min(260, Math.max(len * 0.9, 160)));
-        /* Darunter, kleiner: wie viele Folien und welche Art von Weg (leise, aber lesbar). */
-        const nameW = ctx.measureText(text).width;
-        ctx.font = '600 10.5px system-ui, sans-serif';
-        const metaText = fitText(ctx, [l.slides > 0 ? t('cogitaWorld.panel.slides', { count: l.slides }) : '', t(`cogitaWorld.map.pathKind.${l.kind}`)].filter((x) => x !== '').join(' · '), Math.min(240, Math.max(len * 0.95, 130)));
-        const w = Math.max(nameW, ctx.measureText(metaText).width);
-        ctx.font = '700 12px system-ui, sans-serif';
+        const w = ctx.measureText(text).width;
         /* Stellen entlang des Pfades und Abstände von ihm; die erste ohne Zusammenstoss, sonst (kräftige, gezeigte) die Mitte. */
         type Spot = { cx: number; cy: number; a: number; box: { x0: number; y0: number; x1: number; y1: number } };
         let pick = null as Spot | null;
@@ -838,10 +876,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           const steep = Math.abs(a) > 1.0;
           if (steep) a = 0;
           const c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
-          const hw = (w * c + 28 * sn) / 2 + 3, hh = (w * sn + 28 * c) / 2 + 3;
+          const hw = (w * c + 14 * sn) / 2 + 3, hh = (w * sn + 14 * c) / 2 + 3;
           const spots: [number, number][] = steep
-            ? [[w / 2 + 12, 0], [-(w / 2 + 12), 0], [w / 2 + 12, 30], [-(w / 2 + 12), -30]]
-            : [[0, -18], [0, 19], [0, -46], [0, 47]].map(([, off]) => [-Math.sin(a) * off, Math.cos(a) * off] as [number, number]);
+            ? [[w / 2 + 12, 0], [-(w / 2 + 12), 0], [w / 2 + 12, 22], [-(w / 2 + 12), -22]]
+            : [[0, -12], [0, 13], [0, -32], [0, 33]].map(([, off]) => [-Math.sin(a) * off, Math.cos(a) * off] as [number, number]);
           for (const [dx, dy] of spots) {
             const cx = at.x + dx, cy = at.y + dy;
             const box = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
@@ -858,12 +896,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.translate(use.cx, use.cy);
         ctx.rotate(use.a);
         const halo = rgbCss(mix(pal.surface, pal.land, 0.15));
-        ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, 0, -6.5);
-        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, -6.5);
-        ctx.font = '600 10.5px system-ui, sans-serif';
-        ctx.lineWidth = 3.4; ctx.strokeStyle = halo; ctx.strokeText(metaText, 0, 7);
-        ctx.fillStyle = rgbCss(mix(pal.ink, pal.land, 0.28)); ctx.fillText(metaText, 0, 7);
-        ctx.font = '700 12px system-ui, sans-serif';
+        ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, 0, 0);
+        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, 0);
         ctx.restore();
         nameCount += 1;
       }

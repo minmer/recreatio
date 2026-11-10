@@ -145,13 +145,7 @@
     "fullPath": "Droga",
     "fullPoints": "Punkty",
     "fullRun": "Slajd / pytania",
-    "fullNext": "Dalej",
-    "pathKind": {
-      "main": "ścieżka",
-      "branch": "odnoga",
-      "deepening": "pogłębienie",
-      "back": "powrót"
-    }
+    "fullNext": "Dalej"
   },
   "panel": {
     "close": "Zamknij",

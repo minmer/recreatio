@@ -129,13 +129,7 @@
     "fullPath": "Weg",
     "fullPoints": "Punkte",
     "fullRun": "Folie / Fragen",
-    "fullNext": "Weiter",
-    "pathKind": {
-      "main": "Pfad",
-      "branch": "Abzweig",
-      "deepening": "Vertiefung",
-      "back": "Rückweg"
-    }
+    "fullNext": "Weiter"
   },
   "panel": {
     "close": "Schließen",

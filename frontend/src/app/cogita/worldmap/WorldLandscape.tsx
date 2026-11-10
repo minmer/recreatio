@@ -564,7 +564,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Zeigen: die Blase, der Weg, die Navigation ---------------------------------------------------------------------- */
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const routeTo = useMemo(() => (hover === null ? null : state.routeTo(hover.id)), [hover, state]);
-  const chosenRoute = chosen?.kind === 'section' ? [chosen.id] : null;
+  /* 2026-11-10 (Eigentümer) — ein angeklickter Turm: sein Weg bleibt sichtbar, bis etwas anderes gewählt ist. */
+  const placeRoute = useMemo(() => (chosen?.kind === 'place' ? state.routeTo(chosen.id) : null), [chosen, state]);
+  const chosenRoute = chosen?.kind === 'section' ? [chosen.id] : placeRoute;
   const route = routeTo ?? chosenRoute ?? marks?.next ?? null;
   const faint = marks === null ? null : routeTo !== null || chosenRoute !== null ? [...marks.next, ...marks.later] : marks.later;
   const bubble = (() => {

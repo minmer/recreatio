@@ -101,6 +101,8 @@ export interface SectionState {
   readonly cost: number;
   /** Was der Abschnitt einführt und noch nie gesehen wurde. */
   readonly fresh: readonly string[];
+  /** 2026-11-10 — je Schritt des Abschnitts (in seiner Reihenfolge): schon gesehen? (die Punkte auf dem Pfad) */
+  readonly seen: readonly boolean[];
 }
 
 export interface RouteSummary {
@@ -262,7 +264,8 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     sections.set(s.id, {
       ticket, travelled: was, open: s.from === HOME || towerOpen(s.from),
       cost: s.from === s.to || !Number.isFinite(ticket.cost) ? Infinity : 1 + ticket.cost - (was ? 0.5 : 0),
-      fresh: s.introduces.filter((k) => band(k) === 'unseen')
+      fresh: s.introduces.filter((k) => band(k) === 'unseen'),
+      seen: s.steps.map((x) => seenStep(s, x))
     });
   }
 

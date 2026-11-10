@@ -129,13 +129,7 @@
     "fullPath": "Path",
     "fullPoints": "Points",
     "fullRun": "Slide / questions",
-    "fullNext": "Next",
-    "pathKind": {
-      "main": "path",
-      "branch": "branch",
-      "deepening": "deepening",
-      "back": "way back"
-    }
+    "fullNext": "Next"
   },
   "panel": {
     "close": "Close",
