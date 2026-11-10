@@ -451,7 +451,7 @@
     "nextPart": "Pierwsza część",
     "go": "Dalej",
     "partOf": "Część {n} z {all}",
-    "start": "Zacznij"
+    "stepDone": "Krok zrobiony: {text}"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

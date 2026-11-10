@@ -226,7 +226,11 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
   Welt“): unten über der Karte, die Karte bleibt zu sehen (sie zeigt selbst, was sich änderte). Ruhig: die Seite steigt auf, die
   Zahlen zählen hoch, die Folgen kommen eine nach der anderen. ------------------------------------------------------------------
 */
-.cg-wm-fin { position: absolute; left: 50%; bottom: calc(var(--cg-wm-bar, 0px) + var(--wk-space-3)); z-index: 8; width: min(40rem, calc(100% - 2 * var(--wk-space-3))); max-height: calc(100% - var(--cg-wm-bar, 0px) - 4.5rem); display: flex; transform: translateX(-50%); animation: cg-fin-rise 420ms cubic-bezier(.2, .9, .3, 1) both; }
+.cg-wm-host { position: relative; }
+/* 2026-11-10 (Eigentümer) — nach einem Schritt eine eigene Folie mit seinen Zahlen (über der ganzen Karte), danach die Karte. */
+.cg-wm-fin { position: absolute; inset: 0 0 var(--cg-wm-bar, 0px); z-index: 8; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: var(--wk-space-3); background: var(--wk-surface); animation: cg-wm-slide-in 320ms ease-out both; }
+.cg-wm-fin > .cg-fin-card { flex: 0 1 40rem; max-height: 100%; }
+@keyframes cg-wm-slide-in { from { opacity: 0; } to { opacity: 1; } }
 .cg-fin-card { position: relative; flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: var(--wk-space-3) var(--wk-space-4); border: 1px solid var(--wk-line); border-top: 3px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-fin.is-conquer .cg-fin-card, .cg-wm-fin.is-perfect .cg-fin-card, .cg-wm-fin.is-arrive .cg-fin-card { border-top-color: var(--wk-ok); }
 .cg-fin-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); margin-bottom: var(--wk-space-2); }
@@ -297,14 +301,22 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-trailbtn:hover, .cg-wm-trailbtn:focus-visible { border-color: var(--wk-ink); }
 .cg-wm-trailbtn.is-close { padding: 0.15rem 0.45rem; color: var(--wk-muted); }
 
-/* 2026-11-10 — der Überblick über den Weg (Doppelklick): über allem, die Schritte der Reihe nach. */
-.cg-wm-overview { position: fixed; inset: 0; z-index: var(--wk-z-dialog); display: flex; justify-content: center; overflow-y: auto; padding: var(--wk-space-4) var(--wk-space-3); background: var(--wk-surface); animation: cg-wm-over-in 260ms ease-out both; }
-@keyframes cg-wm-over-in { from { opacity: 0; transform: translateY(0.75rem); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .cg-wm-overview { animation: none; } }
-.cg-wm-overbox { width: min(40rem, 100%); display: flex; flex-direction: column; gap: var(--wk-space-3); }
-.cg-wm-overlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--wk-space-2); }
-.cg-wm-overstep { position: relative; display: flex; align-items: center; gap: var(--wk-space-3); padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
-.cg-wm-overstep:not(:last-child)::after { content: ''; position: absolute; left: calc(var(--wk-space-2) + 1.05rem); bottom: calc(-1 * var(--wk-space-2) - 1px); width: 2px; height: var(--wk-space-2); background: var(--wk-line-strong); }
-.cg-wm-overstep.is-current { border-color: var(--wk-accent); box-shadow: 0 0 0 1px var(--wk-accent); }
-.cg-wm-overstep.is-target { border-style: dashed; }
-.cg-wm-overstep .cg-wm-wtext { gap: 0.15rem; }
+/* 2026-11-10 — der Weg Schritt für Schritt unten auf der Karte (nicht in einem eigenen Reiter): offen als Karte, sonst als schmale Leiste. */
+.cg-wm-waycard { position: absolute; left: 50%; bottom: calc(var(--cg-wm-bar, 0px) + var(--wk-space-3)); z-index: 6; width: min(44rem, calc(100% - 2 * var(--wk-space-3))); max-height: calc(100% - 4.5rem); overflow-y: auto; transform: translateX(-50%); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); animation: cg-fin-rise 360ms cubic-bezier(.2, .9, .3, 1) both; }
+.cg-wm-host:not(.is-full) .cg-wm-waycard { bottom: var(--wk-space-3); }
+.cg-wm-nextview.is-card { gap: var(--wk-space-2); }
+.cg-wm-nextview.is-card h2 { font-size: var(--wk-text-md); margin: 0; }
+.cg-wm-nextview.is-card .cg-wm-invitebig { font-size: var(--wk-text-md); margin: 0; }
+.cg-wm-waycard .cg-wm-allparts { margin-top: var(--wk-space-2); }
+.cg-wm-waybar { position: absolute; left: 50%; bottom: calc(var(--cg-wm-bar, 0px) + var(--wk-space-3)); z-index: 6; transform: translateX(-50%); display: inline-flex; align-items: center; gap: var(--wk-space-2); max-width: calc(100% - 2 * var(--wk-space-3)); padding: 0.35rem 0.9rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-wm-host:not(.is-full) .cg-wm-waybar { bottom: var(--wk-space-3); }
+.cg-wm-waybar:hover, .cg-wm-waybar:focus-visible { border-color: var(--wk-ink); }
+/* Ein Schritt geschafft: ruhig, eine Zeile mit Haken, die kurz aufgeht. */
+.cg-wm-cheer { display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; padding: 0.35rem 0.6rem; border-radius: var(--wk-radius-sm); background: var(--wk-ok-soft); color: var(--wk-ink); font-weight: 600; animation: cg-wm-cheer 700ms cubic-bezier(.2, .9, .3, 1.2) both; }
+.cg-wm-cheermark { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--wk-ok); color: var(--wk-surface); font-size: var(--wk-text-xs); }
+@keyframes cg-wm-cheer { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cg-wm-waycard, .cg-wm-cheer { animation: none; } }
+/* Die Kette in der Karte des Weges: der jetzige Schritt in der Mitte (Platz links und rechts), jeder Schritt zeigt sich auf der Karte. */
+.cg-wm-parts.is-centre { padding-inline: calc(50% - 2.3rem); scroll-behavior: smooth; }
+.cg-wm-wbtn { display: flex; flex-direction: column; align-items: center; gap: var(--wk-space-1); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.cg-wm-wbtn:hover .cg-wm-wdot, .cg-wm-wbtn:focus-visible .cg-wm-wdot { border-color: var(--wk-ink); }

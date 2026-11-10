@@ -125,7 +125,7 @@ export function laneStroke(l: SceneLane, focus: { readonly remaining: ReadonlySe
     if (focus.current === l.section) return { width: 4.4, dash: [], tone: 'current', dots: true };
     if (focus.remaining.has(l.section)) return { width: 3.2, dash: [], tone: 'route', dots: true };
     if (focus.done.has(l.section)) return { width: 2, dash: [], tone: 'done', dots: false };
-    return { width: 1, dash: [], tone: 'grey', dots: false };
+    return { width: 1.3, dash: [], tone: 'grey', dots: false };
   }
   const dots = selected.has(l.section);
   if (l.state === 'locked') return { width: 1.2, dash: pattern(l.fresh), tone: 'locked', dots };

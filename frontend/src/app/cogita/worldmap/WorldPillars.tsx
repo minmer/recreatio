@@ -591,7 +591,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.stroke();
     };
     const toneColour = (tone: LaneStroke['tone']): Rgb => (tone === 'route' || tone === 'current' ? pal.lit
-      : tone === 'grey' ? mix(neutral, land, 0.35) : tone === 'done' ? mix(pal.lit, land, 0.55) : tone === 'locked' ? mix(pal.ink, land, 0.74)
+      : tone === 'grey' ? mix(pal.ink, land, 0.7) : tone === 'done' ? mix(pal.lit, land, 0.55) : tone === 'locked' ? mix(pal.ink, land, 0.74)
         : tone === 'known' ? mix(pal.ink, land, 0.5) : tone === 'walked' ? mix(pal.ink, land, 0.38) : mix(pal.ink, land, 0.28));
     const RANK: Readonly<Record<LaneStroke['tone'], number>> = { grey: 0, done: 1, locked: 1, known: 2, new: 3, walked: 3, route: 4, current: 5 };
     const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: laneStroke(l, fx), pts: withRims(l, pillarWidth) }))

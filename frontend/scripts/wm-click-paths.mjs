@@ -111,6 +111,19 @@ try {
     await waitFor(ready, 'the world map', 60000);
     await sleep(300);
   };
+  /** 2026-11-10 — nach einem Teil: die Folie mit seinen Zahlen schliessen (wenn sie kommt), dann steht der Weg unten auf der Karte. */
+  const afterPart = async () => {
+    await waitFor(`document.querySelector('[data-world-running]') === null`, 'the part to end', 15000);
+    await sleep(400);
+    if (await ev(`document.querySelector('[data-world-finish]') !== null`)) await click('[data-world-finish-close]');
+    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the statistics slide to close', 10000);
+  };
+  /** Die Karte des Weges offen, mit allen Teilen (der Fahrplan mit seinen Abzweigungen). */
+  const wayOpen = async () => {
+    if (await ev(`document.querySelector('[data-world-way-open]') !== null`)) await click('[data-world-way-open]');
+    await waitFor(`document.querySelector('[data-world-next-page] [data-world-panel="nav"]')`, 'the way at the bottom of the map', 15000);
+    await ev(`(() => { const d = document.querySelector('[data-world-all-parts]'); if (d) d.open = true; return true; })()`);
+  };
   /** Alle Karten eines Laufs richtig („Tak"), bis er endet. */
   const answerAll = async (endSelector, max = 80) => {
     let n = 0;
@@ -199,12 +212,12 @@ try {
     const firstKind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     check(P, `"take me there" starts the first step at once (${firstKind})`, ['story', 'learn', 'run'].includes(firstKind), firstKind);
     if (firstKind === 'story') await click('[data-flow-close]'); else await click('[data-world-back]');
-    /* 2026-11-10 — nach jedem Teil: der Weg und die Einladung zum nächsten Teil; „Wróć do mapy" zeigt die Karte mit dem Fahrplan. */
+    /* 2026-11-10 — nach jedem Teil: die Karte, unten der Weg (Schritt für Schritt) mit der Einladung zum nächsten Teil — kein eigener Reiter. */
+    await afterPart();
     await waitFor(`document.querySelector('[data-world-next-page] [data-world-next-invite]')`, 'the way with the invitation to the next part');
-    check(P, 'after a part: the way and the invitation to the next part', await ev(`document.querySelectorAll('[data-world-next-page] [data-world-way-part]').length >= 6 && document.querySelector('[data-world-next-go]') !== null`));
+    check(P, 'after a part: the way at the bottom of the map and the invitation to the next part', await ev(`document.querySelectorAll('[data-world-next-page] [data-world-way-part]').length >= 6 && document.querySelector('[data-world-next-go]') !== null && document.querySelector('[data-world-canvas]') !== null`));
     await shot('p3-next');
-    await click('[data-world-next-map]');
-    await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation panel');
+    await wayOpen();
     const before = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), stops: [...p.querySelectorAll('[data-world-stop]')].map((s, i) => ({ i, key: s.dataset.worldStop, state: s.dataset.worldStopState, turns: Number(s.querySelector('[data-world-turns]')?.dataset.worldTurns ?? 0) })) }; })()`);
     check(P, 'the timetable lists every step, the current one first', before.steps >= 6 && before.stops[0].state === 'current', { steps: before.steps, stops: before.stops.map((s) => s.key) });
     /* Eine Möglichkeit nach dem ersten Teil (die Teile davor bleiben, wenn man sie wählt). */
@@ -226,8 +239,8 @@ try {
     const kind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     if (kind === 'story') await click('[data-flow-close]');
     else await click('[data-world-back]');
-    await waitFor(`document.querySelector('[data-world-next-map]')`, 'the way after the part', 15000).then(() => click('[data-world-next-map]')).catch(() => null);
-    await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation to be still there', 15000).catch(() => null);
+    await afterPart();
+    await wayOpen().catch(() => null);
     check(P, `the navigation persists within the session (after "${kind}")`, await ev(`document.querySelector('[data-world-panel="nav"]') !== null`));
   }
 
@@ -277,8 +290,6 @@ try {
     check(P, 'no learning directly: a story explains these cards', await ev(`document.querySelector('[data-world-panel="place"] [data-world-learn-direct]') === null`));
     await shot('p5-run-ready');
     await click('[data-world-run-for="1"]');
-    await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
-    await click('[data-world-run-start]');
     /* 2026-11-10 — ein Fehler: der Durchgang lässt sich von vorn beginnen (für „Mistrzowsko"). */
     await waitFor(`document.querySelector('[data-world-run="ask"]')`, 'the first card');
     await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Nie' && !x.disabled); if (b) b.click(); return !!b; })()`);
@@ -286,11 +297,12 @@ try {
     await click('[data-world-run-restart]');
     await waitFor(`document.querySelector('[data-world-run="ask"]')?.dataset.worldRunAgain === '0' && document.querySelector('[data-world-run="ask"]')?.dataset.worldRunFirst === '0'`, 'a fresh run');
     check(P, 'after a mistake the run can be started over: nothing counted yet, no retry round', await ev(`document.querySelector('[data-world-run-restart-hint]') === null`));
-    await answerAll('[data-world-run="result"]');
-    const res = await ev(`(() => { const r = document.querySelector('[data-world-run="result"]'); return r === null ? null : { level: Number(r.dataset.worldRunLevel), reached: r.dataset.worldRunReached }; })()`);
-    check(P, 'the run reaches level 1', res !== null && res.level === 1 && res.reached === '1', res);
+    await answerAll('[data-world-finish]');
+    await waitFor(`document.querySelector('[data-world-finish]')`, 'the statistics slide after the run', 15000);
+    const res = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, answers: Number(f.dataset.worldFinishAnswers) }; })()`);
+    check(P, 'no result page: the run ends in the statistics slide (level 1 reached: conquered)', ['conquer', 'perfect'].includes(res.kind) && res.answers > 0, res);
     await shot('p5-run-result');
-    await click('[data-world-run-close]');
+    await click('[data-world-finish-close]');
     await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldConquered === '1'`, 'the place to be conquered', 15000);
     check(P, 'the place is conquered (flat, full colour, knowledge dot)', true);
     await shot('p5-conquered');
@@ -418,29 +430,23 @@ try {
     await click('[data-world-run-for="1"]');
     await waitFor(`document.querySelector('[data-world-running="run"]')`, 'the run');
     check(P, 'a part comes in as its own view, zooming in', await ev(`document.querySelector('[data-full-view="run"]')?.dataset.enter === 'zoom' && document.querySelector('[data-world-fullbar]').dataset.worldFullbar === 'run'`));
-    await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
-    await click('[data-world-run-start]');
-    await answerAll('[data-world-run="result"]');
     const played0 = await canvas('wmPlayed');
-    await click('[data-world-run-close]');
+    await answerAll('[data-world-finish]');
     await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the part');
     const fin = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, answers: Number(f.dataset.worldFinishAnswers), auto: f.querySelector('[data-world-finish-auto]') !== null }; })()`);
     check(P, 'the finish counts the answers and goes on by itself (to the map: no way chosen)', ['conquer', 'perfect'].includes(fin.kind) && fin.answers > 0 && fin.auto, fin);
-    /* 2026-11-10 — die Seite des Weges liegt unten über der Karte; die Karte darüber zeigt gleich, was sich änderte. */
-    await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play what changed', 10000);
-    check(P, 'the map is shown and plays what changed while the guide page is open', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return' && await ev(`document.querySelector('[data-world-finish]') !== null`));
+    /* 2026-11-10 (Eigentümer) — erst die Folie mit den Zahlen; die Karte spielt danach, was sich änderte. */
+    check(P, 'first the statistics slide: the map does not play behind it', (await canvas('wmPlayed')) === played0);
     await shot('p7-finish');
-    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the guide page to go on by itself', 15000);
-    check(P, 'by itself the page closes and the map stays', (await hostOf()).bar === 'map');
+    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the slide to go on by itself', 15000);
+    await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play what changed', 10000);
+    check(P, 'by itself the slide closes; the map plays what changed', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return');
     await shot('p7-map-plays');
     /* Ein zweiter Turm (seine Voraussetzung ist nun erobert) — der Abschluss sagt, was folgt und warum; eine Berührung hält das Weitergehen an. */
     await clickMap('label', N.sen);
     await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'the run to be possible', 15000);
     await click('[data-world-run-for="1"]');
-    await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
-    await click('[data-world-run-start]');
-    await answerAll('[data-world-run="result"]');
-    await click('[data-world-run-close]');
+    await answerAll('[data-world-finish]');
     await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the run');
     await sleep(2400);
     const won = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, follows: [...f.querySelectorAll('[data-world-finish-follow]')].map((x) => x.dataset.worldFinishFollow + ': ' + x.textContent) }; })()`);
@@ -496,12 +502,17 @@ try {
     await clickAt(pt[0], pt[1]);
     await sleep(90);
     await clickAt(pt[0], pt[1]);
-    await waitFor(`document.querySelector('[data-world-overview]')`, 'the overview of the way');
-    const ov = await ev(`({ steps: [...document.querySelectorAll('[data-world-overview-step]')].map((x) => x.dataset.worldOverviewStep), target: document.querySelector('[data-world-overview-target]')?.dataset.worldOverviewTarget, start: document.querySelector('[data-world-overview-start]')?.dataset.worldOverviewStart })`);
-    check(P, 'a double click opens the overview: every step in order, then the goal; nothing started yet', ov.steps.length >= 3 && ov.target === magone.id && await ev(`document.querySelector('[data-world-running]') === null`), ov);
-    await sleep(500);
+    await waitFor(`document.querySelector('[data-world-next-page] [data-world-next-invite]')`, 'the way at the bottom of the map');
+    const ov = await ev(`({ steps: [...document.querySelectorAll('[data-world-next-page] [data-world-way-part]')].map((x) => x.dataset.worldWayPart), target: document.querySelector('[data-world-next-page] [data-world-way-target]')?.dataset.worldWayTarget, start: document.querySelector('[data-world-next-go]')?.dataset.worldNextGo, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
+    check(P, 'a double click makes the tower the goal and shows the way step by step at the bottom of the map; nothing started yet', ov.steps.length >= 3 && ov.target === magone.id && ov.goal === magone.id && await ev(`document.querySelector('[data-world-running]') === null && document.querySelector('[data-world-canvas]') !== null`), ov);
+    /* Ein Schritt der Kette zeigt, wo er auf der Karte liegt. */
+    const shown = await ev(`document.querySelectorAll('[data-world-way-show]').length`);
+    await click('[data-world-way-show]');
+    await sleep(900);
+    check(P, 'the steps of the way can be clicked: the map shows where the step is', shown >= 3);
+    await sleep(300);
     await shot('p8-overview');
-    await click('[data-world-overview-start]');
+    await click('[data-world-next-go]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step from the overview');
     const kind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     check(P, `"start" in the overview begins the first step (${kind})`, kind === ov.start || (ov.start === 'travel' && kind === 'story') || (['learn', 'know', 'review'].includes(ov.start) && ['learn', 'review'].includes(kind)), { kind, start: ov.start });
@@ -528,19 +539,20 @@ try {
       }
       await click('[data-flow-close]');
     } else await click('[data-world-back]');
+    await afterPart();
     await waitFor(`document.querySelector('[data-world-next-stop]')`, 'the way after the part', 15000);
     await click('[data-world-next-stop]');
     await waitFor(`document.querySelector('[data-world-nav-paused]')`, 'the paused way');
     check(P, '"end navigation" only pauses the way (the progress stays); it can be resumed', await ev(`document.querySelector('[data-world-nav-paused]').dataset.worldNavPaused === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-panel="nav"]') === null`));
     await click('[data-world-nav-resume]');
-    await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the resumed way');
+    await wayOpen();
     check(P, 'resumed: the timetable is back', await ev(`document.querySelector('[data-world-panel="nav"]').dataset.worldNavTarget === ${JSON.stringify(magone.id)}`));
     await shot('p8-resumed');
     /* „Statistik dieser Karte" an einer Frage (ein Turm: sein Durchgang). */
     await click('[data-world-nav-go]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'the current step');
     for (let i = 0; i < 30 && !(await ev(`document.querySelector('[data-card-stats]') !== null`)); i += 1) {
-      if (await ev(`(() => { const b = document.querySelector('[data-flow-go]') ?? document.querySelector('[data-world-run-start]'); if (!b) return false; b.click(); return true; })()`)) { await sleep(150); continue; }
+      if (await ev(`(() => { const b = document.querySelector('[data-flow-go]'); if (!b) return false; b.click(); return true; })()`)) { await sleep(150); continue; }
       await sleep(150);
     }
     if (await ev(`document.querySelector('[data-card-stats]') !== null`)) {
