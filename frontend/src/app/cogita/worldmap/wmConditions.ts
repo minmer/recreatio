@@ -184,7 +184,19 @@ const KNOWNESS: ConditionEvaluator = {
     const op = (sv(c.op) ?? 'ge') as CompareOp;
     const than = String(typeof c.than === 'number' ? c.than : 1);
     const test = band !== undefined ? (k: number) => inBand(k, band) : (k: number) => compare(op, String(k), than);
-    return cardTest(cards, test, c.each === 'any' ? 'any' : 'all', ctx);
+    const r = cardTest(cards, test, c.each === 'any' ? 'any' : 'all', ctx);
+    /*
+      2026-11-10 (Eigentümer: „‚erobert‘ kommt aus der einen Einstellung — Scheiben und Tore nutzen dieselbe Quelle") — „ein Turm
+      gekonnt" heisst: er ist erobert (mit Stufen: die letzte Stufe; ohne: der Anteil gekonnter Karten). Was fehlt, bleiben seine Karten.
+    */
+    const conquered = ctx.conquered;
+    const towers = conquered !== undefined && rel === undefined && band === 'known' && c.each !== 'any' && of !== undefined
+      ? (ctx.world.places.has(of) ? [of] : ctx.world.blocks.get(of)?.parts.filter((p) => ctx.world.places.has(p)) ?? null) : null;
+    if (towers !== null && towers.length > 0) {
+      const done = towers.every((p) => conquered!(p));
+      return done ? { met: true, progress: 1, missing: { new: [], review: [] } } : { ...r, met: false, ...(r.met ? { missing: { new: [], review: [] }, progress: 0.99 } : {}) };
+    }
+    return r;
   },
   cost: (_c, _ctx, r) => knowledgeCost(r),
   describe(c, ctx, r) {

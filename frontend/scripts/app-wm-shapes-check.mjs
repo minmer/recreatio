@@ -21,7 +21,7 @@ const entries = {
   plan: 'src/app/cogita/worldmap/wmPlan.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', types: 'src/app/cogita/worldmap/wmTypes.ts',
   geo: 'src/app/cogita/worldmap/wmGeometry.ts', scene: 'src/app/cogita/worldmap/wmScene.ts', colors: 'src/app/cogita/worldmap/wmColors.ts',
   nav: 'src/app/cogita/worldmap/wmNav.ts', panels: 'src/app/cogita/worldmap/WorldPanels.tsx', runs: 'src/app/cogita/worldmap/wmRuns.ts',
-  focus: 'src/app/cogita/worldmap/wmFocus.ts'
+  focus: 'src/app/cogita/worldmap/wmFocus.ts', pillars: 'src/app/cogita/worldmap/WorldPillars.tsx'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -29,7 +29,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [G, L, S, P, F, T, GEO, SC, C, N, PN, R, FO] = await Promise.all(Object.keys(entries).map(load));
+const [G, L, S, P, F, T, GEO, SC, C, N, PN, R, FO, WP] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -128,7 +128,8 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   const gate = [...w.lines.junctions.values()].find((j) => j.kind === 'gate');
   check('gate with two required towers: a gate node; the way comes from one, a track from the other', [gate?.from, w.lines.links.filter((l) => l.to === gate?.id).map((l) => l.from)], ['B', ['K']]);
   check('gate: the line\'s ticket stands on the way into the gate', secOf(w, 'B', gate.id)[0].ticket.map((p) => p.condition.of), ['B', 'K']);
-  check('gate: the scene draws every gate track', w.scene.links.filter((l) => l.kind === 'gate').map((l) => [l.from, l.to]).sort(), [['K', J.id], ['K', gate.id]].sort());
+  /* 2026-11-10 (Eigentümer): gezeichnet nur, wenn ein Ziel gewählt ist, auf dessen Weg das Tor liegt; sonst ein Schloss am Zweig. */
+  check('gate: the scene keeps every gate track (drawn when a goal on its way is chosen)', w.scene.links.filter((l) => l.kind === 'gate').map((l) => [l.from, l.to]).sort(), [['K', J.id], ['K', gate.id]].sort());
   check('gate: locked until the required towers are conquered', w.state.sections.get(secOf(w, gate.id, 'Z')[0].id).open, false);
   /* Z verlangt B und K (auch mittelbar A): der Turm erklärt sich selbst. */
   check('locked tower: lists every missing tower, also indirect ones, with open / locked', PN.requiredTowers(w.state, 'Z').map((x) => [x.id, x.state]), [['A', 'open'], ['K', 'open'], ['B', 'locked']]);
@@ -234,12 +235,16 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   check('fork position: every fork lies closer to its origin than any branch target, towards the targets, clear of other towers', placement.filter((x) => !x.close || !x.between || !x.clear), []);
   check('fork position: checked on every generated world with forks', placement.length >= 6, true);
 
-  /* Die Richtung jeder Spur: sie beginnt an ihrem Ausgang und endet an ihrem Ziel. */
+  /*
+    Die Richtung jeder Spur: sie läuft vom Ausgang zum Ziel. 2026-11-10 — gemessen entlang der Achse Ausgang → Ziel (eine Gabelung
+    liegt jetzt dicht am Rand ihres Turms: der erste Punkt am Rand kann der Gabelung näher sein als der Mitte des Turms).
+  */
   const w = open(SH.forks());
   const wrong = w.scene.lanes.filter((l) => {
     const p = l.points; const a = [p[0], p[1]], b = [p[p.length - 2], p[p.length - 1]];
-    const d = (x, y) => Math.hypot(x[0] - y[0], x[1] - y[1]);
-    return !(d(a, l.from) < d(a, l.to) && d(b, l.to) < d(b, l.from));
+    const ax = [l.to[0] - l.from[0], l.to[1] - l.from[1]];
+    const along = (x) => (x[0] - l.from[0]) * ax[0] + (x[1] - l.from[1]) * ax[1];
+    return !(along(a) < along(b));
   });
   check('direction: every track runs from its origin to its target (the drawn arrow points that way)', wrong.map((l) => l.section), []);
 
@@ -287,6 +292,109 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
     if (tt.upcoming.length === 0) check('guided flow: it ends exactly when the goal is conquered', wc.state.places.get('C').conquered, true);
   }
   check('guided flow: every part in order, nothing skipped, then the end', [stops, tt.upcoming.length, tt.done.length], [['travel:A', 'run:A', 'travel:B', 'run:B', 'travel:C', 'run:C'], 0, 6]);
+}
+
+/* -- 2026-11-10 (Eigentümer, Teil 4): Scheiben, drei Stricharten, Lage der Gabelung, ein gewähltes Ziel, der geführte Weg ------ */
+
+/* §1 Scheiben: jede fehlende Voraussetzung (auch mittelbar) einmal; unten, was zuerst kommt; oben eine unmittelbare. */
+{
+  const w = open(SH.gates());
+  const z = w.scene.byId.get('Z');
+  check('discs: one per missing prerequisite, indirect ones too, each once (Z needs B and K, B needs A)', z.discs, ['A', 'K', 'B']);
+  check('discs: the bottom disc is what comes first; the top disc is a direct prerequisite', [w.world.places.get('A').needs.length, w.world.places.get('Z').needs.includes(z.discs[z.discs.length - 1])], [0, true]);
+  check('discs: a tower with no missing prerequisite stands on none (ready)', [w.scene.byId.get('A').discs, w.scene.byId.get('K').discs], [[], []]);
+  const later = open(SH.gates(), F.fakeLearner({ levels: { A: 1 } }));
+  check('discs: a conquered tower leaves the discs of every tower that needs it (the towers get lower)', [later.scene.byId.get('Z').discs, later.scene.byId.get('B').discs, later.scene.byId.get('A').discs], [['K', 'B'], [], []]);
+  const all = open(SH.gates(), F.fakeLearner({ levels: { A: 1, K: 1, B: 1 } }));
+  check('discs: when every prerequisite is conquered, no disc is left — the same rule as the gates (conquered = the levels setting)', [all.scene.byId.get('Z').discs, all.state.sections.get(secOf(all, [...all.lines.junctions.values()].find((j) => j.kind === 'gate').id, 'Z')[0].id).open], [[], true]);
+  check('discs: positions stay the same for every learner (only heights change)', JSON.stringify(w.g.positions) === JSON.stringify(later.g.positions), true);
+  const d = { id: 'Z', x: 0, base: 100, rx: 20, ry: 10, step: 8, n: 3 };
+  check('discs: a click on the side finds its disc (bottom 0, then up), above the stack none', [WP.discAt(d, 0, 106), WP.discAt(d, 0, 98), WP.discAt(d, 5, 92), WP.discAt(d, 0, 80), WP.discAt(d, 30, 106)], [0, 1, 2, -1, -1]);
+  const fake = { measureText: (s) => ({ width: s.length * 6 }) };
+  check('labels: a long name wraps onto lines (the last one cut with "…")', [WP.wrapText(fake, 'Freier Fall im Vakuum', 70, 3), WP.wrapText(fake, 'Ein sehr langer Name eines Turmes', 60, 2)], [['Freier Fall', 'im Vakuum'], ['Ein sehr', 'langer Na…']]);
+}
+
+/* §2 Pfade: keine Farbe je Erzählung; dick = gegangen, dünn = nichts Neues, gestrichelt = Neues (dichter, je weniger neu). */
+{
+  const made = SH.fork();
+  const w0 = open(made);
+  const homeA = [...w0.lines.sections.values()].find((s) => s.from === T.HOME);
+  const toB = w0.scene.lanes.find((l) => l.toId === 'B');
+  check('paths: a path that brings new cards is dashed', [toB.style, toB.fresh, SC.laneStroke(toB, null).dash.length > 0], ['new', 1, true]);
+  const walked = open(made, F.fakeLearner({ progress: { 'f/1': { visited: [...homeA.steps] } } }));
+  const wa = walked.scene.lanes.find((l) => l.section === homeA.id);
+  check('paths: a walked path is thick and solid', [wa.style, SC.laneStroke(wa, null).dash, SC.laneStroke(wa, null).width > SC.laneStroke(toB, null).width], ['walked', [], true]);
+  const knowAll = Object.fromEntries(w0.world.places.get('B').cards.map((k) => [k, 2]));
+  const wk = open(made, F.fakeLearner({ knowness: knowAll, levels: { A: 1 } }));
+  const known = wk.scene.lanes.find((l) => l.toId === 'B');
+  const fresh = wk.scene.lanes.find((l) => l.toId === 'C');
+  check('paths: walkable but nothing new (its cards are known from elsewhere): thin and solid — thinner than an open path with new cards', [known.style, SC.laneStroke(known, null).dash, fresh.style, SC.laneStroke(known, null).width < SC.laneStroke(fresh, null).width], ['known', [], 'new', true]);
+  const part = open(made, F.fakeLearner({ knowness: { [w0.world.places.get('B').cards[0]]: 2 } })).scene.lanes.find((l) => l.toId === 'B');
+  const period = (l) => SC.laneStroke(l, null).dash.reduce((a, b) => a + b, 0);
+  check('paths: partly known — still dashed, the dashes denser the fewer cards are new', [part.style, Math.round(part.fresh * 100), period(part) < period(toB)], ['new', 67, true]);
+  check('paths: no colour per story — the stroke depends only on the state', SC.laneStroke({ ...toB, color: [255, 0, 0] }, null), SC.laneStroke({ ...toB, color: [0, 0, 255] }, null));
+  check('paths: not chosen → no dots; chosen → a dot per slide and question (questions another shape)', [SC.laneStroke(toB, null).dots, SC.laneStroke(toB, null, new Set([toB.section])).dots, toB.marks.filter((m) => m === 'question').length], [false, true, 3]);
+  check('paths: direction data — every track from its origin to its target', w0.scene.lanes.every((l) => l.points.length >= 4), true);
+  const J = junctionOf(w0, made.choice);
+  check('paths: the branches of a fork are named by their destination, not by the story', w0.scene.lanes.filter((l) => l.fromId === J.id).map((l) => l.name).sort(), ['Turm B', 'Turm C']);
+  const g = open(SH.gates());
+  const branchB = g.scene.lanes.find((l) => l.toId === 'B');
+  check('paths: a branch with its own condition carries a lock with the required tower; gone once it is conquered', [branchB.requires, open(SH.gates(), F.fakeLearner({ levels: { K: 1 } })).scene.lanes.find((l) => l.toId === 'B').requires], [['K'], []]);
+}
+
+/* §3 Gabelungen: zwischen Ausgang und Zielen; der Abstand wächst mit den Folien davor, in den Grenzen 10 %–45 %. */
+{
+  const share = (made) => {
+    const w = open(made);
+    const j = [...w.lines.junctions.values()].find((x) => x.kind === 'fork');
+    const po = w.g.positions[j.from], pj = w.g.positions[j.id];
+    let near = Infinity, rn = 0;
+    for (const id of j.out) { const t = w.lines.sections.get(id).to; const p = w.g.positions[t]; const d = Math.hypot(p[0] - po[0], p[1] - po[1]); if (d < near) { near = d; rn = w.g.radii[t]; } }
+    const start = w.g.radii[j.from] + 6 + 2, end = near - rn - 6 - 2;
+    return (Math.hypot(pj[0] - po[0], pj[1] - po[1]) - start) / (end - start);
+  };
+  const r = [0, 1, 3, 12].map((n) => Math.round(share(SH.forkAfter(n)) * 100) / 100);
+  check('fork position: clamped between 10 % and 45 % of the free way to the nearest target', r.every((x) => x >= 0.095 && x <= 0.455), true);
+  check('fork position: no slides before → nearest the origin; more slides before (relative to the branches) → further, up to the clamp', [r[0], r[0] <= r[1] && r[1] < r[2] && r[2] <= r[3], r[3]], [0.1, true, 0.45]);
+  check('fork position: the rule itself (slides before ÷ (before + branch length))', [GEO.forkShare(0, 7), GEO.forkShare(3, 7), GEO.forkShare(50, 7), GEO.forkShare(0, 0)], [0.1, 0.3, 0.45, 0.1]);
+  const w = open(SH.forkAfter(3));
+  const j = [...w.lines.junctions.values()].find((x) => x.kind === 'fork');
+  check('fork position: the stretch to the fork is its own track and can be chosen as a route segment', [secOf(w, 'A', j.id).length, w.scene.lanes.some((l) => l.toId === j.id)], [1, true]);
+}
+
+/* §4 Ein gewähltes Ziel: der Weg gezeichnet, alles andere grau; Erledigtes dünn, Offenes kräftig, der jetzige Schritt hervor. */
+{
+  const made = SH.fork();
+  const homeA = [...open(made).lines.sections.values()].find((s) => s.from === T.HOME);
+  const w = open(made, F.fakeLearner({ progress: { 'f/1': { visited: [...homeA.steps] } }, levels: { A: 1 } }));
+  const J = junctionOf(w, made.choice);
+  const toB = J.out.find((id) => w.lines.sections.get(id).to === 'B');
+  const toC = J.out.find((id) => w.lines.sections.get(id).to === 'C');
+  const f = FO.sectionFocus(w.state, w.lines, toB, (target, via) => P.plan(w.state, target, { choices: new Map([[target, via]]) }));
+  check('goal by a path: one click on a path shows the way over it to its tower', [[...f.remaining].map((id) => w.lines.sections.get(id).to), f.current === [...f.remaining][0], [...f.missing]], [[J.id, 'B'], true, ['B']]);
+  check('goal by a path: everything not on the way is grey (the other branch, its tower)', [FO.greySection(f, toC), FO.greyPlace(f, 'C'), FO.greySection(f, homeA.id), FO.greyPlace(f, 'B')], [true, true, false, false]);
+  const lane = (id) => w.scene.lanes.find((l) => l.section === id);
+  check('goal: done thin and muted, open prominent (one accent), the current step stands out, the rest grey', [SC.laneStroke(lane(homeA.id), f).tone, SC.laneStroke(lane(f.current), f).tone, SC.laneStroke(lane(toB), f).tone, SC.laneStroke(lane(toC), f).tone], ['done', 'current', 'route', 'grey']);
+  check('goal: only the chosen way has dots', [SC.laneStroke(lane(toB), f).dots, SC.laneStroke(lane(homeA.id), f).dots, SC.laneStroke(lane(toC), f).dots], [true, false, false]);
+  const c = made.input.cards.filter((x) => x.about[0] === 'A').map((x) => x.key);
+  const due = open(made, F.fakeLearner({ levels: { A: 1 }, knowness: Object.fromEntries(c.map((k, i) => [k, i === 0 ? 0.5 : 2])) }));
+  check('goal: a conquered tower with cards due for review carries a flag (also far away); others none', [due.scene.byId.get('A').due, due.scene.byId.get('B').due], [true, false]);
+}
+
+/* §5 Der geführte Weg: zuerst die nötige Wiederholung, nur was das Ziel braucht, er endet erst am Ziel. */
+{
+  const made = SH.reviewGate();
+  const w0 = open(made);
+  const seen = (flow) => [...w0.lines.sections.values()].filter((s) => s.line === flow).flatMap((s) => s.steps);
+  const homeA = [...w0.lines.sections.values()].find((s) => s.line === 'f/a' && s.from === T.HOME);
+  const w = open(made, F.fakeLearner({ levels: { A: 1, K: 1 }, progress: { 'f/k': { visited: seen('f/k') }, 'f/a': { visited: [...homeA.steps] } }, knowness: { 'q/K/0': 0.5 } }));
+  const pl = P.plan(w.state, 'B');
+  check('overview: the review that the way needs comes first (the branch to B needs a card it has seen, known)', [pl.steps[0]?.kind, pl.steps[0]?.cards], ['review', ['q/K/0']]);
+  check('overview: then the way, only towards the goal, ending with its conquest', pl.steps.map((s) => `${s.kind}:${s.place}`).slice(1), ['travel:B', 'travel:B', 'run:B']);
+  check('overview: only towers the goal needs', pl.places, ['B']);
+  /* Angehalten: derselbe Plan, wenn man weitermacht (der Fortschritt steckt im Stand). */
+  const tt = N.followPlan(null, pl);
+  check('guided flow: paused and resumed, it continues where it was (same parts left)', N.followPlan(tt, P.plan(w.state, 'B')).upcoming.map(N.stepKey), tt.upcoming.map(N.stepKey));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

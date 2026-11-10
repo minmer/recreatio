@@ -288,7 +288,12 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   }
 
   const cardsLeft = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0);
-  return { target, places: order, steps, cards: cardsLeft, route };
+  /*
+    2026-11-10 (Eigentümer: „der erste Schritt ist die Wiederholung, die vorher nötig ist") — Wiederholungen betreffen nur Karten,
+    die man schon gesehen hat: sie stehen am Anfang des Weges, dann geht es ohne Halt bis zum Ziel.
+  */
+  const ordered = [...steps.filter((s) => s.kind === 'review'), ...steps.filter((s) => s.kind !== 'review')];
+  return { target, places: order, steps: ordered, cards: cardsLeft, route };
 }
 
 /** Das Fenster des Fahrplans (§8.2): 2 erledigte darüber, der jetzige, 4 kommende. */

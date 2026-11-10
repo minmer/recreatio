@@ -1137,7 +1137,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const [x, y] = toScr(v, j.x, j.y, 0);
         if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) continue;
         const r = Math.max(5, Math.min(9, j.r * v.s * 1.1 + 2));
-        const col = j.open ? j.color : mix(j.color, pal.land, 0.45);
+        /* Keine Farbe je Erzählung: auf dem gewählten Weg in seiner Farbe, sonst Tinte (gesperrt blasser), abseits grau. */
+        const col = focus !== null && focus.nodes.has(j.id) ? pal.lit : focus !== null ? mix(pal.ink, pal.land, 0.7) : mix(pal.ink, pal.land, j.open ? 0.15 : 0.55);
         ctx.fillStyle = rgbCss(pal.surface); ctx.strokeStyle = rgbCss(col); ctx.lineWidth = chosen === j.id ? 3 : 2;
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.strokeStyle = rgbCss(mix(col, pal.ink, 0.3)); ctx.lineWidth = 1.5; ctx.lineCap = 'round';
@@ -1461,12 +1462,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       wmLocate?: (kind: string, id: string) => [number, number] | null;
       wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
       wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
+      wmDiscs?: () => { id: string; discs: readonly string[] }[];
     };
     const el = canvasRef.current as Hooked | null;
     if (el === null) return undefined;
     const label = (id: string) => (id === HOME_MARK ? HOME_MARK : scene.byId.get(id)?.label ?? id);
     el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
     el.wmJunctionList = () => scene.junctions.map((j) => ({ id: j.id, kind: j.kind, ways: j.ways.length, before: j.before.slides, open: j.open }));
+    el.wmDiscs = () => scene.places.filter((p) => p.discs.length > 0).map((p) => ({ id: p.id, discs: p.discs }));
     el.wmLocate = (kind, id) => {
       const c = camRef.current;
       if (c === null) return null;
@@ -1478,6 +1481,15 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         if (d === undefined) return null;
         for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want) return [d.x, y];
         return null;
+      }
+      if (kind === 'disc') {
+        /* `<turm>#<i>`: die i-te Scheibe von unten, vorn in ihrer Mitte (nur, wenn die Streifen zu sehen sind). */
+        const at = id.lastIndexOf('#');
+        const place = id.slice(0, at), i = Number(id.slice(at + 1));
+        const d = discsRef.current.find((x) => x.id === place);
+        if (d === undefined) return null;
+        const y = d.base + d.ry - (i + 0.5) * d.step;
+        return inside(d.x, y) && hit(d.x, y) === place && discAt(d, d.x, y) === i ? [d.x, y] : null;
       }
       if (kind === 'junction') {
         const j = scene.junctions.find((x) => x.id === id);
@@ -1501,7 +1513,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       return null;
     };
-    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; };
   });
 
   /*

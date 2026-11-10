@@ -98,6 +98,19 @@ export function shapes(F) {
       w.story('f/z', { unit: 'u/z' }, (b) => { w.ways(b, 1); w.stop(b, 'Z'); });
       return { input: w.input(), choice };
     },
+    /** Ein Zweig, der eine schon gesehene Karte gekonnt verlangt (davor eine Wiederholung). */
+    reviewGate() {
+      const w = world();
+      w.tower('A'); w.tower('K'); w.tower('B', 3, ['A']); w.tower('C', 3, ['A']);
+      w.unit('u/a'); w.unit('u/k');
+      let choice = '';
+      w.story('f/a', { unit: 'u/a' }, (b) => {
+        w.stop(b, 'A'); w.ways(b, 1);
+        choice = fork(b, [{ label: 'B', condition: { type: 'knowness', of: 'q/K/0', band: 'known' } }, { label: 'C' }], [(x) => w.stop(x, 'B'), (x) => w.stop(x, 'C')]);
+      });
+      w.story('f/k', { unit: 'u/k' }, (b) => w.stop(b, 'K'));
+      return { input: w.input(), choice };
+    },
     /** Ein Abstecher (ohne eigene Einheit) und einer mit eigener Einheit (behält seinen Weg). */
     detour() {
       const w = world();
@@ -143,6 +156,18 @@ export function shapes(F) {
         ]);
       });
       return { input: w.input(), ids };
+    },
+    /** Eine Gabelung nach `n` Wegfolien (die Lage der Gabelung wächst mit den Folien vor ihr). */
+    forkAfter(n) {
+      const w = world();
+      w.tower('A'); w.tower('B', 3, ['A']); w.tower('C', 4, ['A']);
+      w.unit('u/1');
+      let choice = '';
+      w.story('f/1', { unit: 'u/1' }, (b) => {
+        w.stop(b, 'A'); w.ways(b, n);
+        choice = fork(b, [{ label: 'zu B' }, { label: 'zu C' }], [(x) => w.stop(x, 'B'), (x) => w.stop(x, 'C')]);
+      });
+      return { input: w.input(), choice };
     },
     /** Ein Przegląd, danach eine Schlussfolie und eine Gabelung: was nach dem Przegląd kommt, wird gezeichnet. */
     review() {

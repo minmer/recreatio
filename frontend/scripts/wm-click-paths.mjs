@@ -451,6 +451,99 @@ try {
     check(P, 'Esc closes the whole page; the page scrolls again', !(await hostOf()).locked);
   }
 
+  /*
+    -- 8 · 2026-11-10 (Eigentümer, Teil 4): Scheiben (ein Klick gleitet hin, der Weg zurück), Doppelklick = Überblick über den Weg,
+    „Beenden" hält nur an, der Plan einer Erzählung nur im Vollbild auf Wunsch, „Statistik dieser Karte" an jeder Frage ------------
+  */
+  if (runs('8')) {
+    const P = '8 discs and overview';
+    const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
+    await open();
+    const discs = await ev(`document.querySelector('[data-world-canvas]').wmDiscs()`);
+    const magone = discs.find((d) => d.discs.length >= 2);
+    check(P, 'towers stand on discs (one per missing prerequisite)', magone !== undefined, discs.slice(0, 3));
+    /* Hineinzoomen zu ihm (das Rad an seiner Stelle), bis die Scheiben als Streifen und ihre Namen zu sehen sind. */
+    await clickMap('place', magone.id);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
+    let disc = null;
+    for (let i = 0; i < 14 && disc === null; i += 1) {
+      const at = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('place', ${JSON.stringify(magone.id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+      if (at !== null) await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: at[0], y: at[1], deltaX: 0, deltaY: -260 });
+      await sleep(250);
+      disc = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('disc', ${JSON.stringify(`${magone.id}#0`)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+    }
+    check(P, 'close up the discs show as stripes with the names of their towers', disc !== null && Number(await canvas('wmDiscStripes')) > 0 && Number(await canvas('wmDiscNames')) > 0, { stripes: await canvas('wmDiscStripes'), names: await canvas('wmDiscNames') });
+    await shot('p8-discs');
+    if (disc !== null) {
+      await clickAt(disc[0], disc[1]);
+      await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.discs[0])}`, 'the tower of the bottom disc', 10000).catch(() => null);
+      check(P, 'a click on a disc glides to its tower (bottom disc = first to do) and keeps the way back', await ev(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.discs[0])} && document.querySelector('[data-world-trail]') !== null`));
+      await shot('p8-disc-glide');
+      await click(`[data-world-trail-to="${magone.id}"]`);
+      await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.id)}`, 'back to the tower', 10000).catch(() => null);
+      check(P, 'the way back returns to the tower', await ev(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-trail]') === null`));
+    }
+    /* Doppelklick: der Überblick über den Weg, von dort beginnt man. */
+    await click('[data-world-fit]');
+    await sleep(500);
+    const pt = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('place', ${JSON.stringify(magone.id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+    await clickAt(pt[0], pt[1]);
+    await sleep(90);
+    await clickAt(pt[0], pt[1]);
+    await waitFor(`document.querySelector('[data-world-overview]')`, 'the overview of the way');
+    const ov = await ev(`({ steps: [...document.querySelectorAll('[data-world-overview-step]')].map((x) => x.dataset.worldOverviewStep), target: document.querySelector('[data-world-overview-target]')?.dataset.worldOverviewTarget, start: document.querySelector('[data-world-overview-start]')?.dataset.worldOverviewStart })`);
+    check(P, 'a double click opens the overview: every step in order, then the goal; nothing started yet', ov.steps.length >= 3 && ov.target === magone.id && await ev(`document.querySelector('[data-world-running]') === null`), ov);
+    await shot('p8-overview');
+    await click('[data-world-overview-start]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'the first step from the overview');
+    const kind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
+    check(P, `"start" in the overview begins the first step (${kind})`, kind === ov.start || (ov.start === 'travel' && kind === 'story') || (['learn', 'know', 'review'].includes(ov.start) && ['learn', 'review'].includes(kind)), { kind, start: ov.start });
+    if (kind === 'story') {
+      /* Der Plan der Erzählung: nicht daneben, nur auf Wunsch im Vollbild; der eigene Weg lässt sich ausschalten. */
+      await sleep(400);
+      check(P, 'no story graph beside the story', await ev(`document.querySelector('.cg-story-path-side') === null && document.querySelector('.cg-story-mapview') === null`));
+      await ev(`(() => { const m = document.querySelector('[data-flow-menu]'); if (m) m.open = true; return true; })()`);
+      const hasMap = await ev(`document.querySelector('[data-flow-story-map]') !== null`);
+      if (hasMap) {
+        await click('[data-flow-story-map]');
+        await waitFor(`document.querySelector('.cg-story-mapview [data-path-map]')`, 'the story map full screen');
+        await click('[data-story-map-route]');
+        await sleep(200);
+        check(P, 'the story map opens full screen on demand; the own way can be switched off', await ev(`document.querySelector('[data-story-map-route]').checked === false`));
+        await shot('p8-story-map');
+        await click('[data-story-map-close]');
+        check(P, 'and it closes again', await ev(`document.querySelector('.cg-story-mapview') === null`));
+      }
+      /* Bis zur ersten Frage blättern: dort „Statistik dieser Karte". */
+      for (let i = 0; i < 20 && !(await ev(`document.querySelector('[data-card-stats]') !== null`)); i += 1) {
+        if (!(await ev(`(() => { const b = document.querySelector('[data-flow-go]'); if (!b) return false; b.click(); return true; })()`))) break;
+        await sleep(150);
+      }
+      await click('[data-flow-close]');
+    } else await click('[data-world-back]');
+    await waitFor(`document.querySelector('[data-world-next-stop]')`, 'the way after the part', 15000);
+    await click('[data-world-next-stop]');
+    await waitFor(`document.querySelector('[data-world-nav-paused]')`, 'the paused way');
+    check(P, '"end navigation" only pauses the way (the progress stays); it can be resumed', await ev(`document.querySelector('[data-world-nav-paused]').dataset.worldNavPaused === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-panel="nav"]') === null`));
+    await click('[data-world-nav-resume]');
+    await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the resumed way');
+    check(P, 'resumed: the timetable is back', await ev(`document.querySelector('[data-world-panel="nav"]').dataset.worldNavTarget === ${JSON.stringify(magone.id)}`));
+    await shot('p8-resumed');
+    /* „Statistik dieser Karte" an einer Frage (ein Turm: sein Durchgang). */
+    await click('[data-world-nav-go]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'the current step');
+    for (let i = 0; i < 30 && !(await ev(`document.querySelector('[data-card-stats]') !== null`)); i += 1) {
+      if (await ev(`(() => { const b = document.querySelector('[data-flow-go]') ?? document.querySelector('[data-world-run-start]'); if (!b) return false; b.click(); return true; })()`)) { await sleep(150); continue; }
+      await sleep(150);
+    }
+    if (await ev(`document.querySelector('[data-card-stats]') !== null`)) {
+      await click('[data-card-stats]');
+      await waitFor(`document.querySelector('[data-card-stats-open]')`, 'the statistics of the card', 10000);
+      check(P, 'every card view offers "statistics of this card" (same place, same sign)', await ev(`document.querySelector('[data-card-stats-open]') !== null`));
+      await shot('p8-card-stats');
+    } else check(P, 'a question was reached to try "statistics of this card"', false);
+  }
+
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');
   check('all', 'no exceptions in the page', errors.filter((c) => c.level === 'exception').length === 0, errors.slice(0, 5));
 } finally {
