@@ -116,7 +116,11 @@
     "leadHint": "Double-click: take me there",
     "turnHint": "Ctrl + drag: turn and tilt · two fingers: turn, zoom, tilt",
     "fullOn": "Full screen",
-    "fullOff": "Close full screen"
+    "fullOff": "Close full screen",
+    "fullMap": "Map",
+    "fullPath": "Route",
+    "fullPoints": "Points",
+    "fullRun": "Slide / questions"
   },
   "panel": {
     "close": "Close",

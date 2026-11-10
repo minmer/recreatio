@@ -116,7 +116,11 @@
     "leadHint": "Doppelklick: führ mich hin",
     "turnHint": "Strg + Ziehen: drehen und neigen · zwei Finger: drehen, zoomen, neigen",
     "fullOn": "Vollbild",
-    "fullOff": "Vollbild beenden"
+    "fullOff": "Vollbild beenden",
+    "fullMap": "Karte",
+    "fullPath": "Route",
+    "fullPoints": "Punkte",
+    "fullRun": "Folie / Fragen"
   },
   "panel": {
     "close": "Schließen",

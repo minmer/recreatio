@@ -704,22 +704,23 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
-      const hPx = Yb - Yt;
       if (named) {
         /*
-          Step 3 · 11/12 — der Name wird gemessen (die Kollision rechnet mit seiner wahren Breite) und auf die Oberseite gekürzt;
-          ein Name, der über den Rand ginge, rückt ins Bild — ist sein Ort selbst draussen, fällt er weg. 2026-11-10: auf der
-          Oberseite der Säule, in ihrer Mitte.
+          2026-11-10 (Eigentümer) — DER NAME IN DER OBERSEITE: innerhalb ihres Kreises, mit ihr geneigt (gestaucht wie der Boden);
+          passt er nicht, steht sein Anfang da, dann „…". Gezeichnet mit der Säule — eine nähere verdeckt ihn wie den Rest.
+          Mit Stern steht er über ihm (der Stern bleibt in der Mitte).
         */
-        ctx.font = NAME_FONT;
-        const text = fitText(ctx, p.label, Math.min(NAME_MAX, Math.max(rx * 2.6, 130)));
-        const w = ctx.measureText(text).width + 6;
-        /* Mit Stern: der Name über ihm (der Stern bleibt in der Mitte frei). */
-        const y = p.perfect ? Yt - ry * 0.62 : Yt;
-        if (X >= 0 && X <= size.w && y >= 9 && y <= size.h - 9) {
-          const x = Math.max(w / 2 + 4, Math.min(size.w - w / 2 - 4, X));
-          labels.push({ key: p.id, text, x, y, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
-        }
+        const fsz = Math.max(9, Math.min(15, rx * 0.3));
+        ctx.save();
+        ctx.translate(X, p.perfect ? Yt - ry * 0.56 : Yt);
+        ctx.scale(1, v.fore);
+        ctx.font = `600 ${fsz.toFixed(1)}px system-ui, sans-serif`;
+        const text = fitText(ctx, p.label, rx * (p.perfect ? 1.4 : 1.76));
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(mix(top, pal.surface, 0.5)); ctx.strokeText(text, 0, 0);
+        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, 0, 0);
+        ctx.restore();
       }
     }
     treesUpTo(Infinity);

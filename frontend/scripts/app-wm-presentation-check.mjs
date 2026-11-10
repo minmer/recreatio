@@ -148,7 +148,7 @@ for (const theme of ['light', 'dark']) {
 {
   const has = (text, needle) => text.includes(needle);
   const src = await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8');
-  check('top: the star in the centre of the top; the name above it when there is a star', [has(src, 'drawStar(ctx, X, Yt,'), has(src, 'const y = p.perfect ? Yt - ry * 0.62 : Yt;')], [true, true]);
+  check('top: the star in the centre; the name inside the top circle, tilted with it, cut with "…" (above the star when there is one)', [has(src, 'drawStar(ctx, X, Yt,'), has(src, 'ctx.translate(X, p.perfect ? Yt - ry * 0.56 : Yt);'), has(src, 'ctx.scale(1, v.fore);'), has(src, "fitText(ctx, p.label, rx * (p.perfect ? 1.4 : 1.76))")], [true, true, true, true]);
   check('top: levels as wide parts of the top (the outer half of the radius); conquered: the ring shows how all cards sit; no dot', [has(src, 'const RING_IN = 0.5;'), has(src, 'if (a.conquered && all > 0)'), has(src, 'ctx.ellipse(X, dotAt,')], [true, true, false]);
   check('trees: upright near (trunk and crown, sorted with the pillars), flat far — larger', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== '), has(src, 'const TREE_SIZE = 12;')], [true, true, true, true]);
   check('phone: two fingers moved up or down together tilt the map', has(src, 'const fore = two.current.cam.fore + ((a.y + b.y) / 2 - two.current.my) * 0.004;'), true);
@@ -156,11 +156,11 @@ for (const theme of ['light', 'dark']) {
   const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
   check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
   const css = await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8');
-  check('full screen: the whole document, the map as a layer; stories and questions stay visible', [has(ls, 'root.requestFullscreen()'), has(ls, 'is-full'), has(css, '.cg-wm-host.is-full > .cg-ls-run {')], [true, true, true]);
+  check('full screen: the whole document; every part full size, a bar at the bottom switches map / route / points / slide-questions', [has(ls, 'root.requestFullscreen()'), has(ls, "const tabs: FullTab[] = ['map'"), has(ls, "if (running !== null) setFullTab('run')"), has(css, '.cg-wm-fullbar {'), has(css, '.cg-wm-fullview.is-page {')], [true, true, true, true, true]);
 }
 
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */
-check('names: on the top of the pillar once it has room (diameter ≥ 46 px, top ≥ 7 px)', [SC.nameOnTop(30, 10), SC.nameOnTop(20, 10), SC.nameOnTop(30, 5)], [true, false, false]);
+check('names: inside the top circle once it has room (1.8 · radius ≥ 30 px, top ≥ 5 px)', [SC.nameOnTop(20, 10), SC.nameOnTop(15, 10), SC.nameOnTop(30, 4)], [true, false, false]);
 check('view: landscape.style "world" is read, anything else stays hex', [V.readLandscape({ style: 'world' }).style, V.readLandscape({ style: 'other' }).style, V.readLandscape({}).style], ['world', undefined, undefined]);
 
 /* -- Nichts ist durchsichtig (§4.2): der Zeichner deckt immer ganz ------------------------------------------------------------ */

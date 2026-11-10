@@ -28,15 +28,25 @@
 /* Vollbild (2026-11-10): nur die Karte; Werkzeuge und das Feld liegen über ihr. */
 .cg-wm-fullbtn { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 4; display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
 .cg-wm-fullbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
-.cg-wm-host.is-full { position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) - 1); display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
-.cg-wm-host.is-full > :not(.cg-wm-body):not(.cg-ls-run) { display: none; }
+.cg-wm-host.is-full { --cg-wm-bar: 3.2rem; position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) - 1); display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
+.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar) { display: none; }
 /* Im Vollbild läuft auch eine Erzählung, eine Frage oder ein Durchgang über den ganzen Schirm (blättert für sich). */
-.cg-wm-host.is-full > .cg-ls-run { height: 100%; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: var(--wk-space-4) clamp(var(--wk-space-3), 4vw, var(--wk-space-8)); }
+/* Die Teile des Vollbilds: jeder füllt den Schirm über der Leiste; Seiten (Fahrplan, Punkte, Folie/Fragen) blättern für sich. */
+.cg-wm-fullview { position: absolute; inset: 0 0 var(--cg-wm-bar) 0; overflow: hidden; }
+.cg-wm-fullview[hidden] { display: none; }
+.cg-wm-fullview.is-page { overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: var(--wk-space-4) clamp(var(--wk-space-3), 4vw, var(--wk-space-8)); }
+.cg-wm-fullview.is-page > .cg-wm-panel, .cg-wm-fullview.is-page > .cg-rw { max-width: 48rem; margin: 0 auto; }
+.cg-wm-fullbar { position: absolute; left: 0; right: 0; bottom: 0; height: var(--cg-wm-bar); display: flex; align-items: stretch; gap: 1px; border-top: 1px solid var(--wk-line); background: var(--wk-line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.cg-wm-fulltab { flex: 1 1 0; min-width: 0; border: 0; background: var(--wk-surface); color: var(--wk-ink-2); font: inherit; font-size: var(--wk-text-sm); font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 var(--wk-space-2); }
+.cg-wm-fulltab.is-on { color: var(--wk-ink); background: var(--wk-accent-soft); box-shadow: inset 0 3px 0 var(--wk-accent); }
+.cg-wm-fulltab.is-exit { flex: 0 0 auto; color: var(--wk-muted); }
+.cg-wm-fulltab:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.cg-wm-host.is-full .cg-wm-fullbtn { display: none; }
 .cg-wm-host.is-full .cg-wm-body { display: block; position: relative; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main { display: block; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main > :not(.cg-wm-mapwrap) { display: none; }
 .cg-wm-host.is-full .cg-wm-mapwrap, .cg-wm-host.is-full .cg-wm { height: 100%; }
-.cg-wm-host.is-full .cg-wm-stage { height: 100vh; min-height: 0; border: 0; border-radius: 0; }
+.cg-wm-host.is-full .cg-wm-stage { height: calc(100vh - var(--cg-wm-bar)); min-height: 0; border: 0; border-radius: 0; }
 .cg-wm-host.is-full .cg-wm-tools { position: absolute; left: var(--wk-space-3); bottom: var(--wk-space-3); z-index: 4; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-host.is-full .cg-wm-body.has-side > .cg-wm-side { position: absolute; top: 3.4rem; right: var(--wk-space-3); bottom: auto; width: min(24rem, calc(100% - 2rem)); max-height: calc(100% - 4.4rem); margin: 0; overflow-y: auto; z-index: 5; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 /* Die Karte mit allem, was auf ihr liegt (Blase, Hinweise, „Pokaż zmiany") — gemessen an der Leinwand. */

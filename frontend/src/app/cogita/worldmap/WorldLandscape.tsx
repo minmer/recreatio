@@ -343,6 +343,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. Esc oder × beendet es. ---------------------- */
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [full, setFull] = useState(false);
+  /* Im Vollbild ist jeder Teil ganz zu sehen; unten wechselt man: Karte, Trasa, Punkte, Folie/Fragen (2026-11-10, Eigentümer). */
+  const [fullTab, setFullTab] = useState<FullTab>('map');
+  /* Beginnt etwas (eine Erzählung, Fragen, ein Durchgang), zeigt das Vollbild es; endet es, wieder die Karte. */
+  useEffect(() => { if (running !== null) setFullTab('run'); else setFullTab((x) => (x === 'run' ? 'map' : x)); }, [running]);
   /*
     Das ganze Dokument geht ins Vollbild, die Karte liegt darüber (fest, über der Seite, unter Dialogen): so bleiben Erzählungen,
     Fragen und Dialoge, die in einem Portal oder selbst im Vollbild laufen, sichtbar (2026-11-10, Eigentümer).
@@ -521,40 +525,35 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
 
   if (world.places.size === 0) return <p className="cg-muted" data-world-empty="">{t('cogitaWorld.map.empty')}</p>;
 
-  if (running !== null) {
-    const back = () => setRunning(null);
-    if (running.kind === 'story') {
+  /* Was gerade läuft (eine Erzählung, ein Durchgang, Karten): ohne Vollbild statt der Karte, im Vollbild als eigener Teil. */
+  const backToMap = () => setRunning(null);
+  const runNode: ReactNode = running === null ? null
+    : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
-      return host(
-        <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
-          <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={back} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} />
-        </div>
-      );
-    }
-    if (running.kind === 'run' && learner !== null) {
-      const p = world.places.get(running.place);
-      return host(
-        <div className="cg-ls-run" data-world-running="run">
-          <WorldRun lib={lib} learner={learner} place={running.place} name={p?.label ?? running.place} cards={cardsOf(state.places.get(running.place)?.cards ?? p?.cards ?? [])} onClose={back} />
-        </div>
-      );
-    }
-    if (running.kind === 'cards') {
-      return host(
-        <div className="cg-ls-run" data-world-running={running.key.split(':')[0]}>
-          <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={back} data-world-back="">‹ {t('cogitaWorld.panel.backToMap')}</button></p>
-          <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={back} backToMap={back} />
-        </div>
-      );
-    }
-  }
+      <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
+        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} />
+      </div>
+    ) : running.kind === 'run' && learner !== null ? (
+      <div className="cg-ls-run" data-world-running="run">
+        <WorldRun lib={lib} learner={learner} place={running.place} name={world.places.get(running.place)?.label ?? running.place} cards={cardsOf(state.places.get(running.place)?.cards ?? world.places.get(running.place)?.cards ?? [])} onClose={backToMap} />
+      </div>
+    ) : running.kind === 'cards' ? (
+      <div className="cg-ls-run" data-world-running={running.key.split(':')[0]}>
+        <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={backToMap} data-world-back="">‹ {t('cogitaWorld.panel.backToMap')}</button></p>
+        <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={backToMap} backToMap={backToMap} />
+      </div>
+    ) : null;
+  if (!full && runNode !== null) return host(runNode);
 
   const hasSide = tt !== null || chosen !== null || note !== null;
   const modes = WORLD_MODES.filter((m) => m !== 'gaps' || learner !== null);
   const goalSteps = goal === null ? 0 : state.conquestOrder(goal).length;
   const wonNames = won === null ? '' : won.names.slice(0, 2).join(', ') + (won.names.length > 2 ? ` +${won.names.length - 2}` : '');
-  return host(
-    <div className={`cg-wm-body${hasSide ? ' has-side' : ''}`}>
+  /* Im Vollbild steht der Fahrplan in seinem eigenen Teil (Trasa), nicht über der Karte. */
+  const sideNav = tt !== null && !full;
+  const sideShown = full ? chosen !== null || note !== null : hasSide;
+  const mapBody = (
+    <div className={`cg-wm-body${sideShown ? ' has-side' : ''}`}>
       <div className="cg-wm-main">
         {/* Wie im Krajobraz: was die Karte zeigt (gemerkt mit dem Blick), „Sprawdź, co wiesz", der Zähler der Punkte. */}
         <div className="cg-wm-top">
@@ -643,10 +642,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         </details>
         {writes && <AuthorList issues={issues} nameOf={nameOf} t={t} />}
       </div>
-      {hasSide && (
+      {sideShown && (
         <div className="cg-wm-side" data-world-side="">
           {note !== null && <p className="wk-note" role="status" data-world-note="">{note}</p>}
-          {tt !== null && (
+          {sideNav && tt !== null && (
             <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => setNav(null)}
               onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
           )}
@@ -662,4 +661,34 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       )}
     </div>
   );
+  if (!full) return host(mapBody);
+
+  /* -- Vollbild: jeder Teil ganz; unten die Leiste zum Wechseln ---------------------------------------------------------- */
+  const tabs: FullTab[] = ['map', ...(tt !== null ? ['path' as const] : []), ...(learner !== null && rewards !== null ? ['points' as const] : []), ...(runNode !== null ? ['run' as const] : [])];
+  const tab: FullTab = tabs.includes(fullTab) ? fullTab : 'map';
+  const tabLabel = (x: FullTab) => (x === 'map' ? t('cogitaWorld.map.fullMap') : x === 'path' ? t('cogitaWorld.map.fullPath') : x === 'points' ? t('cogitaWorld.map.fullPoints') : t('cogitaWorld.map.fullRun'));
+  return host(
+    <>
+      <div className="cg-wm-fullview is-map" hidden={tab !== 'map'} data-full-view="map">{mapBody}</div>
+      {runNode !== null && <div className="cg-wm-fullview is-page" hidden={tab !== 'run'} data-full-view="run">{runNode}</div>}
+      {tab === 'path' && tt !== null && (
+        <div className="cg-wm-fullview is-page" data-full-view="path">
+          <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => { setNav(null); setFullTab('map'); }}
+            onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
+        </div>
+      )}
+      {tab === 'points' && learner !== null && rewards !== null && (
+        <div className="cg-wm-fullview is-page" data-full-view="points"><RewardBoard learner={learner} rules={rewards} rename={rename} shape="full" live={false} /></div>
+      )}
+      <nav className="cg-wm-fullbar" aria-label={t('cogitaWorld.map.fullOn')} data-world-fullbar={tab}>
+        {tabs.map((x) => (
+          <button key={x} type="button" className={`cg-wm-fulltab${tab === x ? ' is-on' : ''}`} aria-pressed={tab === x} onClick={() => setFullTab(x)} data-world-fulltab={x}>{tabLabel(x)}</button>
+        ))}
+        <button type="button" className="cg-wm-fulltab is-exit" onClick={toggleFull} data-world-fulltab="exit">× {t('cogitaWorld.map.fullOff')}</button>
+      </nav>
+    </>
+  );
 }
+
+/** Die Teile des Vollbilds. */
+type FullTab = 'map' | 'path' | 'points' | 'run';
