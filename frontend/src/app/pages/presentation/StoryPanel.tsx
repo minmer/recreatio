@@ -81,6 +81,7 @@ function ConditionPick({ value, onChange, show, parts, story, depth = 0 }: {
             <option value="yes">{t('pagePresentation.story.right')}</option><option value="no">{t('pagePresentation.story.wrong')}</option><option value="">{t('pagePresentation.story.any')}</option>
           </select>
         )}
+        {kind === 'answered' && <input type="number" min={1} max={3650} value={c.within ?? ''} placeholder={t('pagePresentation.story.withinDays')} aria-label={t('pagePresentation.story.withinDays')} onChange={(e) => set({ within: e.target.value === '' ? undefined : Number(e.target.value) })} />}
         {kind === 'visited' && (
           <select value={c.of ?? ''} aria-label={t('pagePresentation.story.whichScene')} onChange={(e) => set({ of: e.target.value })}>
             <option value="">{t('pagePresentation.story.sceneNone')}</option>

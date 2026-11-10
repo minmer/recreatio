@@ -298,7 +298,8 @@
     "addSet": "+ Wert ändern",
     "off": "Ablauf ausschalten (Fragen prüfen weiter, aber nichts wird gespeichert)",
     "min": "min",
-    "max": "max"
+    "max": "max",
+    "withinDays": "in den letzten … Tagen"
   },
   "settings": {
     "align": {

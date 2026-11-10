@@ -95,15 +95,15 @@
     },
     "conquered": "Erobert",
     "conqueredNow": "Erobert: {names}",
-    "noRoute": "Noch führt keine Linie vom Haus hierher",
+    "noRoute": "Noch führt kein Pfad vom Start hierher",
     "fromHome": "Unterwegs:",
     "sections": {
-      "one": "{count} Abschnitt",
-      "other": "{count} Abschnitte"
+      "one": "{count} Etappe",
+      "other": "{count} Etappen"
     },
     "fresh": {
-      "one": "{count} neue Karte für Fahrkarten",
-      "other": "{count} neue Karten für Fahrkarten"
+      "one": "{count} neue Karte für den Eintritt",
+      "other": "{count} neue Karten für den Eintritt"
     },
     "review": {
       "one": "{count} zu wiederholen",
@@ -118,7 +118,7 @@
     "fullOn": "Vollbild",
     "fullOff": "Vollbild beenden",
     "fullMap": "Karte",
-    "fullPath": "Route",
+    "fullPath": "Weg",
     "fullPoints": "Punkte",
     "fullRun": "Folie / Fragen",
     "fullNext": "Weiter"
@@ -156,22 +156,22 @@
     "needs": "braucht: {what}",
     "learnDirectlyN": "Direkt lernen ({count})",
     "learnN": "Lernen ({count})",
-    "linesHere": "Linien hier",
-    "station": "Umsteigeort",
-    "noLines": "Hier hält keine Linie — die Karten direkt lernen.",
+    "linesHere": "Pfade hier",
+    "station": "Kreuzung",
+    "noLines": "Hier führt kein Pfad vorbei — die Karten direkt lernen.",
     "directions": "Von hier",
     "choose": "Wählen",
     "details": "Details",
-    "travel": "Fahren",
-    "travelAgain": "Nochmals fahren",
-    "travelled": "befahren",
+    "travel": "Erkunden",
+    "travelAgain": "Nochmals erkunden",
+    "travelled": "erkundet",
     "slides": {
       "one": "{count} Folie",
       "other": "{count} Folien"
     },
-    "ticket": "Fahrkarte",
-    "ticketOk": "Fahrkarte gültig",
-    "ticketMissing": "Fahrkarte fehlt",
+    "ticket": "Eintritt",
+    "ticketOk": "Eintritt offen",
+    "ticketMissing": "Eintritt fehlt",
     "ticketUnknown": "Nicht erfüllt — unbekannte Bedingung",
     "reviewOnly": "Nur wiederholen",
     "newCards": {
@@ -183,13 +183,13 @@
     "leadMe": "Bring mich hin",
     "mySettings": "Meine Einstellungen",
     "openEntry": "Eintrag öffnen",
-    "homeSays": "Linien, die hier beginnen",
+    "homeSays": "Pfade, die hier beginnen",
     "backToMap": "Zurück zur Karte",
     "mapShort": "Karte",
     "nothing": "Hier gibt es gerade nichts zu lernen.",
     "next": "Dein nächster Schritt",
     "more": "Mehr zu diesem Ort",
-    "conquerStart": "Dieser Weg beginnt bei {name}: erst diesen Turm erobern.",
+    "conquerStart": "Dieser Pfad beginnt bei {name}: erst diesen Turm erobern.",
     "showPlace": "Zeigen",
     "towerFirst": "erst den Startturm erobern"
   },
@@ -214,7 +214,7 @@
     "arrived": "Du bist da: {name}",
     "startHere": "Hier beginnen",
     "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}",
-    "review": "Wiederholen vor der Fahrt nach {to}"
+    "review": "Wiederholen, bevor du {to} erkundest"
   },
   "issue": {
     "title": {
@@ -244,15 +244,15 @@
     },
     "requiresSiblingPrerequisite": "Verlangt, was eine Nachbaretappe verlangt, statt dieser Etappe: {names}",
     "placesWithoutLine": {
-      "one": "{count} Ort ohne Linie (direkt gelernt): {names}",
-      "other": "{count} Orte ohne Linie (direkt gelernt): {names}"
+      "one": "{count} Ort ohne Pfad (direkt gelernt): {names}",
+      "other": "{count} Orte ohne Pfad (direkt gelernt): {names}"
     },
     "cardsWithoutSlide": {
       "one": "{count} Karte ohne Folie (direkt gelernt): {names}",
       "other": "{count} Karten ohne Folie (direkt gelernt): {names}"
     },
-    "lineStartsMid": "Die Linie beginnt mitten in der Welt (dort ein Umsteigeort): {names}",
-    "noRoute": "Kein Gleis gefunden — gerade gezogen: {names}",
+    "lineStartsMid": "Der Pfad beginnt mitten in der Welt (dort eine Kreuzung): {names}",
+    "noRoute": "Kein Weg gefunden — gerade gezogen: {names}",
     "mislabelledRegion": "Farbgebiet nach einem Thema benannt, das nicht seine Mitte ist: „{name}” (Mitte: {names}) — im Widok selbst benennen",
     "unitMissing": "Der Teil der Geschichte existiert nicht: {names}"
   },

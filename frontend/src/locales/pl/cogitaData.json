@@ -905,7 +905,8 @@
       "timeHours": "godz. {from}–{to}",
       "place": "w promieniu {radius} m od {lat}, {lon}",
       "zone": "w strefie „{name}\"",
-      "not": "NIE ({inner})"
+      "not": "NIE ({inner})",
+      "within": "{text}, w ciągu ostatnich {days} dni"
     }
   },
   "rules": {

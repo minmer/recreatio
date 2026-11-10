@@ -35,6 +35,14 @@ Ten przewodnik mówi, jak zbudować kurs w formie opowieści tak, żeby każda o
 
 - `{"type": "knowness", "of": "@kurs/t/start", "band": "learned"}` — "of" może być @nazwą wpisu bazy: liczy jego karty i pytania o nim (także odpowiedzi ze stron). Pasma: "learned" (poznane — już po jednej dobrej odpowiedzi), "known" (umie — po powtórkach), "due", "unknown".
 
+### Bez pustych slajdów decyzji
+
+Slajd, na którym nie ma już nic do rozstrzygnięcia, się pomija — warunkiem, nie przyciskiem:
+
+- **Prezentacja**: bramka przed slajdem — `{"key": "czy", "type": "condition", "when": {…}, "yes": "dalej", "no": "slajd"}` — i cel `gate:czy` w "go" poprzedniej sceny. "yes" prowadzi od razu dalej, "no" na slajd.
+- **Własny graf przebiegu**: każdy krok "show", "opening", "line" i "scene" (bez pytania) przyjmuje `"skipWhen": {warunek}` — gdy warunek jest spełniony, opowieść idzie od razu dalej. Krok "choice", któremu zostaje dokładnie JEDNA obowiązująca możliwość (pozostałe mają "condition", który nie jest spełniony), sam ją wybiera (z jej "actions"); `"hold": true` zatrzymuje wybór mimo to.
+- **Warunki** (te same wszędzie): znajomość — `{"type": "knowness", "of": "@kurs/t/start", "band": "learned"}`; **niedawna powtórka** — `{"type": "answered", "of": "<pytanie>", "correct": true, "within": 7}` (dobrze odpowiedziano w ciągu ostatnich 7 dni; bez "within" czas nie gra roli); złożone "and", "or", "not". Warunek, którego nie da się odczytać, nigdy nie pomija kroku.
+
 ## 6. Ukończona opowieść i warunek „Przebieg”
 
 - Koniec: scena, po której „dalej” prowadzi do "end" (albo krok "end" przebiegu). Opowieść jest wtedy „ukończona” — zostaje, także po „od początku”. Cele przebiegu ("goals") zapisują się jako osiągnięte i zostają osiągnięte.

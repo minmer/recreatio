@@ -302,7 +302,8 @@
     "addSet": "+ Zmień wartość",
     "off": "Wyłącz przebieg (pytania nadal sprawdzają, ale nic nie jest zapamiętywane)",
     "min": "min",
-    "max": "max"
+    "max": "max",
+    "withinDays": "w ciągu … dni"
   },
   "settings": {
     "align": {

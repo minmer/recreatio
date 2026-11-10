@@ -38,7 +38,9 @@
     "oneStep": "ohne Häkchen: bis zu den Grundlagen (oder bis zum Ende)",
     "endWhenDone": "ohne Häkchen (nach dem, was ich kann): danach lernt er auf Vorrat — was du am schwächsten kannst",
     "detour": "oder eine Erzählung aus einer anderen Welt (immer freiwillig)",
-    "detourLabel": "z. B. Mehr erfahren: das Haus in Becchi ohne Vater"
+    "detourLabel": "z. B. Mehr erfahren: das Haus in Becchi ohne Vater",
+    "skipWhen": "Gilt die Bedingung, geht es gleich weiter — keine Folie, auf der nichts mehr zu entscheiden ist. Beispiel: der Lernende kann das Thema oder hat seine Frage in den letzten 7 Tagen beantwortet.",
+    "holdOne": "Sonst nimmt eine Wahl mit nur einer geltenden Möglichkeit sie von selbst. Haken setzen, um die Wahl trotzdem zu zeigen."
   },
   "summary": {
     "yes": "ja",
@@ -167,7 +169,9 @@
     "detourLabel": "Wie man ihn anbietet",
     "required": "Pflicht — ohne „Weiter ohne das“ (\"optional\": false)",
     "page": "Seite mit der Präsentation (Adresse)",
-    "scene": "Szene (Schlüssel)"
+    "scene": "Szene (Schlüssel)",
+    "skipWhen": "Diesen Schritt überspringen, wenn",
+    "holdOne": "Auch anhalten, wenn nur eine Möglichkeit bleibt"
   },
   "opt": {
     "maskPrefix": "das Ende (der Anfang bleibt)",

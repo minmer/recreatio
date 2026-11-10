@@ -265,6 +265,12 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
       const marks = learner.marks(card.key, card.fingerprint);
       return marks.length === 0 ? null : marks[marks.length - 1].correctness;
     },
+    answeredAt: (id) => {
+      if (learner === null) return null;
+      const card = content.card(id);
+      const marks = card === null ? [] : learner.marks(card.key, card.fingerprint);
+      return marks.length === 0 ? null : marks[marks.length - 1].at;
+    },
     visited: new Set(s.visited),
     now: new Date(),
     flow: flowFacts

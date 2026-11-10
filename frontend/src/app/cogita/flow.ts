@@ -384,6 +384,20 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   const c = node.config;
 
   if (node.type === 'question' && ctx.skip?.(node, here) === true) return enter(flow, here, follow(flow, to, 'right'), ctx, guard + 1);
+  /*
+    2026-11-10 (Eigentümer: „kein leerer Entscheidungsfolie") — EIN SCHRITT, DER SICH ERÜBRIGT:
+      skipWhen  eine Bedingung an einem Schritt mit nur einem Ausgang „dalej" (show, opening, line, scene ohne Frage): gilt sie, geht
+                es gleich weiter (wer es weiss, wer es kürzlich wiederholt hat, wer an einem Wert steht …)
+      Wahl      bleibt von den Möglichkeiten genau EINE übrig (die anderen tragen eine Bedingung, die nicht gilt), wählt sie sich selbst;
+                `"hold": true` hält die Wahl trotzdem an
+  */
+  if (SKIPPABLE.has(node.type) && !(node.type === 'scene' && c.question === true) && skips(c.skipWhen, facts)) {
+    return enter(flow, here, follow(flow, to, 'next'), ctx, guard + 1);
+  }
+  if (node.type === 'choice' && c.hold !== true) {
+    const only = optionsOf(node, facts);
+    if (only.length === 1) return takeOption(flow, here, node, only[0].exit, ctx, guard + 1);
+  }
   switch (node.type) {
     case 'condition': {
       const ok = holds(readCondition(c.condition), facts);
@@ -521,6 +535,20 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
     return enter(flow, { ...state, values: done.values }, done.go ?? to, ctx);
   }
   return enter(flow, state, to, ctx);
+}
+
+/** Gilt `skipWhen`? Eine unlesbare Bedingung gilt nie (eine fehlende gälte immer — und überspränge jeden Schritt). */
+const skips = (raw: unknown, facts: Facts): boolean => { const cond = raw === undefined ? null : readCondition(raw); return cond !== null && holds(cond, facts); };
+
+/** Schritte mit einem Ausgang „dalej", die `skipWhen` tragen dürfen. */
+const SKIPPABLE: ReadonlySet<string> = new Set(['show', 'opening', 'line', 'scene']);
+
+/** Eine Möglichkeit einer Wahl nehmen (mit ihren Aktionen) — von Hand oder von selbst. */
+function takeOption(flow: Flow, state: FlowState, node: GraphNode, exit: string, ctx: PlayContext, guard = 0): FlowState {
+  const option = (Array.isArray(node.config.options) ? node.config.options : [])[Number(exit.slice(1))];
+  const done = apply(isObject(option) ? actionsOf(option.actions) : [], state.values, ctx.limits);
+  const to = follow(flow, node.id, exit);
+  return enter(flow, { ...state, values: done.values }, done.go ?? to, ctx, guard);
 }
 
 /** Die Möglichkeiten einer Wahl, die gerade gelten (eine Möglichkeit darf eine Bedingung tragen). */

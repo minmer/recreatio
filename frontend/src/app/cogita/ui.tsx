@@ -471,6 +471,7 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
                 <option value="">{t('cogitaViews.ui.cond.anyhow')}</option><option value="yes">{t('cogitaViews.ui.cond.right')}</option><option value="no">{t('cogitaViews.ui.cond.wrong')}</option>
               </select>
             )}
+            {c.type === 'answered' && <input type="number" min={1} max={3650} className="cg-days" value={c.within ?? ''} placeholder={t('cogitaViews.ui.cond.withinDays')} aria-label={t('cogitaViews.ui.cond.withinDays')} onChange={(e) => set({ within: e.target.value === '' ? undefined : Number(e.target.value) })} />}
           </>
         )}
         {c.type === 'time' && (

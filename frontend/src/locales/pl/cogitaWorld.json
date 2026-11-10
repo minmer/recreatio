@@ -105,19 +105,19 @@
     },
     "conquered": "Zdobyte",
     "conqueredNow": "Zdobyte: {names}",
-    "noRoute": "Żadna linia nie prowadzi tu jeszcze z domu",
-    "fromHome": "Na trasie:",
+    "noRoute": "Żadna ścieżka nie prowadzi tu jeszcze ze startu",
+    "fromHome": "Po drodze:",
     "sections": {
-      "one": "{count} odcinek",
-      "few": "{count} odcinki",
-      "many": "{count} odcinków",
-      "other": "{count} odcinka"
+      "one": "{count} etap",
+      "few": "{count} etapy",
+      "many": "{count} etapów",
+      "other": "{count} etapu"
     },
     "fresh": {
-      "one": "{count} nowa karta do biletów",
-      "few": "{count} nowe karty do biletów",
-      "many": "{count} nowych kart do biletów",
-      "other": "{count} nowej karty do biletów"
+      "one": "{count} nowa karta na wstęp",
+      "few": "{count} nowe karty na wstęp",
+      "many": "{count} nowych kart na wstęp",
+      "other": "{count} nowej karty na wstęp"
     },
     "review": {
       "one": "{count} do powtórki",
@@ -134,7 +134,7 @@
     "fullOn": "Pełny ekran",
     "fullOff": "Zamknij pełny ekran",
     "fullMap": "Mapa",
-    "fullPath": "Trasa",
+    "fullPath": "Droga",
     "fullPoints": "Punkty",
     "fullRun": "Slajd / pytania",
     "fullNext": "Dalej"
@@ -178,24 +178,24 @@
     "needs": "wymaga: {what}",
     "learnDirectlyN": "Ucz się bezpośrednio ({count})",
     "learnN": "Ucz się ({count})",
-    "linesHere": "Linie tutaj",
-    "station": "Węzeł przesiadkowy",
-    "noLines": "Żadna linia się tu nie zatrzymuje — ucz się kart bezpośrednio.",
+    "linesHere": "Ścieżki tutaj",
+    "station": "Rozdroże",
+    "noLines": "Żadna ścieżka tędy nie prowadzi — ucz się kart bezpośrednio.",
     "directions": "Stąd",
     "choose": "Wybierz",
     "details": "Szczegóły",
-    "travel": "Jedź",
-    "travelAgain": "Jedź jeszcze raz",
-    "travelled": "przejechany",
+    "travel": "Odkryj",
+    "travelAgain": "Odkryj jeszcze raz",
+    "travelled": "odkryty",
     "slides": {
       "one": "{count} slajd",
       "few": "{count} slajdy",
       "many": "{count} slajdów",
       "other": "{count} slajdu"
     },
-    "ticket": "Bilet",
-    "ticketOk": "Bilet ważny",
-    "ticketMissing": "Brak biletu",
+    "ticket": "Wstęp",
+    "ticketOk": "Wstęp otwarty",
+    "ticketMissing": "Brak wstępu",
     "ticketUnknown": "Niespełnione — nieznany warunek",
     "reviewOnly": "Tylko powtórka",
     "newCards": {
@@ -209,13 +209,13 @@
     "leadMe": "Prowadź mnie tutaj",
     "mySettings": "Moje ustawienia",
     "openEntry": "Otwórz wpis",
-    "homeSays": "Linie, które tu się zaczynają",
+    "homeSays": "Ścieżki, które tu się zaczynają",
     "backToMap": "Wróć do mapy",
     "mapShort": "Mapa",
     "nothing": "Tu nie ma teraz nic do nauki.",
     "next": "Twój następny krok",
     "more": "Więcej o tym miejscu",
-    "conquerStart": "Ta droga zaczyna się w: {name} — najpierw zdobądź tę wieżę.",
+    "conquerStart": "Ta ścieżka zaczyna się w: {name} — najpierw zdobądź tę wieżę.",
     "showPlace": "Pokaż",
     "towerFirst": "najpierw zdobądź wieżę startową"
   },
@@ -242,7 +242,7 @@
     "arrived": "Jesteś na miejscu: {name}",
     "startHere": "Zacznij tutaj",
     "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}",
-    "review": "Powtórka przed jazdą do: {to}"
+    "review": "Powtórka przed odkrywaniem: {to}"
   },
   "issue": {
     "title": {
@@ -278,10 +278,10 @@
     },
     "requiresSiblingPrerequisite": "Wymaga tego, czego wymaga sąsiedni etap, zamiast samego etapu: {names}",
     "placesWithoutLine": {
-      "one": "{count} miejsce bez linii (nauka bezpośrednia): {names}",
-      "few": "{count} miejsca bez linii (nauka bezpośrednia): {names}",
-      "many": "{count} miejsc bez linii (nauka bezpośrednia): {names}",
-      "other": "{count} miejsca bez linii (nauka bezpośrednia): {names}"
+      "one": "{count} miejsce bez ścieżki (nauka bezpośrednia): {names}",
+      "few": "{count} miejsca bez ścieżki (nauka bezpośrednia): {names}",
+      "many": "{count} miejsc bez ścieżki (nauka bezpośrednia): {names}",
+      "other": "{count} miejsca bez ścieżki (nauka bezpośrednia): {names}"
     },
     "cardsWithoutSlide": {
       "one": "{count} karta bez slajdu (nauka bezpośrednia): {names}",
@@ -289,8 +289,8 @@
       "many": "{count} kart bez slajdu (nauka bezpośrednia): {names}",
       "other": "{count} karty bez slajdu (nauka bezpośrednia): {names}"
     },
-    "lineStartsMid": "Linia zaczyna się w środku świata (tam węzeł przesiadkowy): {names}",
-    "noRoute": "Nie znaleziono toru — narysowany prosto: {names}",
+    "lineStartsMid": "Ścieżka zaczyna się w środku świata (tam rozdroże): {names}",
+    "noRoute": "Nie znaleziono drogi — narysowana prosto: {names}",
     "mislabelledRegion": "Obszar koloru nazwany od tematu, który nie jest jego środkiem: „{name}” (środek: {names}) — nadaj mu nazwę w widoku",
     "unitMissing": "Część opowieści nie istnieje: {names}"
   },

@@ -154,6 +154,10 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
         const marks = learner?.marks(id) ?? [];
         return marks.length === 0 ? null : marks[marks.length - 1].correctness;
       },
+      answeredAt: (id) => {
+        const marks = learner?.marks(id) ?? [];
+        return marks.length === 0 ? null : marks[marks.length - 1].at;
+      },
       visited: new Set(kept?.visited ?? []),
       now: new Date()
     };

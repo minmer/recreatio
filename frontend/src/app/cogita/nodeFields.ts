@@ -206,11 +206,13 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
 
 const OPEN = f('open', K('cogitaEditNode.f.open'), 'select', { options: opts([['screen', K('cogitaEditNode.opt.screen')], ['inline', K('cogitaEditNode.opt.inline')]]) });
 const TITLE = f('title', K('cogitaEditNode.f.title'), 'text');
+/** 2026-11-10 — „Pomiń, gdy": ein Schritt, der sich erübrigt, wenn die Bedingung gilt. */
+const SKIP = f('skipWhen', K('cogitaEditNode.f.skipWhen'), 'condition', { hint: K('cogitaEditNode.hint.skipWhen') });
 
 const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
-  show: [TITLE, f('of', K('cogitaEditNode.f.show'), 'entity'), f('media', K('cogitaEditNode.f.media'), 'media'), OPEN],
+  show: [TITLE, f('of', K('cogitaEditNode.f.show'), 'entity'), f('media', K('cogitaEditNode.f.media'), 'media'), OPEN, SKIP],
   question: [TITLE, f('of', K('cogitaEditNode.f.question'), 'entity', { kinds: ['question'] }), f('card', K('cogitaEditNode.f.cardKey'), 'text'), OPEN],
-  choice: [TITLE, f('options', K('cogitaEditNode.f.options'), 'options')],
+  choice: [TITLE, f('options', K('cogitaEditNode.f.options'), 'options'), f('hold', K('cogitaEditNode.f.holdOne'), 'bool', { hint: K('cogitaEditNode.hint.holdOne') })],
   condition: [f('condition', K('cogitaEditNode.f.condition'), 'condition')],
   set: [f('actions', K('cogitaEditNode.f.actions'), 'actions')],
   chapters: [TITLE, f('chapters', K('cogitaEditNode.f.chapters'), 'chapters')],
@@ -219,7 +221,7 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
   subflow: [f('flow', K('cogitaEditNode.f.flow'), 'flow')],
   each: [f('collection', K('cogitaEditNode.f.collection'), 'collection'), f('kind', K('cogitaEditNode.f.orKind'), 'kind'), f('flow', K('cogitaEditNode.f.flowEach'), 'flow')],
   expand: [f('of', K('cogitaEditNode.f.concept'), 'entity'), f('explain', K('cogitaEditNode.f.explain'), 'entity', { kinds: [STATEMENT_KINDS] }), f('threshold', K('cogitaEditNode.f.threshold'), 'number')],
-  opening: [TITLE, f('mode', K('cogitaEditNode.f.opening'), 'select', { options: opts([['discovery', K('cogitaEditNode.opt.discovery')], ['recall', K('cogitaEditNode.opt.recall')]]) }), f('of', K('cogitaEditNode.f.about'), 'entity')],
+  opening: [TITLE, f('mode', K('cogitaEditNode.f.opening'), 'select', { options: opts([['discovery', K('cogitaEditNode.opt.discovery')], ['recall', K('cogitaEditNode.opt.recall')]]) }), f('of', K('cogitaEditNode.f.about'), 'entity'), SKIP],
   line: [f('character', K('cogitaEditNode.f.character'), 'entity'), f('of', K('cogitaEditNode.f.says'), 'entity', { kinds: [STATEMENT_KINDS] }), f('mood', K('cogitaEditNode.f.mood'), 'text'), f('condition', K('cogitaEditNode.f.onlyWhen'), 'condition')],
   handoff: [f('flow', K('cogitaEditNode.f.handoff'), 'flow')],
   /* 2026-11-04 (Prompt 13) — ein Abstecher: die Erzählung aus der Liste, wie er angeboten wird, ob er Pflicht ist. */

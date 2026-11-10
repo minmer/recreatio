@@ -149,6 +149,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     const facts: Facts = {
       values: progress?.values ?? {}, knowness: (id) => (gauge === null ? 0 : itemKnowness(gauge, id)),
       answered: (id) => { const m = learner?.marks(id) ?? []; return m.length === 0 ? null : m[m.length - 1].correctness; },
+      answeredAt: (id) => { const m = learner?.marks(id) ?? []; return m.length === 0 ? null : m[m.length - 1].at; },
       visited: new Set(), now: new Date(now), flow: (id) => flowFacts.get(id)
     };
     return {

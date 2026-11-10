@@ -298,7 +298,8 @@
     "addSet": "+ Change a value",
     "off": "Turn off the course (questions still check, but nothing is remembered)",
     "min": "min",
-    "max": "max"
+    "max": "max",
+    "withinDays": "within … days"
   },
   "settings": {
     "align": {

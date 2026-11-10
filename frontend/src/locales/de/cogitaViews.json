@@ -53,7 +53,8 @@
       "lat": "Breite",
       "lon": "Länge",
       "remove": "entfernen",
-      "addPart": "+ Teil"
+      "addPart": "+ Teil",
+      "withinDays": "in den letzten … Tagen (leer: je)"
     },
     "act": {
       "add": "zum Wert addieren",

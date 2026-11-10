@@ -38,7 +38,9 @@
     "oneStep": "bez zaznaczenia: aż do samych podstaw (albo do końca)",
     "endWhenDone": "bez zaznaczenia (według tego, co umiem): potem uczy na zapas — to, co znasz najsłabiej",
     "detour": "albo opowieść z innego świata (zawsze nieobowiązkowa)",
-    "detourLabel": "np. Chcesz wiedzieć więcej: Dom w Becchi bez ojca"
+    "detourLabel": "np. Chcesz wiedzieć więcej: Dom w Becchi bez ojca",
+    "skipWhen": "Gdy warunek jest spełniony, opowieść idzie od razu dalej — bez slajdu, na którym nie ma już nic do rozstrzygnięcia. Przykład: uczeń zna temat albo odpowiedział na jego pytanie w ciągu ostatnich 7 dni.",
+    "holdOne": "Zwykle wybór z jedną obowiązującą możliwością sam ją wybiera. Zaznacz, aby mimo to pokazać wybór."
   },
   "summary": {
     "yes": "tak",
@@ -171,7 +173,9 @@
     "detourLabel": "Jak go zaproponować",
     "required": "Obowiązkowe — bez „Dalej bez tego” (\"optional\": false)",
     "page": "Strona z prezentacją (adres)",
-    "scene": "Scena (klucz)"
+    "scene": "Scena (klucz)",
+    "skipWhen": "Pomiń ten krok, gdy",
+    "holdOne": "Zatrzymaj, nawet gdy zostaje jedna możliwość"
   },
   "opt": {
     "maskPrefix": "koniec (zostaje początek)",

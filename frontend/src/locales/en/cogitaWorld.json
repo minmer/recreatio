@@ -95,15 +95,15 @@
     },
     "conquered": "Conquered",
     "conqueredNow": "Conquered: {names}",
-    "noRoute": "No line leads here from home yet",
+    "noRoute": "No path leads here from the start yet",
     "fromHome": "On the way:",
     "sections": {
-      "one": "{count} section",
-      "other": "{count} sections"
+      "one": "{count} stage",
+      "other": "{count} stages"
     },
     "fresh": {
-      "one": "{count} new card for tickets",
-      "other": "{count} new cards for tickets"
+      "one": "{count} new card for the entry",
+      "other": "{count} new cards for the entry"
     },
     "review": {
       "one": "{count} to review",
@@ -118,7 +118,7 @@
     "fullOn": "Full screen",
     "fullOff": "Close full screen",
     "fullMap": "Map",
-    "fullPath": "Route",
+    "fullPath": "Path",
     "fullPoints": "Points",
     "fullRun": "Slide / questions",
     "fullNext": "Next"
@@ -156,22 +156,22 @@
     "needs": "needs: {what}",
     "learnDirectlyN": "Learn directly ({count})",
     "learnN": "Learn ({count})",
-    "linesHere": "Lines here",
-    "station": "Interchange station",
-    "noLines": "No line stops here — learn its cards directly.",
+    "linesHere": "Paths here",
+    "station": "Junction",
+    "noLines": "No path leads through here — learn its cards directly.",
     "directions": "From here",
     "choose": "Choose",
     "details": "Details",
-    "travel": "Travel",
-    "travelAgain": "Travel again",
-    "travelled": "travelled",
+    "travel": "Explore",
+    "travelAgain": "Explore again",
+    "travelled": "explored",
     "slides": {
       "one": "{count} slide",
       "other": "{count} slides"
     },
-    "ticket": "Ticket",
-    "ticketOk": "Ticket valid",
-    "ticketMissing": "Ticket missing",
+    "ticket": "Entry",
+    "ticketOk": "Entry open",
+    "ticketMissing": "Entry missing",
     "ticketUnknown": "Not met — unknown condition",
     "reviewOnly": "Review only",
     "newCards": {
@@ -183,13 +183,13 @@
     "leadMe": "Take me there",
     "mySettings": "My settings",
     "openEntry": "Open entry",
-    "homeSays": "Lines that start here",
+    "homeSays": "Paths that start here",
     "backToMap": "Back to the map",
     "mapShort": "Map",
     "nothing": "Nothing to learn here right now.",
     "next": "Your next step",
     "more": "More about this place",
-    "conquerStart": "This way starts at {name}: conquer that tower first.",
+    "conquerStart": "This path starts at {name}: conquer that tower first.",
     "showPlace": "Show",
     "towerFirst": "conquer the start tower first"
   },
@@ -214,7 +214,7 @@
     "arrived": "You are there: {name}",
     "startHere": "Start here",
     "runAll": "all right first time: straight to level {upTo}",
-    "review": "Review before the ride to {to}"
+    "review": "Review before exploring {to}"
   },
   "issue": {
     "title": {
@@ -244,15 +244,15 @@
     },
     "requiresSiblingPrerequisite": "Requires what a neighbouring stage requires instead of that stage: {names}",
     "placesWithoutLine": {
-      "one": "{count} place has no line (learned directly): {names}",
-      "other": "{count} places have no line (learned directly): {names}"
+      "one": "{count} place has no path (learned directly): {names}",
+      "other": "{count} places have no path (learned directly): {names}"
     },
     "cardsWithoutSlide": {
       "one": "{count} card without a slide (learned directly): {names}",
       "other": "{count} cards without a slide (learned directly): {names}"
     },
-    "lineStartsMid": "Line starts in the middle of the world (an interchange station there): {names}",
-    "noRoute": "No track found — drawn as a straight line: {names}",
+    "lineStartsMid": "The path starts in the middle of the world (a junction there): {names}",
+    "noRoute": "No way found — drawn as a straight line: {names}",
     "mislabelledRegion": "Colour area named after a topic that is not its centre: „{name}” (centre: {names}) — name it in the view",
     "unitMissing": "The story’s part does not exist: {names}"
   },

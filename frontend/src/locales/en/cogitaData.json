@@ -857,7 +857,8 @@
       "timeHours": "hours {from}–{to}",
       "place": "within {radius} m of {lat}, {lon}",
       "zone": "in the zone “{name}”",
-      "not": "NOT ({inner})"
+      "not": "NOT ({inner})",
+      "within": "{text}, within the last {days} days"
     }
   },
   "rules": {

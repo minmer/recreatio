@@ -262,6 +262,7 @@ export function factsOf(g: Gauge, related: (rel: string) => readonly string[]): 
       const st = g.states.get(id.startsWith(CARD_REF) ? id.slice(CARD_REF.length) : id);
       return st === undefined ? null : st.q;
     },
+    answeredAt: (id) => g.states.get(id.startsWith(CARD_REF) ? id.slice(CARD_REF.length) : id)?.at ?? null,
     visited: new Set(),
     now: new Date(g.now),
     related,

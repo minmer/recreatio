@@ -117,6 +117,8 @@ export interface Facts {
   readonly knowness: (id: string) => number;
   /** Ob eine Frage beantwortet wurde — und wie richtig (0–1); `null`: nie. */
   readonly answered: (id: string) => number | null;
+  /** 2026-11-10 — wann zuletzt beantwortet (ms); `null`/fehlt: nie bekannt. Für „in den letzten N Tagen" (`within`). */
+  readonly answeredAt?: (id: string) => number | null;
   readonly visited: ReadonlySet<string>;
   readonly now: Date;
   /** Wo er ist (im Spiel) — `null`: unbekannt. */
@@ -237,6 +239,7 @@ export const FLOW_CHECK_LABEL: Readonly<Record<FlowCheck, string>> = texts({ sta
  *   { "type": "knowness", "rel": "okres", "each": "any", "than": 1 }    — mehrere: alle (Vorgabe) oder einer genügt
  *   { "type": "knowness", "rel": "before", "band": "learned" }          (2026-11-01) ein Band statt einer Zahl
  *   { "type": "answered", "of": "<pytanie>", "correct": true }
+ *   { "type": "answered", "of": "<pytanie>", "correct": true, "within": 7 }   (2026-11-10) … und zuletzt in den letzten 7 Tagen
  *   { "type": "visited", "of": "<krok>" }
  *   { "type": "flow", "flow": "<przebieg>", "state": "done" }          (2026-11-03) started · done · goal (mit "goal": ein bestimmtes)
  *   { "type": "time", "after": "2026-12-24", "before": "2026-12-27", "from": "18:00", "to": "23:00" }
@@ -252,6 +255,8 @@ export interface Condition {
   readonly op?: CompareOp;
   readonly than?: number;
   readonly correct?: boolean;
+  /** 2026-11-10 — bei „answered": nur, wenn die letzte Antwort höchstens so viele Tage her ist. */
+  readonly within?: number;
   readonly after?: string;
   readonly before?: string;
   readonly from?: string;
@@ -307,6 +312,7 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     ...(op === undefined ? {} : { op }),
     ...(num(raw.than) === undefined ? {} : { than: num(raw.than) }),
     ...(typeof raw.correct === 'boolean' ? { correct: raw.correct } : {}),
+    ...(type === 'answered' && num(raw.within) !== undefined && num(raw.within)! > 0 ? { within: Math.min(3650, num(raw.within)!) } : {}),
     ...(str(raw.after) === undefined ? {} : { after: str(raw.after) }),
     ...(str(raw.before) === undefined ? {} : { before: str(raw.before) }),
     ...(str(raw.from) === undefined ? {} : { from: str(raw.from) }),
@@ -344,7 +350,10 @@ export function conditionText(c: Condition, name: (id: string) => string = (id) 
       const who = c.rel !== undefined ? relationText(c.rel, c.each, field) : t('cogitaData.logic.text.quoted', { name: name(c.of ?? '') });
       return c.band !== undefined ? t('cogitaData.logic.text.knownessBand', { who, band: KNOWNESS_BAND_LABEL[c.band] }) : t('cogitaData.logic.text.knowness', { who, op, than: c.than ?? 1 });
     }
-    case 'answered': return t(c.correct === true ? 'cogitaData.logic.text.answeredRight' : c.correct === false ? 'cogitaData.logic.text.answeredWrong' : 'cogitaData.logic.text.answered', { name: name(c.of ?? '') });
+    case 'answered': {
+      const text = t(c.correct === true ? 'cogitaData.logic.text.answeredRight' : c.correct === false ? 'cogitaData.logic.text.answeredWrong' : 'cogitaData.logic.text.answered', { name: name(c.of ?? '') });
+      return c.within === undefined ? text : t('cogitaData.logic.text.within', { text, days: c.within });
+    }
     case 'visited': return t('cogitaData.logic.text.visited', { name: name(c.of ?? '') });
     case 'flow': return c.state === 'goal'
       ? (c.goal === undefined ? t('cogitaData.logic.text.flowGoal', { name: name(c.flow ?? '') }) : t('cogitaData.logic.text.flowGoalNamed', { name: name(c.flow ?? ''), goal: c.goal }))
@@ -376,6 +385,11 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
     case 'answered': {
       const got = facts.answered(c.of ?? '');
       if (got === null) return false;
+      /* 2026-11-10 — „in den letzten N Tagen": ohne bekannten Zeitpunkt gilt es nicht. */
+      if (c.within !== undefined) {
+        const at = facts.answeredAt?.(c.of ?? '') ?? null;
+        if (at === null || facts.now.getTime() - at > c.within * 86_400_000) return false;
+      }
       return c.correct === undefined ? true : c.correct ? got >= 0.999 : got < 0.999;
     }
     case 'visited': return facts.visited.has(c.of ?? '');

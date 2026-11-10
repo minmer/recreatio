@@ -53,7 +53,8 @@
       "lat": "szer.",
       "lon": "dł.",
       "remove": "usuń",
-      "addPart": "+ część"
+      "addPart": "+ część",
+      "withinDays": "w ciągu … dni (puste: kiedykolwiek)"
     },
     "act": {
       "add": "dodaj do wartości",

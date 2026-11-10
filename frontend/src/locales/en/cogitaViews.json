@@ -53,7 +53,8 @@
       "lat": "lat.",
       "lon": "long.",
       "remove": "remove",
-      "addPart": "+ part"
+      "addPart": "+ part",
+      "withinDays": "within … days (empty: ever)"
     },
     "act": {
       "add": "add to value",

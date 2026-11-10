@@ -38,7 +38,9 @@
     "oneStep": "unticked: down to the very basics (or to the end)",
     "endWhenDone": "unticked (by what I know): then it keeps teaching ahead — what you know least",
     "detour": "or a story from another world (always optional)",
-    "detourLabel": "e.g. Want to know more: the house in Becchi without a father"
+    "detourLabel": "e.g. Want to know more: the house in Becchi without a father",
+    "skipWhen": "If the condition holds, the story goes straight on — no slide where nothing is left to decide. Example: the learner knows the topic, or answered its question in the last 7 days.",
+    "holdOne": "Normally a choice with one valid option takes it by itself. Tick this to show the choice anyway."
   },
   "summary": {
     "yes": "yes",
@@ -167,7 +169,9 @@
     "detourLabel": "How to offer it",
     "required": "Required — without “Continue without it” (\"optional\": false)",
     "page": "Page with the presentation (address)",
-    "scene": "Scene (key)"
+    "scene": "Scene (key)",
+    "skipWhen": "Skip this step when",
+    "holdOne": "Stop even when only one option is left"
   },
   "opt": {
     "maskPrefix": "the end (the beginning stays)",
