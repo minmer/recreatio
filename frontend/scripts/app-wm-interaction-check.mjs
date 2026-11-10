@@ -96,6 +96,10 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   const st2 = S.stateOf(world, lines, F.fakeLearner({ knowness: { ...known(world.order.filter((p) => !missing.includes(p))), ...Object.fromEntries(first.cards.map((k) => [k, 0.5])) } }), { levels: 0, knownShare: 1 });
   const tt2 = N.followPlan(tt1, P.plan(st2, 'magone', { choices: new Map([['magone', 'f/L4:6']]) }));
   check('timetable: after learning, the travelled step counts as done', [tt2.done.map(N.stepKey), tt2.upcoming.some((s) => N.stepKey(s) === N.stepKey(first))], [[N.stepKey(first)], false]);
+  /* 2026-11-10 — ein Weg ist offen nur vom Haus oder von einem eroberten Turm; der Plan erobert den Turm vorher. */
+  const startOk = (sid) => { const x = lines.sections.get(sid); return x.from === T.HOME || st.places.get(x.from)?.conquered === true; };
+  check('lanes: a section is open exactly when it starts at home or at a conquered tower', [...st.sections].every(([sid, x]) => x.open === startOk(sid)) && [...st.sections.values()].some((x) => !x.open), true);
+  check('plan: every ride starts at home, at a conquered tower, or at a tower the plan conquers before it', plan0.steps.every((x, i) => x.kind !== 'travel' || startOk(x.section) || plan0.steps.slice(0, i).some((y) => (y.kind === 'run' || y.kind === 'know') && y.place === lines.sections.get(x.section).from)), true);
   check('timetable: a new target starts afresh', N.followPlan(tt2, P.plan(st2, 'savio')).done.length, 0);
   /* 2026-11-10 — die Erzählung gelesen, ohne ihre Karten zu beantworten: der Weg geht weiter (dieselbe Fahrt nie noch einmal). */
   const sec = lines.sections.get(first.section);

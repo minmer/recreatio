@@ -157,6 +157,9 @@ for (const theme of ['light', 'dark']) {
   check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
   const css = await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8');
   check('full screen: the whole document; every part full size, a bar at the bottom switches map / route / points / slide-questions', [has(ls, 'root.requestFullscreen()'), has(ls, "const tabs: FullTab[] = ['map'"), has(ls, "setFullTab('run');"), has(css, '.cg-wm-fullbar {'), has(css, '.cg-wm-fullview.is-page {')], [true, true, true, true, true]);
+  const pn = await readFile('src/app/cogita/worldmap/WorldPanels.tsx', 'utf8');
+  const pl = await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8');
+  check('2026-11-10: the home reviews everything below a chosen knowness (90-130 %), each card once at random; the next card is drawn at random from the stack; interchange rings stand out only where an open way starts', [has(pn, 'const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;'), has(ls, "readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' })"), has(ls, "pick: 'weighted', stackSize: stackFor(lib, learner)"), has(pl, 'const hubs = new Set(grow.map((l) => l.fromId));')], [true, true, true, true]);
   check('the way: after every part the next one is offered (full screen tab "next", the same page without full screen); a finish screen with numbers in full screen', [has(ls, "x === 'run' ? (tt !== null ? 'next' : 'map') : x"), has(ls, 'if (!full && askNext && tt !== null)'), has(ls, '<FinishShow'), has(css, '.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin)')], [true, true, true, true]);
 }
 

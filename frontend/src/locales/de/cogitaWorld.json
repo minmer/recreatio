@@ -188,7 +188,10 @@
     "mapShort": "Karte",
     "nothing": "Hier gibt es gerade nichts zu lernen.",
     "next": "Dein nächster Schritt",
-    "more": "Mehr zu diesem Ort"
+    "more": "Mehr zu diesem Ort",
+    "conquerStart": "Dieser Weg beginnt bei {name}: erst diesen Turm erobern.",
+    "showPlace": "Zeigen",
+    "towerFirst": "erst den Startturm erobern"
   },
   "nav": {
     "target": "Ziel: {name}",
@@ -318,5 +321,16 @@
       "keep": "Jede Antwort zählt — weiter so!",
       "read": "Ein Schritt mehr geschafft"
     }
+  },
+  "home": {
+    "repeatTitle": "Alles wiederholen",
+    "repeatSays": "Karten eroberter Orte, jede einmal, in zufälliger Folge. Wähle, wie gut eine Karte höchstens sitzen darf.",
+    "below": "unter {pct} %",
+    "repeatN": {
+      "one": "{count} Karte wiederholen",
+      "other": "{count} Karten wiederholen"
+    },
+    "repeatRun": "Wiederholung: Karten unter {pct} %",
+    "nothing": "Keine Karte unter {pct} %"
   }
 }

@@ -286,7 +286,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     const list = review ? cardsOf(keysOf).filter((c) => reviewable(c.key, state)) : cardsOf(keysOf);
     if (list.length === 0) { setNote(t('cogitaWorld.panel.nothing')); return; }
     setNote(null);
-    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true });
+    /* 2026-11-10 (Eigentümer) — die nächste Karte zufällig aus dem Stapel (gewogen: Schwaches öfter), nicht immer gleich die eben falsche. */
+    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'weighted', stackSize: stackFor(lib, learner), endWhenDone: true });
     setRunning({ kind: 'cards', key: `${review ? 'review' : 'learn'}:${Date.now()}`, source: { plan, cards, title, ...(review ? { review: true } : {}) } });
   };
   const findFlow = (id: string): Flow | undefined => { const d = lib.docs('flow').find((one) => one.id === id); return d === undefined ? undefined : readFlow(d.id, d.data); };
@@ -319,6 +320,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     travel,
     learn: (keysOf, title) => startCards(keysOf, title, false),
     review: (keysOf, title) => startCards(keysOf, title, true),
+    repeat: (keysOf, title) => {
+      const list = cardsOf(keysOf).filter((c) => reviewable(c.key, state));
+      if (list.length === 0) { setNote(t('cogitaWorld.panel.nothing')); return; }
+      setNote(null);
+      setRunning({ kind: 'cards', key: `review:${Date.now()}`, source: { plan: readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' }), cards, title, review: true } });
+    },
     run: (place) => { setNote(null); setRunning({ kind: 'run', key: `run:${place}:${Date.now()}`, place }); },
     lead,
     show: (kind, id) => { setChosen({ kind, id }); if (kind === 'place') pillars.current?.focus(id); },

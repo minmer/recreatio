@@ -214,7 +214,10 @@
     "mapShort": "Mapa",
     "nothing": "Tu nie ma teraz nic do nauki.",
     "next": "Twój następny krok",
-    "more": "Więcej o tym miejscu"
+    "more": "Więcej o tym miejscu",
+    "conquerStart": "Ta droga zaczyna się w: {name} — najpierw zdobądź tę wieżę.",
+    "showPlace": "Pokaż",
+    "towerFirst": "najpierw zdobądź wieżę startową"
   },
   "nav": {
     "target": "Cel: {name}",
@@ -368,5 +371,18 @@
       "keep": "Każda odpowiedź się liczy — tak trzymaj!",
       "read": "Kolejny krok za tobą"
     }
+  },
+  "home": {
+    "repeatTitle": "Powtórka wszystkiego",
+    "repeatSays": "Karty zdobytych miejsc, każda raz, w losowej kolejności. Wybierz, do jakiej znajomości karta ma wrócić.",
+    "below": "poniżej {pct} %",
+    "repeatN": {
+      "one": "Powtórz {count} kartę",
+      "few": "Powtórz {count} karty",
+      "many": "Powtórz {count} kart",
+      "other": "Powtórz {count} karty"
+    },
+    "repeatRun": "Powtórka: karty poniżej {pct} %",
+    "nothing": "Żadnej karty poniżej {pct} %"
   }
 }

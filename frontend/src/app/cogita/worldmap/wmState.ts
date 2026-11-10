@@ -90,6 +90,11 @@ export interface TicketState {
 export interface SectionState {
   readonly ticket: TicketState;
   readonly travelled: boolean;
+  /**
+   * 2026-11-10 (Eigentümer) — OFFEN: der Abschnitt beginnt am Haus oder an einem eroberten Turm. Sonst ist er nicht fahrbar und
+   * nicht hervorgehoben — auch wenn die Kenntnis für seine Fahrkarte schon reicht.
+   */
+  readonly open: boolean;
   /** Die Kante im Weg (∞: nicht befahrbar). */
   readonly cost: number;
   /** Was der Abschnitt einführt und noch nie gesehen wurde. */
@@ -241,7 +246,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     const ticket = ticketOf(s);
     const was = travelled.get(s.id) === true;
     sections.set(s.id, {
-      ticket, travelled: was,
+      ticket, travelled: was, open: s.from === HOME || places.get(s.from)?.conquered === true,
       cost: s.from === s.to || !Number.isFinite(ticket.cost) ? Infinity : 1 + ticket.cost - (was ? 0.5 : 0),
       fresh: s.introduces.filter((k) => band(k) === 'unseen')
     });

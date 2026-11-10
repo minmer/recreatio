@@ -10,6 +10,8 @@
  *                2. EIN Durchgang bis zur letzten Stufe (er hebt um jede Stufe, deren Regel er erfüllt; ohne Abstand zwischen
  *                   den Stufen wartet nichts — 2026-11-09); ohne Stufen: die Karten lernen, bis sie sitzen
  *   Abzweigung   je Fahrt die anderen Abschnitte, die dieselben Karten einführen (Folien, neue Karten, Wirkung auf die Summe)
+ *   Turm zuerst  ein Abschnitt fährt nur vom Haus oder von einem eroberten Turm (2026-11-10): beginnt der beste an einem nicht
+ *                eroberten Turm, wird dieser Turm vorher erobert
  * </code>
  * Nach jeder Änderung des Lernstands neu gerechnet.
  */
@@ -65,14 +67,17 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     const other = st.ticket.parts.filter((p) => !p.result.met && p.result.missing === undefined).reduce((sum, p) => sum + (p.view.symbol === 'unknown' ? Infinity : 4), 0);
     return 1 + COST_NEW * fresh + COST_REVIEW * st.ticket.missing.review.length + other - (st.travelled ? 0.5 : 0);
   };
-  const candidates = (cards: readonly string[]): Section[] => {
+  /* Türme, die der Plan vor dem jetzigen Schritt erobert (ihr Durchgang steht schon in den Schritten). */
+  const soon = new Set<string>();
+  const startsOpen = (s: Section): boolean => state.sections.get(s.id)!.open || soon.has(s.from);
+  const candidates = (cards: readonly string[], gate = true): Section[] => {
     const ids = new Set(cards.flatMap((k) => lines.introducedBy.get(k) ?? []));
     /*
       2026-11-10 (Eigentümer: „nur ein Schritt wird gemacht") — ein schon befahrener Abschnitt wird nicht noch einmal angeboten:
       wer die Erzählung gelesen hat, ohne ihre Karten zu beantworten, lernt sie als nächsten Teil direkt (sonst stünde dieselbe
       Fahrt immer wieder als nächster Schritt da).
     */
-    return [...ids].map((id) => lines.sections.get(id)!).filter((s) => { const st = state.sections.get(s.id)!; return Number.isFinite(st.ticket.cost) && !st.travelled; });
+    return [...ids].map((id) => lines.sections.get(id)!).filter((s) => { const st = state.sections.get(s.id)!; return Number.isFinite(st.ticket.cost) && !st.travelled && (!gate || startsOpen(s)); });
   };
   const best = (place: string, cards: readonly string[], list: Section[]): Section | null => {
     if (list.length === 0) return null;
@@ -91,7 +96,9 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       if (placed.has(p) || guard > 6) continue;
       /* Step 3 · 1 — nur Karten, die zählen (ohne ausgesetzte). */
       const cards = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) === 'unseen');
-      const s = best(p, cards, candidates(cards));
+      const s = best(p, cards, candidates(cards, false));
+      /* Beginnt die beste Fahrt an einem nicht eroberten Turm, kommt dieser Turm davor (ausser er hängt selbst von hier ab). */
+      if (s !== null && !state.sections.get(s.id)!.open && world.places.has(s.from) && !placed.has(s.from) && s.from !== p && !state.conquestOrder(s.from).includes(p)) add(s.from, guard + 1);
       if (s !== null) {
         for (const part of state.sections.get(s.id)!.ticket.parts) {
           const of = part.part.condition.of;
@@ -148,6 +155,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   /* Je Ort in der Reihenfolge (die Grundlage zuerst): seine Karten einführen, dann sein Durchgang. */
   for (const p of order) {
     introduce(p);
+    soon.add(p);
     if (conquered(p)) continue;
     if (levels === 0) {
       steps.push({ kind: 'know', place: p, cards: (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known') });

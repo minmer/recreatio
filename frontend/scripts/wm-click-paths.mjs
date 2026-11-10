@@ -75,13 +75,13 @@ try {
     const locate = () => ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c?.wmLocate?.(${JSON.stringify(kind)}, ${JSON.stringify(id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
     /* Erst, wenn die Stelle stillsteht (eine Bildlaufleiste, die eben erscheint, verschiebt die Leinwand um ein paar Punkte). */
     let at = await locate();
-    for (let i = 0; i < 20; i += 1) {
+    for (let i = 0; i < 50; i += 1) {
       await sleep(120);
       const again = await locate();
       if (at !== null && again !== null && Math.abs(again[0] - at[0]) < 0.5 && Math.abs(again[1] - at[1]) < 0.5) break;
       at = again;
     }
-    if (at === null) throw new Error(`not on the map: ${kind} ${id}`);
+    if (at === null) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`not on the map: ${kind} ${id}`); }
     await clickAt(at[0], at[1]);
   };
   const click = async (selector) => {
@@ -120,7 +120,7 @@ try {
     await waitFor(`document.querySelector('[data-world-panel="home"]')`, 'the home panel');
     check(P, 'Home opens its panel with the lines that start there', await ev(`document.querySelectorAll('[data-world-panel="home"] [data-world-direction]').length`) >= 1);
     await shot('p1-home');
-    const lane = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.state === 'locked' && l.from === N.domkos && l.to === N.cagrua);
+    const lane = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.state === 'locked' && l.symbol !== 'place' && l.from === N.domkos && l.to === N.cagrua);
     check(P, 'the map shows a locked section (domkos → cagrua)', lane !== undefined);
     await clickMap('lane', lane.section);
     await waitFor(`document.querySelector('[data-world-panel="section"][data-world-section="${lane.section}"]')`, 'the section panel');
@@ -138,8 +138,10 @@ try {
     await waitFor(ready, 'the map again');
     await waitFor(`document.querySelector('[data-world-panel="section"]')?.dataset.worldTicket === 'met'`, 'the ticket to be met', 10000);
     const after = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.section === lane.section);
-    check(P, 'the lock is gone: the ticket is valid and the lane is no longer locked', after !== undefined && after.state !== 'locked', after);
-    check(P, 'travel is now possible', await ev(`document.querySelector('[data-world-travel]')?.disabled === false`));
+    /* 2026-11-10 — fahrbar erst, wenn auch der Startturm erobert ist; sonst wartet der Weg nur noch auf ihn (Zeichen: Ort). */
+    const closed = await ev(`document.querySelector('[data-world-panel="section"] [data-world-start-closed]') !== null`);
+    check(P, 'the knowledge lock is gone: the ticket is valid; the lane waits at most for its start tower', after !== undefined && (after.state !== 'locked' || (closed && after.symbol === 'place')), { after, closed });
+    check(P, 'travel is possible exactly when the start tower is conquered', await ev(`document.querySelector('[data-world-travel]')?.disabled === ${closed}`));
     await shot('p1-lock-gone');
   }
 
@@ -152,8 +154,12 @@ try {
     const rows = await ev(`[...document.querySelectorAll('[data-world-station] [data-world-direction]')].map((r) => ({ id: r.dataset.worldDirection, branch: r.dataset.worldDirectionBranch, text: r.textContent, choose: r.querySelector('[data-world-choose]') !== null, tag: r.querySelector('[data-world-tag]')?.dataset.worldTag ?? '' }))`);
     const branches = rows.filter((r) => r.branch !== '');
     check(P, 'the station lists the 3 branches of the story that splits here', new Set(branches.map((r) => r.branch)).size === 3, branches.map((r) => r.text));
-    check(P, 'each direction shows its ticket (open branches can be chosen, a locked one cannot)', branches.some((r) => r.choose) && branches.some((r) => !r.choose && r.tag === 'locked'), branches.map((r) => [r.tag, r.choose]));
     await shot('p2-station');
+    /* 2026-11-10 — ein Umsteigeort, dessen Turm nicht erobert ist: jede Richtung wartet auf ihn, keine lässt sich wählen. */
+    if (!branches.some((r) => r.choose)) {
+      check(P, 'the tower of this station is not conquered: every direction waits for it, none can be chosen', branches.every((r) => !r.choose && r.tag === 'closed'), branches.map((r) => [r.tag, r.choose]));
+    } else {
+    check(P, 'each direction shows its ticket (open branches can be chosen, a locked one cannot)', branches.some((r) => r.choose) && branches.some((r) => !r.choose && r.tag === 'locked'), branches.map((r) => [r.tag, r.choose]));
     const pick = branches.find((r) => r.text.includes(N.savio));
     await click(`[data-world-choose="${pick.id}"]`);
     await waitFor(`document.querySelector('[data-world-running="story"] [data-flow-running]')`, 'the story player');
@@ -161,6 +167,7 @@ try {
     const at = await ev(`(() => { const s = document.querySelector('[data-world-running="story"] [data-flow-running]'); return { step: s?.dataset.flowStep ?? null, locked: document.querySelector('[data-flow-locked]') !== null }; })()`);
     check(P, 'the player opens in the chosen branch (its first slide)', at.step === 'sh11' && !at.locked, at);
     await shot('p2-branch-open');
+    }
   }
 
   /* -- 3 · Navigation zu einem Ort mit 3 fehlenden Voraussetzungen, eine Abzweigung unterwegs ----------------------------- */
@@ -169,6 +176,9 @@ try {
     await open();
     /* Der Lernende kennt die Grundlagen: alles vor Magone ausser drei Orten (Dom i kościół, Dominik Savio, Pół tuzina warsztatów). */
     const openTarget = async () => {
+      /* Erst, wenn „Pokaż zmiany" (die Kamera fliegt zu Eroberten) zu Ende gespielt ist — sonst nähme es „Cały świat" zurück. */
+      await sleep(300);
+      await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlaying ?? '') === ''`, 'the playback to end', 20000);
       await click('[data-world-fit]');
       await sleep(300);
       await clickMap('label', N.magone);

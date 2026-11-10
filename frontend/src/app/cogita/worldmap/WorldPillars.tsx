@@ -477,11 +477,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.fillStyle = rgbCss(pal.casing);
       for (const [x, y] of [[pts[0], pts[1]], [pts[pts.length - 2], pts[pts.length - 1]]]) g.fillRect(x - 2.6 * px, y - 2.6 * px, 5.2 * px, 5.2 * px);
     }
-    /* Umsteigeorte: ein Ring auf dem Boden. */
-    g.strokeStyle = rgbCss(mix(pal.ink, pal.land, 0.6));
-    g.lineWidth = 1.2 * px;
+    /*
+      Umsteigeorte: ein Ring auf dem Boden — deutlich nur, wo gerade ein offener Weg beginnt, der Neues bringt (2026-11-10,
+      Eigentümer); sonst kaum zu sehen.
+    */
+    const hubs = new Set(grow.map((l) => l.fromId));
     for (const p of scene.places) {
       if (!p.station) continue;
+      const on = hubs.has(p.id);
+      g.strokeStyle = rgbCss(mix(pal.ink, pal.land, on ? 0.35 : 0.85));
+      g.lineWidth = (on ? 1.8 : 0.8) * px;
       g.beginPath(); g.arc(p.x, p.y, p.r * pillarWidth + 7, 0, Math.PI * 2); g.stroke();
     }
     /* Das Haus: eine runde Platte. */
@@ -1008,12 +1013,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   useEffect(() => {
     type Hooked = HTMLCanvasElement & {
       wmLocate?: (kind: string, id: string) => [number, number] | null;
-      wmLanes?: () => { section: string; line: string; state: string; from: string; to: string }[];
+      wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
     };
     const el = canvasRef.current as Hooked | null;
     if (el === null) return undefined;
     const label = (id: string) => (id === HOME_MARK ? HOME_MARK : scene.byId.get(id)?.label ?? id);
-    el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, from: label(l.fromId), to: label(l.toId) }));
+    el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
     el.wmLocate = (kind, id) => {
       const c = camRef.current;
       if (c === null) return null;
@@ -1045,8 +1050,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     return () => { delete el.wmLocate; delete el.wmLanes; };
   });
 
-  /* Der gewählte Ort bleibt im Bild (auch wenn die Karte für ein Feld niedriger wird): sonst schiebt sich die Karte zu ihm. */
+  /*
+    Der gewählte Ort bleibt im Bild (auch wenn die Karte für ein Feld niedriger wird): sonst schiebt sich die Karte zu ihm.
+    Nur, wenn ein Ort neu gewählt wird oder die Karte niedriger wird — nicht bei jeder anderen Grössenänderung (sonst nähme
+    eine Bildlaufleiste „Cały świat" gleich wieder zurück).
+  */
+  const keptView = useRef<{ chosen: string | null; h: number }>({ chosen: null, h: 0 });
   useEffect(() => {
+    const was = keptView.current;
+    keptView.current = { chosen, h: size.h };
+    if (chosen === was.chosen && !(size.h < was.h)) return;
     const c = camRef.current;
     const p = chosen === null ? undefined : scene.byId.get(chosen);
     if (c === null || p === undefined || size.w === 0) return;

@@ -44,6 +44,8 @@ export interface ScenePlace {
  * 2026-11-09 (Eigentümer) — WAS EIN WEG JETZT FÜR DICH IST. Kräftig nur, was die Kenntnis weiterbringt (`grow`: offen, und er
  * bringt Karten, die noch nicht sitzen). Alles andere leise, und jedes anders: `travelled` (schon gefahren), `idle` (offen,
  * bringt nichts Neues), `locked` (noch nicht erreichbar).
+ * 2026-11-10 — offen heisst auch: er beginnt am Haus oder an einem eroberten Turm. Ein Weg von einem nicht eroberten Turm ist
+ * `locked` (Zeichen: der Ort), auch wenn die Kenntnis für ihn reicht.
  */
 export type LaneState = 'grow' | 'travelled' | 'idle' | 'locked';
 
@@ -130,7 +132,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     const a = nodeOf(s.from), b = nodeOf(s.to);
     const st = state.sections.get(s.id);
     const colour = opts.lineColour.get(s.line);
-    const laneState: LaneState = st?.travelled === true ? 'travelled' : st?.ticket.met !== true ? 'locked'
+    const startClosed = st !== undefined && !st.open;
+    const laneState: LaneState = st?.travelled === true ? 'travelled' : st?.ticket.met !== true || startClosed ? 'locked'
       : s.introduces.some((k) => state.band(k) !== 'known') ? 'grow' : 'idle';
     let points: number[];
     if (a === b) {
@@ -151,7 +154,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     lanes.push({
       section: s.id, line: s.line, branch: s.branch, fromId: s.from, toId: s.to, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
-      color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? st?.ticket.symbol ?? 'knowledge' : null
+      color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null
     });
   }
   const tracks = g.tracks.map((t) => ({ key: pairKey(t.a, t.b), points: t.points, lanes: lanesOf.get(pairKey(t.a, t.b))?.length ?? 1 }));

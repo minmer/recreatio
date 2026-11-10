@@ -188,7 +188,10 @@
     "mapShort": "Map",
     "nothing": "Nothing to learn here right now.",
     "next": "Your next step",
-    "more": "More about this place"
+    "more": "More about this place",
+    "conquerStart": "This way starts at {name}: conquer that tower first.",
+    "showPlace": "Show",
+    "towerFirst": "conquer the start tower first"
   },
   "nav": {
     "target": "Target: {name}",
@@ -318,5 +321,16 @@
       "keep": "Every answer counts — keep going!",
       "read": "One more step behind you"
     }
+  },
+  "home": {
+    "repeatTitle": "Review everything",
+    "repeatSays": "Cards of conquered places, each once, in random order. Choose how well a card may be known at most.",
+    "below": "below {pct} %",
+    "repeatN": {
+      "one": "Review {count} card",
+      "other": "Review {count} cards"
+    },
+    "repeatRun": "Review: cards below {pct} %",
+    "nothing": "No card below {pct} %"
   }
 }
