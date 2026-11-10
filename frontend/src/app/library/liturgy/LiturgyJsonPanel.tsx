@@ -71,7 +71,11 @@ export function LiturgyJsonPanel({ store, library, revision, entity, open = fals
         const done = await commitImport(store, doc, library.areaPublic === true);
         /* Wie nach jedem Import: die Abschrift für AI gleich neu, nicht erst nach der Ruhe. */
         if (done.saved > 0) void store.refreshAiNow().catch(() => undefined);
-        return { lines: done.saved === 0 ? done.lines : [t('liturgy.json.saved', { count: done.saved }), ...done.lines], warnings: done.warnings };
+        /* Wie bei jedem Import: wie viele, je Art der Änderung; darunter die Zeilen des Plans ohne seine Vorschau-Zählung. */
+        if (done.saved === 0) return { lines: [t('liturgy.json.line.nothing')], warnings: done.warnings };
+        const counts = { created: done.create.length, updated: done.update.length, removed: done.remove.length, reset: done.reset.length };
+        const count = counts.created + counts.updated + counts.removed + counts.reset;
+        return { lines: [t('liturgy.json.done', { count, ...counts }), ...done.lines.slice(1)], warnings: done.warnings };
       }}
       open={open}
     />

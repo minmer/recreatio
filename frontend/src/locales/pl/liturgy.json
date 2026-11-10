@@ -261,7 +261,12 @@
     "lead": "Cały zbiór jako jeden dokument: wyeksportuj, zmień ręcznie albo z asystentem i zaimportuj z powrotem — najpierw zobaczysz listę zmian. Wbudowany kalendarz i szablony nie są eksportowane; zmienisz je, podając ich id.",
     "leadOne": "Ten wpis jako dokument, w tym samym formacie co cały zbiór: zmień go i zaimportuj z powrotem.",
     "import": "Importuj",
-    "saved": "Zapisano: {count} wpisów w jednym zapisie.",
+    "done": {
+      "one": "Zaimportowano {count} wpis: nowe {created}, zmienione {updated}, usunięte {removed}, przywrócone domyślne {reset}.",
+      "few": "Zaimportowano {count} wpisy: nowe {created}, zmienione {updated}, usunięte {removed}, przywrócone domyślne {reset}.",
+      "many": "Zaimportowano {count} wpisów: nowe {created}, zmienione {updated}, usunięte {removed}, przywrócone domyślne {reset}.",
+      "other": "Zaimportowano {count} wpisu: nowe {created}, zmienione {updated}, usunięte {removed}, przywrócone domyślne {reset}."
+    },
     "blocked": "Nic nie zapisano — najpierw popraw:",
     "problemsHead": "Import zatrzymuje się, dopóki tego nie poprawisz:",
     "moreProblems": "…i jeszcze {count}",

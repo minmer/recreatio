@@ -261,7 +261,10 @@
     "lead": "The whole collection as one document: export it, change it by hand or with an assistant, and import it again — the list of changes comes first. The built-in calendar and templates are not exported; change one by naming its id.",
     "leadOne": "This entity as a document, in the same format as the whole collection: change it and import it again.",
     "import": "Import",
-    "saved": "Saved: {count} entities in one go.",
+    "done": {
+      "one": "Imported {count} entity: new {created}, changed {updated}, removed {removed}, back to default {reset}.",
+      "other": "Imported {count} entities: new {created}, changed {updated}, removed {removed}, back to default {reset}."
+    },
     "blocked": "Nothing was saved — fix these first:",
     "problemsHead": "The import stops until these are fixed:",
     "moreProblems": "…and {count} more",

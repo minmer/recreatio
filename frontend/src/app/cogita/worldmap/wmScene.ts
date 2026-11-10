@@ -13,7 +13,7 @@ import type { Geometry } from './wmGeometry';
 import { HOME_ID } from './wmGeometry';
 import type { WorldState } from './wmState';
 import { laneOffset, offsetPoints } from './wmTracks';
-import type { Lines, World } from './wmTypes';
+import type { Lines, Section, World } from './wmTypes';
 
 export interface ScenePlace {
   readonly id: string;
@@ -77,6 +77,9 @@ export interface SceneLane {
   /** 2026-11-10 — die Schritte des Abschnitts als Zeichen auf dem Pfad: Folie oder Frage, und ob schon gesehen. */
   readonly marks: readonly ('slide' | 'question')[];
   readonly seen: readonly boolean[];
+  /** 2026-11-10 — der vereinfachte innere Weg: der Abschnitt beginnt an einer Wahl (Gabel) / endet mit dem Przegląd (↻). */
+  readonly forkStart: boolean;
+  readonly review: boolean;
 }
 
 export interface Scene {
@@ -134,6 +137,10 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   for (const [k, set] of linesOn) lanesOf.set(k, [...set].sort(order));
 
   const centre = (id: string): readonly [number, number] => g.positions[id] ?? [0, 0];
+  /* Die Abschnitte je Linie (wo ein Zweig weitergeht — sonst endet er hier). */
+  const byLine = new Map<string, Section[]>();
+  for (const s of lines.sections.values()) { const l = byLine.get(s.line) ?? []; l.push(s); byLine.set(s.line, l); }
+  const lineSections = (line: string): readonly Section[] => byLine.get(line) ?? [];
   const lanes: SceneLane[] = [];
   for (const s of lines.sections.values()) {
     if (s.from === s.to) continue;
@@ -164,6 +171,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
       name: lines.lines.get(s.line)?.name ?? '', slides: s.slides,
       marks: s.steps.map((x) => (s.questions.includes(x) ? 'question' as const : 'slide' as const)), seen: st?.seen ?? [],
+      forkStart: s.start?.exit !== undefined,
+      review: lines.lines.get(s.line)?.review === true && s.kind !== 'return' && !lineSections(s.line).some((o) => o.id !== s.id && o.branch === s.branch && o.from === s.to),
       kind: s.kind === 'return' ? 'back' : lines.lines.get(s.line)?.deepening === true || s.kind === 'entry' ? 'deepening' : s.branch !== s.line ? 'branch' : 'main',
       color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null
     });

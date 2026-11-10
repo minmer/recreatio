@@ -263,6 +263,8 @@ interface Walked {
   readonly trunkStops: string[];
   readonly issues: WmIssue[];
   readonly stepFlow: Map<string, string>;
+  /** Die Erzählung hat einen Przegląd (auf der Karte ein ↻ am Ende). */
+  readonly review: boolean;
 }
 
 /** Eine Linie gehen. */
@@ -538,7 +540,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   if (firstSlide !== undefined && startNode !== undefined && (startNode.type === 'show' || startNode.type === 'scene') && startNode.id !== firstSlide.id) {
     issues.push({ code: 'flowStartsLate', level: 'info', ids: [flow.id, startNode.id, firstSlide.id], data: { step: startNode.id, first: firstSlide.id } });
   }
-  return { flow, sections, branches, ends, calls, forks, meetings, trunkStops, issues, stepFlow };
+  return { flow, sections, branches, ends, calls, forks, meetings, trunkStops, issues, stepFlow, review: reviewBlock.size > 0 };
 }
 
 const exitLabel = (n: { type: string; config: Readonly<Record<string, unknown>> }, exit: string): string => {
@@ -720,7 +722,8 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
     for (const m of w.meetings) if (m !== START) meetingPlaces.add(m);
     lines.set(id, {
       id, name: w.flow.name, ...(w.flow.unit === undefined ? {} : { unit: w.flow.unit }),
-      deepening, calledBy: callers ?? new Map(), stops: w.trunkStops, branches: branchList, sections: out.map((s) => s.id), start
+      deepening, calledBy: callers ?? new Map(), stops: w.trunkStops, branches: branchList, sections: out.map((s) => s.id), start,
+      ...(w.review ? { review: true } : {})
     });
     for (const issue of w.issues) issues.push(issue);
     for (const s of out) for (const p of s.ticket) for (const type of unknownTypes(p.condition)) {

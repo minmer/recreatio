@@ -817,8 +817,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       /*
         2026-11-10 (Eigentümer: „nicht als Text, sondern als Punkte auf dem Pfad") — DIE SCHRITTE AUF DEM PFAD: je Folie ein
         Punkt, je Frage eine Raute, in ihrer Reihenfolge; gesehen: gefüllt in der Farbe des Pfades, sonst hohl. Passen nicht alle,
-        stehen so viele da, wie Platz haben (gleichmässig ausgewählt). Am Anfang ein kleines Zeichen der Art: Abzweig (Gabel),
-        Vertiefung (hinab), Rückweg (Bogen zurück); der Hauptpfad trägt keins.
+        stehen so viele da, wie Platz haben (gleichmässig ausgewählt). Am Anfang ein kleines Zeichen der Art: Abzweig (Gabel —
+        nur wo die Wahl ist), Vertiefung (hinab), Rückweg (Bogen zurück); der Hauptpfad trägt keins. Der vereinfachte innere Weg
+        dazu: der nächste Schritt nach Gesehenem trägt einen Ring („jetzt"), und wo die Erzählung mit dem Przegląd endet, ein ↻.
       */
       let markCount = 0;
       const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
@@ -840,9 +841,23 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.fillStyle = seenHere ? rgbCss(col) : halo0;
           ctx.strokeStyle = seenHere ? halo0 : rgbCss(col);
           ctx.fill(); ctx.stroke();
+          /* „Jetzt": der erste noch nicht gesehene Schritt nach einem gesehenen. */
+          if (!seenHere && i > 0 && l.seen[i - 1] === true && l.seen.slice(0, i).every(Boolean)) {
+            ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(at.x, at.y, 7.5, 0, Math.PI * 2); ctx.stroke();
+          }
           markCount += 1;
         }
-        if (l.kind !== 'main' && len >= 44) {
+        if (l.review && len >= 44) {
+          const at = along(sp, Math.max(0.65, 1 - 14 / len));
+          ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(at.x, at.y, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.strokeStyle = rgbCss(mix(col, pal.ink, 0.35)); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.arc(at.x, at.y, 3, -Math.PI * 0.2, Math.PI * 1.45); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(at.x + 3 * Math.cos(-Math.PI * 0.2) + 1.6, at.y + 3 * Math.sin(-Math.PI * 0.2) - 1.2); ctx.lineTo(at.x + 3 * Math.cos(-Math.PI * 0.2), at.y + 3 * Math.sin(-Math.PI * 0.2)); ctx.lineTo(at.x + 3 * Math.cos(-Math.PI * 0.2) - 1.8, at.y + 3 * Math.sin(-Math.PI * 0.2) - 1.2); ctx.stroke();
+          markCount += 1;
+        }
+        if (l.kind !== 'main' && !(l.kind === 'branch' && !l.forkStart) && len >= 44) {
           const at = along(sp, Math.min(0.35, 14 / len));
           const r = 6.5;
           ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 1.5;
@@ -914,6 +929,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmLit = lit === null ? '' : String(litCount);
     canvas.dataset.wmPortals = String(portalSigns);
     canvas.dataset.wmGoal = goal ?? '';
+    canvas.dataset.wmRoute = (route ?? []).join(' ');
+    canvas.dataset.wmFaint = (faint ?? []).join(' ');
     canvas.dataset.wmPlaying = play === null ? '' : String(play.pb.id);
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps

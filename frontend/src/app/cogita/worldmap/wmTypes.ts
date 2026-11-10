@@ -191,6 +191,8 @@ export interface Line {
   readonly calledBy: ReadonlyMap<string, number>;
   /** Die Halte des Stammes, in Reihenfolge. */
   readonly stops: readonly string[];
+  /** 2026-11-10 — die Erzählung endet mit einem Przegląd (Schritt „review" oder `review` des Ablaufs): auf der Karte ein ↻ am Ende. */
+  readonly review?: boolean;
   readonly branches: readonly LineBranch[];
   readonly sections: readonly string[];
   /** Der Ort, an dem der Stamm beginnt (R3): ein Ort, den die Einheit verlangt, sonst `HOME`; bei einer Vertiefung null. */

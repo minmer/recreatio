@@ -564,11 +564,28 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Zeigen: die Blase, der Weg, die Navigation ---------------------------------------------------------------------- */
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const routeTo = useMemo(() => (hover === null ? null : state.routeTo(hover.id)), [hover, state]);
-  /* 2026-11-10 (Eigentümer) — ein angeklickter Turm: sein Weg bleibt sichtbar, bis etwas anderes gewählt ist. */
-  const placeRoute = useMemo(() => (chosen?.kind === 'place' ? state.routeTo(chosen.id) : null), [chosen, state]);
-  const chosenRoute = chosen?.kind === 'section' ? [chosen.id] : placeRoute;
-  const route = routeTo ?? chosenRoute ?? marks?.next ?? null;
-  const faint = marks === null ? null : routeTo !== null || chosenRoute !== null ? [...marks.next, ...marks.later] : marks.later;
+  /*
+    2026-11-10 (Eigentümer: „der Weg über ein Ziel sieht anders aus als direkt gewählt") — EIN WEG, EINE GESTALT: ob ein Turm
+    angeklickt, überfahren oder als Ziel der Navigation gewählt ist — gezeigt wird derselbe Plan (`wmPlan`), gleich gezeichnet:
+    die nächsten Fahrten kräftig, spätere blass. Ohne Lernenden oder bei einem eroberten Turm: der kürzeste Weg vom Haus.
+  */
+  const wayOf = useCallback((id: string): { next: readonly string[]; later: readonly string[] } | null => {
+    if (learner !== null && state.places.get(id)?.conquered === false) {
+      const m = navMarks(followPlan(null, planRoute(state, id)), lines);
+      return { next: m.next, later: m.later };
+    }
+    const r = state.routeTo(id);
+    return r === null ? null : { next: r, later: [] };
+  }, [learner, state, lines]);
+  const hoverWay = useMemo(() => (hover === null ? null : wayOf(hover.id)), [hover, wayOf]);
+  /* Ein angeklickter Turm: sein Weg bleibt sichtbar, bis etwas anderes gewählt ist; die Navigation zu ihm: derselbe Weg. */
+  const chosenWay = useMemo(() => (chosen?.kind === 'place' ? (nav?.target === chosen.id && marks !== null ? { next: marks.next, later: marks.later } : wayOf(chosen.id))
+    : chosen?.kind === 'section' ? { next: [chosen.id], later: [] } : null), [chosen, wayOf, nav, marks]);
+  const shownWay = hoverWay ?? chosenWay;
+  const route = shownWay?.next ?? marks?.next ?? null;
+  const faint = shownWay !== null
+    ? [...shownWay.later, ...(marks === null || (chosen?.kind === 'place' && nav?.target === chosen.id && hoverWay === null) ? [] : [...marks.next, ...marks.later])]
+    : marks?.later ?? null;
   const bubble = (() => {
     if (hover === null || scene === null) return null;
     const p = scene.byId.get(hover.id);

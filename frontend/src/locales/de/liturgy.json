@@ -261,7 +261,10 @@
     "lead": "Die ganze Sammlung als ein Dokument: exportieren, von Hand oder mit einem Assistenten ändern und wieder importieren — zuerst kommt die Liste der Änderungen. Der eingebaute Kalender und die Vorlagen werden nicht exportiert; ändern lassen sie sich über ihre id.",
     "leadOne": "Dieser Eintrag als Dokument, im selben Format wie die ganze Sammlung: ändern und wieder importieren.",
     "import": "Importieren",
-    "saved": "Gespeichert: {count} Einträge in einem Schritt.",
+    "done": {
+      "one": "{count} Eintrag importiert: neu {created}, geändert {updated}, gelöscht {removed}, auf Vorgabe zurück {reset}.",
+      "other": "{count} Einträge importiert: neu {created}, geändert {updated}, gelöscht {removed}, auf Vorgabe zurück {reset}."
+    },
     "blocked": "Nichts gespeichert — zuerst beheben:",
     "problemsHead": "Der Import hält an, bis das behoben ist:",
     "moreProblems": "…und {count} weitere",
