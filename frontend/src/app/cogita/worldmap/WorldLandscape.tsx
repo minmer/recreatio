@@ -46,7 +46,7 @@ import { FinishShow } from './WorldFinish';
 import { AuthorList, HomePanel, NavPanel, PlacePanel, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
 import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
-import { NextView, WayPreview } from './WorldWay';
+import { NextView, PartIcon, WayPreview } from './WorldWay';
 import { authorIssues } from './wmAuthors';
 import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
 import { lineColours, oklch, type Rgb } from './wmColors';
@@ -333,6 +333,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     ...(onOpen === undefined ? {} : { open: onOpen })
   };
   const go = (step: PlanStep) => {
+    if (tt !== null) wayPartNext.current = { n: tt.done.length + 1, all: tt.done.length + tt.upcoming.length, kind: step.kind, text: stepText(step, panel), at: Date.now() };
     if (step.kind === 'travel') {
       const st = state.sections.get(step.section);
       const s = lines.sections.get(step.section);
@@ -351,9 +352,21 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tt]);
 
-  /* -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. Esc oder × beendet es. ---------------------- */
+  /*
+    -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. ----------------------------------------------
+    ZWEI ARTEN (Eigentümer: „ein Vollbild und eine ganze Seite, und das Ganze als Spiel"): 'screen' — der ganze Bildschirm
+    (Fullscreen-Schnittstelle), 'page' — die ganze Seite im Fenster des Browsers (seine Leisten bleiben). Esc tritt eine Stufe
+    zurück: Bildschirm → Seite → aus. Darin geht es ohne Klicks weiter: der Abschluss läuft von selbst in den nächsten Teil, die
+    Karte spielt erst, wenn man sie sieht, jeder Teil des Weges trägt oben „Teil n von m".
+  */
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState<FullMode | null>(null);
+  /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
+  const wayPartNext = useRef<WayPart & { at: number } | null>(null);
+  const [wayPart, setWayPart] = useState<WayPart | null>(null);
+  /* Woher man in einen Teil des Vollbilds kommt — danach die Richtung, in der er hereinkommt. */
+  const lastTab = useRef<FullTab>('map');
+  const enterAs = useRef<'zoom' | 'rise' | 'left' | 'right'>('rise');
   /* Im Vollbild ist jeder Teil ganz zu sehen; unten wechselt man: Karte, Trasa, Punkte, Folie/Fragen (2026-11-10, Eigentümer). */
   const [fullTab, setFullTab] = useState<FullTab>('map');
   /*
@@ -370,6 +383,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (running !== null) {
       setFullTab('run');
       setAskNext(false);
+      const part = wayPartNext.current;
+      wayPartNext.current = null;
+      if (finSnap.current?.snap.key !== running.key) setWayPart(part !== null && Date.now() - part.at < 3000 ? part : null);
       if (finSnap.current?.snap.key === running.key) return;
       const flow = running.kind === 'story' ? running.flow : null;
       finSnap.current = {
@@ -383,7 +399,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           perfect: new Set([...levels].filter(([, l]) => l.perfect).map(([id]) => id)),
           done: tt === null ? null : new Set(tt.done.map(stepKey)),
           target: tt?.target ?? null,
-          visited: flow === null ? 0 : positionFor(progress?.positions, flow)?.visited.length ?? 0
+          visited: flow === null ? 0 : positionFor(progress?.positions, flow)?.visited.length ?? 0,
+          ways: new Map([...state.sections].filter(([, x]) => !x.travelled).map(([id, x]) => [id, { open: x.open, met: x.ticket.met }] as const))
         }
       };
       return;
@@ -394,32 +411,53 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (was === null) return;
     setLastDone(was.snap.done);
     if (tt !== null) setAskNext(true);
-    if (full) setFinished({ ...was, end: Date.now() });
+    if (full !== null) setFinished({ ...was, end: Date.now() });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nur beim Wechsel dessen, was läuft
   }, [running]);
-  useEffect(() => { if (!full) setFinished(null); }, [full]);
+  useEffect(() => { if (full === null) setFinished(null); }, [full]);
   /*
     Das ganze Dokument geht ins Vollbild, die Karte liegt darüber (fest, über der Seite, unter Dialogen): so bleiben Erzählungen,
     Fragen und Dialoge, die in einem Portal oder selbst im Vollbild laufen, sichtbar (2026-11-10, Eigentümer).
   */
   const askedFull = useRef(false);
   useEffect(() => {
-    const sync = () => { if (document.fullscreenElement === null && askedFull.current) { askedFull.current = false; setFull(false); } };
+    /* Der Browser verliess das Vollbild (Esc): eine Stufe zurück — die ganze Seite bleibt. */
+    const sync = () => { if (document.fullscreenElement === null && askedFull.current) { askedFull.current = false; setFull((m) => (m === 'screen' ? 'page' : m)); } };
     document.addEventListener('fullscreenchange', sync);
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
-  const toggleFull = () => {
-    if (full) {
+  const enterFull = (m: FullMode) => {
+    if (m === 'page') {
       askedFull.current = false;
-      setFull(false);
       if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+      setFull('page');
       return;
     }
-    setFull(true);
+    setFull('screen');
     const root = document.documentElement;
     /* Ohne die Schnittstelle (manche Telefone): das ganze Fenster, ohne den Rest der Seite. */
     if (typeof root.requestFullscreen === 'function') void root.requestFullscreen().then(() => { askedFull.current = true; }, () => undefined);
   };
+  const exitFull = () => {
+    askedFull.current = false;
+    setFull(null);
+    if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+  };
+  /* Die ganze Seite: Esc schliesst sie (nicht in einem Feld oder Dialog); die Seite darunter rollt nicht mit. */
+  useEffect(() => {
+    if (full === null) return undefined;
+    const html = document.documentElement;
+    html.classList.add('cg-wm-locked');
+    const onKey = (e: KeyboardEvent) => {
+      if (full !== 'page' || e.key !== 'Escape' || e.defaultPrevented) return;
+      const el = e.target instanceof Element ? e.target : null;
+      if (el !== null && el.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]') !== null) return;
+      askedFull.current = false;
+      setFull(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { html.classList.remove('cg-wm-locked'); window.removeEventListener('keydown', onKey); };
+  }, [full]);
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
   const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);
 
@@ -442,7 +480,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     mit den Punkten, die seither kamen (nur mit Nagrody); ändert sich etwas, während sie zu sehen ist: dasselbe ohne Punkte. Beim
     ersten Mal steigen die Säulen nur auf. Gezeichnet in `WorldPillars` (Zeitplan: `wmViews.ts`).
   */
-  const mapShown = running === null && scene !== null;
+  /* Im Vollbild erst, wenn die Karte zu sehen ist (nicht hinter dem Abschluss oder einem anderen Teil): dann spielt sie, was sich änderte. */
+  const mapShown = running === null && scene !== null && (full === null || (fullTab === 'map' && finished === null));
   const back = useRef(true);
   if (!mapShown) back.current = true;
   const shownStore = shownKey(lib.libraryId, `world:${viewKey}`, learner === null ? 'me' : holderKey(learner.holder));
@@ -478,9 +517,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       perfect: (p) => levels.get(p)?.perfect === true, done: tt === null ? null : new Set(tt.done.map(stepKey)),
       arrived: tt !== null && snap.target === tt.target && tt.upcoming.length === 0,
       visited: flow === null ? 0 : positionFor(progress?.positions, flow)?.visited.length ?? 0,
-      marks, points: rewards !== null && events !== null ? pointsSince(events, snap.at, () => undefined).sum : 0, end, levels: eff.levels
+      marks, points: rewards !== null && events !== null ? pointsSince(events, snap.at, () => undefined).sum : 0, end, levels: eff.levels,
+      share: state.settings.knownShare,
+      way: (id) => { const x = state.sections.get(id); return x === undefined ? undefined : { open: x.open, met: x.ticket.met, travelled: x.travelled }; },
+      startOf: (id) => lines.sections.get(id)?.from
     });
-  }, [finished, state, levels, tt, progress, events, learner, rewards, eff.levels]);
+  }, [finished, state, levels, tt, progress, events, learner, rewards, eff.levels, lines]);
   useEffect(() => { if (finStats !== null && !finStats.worth) setFinished(null); }, [finStats]);
   /* Der Weg zu einem gewählten Ort, der nicht gleich erreichbar ist (im Feld des Ortes, bevor man ihn beginnt). */
   const wayPlan = useMemo(() => (chosen?.kind === 'place' && learner !== null && state.places.get(chosen.id)?.conquered === false ? planRoute(state, chosen.id) : null), [chosen, state, learner]);
@@ -603,7 +645,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   })();
 
   const host = (body: ReactNode) => (
-    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full ? ' is-full' : ''}`} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
+    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}`} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
       data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
       {body}
       {more}
@@ -631,11 +673,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={backToMap} backToMap={backToMap} />
       </div>
     ) : null;
-  if (!full && runNode !== null) return host(runNode);
+  if (full === null && runNode !== null) return host(runNode);
   const nextStep = tt?.upcoming[0];
   const doneKeys = tt === null ? [] : tt.done.map(stepKey);
   const just = new Set(lastDone === null ? [] : doneKeys.filter((k) => !lastDone.has(k)));
-  if (!full && askNext && tt !== null) {
+  if (full === null && askNext && tt !== null) {
     return host(
       <div className="cg-wm-nextpage" data-world-next-page="">
         <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onMap={() => setAskNext(false)} onEnd={() => { setNav(null); setAskNext(false); }} />
@@ -648,8 +690,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const goalSteps = goal === null ? 0 : state.conquestOrder(goal).length;
   const wonNames = won === null ? '' : won.names.slice(0, 2).join(', ') + (won.names.length > 2 ? ` +${won.names.length - 2}` : '');
   /* Im Vollbild steht der Fahrplan in seinem eigenen Teil (Trasa), nicht über der Karte. */
-  const sideNav = tt !== null && !full;
-  const sideShown = full ? chosen !== null || note !== null : hasSide;
+  const sideNav = tt !== null && full === null;
+  const sideShown = full !== null ? chosen !== null || note !== null : hasSide;
   const mapBody = (
     <div className={`cg-wm-body${sideShown ? ' has-side' : ''}`}>
       <div className="cg-wm-main">
@@ -691,11 +733,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
-              onLead={(id) => lead(id)} full={full} squeeze={hasSide} />}
-          {scene !== null && (
-            <button type="button" className="cg-wm-fullbtn" onClick={toggleFull} aria-pressed={full} title={full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')} data-world-full={full ? '1' : '0'}>
-              {full ? '×' : '⛶'} <span>{full ? t('cogitaWorld.map.fullOff') : t('cogitaWorld.map.fullOn')}</span>
-            </button>
+              onLead={(id) => lead(id)} full={full !== null} squeeze={hasSide} />}
+          {scene !== null && full === null && (
+            <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
+              <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('screen')} title={t('cogitaWorld.map.fullSays')} data-world-full="screen">⛶ <span>{t('cogitaWorld.map.fullOn')}</span></button>
+              <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('page')} title={t('cogitaWorld.map.pageSays')} data-world-full="page">▣ <span>{t('cogitaWorld.map.pageOn')}</span></button>
+            </div>
           )}
           {bubble}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
@@ -760,46 +803,80 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       )}
     </div>
   );
-  if (!full) return host(mapBody);
+  if (full === null) return host(mapBody);
 
   /* -- Vollbild: jeder Teil ganz; unten die Leiste zum Wechseln ---------------------------------------------------------- */
-  const tabs: FullTab[] = ['map', ...(tt !== null ? ['next' as const, 'path' as const] : []), ...(learner !== null && rewards !== null ? ['points' as const] : []), ...(runNode !== null ? ['run' as const] : [])];
+  /* Der Weg ist EIN Teil (Dalej mit der ganzen Trasa darunter) — nicht zwei Reiter. */
+  const tabs: FullTab[] = ['map', ...(tt !== null ? ['next' as const] : []), ...(learner !== null && rewards !== null ? ['points' as const] : []), ...(runNode !== null ? ['run' as const] : [])];
   const tab: FullTab = tabs.includes(fullTab) ? fullTab : 'map';
-  const tabLabel = (x: FullTab) => (x === 'map' ? t('cogitaWorld.map.fullMap') : x === 'next' ? t('cogitaWorld.map.fullNext') : x === 'path' ? t('cogitaWorld.map.fullPath') : x === 'points' ? t('cogitaWorld.map.fullPoints') : t('cogitaWorld.map.fullRun'));
+  /* Wie ein Teil hereinkommt: in einen Teil des Weges hinein (zoom), aus ihm heraus (rise), sonst in der Richtung der Leiste. */
+  if (tab !== lastTab.current) {
+    const idx = (x: FullTab) => FULL_ORDER.indexOf(x);
+    enterAs.current = tab === 'run' ? 'zoom' : lastTab.current === 'run' ? 'rise' : idx(tab) > idx(lastTab.current) ? 'left' : 'right';
+    lastTab.current = tab;
+  }
+  const enter = enterAs.current;
+  const tabLabel = (x: FullTab) => (x === 'map' ? t('cogitaWorld.map.fullMap') : x === 'next' ? t('cogitaWorld.map.fullNext') : x === 'points' ? t('cogitaWorld.map.fullPoints') : t('cogitaWorld.map.fullRun'));
+  const sectionName = (id: string) => {
+    const s = lines.sections.get(id);
+    if (s === undefined) return id;
+    const line = lines.lines.get(s.line)?.name ?? '';
+    return line === '' ? nameOf(s.to) : `${line} → ${nameOf(s.to)}`;
+  };
   return host(
     <>
-      <div className="cg-wm-fullview is-map" hidden={tab !== 'map'} data-full-view="map">{mapBody}</div>
-      {runNode !== null && <div className="cg-wm-fullview is-page" hidden={tab !== 'run'} data-full-view="run">{runNode}</div>}
-      {tab === 'next' && tt !== null && (
-        <div className="cg-wm-fullview is-page" data-full-view="next">
-          <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onMap={() => setFullTab('map')} onEnd={() => { setNav(null); setFullTab('map'); }} />
+      <div className="cg-wm-fullview is-map" hidden={tab !== 'map'} data-full-view="map" data-enter={tab === 'map' ? enter : undefined}>{mapBody}</div>
+      {runNode !== null && (
+        <div className="cg-wm-fullview is-page is-run" hidden={tab !== 'run'} data-full-view="run" data-enter={tab === 'run' ? enter : undefined}>
+          {wayPart !== null && tt !== null && (
+            <p className="cg-wm-partbanner" data-world-part={wayPart.n}>
+              <PartIcon kind={wayPart.kind} />
+              <span className="cg-wm-partn">{t('cogitaWorld.way.partOf', { n: wayPart.n, all: wayPart.all })}</span>
+              <span className="cg-wm-parttext">{wayPart.text}</span>
+              <span className="cg-wm-partbar" ref={(el) => { if (el !== null) el.style.setProperty('--done', String(wayPart.all === 0 ? 0 : (wayPart.n - 1) / wayPart.all)); }} aria-hidden="true" />
+            </p>
+          )}
+          {runNode}
         </div>
       )}
-      {tab === 'path' && tt !== null && (
-        <div className="cg-wm-fullview is-page" data-full-view="path">
-          <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => { setNav(null); setFullTab('map'); }}
-            onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
+      {tab === 'next' && tt !== null && (
+        <div className="cg-wm-fullview is-page" data-full-view="next" data-enter={enter}>
+          <NextView tt={tt} ctx={panel} rules={rules} just={just} onGo={go} onMap={() => setFullTab('map')} onEnd={() => { setNav(null); setFullTab('map'); }} />
+          <details className="cg-wm-allparts" data-world-all-parts="">
+            <summary>{t('cogitaWorld.map.fullPath')}</summary>
+            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={go} onEnd={() => { setNav(null); setFullTab('map'); }}
+              onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
+          </details>
         </div>
       )}
       {tab === 'points' && learner !== null && rewards !== null && (
-        <div className="cg-wm-fullview is-page" data-full-view="points"><RewardBoard learner={learner} rules={rewards} rename={rename} shape="full" live={false} /></div>
+        <div className="cg-wm-fullview is-page" data-full-view="points" data-enter={enter}><RewardBoard learner={learner} rules={rewards} rename={rename} shape="full" live={false} /></div>
       )}
       {finished !== null && finStats !== null && finStats.worth && (
-        <FinishShow stats={finStats} title={finished.snap.title} t={t} nameOf={nameOf}
+        <FinishShow stats={finStats} title={finished.snap.title} t={t} nameOf={nameOf} sectionName={sectionName}
           next={nextStep === undefined ? null : stepText(nextStep, panel)}
           onNext={nextStep !== undefined && learner !== null ? () => { setFinished(null); go(nextStep); } : null}
           onWay={tt !== null ? () => { setFinished(null); setFullTab('next'); } : null}
-          onClose={() => { setFinished(null); setFullTab('map'); }} />
+          onClose={() => { setFinished(null); setFullTab('map'); }}
+          onShow={(kind, id) => { setFinished(null); setFullTab('map'); act.show(kind, id); }} />
       )}
       <nav className="cg-wm-fullbar" aria-label={t('cogitaWorld.map.fullOn')} data-world-fullbar={tab}>
         {tabs.map((x) => (
           <button key={x} type="button" className={`cg-wm-fulltab${tab === x ? ' is-on' : ''}`} aria-pressed={tab === x} onClick={() => { setFullTab(x); if (x !== 'next') setAskNext(false); }} data-world-fulltab={x}>{tabLabel(x)}</button>
         ))}
-        <button type="button" className="cg-wm-fulltab is-exit" onClick={toggleFull} data-world-fulltab="exit">× {t('cogitaWorld.map.fullOff')}</button>
+        <button type="button" className="cg-wm-fulltab is-tool" onClick={() => enterFull(full === 'screen' ? 'page' : 'screen')} title={full === 'screen' ? t('cogitaWorld.map.pageSays') : t('cogitaWorld.map.fullSays')} data-world-fulltab="mode">
+          {full === 'screen' ? '▣' : '⛶'} <span>{full === 'screen' ? t('cogitaWorld.map.pageOn') : t('cogitaWorld.map.fullOn')}</span>
+        </button>
+        <button type="button" className="cg-wm-fulltab is-tool is-exit" onClick={exitFull} title={t('cogitaWorld.map.fullOff')} data-world-fulltab="exit">× <span>{t('cogitaWorld.map.fullOff')}</span></button>
       </nav>
     </>
   );
 }
 
-/** Die Teile des Vollbilds. */
-type FullTab = 'map' | 'next' | 'path' | 'points' | 'run';
+/** Die Teile des Vollbilds (in der Reihenfolge der Leiste). */
+type FullTab = 'map' | 'next' | 'points' | 'run';
+const FULL_ORDER: readonly FullTab[] = ['map', 'next', 'points', 'run'];
+/** Die zwei Arten: der ganze Bildschirm oder die ganze Seite im Browser. */
+type FullMode = 'screen' | 'page';
+/** Ein Teil des Weges, wie er oben im laufenden Teil steht. */
+interface WayPart { readonly n: number; readonly all: number; readonly kind: PlanStep['kind']; readonly text: string }

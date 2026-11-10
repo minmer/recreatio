@@ -9,6 +9,8 @@
  *   story     eine Erzählung (Seiten)
  *   cards     Karten gelernt oder wiederholt (Ring der Treffer)
  * </code>
+ * 2026-11-10 (Eigentümer: „zeigen, was getan ist, was daraus folgt und warum") — DIE FOLGEN: eroberte Türme, neue Stufen und
+ * Pfade, die sich eben geöffnet haben, je mit dem Grund (die Regel der Eroberung, der eroberte Start-Turm, die erfüllte Eintrittsbedingung).
  * Rein (ohne React); `scripts/app-wm-interaction-check.mjs` prüft es.
  */
 
@@ -30,6 +32,8 @@ export interface FinishSnap {
   readonly target: string | null;
   /** Besuchte Schritte der Erzählung. */
   readonly visited: number;
+  /** Die noch nicht befahrenen Pfade beim Beginn: offen (Start am Haus/eroberten Turm) und Eintritt erfüllt. */
+  readonly ways?: ReadonlyMap<string, { readonly open: boolean; readonly met: boolean }>;
 }
 
 export interface FinishNow {
@@ -45,7 +49,22 @@ export interface FinishNow {
   readonly points: number;
   readonly end: number;
   readonly levels: number;
+  /** Ohne Stufen: welcher Anteil gekonnt sein muss (0–1). */
+  readonly share?: number;
+  /** Ein Pfad jetzt (fehlt: unbekannt). */
+  readonly way?: (section: string) => { readonly open: boolean; readonly met: boolean; readonly travelled: boolean } | undefined;
+  /** Wo ein Pfad beginnt (ein Turm oder das Haus). */
+  readonly startOf?: (section: string) => string | undefined;
 }
+
+/** Eine Folge des Teils, mit ihrem Grund. */
+export type Consequence =
+  /** Erobert — mit Stufen: die oberste erreicht; ohne: der Anteil gekonnter Karten. */
+  | { readonly kind: 'conquer'; readonly place: string; readonly why: 'levels' | 'share'; readonly of: number; readonly share: number }
+  /** Eine Stufe höher, noch nicht erobert. */
+  | { readonly kind: 'level'; readonly place: string; readonly from: number; readonly to: number; readonly of: number }
+  /** Ein Pfad ist jetzt offen: sein Start-Turm erobert (`tower`), auf der Stufe, ab der er öffnet (`level`), oder der Eintritt erfüllt (`entry`). */
+  | { readonly kind: 'opened'; readonly section: string; readonly start: string; readonly why: 'tower' | 'level' | 'entry' };
 
 export interface FinishStats {
   readonly kind: FinishKind;
@@ -67,6 +86,8 @@ export interface FinishStats {
   readonly arrived: boolean;
   /** Die eben erledigten Teile des Weges. */
   readonly just: readonly string[];
+  /** Was daraus folgt, mit Gründen (eroberte Türme, Stufen, geöffnete Pfade — in dieser Reihenfolge). */
+  readonly consequences: readonly Consequence[];
   /** Hat sich überhaupt etwas getan? Sonst kein Abschluss. */
   readonly worth: boolean;
 }
@@ -97,10 +118,24 @@ export function finishStats(snap: FinishSnap, now: FinishNow): FinishStats {
   const just = snap.done === null || now.done === null ? [] : [...now.done].filter((k) => !snap.done!.has(k));
   const arrived = now.arrived && snap.target !== null;
   const visited = Math.max(0, now.visited - snap.visited);
+  const consequences: Consequence[] = [];
+  for (const place of conquered) consequences.push({ kind: 'conquer', place, why: now.levels > 0 ? 'levels' : 'share', of: now.levels, share: now.share ?? 1 });
+  for (const [place, was] of snap.levels) {
+    const is = now.level(place);
+    if (is > was && !conquered.includes(place)) consequences.push({ kind: 'level', place, from: was, to: is, of: now.levels });
+  }
+  if (snap.ways !== undefined && now.way !== undefined) {
+    for (const [section, was] of snap.ways) {
+      const is = now.way(section);
+      if (is === undefined || is.travelled || !is.open || !is.met || (was.open && was.met)) continue;
+      const start = now.startOf?.(section) ?? '';
+      consequences.push({ kind: 'opened', section, start, why: was.open ? 'entry' : now.conquered(start) ? 'tower' : 'level' });
+    }
+  }
   const kind: FinishKind = arrived ? 'arrive' : perfect ? 'perfect' : conquered.length > 0 ? 'conquer'
     : snap.kind === 'run' ? 'tower' : snap.kind === 'story' ? 'story' : 'cards';
-  const worth = answers > 0 || visited > 0 || met > 0 || level !== null || conquered.length > 0 || arrived || just.length > 0;
-  return { kind, answers, right, accuracy, met, known, visited, ms: Math.max(0, now.end - snap.at), points: now.points, level, conquered, perfect, arrived, just, worth };
+  const worth = answers > 0 || visited > 0 || met > 0 || level !== null || conquered.length > 0 || arrived || just.length > 0 || consequences.length > 0;
+  return { kind, answers, right, accuracy, met, known, visited, ms: Math.max(0, now.end - snap.at), points: now.points, level, conquered, perfect, arrived, just, consequences, worth };
 }
 
 /** Ein Wort des Lobs nach der Trefferquote (Schlüssel unter `cogitaWorld.finish.cheer`). */

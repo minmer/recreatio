@@ -2,15 +2,17 @@
  * 2026-11-10 (Eigentümer: „im Vollbild Animationen, besonders beim Abschluss — ein Überblick über die Zahlen dieses Teils") —
  * DER ABSCHLUSS EINES TEILS im Vollbild: eine Animation je Art (`wmFinish.ts`: Feuerwerk, Stern, Fahne, Stufen, Seiten, Ring),
  * darunter die Zahlen, die hochzählen, und die Einladung zum nächsten Teil des Weges.
+ * Darunter, was daraus folgt und warum (`Consequence`), und es geht von selbst weiter (AUTO_S), bis man es berührt.
  * Bewegung nach der Wahl „Animacje": ograniczone/wyłączone zeigen gleich den Endstand (CSS unter `data-motion`).
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import { useMotion } from '../../ui/motion';
+import { FlagIcon } from '../WorldMap';
 import { PartIcon } from './WorldWay';
-import { cheerOf, scatter, type FinishKind, type FinishStats } from './wmFinish';
+import { cheerOf, scatter, type Consequence, type FinishKind, type FinishStats } from './wmFinish';
 import './worldmap.css';
 
 /** Die Farben des Konfetti (wie die Themen der Karte). */
@@ -174,17 +176,62 @@ function Tile({ label, value, suffix = '', i, accent = false }: { label: string;
 
 const clock = (ms: number): string => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-export function FinishShow({ stats, title, t, nameOf, next, onNext, onWay, onClose }: {
+/** Wie lange der Abschluss stehen bleibt, bevor es von selbst weitergeht (Sekunden). */
+export const AUTO_S = 9;
+
+/** Die Folgen, die auf einmal stehen (der Rest als „+N"). */
+const FOLLOWS_SHOWN = 4;
+
+function ConsequenceIcon({ kind }: { kind: Consequence['kind'] }) {
+  if (kind === 'conquer') return <FlagIcon />;
+  return <PartIcon kind={kind === 'level' ? 'run' : 'travel'} />;
+}
+
+/** Eine Folge: was geschah, darunter warum; „Pokaż" führt auf der Karte hin. */
+function Follow({ c, i, t, nameOf, sectionName, onShow }: {
+  c: Consequence; i: number; t: T; nameOf: (id: string) => string; sectionName: (id: string) => string;
+  onShow: ((kind: 'place' | 'section', id: string) => void) | null;
+}) {
+  const what = c.kind === 'conquer' ? t('cogitaWorld.finish.fx.conquer', { name: nameOf(c.place) })
+    : c.kind === 'level' ? t('cogitaWorld.finish.fx.level', { name: nameOf(c.place), from: c.from, to: c.to })
+      : t('cogitaWorld.finish.fx.opened', { name: sectionName(c.section) });
+  const why = c.kind === 'conquer' ? (c.why === 'levels' ? t('cogitaWorld.finish.why.levels', { of: c.of }) : t('cogitaWorld.finish.why.share', { pct: Math.round(c.share * 100) }))
+    : c.kind === 'level' ? t('cogitaWorld.finish.why.level', { of: c.of })
+      : c.why === 'entry' ? t('cogitaWorld.finish.why.entry')
+        : c.why === 'tower' ? t('cogitaWorld.finish.why.tower', { place: nameOf(c.start) }) : t('cogitaWorld.finish.why.openLevel', { place: nameOf(c.start) });
+  const target = c.kind === 'opened' ? { kind: 'section' as const, id: c.section } : { kind: 'place' as const, id: c.place };
+  return (
+    <li className={`cg-fin-follow is-${c.kind}`} ref={vars({ '--i': i })} data-world-finish-follow={c.kind}>
+      <span className="cg-fin-ficon" aria-hidden="true"><ConsequenceIcon kind={c.kind} /></span>
+      <span className="cg-fin-ftext">
+        <strong>{what}</strong>
+        <span className="cg-fin-fwhy">{why}</span>
+      </span>
+      {onShow !== null && <button type="button" className="wk-link-btn cg-fin-fshow" onClick={() => onShow(target.kind, target.id)} data-world-finish-show={target.id}>{t('cogitaWorld.finish.show')}</button>}
+    </li>
+  );
+}
+
+export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext, onWay, onClose, onShow, auto = true }: {
   stats: FinishStats;
   /** Was eben zu Ende ging (der Name des Teils). */
   title: string;
   t: T;
   nameOf: (id: string) => string;
+  /** Der Name eines Pfades (Linie → Ziel). */
+  sectionName: (id: string) => string;
   /** Der nächste Teil des Weges (Text), null ohne Navigation oder am Ziel. */
   next: string | null;
   onNext: (() => void) | null;
   onWay: (() => void) | null;
   onClose: () => void;
+  /** Eine Folge auf der Karte zeigen (schliesst den Abschluss). */
+  onShow: ((kind: 'place' | 'section', id: string) => void) | null;
+  /**
+   * 2026-11-10 (Eigentümer: „das Ganze als Spiel, ohne unnötige Klicks") — VON SELBST WEITER: nach AUTO_S Sekunden der nächste
+   * Teil (oder ohne Weg die Karte, die dann zeigt, was sich änderte). Jede Berührung, Taste oder Rad hält es an. Nicht am Ziel.
+   */
+  auto?: boolean;
 }) {
   const s = stats;
   const kind = s.kind;
@@ -202,8 +249,33 @@ export function FinishShow({ stats, title, t, nameOf, next, onNext, onWay, onClo
   if (s.level !== null) tiles.push({ label: t('cogitaWorld.finish.levels'), value: s.level.to - s.level.from, suffix: '+', accent: true });
   if (s.points > 0) tiles.push({ label: t('cogitaWorld.finish.points'), value: s.points, suffix: '+', accent: true });
   const festive = kind === 'arrive' || kind === 'perfect' || kind === 'conquer';
+  const follows = s.consequences.slice(0, FOLLOWS_SHOWN);
+  const moreFollows = s.consequences.length - follows.length;
+
+  /* Von selbst weiter: der nächste Teil, sonst (ohne Weg) die Karte. Am Ziel bleibt der Abschluss stehen. */
+  const primary = onNext ?? (onWay === null ? onClose : null);
+  const primaryRef = useRef(primary);
+  primaryRef.current = primary;
+  const [left, setLeft] = useState<number | null>(auto && primary !== null && kind !== 'arrive' ? AUTO_S : null);
+  const counting = left !== null;
+  useEffect(() => {
+    if (!counting) return undefined;
+    const stop = () => setLeft(null);
+    const id = window.setInterval(() => { if (!document.hidden) setLeft((x) => (x === null ? null : x - 1)); }, 1000);
+    window.addEventListener('pointerdown', stop, true);
+    window.addEventListener('keydown', stop, true);
+    window.addEventListener('wheel', stop, true);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('pointerdown', stop, true);
+      window.removeEventListener('keydown', stop, true);
+      window.removeEventListener('wheel', stop, true);
+    };
+  }, [counting]);
+  useEffect(() => { if (left !== null && left <= 0) { setLeft(null); primaryRef.current?.(); } }, [left]);
+
   return (
-    <div className={`cg-wm-fin is-${kind}`} role="dialog" aria-modal="true" aria-labelledby="cg-wm-fin-head" data-world-finish={kind} data-world-finish-answers={s.answers}>
+    <div className={`cg-wm-fin is-${kind}`} role="dialog" aria-modal="true" aria-labelledby="cg-wm-fin-head" data-world-finish={kind} data-world-finish-answers={s.answers} data-world-finish-follows={s.consequences.length}>
       {festive && <Confetti salt={kind.length} />}
       <div className="cg-fin-card">
         <div className="cg-fin-art">{artOf(kind, s)}</div>
@@ -214,6 +286,15 @@ export function FinishShow({ stats, title, t, nameOf, next, onNext, onWay, onClo
           <div className="cg-fin-tiles">
             {tiles.slice(0, 6).map((x, i) => <Tile key={x.label} i={i} {...x} />)}
           </div>
+        )}
+        {follows.length > 0 && (
+          <section className="cg-fin-follows" aria-label={t('cogitaWorld.finish.follows')}>
+            <h3 className="cg-fin-fhead">{t('cogitaWorld.finish.follows')}</h3>
+            <ul>
+              {follows.map((c, i) => <Follow key={`${c.kind}:${c.kind === 'opened' ? c.section : c.place}`} c={c} i={i} t={t} nameOf={nameOf} sectionName={sectionName} onShow={onShow} />)}
+            </ul>
+            {moreFollows > 0 && <p className="cg-fin-fmore">{t('cogitaWorld.finish.more', { count: moreFollows })}</p>}
+          </section>
         )}
         {s.just.length > 0 && <p className="cg-fin-way">✓ {t('cogitaWorld.finish.parts', { count: s.just.length })}</p>}
         {next !== null && (
@@ -227,6 +308,12 @@ export function FinishShow({ stats, title, t, nameOf, next, onNext, onWay, onClo
           {onWay !== null && <button type="button" className={onNext === null ? 'wk-btn' : 'wk-btn wk-btn-line'} autoFocus={onNext === null} onClick={onWay} data-world-finish-way="">{t('cogitaWorld.finish.showWay')}</button>}
           <button type="button" className={onNext === null && onWay === null ? 'wk-btn' : 'wk-link-btn'} autoFocus={onNext === null && onWay === null} onClick={onClose} data-world-finish-close="">{t('cogitaWorld.way.toMap')}</button>
         </div>
+        {left !== null && (
+          <p className="cg-fin-auto" role="timer" aria-live="off" data-world-finish-auto={left}>
+            <span className="cg-fin-autobar" ref={vars({ '--auto-s': `${AUTO_S}s` })} aria-hidden="true" />
+            {onNext !== null ? t('cogitaWorld.finish.autoGo', { s: left }) : t('cogitaWorld.finish.autoMap', { s: left })}
+          </p>
+        )}
       </div>
     </div>
   );
