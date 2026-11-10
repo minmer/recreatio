@@ -1302,7 +1302,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       for (const f of [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]) {
         const a = along(pts, f);
         const [x, y] = toScr(v, a.x, a.y, 0);
-        if (inside(x, y) && hit(x, y) === null && !hitHome(x, y) && hitLane(x, y) === id) return [x, y];
+        if (inside(x, y) && hit(x, y) === null && !hitHome(x, y) && hitJunction(x, y) === null && hitLane(x, y) === id) return [x, y];
       }
       return null;
     };

@@ -157,6 +157,15 @@ export function shapes(F) {
       });
       return w.input();
     },
+    /** Ein Turm mit einer Voraussetzung, zu der kein Weg führt (eine Erzählung vom Haus direkt zu ihm): die Voraussetzung ist nur als Spur zu sehen. */
+    requirement() {
+      const w = world();
+      w.tower('A'); w.tower('M', 3, ['A']);
+      w.unit('u/a'); w.unit('u/m');
+      w.story('f/a', { unit: 'u/a' }, (b) => w.stop(b, 'A'));
+      w.story('f/m', { unit: 'u/m' }, (b) => w.stop(b, 'M'));
+      return w.input();
+    },
     /** Eine Kette von Voraussetzungen über verschiedene Erzählungen: Z verlangt R1 und R2, R2 verlangt R1; keine Erzählung führt direkt. */
     prerequisites() {
       const w = world();

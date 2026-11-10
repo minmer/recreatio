@@ -39,6 +39,7 @@ const N = {
   cagrua: 'Cagliero, Rua i konwikt studentów',
   comollo: 'Comollo: przyjaźń i śmierć',
   becchi: 'Dom w Becchi bez ojca',
+  sen: 'Sen dziewięciolatka',
   magone: 'Michał Magone (1857–1859)',
   warsz: 'Pół tuzina warsztatów',
   savioPlace: 'Dominik Savio',
@@ -81,6 +82,12 @@ try {
       if (at !== null && again !== null && Math.abs(again[0] - at[0]) < 0.5 && Math.abs(again[1] - at[1]) < 0.5) break;
       at = again;
     }
+    /* Nicht im Bild: einmal die ganze Welt zeigen, dann noch einmal suchen. */
+    if (at === null) {
+      await ev(`document.querySelector('[data-world-fit]')?.click()`);
+      await sleep(500);
+      at = await locate();
+    }
     if (at === null) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`not on the map: ${kind} ${id}`); }
     await clickAt(at[0], at[1]);
   };
@@ -112,7 +119,10 @@ try {
     return n;
   };
 
-  /* -- 1 · Haus → Abschnitt mit Schloss → Quellen → direkt lernen → Schloss fort ------------------------------------------- */
+  /*
+    -- 1 · Haus → ein gesperrter Zweig nach einer Gabelung → woher seine Karten kommen -----------------------------------------
+    2026-11-10 (Eigentümer) — die Gabelung ist ein eigener Knoten; direkt lernen nur, was keine Erzählung erreicht.
+  */
   if (runs('1')) {
     const P = '1 lock';
     await open();
@@ -120,53 +130,42 @@ try {
     await waitFor(`document.querySelector('[data-world-panel="home"]')`, 'the home panel');
     check(P, 'Home opens its panel with the lines that start there', await ev(`document.querySelectorAll('[data-world-panel="home"] [data-world-direction]').length`) >= 1);
     await shot('p1-home');
-    const lane = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.state === 'locked' && l.symbol !== 'place' && l.from === N.domkos && l.to === N.cagrua);
-    check(P, 'the map shows a locked section (domkos → cagrua)', lane !== undefined);
+    const lane = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.state === 'locked' && l.symbol !== 'place' && l.from.startsWith('~j:') && l.to === N.cagrua);
+    check(P, 'the map shows the locked branch from the fork node (fork → cagrua)', lane !== undefined);
+    const nodes = await ev(`document.querySelector('[data-world-canvas]').wmJunctionList()`);
+    check(P, 'the fork is a node of its own on the map, with 3 ways', nodes.some((j) => j.id === lane.from && j.kind === 'fork' && j.ways === 3), nodes);
     await clickMap('lane', lane.section);
     await waitFor(`document.querySelector('[data-world-panel="section"][data-world-section="${lane.section}"]')`, 'the section panel');
     const sec = await ev(`(() => { const p = document.querySelector('[data-world-panel="section"]'); return { ticket: p.dataset.worldTicket, conditions: [...p.querySelectorAll('[data-world-condition]')].map((x) => x.dataset.worldCondition), sources: [...p.querySelectorAll('[data-world-source]')].map((x) => ({ source: x.dataset.worldSource === 'direct' ? 'direct' : 'section', cards: Number(x.dataset.worldSourceCards), open: x.dataset.worldSourceOpen ?? null })), learn: Number(p.querySelector('[data-world-learn-direct]')?.dataset.worldLearnDirect ?? 0), travel: p.querySelector('[data-world-travel]')?.disabled }; })()`);
     check(P, 'the section panel shows the missing ticket', sec.ticket === 'missing' && sec.conditions.includes('knowledge'), sec);
-    check(P, 'the ticket names the sources: a line that introduces cards, and cards with no slide', sec.sources.some((s) => s.source === 'section') && sec.sources.some((s) => s.source === 'direct'), sec.sources);
+    check(P, 'its cards come from a story (a line explains them), so nothing is offered to learn directly', sec.sources.some((x) => x.source === 'section') && !sec.sources.some((x) => x.source === 'direct') && sec.learn === 0, sec);
     check(P, 'travel is disabled while the ticket is missing', sec.travel === true);
     await shot('p1-section-locked');
-    await click('[data-world-learn-direct]');
-    await waitFor(`document.querySelector('[data-world-running="learn"]')`, 'learning directly');
-    const answered = await answerAll('[data-run-end]');
-    check(P, `learn directly asks the missing cards (${answered} answered)`, answered >= sec.learn, { answered, missing: sec.learn });
-    await shot('p1-learn-end');
-    await click('[data-world-back]');
-    await waitFor(ready, 'the map again');
-    await waitFor(`document.querySelector('[data-world-panel="section"]')?.dataset.worldTicket === 'met'`, 'the ticket to be met', 10000);
-    const after = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.section === lane.section);
-    /* 2026-11-10 — fahrbar erst, wenn auch der Startturm erobert ist; sonst wartet der Weg nur noch auf ihn (Zeichen: Ort). */
-    const closed = await ev(`document.querySelector('[data-world-panel="section"] [data-world-start-closed]') !== null`);
-    check(P, 'the knowledge lock is gone: the ticket is valid; the lane waits at most for its start tower', after !== undefined && (after.state !== 'locked' || (closed && after.symbol === 'place')), { after, closed });
-    check(P, 'travel is possible exactly when the start tower is conquered', await ev(`document.querySelector('[data-world-travel]')?.disabled === ${closed}`));
-    await shot('p1-lock-gone');
   }
 
-  /* -- 2 · Umsteigeort mit 3 Zweigen → einen wählen ------------------------------------------------------------------------ */
+  /* -- 2 · Eine Gabelung mit 3 Wegen (ein eigener Knoten) → einen wählen ----------------------------------------------------- */
   if (runs('2')) {
-    const P = '2 station';
+    const P = '2 fork';
     await open();
-    await clickMap('label', N.domkos);
-    await waitFor(`document.querySelector('[data-world-panel="place"] [data-world-station]')`, 'the station panel');
-    const rows = await ev(`[...document.querySelectorAll('[data-world-station] [data-world-direction]')].map((r) => ({ id: r.dataset.worldDirection, branch: r.dataset.worldDirectionBranch, text: r.textContent, choose: r.querySelector('[data-world-choose]') !== null, tag: r.querySelector('[data-world-tag]')?.dataset.worldTag ?? '' }))`);
-    const branches = rows.filter((r) => r.branch !== '');
-    check(P, 'the station lists the 3 branches of the story that splits here', new Set(branches.map((r) => r.branch)).size === 3, branches.map((r) => r.text));
-    await shot('p2-station');
-    /* 2026-11-10 — ein Umsteigeort, dessen Turm nicht erobert ist: jede Richtung wartet auf ihn, keine lässt sich wählen. */
-    if (!branches.some((r) => r.choose)) {
-      check(P, 'the tower of this station is not conquered: every direction waits for it, none can be chosen', branches.every((r) => !r.choose && r.tag === 'closed'), branches.map((r) => [r.tag, r.choose]));
+    const J = (await ev(`document.querySelector('[data-world-canvas]').wmJunctionList()`)).find((j) => j.kind === 'fork' && j.ways === 3);
+    check(P, 'a fork node with 3 ways is on the map', J !== undefined);
+    await clickMap('junction', J.id);
+    await waitFor(`document.querySelector('[data-world-panel="junction"]')`, 'the fork panel');
+    const ways = await ev(`[...document.querySelectorAll('[data-world-junction-way]')].map((r) => ({ id: r.dataset.worldJunctionWay, text: r.textContent, choose: r.querySelector('[data-world-choose]') !== null, tag: r.querySelector('[data-world-tag]')?.dataset.worldTag ?? '' }))`);
+    check(P, 'the fork panel lists its 3 ways (target, slides, questions)', ways.length === 3, ways.map((w) => w.text));
+    check(P, 'the node says what lies before it and how many ways leave it', (await ev(`document.querySelector('[data-world-junction-says]')?.textContent ?? ''`)).length > 0);
+    await shot('p2-fork');
+    if (!ways.some((w) => w.choose)) {
+      check(P, 'the tower before the fork is not conquered: every way waits for it, none can be chosen', ways.every((w) => !w.choose && w.tag === 'closed'), ways.map((w) => [w.tag, w.choose]));
     } else {
-    check(P, 'each direction shows its ticket (open branches can be chosen, a locked one cannot)', branches.some((r) => r.choose) && branches.some((r) => !r.choose && r.tag === 'locked'), branches.map((r) => [r.tag, r.choose]));
-    const pick = branches.find((r) => r.text.includes(N.savio));
-    await click(`[data-world-choose="${pick.id}"]`);
-    await waitFor(`document.querySelector('[data-world-running="story"] [data-flow-running]')`, 'the story player');
-    await sleep(400);
-    const at = await ev(`(() => { const s = document.querySelector('[data-world-running="story"] [data-flow-running]'); return { step: s?.dataset.flowStep ?? null, locked: document.querySelector('[data-flow-locked]') !== null }; })()`);
-    check(P, 'the player opens in the chosen branch (its first slide)', at.step === 'sh11' && !at.locked, at);
-    await shot('p2-branch-open');
+      check(P, 'each way shows its ticket (open ones can be chosen, a locked one cannot)', ways.some((w) => w.choose) && ways.some((w) => !w.choose && w.tag === 'locked'), ways.map((w) => [w.tag, w.choose]));
+      const pick = ways.find((w) => w.text.includes(N.savio));
+      await click(`[data-world-choose="${pick.id}"]`);
+      await waitFor(`document.querySelector('[data-world-running="story"] [data-flow-running]')`, 'the story player');
+      await sleep(400);
+      const at = await ev(`(() => { const s = document.querySelector('[data-world-running="story"] [data-flow-running]'); return { step: s?.dataset.flowStep ?? null, locked: document.querySelector('[data-flow-locked]') !== null }; })()`);
+      check(P, 'the player opens in the chosen branch (its first slide)', at.step === 'sh11' && !at.locked, at);
+      await shot('p2-branch-open');
     }
   }
 
@@ -185,24 +184,9 @@ try {
       await waitFor(`document.querySelector('[data-world-panel="place"] [data-world-order]')`, 'the place panel of the target');
     };
     await openTarget();
-    const keep = new Set([N.domkos, N.savioPlace, N.warsz]);
-    let learned = 0;
-    for (let guard = 0; guard < 20; guard += 1) {
-      const shown = await ev(`[...document.querySelectorAll('[data-world-order-item]')].map((li) => ({ id: li.dataset.worldOrderItem, name: li.querySelector('.cg-ref').textContent }))`);
-      const item = shown.find((o) => !keep.has(o.name));
-      if (item === undefined) break;
-      /* Aus der Reihenfolge der Eroberung: den Ort zeigen, seine Karten direkt lernen. */
-      await click(`[data-world-order-item="${item.id}"] .cg-ref`);
-      await waitFor(`document.querySelector('[data-world-panel="place"][data-world-place="${item.id}"] [data-world-learn-direct]')`, `the panel of ${item.name}`);
-      await click(`[data-world-panel="place"] [data-world-learn-direct]`);
-      await waitFor(`document.querySelector('[data-world-running="learn"]')`, 'learning directly');
-      learned += await answerAll('[data-run-end]', 60);
-      await click('[data-world-back]');
-      await waitFor(ready, 'the map again');
-      await openTarget();
-    }
-    const order = await ev(`({ count: Number(document.querySelector('[data-world-order]').dataset.worldOrder), names: [...document.querySelectorAll('[data-world-order-item]')].map((li) => li.querySelector('.cg-ref').textContent) })`);
-    check(P, `the target has 3 missing prerequisites (after learning ${learned} cards of the others)`, order.count === 3 && order.names.length === 3 && order.names.every((x) => keep.has(x)), order);
+    /* 2026-11-10 — jede fehlende Voraussetzung (auch mittelbar) steht in der Reihenfolge der Eroberung; der Weg führt der Reihe nach hin. */
+    const order = await ev(`({ count: Number(document.querySelector('[data-world-order]').dataset.worldOrder), names: [...document.querySelectorAll('[data-world-order-item]')].map((li) => li.querySelector('.cg-ref').textContent), required: Number(document.querySelector('[data-world-required]')?.dataset.worldRequired ?? 0) })`);
+    check(P, `the target lists its missing prerequisites in order (${order.count}), the panel names each with open / locked`, order.count >= 3 && order.required >= 3 && [N.domkos, N.savioPlace, N.warsz].every((x) => order.names.includes(x) || order.count > 6), order);
     /* 2026-11-10 — „Prowadź mnie tutaj" beginnt den Weg: der erste Schritt läuft gleich; zurück zur Karte steht der Fahrplan da. */
     await click('[data-world-panel="place"] [data-world-lead]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the way to start');
@@ -217,14 +201,15 @@ try {
     await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation panel');
     const before = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), stops: [...p.querySelectorAll('[data-world-stop]')].map((s, i) => ({ i, key: s.dataset.worldStop, state: s.dataset.worldStopState, turns: Number(s.querySelector('[data-world-turns]')?.dataset.worldTurns ?? 0) })) }; })()`);
     check(P, 'the timetable lists every step, the current one first', before.steps >= 6 && before.stops[0].state === 'current', { steps: before.steps, stops: before.stops.map((s) => s.key) });
-    const turnAt = before.stops.find((s) => s.turns > 0);
+    /* Eine Möglichkeit nach dem ersten Teil (die Teile davor bleiben, wenn man sie wählt). */
+    const turnAt = before.stops.find((s) => s.turns > 0 && s.i > 0);
     check(P, 'a branch option is offered on the way', turnAt !== undefined && turnAt.i > 0, before.stops.map((s) => `${s.key}:${s.turns}`));
     await shot('p3-nav');
     await ev(`(() => { const s = document.querySelector('[data-world-stop="${turnAt.key}"] [data-world-turns]'); s.open = true; s.scrollIntoView({ block: 'center' }); return true; })()`);
     const alt = await ev(`document.querySelector('[data-world-stop="${turnAt.key}"] [data-world-turn-choose]').dataset.worldTurnChoose`);
     await shot('p3-turns');
     await click(`[data-world-stop="${turnAt.key}"] [data-world-turn-choose]`);
-    await waitFor(`document.querySelectorAll('[data-world-stop]')[${turnAt.i}]?.dataset.worldStop === 'travel:${alt}' && document.querySelector('[data-world-stop="${turnAt.key}"]') === null`, 'the route to be recomputed from that stop');
+    await waitFor(`[...document.querySelectorAll('[data-world-stop]')].some((s) => s.dataset.worldStop === 'travel:${alt}') && document.querySelector('[data-world-stop="${turnAt.key}"]') === null`, 'the route to be recomputed from that stop');
     const afterNav = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), target: p.dataset.worldNavTarget, stops: [...p.querySelectorAll('[data-world-stop]')].map((s) => s.dataset.worldStop) }; })()`);
     check(P, 'choosing the option recomputes the route from that stop (nothing marked done)', afterNav.done === 0 && afterNav.stops.slice(0, turnAt.i).join() === before.stops.slice(0, turnAt.i).map((s) => s.key).join(), { turned: turnAt.key, to: alt, ...afterNav });
     check(P, 'the map shows the route: start pennant, target flag', await ev(`document.querySelector('[data-world-view]').dataset.worldNav !== ''`));
@@ -279,13 +264,11 @@ try {
     await click('[data-world-my-settings]');
     await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
     await click('[data-levels-n="1"]');
-    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'locked'`, 'one level in force');
-    check(P, 'with one level the place waits for its cards (run locked)', true);
-    await click('[data-world-panel="place"] [data-world-learn-direct]');
-    await waitFor(`document.querySelector('[data-world-running="learn"]')`, 'learning directly');
-    await answerAll('[data-run-end]');
-    await click('[data-world-back]');
-    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'the run to be possible', 15000);
+    /* 2026-11-10 (Eigentümer) — gleich erobern geht immer: der Durchgang fragt alle Karten und sagt, wie viele nie gefragt wurden. */
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force: the run can be tried at once', 15000);
+    const unseen = await ev(`Number(document.querySelector('[data-world-run-unseen]')?.dataset.worldRunUnseen ?? -1)`);
+    check(P, 'with one level the run can be tried at once, saying how many cards were never asked', unseen > 0, unseen);
+    check(P, 'no learning directly: a story explains these cards', await ev(`document.querySelector('[data-world-panel="place"] [data-world-learn-direct]') === null`));
     await shot('p5-run-ready');
     await click('[data-world-run-for="1"]');
     await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
@@ -425,16 +408,18 @@ try {
     await click('[data-world-my-settings]');
     await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
     await click('[data-levels-n="1"]');
-    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'locked'`, 'one level in force');
-    await click('[data-world-panel="place"] [data-world-learn-direct]');
-    await waitFor(`document.querySelector('[data-world-running="learn"]')`, 'learning directly');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force', 15000);
+    await click('[data-world-run-for="1"]');
+    await waitFor(`document.querySelector('[data-world-running="run"]')`, 'the run');
     check(P, 'a part comes in as its own view, zooming in', await ev(`document.querySelector('[data-full-view="run"]')?.dataset.enter === 'zoom' && document.querySelector('[data-world-fullbar]').dataset.worldFullbar === 'run'`));
-    await answerAll('[data-run-end]');
+    await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
+    await click('[data-world-run-start]');
+    await answerAll('[data-world-run="result"]');
     const played0 = await canvas('wmPlayed');
-    await click('[data-world-back]');
+    await click('[data-world-run-close]');
     await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the part');
     const fin = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, answers: Number(f.dataset.worldFinishAnswers), auto: f.querySelector('[data-world-finish-auto]') !== null }; })()`);
-    check(P, 'the finish counts the answers and goes on by itself (to the map: no way chosen)', fin.kind === 'cards' && fin.answers > 0 && fin.auto, fin);
+    check(P, 'the finish counts the answers and goes on by itself (to the map: no way chosen)', ['conquer', 'perfect'].includes(fin.kind) && fin.answers > 0 && fin.auto, fin);
     await sleep(1500);
     check(P, 'the map does not play behind the finish', (await canvas('wmPlayed')) === played0 && (await canvas('wmPlaying')) === '', { played0, now: await canvas('wmPlayed') });
     await shot('p7-finish');
@@ -442,8 +427,8 @@ try {
     await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play what changed', 10000);
     check(P, 'by itself back to the map, which now plays what changed', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return');
     await shot('p7-map-plays');
-    /* Ein Durchgang zur Eroberung — der Abschluss sagt, was folgt und warum; eine Berührung hält das Weitergehen an. */
-    await clickMap('label', N.becchi);
+    /* Ein zweiter Turm (seine Voraussetzung ist nun erobert) — der Abschluss sagt, was folgt und warum; eine Berührung hält das Weitergehen an. */
+    await clickMap('label', N.sen);
     await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'the run to be possible', 15000);
     await click('[data-world-run-for="1"]');
     await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');

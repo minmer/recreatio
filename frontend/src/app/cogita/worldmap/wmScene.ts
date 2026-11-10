@@ -305,10 +305,13 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     }
   }
   const loops: SceneLoop[] = [];
-  for (const l of lines.loops) {
+  /* Ein Abstecher nach dem Treffpunkt von Verpackungen steht auf jeder — gezeichnet einmal, auf der gezeigten. */
+  const loopSeen = new Set<string>();
+  for (const l of [...lines.loops].sort((a, b) => Number(b.section === (shownOf.get(b.section) ?? b.section)) - Number(a.section === (shownOf.get(a.section) ?? a.section)))) {
     const shown = shownOf.get(l.section) ?? l.section;
     const s = lines.sections.get(shown);
-    if (s === undefined || s.from === s.to) continue;
+    if (s === undefined || s.from === s.to || loopSeen.has(`${shown}|${l.target}|${l.step}`)) continue;
+    loopSeen.add(`${shown}|${l.target}|${l.step}`);
     loops.push({ section: shown, target: l.target, at: Math.max(0.05, Math.min(0.95, (l.at + 0.5) / Math.max(1, s.steps.length + 1))), marks: l.marks, color: opts.lineColour.get(l.target)?.color ?? opts.lineColour.get(l.line)?.color ?? opts.fallback });
   }
 
