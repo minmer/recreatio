@@ -502,7 +502,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   */
   /* Im Vollbild erst, wenn die Karte zu sehen ist (nicht hinter dem Abschluss oder einem anderen Teil): dann spielt sie, was sich änderte. */
   /* Im Vollbild, sobald die Karte zu sehen ist — auch unter der Seite des Weges (sie deckt nur den unteren Rand): dann spielt sie, was sich änderte. */
-  const mapShown = running === null && scene !== null && finished === null && (full === null || fullTab === 'map');
+  /* Nicht zu sehen, solange ein eben beendeter Teil noch auf seine Folie wartet (sonst merkte sich die Karte den neuen Stand, bevor sie ihn zeigt). */
+  const mapShown = running === null && scene !== null && finished === null && finSnap.current === null && (full === null || fullTab === 'map');
   /* 2026-11-10 (Eigentümer: „die Kamera fährt zum ersten Schritt, dann zum zweiten …") — sobald die Karte zu sehen ist, gleitet sie zum jetzigen Schritt. */
   const nowStep = tt?.upcoming[0];
   const nowKey = nowStep === undefined ? null : stepKey(nowStep);
@@ -752,12 +753,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     <div className="cg-wm-waycard" data-world-next-page="">
       <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep}
         onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }}
-        onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0} />
-      <details className="cg-wm-allparts" data-world-all-parts="">
-        <summary>{t('cogitaWorld.map.fullPath')}</summary>
-        <NavPanel tt={tt} ctx={panel} rules={rules} onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }} onEnd={() => { pauseNav(); closeWay(); }}
-          onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
-      </details>
+        onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
+        more={(
+          <details className="cg-wm-allparts" data-world-all-parts="">
+            <summary>{t('cogitaWorld.map.fullPath')}</summary>
+            <NavPanel tt={tt} ctx={panel} rules={rules} onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }} onEnd={() => { pauseNav(); closeWay(); }}
+              onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
+          </details>
+        )} />
     </div>
   ) : (
     <button type="button" className="cg-wm-waybar" onClick={() => setOverview(true)} data-world-way-open="">

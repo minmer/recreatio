@@ -341,6 +341,7 @@ try {
       await sleep(60);
     }
     await click('[data-world-back]');
+    await afterPart();
     await waitFor(ready, 'the map after the self-check');
     await waitFor(`document.querySelector('[data-world-note="gaps"]')`, 'the gaps note');
     const gaps = await ev(`({ gaps: Number(document.querySelector('[data-world-note="gaps"]').dataset.worldGaps), fill: document.querySelector('[data-world-fill]') !== null, mode: document.querySelector('[data-world-modes]').dataset.worldModes })`);

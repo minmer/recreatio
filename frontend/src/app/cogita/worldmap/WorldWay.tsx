@@ -142,7 +142,7 @@ export function useAutoGo(on: boolean, seconds: number, go: () => void): number 
 }
 
 /** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -162,6 +162,8 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   card?: boolean;
   /** Ein Schritt der Kette angeklickt: wo er auf der Karte liegt. */
   onShow?: (step: PlanStep) => void;
+  /** Unter der Kette (die Karte des Weges): alle Teile, aufklappbar. */
+  more?: ReactNode;
 }) {
   const { t, nameOf } = ctx;
   const first = tt.upcoming[0];
@@ -175,6 +177,53 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   const pct = all === 0 ? 100 : Math.round((100 * tt.done.length) / all);
   /* Was eben geschafft wurde (der letzte erledigte Teil, der neu ist). */
   const cheer = [...tt.done].reverse().find((s) => just.has(stepKey(s)));
+  /*
+    2026-11-10 (Eigentümer: „das Feld unten ist zu hoch; der nächste Schritt rechts und kürzer") — ALS LEISTE UNTER DER KARTE: links
+    eine Zeile (Ziel, wie weit) und die Kette (rollbar, der jetzige Schritt in der Mitte), rechts kurz der nächste Schritt.
+  */
+  if (card) {
+    const meta = next === undefined ? '' : stepMeta(next, ctx, rules);
+    return (
+      <section className="cg-wm-nextview is-card" data-world-next-view={next === undefined ? 'arrived' : stepKey(next)}>
+        <div className="cg-wm-waymain">
+          <p className="cg-wm-wayhead">
+            <PartIcon kind="target" /> <strong>{t('cogitaWorld.way.title', { name: nameOf(tt.target) })}</strong>
+            <span className="cg-wm-meta"> · {t('cogitaWorld.nav.progress', { done: tt.done.length, all })}</span>
+            <button type="button" className="cg-wm-wayx" onClick={onMap} aria-label={t('cogitaWorld.way.toMap')} title={t('cogitaWorld.way.toMap')} data-world-next-map="">×</button>
+          </p>
+          {cheer !== undefined && (
+            <p className="cg-wm-cheer" role="status" data-world-step-done={stepKey(cheer)}>
+              <span className="cg-wm-cheermark" aria-hidden="true">✓</span> {t('cogitaWorld.way.stepDone', { text: stepText(cheer, ctx) })}
+            </p>
+          )}
+          <WayChain parts={parts} ctx={ctx} target={tt.target} centre {...(onShow === undefined ? {} : { onPick: onShow })} />
+          {more}
+        </div>
+        {next === undefined ? (
+          <div className="cg-wm-waynext is-arrived" data-world-next-arrived="">
+            <p className="cg-wm-waynexttext"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</p>
+            <button type="button" className="wk-btn is-small" autoFocus onClick={onEnd} data-world-next-end="">{t('cogitaWorld.way.finish')}</button>
+          </div>
+        ) : (
+          <div className={`cg-wm-waynext is-${next.kind}`} data-world-next-invite={next.kind}>
+            <span className="cg-wm-invitekind"><PartIcon kind={next.kind} /> {tt.done.length > 0 ? t('cogitaWorld.way.nextAfter') : t('cogitaWorld.way.nextPart')}</span>
+            <p className="cg-wm-waynexttext" title={meta}>{stepText(next, ctx)}</p>
+            <div className="cg-wm-waybtns">
+              {ctx.canLearn && <button type="button" className="wk-btn is-small cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
+              {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
+            </div>
+            {left !== null && (
+              <p className="cg-fin-auto" role="timer" aria-live="off" data-world-next-auto={left}>
+                <span className="cg-fin-autobar" ref={(el) => { el?.style.setProperty('--auto-s', `${NEXT_AUTO_S}s`); }} aria-hidden="true" />
+                {t('cogitaWorld.finish.autoGo', { s: left })}
+              </p>
+            )}
+            <button type="button" className="wk-link-btn cg-wm-wayend" onClick={onEnd} data-world-next-stop="">{t('cogitaWorld.nav.end')}</button>
+          </div>
+        )}
+      </section>
+    );
+  }
   return (
     <section className={`cg-wm-nextview${card ? ' is-card' : ''}`} data-world-next-view={next === undefined ? 'arrived' : stepKey(next)}>
       {cheer !== undefined && (

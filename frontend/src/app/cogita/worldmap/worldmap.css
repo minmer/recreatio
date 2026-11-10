@@ -302,14 +302,26 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-trailbtn.is-close { padding: 0.15rem 0.45rem; color: var(--wk-muted); }
 
 /* 2026-11-10 — der Weg Schritt für Schritt unten auf der Karte (nicht in einem eigenen Reiter): offen als Karte, sonst als schmale Leiste. */
-.cg-wm-waycard { position: absolute; left: 50%; bottom: calc(var(--cg-wm-bar, 0px) + var(--wk-space-3)); z-index: 6; width: min(44rem, calc(100% - 2 * var(--wk-space-3))); max-height: calc(100% - 4.5rem); overflow-y: auto; transform: translateX(-50%); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); animation: cg-fin-rise 360ms cubic-bezier(.2, .9, .3, 1) both; }
-.cg-wm-host:not(.is-full) .cg-wm-waycard { bottom: var(--wk-space-3); }
-.cg-wm-nextview.is-card { gap: var(--wk-space-2); }
-.cg-wm-nextview.is-card h2 { font-size: var(--wk-text-md); margin: 0; }
-.cg-wm-nextview.is-card .cg-wm-invitebig { font-size: var(--wk-text-md); margin: 0; }
-.cg-wm-waycard .cg-wm-allparts { margin-top: var(--wk-space-2); }
-.cg-wm-waybar { position: absolute; left: 50%; bottom: calc(var(--cg-wm-bar, 0px) + var(--wk-space-3)); z-index: 6; transform: translateX(-50%); display: inline-flex; align-items: center; gap: var(--wk-space-2); max-width: calc(100% - 2 * var(--wk-space-3)); padding: 0.35rem 0.9rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cg-wm-host:not(.is-full) .cg-wm-waybar { bottom: var(--wk-space-3); }
+.cg-wm-waycard { margin-top: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); animation: cg-wm-slide-in 260ms ease-out both; }
+.cg-wm-host.is-full .cg-wm-mapwrap { display: flex; flex-direction: column; height: calc(100vh - var(--cg-wm-bar)); }
+.cg-wm-host.is-full .cg-wm-mapwrap > .cg-wm { flex: 1 1 auto; min-height: 0; height: auto; }
+.cg-wm-host.is-full .cg-wm-mapwrap .cg-wm-stage { height: 100%; }
+.cg-wm-host.is-full .cg-wm-waycard { flex: 0 0 auto; margin: 0; border-width: 1px 0 0; border-radius: 0; max-height: 40vh; overflow-y: auto; }
+.cg-wm-nextview.is-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(13rem, 19rem); gap: var(--wk-space-3); align-items: start; max-width: none; }
+@container (max-width: 40rem) { .cg-wm-nextview.is-card { grid-template-columns: minmax(0, 1fr); } }
+.cg-wm-waymain { min-width: 0; display: flex; flex-direction: column; gap: var(--wk-space-1); }
+.cg-wm-wayhead { display: flex; align-items: center; gap: var(--wk-space-1); margin: 0; font-size: var(--wk-text-sm); }
+.cg-wm-wayhead .cg-wm-meta { flex: 1 1 auto; min-width: 0; }
+.cg-wm-wayx { flex: none; padding: 0 0.4rem; border: 0; background: none; color: var(--wk-muted); font: inherit; font-size: var(--wk-text-lg); line-height: 1; cursor: pointer; }
+.cg-wm-wayx:hover, .cg-wm-wayx:focus-visible { color: var(--wk-ink); }
+.cg-wm-nextview.is-card .cg-wm-parts { margin: 0; }
+.cg-wm-waynext { display: flex; flex-direction: column; gap: var(--wk-space-1); padding: var(--wk-space-2); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); }
+.cg-wm-waynext.is-arrived { border-left-color: var(--wk-ok); }
+.cg-wm-waynexttext { margin: 0; font-weight: 600; line-height: 1.3; }
+.cg-wm-waybtns { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.cg-wm-wayend { align-self: flex-start; font-size: var(--wk-text-xs); }
+.cg-wm-waybar { display: inline-flex; align-items: center; gap: var(--wk-space-2); margin-top: var(--wk-space-2); padding: 0.3rem 0.9rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-wm-host.is-full .cg-wm-waybar { position: absolute; left: 50%; bottom: var(--wk-space-3); z-index: 6; transform: translateX(-50%); margin: 0; box-shadow: var(--wk-shadow-pop); }
 .cg-wm-waybar:hover, .cg-wm-waybar:focus-visible { border-color: var(--wk-ink); }
 /* Ein Schritt geschafft: ruhig, eine Zeile mit Haken, die kurz aufgeht. */
 .cg-wm-cheer { display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; padding: 0.35rem 0.6rem; border-radius: var(--wk-radius-sm); background: var(--wk-ok-soft); color: var(--wk-ink); font-weight: 600; animation: cg-wm-cheer 700ms cubic-bezier(.2, .9, .3, 1.2) both; }
