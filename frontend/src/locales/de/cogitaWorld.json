@@ -75,7 +75,10 @@
     "saving": "Der Durchgang wird gespeichert…",
     "perfect": "Meisterhaft",
     "perfectSays": "jede Karte beim ersten Mal richtig. Die höchste Auszeichnung.",
-    "reachedMany": "Stufen {from}–{level} auf einmal erreicht"
+    "reachedMany": "Stufen {from}–{level} auf einmal erreicht",
+    "restart": "Von vorn beginnen",
+    "restartSays": "Fehler gemacht? Du kannst den Durchgang von vorn beginnen — um ihn ganz ohne Fehler zu schaffen.",
+    "tryAgain": "Noch einmal durchgehen"
   },
   "map": {
     "start": "Start",

@@ -81,7 +81,10 @@
     "saving": "Zapisywanie przebiegu…",
     "perfect": "Mistrzowsko",
     "perfectSays": "każda karta dobrze za pierwszym razem. Najwyższe wyróżnienie.",
-    "reachedMany": "Poziomy {from}–{level} osiągnięte za jednym razem"
+    "reachedMany": "Poziomy {from}–{level} osiągnięte za jednym razem",
+    "restart": "Zacznij od nowa",
+    "restartSays": "Pomyłka? Możesz zacząć przebieg od nowa — aby zdobyć go bez żadnego błędu.",
+    "tryAgain": "Przejdź jeszcze raz"
   },
   "map": {
     "start": "Start",

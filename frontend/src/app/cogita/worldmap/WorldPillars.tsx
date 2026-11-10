@@ -797,6 +797,62 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(l.text, l.x, l.y);
       ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(l.text, l.x, l.y);
     }
+    /*
+      2026-11-10 (Eigentümer: „die Beschreibung des Pfades gehört an den Pfad") — DER NAME AM PFAD: bei jedem Pfad, der Neues
+      bringt (kräftig), und bei den gezeigten (Hover, gewählt, Fahrplan); entlang seiner Mitte, aufrecht lesbar, in der Farbe
+      des Pfades; nie über einem Turm, einem Turmnamen oder einem anderen Pfadnamen; nur, wo der Pfad lang genug ist.
+    */
+    {
+      const shown = new Set(route ?? []);
+      const boxes: { x0: number; y0: number; x1: number; y1: number }[] = drawn.map((d) => ({ x0: d.x - d.rx - 2, y0: d.top - d.ry - 2, x1: d.x + d.rx + 2, y1: d.bottom + 2 }));
+      for (const l of placed) if (l.shown) boxes.push({ x0: l.x - l.w / 2, y0: l.y - 9, x1: l.x + l.w / 2, y1: l.y + 9 });
+      const deepNow = v.s >= DEEP_FROM;
+      const want = scene.lanes.filter((l) => l.name !== '' && !(l.deep && !deepNow) && (l.state === 'grow' || shown.has(l.section)));
+      /* Die gezeigten zuerst (sie gewinnen), dann die längsten. */
+      const lenOf = (pts: readonly number[]) => { let s = 0; for (let i = 2; i < pts.length; i += 2) s += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]); return s; };
+      const screenOf = (l: SceneLane) => { const pts = withRims(l, pillarWidth); const out: number[] = []; for (let i = 0; i < pts.length; i += 2) { const [sx, sy] = toScr(v, pts[i], pts[i + 1], 0); out.push(sx, sy); } return out; };
+      const items = want.map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; })
+        .filter((x) => x.len >= 36)
+        .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.l.state === 'grow') - Number(a.l.state === 'grow') || b.len - a.len);
+      ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      let nameCount = 0;
+      const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
+      for (const { l, sp, len, on } of items) {
+        /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
+        const text = fitText(ctx, l.name, Math.min(220, Math.max(len * 0.9, 110)));
+        const w = ctx.measureText(text).width;
+        /* Stellen entlang des Pfades und Abstände von ihm; die erste ohne Zusammenstoss, sonst (kräftige, gezeigte) die Mitte. */
+        type Spot = { cx: number; cy: number; a: number; box: { x0: number; y0: number; x1: number; y1: number } };
+        let pick = null as Spot | null;
+        let fallback = null as Spot | null;
+        for (const t of [0.5, 0.4, 0.6, 0.3, 0.7]) {
+          const at = along(sp, t);
+          let a = at.a;
+          if (a > Math.PI / 2) a -= Math.PI; else if (a < -Math.PI / 2) a += Math.PI;
+          const c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
+          const hw = (w * c + 14 * sn) / 2 + 3, hh = (w * sn + 14 * c) / 2 + 3;
+          for (const off of [-10, 11]) {
+            const cx = at.x - Math.sin(a) * off, cy = at.y + Math.cos(a) * off;
+            const box = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
+            if (box.x1 < 0 || box.y1 < 0 || box.x0 > size.w || box.y0 > size.h) continue;
+            fallback ??= { cx, cy, a, box };
+            if (!hit(box)) { pick = { cx, cy, a, box }; break; }
+          }
+          if (pick !== null) break;
+        }
+        const use = pick ?? (on || l.state === 'grow' ? fallback : null);
+        if (use === null) continue;
+        boxes.push(use.box);
+        ctx.save();
+        ctx.translate(use.cx, use.cy);
+        ctx.rotate(use.a);
+        ctx.lineWidth = 4; ctx.strokeStyle = rgbCss(mix(pal.surface, pal.land, 0.15)); ctx.strokeText(text, 0, 0);
+        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, 0);
+        ctx.restore();
+        nameCount += 1;
+      }
+      canvas.dataset.wmPathNames = String(nameCount);
+    }
     drawnRef.current = drawn;
     frames.current.count += 1;
     frames.current.ms.push(performance.now() - t0);

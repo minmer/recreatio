@@ -69,6 +69,8 @@ export interface SceneLane {
   readonly deep: boolean;
   readonly state: LaneState;
   readonly symbol: LockSymbol | null;
+  /** 2026-11-10 — der Name des Pfades (der Erzählung): steht an ihm auf der Karte. */
+  readonly name: string;
 }
 
 export interface Scene {
@@ -154,6 +156,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     lanes.push({
       section: s.id, line: s.line, branch: s.branch, fromId: s.from, toId: s.to, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
+      name: lines.lines.get(s.line)?.name ?? '',
       color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null
     });
   }

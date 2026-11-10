@@ -75,7 +75,10 @@
     "saving": "Saving the run…",
     "perfect": "Masterly",
     "perfectSays": "every card right the first time. The highest award.",
-    "reachedMany": "Levels {from}–{level} reached at once"
+    "reachedMany": "Levels {from}–{level} reached at once",
+    "restart": "Start over",
+    "restartSays": "Made a mistake? You can start the run over — to conquer it without a single slip.",
+    "tryAgain": "Run again"
   },
   "map": {
     "start": "Start",

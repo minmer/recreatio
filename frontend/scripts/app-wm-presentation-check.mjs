@@ -160,6 +160,8 @@ for (const theme of ['light', 'dark']) {
   const pn = await readFile('src/app/cogita/worldmap/WorldPanels.tsx', 'utf8');
   const pl = await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8');
   check('2026-11-10: the home reviews everything below a chosen knowness (90-130 %), each card once at random; the next card is drawn at random from the stack; interchange rings stand out only where an open way starts', [has(pn, 'const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;'), has(ls, "readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' })"), has(ls, "pick: 'weighted', stackSize: stackFor(lib, learner)"), has(pl, 'const hubs = new Set(grow.map((l) => l.fromId));')], [true, true, true, true]);
+  const run = await readFile('src/app/cogita/worldmap/WorldRun.tsx', 'utf8');
+  check('2026-11-10: the name of a path stands at the path (bold lanes always, shown ones too); a run can be started over after a mistake', [has(pl, "canvas.dataset.wmPathNames = String(nameCount);"), has(pl, "l.state === 'grow' || shown.has(l.section)"), has(run, 'const restart = () =>'), has(run, 'data-world-run-restart-hint')], [true, true, true, true]);
   check('the way: after every part the next one is offered (full screen tab "next", the same page without full screen); a finish screen with numbers in full screen', [has(ls, "x === 'run' ? (tt !== null ? 'next' : 'map') : x"), has(ls, 'if (!full && askNext && tt !== null)'), has(ls, '<FinishShow'), has(css, '.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin)')], [true, true, true, true]);
 }
 

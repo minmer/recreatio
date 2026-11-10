@@ -290,6 +290,13 @@ try {
     await click('[data-world-run-for="1"]');
     await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
     await click('[data-world-run-start]');
+    /* 2026-11-10 — ein Fehler: der Durchgang lässt sich von vorn beginnen (für „Mistrzowsko"). */
+    await waitFor(`document.querySelector('[data-world-run="ask"]')`, 'the first card');
+    await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Nie' && !x.disabled); if (b) b.click(); return !!b; })()`);
+    await waitFor(`document.querySelector('[data-world-run-restart-hint]')`, 'the offer to start over after a mistake');
+    await click('[data-world-run-restart]');
+    await waitFor(`document.querySelector('[data-world-run="ask"]')?.dataset.worldRunAgain === '0' && document.querySelector('[data-world-run="ask"]')?.dataset.worldRunFirst === '0'`, 'a fresh run');
+    check(P, 'after a mistake the run can be started over: nothing counted yet, no retry round', await ev(`document.querySelector('[data-world-run-restart-hint]') === null`));
     await answerAll('[data-world-run="result"]');
     const res = await ev(`(() => { const r = document.querySelector('[data-world-run="result"]'); return r === null ? null : { level: Number(r.dataset.worldRunLevel), reached: r.dataset.worldRunReached }; })()`);
     check(P, 'the run reaches level 1', res !== null && res.level === 1 && res.reached === '1', res);

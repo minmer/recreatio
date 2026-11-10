@@ -277,3 +277,7 @@
 :root[data-motion='reduced'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-invite { animation: none !important; }
 :root[data-motion='reduced'] .cg-fin-confetti, :root[data-motion='off'] .cg-fin-confetti { display: none; }
 :root[data-motion='reduced'] .cg-fin-burst, :root[data-motion='off'] .cg-fin-burst { opacity: 1; }
+
+/* Von vorn beginnen im Durchgang (2026-11-10). */
+.cg-wm-restart { display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-3); flex-wrap: wrap; margin: var(--wk-space-3) 0 0; }
+.cg-wm-restart > span { flex: 1 1 14rem; }

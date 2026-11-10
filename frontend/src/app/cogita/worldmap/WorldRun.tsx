@@ -54,6 +54,10 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   const last = useRef<number | null>(null);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const [saving, setSaving] = useState(false);
+  /* 2026-11-10 (Eigentümer) — nach einer falschen Antwort darf man den Durchgang von vorn beginnen (für „Mistrzowsko"). */
+  const [lastWrong, setLastWrong] = useState(false);
+  const fresh = () => startRun(newId(), place, cards.map((c) => c.key), Date.now(), facts);
+  const restart = () => { last.current = null; setLastWrong(false); setOutcome(null); setSession(fresh()); };
 
   if (allowed === false) {
     return (
@@ -77,7 +81,10 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
           {reached ? (outcome.after - outcome.before > 1 ? t('cogitaWorld.run.reachedMany', { from: outcome.before + 1, level: outcome.after }) : t('cogitaWorld.run.reached', { level: outcome.after })) : t('cogitaWorld.run.notReached', { level, pct: rule?.pct ?? 0 })}
           {reached && outcome.after >= eff.levels ? ` · ${t('cogitaWorld.run.conquered')}` : ''}
         </p>
-        <div className="wk-actions"><button type="button" className="wk-btn" autoFocus onClick={() => onClose(outcome)} data-world-run-close="">{t('cogitaWorld.run.close')}</button></div>
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" autoFocus onClick={() => onClose(outcome)} data-world-run-close="">{t('cogitaWorld.run.close')}</button>
+          {!perfect && <button type="button" className="wk-btn wk-btn-line" onClick={restart} data-world-run-again="">{t('cogitaWorld.run.tryAgain')}</button>}
+        </div>
       </div>
     );
   }
@@ -119,17 +126,27 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   };
   if (saving || card === undefined) return <p className="cg-muted" data-world-run="saving">{t('cogitaWorld.run.saving')}</p>;
   const n = session.order.length - session.queue.length + 1;
+  const mistaken = lastWrong || session.retrying || Object.values(session.first).some((c) => c < 0.999);
   return (
     <div className="cg-world-run" data-world-run="ask" data-world-run-card={card.key} data-world-run-again={session.retrying ? '1' : '0'}
       data-world-run-first={Object.values(session.first).filter((c) => c >= 0.999).length}>
       <p className="cg-muted">{t('cogitaWorld.run.title', { name })} · {session.retrying ? t('cogitaWorld.run.again') : t('cogitaWorld.run.of', { n: Math.min(n, session.order.length), all: session.order.length })}</p>
-      <CardFace key={`${card.key}:${session.attempts}`} card={card} lib={lib} lang={L}
+      <CardFace key={`${session.id}:${card.key}:${session.attempts}`} card={card} lib={lib} lang={L}
         onAnswered={(o, given, ms) => {
           if (last.current !== null) return;
           last.current = o.correctness;
+          setLastWrong(o.correctness < 0.999);
           learner.record(card, o.correctness, { via: `run:${session.id}`, ms, given: storedGiven(card, given) });
         }}
         onNext={next} />
+      {mistaken ? (
+        <div className="wk-note cg-wm-restart" data-world-run-restart-hint="">
+          <span>{t('cogitaWorld.run.restartSays')}</span>
+          <button type="button" className="wk-btn wk-btn-line is-small" onClick={restart} data-world-run-restart="">{t('cogitaWorld.run.restart')}</button>
+        </div>
+      ) : (
+        <p className="cg-wm-restart"><button type="button" className="wk-link-btn" onClick={restart} data-world-run-restart="">{t('cogitaWorld.run.restart')}</button></p>
+      )}
     </div>
   );
 }
