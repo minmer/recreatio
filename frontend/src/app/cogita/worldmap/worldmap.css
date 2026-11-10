@@ -255,7 +255,7 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 @keyframes cg-fin-slide { from { transform: translateX(-1.5rem); opacity: 0; } to { transform: none; opacity: 1; } }
 /* Von selbst weiter: der Balken läuft ab; eine Berührung hält ihn an. */
 .cg-fin-auto { position: relative; margin: var(--wk-space-2) 0 0; padding-top: 0.5rem; color: var(--wk-muted); font-size: var(--wk-text-sm); }
-.cg-fin-autobar { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--wk-accent); transform-origin: left; animation: cg-fin-auto var(--auto-s, 9s) linear both; }
+.cg-fin-autobar { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: var(--wk-radius-pill); background: var(--wk-accent); transform-origin: left; animation: cg-fin-auto var(--auto-s, 9s) linear both; }
 @keyframes cg-fin-auto { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @keyframes cg-fin-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cg-fin-card { from { transform: translateY(2rem) scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }

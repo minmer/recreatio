@@ -406,6 +406,66 @@ try {
     results.push({ path: P, name: 'names hidden behind nearer pillars (this view)', ok: true, detail: { covered: Number(await canvas('wmCovered')) } });
   }
 
+  /* -- 7 · Die ganze Seite als Spiel (2026-11-10): zwei Arten, ein Teil kommt herein, Abschluss mit Folgen, von selbst weiter ----- */
+  if (runs('7')) {
+    const P = '7 full page game';
+    const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
+    const hostOf = () => ev(`(() => { const h = document.querySelector('[data-world-view]'); return { mode: h.dataset.worldFullMode, bar: document.querySelector('[data-world-fullbar]')?.dataset.worldFullbar ?? null, locked: document.documentElement.classList.contains('cg-wm-locked') }; })()`);
+    await open();
+    check(P, 'two ways in: the whole screen and the whole page', await ev(`[...document.querySelectorAll('[data-world-full]')].map((b) => b.dataset.worldFull).join()`) === 'screen,page');
+    await click('[data-world-full="screen"]');
+    await waitFor(`document.querySelector('[data-world-view]').dataset.worldFullMode === 'screen'`, 'the whole screen');
+    await click('[data-world-fulltab="mode"]');
+    await waitFor(`document.querySelector('[data-world-view]').dataset.worldFullMode === 'page'`, 'the whole page');
+    const h0 = await hostOf();
+    check(P, 'the bar switches to the whole page; the page below does not scroll', h0.mode === 'page' && h0.bar === 'map' && h0.locked, h0);
+    await sleep(600);
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel over the map');
+    await click('[data-world-my-settings]');
+    await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
+    await click('[data-levels-n="1"]');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'locked'`, 'one level in force');
+    await click('[data-world-panel="place"] [data-world-learn-direct]');
+    await waitFor(`document.querySelector('[data-world-running="learn"]')`, 'learning directly');
+    check(P, 'a part comes in as its own view, zooming in', await ev(`document.querySelector('[data-full-view="run"]')?.dataset.enter === 'zoom' && document.querySelector('[data-world-fullbar]').dataset.worldFullbar === 'run'`));
+    await answerAll('[data-run-end]');
+    const played0 = await canvas('wmPlayed');
+    await click('[data-world-back]');
+    await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the part');
+    const fin = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, answers: Number(f.dataset.worldFinishAnswers), auto: f.querySelector('[data-world-finish-auto]') !== null }; })()`);
+    check(P, 'the finish counts the answers and goes on by itself (to the map: no way chosen)', fin.kind === 'cards' && fin.answers > 0 && fin.auto, fin);
+    await sleep(1500);
+    check(P, 'the map does not play behind the finish', (await canvas('wmPlayed')) === played0 && (await canvas('wmPlaying')) === '', { played0, now: await canvas('wmPlayed') });
+    await shot('p7-finish');
+    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the finish to go on by itself', 15000);
+    await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play what changed', 10000);
+    check(P, 'by itself back to the map, which now plays what changed', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return');
+    await shot('p7-map-plays');
+    /* Ein Durchgang zur Eroberung — der Abschluss sagt, was folgt und warum; eine Berührung hält das Weitergehen an. */
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'the run to be possible', 15000);
+    await click('[data-world-run-for="1"]');
+    await waitFor(`document.querySelector('[data-world-run-start]')`, 'the run intro');
+    await click('[data-world-run-start]');
+    await answerAll('[data-world-run="result"]');
+    await click('[data-world-run-close]');
+    await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the run');
+    await sleep(2400);
+    const won = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, follows: [...f.querySelectorAll('[data-world-finish-follow]')].map((x) => x.dataset.worldFinishFollow + ': ' + x.textContent) }; })()`);
+    check(P, 'a conquest: the flag, and what follows says it is conquered and why', (won.kind === 'conquer' || won.kind === 'perfect') && won.follows[0]?.startsWith('conquer:'), won);
+    await shot('p7-conquer');
+    await clickAt(20, 20);
+    await sleep(1200);
+    check(P, 'a touch stops going on by itself', await ev(`document.querySelector('[data-world-finish]') !== null && document.querySelector('[data-world-finish-auto]') === null`));
+    await click('[data-world-finish-close]');
+    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the map');
+    await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await waitFor(`document.querySelector('[data-world-view]').dataset.worldFullMode === ''`, 'Esc to close the whole page');
+    check(P, 'Esc closes the whole page; the page scrolls again', !(await hostOf()).locked);
+  }
+
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');
   check('all', 'no exceptions in the page', errors.filter((c) => c.level === 'exception').length === 0, errors.slice(0, 5));
 } finally {
