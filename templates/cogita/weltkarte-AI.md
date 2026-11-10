@@ -42,14 +42,19 @@ Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z krok
 
 - **Jeden przebieg = jedna linia**; nazwa przebiegu to nazwa linii („Z Ruą”). Linia dostaje własny kolor, ciemniejszy niż filary.
 - **Gdzie stoi krok**: slajd pokazuje miejsce (krok "show" z "of" — wprost temat, albo slajd, który polem-odwołaniem wskazuje temat, np. „O czym”, albo przez pytania, które go objaśniają, "explain"); pytanie stoi tam, o czym jest ("about"). Dlatego **łącz każdą scenę i każde pytanie z właściwym tematem**.
-- **Przystanki** powstają tylko z tego, co pokazane. Pytanie „pożyczone” (o innym temacie) wprowadza swoją kartę na tym odcinku, ale nie robi przystanku. Przegląd na końcu ("review") nie robi przystanków i niczego nie wprowadza. Przebieg, który nie pokazuje żadnego miejsca, staje w miejscach swoich pytań.
+- **Przystanki** powstają tylko z tego, co pokazane. Pytanie „pożyczone” (o innym temacie) wprowadza swoją kartę na tym odcinku, ale nie robi przystanku. Krok "review" (Przegląd) nie robi przystanku i niczego nie wprowadza; **to, co przychodzi po nim** (slajd na zakończenie, rozwidlenie), jest rysowane jak wszystko inne. Przebieg, który nie pokazuje żadnego miejsca, staje w miejscach swoich pytań.
+- **Każdy slajd i każde pytanie to kropka na torze** (pytanie inną figurą) — na każdym torze, zawsze widoczne; nie rysujemy pionka.
+- **Slajd drogi**: slajd bez tematu (puste „thema”) po treści wieży należy do drogi **dalej** — do następnego przystanku albo do rozwidlenia, nie do przyjazdu do wieży.
 - **Początek linii**: pierwszy odcinek wychodzi z miejsca, którego wymaga jednostka (najgłębszego; wymagana jednostka z własną opowieścią — z ostatniego przystanku jej linii), a bez wymagań z domu („Start”). Linia, która zaczyna się w środku świata, robi tam węzeł przesiadkowy.
-- **Zagłębienie** (krok "detour", zob. guide-stories §8b) to linia-pętla: zaczyna i kończy się w miejscu, które ją woła. Woła ją kilka opowieści — każde wołające miejsce jest węzłem, a linia jest rysowana raz.
+- **Zagłębienie** (krok "detour", zob. guide-stories §8b) jest rysowane jako **pętla dokładnie przy kroku, który je woła**. Opowieść z własną jednostką zachowuje przy tym swój własny tor (swój początek); opowieść bez jednostki, wołana tylko jako zagłębienie, zaczyna i kończy się w miejscu, które ją woła.
 
-## 4. Rozgałęzienia to węzły przesiadkowe
+## 4. Rozwidlenia leżą między wieżami
 
-- Krok "choice", "chapters" albo scena z kilkoma przyciskami: **każde wyjście to gałąź linii** (także `choice → subflow`). Gałąź zaczyna się na ostatnim przystanku przed wyborem; jeśli gałęzie się schodzą, kończą się na najbliższym wspólnym przystanku — na mapie to zamknięty kształt.
-- Miejsce, w którym zatrzymuje się kilka linii albo rozdziela się opowieść, to **węzeł przesiadkowy** (pierścień wokół filaru). Jego panel wymienia wszystkie kierunki: linia, gałąź, cel, liczba slajdów, bilet. Uczący się wybiera na mapie, a opowieść otwiera się od razu w wybranej gałęzi.
+- Krok "choice", "chapters" albo scena z kilkoma przyciskami: **każde wyjście to gałąź linii** (także `choice → subflow`).
+- **Rozwidlenie** — wybór, którego gałęzie prowadzą do różnych wież — jest **własnym węzłem na drodze**, nie wieżą: droga przychodzi od wieży przez slajdy drogi do węzła, a z węzła do każdej wieży gałęzi biegnie osobny tor. Węzeł mówi, ile slajdów leży przed nim i ile dróg z niego wychodzi („1 slajd, potem rozwidlenie: 2 drogi”). Wybór z `"hold": true` czeka zawsze na decyzję uczącego się.
+- **Te same karty w innym opakowaniu** (wyjaśnienie dla dzieci, dla szkoły, dla dorosłych): wybór, którego gałęzie prowadzą do **tej samej** wieży i schodzą się przed wspólnymi pytaniami — to nie rozwidlenie; mapa rysuje jedną drogę i pozostałe opakowania jako małą pętlę obok niej.
+- Jeśli gałęzie rozwidlenia się później schodzą, kończą się na najbliższym wspólnym przystanku.
+- Miejsce, w którym zatrzymuje się kilka linii, to **węzeł przesiadkowy** (pierścień wokół filaru). Panel wieży i panel rozwidlenia wymieniają wszystkie kierunki: linia, gałąź, cel, liczba slajdów i pytań, bilet. Uczący się wybiera na mapie, a opowieść otwiera się od razu w wybranej gałęzi.
 - Etykieta opcji wyboru jest nazwą gałęzi („Do warsztatów”, „Z Dominikiem Savio”) — pisz ją krótko.
 
 ## 5. Bilety: kiedy odcinek jest otwarty
@@ -69,12 +74,14 @@ Bilet odcinka powstaje tylko z trzech źródeł:
   {"label": "Z Dominikiem Savio"}]}}
 ```
 
-- Panel biletu pokazuje przy każdej brakującej karcie jej **źródło**: odcinek, który ją wprowadza (otwarty teraz albo czego sam wymaga), albo „bez slajdu — ucz się bezpośrednio”.
+- **Bramy są rysowane**: od każdej wymaganej wieży biegnie tor do bramy — przy warunku opcji do rozwidlenia, przy „Wymaga” z kilkoma wieżami do **węzła bramy** na początku linii (tam schodzą się drogi wszystkich wymaganych wież), przy wieży z wymaganiami (pole `"prerequisite": "up"`) — dopóki jest zamknięta — od każdej brakującej wieży do niej. Widać więc, skąd wymaganie przychodzi.
+- Panel i dymek **zamkniętej wieży** wymieniają każdą brakującą wieżę, także pośrednią, z jej stanem (otwarta, zamknięta, zdobyta).
+- Panel biletu pokazuje przy każdej brakującej karcie jej **źródło**: odcinek, który ją wprowadza (otwarty teraz albo czego sam wymaga), albo „bez slajdu”.
 - **Nieznany typ warunku** bilet traktuje jako niespełniony („nieznany typ”) i zgłasza autorom; sam przebieg działa dalej jak dotąd.
 
-## 6. Karty bez slajdu są w porządku
+## 6. Karty bez slajdu
 
-Pytanie, którego żaden przystanek nie wprowadza, jest uczone **bezpośrednio** (przycisk „Ucz się bezpośrednio” w panelu miejsca i biletu). Miejsce bez żadnej linii stoi wolno i też jest zdobywane bezpośrednio.
+Karta jest wprowadzona, gdy w opowieści **pada po slajdzie, który ją wyjaśnia** — jako krok "question" albo przez swoje `"explain"` wskazujące slajd, który jest pokazany. Karta, której nie wprowadza żadna opowieść, jest uczona **bezpośrednio** („Ucz się bezpośrednio”) — ale tylko taka: gdzie opowieść istnieje, droga prowadzi przez nią. Miejsce bez żadnej linii stoi wolno.
 
 ## 7. Bez położeń, kolorów i wysokości w imporcie
 
@@ -92,12 +99,12 @@ Nie zapisuj w imporcie współrzędnych, kolorów ani wysokości. Położenie li
 - **Domyślnie 0 poziomów**: nic się nie zmienia, miejsce jest osiągnięte, gdy jego karty są umiane ("knownShare" — jaka część, domyślnie wszystkie). Wysokość filaru liczy wtedy karty jeszcze nieumiane (miejsca i jego podstawy), a nie wszystkie karty nieosiągniętych miejsc — to świadome odstępstwo od specyfikacji: filar maleje z każdą umianą kartą.
 - **1–5 poziomów**: zdobyć miejsce = odpowiedzieć na jego karty w jednym **przebiegu**; poziom na próg ("pct"), co się liczy ("attempts": "any" — w ogóle dobrze, "one" — po jednej poprawce, "first" — za pierwszym razem) — bez odstępu między poziomami: jeden przebieg podnosi o każdy poziom, którego próg spełnia; **wszystko dobrze za pierwszym razem** daje od razu wszystkie poziomy i wyróżnienie „Mistrzowsko”. Wtedy **powtarzane są tylko zdobyte miejsca** — strona ustawień pokazuje przed zapisem, ile kart wyjdzie z powtórek.
 - **"openAt" — kiedy otwierają się ścieżki wieży** (ustawienie autora; uczący się go nie zmieniają): pominięte = dopiero gdy wieża jest **całkiem zdobyta** (domyślnie); `0` = **od razu**, bez zdobywania (ścieżki wychodzące z wieży są otwarte, choć wieża nie jest zdobyta); `1`…(liczba poziomów − 1) = **od tego poziomu** (np. `2` przy 3 poziomach: ścieżki otwierają się po poziomie 2, a wieża jest zdobyta dopiero po 3). Wartość równa liczbie poziomów albo większa oznacza zdobycie (jak pominięta). Przy 0 poziomów ma sens tylko `0`. Ścieżki wychodzące z „Startu” są zawsze otwarte.
-- Przy wieży, którą wolno już zdobywać, panel miejsca daje **dwie drogi**: „Najpierw powtórz, czego nie znam (N)” — tylko karty, które jeszcze nie siedzą — albo od razu przebieg po wszystkich kartach, który zdobywa wieżę.
+- **Wieżę wolno zdobywać zawsze**, gdy zdobyte są jej wymagania (nie trzeba najpierw zobaczyć wszystkich kart). Panel daje **dwie drogi**: „Zdobywaj teraz” — przebieg po wszystkich kartach, z informacją, ile z nich nigdy jeszcze nie padło — albo „Najpierw powtórz (N)” — tylko karty już wyjaśnione, które jeszcze nie siedzą (i te, których nie wyjaśnia żadna opowieść). Jeśli opowieść wyjaśnia jeszcze nieznane karty, trzecia droga: „Najpierw odkryj drogę”.
 - "pillarWidth" (0,4–1) to domyślna szerokość filarów; uczący się zmienia ją i poziomy dla siebie („Moje ustawienia”), chyba że `"locked": true`.
 
 ## 9. Jak aplikacja używa tych danych
 
-Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy nie widziane, częściowo, pełne), wysokość = brakujące karty, łuki poziomów na krawędzi i kropka wiedzy na zdobytych; linie na torach (równolegle, ze strzałką kierunku; przejechane pełne, otwarte stonowane, zamknięte przerywane z kłódką typu warunku), pierścienie węzłów, dom „Start”. Dymek pokazuje nazwę, „jeszcze N kart” i drogę z domu. Panele: miejsce (poziom, przebieg, kolejność zdobywania, źródła kart, „Ucz się bezpośrednio”, linie tutaj), odcinek (bilet ze źródłami), węzeł (wybór kierunku). „Prowadź mnie tutaj” prowadzi tylko w tej sesji: rozkład jazdy (2 kroki zrobione, bieżący, 4 następne), „Tu możesz też skręcić” z innymi liniami do tej samej wiedzy, na mapie najbliższe kroki jasno, dalsze blado, chorągiewka „Zacznij tutaj” i flaga celu. Autorzy (kto pisze w bazie) widzą pod mapą listę uwag do danych. Przez MCP (`get_knowledge_setup`, sekcja "landscapes") widok mapy świata ma postać `{"style": "world", "places": [[x, y, "@temat", "@blok" | null], …], "home": [x, y], "lines": [{"flow", "name", "stops", "deepening", "branches"}], "stations"}` — współrzędne w jednostkach ziemi (promień filaru 28), takie, jakie widzi każdy; do wglądu, nie do importu.
+Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy nie widziane, częściowo, pełne), wysokość = brakujące karty, łuki poziomów na krawędzi i kropka wiedzy na zdobytych; linie na torach (równolegle, ze strzałką kierunku; przejechane pełne, otwarte stonowane, zamknięte przerywane z kłódką typu warunku), pierścienie węzłów, dom „Start”. Dymek pokazuje nazwę, „jeszcze N kart” i drogę z domu. Panele: miejsce (poziom, przebieg, brakujące wieże ze stanem, kolejność zdobywania, źródła kart, linie tutaj), odcinek (bilet ze źródłami), rozwidlenie (drogi z celem, slajdami i pytaniami), węzeł (wybór kierunku). „Prowadź mnie tutaj” prowadzi tylko w tej sesji, **łańcuchem**: do pierwszej brakującej wieży, potem do następnej (w porządku wymagań), na końcu do celu — każda wzdłuż swojego toru, przez każde rozwidlenie, bez skoków; przejechane tory zostają w drodze (są tańsze, wolno po nich też wracać). Cała droga świeci jako jedna linia; dymek i panel liczą z tego samego planu. Rozkład jazdy (2 kroki zrobione, bieżący, 4 następne), „Tu możesz też skręcić” z innymi drogami do tej samej wieży, chorągiewka „Zacznij tutaj” i flaga celu. Autorzy (kto pisze w bazie) widzą pod mapą listę uwag do danych. Przez MCP (`get_knowledge_setup`, sekcja "landscapes") widok mapy świata ma postać `{"style": "world", "places": [[x, y, "@temat", "@blok" | null], …], "home": [x, y], "lines": [{"flow", "name", "stops", "deepening", "branches"}], "stations"}` — współrzędne w jednostkach ziemi (promień filaru 28), takie, jakie widzi każdy; do wglądu, nie do importu.
 
 ## 10. Lista kontrolna (to samo, co lista dla autorów)
 

@@ -52,7 +52,7 @@ import { dueAt } from './knowness';
 import { SpacingLine } from './SpacingSettings';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
-import { renamer } from './learn';
+import { positionFor, renamer } from './learn';
 import { reviewScopeFor } from './worldmap/wmReview';
 import { reviewable } from './worldmap/wmState';
 import { cogitaPath, tabLabel, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
@@ -316,7 +316,7 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const content = useMemo(() => (cards === null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
   /* 2026-11-03 (Prompt 5) — „…/graj/przeglad": „Powtórz przegląd" — der Spieler beginnt am Teil des Przeglądu (sonst am Anfang). */
   const [asked] = useState(() => Date.now());
-  const jump = flow !== null && trail[1] === 'graj' && trail[2] === 'przeglad' ? { step: reviewStart(flow), at: asked } : null;
+  const jump = flow !== null && trail[1] === 'graj' && trail[2] === 'przeglad' ? { step: reviewStart(flow, positionFor(learner?.progress.positions, flow)?.visited), at: asked } : null;
   if (flow !== null && (trail[1] === 'graj' || !writes)) {
     if (content === null) return <p className="wk-hint">{t('cogitaViews.home.preparing')}</p>;
     /* 2026-11-04 — je Ablauf ein eigener Spieler: von einer Erzählung direkt zur nächsten bleibt nichts vom Stand der vorigen. */

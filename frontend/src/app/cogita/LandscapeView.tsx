@@ -719,7 +719,7 @@ function HexLandscape({ view, cards, learner, onOpen, compact = false, rewards =
   const openStory = (flow: Flow, review: boolean) => {
     const find = (x: string) => { const d = lib.docs('flow').find((one) => one.id === x); return d === undefined ? undefined : readFlow(d.id, d.data); };
     const full = resolveFlow(flow, find);
-    const at = review ? reviewStart(full) : null;
+    const at = review ? reviewStart(full, flows.get(full.id)?.visited) : null;
     if (flow.unit !== undefined) addPiece(flow.unit);
     setRunning({ key: `story:${full.id}:${Date.now()}`, story: full, jump: at === null ? null : { step: at, at: Date.now() } });
   };

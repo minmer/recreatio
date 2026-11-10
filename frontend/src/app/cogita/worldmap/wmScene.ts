@@ -301,7 +301,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       if (shownBy(n, p.id)) continue;
       const a = at(n), b = at(p.id);
       if (a === null || b === null) continue;
-      links.push({ id: `${n}>${p.id}`, from: n, to: p.id, a: a.p, b: b.p, ra: a.r, rb: b.r, met: state.places.get(n)?.conquered === true, kind: 'requires' });
+      links.push({ id: `requires:${n}>${p.id}`, from: n, to: p.id, a: a.p, b: b.p, ra: a.r, rb: b.r, met: state.places.get(n)?.conquered === true, kind: 'requires' });
     }
   }
   const loops: SceneLoop[] = [];

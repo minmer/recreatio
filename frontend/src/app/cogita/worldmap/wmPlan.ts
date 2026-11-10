@@ -114,6 +114,12 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   };
   const ticketTowers = (s: Section): string[] => (state.sections.get(s.id)?.ticket.parts ?? []).filter((p) => !p.result.met).flatMap((p) => placesOf(p.part.condition));
 
+  /*
+    2026-11-10 (Eigentümer: „der Plan enthält nur, was das Ziel braucht") — zuerst ein Weg nur über verlangte Türme (das Ziel,
+    seine Voraussetzungen, was Tore auf dem Weg verlangen); nur wenn es keinen gibt, darf er an einem anderen Turm beginnen.
+  */
+  const required = new Set<string>();
+  let strict = true;
   const forwardCost = (s: Section, pin: string | null): number => {
     const st = state.sections.get(s.id);
     if (st === undefined) return Infinity;
@@ -124,7 +130,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       const other = st.ticket.parts.some((p) => !p.result.met && placesOf(p.part.condition).length === 0);
       c += COST_TOWER * new Set(towers).size + (other ? 1 + 0.5 * st.ticket.missing.new.length + 0.3 * st.ticket.missing.review.length : 0);
     }
-    if (!openFrom(s.from, s)) c += COST_TOWER;
+    if (!openFrom(s.from, s)) { if (strict && !required.has(s.from)) return Infinity; c += COST_TOWER; }
     return pin !== null && s.id === pin ? c * 0.01 : c;
   };
 
@@ -215,6 +221,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   /* -- Die Kette ---------------------------------------------------------------------------------------------------------------- */
   const reach = (k: string) => (lines.introducedBy.get(k) ?? []).length > 0;
   const queue = state.conquestOrder(target).slice();
+  for (const p of queue) required.add(p);
   const tries = new Map<string, number>();
   let pos = HOME;
   let guard = 0;
@@ -227,7 +234,9 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     const pinned = pin === null ? undefined : lines.sections.get(pin);
     const head = pinned === undefined ? null : shortest(pos, pinned.from, null);
     const tail = pinned === undefined || head === null ? null : shortest(pinned.to, T, null);
-    const path = pinned !== undefined && head !== null && tail !== null ? [...head, { s: pinned, back: false }, ...tail] : shortest(pos, T, pin);
+    const strictPath = pinned !== undefined && head !== null && tail !== null ? [...head, { s: pinned, back: false }, ...tail] : shortest(pos, T, pin);
+    let path = strictPath;
+    if (path === null) { strict = false; path = shortest(pos, T, pin); strict = true; }
     /* Was der Weg verlangt: ein Turm, an dem eine Spur beginnt, und jeder Turm, den ein Tor auf ihm verlangt — vorher. */
     const need: string[] = [];
     for (const e of path ?? []) {
@@ -243,6 +252,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       const rest = queue.filter((p) => !first.includes(p));
       queue.length = 0;
       queue.push(...first, ...rest);
+      for (const p of first) required.add(p);
       continue;
     }
     queue.shift();

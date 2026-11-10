@@ -420,12 +420,12 @@ try {
     await waitFor(`document.querySelector('[data-world-finish]')`, 'the finish of the part');
     const fin = await ev(`(() => { const f = document.querySelector('[data-world-finish]'); return { kind: f.dataset.worldFinish, answers: Number(f.dataset.worldFinishAnswers), auto: f.querySelector('[data-world-finish-auto]') !== null }; })()`);
     check(P, 'the finish counts the answers and goes on by itself (to the map: no way chosen)', ['conquer', 'perfect'].includes(fin.kind) && fin.answers > 0 && fin.auto, fin);
-    await sleep(1500);
-    check(P, 'the map does not play behind the finish', (await canvas('wmPlayed')) === played0 && (await canvas('wmPlaying')) === '', { played0, now: await canvas('wmPlayed') });
-    await shot('p7-finish');
-    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the finish to go on by itself', 15000);
+    /* 2026-11-10 — die Seite des Weges liegt unten über der Karte; die Karte darüber zeigt gleich, was sich änderte. */
     await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play what changed', 10000);
-    check(P, 'by itself back to the map, which now plays what changed', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return');
+    check(P, 'the map is shown and plays what changed while the guide page is open', (await hostOf()).bar === 'map' && (await canvas('wmPlayedKind')) === 'return' && await ev(`document.querySelector('[data-world-finish]') !== null`));
+    await shot('p7-finish');
+    await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the guide page to go on by itself', 15000);
+    check(P, 'by itself the page closes and the map stays', (await hostOf()).bar === 'map');
     await shot('p7-map-plays');
     /* Ein zweiter Turm (seine Voraussetzung ist nun erobert) — der Abschluss sagt, was folgt und warum; eine Berührung hält das Weitergehen an. */
     await clickMap('label', N.sen);

@@ -24,6 +24,7 @@ import type { LockSymbol } from './wmConditions';
 import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from './wmPick';
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
+import { greyPlace, greySection, type RouteFocus } from './wmFocus';
 import { nameOnTop, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
@@ -102,6 +103,11 @@ export interface PillarsProps {
   readonly full?: boolean;
   /** Ein Feld steht unter der Karte (schmal): die Karte wird niedriger, damit beides zu sehen ist — nichts liegt verdeckt. */
   readonly squeeze?: boolean;
+  /**
+   * 2026-11-10 (Eigentümer: „ist ein Ziel gewählt, zeigt die Karte den Weg, alles andere grau") — der Weg zum gewählten Ziel: was
+   * noch zu gehen ist kräftig mit Punkten, was gegangen ist dünn und gedämpft, alles andere grau (auch die Landschaft).
+   */
+  readonly focus?: RouteFocus | null;
   /** Die Ansicht („Co umiem", „Do odkrycia", …): nur diese Orte farbig, die anderen grau und deckend. `null`: alle. */
   readonly lit?: ReadonlySet<string> | null;
   /** Verweise in andere Welten je Ort: das Zeichen des Portals auf der Säule. */
@@ -328,7 +334,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
+    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -391,7 +397,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   }, [size, fitCam, setCam]);
 
   /* Der Boden: einmal je Stand, Breite, Farben und Ausschnitt gerastert. */
-  const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}`, [scene, pillarWidth]);
+  const focusKey = useMemo(() => {
+    if (focus === null) return '';
+    const text = [...focus.remaining, '|', ...focus.done, '|', ...focus.gates].join(',');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36);
+  }, [focus]);
+  const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}:${focusKey}`, [scene, pillarWidth, focusKey]);
   /* Die Insel und ihre Bäume: einmal je Stand. */
   const island = useMemo(() => islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks }), [scene]);
   const sceneId = useRef(0);
@@ -415,20 +428,24 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (g === null) return null;
     g.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
     const px = 1 / v.s;
-    /* Das Wasser, der Strand, das Land (die Insel folgt der Gestalt der Welt) und die Bäume. */
-    g.fillStyle = rgbCss(pal.water);
+    /* Das Wasser, der Strand, das Land (die Insel folgt der Gestalt der Welt) und die Bäume — bei gewähltem Ziel grau. */
+    const fx = focus;
+    const neutral = mix(pal.surface, pal.ink, 0.12);
+    const calm = (c: Rgb, k: number): Rgb => (fx === null ? c : mix(c, neutral, k));
+    const land = calm(pal.land, 0.55);
+    g.fillStyle = rgbCss(calm(pal.water, 0.5));
     g.fillRect(x0, y0, x1 - x0, y1 - y0);
-    g.fillStyle = rgbCss(pal.sand);
+    g.fillStyle = rgbCss(calm(pal.sand, 0.55));
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
-    g.fillStyle = rgbCss(pal.land);
+    g.fillStyle = rgbCss(land);
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
     /* Bäume: nah stehen sie aufrecht (im Bild, mit den Säulen); auf dem Boden nur ihr Schatten — fern die flache Krone. */
     const flat = v.s * TREE_SIZE < TREE_UPRIGHT;
     for (const [tx, ty, ts] of island.trees) {
-      g.fillStyle = rgbCss(mix(pal.treeShade, pal.land, flat ? 0 : 0.45));
+      g.fillStyle = rgbCss(calm(mix(pal.treeShade, pal.land, flat ? 0 : 0.45), 0.6));
       g.beginPath(); g.ellipse(tx + ts * 0.35, ty + ts * 0.3, ts, ts * 0.8, 0, 0, Math.PI * 2); g.fill();
       if (!flat) continue;
-      g.fillStyle = rgbCss(pal.tree);
+      g.fillStyle = rgbCss(calm(pal.tree, 0.6));
       g.beginPath(); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); g.fill();
     }
     /* Scheiben der Blöcke, knapp über dem Boden. */
@@ -443,18 +460,39 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     */
     g.lineCap = 'round'; g.lineJoin = 'round';
     const path = (pts: readonly number[]) => { g.beginPath(); for (let i = 0; i < pts.length; i += 2) { if (i === 0) g.moveTo(pts[0], pts[1]); else g.lineTo(pts[i], pts[i + 1]); } };
-    const quiet = scene.lanes.filter((l) => l.state !== 'grow' && !(l.deep && !deep));
-    const grow = scene.lanes.filter((l) => l.state === 'grow' && !(l.deep && !deep));
+    /* Kräftig: was die Kenntnis weiterbringt — bei gewähltem Ziel: was auf dem Weg noch zu gehen ist. */
+    const strong = (l: SceneLane) => (fx !== null ? fx.remaining.has(l.section) : l.state === 'grow');
+    const quiet = scene.lanes.filter((l) => !strong(l) && !(l.deep && !deep));
+    const grow = scene.lanes.filter((l) => strong(l) && !(l.deep && !deep));
+    /* Die Richtung jeder Spur: ein kleiner Winkel kurz vor ihrem Ende (wohin man geht). */
+    const chevron = (pts: readonly number[], at: number, size: number, width: number) => {
+      const m = along(pts, at);
+      g.beginPath();
+      g.moveTo(m.x - Math.cos(m.a) * size - Math.sin(m.a) * size, m.y - Math.sin(m.a) * size + Math.cos(m.a) * size);
+      g.lineTo(m.x + Math.cos(m.a) * size * 0.8, m.y + Math.sin(m.a) * size * 0.8);
+      g.lineTo(m.x - Math.cos(m.a) * size + Math.sin(m.a) * size, m.y - Math.sin(m.a) * size - Math.cos(m.a) * size);
+      g.lineWidth = width;
+      g.stroke();
+    };
     for (const lane of quiet) {
       const pts = withRims(lane, pillarWidth);
+      if (fx !== null && greySection(fx, lane.section)) {
+        g.strokeStyle = rgbCss(mix(neutral, land, 0.35));
+        g.lineWidth = 1 * px;
+        path(pts);
+        g.stroke();
+        continue;
+      }
       const grey = mix(pal.ink, pal.land, 0.5);
-      g.strokeStyle = rgbCss(lane.state === 'travelled' ? mix(lane.color, pal.land, 0.5) : lane.state === 'idle' ? mix(mix(lane.color, grey, 0.6), pal.land, 0.55) : mix(lane.color, pal.land, 0.62));
-      g.lineWidth = (lane.state === 'travelled' ? 1.8 : 1.2) * px;
-      g.setLineDash(lane.state === 'locked' ? [3 * px, 5 * px] : []);
+      const done = fx !== null && fx.done.has(lane.section);
+      g.strokeStyle = rgbCss(done ? mix(lane.color, land, 0.5) : lane.state === 'travelled' ? mix(lane.color, pal.land, 0.5) : lane.state === 'idle' ? mix(mix(lane.color, grey, 0.6), pal.land, 0.55) : mix(lane.color, pal.land, 0.62));
+      g.lineWidth = (done ? 1.5 : lane.state === 'travelled' ? 1.8 : 1.2) * px;
+      g.setLineDash(!done && lane.state === 'locked' ? [3 * px, 5 * px] : []);
       path(pts);
       g.stroke();
       g.setLineDash([]);
-      if (lane.state === 'locked' && lane.symbol !== null && v.s >= LOCKS_FROM) {
+      chevron(pts, 0.82, 3 * px, 1.1 * px);
+      if (!done && lane.state === 'locked' && lane.symbol !== null && v.s >= LOCKS_FROM) {
         const at = along(pts, 0.2);
         drawLock(g, at.x, at.y, 4.5 * px, lane.symbol, rgbCss(mix(lane.color, pal.land, 0.3)), rgbCss(pal.land));
       }
@@ -466,15 +504,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.lineWidth = 3.2 * px;
       path(pts);
       g.stroke();
-      /* Die Richtung in der Mitte. */
-      const m = along(pts, 0.55);
-      const al = 4.5 * px;
-      g.beginPath();
-      g.moveTo(m.x - Math.cos(m.a) * al - Math.sin(m.a) * al, m.y - Math.sin(m.a) * al + Math.cos(m.a) * al);
-      g.lineTo(m.x + Math.cos(m.a) * al * 0.8, m.y + Math.sin(m.a) * al * 0.8);
-      g.lineTo(m.x - Math.cos(m.a) * al + Math.sin(m.a) * al, m.y - Math.sin(m.a) * al - Math.cos(m.a) * al);
-      g.lineWidth = 1.8 * px;
-      g.stroke();
+      /* Die Richtung: in der Mitte und kurz vor dem Ende. */
+      chevron(pts, 0.55, 4.5 * px, 1.8 * px);
+      chevron(pts, 0.86, 3.5 * px, 1.4 * px);
       /* Tore: kleine Quadrate am gezeichneten Rand. */
       g.fillStyle = rgbCss(pal.casing);
       for (const [x, y] of [[pts[0], pts[1]], [pts[pts.length - 2], pts[pts.length - 1]]]) g.fillRect(x - 2.6 * px, y - 2.6 * px, 5.2 * px, 5.2 * px);
@@ -496,6 +528,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       einem Tor-Knoten oder zum gesperrten Turm. Gestrichelt, solange der verlangte Turm nicht erobert ist; am Ende ein Pfeil.
     */
     for (const lk of scene.links) {
+      /* Ohne Ziel nur die Tore der Gabelungen und Linien; die Voraussetzungen eines Turms zeigt die Karte, wenn er gewählt ist. */
+      if (fx === null ? lk.kind !== 'gate' : !fx.gates.has(lk.id)) continue;
       const [ax, ay] = lk.a, [bx, by] = lk.b;
       const d = Math.hypot(bx - ax, by - ay) || 1;
       const ux = (bx - ax) / d, uy = (by - ay) / d;
@@ -659,7 +693,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const Yt = Yb - hWorld * v.lift * v.s - (a.conquered ? 1.5 * v.lift * v.s : 0);
       if (Yt - ry > size.h + 40) continue;
       /* Die Farbe: Thema; der Stand nur als Sättigung; fern blasser, nie durchsichtig; eine Ansicht, die den Ort nicht meint: grau. */
-      const greyed = lit !== null && !lit.has(p.id);
+      const greyed = (lit !== null && !lit.has(p.id)) || (focus !== null && greyPlace(focus, p.id));
       /* In einer Ansicht steht, was sie meint, in voller Farbe und mit Rand (sonst ginge ein nie gesehener Ort im Grau unter). */
       const meant = lit !== null && !greyed;
       if (meant) litCount += 1;
@@ -838,8 +872,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const lenOf = (pts: readonly number[]) => { let s = 0; for (let i = 2; i < pts.length; i += 2) s += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]); return s; };
       const screenOf = (l: SceneLane) => { const pts = withRims(l, pillarWidth); const out: number[] = []; for (let i = 0; i < pts.length; i += 2) { const [sx, sy] = toScr(v, pts[i], pts[i + 1], 0); out.push(sx, sy); } return out; };
       /* 2026-11-10 (Eigentümer: „die Punkte immer, auf jedem Pfad") — jeder Pfad trägt seine Schritte; Namen nur die kräftigen und gezeigten. */
-      const every = scene.lanes.filter((l) => !(l.deep && !deepNow)).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; }).filter((x) => x.len >= 14);
-      const items = every.filter((x) => x.l.name !== '' && (x.l.state === 'grow' || x.on) && x.len >= 36)
+      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || focus.remaining.has(l.section))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; }).filter((x) => x.len >= 14);
+      const items = every.filter((x) => x.l.name !== '' && (focus !== null || x.l.state === 'grow' || x.on) && x.len >= 36)
         .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.l.state === 'grow') - Number(a.l.state === 'grow') || b.len - a.len);
       /*
         2026-11-10 (Eigentümer: „nicht als Text, sondern als Punkte auf dem Pfad") — DIE SCHRITTE AUF DEM PFAD: je Folie ein
@@ -933,7 +967,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const cx = at.x + nx * R0, cy = at.y + ny * R0;
         ctx.strokeStyle = rgbCss(lp.color); ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.arc(cx, cy, R0, 0, Math.PI * 2); ctx.stroke();
-        const n = Math.min(lp.marks.length, 9);
+        const n = v.s >= 1.2 || focus !== null ? Math.min(lp.marks.length, 9) : 0;
         const a0 = Math.atan2(-ny, -nx);
         for (let k = 0; k < n; k += 1) {
           const i = n === lp.marks.length ? k : Math.round((k * (lp.marks.length - 1)) / Math.max(1, n - 1));
@@ -969,7 +1003,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.stroke();
         boxes.push({ x0: x - r - 2, y0: y - r - 2, x1: x + r + 2, y1: y + r + 2 });
         junctionCount += 1;
-        const onWay = chosen === j.id || j.ways.some((w) => route0.has(w.section)) || v.s >= 1.6;
+        const onWay = focus !== null ? focus.nodes.has(j.id) : chosen === j.id || j.ways.some((w) => route0.has(w.section)) || v.s >= 1.6;
+        if (focus !== null && !focus.nodes.has(j.id)) continue;
         if (!onWay) continue;
         const ways = j.kind === 'fork' ? t('cogitaWorld.map.junctionWays', { count: j.ways.length }) : t('cogitaWorld.map.junctionGate', { count: scene.links.filter((lk) => lk.to === j.id).length + 1 });
         const text = j.kind === 'fork' && j.before.slides > 0 ? `${t('cogitaWorld.map.junctionBefore', { count: j.before.slides })} ${ways}` : ways.charAt(0).toLocaleUpperCase() + ways.slice(1);
@@ -987,7 +1022,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       let nameCount = 0;
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
+      /* 2026-11-10 (Eigentümer: „nur, was nötig ist") — der Name einer Erzählung steht einmal, an ihrem längsten Stück. */
+      const named = new Set<string>();
       for (const { l, sp, len, on } of items) {
+        if (named.has(l.line)) continue;
         /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
         const text = fitText(ctx, l.name, Math.min(260, Math.max(len * 0.9, 160)));
         const w = ctx.measureText(text).width;
@@ -1027,6 +1065,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, 0);
         ctx.restore();
         nameCount += 1;
+        named.add(l.line);
       }
       canvas.dataset.wmPathNames = String(nameCount);
     }
@@ -1046,7 +1085,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmPlaying = play === null ? '' : String(play.pb.id);
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);

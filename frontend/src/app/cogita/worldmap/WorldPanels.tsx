@@ -253,9 +253,10 @@ function RequiredList({ id, ctx }: { id: string; ctx: PanelCtx }) {
   const list = requiredTowers(state, id);
   const missing = list.filter((x) => x.state !== 'done').length;
   if (missing === 0) return null;
+  /* 2026-11-10 (Eigentümer: „nur, was nötig ist; was nicht immer nötig ist, hinter einen Knopf") — die Zahl, die Liste aufklappbar. */
   return (
-    <div className="cg-wm-req" data-world-required={missing}>
-      <p className="cg-wm-meta">{t('cogitaWorld.panel.requiresFirst', { count: missing })}</p>
+    <details className="cg-wm-req" data-world-required={missing}>
+      <summary className="cg-wm-meta">{t('cogitaWorld.panel.requiresFirst', { count: missing })}</summary>
       <ul className="cg-wm-rows">
         {list.map((x) => (
           <li key={x.id} className={`cg-wm-row is-${x.state}`} data-world-required-tower={x.id} data-world-required-state={x.state}>
@@ -264,7 +265,7 @@ function RequiredList({ id, ctx }: { id: string; ctx: PanelCtx }) {
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -338,7 +339,7 @@ export function JunctionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx;
 /** Wie viele Orte der Reihenfolge das Feld zeigt (der Rest als Zahl). */
 const ORDER_SHOWN = 6;
 
-export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettings, goal = null, worlds = null, way = null }: {
+export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goal = null, worlds = null, way = null }: {
   id: string;
   ctx: PanelCtx;
   levels: ReadonlyMap<string, LevelProgress>;
@@ -379,7 +380,6 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   const due = ps.conquered ? dueOf(state, id) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
-  const rule = gate.kind === 'ready' ? rules[gate.level - 1] : undefined;
   return (
     <section className="cg-wm-panel" data-world-panel="place" data-world-place={id} data-world-gate={gate.kind} data-world-conquered={ps.conquered ? '1' : '0'} data-world-level={ps.level}>
       <PanelTop t={t} onClose={onClose} title={place.label} />
@@ -419,19 +419,16 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
                 <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level}>{t('cogitaWorld.panel.conquerNow')}</button>
                 <span className="cg-wm-meta" data-world-run-unseen={unseen.length}>
                   {unseen.length > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen.length, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length })}
-                  {rule !== undefined ? ` · ${t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}` : ''}
                 </span>
               </div>
               {prepare.length > 0 && (
                 <div className="cg-wm-way1">
                   <button type="button" className="wk-btn wk-btn-line" onClick={() => act.learn(prepare, place.label)} data-world-prepare={prepare.length}>{t('cogitaWorld.panel.prepareN', { count: prepare.length })}</button>
-                  <span className="cg-wm-meta">{t('cogitaWorld.panel.prepareSays')}</span>
                 </div>
               )}
               {storyUnseen.length > 0 && (
                 <div className="cg-wm-way1">
-                  <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.exploreFirst')}</button>
-                  <span className="cg-wm-meta">{t('cogitaWorld.panel.exploreSays', { count: storyUnseen.length })}</span>
+                  <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id} title={t('cogitaWorld.panel.exploreSays', { count: storyUnseen.length })}>{t('cogitaWorld.panel.exploreFirst')}</button>
                 </div>
               )}
             </div>

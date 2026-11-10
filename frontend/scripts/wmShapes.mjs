@@ -166,6 +166,30 @@ export function shapes(F) {
       w.story('f/m', { unit: 'u/m' }, (b) => w.stop(b, 'M'));
       return w.input();
     },
+    /** Eine Gabelung, deren Zweige sich an einem gemeinsamen Turm wieder treffen (A → X | Y → M). */
+    rejoin() {
+      const w = world();
+      w.tower('A'); w.tower('X', 2, ['A']); w.tower('Y', 2, ['A']); w.tower('M', 3, ['X']);
+      w.unit('u/1');
+      const ids = {};
+      w.story('f/1', { unit: 'u/1' }, (b) => {
+        w.stop(b, 'A'); w.ways(b, 1);
+        ids.fork = b.choice([{ label: 'X' }, { label: 'Y' }], [(x) => w.stop(x, 'X'), (x) => w.stop(x, 'Y')]);
+        w.stop(b, 'M');
+      });
+      return { input: w.input(), ids };
+    },
+    /** Zwei Wege zu Z: einer über seine Voraussetzung P, einer über einen Turm U, den Z nicht verlangt. */
+    alternative() {
+      const w = world();
+      w.tower('P'); w.tower('U'); w.tower('Z', 3, ['P']);
+      w.unit('u/p'); w.unit('u/u'); w.unit('u/pz', ['P']); w.unit('u/uz', ['U']);
+      w.story('f/p', { unit: 'u/p' }, (b) => w.stop(b, 'P'));
+      w.story('f/u', { unit: 'u/u' }, (b) => w.stop(b, 'U'));
+      w.story('f/pz', { unit: 'u/pz' }, (b) => { w.ways(b, 3); w.stop(b, 'Z'); });
+      w.story('f/uz', { unit: 'u/uz' }, (b) => { w.ways(b, 1); w.stop(b, 'Z'); });
+      return w.input();
+    },
     /** Eine Kette von Voraussetzungen über verschiedene Erzählungen: Z verlangt R1 und R2, R2 verlangt R1; keine Erzählung führt direkt. */
     prerequisites() {
       const w = world();

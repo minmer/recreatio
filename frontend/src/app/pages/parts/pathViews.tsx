@@ -135,11 +135,11 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   const stageOf = (id: string) => { const f = stories.get(id); return f === undefined ? null : storyStage(f, told.get(f.id)); };
   const openStory = (flow: Flow, review: boolean) => {
     if (flow.presentation !== undefined) {
-      const scene = review ? reviewStart(flow) : '';
+      const scene = review ? reviewStart(flow, told.get(flow.id)?.visited) : '';
       window.location.hash = `#/${flow.presentation}${scene === '' ? '' : `?scena=${encodeURIComponent(scene)}`}`;
       return;
     }
-    setStory({ flow, jump: review ? { step: reviewStart(flow), at: Date.now() } : null });
+    setStory({ flow, jump: review ? { step: reviewStart(flow, told.get(flow.id)?.visited), at: Date.now() } : null });
   };
 
   if (lib == null || cg === null) {

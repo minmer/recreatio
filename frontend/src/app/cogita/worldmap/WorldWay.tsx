@@ -8,7 +8,7 @@
  * </code>
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { stepAction, stepMeta, stepText, type PanelCtx } from './WorldPanels';
 import { stepKey, type Timetable } from './wmNav';
@@ -86,17 +86,47 @@ export function WayPreview({ plan, ctx }: { plan: Plan; ctx: PanelCtx }) {
   if (plan.steps.length < 2) return null;
   const SHOWN = 7;
   const parts = plan.steps.slice(0, SHOWN).map((step, i) => ({ step, state: (i === 0 ? 'current' : 'next') as PartState }));
+  /* 2026-11-10 (Eigentümer: „was nicht immer nötig ist, hinter einen Knopf") — die Karte zeigt den Weg schon; die Teile aufklappbar. */
   return (
-    <div className="cg-wm-waybox" data-world-way-preview={plan.steps.length}>
-      <p className="cg-wm-h">{ctx.t('cogitaWorld.way.preview', { count: plan.steps.length })}</p>
-      <p className="cg-wm-meta">{countLine(plan.steps, ctx)}</p>
+    <details className="cg-wm-waybox" data-world-way-preview={plan.steps.length}>
+      <summary className="cg-wm-meta">{ctx.t('cogitaWorld.way.preview', { count: plan.steps.length })} · {countLine(plan.steps, ctx)}</summary>
       <WayChain parts={parts} ctx={ctx} target={plan.target} more={Math.max(0, plan.steps.length - SHOWN)} />
-    </div>
+    </details>
   );
 }
 
-/** Im Vollbild: der Weg und die Einladung zum nächsten Teil. */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare }: {
+/** Wie lange der Weg nach einem Teil wartet, bevor der nächste von selbst beginnt (Sekunden). */
+export const NEXT_AUTO_S = 6;
+
+/**
+ * 2026-11-10 (Eigentümer: „Prowadź mnie tutaj ist ein geführter Ablauf: nach jedem Teil geht es von selbst mit dem nächsten
+ * weiter") — DER NÄCHSTE TEIL VON SELBST: nach `seconds` Sekunden, ausser man berührt etwas (eine Taste, ein Rad).
+ */
+export function useAutoGo(on: boolean, seconds: number, go: () => void): number | null {
+  const [left, setLeft] = useState<number | null>(on ? seconds : null);
+  const goRef = useRef(go);
+  goRef.current = go;
+  const counting = left !== null;
+  useEffect(() => {
+    if (!counting) return undefined;
+    const stop = () => setLeft(null);
+    const id = window.setInterval(() => { if (!document.hidden) setLeft((x) => (x === null ? null : x - 1)); }, 1000);
+    window.addEventListener('pointerdown', stop, true);
+    window.addEventListener('keydown', stop, true);
+    window.addEventListener('wheel', stop, true);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('pointerdown', stop, true);
+      window.removeEventListener('keydown', stop, true);
+      window.removeEventListener('wheel', stop, true);
+    };
+  }, [counting]);
+  useEffect(() => { if (left !== null && left <= 0) { setLeft(null); goRef.current(); } }, [left]);
+  return left;
+}
+
+/** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -107,8 +137,12 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare }
   onEnd: () => void;
   /** 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man noch nicht kann. */
   onPrepare?: (step: PlanStep) => void;
+  /** Eben ging ein Teil zu Ende: der nächste beginnt von selbst (nicht an einem Turm — dort wählt man —, nicht am Ziel). */
+  auto?: boolean;
 }) {
   const { t, nameOf } = ctx;
+  const first = tt.upcoming[0];
+  const left = useAutoGo(auto && ctx.canLearn && first !== undefined && first.kind !== 'run', NEXT_AUTO_S, () => { if (first !== undefined) onGo(first); });
   const all = tt.done.length + tt.upcoming.length;
   const parts = [
     ...tt.done.map((step) => ({ step, state: (just.has(stepKey(step)) ? 'just' : 'done') as PartState })),
@@ -142,6 +176,12 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare }
           <div className="wk-actions">
             {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
             {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
+            {left !== null && (
+              <p className="cg-fin-auto" role="timer" aria-live="off" data-world-next-auto={left}>
+                <span className="cg-fin-autobar" ref={(el) => { el?.style.setProperty('--auto-s', `${NEXT_AUTO_S}s`); }} aria-hidden="true" />
+                {t('cogitaWorld.finish.autoGo', { s: left })}
+              </p>
+            )}
             <button type="button" className="wk-link-btn" onClick={onMap} data-world-next-map="">{t('cogitaWorld.way.toMap')}</button>
             <button type="button" className="wk-link-btn" onClick={onEnd} data-world-next-stop="">{t('cogitaWorld.nav.end')}</button>
           </div>

@@ -127,6 +127,48 @@ export function geometryOf(input: GeometryInput): Geometry {
     });
   }
 
+  /*
+    2026-11-10 (Eigentümer: „eine Gabelung liegt nah bei dem Ort, dem sie folgt, zwischen ihm und den Orten ihrer Zweige — nicht
+    am Rand, nicht hinter dem Ausgangsturm, nicht auf einer anderen Spur") — DIE LAGE EINES KNOTENS nach Regel: auf der Strecke
+    vom Ausgang zur Mitte seiner Ziele, ein Stück vom Ausgang entfernt (ein Bruchteil des Abstands zum nächsten Ziel), dann von
+    anderen Türmen weggedreht. Ein Knoten nach einem Knoten folgt dessen Lage.
+  */
+  const into = new Map<string, string>();
+  const outs = new Map<string, string[]>();
+  for (const [a, b] of input.sections) {
+    if (a === b) continue;
+    if (junctions.has(b) && !into.has(b)) into.set(b, node(a));
+    if (junctions.has(a)) { const l = outs.get(a) ?? []; l.push(node(b)); outs.set(a, l); }
+  }
+  const placedJ = new Set<string>();
+  const order = [...junctions].sort();
+  for (let pass = 0; pass < 4 && placedJ.size < order.length; pass += 1) {
+    for (const id of order) {
+      if (placedJ.has(id)) continue;
+      const from = into.get(id);
+      if (from !== undefined && junctions.has(from) && !placedJ.has(from) && pass < 3) continue;
+      const o = from === undefined ? undefined : positions[from];
+      const targets = (outs.get(id) ?? []).map((t) => positions[t]).filter((p): p is readonly [number, number] => p !== undefined);
+      if (o === undefined || targets.length === 0) { placedJ.add(id); continue; }
+      const cx = targets.reduce((s, p) => s + p[0], 0) / targets.length, cy = targets.reduce((s, p) => s + p[1], 0) / targets.length;
+      const near = Math.min(...targets.map((p) => Math.hypot(p[0] - o[0], p[1] - o[1])));
+      const ro = from === undefined ? R : radii[from] ?? R;
+      const dist = Math.max(ro + JUNCTION_R + 0.5 * R, Math.min(0.4 * near, ro + 2.2 * R));
+      const base = Math.atan2(cy - o[1], cx - o[0]);
+      /* Weggedreht (±15°-Schritte), bis kein anderer Turm den Knoten berührt. */
+      let best: [number, number] = [o[0] + Math.cos(base) * dist, o[1] + Math.sin(base) * dist];
+      for (let k = 0; k < 9; k += 1) {
+        const turn = (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 12);
+        const x = o[0] + Math.cos(base + turn) * dist, y = o[1] + Math.sin(base + turn) * dist;
+        const clear = layoutNodes.every((n) => n.id === id || n.id === from || junctions.has(n.id) || Math.hypot(positions[n.id][0] - x, positions[n.id][1] - y) >= n.r + JUNCTION_R + 0.5 * R);
+        if (clear) { best = [x, y]; break; }
+      }
+      positions[id] = [Math.round(best[0] * 10) / 10, Math.round(best[1] * 10) / 10];
+      nodes[id] = positions[id];
+      placedJ.add(id);
+    }
+  }
+
   const t1 = Date.now();
   const obstacles: Obstacle[] = layoutNodes.map((n) => ({ id: n.id, x: positions[n.id][0], y: positions[n.id][1], r: n.r }));
   const routed = routeTracks(obstacles, [...trackPairs.values()], (a, b) => bundle.get(key(a, b))?.size ?? 1);
