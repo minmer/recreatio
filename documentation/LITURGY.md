@@ -1,6 +1,6 @@
 # Liturgical Library
 
-Liturgia is a parallel collection **inside Library**, alongside source/book collections. It is not a book, a separate application, or a Cogita knowledge base. Create it at **Library → New collection → Liturgia**. The collection uses the current account, area permissions, encryption, and versioned Library entry store.
+Liturgia is a parallel collection **inside Library**, alongside source/book collections. It is not a book, a separate application, or a Cogita knowledge base. Create it at **Library → New collection → Liturgia**; its **Settings** tab is the Library's own (name, who sees it, deleting the whole collection after typing its name). The collection uses the current account, area permissions, encryption, and versioned Library entry store.
 
 The implementation is a resource and composition system. It does **not** ship a complete approved Polish liturgical corpus or a reviewed calendar for every diocese. The supplied templates are structural drafts. Calendar coverage and incomplete compositions remain visible until the appropriate content and reviewed configuration have been imported.
 
