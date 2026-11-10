@@ -60,7 +60,7 @@ try {
     const t0 = Date.now();
     for (;;) {
       if (await ev(`Boolean(${expr})`)) return Date.now() - t0;
-      if (Date.now() - t0 > ms) throw new Error(`waited ${ms} ms for ${what}`);
+      if (Date.now() - t0 > ms) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`waited ${ms} ms for ${what}`); }
       await sleep(80);
     }
   };
@@ -88,7 +88,8 @@ try {
     const ok = await ev(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.scrollIntoView({ block: 'center' }); el.click(); return true; })()`);
     if (!ok) throw new Error(`no element ${selector}`);
   };
-  const ready = `(() => { const h = document.querySelector('[data-world-geometry]'); const c = document.querySelector('[data-world-canvas]'); return h && h.dataset.worldGeometry !== 'pending' && c && Number(c.dataset.wmFrame || 0) > 0; })()`;
+  /* Nach einem Teil mit Navigation steht erst der Weg da (2026-11-10): „Wróć do mapy" führt zur Karte. */
+  const ready = `(() => { const back = document.querySelector('[data-world-next-page] [data-world-next-map]'); if (back) back.click(); const h = document.querySelector('[data-world-geometry]'); const c = document.querySelector('[data-world-canvas]'); return h && h.dataset.worldGeometry !== 'pending' && c && Number(c.dataset.wmFrame || 0) > 0; })()`;
   const open = async (progress = 'none', author = false) => {
     await page.navigate(`${base}/preview.html?lang=pl`);
     await waitFor('typeof window.recreatioPreview === "object"', 'the preview');
@@ -198,6 +199,11 @@ try {
     const firstKind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     check(P, `"take me there" starts the first step at once (${firstKind})`, ['story', 'learn', 'run'].includes(firstKind), firstKind);
     if (firstKind === 'story') await click('[data-flow-close]'); else await click('[data-world-back]');
+    /* 2026-11-10 — nach jedem Teil: der Weg und die Einladung zum nächsten Teil; „Wróć do mapy" zeigt die Karte mit dem Fahrplan. */
+    await waitFor(`document.querySelector('[data-world-next-page] [data-world-next-invite]')`, 'the way with the invitation to the next part');
+    check(P, 'after a part: the way and the invitation to the next part', await ev(`document.querySelectorAll('[data-world-next-page] [data-world-way-part]').length >= 6 && document.querySelector('[data-world-next-go]') !== null`));
+    await shot('p3-next');
+    await click('[data-world-next-map]');
     await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation panel');
     const before = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), stops: [...p.querySelectorAll('[data-world-stop]')].map((s, i) => ({ i, key: s.dataset.worldStop, state: s.dataset.worldStopState, turns: Number(s.querySelector('[data-world-turns]')?.dataset.worldTurns ?? 0) })) }; })()`);
     check(P, 'the timetable lists every step, the current one first', before.steps >= 6 && before.stops[0].state === 'current', { steps: before.steps, stops: before.stops.map((s) => s.key) });
@@ -219,6 +225,7 @@ try {
     const kind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     if (kind === 'story') await click('[data-flow-close]');
     else await click('[data-world-back]');
+    await waitFor(`document.querySelector('[data-world-next-map]')`, 'the way after the part', 15000).then(() => click('[data-world-next-map]')).catch(() => null);
     await waitFor(`document.querySelector('[data-world-panel="nav"]')`, 'the navigation to be still there', 15000).catch(() => null);
     check(P, `the navigation persists within the session (after "${kind}")`, await ev(`document.querySelector('[data-world-panel="nav"]') !== null`));
   }
@@ -346,6 +353,8 @@ try {
     await shot('p6-goal');
     await click('[data-world-goal-clear]');
     await waitFor(`document.querySelector('[data-world-goal]') === null`, 'the goal to go');
+    /* Der Zeichner nimmt es mit dem nächsten Bild. */
+    await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmGoal ?? '') === ''`, 'the flag to go', 3000).catch(() => null);
     check(P, 'clearing the goal removes the line and the flag', (await canvas('wmGoal')) === '');
     /* Die Liste aller Orte (Tastatur): öffnen, einen wählen. */
     await ev(`(() => { const d = document.querySelector('[data-world-list]'); d.open = true; d.dispatchEvent(new Event('toggle')); d.scrollIntoView({ block: 'center' }); return true; })()`);

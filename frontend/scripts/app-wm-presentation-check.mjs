@@ -156,7 +156,8 @@ for (const theme of ['light', 'dark']) {
   const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
   check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
   const css = await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8');
-  check('full screen: the whole document; every part full size, a bar at the bottom switches map / route / points / slide-questions', [has(ls, 'root.requestFullscreen()'), has(ls, "const tabs: FullTab[] = ['map'"), has(ls, "if (running !== null) setFullTab('run')"), has(css, '.cg-wm-fullbar {'), has(css, '.cg-wm-fullview.is-page {')], [true, true, true, true, true]);
+  check('full screen: the whole document; every part full size, a bar at the bottom switches map / route / points / slide-questions', [has(ls, 'root.requestFullscreen()'), has(ls, "const tabs: FullTab[] = ['map'"), has(ls, "setFullTab('run');"), has(css, '.cg-wm-fullbar {'), has(css, '.cg-wm-fullview.is-page {')], [true, true, true, true, true]);
+  check('the way: after every part the next one is offered (full screen tab "next", the same page without full screen); a finish screen with numbers in full screen', [has(ls, "x === 'run' ? (tt !== null ? 'next' : 'map') : x"), has(ls, 'if (!full && askNext && tt !== null)'), has(ls, '<FinishShow'), has(css, '.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin)')], [true, true, true, true]);
 }
 
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */

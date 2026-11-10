@@ -218,7 +218,7 @@ export function SectionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx; 
 /** Wie viele Orte der Reihenfolge das Feld zeigt (der Rest als Zahl). */
 const ORDER_SHOWN = 6;
 
-export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettings, goal = null, worlds = null }: {
+export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettings, goal = null, worlds = null, way = null }: {
   id: string;
   ctx: PanelCtx;
   levels: ReadonlyMap<string, LevelProgress>;
@@ -231,6 +231,8 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   goal?: { readonly isGoal: boolean; readonly set: () => void; readonly clear: () => void } | null;
   /** Die Verweise dieses Ortes in andere Welten (`WorldsSection`) — nie eine Voraussetzung. */
   worlds?: ReactNode;
+  /** Der Weg hierher in Teilen, wenn der Ort nicht gleich erreichbar ist (`WayPreview`). */
+  way?: ReactNode;
 }) {
   const { state, t, act } = ctx;
   const place = state.world.places.get(id);
@@ -276,6 +278,7 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
             {rule !== undefined && <span className="cg-wm-meta">{t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}</span>}
           </div>
         ) : ctx.canLearn ? (
+          <>
           <div className="wk-actions">
             <button type="button" className="wk-btn" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button>
             {(L === 0 ? notKnown.length > 0 : unseen.length > 0) && (
@@ -284,6 +287,8 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
               </button>
             )}
           </div>
+          {way}
+          </>
         ) : <p className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: ps.missing })}</p>}
       </div>
       {ps.dot !== null && (
@@ -361,7 +366,7 @@ export function HomePanel({ ctx, onClose }: { ctx: PanelCtx; onClose: () => void
 
 /* -- Die Navigation: der Fahrplan ------------------------------------------------------------------------------------------- */
 
-function stepText(step: PlanStep, ctx: PanelCtx): string {
+export function stepText(step: PlanStep, ctx: PanelCtx): string {
   const { t, nameOf, state } = ctx;
   switch (step.kind) {
     case 'travel': {
@@ -370,12 +375,13 @@ function stepText(step: PlanStep, ctx: PanelCtx): string {
       return t('cogitaWorld.nav.travel', { line: lineOf(ctx, s)?.name ?? s.line, from: nameOf(s.from), to: nameOf(s.to) });
     }
     case 'learn': return t('cogitaWorld.nav.learn', { place: nameOf(step.place) });
+    case 'review': { const s = state.lines.sections.get(step.section); return t('cogitaWorld.nav.review', { to: nameOf(s?.to ?? step.place) }); }
     case 'run': return t('cogitaWorld.nav.run', { place: nameOf(step.place), level: step.level });
     case 'know': return t('cogitaWorld.nav.know', { place: nameOf(step.place) });
   }
 }
 
-function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRule[]): string {
+export function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRule[]): string {
   const { t, state } = ctx;
   switch (step.kind) {
     case 'travel': {
@@ -383,6 +389,7 @@ function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRule[]): s
       return [t('cogitaWorld.panel.newCards', { count: step.cards.length }), s === undefined ? '' : t('cogitaWorld.panel.slides', { count: s.slides }), step.locked ? t('cogitaWorld.nav.locked') : ''].filter((x) => x !== '').join(' · ');
     }
     case 'learn':
+    case 'review':
     case 'know': return t('cogitaWorld.panel.cards', { count: step.cards.length });
     case 'run': {
       const r = rules[step.level - 1];
@@ -393,7 +400,7 @@ function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRule[]): s
 }
 
 /** Was der jetzige Schritt tun lässt. */
-function stepAction(step: PlanStep, ctx: PanelCtx): string | null {
+export function stepAction(step: PlanStep, ctx: PanelCtx): string | null {
   const { t, state } = ctx;
   switch (step.kind) {
     case 'travel': {
@@ -402,6 +409,7 @@ function stepAction(step: PlanStep, ctx: PanelCtx): string | null {
     }
     case 'learn':
     case 'know': return t('cogitaWorld.panel.learnDirectlyN', { count: step.cards.length });
+    case 'review': return t('cogitaWorld.panel.reviewN', { count: step.cards.length });
     case 'run': return t('cogitaWorld.panel.startRun', { level: step.level });
   }
 }

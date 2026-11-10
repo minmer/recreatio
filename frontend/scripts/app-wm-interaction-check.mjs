@@ -24,12 +24,12 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-wm-interaction-'));
 const entries = {
   types: 'src/app/cogita/worldmap/wmTypes.ts', graph: 'src/app/cogita/worldmap/wmGraph.ts', lines: 'src/app/cogita/worldmap/wmLines.ts',
   state: 'src/app/cogita/worldmap/wmState.ts', plan: 'src/app/cogita/worldmap/wmPlan.ts', nav: 'src/app/cogita/worldmap/wmNav.ts',
-  authors: 'src/app/cogita/worldmap/wmAuthors.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', running: 'src/app/cogita/runningStory.ts'
+  authors: 'src/app/cogita/worldmap/wmAuthors.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', running: 'src/app/cogita/runningStory.ts', finish: 'src/app/cogita/worldmap/wmFinish.ts'
 };
 await build({ entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' }, define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) } });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [T, G, L, S, P, N, A, F, RS] = await Promise.all(Object.keys(entries).map(load));
+const [T, G, L, S, P, N, A, F, RS, FN] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -97,6 +97,13 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   const tt2 = N.followPlan(tt1, P.plan(st2, 'magone', { choices: new Map([['magone', 'f/L4:6']]) }));
   check('timetable: after learning, the travelled step counts as done', [tt2.done.map(N.stepKey), tt2.upcoming.some((s) => N.stepKey(s) === N.stepKey(first))], [[N.stepKey(first)], false]);
   check('timetable: a new target starts afresh', N.followPlan(tt2, P.plan(st2, 'savio')).done.length, 0);
+  /* 2026-11-10 — die Erzählung gelesen, ohne ihre Karten zu beantworten: der Weg geht weiter (dieselbe Fahrt nie noch einmal). */
+  const sec = lines.sections.get(first.section);
+  const lastStep = sec.steps[sec.steps.length - 1];
+  const st3 = S.stateOf(world, lines, F.fakeLearner({ knowness: known(world.order.filter((p) => !missing.includes(p))), progress: { [sec.line]: { visited: [...sec.steps] } } }), { levels: 0, knownShare: 1 });
+  const tt3 = N.followPlan(tt1, P.plan(st3, 'magone', { choices: new Map([['magone', 'f/L4:6']]) }));
+  check('way: a story read without answers is done; its cards are learned next, the ride is not offered again', [st3.sections.get(first.section).travelled, tt3.done.map(N.stepKey), tt3.upcoming.some((x) => N.stepKey(x) === N.stepKey(first)), tt3.upcoming.some((x) => x.kind === 'learn' && first.cards.every((k) => x.cards.includes(k)))], [true, [N.stepKey(first)], false, true]);
+  check('way: every part of the way has its own key (review before a ride by its section)', [N.stepKey({ kind: 'review', place: 'p', section: 's', cards: [] }), N.stepKey({ kind: 'run', place: 'p', level: 2, upTo: 3 })], ['review:s', 'run:p:2']);
   const w = P.timetableWindow(['d1', 'd2', 'd3'], ['c', 'n1', 'n2', 'n3', 'n4', 'n5', 'n6']);
   check('window: 2 done above, the current one, 4 below, the rest by scrolling', [w.done, w.current, w.next, w.hiddenAbove, w.hiddenBelow], [['d2', 'd3'], 'c', ['n1', 'n2', 'n3', 'n4'], 1, 2]);
   const marks = N.navMarks(tt1, lines);
@@ -151,11 +158,29 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   check('authors: Bosko-shape fixture without a track error', A.authorIssues(world, lines, { noRoute: [] }, null, world.order).filter((x) => x.level === 'error').length, 0);
 }
 
+/* -- Der Abschluss eines Teils (wmFinish): Zahlen und welche Animation ------------------------------------------------------ */
+{
+  const snap = { key: 'k', kind: 'run', title: 'X', at: 1000, bands: new Map([['a', 'unseen'], ['b', 'learning'], ['c', 'known']]), levels: new Map([['p', 0], ['q', 2]]),
+    conquered: new Set(['q']), perfect: new Set(), done: new Set(['travel:s1']), target: 'p', visited: 0 };
+  const now = (o = {}) => ({ band: (k) => (k === 'a' ? 'learning' : 'known'), level: (p) => (p === 'p' ? 2 : 2), conquered: () => false, perfect: () => false, done: new Set(['travel:s1', 'run:p:1']),
+    arrived: false, visited: 0, marks: [{ correctness: 1 }, { correctness: 0 }, { correctness: 1 }, { correctness: 1 }], points: 5, end: 61000, levels: 3, ...o });
+  const a = FN.finishStats(snap, now());
+  check('finish: answers, right, met, known, level jump, the parts just done', [a.answers, a.right, a.accuracy, a.met, a.known, a.level, a.just, a.ms, a.kind, a.worth], [4, 3, 0.75, 1, 1, { place: 'p', from: 0, to: 2, of: 3 }, ['run:p:1'], 60000, 'tower', true]);
+  check('finish: which animation — arrival, then perfect, then a conquest, else by the part', [
+    FN.finishStats(snap, now({ arrived: true, perfect: () => true })).kind, FN.finishStats(snap, now({ perfect: (p) => p === 'p' })).kind,
+    FN.finishStats(snap, now({ conquered: (p) => p === 'p' })).kind, FN.finishStats({ ...snap, kind: 'story' }, now()).kind, FN.finishStats({ ...snap, kind: 'cards' }, now()).kind
+  ], ['arrive', 'perfect', 'conquer', 'story', 'cards']);
+  const still = { band: (k) => snap.bands.get(k), level: (p) => snap.levels.get(p), conquered: (p) => snap.conquered.has(p), perfect: () => false, done: new Set(['travel:s1']), arrived: false, visited: 0, marks: [], points: 0, end: 2000, levels: 3 };
+  check('finish: nothing happened — no finish screen', FN.finishStats(snap, still).worth, false);
+  check('finish: cheer by the share of right answers', [FN.cheerOf(a), FN.cheerOf({ ...a, accuracy: 0.95 }), FN.cheerOf({ ...a, accuracy: 0.3 }), FN.cheerOf({ ...a, answers: 0 })], ['good', 'top', 'keep', 'read']);
+}
+
 /* -- Jede Art hat ihre Worte (die Schlüssel stehen im Code nur als Muster) ------------------------------------------------------ */
 {
   for (const lang of ['en', 'de', 'pl']) {
     const words = JSON.parse(await readFile(`src/locales/${lang}/cogitaWorld.json`, 'utf8'));
     check(`${lang}: a text for every issue code and level`, [T.ISSUE_CODES.filter((c) => words.issue?.[c] === undefined), ['error', 'warning', 'info'].filter((l) => words.issue?.level?.[l] === undefined)], [[], []]);
+    check(`${lang}: the way and the finish screen have their words`, [['travel', 'review', 'learn', 'run', 'know', 'target'].filter((k) => words.way?.kind?.[k] === undefined), ['arrive', 'perfect', 'conquer', 'level', 'run', 'story', 'cards'].filter((k) => words.finish?.[k] === undefined), ['top', 'good', 'keep', 'read'].filter((k) => words.finish?.cheer?.[k] === undefined)], [[], [], []]);
     check(`${lang}: the knowledge dot has words for all three states`, ['green', 'yellow', 'orange'].filter((d) => words.panel?.dot?.[d] === undefined), []);
   }
 }

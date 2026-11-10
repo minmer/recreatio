@@ -6,6 +6,7 @@
  *                ausserhalb, kommt er davor
  *   je Ort       1. seine Karten einführen: der billigste Abschnitt, der sie einführt (eine gewählte Abzweigung gilt), sonst
  *                   „direkt lernen"
+ *                   (verlangt die Fahrkarte Wiederholungen, steht davor ein eigener Teil „Powtórka" — 2026-11-10)
  *                2. EIN Durchgang bis zur letzten Stufe (er hebt um jede Stufe, deren Regel er erfüllt; ohne Abstand zwischen
  *                   den Stufen wartet nichts — 2026-11-09); ohne Stufen: die Karten lernen, bis sie sitzen
  *   Abzweigung   je Fahrt die anderen Abschnitte, die dieselben Karten einführen (Folien, neue Karten, Wirkung auf die Summe)
@@ -31,6 +32,8 @@ export interface Alternative {
 export type PlanStep =
   | { readonly kind: 'travel'; readonly place: string; readonly section: string; readonly cards: readonly string[]; readonly locked: boolean; readonly alternatives: readonly Alternative[] }
   | { readonly kind: 'learn'; readonly place: string; readonly cards: readonly string[] }
+  /** Die Wiederholungen, die die Fahrkarte eines Abschnitts verlangt — ein eigener Teil des Weges vor der Fahrt. */
+  | { readonly kind: 'review'; readonly place: string; readonly section: string; readonly cards: readonly string[] }
   /** Ein Durchgang ab Stufe `level`; gelingt er ganz, reicht er bis `upTo`. */
   | { readonly kind: 'run'; readonly place: string; readonly level: number; readonly upTo: number }
   | { readonly kind: 'know'; readonly place: string; readonly cards: readonly string[] };
@@ -52,6 +55,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const { world, lines } = state;
   const levels = state.settings.levels;
   const introduced = new Set<string>();
+  const reviewed = new Set<string>();
   const known = (k: string) => state.band(k) !== 'unseen' || introduced.has(k);
 
   const simCost = (s: Section): number => {
@@ -63,7 +67,12 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   };
   const candidates = (cards: readonly string[]): Section[] => {
     const ids = new Set(cards.flatMap((k) => lines.introducedBy.get(k) ?? []));
-    return [...ids].map((id) => lines.sections.get(id)!).filter((s) => Number.isFinite(state.sections.get(s.id)!.ticket.cost));
+    /*
+      2026-11-10 (Eigentümer: „nur ein Schritt wird gemacht") — ein schon befahrener Abschnitt wird nicht noch einmal angeboten:
+      wer die Erzählung gelesen hat, ohne ihre Karten zu beantworten, lernt sie als nächsten Teil direkt (sonst stünde dieselbe
+      Fahrt immer wieder als nächster Schritt da).
+    */
+    return [...ids].map((id) => lines.sections.get(id)!).filter((s) => { const st = state.sections.get(s.id)!; return Number.isFinite(st.ticket.cost) && !st.travelled; });
   };
   const best = (place: string, cards: readonly string[], list: Section[]): Section | null => {
     if (list.length === 0) return null;
@@ -126,6 +135,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       })).sort((a, b) => a.delta - b.delta || (a.section < b.section ? -1 : 1));
       const st = state.sections.get(s.id)!;
       const locked = st.ticket.missing.new.some((k) => !introduced.has(k)) || st.ticket.unknown;
+      const again = st.ticket.missing.review.filter((k) => !introduced.has(k) && !reviewed.has(k));
+      if (again.length > 0) { steps.push({ kind: 'review', place: p, section: s.id, cards: again }); for (const k of again) reviewed.add(k); }
       steps.push({ kind: 'travel', place: p, section: s.id, cards: covered, locked, alternatives });
       for (const k of s.introduces) introduced.add(k);
       if (covered.length === 0) break;

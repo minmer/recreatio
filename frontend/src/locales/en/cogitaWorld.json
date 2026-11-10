@@ -120,7 +120,8 @@
     "fullMap": "Map",
     "fullPath": "Route",
     "fullPoints": "Points",
-    "fullRun": "Slide / questions"
+    "fullRun": "Slide / questions",
+    "fullNext": "Next"
   },
   "panel": {
     "close": "Close",
@@ -209,7 +210,8 @@
     "end": "End navigation",
     "arrived": "You are there: {name}",
     "startHere": "Start here",
-    "runAll": "all right first time: straight to level {upTo}"
+    "runAll": "all right first time: straight to level {upTo}",
+    "review": "Review before the ride to {to}"
   },
   "issue": {
     "title": {
@@ -250,5 +252,71 @@
     "noRoute": "No track found — drawn as a straight line: {names}",
     "mislabelledRegion": "Colour area named after a topic that is not its centre: „{name}” (centre: {names}) — name it in the view",
     "unitMissing": "The story’s part does not exist: {names}"
+  },
+  "way": {
+    "kind": {
+      "travel": "Story",
+      "review": "Review",
+      "learn": "Learn",
+      "run": "Conquest",
+      "know": "Master",
+      "target": "Goal"
+    },
+    "count": {
+      "travel": {
+        "one": "{count} story",
+        "other": "{count} stories"
+      },
+      "review": {
+        "one": "{count} review",
+        "other": "{count} reviews"
+      },
+      "learn": {
+        "one": "{count} learning part",
+        "other": "{count} learning parts"
+      },
+      "run": {
+        "one": "{count} conquest",
+        "other": "{count} conquests"
+      }
+    },
+    "preview": {
+      "one": "The way here: {count} part",
+      "other": "The way here: {count} parts"
+    },
+    "title": "The way to {name}",
+    "finish": "Finish the way",
+    "toMap": "Back to the map",
+    "nextAfter": "Next on your way",
+    "nextPart": "First part",
+    "go": "Go on"
+  },
+  "finish": {
+    "arrive": "Goal reached!",
+    "perfect": "Masterly!",
+    "conquer": "Conquered: {names}",
+    "level": "Level {level} reached!",
+    "run": "Run finished",
+    "story": "Story read",
+    "cards": "Round finished",
+    "answers": "answers",
+    "right": "right",
+    "steps": "steps read",
+    "met": "new cards",
+    "known": "now known",
+    "levels": "levels",
+    "points": "points",
+    "time": "time {time}",
+    "showWay": "Show the way",
+    "parts": {
+      "one": "{count} part of the way done",
+      "other": "{count} parts of the way done"
+    },
+    "cheer": {
+      "top": "Excellent!",
+      "good": "Well done!",
+      "keep": "Every answer counts — keep going!",
+      "read": "One more step behind you"
+    }
   }
 }

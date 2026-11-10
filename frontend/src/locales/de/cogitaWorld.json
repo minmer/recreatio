@@ -120,7 +120,8 @@
     "fullMap": "Karte",
     "fullPath": "Route",
     "fullPoints": "Punkte",
-    "fullRun": "Folie / Fragen"
+    "fullRun": "Folie / Fragen",
+    "fullNext": "Weiter"
   },
   "panel": {
     "close": "Schließen",
@@ -209,7 +210,8 @@
     "end": "Navigation beenden",
     "arrived": "Du bist da: {name}",
     "startHere": "Hier beginnen",
-    "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}"
+    "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}",
+    "review": "Wiederholen vor der Fahrt nach {to}"
   },
   "issue": {
     "title": {
@@ -250,5 +252,71 @@
     "noRoute": "Kein Gleis gefunden — gerade gezogen: {names}",
     "mislabelledRegion": "Farbgebiet nach einem Thema benannt, das nicht seine Mitte ist: „{name}” (Mitte: {names}) — im Widok selbst benennen",
     "unitMissing": "Der Teil der Geschichte existiert nicht: {names}"
+  },
+  "way": {
+    "kind": {
+      "travel": "Erzählung",
+      "review": "Wiederholung",
+      "learn": "Lernen",
+      "run": "Eroberung",
+      "know": "Festigen",
+      "target": "Ziel"
+    },
+    "count": {
+      "travel": {
+        "one": "{count} Erzählung",
+        "other": "{count} Erzählungen"
+      },
+      "review": {
+        "one": "{count} Wiederholung",
+        "other": "{count} Wiederholungen"
+      },
+      "learn": {
+        "one": "{count} Lernteil",
+        "other": "{count} Lernteile"
+      },
+      "run": {
+        "one": "{count} Eroberung",
+        "other": "{count} Eroberungen"
+      }
+    },
+    "preview": {
+      "one": "Der Weg hierher: {count} Teil",
+      "other": "Der Weg hierher: {count} Teile"
+    },
+    "title": "Der Weg nach {name}",
+    "finish": "Weg beenden",
+    "toMap": "Zur Karte",
+    "nextAfter": "Als Nächstes auf deinem Weg",
+    "nextPart": "Erster Teil",
+    "go": "Weiter"
+  },
+  "finish": {
+    "arrive": "Ziel erreicht!",
+    "perfect": "Meisterhaft!",
+    "conquer": "Erobert: {names}",
+    "level": "Stufe {level} erreicht!",
+    "run": "Durchgang beendet",
+    "story": "Erzählung gelesen",
+    "cards": "Runde beendet",
+    "answers": "Antworten",
+    "right": "richtig",
+    "steps": "Schritte gelesen",
+    "met": "neue Karten",
+    "known": "jetzt gewusst",
+    "levels": "Stufen",
+    "points": "Punkte",
+    "time": "Zeit {time}",
+    "showWay": "Weg zeigen",
+    "parts": {
+      "one": "{count} Teil des Weges geschafft",
+      "other": "{count} Teile des Weges geschafft"
+    },
+    "cheer": {
+      "top": "Hervorragend!",
+      "good": "Gut gemacht!",
+      "keep": "Jede Antwort zählt — weiter so!",
+      "read": "Ein Schritt mehr geschafft"
+    }
   }
 }

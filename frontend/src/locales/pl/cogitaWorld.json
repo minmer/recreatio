@@ -136,7 +136,8 @@
     "fullMap": "Mapa",
     "fullPath": "Trasa",
     "fullPoints": "Punkty",
-    "fullRun": "Slajd / pytania"
+    "fullRun": "Slajd / pytania",
+    "fullNext": "Dalej"
   },
   "panel": {
     "close": "Zamknij",
@@ -237,7 +238,8 @@
     "end": "Zakończ nawigację",
     "arrived": "Jesteś na miejscu: {name}",
     "startHere": "Zacznij tutaj",
-    "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}"
+    "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}",
+    "review": "Powtórka przed jazdą do: {to}"
   },
   "issue": {
     "title": {
@@ -288,5 +290,83 @@
     "noRoute": "Nie znaleziono toru — narysowany prosto: {names}",
     "mislabelledRegion": "Obszar koloru nazwany od tematu, który nie jest jego środkiem: „{name}” (środek: {names}) — nadaj mu nazwę w widoku",
     "unitMissing": "Część opowieści nie istnieje: {names}"
+  },
+  "way": {
+    "kind": {
+      "travel": "Opowieść",
+      "review": "Powtórka",
+      "learn": "Nauka",
+      "run": "Zdobycie",
+      "know": "Utrwalenie",
+      "target": "Cel"
+    },
+    "count": {
+      "travel": {
+        "one": "{count} opowieść",
+        "few": "{count} opowieści",
+        "many": "{count} opowieści",
+        "other": "{count} opowieści"
+      },
+      "review": {
+        "one": "{count} powtórka",
+        "few": "{count} powtórki",
+        "many": "{count} powtórek",
+        "other": "{count} powtórki"
+      },
+      "learn": {
+        "one": "{count} nauka",
+        "few": "{count} nauki",
+        "many": "{count} nauk",
+        "other": "{count} nauki"
+      },
+      "run": {
+        "one": "{count} zdobycie",
+        "few": "{count} zdobycia",
+        "many": "{count} zdobyć",
+        "other": "{count} zdobycia"
+      }
+    },
+    "preview": {
+      "one": "Droga tutaj: {count} część",
+      "few": "Droga tutaj: {count} części",
+      "many": "Droga tutaj: {count} części",
+      "other": "Droga tutaj: {count} części"
+    },
+    "title": "Droga do: {name}",
+    "finish": "Zakończ drogę",
+    "toMap": "Wróć do mapy",
+    "nextAfter": "Dalej na twojej drodze",
+    "nextPart": "Pierwsza część",
+    "go": "Dalej"
+  },
+  "finish": {
+    "arrive": "Cel osiągnięty!",
+    "perfect": "Mistrzowsko!",
+    "conquer": "Zdobyte: {names}",
+    "level": "Poziom {level} osiągnięty!",
+    "run": "Przebieg zakończony",
+    "story": "Opowieść przeczytana",
+    "cards": "Runda zakończona",
+    "answers": "odpowiedzi",
+    "right": "trafność",
+    "steps": "przeczytane kroki",
+    "met": "nowe karty",
+    "known": "teraz opanowane",
+    "levels": "poziomy",
+    "points": "punkty",
+    "time": "czas {time}",
+    "showWay": "Pokaż drogę",
+    "parts": {
+      "one": "{count} część drogi za tobą",
+      "few": "{count} części drogi za tobą",
+      "many": "{count} części drogi za tobą",
+      "other": "{count} części drogi za tobą"
+    },
+    "cheer": {
+      "top": "Znakomicie!",
+      "good": "Dobra robota!",
+      "keep": "Każda odpowiedź się liczy — tak trzymaj!",
+      "read": "Kolejny krok za tobą"
+    }
   }
 }

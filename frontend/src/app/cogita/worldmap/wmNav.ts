@@ -22,7 +22,7 @@ export interface NavSession {
 
 /** Ein Schritt beim Namen (derselbe Schritt in zwei Plänen hat denselben Schlüssel). */
 export const stepKey = (s: PlanStep): string =>
-  s.kind === 'travel' ? `travel:${s.section}` : s.kind === 'run' ? `run:${s.place}:${s.level}` : `${s.kind}:${s.place}`;
+  s.kind === 'travel' ? `travel:${s.section}` : s.kind === 'review' ? `review:${s.section}` : s.kind === 'run' ? `run:${s.place}:${s.level}` : `${s.kind}:${s.place}`;
 
 export interface Timetable {
   readonly target: string;
