@@ -129,7 +129,10 @@
     "fullPath": "Path",
     "fullPoints": "Points",
     "fullRun": "Slide / questions",
-    "fullNext": "Next"
+    "fullNext": "Next",
+    "pageOn": "Full page",
+    "fullSays": "The whole screen — Esc goes back to the full page",
+    "pageSays": "The map fills the browser window; Esc closes it"
   },
   "panel": {
     "close": "Close",
@@ -305,7 +308,8 @@
     "toMap": "Back to the map",
     "nextAfter": "Next on your way",
     "nextPart": "First part",
-    "go": "Go on"
+    "go": "Go on",
+    "partOf": "Part {n} of {all}"
   },
   "finish": {
     "arrive": "Goal reached!",
@@ -333,7 +337,29 @@
       "good": "Well done!",
       "keep": "Every answer counts — keep going!",
       "read": "One more step behind you"
-    }
+    },
+    "follows": "What follows",
+    "fx": {
+      "conquer": "{name} conquered",
+      "level": "{name}: level {from} → {to}",
+      "opened": "Path open: {name}"
+    },
+    "why": {
+      "levels": "because its runs reached the top level ({of})",
+      "share": "because {pct} % of its cards are known now",
+      "level": "conquered at level {of}",
+      "tower": "it starts at {place}, which you have conquered",
+      "openLevel": "it starts at {place}, whose paths open at this level",
+      "entry": "you now know what it requires"
+    },
+    "show": "Show",
+    "more": {
+      "one": "+{count} more",
+      "other": "+{count} more"
+    },
+    "autoGo": "The next part starts in {s} s — touch to stay",
+    "autoMap": "Back to the map in {s} s — touch to stay",
+    "paused": "Paused — this part is not finished yet"
   },
   "home": {
     "repeatTitle": "Review everything",

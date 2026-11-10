@@ -26,7 +26,10 @@
 .cg-wm-top .cg-rw.is-strip { container-type: normal; flex: 0 1 auto; min-width: 0; }
 
 /* Vollbild (2026-11-10): nur die Karte; Werkzeuge und das Feld liegen über ihr. */
-.cg-wm-fullbtn { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 4; display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
+/* Zwei Arten (2026-11-10): der ganze Bildschirm oder die ganze Seite im Browser. */
+.cg-wm-fullbtns { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 4; display: flex; gap: var(--wk-space-1); }
+html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
+.cg-wm-fullbtn { display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
 .cg-wm-fullbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 .cg-wm-host.is-full { --cg-wm-bar: 3.2rem; position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) - 1); display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
 .cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin) { display: none; }
@@ -39,7 +42,31 @@
 .cg-wm-fullbar { position: absolute; left: 0; right: 0; bottom: 0; height: var(--cg-wm-bar); display: flex; align-items: stretch; gap: 1px; border-top: 1px solid var(--wk-line); background: var(--wk-line); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .cg-wm-fulltab { flex: 1 1 0; min-width: 0; border: 0; background: var(--wk-surface); color: var(--wk-ink-2); font: inherit; font-size: var(--wk-text-sm); font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 var(--wk-space-2); }
 .cg-wm-fulltab.is-on { color: var(--wk-ink); background: var(--wk-accent-soft); box-shadow: inset 0 3px 0 var(--wk-accent); }
-.cg-wm-fulltab.is-exit { flex: 0 0 auto; color: var(--wk-muted); }
+.cg-wm-fulltab.is-tool { flex: 0 0 auto; padding: 0 var(--wk-space-3); color: var(--wk-muted); }
+@media (max-width: 40rem) { .cg-wm-fulltab.is-tool > span, .cg-wm-fullbtn > span { display: none; } }
+/*
+  Wie ein Teil hereinkommt (2026-11-10, „das Ganze als Spiel, mit Animationen dazwischen"): in einen Teil des Weges hinein
+  wächst er aus der Mitte (zoom), aus ihm heraus steigt die Karte auf (rise), sonst gleitet er in der Richtung der Leiste.
+*/
+.cg-wm-fullview[data-enter='zoom'] { animation: cg-wm-in-zoom 420ms cubic-bezier(.2, .9, .3, 1) both; }
+.cg-wm-fullview[data-enter='rise'] { animation: cg-wm-in-rise 420ms ease-out both; }
+.cg-wm-fullview[data-enter='left'] { animation: cg-wm-in-left 320ms ease-out both; }
+.cg-wm-fullview[data-enter='right'] { animation: cg-wm-in-right 320ms ease-out both; }
+@keyframes cg-wm-in-zoom { from { transform: scale(0.86); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cg-wm-in-rise { from { transform: translateY(2.5rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cg-wm-in-left { from { transform: translateX(3rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cg-wm-in-right { from { transform: translateX(-3rem); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Oben im laufenden Teil des Weges: „Teil n von m", was es ist, und wie weit der Weg schon ist. */
+.cg-wm-partbanner { position: relative; display: flex; align-items: center; gap: var(--wk-space-2); max-width: 48rem; margin: 0 auto var(--wk-space-3); padding: var(--wk-space-2) var(--wk-space-3); overflow: hidden; border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); font-size: var(--wk-text-sm); animation: cg-wm-banner 520ms cubic-bezier(.2, 1.2, .4, 1) both; }
+.cg-wm-partn { font-weight: 700; white-space: nowrap; }
+.cg-wm-parttext { min-width: 0; overflow: hidden; color: var(--wk-ink-2); text-overflow: ellipsis; white-space: nowrap; }
+.cg-wm-partbar { position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; background: var(--wk-accent); transform-origin: left; transform: scaleX(var(--done, 0)); animation: cg-wm-partbar 900ms 300ms ease-out both; }
+@keyframes cg-wm-banner { from { transform: translateY(-1.2rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cg-wm-partbar { from { transform: scaleX(0); } }
+/* Die ganze Trasa (mit den Wahlen) unter „Dalej" — kein eigener Reiter mehr. */
+.cg-wm-allparts { max-width: 52rem; margin: var(--wk-space-4) auto 0; }
+.cg-wm-allparts > summary { cursor: pointer; color: var(--wk-ink-2); font-weight: 600; }
+.cg-wm-allparts[open] > summary { margin-bottom: var(--wk-space-2); }
 .cg-wm-fulltab:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
 .cg-wm-host.is-full .cg-wm-fullbtn { display: none; }
 .cg-wm-host.is-full .cg-wm-body { display: block; position: relative; height: 100%; }
@@ -212,6 +239,24 @@
 .cg-fin-nextlabel { display: inline-flex; justify-content: center; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .cg-fin-nexttext { font-weight: 700; }
 .cg-fin-actions { justify-content: center; margin-top: var(--wk-space-3); }
+/* Was daraus folgt — und warum (2026-11-10): nach den Zahlen, eins nach dem anderen. */
+.cg-fin-follows { margin-top: var(--wk-space-3); text-align: left; }
+.cg-fin-fhead { margin: 0 0 var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 700; }
+.cg-fin-follows > ul { display: flex; flex-direction: column; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; }
+.cg-fin-follow { display: flex; align-items: center; gap: var(--wk-space-2); padding: var(--wk-space-2); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); animation: cg-fin-slide 480ms cubic-bezier(.2, 1.2, .4, 1) both; animation-delay: calc(1.3s + var(--i, 0) * 260ms); }
+.cg-fin-follow.is-conquer { border-left-color: var(--wk-ok); }
+.cg-fin-follow.is-level { border-left-color: var(--wk-warn); }
+.cg-fin-ficon { display: grid; flex: 0 0 auto; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--wk-surface); animation: cg-wm-pop 500ms both; animation-delay: calc(1.5s + var(--i, 0) * 260ms); }
+.cg-fin-ftext { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.cg-fin-ftext > strong { font-size: var(--wk-text-sm); }
+.cg-fin-fwhy { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.cg-fin-fshow { flex: 0 0 auto; font-size: var(--wk-text-sm); }
+.cg-fin-fmore { margin: var(--wk-space-1) 0 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+@keyframes cg-fin-slide { from { transform: translateX(-1.5rem); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Von selbst weiter: der Balken läuft ab; eine Berührung hält ihn an. */
+.cg-fin-auto { position: relative; margin: var(--wk-space-2) 0 0; padding-top: 0.5rem; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-fin-autobar { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--wk-accent); transform-origin: left; animation: cg-fin-auto var(--auto-s, 9s) linear both; }
+@keyframes cg-fin-auto { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @keyframes cg-fin-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cg-fin-card { from { transform: translateY(2rem) scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes cg-fin-pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
@@ -274,7 +319,8 @@
 
 /* Weniger Bewegung („Animacje": ograniczone / wyłączone): gleich der Endstand, ohne Konfetti. */
 :root[data-motion='reduced'] .cg-wm-fin *, :root[data-motion='off'] .cg-wm-fin *, :root[data-motion='off'] .cg-wm-fin,
-:root[data-motion='reduced'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-invite { animation: none !important; }
+:root[data-motion='reduced'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-parts *, :root[data-motion='off'] .cg-wm-invite,
+:root[data-motion='reduced'] .cg-wm-fullview, :root[data-motion='off'] .cg-wm-fullview, :root[data-motion='off'] .cg-wm-partbanner, :root[data-motion='off'] .cg-wm-partbar { animation: none !important; }
 :root[data-motion='reduced'] .cg-fin-confetti, :root[data-motion='off'] .cg-fin-confetti { display: none; }
 :root[data-motion='reduced'] .cg-fin-burst, :root[data-motion='off'] .cg-fin-burst { opacity: 1; }
 

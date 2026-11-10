@@ -212,7 +212,7 @@ function Follow({ c, i, t, nameOf, sectionName, onShow }: {
   );
 }
 
-export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext, onWay, onClose, onShow, auto = true }: {
+export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext, onWay, onClose, onShow, auto = true, paused = false }: {
   stats: FinishStats;
   /** Was eben zu Ende ging (der Name des Teils). */
   title: string;
@@ -232,10 +232,13 @@ export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext,
    * Teil (oder ohne Weg die Karte, die dann zeigt, was sich änderte). Jede Berührung, Taste oder Rad hält es an. Nicht am Ziel.
    */
   auto?: boolean;
+  /** Der Teil des Weges ist nicht fertig (verlassen): „Pause", und es geht nicht von selbst weiter. */
+  paused?: boolean;
 }) {
   const s = stats;
   const kind = s.kind;
-  const head = kind === 'arrive' ? t('cogitaWorld.finish.arrive')
+  const head = paused ? t('cogitaWorld.finish.paused')
+    : kind === 'arrive' ? t('cogitaWorld.finish.arrive')
     : kind === 'perfect' ? t('cogitaWorld.finish.perfect')
       : kind === 'conquer' ? t('cogitaWorld.finish.conquer', { names: s.conquered.map(nameOf).join(', ') })
         : kind === 'tower' ? (s.level !== null ? t('cogitaWorld.finish.level', { level: s.level.to }) : t('cogitaWorld.finish.run'))
@@ -256,7 +259,7 @@ export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext,
   const primary = onNext ?? (onWay === null ? onClose : null);
   const primaryRef = useRef(primary);
   primaryRef.current = primary;
-  const [left, setLeft] = useState<number | null>(auto && primary !== null && kind !== 'arrive' ? AUTO_S : null);
+  const [left, setLeft] = useState<number | null>(auto && !paused && primary !== null && kind !== 'arrive' ? AUTO_S : null);
   const counting = left !== null;
   useEffect(() => {
     if (!counting) return undefined;

@@ -187,6 +187,13 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   ], ['arrive', 'perfect', 'conquer', 'story', 'cards']);
   const still = { band: (k) => snap.bands.get(k), level: (p) => snap.levels.get(p), conquered: (p) => snap.conquered.has(p), perfect: () => false, done: new Set(['travel:s1']), arrived: false, visited: 0, marks: [], points: 0, end: 2000, levels: 3 };
   check('finish: nothing happened — no finish screen', FN.finishStats(snap, still).worth, false);
+  /* Die Folgen mit Gründen: erobert (Regel), eine Stufe, Pfade, die sich öffneten — am eroberten Turm, auf einer Stufe (openAt), durch den Eintritt. */
+  const ways = new Map([['s-tower', { open: false, met: true }], ['s-level', { open: false, met: true }], ['s-entry', { open: true, met: false }], ['s-was', { open: true, met: true }], ['s-shut', { open: false, met: false }]]);
+  const wayNow = { 's-tower': { open: true, met: true, travelled: false }, 's-level': { open: true, met: true, travelled: false }, 's-entry': { open: true, met: true, travelled: false }, 's-was': { open: true, met: true, travelled: false }, 's-shut': { open: true, met: false, travelled: false } };
+  const fx = FN.finishStats({ ...snap, ways }, now({ conquered: (p) => p === 'q2', level: (p) => (p === 'p' ? 2 : p === 'q2' ? 3 : 2), way: (id) => wayNow[id], startOf: (id) => (id === 's-tower' ? 'q2' : 'p') }));
+  check('finish: what follows, with the reason — conquered by the rule, a level, paths opened (tower / level / entry); nothing for paths that were open or stay shut', fx.consequences.map((c) => [c.kind, c.place ?? c.section, c.why ?? `${c.from}>${c.to}`]), [['level', 'p', '0>2'], ['opened', 's-tower', 'tower'], ['opened', 's-level', 'level'], ['opened', 's-entry', 'entry']]);
+  const fx2 = FN.finishStats({ ...snap, levels: new Map([...snap.levels, ['q2', 1]]) }, now({ conquered: (p) => p === 'q2', level: (p) => (p === 'q2' ? 3 : 2), share: 0.8 }));
+  check('finish: a conquest says why (levels: the top one; without levels: the share)', [fx2.consequences[0], FN.finishStats({ ...snap, levels: new Map([['q2', 0]]) }, now({ conquered: () => true, level: () => 0, levels: 0, share: 0.8 })).consequences[0]], [{ kind: 'conquer', place: 'q2', why: 'levels', of: 3, share: 0.8 }, { kind: 'conquer', place: 'q2', why: 'share', of: 0, share: 0.8 }]);
   check('finish: cheer by the share of right answers', [FN.cheerOf(a), FN.cheerOf({ ...a, accuracy: 0.95 }), FN.cheerOf({ ...a, accuracy: 0.3 }), FN.cheerOf({ ...a, answers: 0 })], ['good', 'top', 'keep', 'read']);
 }
 

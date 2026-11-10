@@ -129,7 +129,10 @@
     "fullPath": "Weg",
     "fullPoints": "Punkte",
     "fullRun": "Folie / Fragen",
-    "fullNext": "Weiter"
+    "fullNext": "Weiter",
+    "pageOn": "Ganze Seite",
+    "fullSays": "Der ganze Bildschirm — Esc führt zurück zur ganzen Seite",
+    "pageSays": "Die Karte füllt das Fenster des Browsers; Esc schliesst sie"
   },
   "panel": {
     "close": "Schließen",
@@ -305,7 +308,8 @@
     "toMap": "Zur Karte",
     "nextAfter": "Als Nächstes auf deinem Weg",
     "nextPart": "Erster Teil",
-    "go": "Weiter"
+    "go": "Weiter",
+    "partOf": "Teil {n} von {all}"
   },
   "finish": {
     "arrive": "Ziel erreicht!",
@@ -333,7 +337,29 @@
       "good": "Gut gemacht!",
       "keep": "Jede Antwort zählt — weiter so!",
       "read": "Ein Schritt mehr geschafft"
-    }
+    },
+    "follows": "Was daraus folgt",
+    "fx": {
+      "conquer": "{name} erobert",
+      "level": "{name}: Stufe {from} → {to}",
+      "opened": "Pfad offen: {name}"
+    },
+    "why": {
+      "levels": "weil seine Durchgänge die oberste Stufe ({of}) erreicht haben",
+      "share": "weil jetzt {pct} % seiner Karten gekonnt sind",
+      "level": "erobert wird auf Stufe {of}",
+      "tower": "er beginnt bei {place} — schon erobert",
+      "openLevel": "er beginnt bei {place}, dessen Pfade sich auf dieser Stufe öffnen",
+      "entry": "du kannst jetzt, was er verlangt"
+    },
+    "show": "Zeigen",
+    "more": {
+      "one": "+{count} weitere",
+      "other": "+{count} weitere"
+    },
+    "autoGo": "Der nächste Teil beginnt in {s} s — berühren, um zu bleiben",
+    "autoMap": "Zurück zur Karte in {s} s — berühren, um zu bleiben",
+    "paused": "Pause — dieser Teil ist noch nicht fertig"
   },
   "home": {
     "repeatTitle": "Alles wiederholen",

@@ -858,7 +858,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           onNext={nextStep !== undefined && learner !== null ? () => { setFinished(null); go(nextStep); } : null}
           onWay={tt !== null ? () => { setFinished(null); setFullTab('next'); } : null}
           onClose={() => { setFinished(null); setFullTab('map'); }}
-          onShow={(kind, id) => { setFinished(null); setFullTab('map'); act.show(kind, id); }} />
+          onShow={(kind, id) => { setFinished(null); setFullTab('map'); act.show(kind, id); }}
+          paused={tt !== null && finStats.just.length === 0 && (finStats.kind === 'story' || finStats.kind === 'cards')} />
       )}
       <nav className="cg-wm-fullbar" aria-label={t('cogitaWorld.map.fullOn')} data-world-fullbar={tab}>
         {tabs.map((x) => (

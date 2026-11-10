@@ -145,7 +145,10 @@
     "fullPath": "Droga",
     "fullPoints": "Punkty",
     "fullRun": "Slajd / pytania",
-    "fullNext": "Dalej"
+    "fullNext": "Dalej",
+    "pageOn": "Cała strona",
+    "fullSays": "Cały ekran — Esc wraca do całej strony",
+    "pageSays": "Mapa wypełnia okno przeglądarki; Esc ją zamyka"
   },
   "panel": {
     "close": "Zamknij",
@@ -353,7 +356,8 @@
     "toMap": "Wróć do mapy",
     "nextAfter": "Dalej na twojej drodze",
     "nextPart": "Pierwsza część",
-    "go": "Dalej"
+    "go": "Dalej",
+    "partOf": "Część {n} z {all}"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",
@@ -383,7 +387,31 @@
       "good": "Dobra robota!",
       "keep": "Każda odpowiedź się liczy — tak trzymaj!",
       "read": "Kolejny krok za tobą"
-    }
+    },
+    "follows": "Co z tego wynika",
+    "fx": {
+      "conquer": "Zdobyte: {name}",
+      "level": "{name}: poziom {from} → {to}",
+      "opened": "Ścieżka otwarta: {name}"
+    },
+    "why": {
+      "levels": "bo przejścia osiągnęły najwyższy poziom ({of})",
+      "share": "bo znasz teraz {pct} % kart tego miejsca",
+      "level": "zdobycie na poziomie {of}",
+      "tower": "zaczyna się w miejscu {place}, które jest już zdobyte",
+      "openLevel": "zaczyna się w miejscu {place}, którego ścieżki otwierają się na tym poziomie",
+      "entry": "znasz już to, czego wymaga"
+    },
+    "show": "Pokaż",
+    "more": {
+      "one": "+{count} więcej",
+      "few": "+{count} więcej",
+      "many": "+{count} więcej",
+      "other": "+{count} więcej"
+    },
+    "autoGo": "Następna część za {s} s — dotknij, aby zostać",
+    "autoMap": "Powrót do mapy za {s} s — dotknij, aby zostać",
+    "paused": "Przerwa — ta część nie jest jeszcze skończona"
   },
   "home": {
     "repeatTitle": "Powtórka wszystkiego",
