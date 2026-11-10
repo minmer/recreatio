@@ -178,6 +178,8 @@ export interface PillarsProps {
   readonly onPickJunction?: (id: string) => void;
   /** Doppelklick (Doppeltippen) auf eine Säule: „Prowadź mnie tutaj". */
   readonly onLead?: (place: string) => void;
+  /** 2026-11-10 — Doppelklick auf freien Boden: die ganze Karte, ohne Weg (die Karte passt sich selbst ein). */
+  readonly onPlain?: () => void;
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
   readonly full?: boolean;
@@ -413,7 +415,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, onPlain, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -589,7 +591,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.stroke();
     };
     const toneColour = (tone: LaneStroke['tone']): Rgb => (tone === 'route' || tone === 'current' ? pal.lit
-      : tone === 'grey' ? mix(neutral, land, 0.35) : tone === 'done' ? mix(pal.ink, land, 0.62) : tone === 'locked' ? mix(pal.ink, land, 0.74)
+      : tone === 'grey' ? mix(neutral, land, 0.35) : tone === 'done' ? mix(pal.lit, land, 0.55) : tone === 'locked' ? mix(pal.ink, land, 0.74)
         : tone === 'known' ? mix(pal.ink, land, 0.5) : tone === 'walked' ? mix(pal.ink, land, 0.38) : mix(pal.ink, land, 0.28));
     const RANK: Readonly<Record<LaneStroke['tone'], number>> = { grey: 0, done: 1, locked: 1, known: 2, new: 3, walked: 3, route: 4, current: 5 };
     const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: laneStroke(l, fx), pts: withRims(l, pillarWidth) }))
@@ -621,31 +623,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.strokeStyle = rgbCss(mix(pal.ink, pal.land, on ? 0.35 : 0.85));
       g.lineWidth = (on ? 1.8 : 0.8) * px;
       g.beginPath(); g.arc(p.x, p.y, p.r * pillarWidth + 7, 0, Math.PI * 2); g.stroke();
-    }
-    /*
-      2026-11-10 (Eigentümer: „die grauen Linien der Voraussetzungen nicht in der gewöhnlichen Ansicht") — die Spuren verlangter
-      Türme zu ihren Toren nur, wenn ein Ziel gewählt ist und das Tor auf seinem Weg liegt. Gestrichelt, solange der verlangte
-      Turm nicht erobert ist; am Ende ein Pfeil. (Ein Zweig mit eigenem Tor trägt sonst sein Schloss mit dem Namen des Turms.)
-    */
-    for (const lk of scene.links) {
-      if (fx === null || !fx.gates.has(lk.id)) continue;
-      const [ax, ay] = lk.a, [bx, by] = lk.b;
-      const d = Math.hypot(bx - ax, by - ay) || 1;
-      const ux = (bx - ax) / d, uy = (by - ay) / d;
-      const sx = ax + ux * (lk.ra * pillarWidth + 3), sy = ay + uy * (lk.ra * pillarWidth + 3);
-      const ex = bx - ux * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4), ey = by - uy * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4);
-      const bend = lk.kind === 'gate' ? 0.1 : 0.16;
-      const mx = (sx + ex) / 2 - uy * d * bend, my = (sy + ey) / 2 + ux * d * bend;
-      g.strokeStyle = rgbCss(mix(pal.ink, pal.land, lk.met ? 0.55 : 0.3));
-      g.lineWidth = 1.3 * px;
-      g.setLineDash(lk.met ? [] : [4 * px, 3.5 * px]);
-      g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
-      g.setLineDash([]);
-      const aa = Math.atan2(ey - my, ex - mx);
-      const al = 5 * px;
-      g.beginPath();
-      g.moveTo(ex - Math.cos(aa - 0.45) * al, ey - Math.sin(aa - 0.45) * al); g.lineTo(ex, ey); g.lineTo(ex - Math.cos(aa + 0.45) * al, ey - Math.sin(aa + 0.45) * al);
-      g.stroke();
     }
     /* Das Haus: eine runde Platte. */
     if (scene.home !== null) {
@@ -924,6 +901,36 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
     }
     treesUpTo(Infinity);
+    /*
+      2026-11-10 (Eigentümer: „bei einem gewählten Weg graue Pfeile, woher das nötige Wissen kommt — nicht auf dem Boden, sondern als
+      Bogen in der Luft: das ist kein Weg, sondern eine Abhängigkeit") — von jedem verlangten Turm (Tor oder Voraussetzung auf dem Weg)
+      ein Bogen zum Tor, gestrichelt, solange er nicht erobert ist; am Ende ein Pfeil.
+    */
+    let arcs = 0;
+    if (focus !== null) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const lk of scene.links) {
+        if (!focus.gates.has(lk.id)) continue;
+        const [ax, ay] = lk.a, [bx, by] = lk.b;
+        const d = Math.hypot(bx - ax, by - ay) || 1;
+        const ux = (bx - ax) / d, uy = (by - ay) / d;
+        const ra = lk.ra * pillarWidth, rb = lk.rb > 10 ? lk.rb * pillarWidth : lk.rb;
+        const sx = ax + ux * ra, sy = ay + uy * ra, ex = bx - ux * rb, ey = by - uy * rb;
+        const H = Math.min(120, 0.35 * d + 20);
+        const pts: [number, number][] = [];
+        for (let q = 0; q <= 24; q += 1) { const u = q / 24; pts.push(toScr(v, sx + (ex - sx) * u, sy + (ey - sy) * u, H * Math.sin(Math.PI * u))); }
+        ctx.strokeStyle = rgbCss(mix(pal.ink, pal.surface, lk.met ? 0.6 : 0.4));
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash(lk.met ? [] : [5, 4]);
+        ctx.beginPath(); pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y))); ctx.stroke();
+        ctx.setLineDash([]);
+        const [x1, y1] = pts[pts.length - 1], [x0, y0] = pts[pts.length - 3];
+        const aa = Math.atan2(y1 - y0, x1 - x0);
+        ctx.beginPath(); ctx.moveTo(x1 - Math.cos(aa - 0.45) * 7, y1 - Math.sin(aa - 0.45) * 7); ctx.lineTo(x1, y1); ctx.lineTo(x1 - Math.cos(aa + 0.45) * 7, y1 - Math.sin(aa + 0.45) * 7); ctx.stroke();
+        arcs += 1;
+      }
+    }
+    canvas.dataset.wmArcs = String(arcs);
     discsRef.current = discsDrawn;
     canvas.dataset.wmDiscStripes = String(stripeCount);
     canvas.dataset.wmDiscNames = String(discNames);
@@ -1133,9 +1140,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         2026-11-10 (Eigentümer: „eine Gabelung ist ein eigener Punkt zwischen den Türmen") — DIE KNOTEN: eine Gabelung (Gabelzeichen)
         oder ein Tor (Bogen); am Weg und nah steht dabei, wie viele Folien vor ihr liegen und wie viele Wege von ihr ausgehen.
       */
-      const route0 = new Set(route ?? []);
       let junctionCount = 0;
-      const jLabels: { text: string; x: number; y: number }[] = [];
       for (const j of scene.junctions) {
         const [x, y] = toScr(v, j.x, j.y, 0);
         if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) continue;
@@ -1151,22 +1156,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.stroke();
         boxes.push({ x0: x - r - 2, y0: y - r - 2, x1: x + r + 2, y1: y + r + 2 });
         junctionCount += 1;
-        const onWay = focus !== null ? focus.nodes.has(j.id) : chosen === j.id || j.ways.some((w) => route0.has(w.section)) || v.s >= 1.6;
-        if (focus !== null && !focus.nodes.has(j.id)) continue;
-        if (!onWay) continue;
-        const ways = j.kind === 'fork' ? t('cogitaWorld.map.junctionWays', { count: j.ways.length }) : t('cogitaWorld.map.junctionGate', { count: scene.links.filter((lk) => lk.to === j.id).length + 1 });
-        const text = j.kind === 'fork' && j.before.slides > 0 ? `${t('cogitaWorld.map.junctionBefore', { count: j.before.slides })} ${ways}` : ways.charAt(0).toLocaleUpperCase() + ways.slice(1);
-        jLabels.push({ text, x, y: y - r - 9 });
       }
       canvas.dataset.wmJunctions = String(junctionCount);
-      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      for (const lb of jLabels) {
-        const w = ctx.measureText(lb.text).width;
-        ctx.lineWidth = 3.5; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(lb.text, lb.x, lb.y);
-        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(lb.text, lb.x, lb.y);
-        boxes.push({ x0: lb.x - w / 2 - 2, y0: lb.y - 8, x1: lb.x + w / 2 + 2, y1: lb.y + 8 });
-      }
-      canvas.dataset.wmJunctionLabels = String(jLabels.length);
       ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       let nameCount = 0;
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
@@ -1437,6 +1428,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (hitHome(p.x, p.y)) { onPickHome?.(); return; }
     const lane = hitLane(p.x, p.y);
     if (lane !== null) { onPickLane?.(lane); return; }
+    const now = performance.now();
+    const last = lastTap.current;
+    lastTap.current = { id: '~ground', at: now };
+    if (last !== null && last.id === '~ground' && now - last.at < 380) {
+      lastTap.current = null;
+      setTrail([]);
+      onPlain?.();
+      if (size.w > 0) { const c = camRef.current; const want = fitCam(size.w, size.h, c?.rot ?? -20, c?.fore ?? FORE_FIRST); glideTo(want.cx, want.cy, want.s); }
+      return;
+    }
     onPick?.(null);
     onHover?.(null, null);
   };

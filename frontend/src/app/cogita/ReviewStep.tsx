@@ -5,7 +5,7 @@
  * Geschichte).
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Card } from './cardBasics';
 import { CardFace, type CardStats } from './CardFace';
@@ -27,12 +27,21 @@ export function ReviewStep({ cards, known, threshold, W, onAnswer, onDone, stats
 }) {
   /* Was gefragt wird, steht beim Betreten fest (die Kenntnis ändert sich mit jeder Antwort). */
   const [plan] = useState(() => reviewPlan(cards, known));
-  const [at, setAt] = useState(-1);
+  /*
+    2026-11-10 (Eigentümer: „keine leeren Seiten, die nur sagen, dass die Wiederholung jetzt beginnt oder zu Ende ist") — die
+    Fragen beginnen sofort; ist die Runde zu Ende (oder gibt es nichts zu fragen), geht es gleich weiter.
+  */
+  const [at, setAt] = useState(0);
   const [right, setRight] = useState(0);
   const [answered, setAnswered] = useState(false);
   const pct = Math.round(threshold * 100);
   const done = at >= plan.pending.length;
   const result = reviewResult(plan, right, threshold);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const over = plan.pending.length === 0 || done;
+  const passed = (plan.pending.length === 0 ? reviewResult(plan, 0, threshold) : result).passed;
+  useEffect(() => { if (over) onDoneRef.current(passed); }, [over]); // eslint-disable-line react-hooks/exhaustive-deps
   if (plan.pending.length === 0 || done) {
     const r = plan.pending.length === 0 ? reviewResult(plan, 0, threshold) : result;
     return (
@@ -40,16 +49,6 @@ export function ReviewStep({ cards, known, threshold, W, onAnswer, onDone, stats
         <p className="cg-run-closing-h">{W.reviewStepHead}</p>
         {plan.pending.length === 0 ? <p>{W.reviewStepNone}</p> : <p>{W.reviewStepScore(r.good, plan.total, Math.round(r.share * 100))}</p>}
         <p className={r.passed ? 'wk-note' : 'cg-muted'}>{r.passed ? W.reviewStepPassed : W.reviewStepNotYet(pct)}</p>
-        <div className="wk-actions"><button type="button" className="wk-btn" autoFocus onClick={() => onDone(r.passed)} data-flow-review-go="">{W.goOn}</button></div>
-      </div>
-    );
-  }
-  if (at < 0) {
-    return (
-      <div className="cg-review-step" data-flow-review-step="intro" data-flow-review-ask={plan.pending.length} data-flow-review-total={plan.total}>
-        <p className="cg-run-closing-h">{W.reviewStepHead}</p>
-        <p>{W.reviewStepIntro(plan.pending.length, plan.total, pct)}</p>
-        <div className="wk-actions"><button type="button" className="wk-btn" autoFocus onClick={() => setAt(0)} data-flow-review-start="">{W.reviewStepStart}</button></div>
       </div>
     );
   }

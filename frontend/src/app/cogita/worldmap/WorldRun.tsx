@@ -16,7 +16,7 @@ import { learnFeatures, renamer, type Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
 import { attemptsText } from './WorldLevels';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
-import { finishRun, levelOf, perfectRun, runAnswer, runCard, runDone, factsOfCard, startRun, type RunRecord, type RunSession } from './wmRuns';
+import { finishRun, levelOf, runAnswer, runCard, runDone, factsOfCard, startRun, type RunRecord, type RunSession } from './wmRuns';
 import './worldmap.css';
 
 export interface RunOutcome {
@@ -52,12 +52,23 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   }, [learner]);
   const [session, setSession] = useState<RunSession | null>(null);
   const last = useRef<number | null>(null);
-  const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const [saving, setSaving] = useState(false);
   /* 2026-11-10 (Eigentümer) — nach einer falschen Antwort darf man den Durchgang von vorn beginnen (für „Mistrzowsko"). */
   const [lastWrong, setLastWrong] = useState(false);
   const fresh = () => startRun(newId(), place, cards.map((c) => c.key), Date.now(), facts);
-  const restart = () => { last.current = null; setLastWrong(false); setOutcome(null); setSession(fresh()); };
+  const restart = () => { last.current = null; setLastWrong(false); setSession(fresh()); };
+  /*
+    2026-11-10 (Eigentümer: „keine leeren Seiten, die nur sagen, dass es jetzt beginnt oder dass es zu Ende ist — wer erobern will,
+    erobert gleich; danach gleich zurück zur Karte, dort sieht man, was sich geändert hat") — der Durchgang beginnt sofort.
+  */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (allowed !== true || session !== null) return;
+    if (cards.length === 0) { onCloseRef.current(null); return; }
+    setSession(fresh());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- einmal, sobald der Durchgang erlaubt ist
+  }, [allowed]);
 
   if (allowed === false) {
     return (
@@ -68,41 +79,7 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
     );
   }
 
-  if (outcome !== null) {
-    const r = outcome.run;
-    const reached = outcome.after > outcome.before;
-    const perfect = perfectRun(r);
-    return (
-      <div className={`cg-world-run${perfect ? ' is-perfect' : ''}`} data-world-run="result" data-world-run-level={outcome.after} data-world-run-reached={reached ? '1' : '0'} data-world-run-perfect={perfect ? '1' : '0'}>
-        <h3>{t('cogitaWorld.run.title', { name })}</h3>
-        {perfect && <p className="cg-wm-perfect is-big" data-world-perfect="">★ {t('cogitaWorld.run.perfect')} — {t('cogitaWorld.run.perfectSays')}</p>}
-        <p>{t('cogitaWorld.run.result', { first: r.firstTry, all: r.cards, after: r.afterCorrection })}</p>
-        <p className={reached ? 'wk-note' : 'cg-muted'}>
-          {reached ? (outcome.after - outcome.before > 1 ? t('cogitaWorld.run.reachedMany', { from: outcome.before + 1, level: outcome.after }) : t('cogitaWorld.run.reached', { level: outcome.after })) : t('cogitaWorld.run.notReached', { level, pct: rule?.pct ?? 0 })}
-          {reached && outcome.after >= eff.levels ? ` · ${t('cogitaWorld.run.conquered')}` : ''}
-        </p>
-        <div className="wk-actions">
-          <button type="button" className="wk-btn" autoFocus onClick={() => onClose(outcome)} data-world-run-close="">{t('cogitaWorld.run.close')}</button>
-          {!perfect && <button type="button" className="wk-btn wk-btn-line" onClick={restart} data-world-run-again="">{t('cogitaWorld.run.tryAgain')}</button>}
-        </div>
-      </div>
-    );
-  }
-
-  if (session === null) {
-    return (
-      <div className="cg-world-run" data-world-run="intro" data-world-run-for={level}>
-        <h3>{t('cogitaWorld.run.title', { name })}</h3>
-        <p><strong>{t('cogitaWorld.run.forLevel', { level })}</strong>{rule === undefined ? '' : ` · ${t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}`}</p>
-        <p className="cg-muted">{t('cogitaWorld.run.intro', { count: cards.length })}</p>
-        <div className="wk-actions">
-          <button type="button" className="wk-btn" autoFocus disabled={allowed !== true || cards.length === 0}
-            onClick={() => setSession(startRun(newId(), place, cards.map((c) => c.key), Date.now(), facts))} data-world-run-start="">{t('cogitaWorld.run.start')}</button>
-          <button type="button" className="wk-link-btn" onClick={() => onClose(null)}>{t('cogitaWorld.run.close')}</button>
-        </div>
-      </div>
-    );
-  }
+  if (session === null) return <p className="cg-muted" data-world-run="starting" data-world-run-for={level}>{t('cogitaWorld.run.title', { name })}{rule === undefined ? '' : ` · ${t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}`}</p>;
 
   const key = runCard(session);
   const card = key === null ? undefined : byKey.get(key);
@@ -112,7 +89,8 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
     setSaving(true);
     void learner.keepRun(run).catch(() => undefined).finally(() => {
       setSaving(false);
-      setOutcome({ run, before: before.level, after });
+      /* Gleich zurück zur Karte: dort spielt sie ab, was sich geändert hat, und der Weg sagt, was nun folgt. */
+      onCloseRef.current({ run, before: before.level, after });
       /* Step 3 · 3 — ein eroberter Ort ändert, was fällig ist: die Erinnerung des Dienstes gleich neu (alle Karten der Baza). */
       void lib.cards().then((r) => reportDueFor(lib, r.cards, learner, renamer(lib.merges())), () => undefined);
     });
