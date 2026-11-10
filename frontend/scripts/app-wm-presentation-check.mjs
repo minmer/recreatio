@@ -148,11 +148,15 @@ for (const theme of ['light', 'dark']) {
 {
   const has = (text, needle) => text.includes(needle);
   const src = await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8');
-  check('top: the name stands in the middle of the top face, the star centred above it, the dot below', [has(src, 'const y = Yt;'), has(src, 'drawStar(ctx, X, starAt,'), has(src, 'ctx.ellipse(X, dotAt,')], [true, true, true]);
-  check('trees: upright near (trunk and crown, sorted with the pillars), flat far', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== ')], [true, true, true]);
+  check('top: the star in the centre of the top; the name above it when there is a star', [has(src, 'drawStar(ctx, X, Yt,'), has(src, 'const y = p.perfect ? Yt - ry * 0.62 : Yt;')], [true, true]);
+  check('top: levels as wide parts of the top (the outer half of the radius); conquered: the ring shows how all cards sit; no dot', [has(src, 'const RING_IN = 0.5;'), has(src, 'if (a.conquered && all > 0)'), has(src, 'ctx.ellipse(X, dotAt,')], [true, true, false]);
+  check('trees: upright near (trunk and crown, sorted with the pillars), flat far — larger', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== '), has(src, 'const TREE_SIZE = 12;')], [true, true, true, true]);
+  check('phone: two fingers moved up or down together tilt the map', has(src, 'const fore = two.current.cam.fore + ((a.y + b.y) / 2 - two.current.my) * 0.004;'), true);
+  check('narrow: a panel never covers the map — the map gets lower and the panel stands below', [has(src, 'squeeze && size.w > 0 && size.w < 800'), /position: sticky/.test(await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8'))], [true, false]);
   const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
   check('"take me there" (button or double click) starts the first step of the way', [has(ls, 'startNav.current = target;'), has(ls, 'if (first !== undefined) go(first);'), has(ls, 'onLead={(id) => lead(id)}')], [true, true, true]);
-  check('full screen: the host asks the browser for full screen, only the map stays', [has(ls, 'root.requestFullscreen()'), has(ls, 'is-full')], [true, true]);
+  const css = await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8');
+  check('full screen: the whole document, the map as a layer; stories and questions stay visible', [has(ls, 'root.requestFullscreen()'), has(ls, 'is-full'), has(css, '.cg-wm-host.is-full > .cg-ls-run {')], [true, true, true]);
 }
 
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */
