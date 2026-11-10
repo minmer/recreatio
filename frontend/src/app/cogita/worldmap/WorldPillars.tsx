@@ -819,8 +819,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
       for (const { l, sp, len, on } of items) {
         /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
-        const text = fitText(ctx, l.name, Math.min(220, Math.max(len * 0.9, 110)));
-        const w = ctx.measureText(text).width;
+        const text = fitText(ctx, l.name, Math.min(260, Math.max(len * 0.9, 160)));
+        /* Darunter, kleiner: wie viele Folien und welche Art von Weg (leise, aber lesbar). */
+        const nameW = ctx.measureText(text).width;
+        ctx.font = '600 10.5px system-ui, sans-serif';
+        const metaText = fitText(ctx, [l.slides > 0 ? t('cogitaWorld.panel.slides', { count: l.slides }) : '', t(`cogitaWorld.map.pathKind.${l.kind}`)].filter((x) => x !== '').join(' · '), Math.min(240, Math.max(len * 0.95, 130)));
+        const w = Math.max(nameW, ctx.measureText(metaText).width);
+        ctx.font = '700 12px system-ui, sans-serif';
         /* Stellen entlang des Pfades und Abstände von ihm; die erste ohne Zusammenstoss, sonst (kräftige, gezeigte) die Mitte. */
         type Spot = { cx: number; cy: number; a: number; box: { x0: number; y0: number; x1: number; y1: number } };
         let pick = null as Spot | null;
@@ -829,10 +834,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           const at = along(sp, t);
           let a = at.a;
           if (a > Math.PI / 2) a -= Math.PI; else if (a < -Math.PI / 2) a += Math.PI;
+          /* Steil: der Name steht waagerecht neben dem Pfad (lesbar), sonst entlang und über/unter ihm. */
+          const steep = Math.abs(a) > 1.0;
+          if (steep) a = 0;
           const c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
-          const hw = (w * c + 14 * sn) / 2 + 3, hh = (w * sn + 14 * c) / 2 + 3;
-          for (const off of [-10, 11]) {
-            const cx = at.x - Math.sin(a) * off, cy = at.y + Math.cos(a) * off;
+          const hw = (w * c + 28 * sn) / 2 + 3, hh = (w * sn + 28 * c) / 2 + 3;
+          const spots: [number, number][] = steep
+            ? [[w / 2 + 12, 0], [-(w / 2 + 12), 0], [w / 2 + 12, 30], [-(w / 2 + 12), -30]]
+            : [[0, -18], [0, 19], [0, -46], [0, 47]].map(([, off]) => [-Math.sin(a) * off, Math.cos(a) * off] as [number, number]);
+          for (const [dx, dy] of spots) {
+            const cx = at.x + dx, cy = at.y + dy;
             const box = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
             if (box.x1 < 0 || box.y1 < 0 || box.x0 > size.w || box.y0 > size.h) continue;
             fallback ??= { cx, cy, a, box };
@@ -846,8 +857,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.save();
         ctx.translate(use.cx, use.cy);
         ctx.rotate(use.a);
-        ctx.lineWidth = 4; ctx.strokeStyle = rgbCss(mix(pal.surface, pal.land, 0.15)); ctx.strokeText(text, 0, 0);
-        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, 0);
+        const halo = rgbCss(mix(pal.surface, pal.land, 0.15));
+        ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, 0, -6.5);
+        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, -6.5);
+        ctx.font = '600 10.5px system-ui, sans-serif';
+        ctx.lineWidth = 3.4; ctx.strokeStyle = halo; ctx.strokeText(metaText, 0, 7);
+        ctx.fillStyle = rgbCss(mix(pal.ink, pal.land, 0.28)); ctx.fillText(metaText, 0, 7);
+        ctx.font = '700 12px system-ui, sans-serif';
         ctx.restore();
         nameCount += 1;
       }

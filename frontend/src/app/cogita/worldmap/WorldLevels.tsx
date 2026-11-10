@@ -123,6 +123,17 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
             onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setDraft({ ...draft, knownShare: Math.max(0.1, Math.min(1, n / 100)) }); }} data-world-known-share="" />
         </label>
       )}
+      {/* 2026-11-10 — ab wann sich die Pfade eines Turms öffnen (`openAt`): erobert, sofort, oder ab Stufe k. */}
+      <label className="wk-field">
+        <span>{t('cogitaWorld.settings.openAt')}</span>
+        <select value={draft.openAt === undefined ? 'conquered' : String(draft.openAt)} disabled={busy} data-world-open-at=""
+          onChange={(e) => { const v = e.target.value; setDraft((d) => { const { openAt: _drop, ...rest } = d; return v === 'conquered' ? rest : { ...rest, openAt: Number(v) }; }); }}>
+          <option value="conquered">{t('cogitaWorld.settings.openAtConquered')}</option>
+          <option value="0">{t('cogitaWorld.settings.openAtAlways')}</option>
+          {Array.from({ length: Math.max(0, draft.levels - 1) }, (_, i) => <option key={i + 1} value={String(i + 1)}>{t('cogitaWorld.settings.openAtLevel', { level: i + 1 })}</option>)}
+        </select>
+        <span className="cg-muted">{t('cogitaWorld.settings.openAtSays')}</span>
+      </label>
       <PillarSlider value={draft.pillarWidth} disabled={busy} t={t} onCommit={(w) => setDraft((d) => ({ ...d, pillarWidth: w }))} onLive={(w) => setDraft((d) => ({ ...d, pillarWidth: w }))} />
       <label className="pe-check">
         <input type="checkbox" checked={!draft.locked} disabled={busy} onChange={(e) => setDraft({ ...draft, locked: !e.target.checked })} data-world-may-change="" />

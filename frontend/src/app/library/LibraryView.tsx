@@ -147,7 +147,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
     if (current === null && knowledge.has(libraryId)) return <p className="wk-note">{t('library.view.isKnowledge')} <a href={viewPath('knowledge', libraryId)}>{t('library.view.openKnowledge')}</a></p>;
     if (current === null && writing.has(libraryId)) return <p className="wk-note">{t('library.view.isScriptorium')} <a href={viewPath('scriptorium', libraryId)}>{t('library.view.openScriptorium')}</a></p>;
     if (current === null) return <p className="wk-empty">{t('library.view.missing')} <a href={viewPath('library')}>{t('library.view.allLibraries')}</a></p>;
-    if (libraryKindOf(current) === 'liturgy') return <LiturgyHome me={me} library={current} trail={trail.slice(1)} />;
+    if (libraryKindOf(current) === 'liturgy') return <LiturgyHome me={me} library={current} trail={trail.slice(1)}
+      settings={(store) => <Settings me={me} store={store} library={current} areas={areas} onChanged={() => setTick((n) => n + 1)} />} />;
     return <LibraryHome me={me} library={current} libraries={libraries.filter((l) => libraryKindOf(l) === 'books')} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
 

@@ -100,6 +100,17 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   const startOk = (sid) => { const x = lines.sections.get(sid); return x.from === T.HOME || st.places.get(x.from)?.conquered === true; };
   check('lanes: a section is open exactly when it starts at home or at a conquered tower', [...st.sections].every(([sid, x]) => x.open === startOk(sid)) && [...st.sections.values()].some((x) => !x.open), true);
   check('plan: every ride starts at home, at a conquered tower, or at a tower the plan conquers before it', plan0.steps.every((x, i) => x.kind !== 'travel' || startOk(x.section) || plan0.steps.slice(0, i).some((y) => (y.kind === 'run' || y.kind === 'know') && y.place === lines.sections.get(x.section).from)), true);
+  /* 2026-11-10 — ab wann sich die Pfade eines Turms öffnen (`openAt`): 0 sofort, k ab Stufe k, sonst die Eroberung. */
+  {
+    const from = [...lines.sections.values()].find((x) => x.from !== T.HOME && x.from !== x.to && world.places.has(x.from)).from;
+    const sec = [...lines.sections.values()].filter((x) => x.from === from).map((x) => x.id);
+    const lv = (level) => ({ ...F.fakeLearner({}), level: (p) => (p === from ? level : 0) });
+    const openOf = (settings, level) => { const o = S.stateOf(world, lines, lv(level), settings); return sec.every((id) => o.sections.get(id).open); };
+    check('openAt: by default a tower that is not conquered keeps its paths closed (also at level 2 of 3)', [openOf({ levels: 3, knownShare: 1 }, 2), openOf({ levels: 3, knownShare: 1, openAt: null }, 2)], [false, false]);
+    check('openAt: 0 — the paths are open without any conquest', [openOf({ levels: 3, knownShare: 1, openAt: 0 }, 0), openOf({ levels: 0, knownShare: 1, openAt: 0 }, 0)], [true, true]);
+    check('openAt: 2 of 3 — closed at level 1, open from level 2', [openOf({ levels: 3, knownShare: 1, openAt: 2 }, 1), openOf({ levels: 3, knownShare: 1, openAt: 2 }, 2)], [false, true]);
+    check('openAt: higher than the levels counts as the last level (= conquered)', [openOf({ levels: 3, knownShare: 1, openAt: 9 }, 2), openOf({ levels: 3, knownShare: 1, openAt: 9 }, 3)], [false, true]);
+  }
   check('timetable: a new target starts afresh', N.followPlan(tt2, P.plan(st2, 'savio')).done.length, 0);
   /* 2026-11-10 — die Erzählung gelesen, ohne ihre Karten zu beantworten: der Weg geht weiter (dieselbe Fahrt nie noch einmal). */
   const sec = lines.sections.get(first.section);

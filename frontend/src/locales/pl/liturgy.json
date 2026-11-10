@@ -71,7 +71,8 @@
     "resources": "Zasoby",
     "calendar": "Kalendarz i czytanie",
     "import": "Import / eksport",
-    "history": "Historia importów"
+    "history": "Historia importów",
+    "settings": "Ustawienia"
   },
   "types": {
     "canonical_work": "Dzieła kanoniczne",

@@ -56,7 +56,12 @@
     "serverOld": "Poziomy i przebiegi zaczną działać po aktualizacji serwera. Do tego czasu powtórki działają jak dotąd.",
     "serverOldArea": "Serwer nie zapisuje jeszcze przebiegów, więc nie można włączyć poziomów. Do czasu aktualizacji wszyscy uczą się bez poziomów (0).",
     "noWorldView": "Ta baza nie ma jeszcze widoku mapy świata. Poziomy wyłączają z powtórek tylko karty miejsc pokazanych na mapie świata, więc na razie w powtórkach nic się nie zmienia.",
-    "useArea": "Użyj ustawienia kursu"
+    "useArea": "Użyj ustawienia kursu",
+    "openAt": "Ścieżki wieży otwierają się",
+    "openAtConquered": "gdy jest całkiem zdobyta (domyślnie)",
+    "openAtAlways": "od razu — bez zdobywania",
+    "openAtLevel": "od poziomu {level}",
+    "openAtSays": "Decyduje, czy uczący się muszą całkiem zdobyć wieżę, zanim pójdą jej ścieżkami, czy mogą iść dalej wcześniej."
   },
   "run": {
     "title": "Przebieg · {name}",
@@ -140,7 +145,13 @@
     "fullPath": "Droga",
     "fullPoints": "Punkty",
     "fullRun": "Slajd / pytania",
-    "fullNext": "Dalej"
+    "fullNext": "Dalej",
+    "pathKind": {
+      "main": "ścieżka",
+      "branch": "odnoga",
+      "deepening": "pogłębienie",
+      "back": "powrót"
+    }
   },
   "panel": {
     "close": "Zamknij",
@@ -220,7 +231,12 @@
     "more": "Więcej o tym miejscu",
     "conquerStart": "Ta ścieżka zaczyna się w: {name} — najpierw zdobądź tę wieżę.",
     "showPlace": "Pokaż",
-    "towerFirst": "najpierw zdobądź wieżę startową"
+    "towerFirst": "najpierw zdobądź wieżę startową",
+    "reachStart": "Ta ścieżka zaczyna się w: {name} — najpierw osiągnij poziom {level} tej wieży.",
+    "towerFirstLevel": "najpierw poziom {level} wieży startowej",
+    "prepareN": "Najpierw powtórz, czego nie znam ({count})",
+    "prepareSays": "Tylko karty, które jeszcze nie siedzą — dobre przygotowanie do przebiegu.",
+    "conquerSays": "Odpowiedz na wszystkie karty ({count}) — to zdobywa wieżę"
   },
   "nav": {
     "target": "Cel: {name}",

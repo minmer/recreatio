@@ -52,7 +52,12 @@
     "serverOld": "Levels and runs start once the server has been updated. Until then, reviews work as before.",
     "serverOldArea": "The server cannot store runs yet, so levels cannot be switched on. Until it is updated, every learner works with 0 levels.",
     "noWorldView": "This base has no world map view yet. Levels only keep cards out of reviews for places shown on a world map, so for now nothing changes in reviews.",
-    "useArea": "Use the course's setting"
+    "useArea": "Use the course's setting",
+    "openAt": "The paths of a tower open",
+    "openAtConquered": "once it is fully conquered (default)",
+    "openAtAlways": "at once — no conquest needed",
+    "openAtLevel": "from level {level}",
+    "openAtSays": "Decides whether learners must conquer a tower fully before they may follow its paths, or may go on earlier."
   },
   "run": {
     "title": "Run · {name}",
@@ -124,7 +129,13 @@
     "fullPath": "Path",
     "fullPoints": "Points",
     "fullRun": "Slide / questions",
-    "fullNext": "Next"
+    "fullNext": "Next",
+    "pathKind": {
+      "main": "path",
+      "branch": "branch",
+      "deepening": "deepening",
+      "back": "way back"
+    }
   },
   "panel": {
     "close": "Close",
@@ -194,7 +205,12 @@
     "more": "More about this place",
     "conquerStart": "This path starts at {name}: conquer that tower first.",
     "showPlace": "Show",
-    "towerFirst": "conquer the start tower first"
+    "towerFirst": "conquer the start tower first",
+    "reachStart": "This path starts at {name}: reach level {level} of that tower first.",
+    "towerFirstLevel": "reach level {level} of the start tower first",
+    "prepareN": "First review what I don't know ({count})",
+    "prepareSays": "Only the cards that do not stick yet — a good preparation before the run.",
+    "conquerSays": "Answer all {count} cards — this conquers the tower"
   },
   "nav": {
     "target": "Target: {name}",

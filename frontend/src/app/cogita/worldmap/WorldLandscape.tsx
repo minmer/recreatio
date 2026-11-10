@@ -169,7 +169,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       suspended: (card) => progress?.suspended.has(card) === true
     };
   }, [gauge, progress, learner, flowFacts, flowById, cardOfQ, levels, clock]);
-  const state = useMemo(() => stateOf(world, lines, learnerInput, { levels: eff.levels, knownShare: eff.knownShare }), [world, lines, learnerInput, eff.levels, eff.knownShare]);
+  const state = useMemo(() => stateOf(world, lines, learnerInput, { levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt }), [world, lines, learnerInput, eff.levels, eff.knownShare, eff.openAt]);
 
   /* -- Wie im Krajobraz (Step-1-Bericht §3: behalten): Ansichten, Luki, Portale, das Ziel ------------------------------------ */
   const T = useMemo(() => landscapeWords(lang), [lang]);

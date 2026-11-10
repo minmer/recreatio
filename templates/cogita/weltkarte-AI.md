@@ -86,11 +86,13 @@ Nie zapisuj w imporcie współrzędnych, kolorów ani wysokości. Położenie li
 {"settings": {"levelsSetup": {"levels": 3, "rules": [
   {"pct": 75, "attempts": "any"},
   {"pct": 85, "attempts": "one"},
-  {"pct": 95, "attempts": "first"}], "knownShare": 1, "pillarWidth": 1}}}
+  {"pct": 95, "attempts": "first"}], "knownShare": 1, "pillarWidth": 1, "openAt": 2}}}
 ```
 
 - **Domyślnie 0 poziomów**: nic się nie zmienia, miejsce jest osiągnięte, gdy jego karty są umiane ("knownShare" — jaka część, domyślnie wszystkie). Wysokość filaru liczy wtedy karty jeszcze nieumiane (miejsca i jego podstawy), a nie wszystkie karty nieosiągniętych miejsc — to świadome odstępstwo od specyfikacji: filar maleje z każdą umianą kartą.
 - **1–5 poziomów**: zdobyć miejsce = odpowiedzieć na jego karty w jednym **przebiegu**; poziom na próg ("pct"), co się liczy ("attempts": "any" — w ogóle dobrze, "one" — po jednej poprawce, "first" — za pierwszym razem) — bez odstępu między poziomami: jeden przebieg podnosi o każdy poziom, którego próg spełnia; **wszystko dobrze za pierwszym razem** daje od razu wszystkie poziomy i wyróżnienie „Mistrzowsko”. Wtedy **powtarzane są tylko zdobyte miejsca** — strona ustawień pokazuje przed zapisem, ile kart wyjdzie z powtórek.
+- **"openAt" — kiedy otwierają się ścieżki wieży** (ustawienie autora; uczący się go nie zmieniają): pominięte = dopiero gdy wieża jest **całkiem zdobyta** (domyślnie); `0` = **od razu**, bez zdobywania (ścieżki wychodzące z wieży są otwarte, choć wieża nie jest zdobyta); `1`…(liczba poziomów − 1) = **od tego poziomu** (np. `2` przy 3 poziomach: ścieżki otwierają się po poziomie 2, a wieża jest zdobyta dopiero po 3). Wartość równa liczbie poziomów albo większa oznacza zdobycie (jak pominięta). Przy 0 poziomów ma sens tylko `0`. Ścieżki wychodzące z „Startu” są zawsze otwarte.
+- Przy wieży, którą wolno już zdobywać, panel miejsca daje **dwie drogi**: „Najpierw powtórz, czego nie znam (N)” — tylko karty, które jeszcze nie siedzą — albo od razu przebieg po wszystkich kartach, który zdobywa wieżę.
 - "pillarWidth" (0,4–1) to domyślna szerokość filarów; uczący się zmienia ją i poziomy dla siebie („Moje ustawienia”), chyba że `"locked": true`.
 
 ## 9. Jak aplikacja używa tych danych

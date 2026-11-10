@@ -71,7 +71,8 @@
     "resources": "Resources",
     "calendar": "Calendar and reading",
     "import": "Import / export",
-    "history": "Import history"
+    "history": "Import history",
+    "settings": "Settings"
   },
   "types": {
     "canonical_work": "Canonical works",

@@ -42,6 +42,11 @@ export interface LevelsSetup {
   readonly knownShare: number;
   /** Die Breite der Säulen (0,4–1). */
   readonly pillarWidth: number;
+  /**
+   * 2026-11-10 (Eigentümer) — WANN SICH DIE PFADE EINES TURMS ÖFFNEN: `0` sofort (der Turm muss nicht erobert sein), `k` (1…Stufen)
+   * ab Stufe k, fehlt: erst wenn er ganz erobert ist (die Vorgabe). Sie ist Sache des Autors; die Lernenden ändern sie nicht.
+   */
+  readonly openAt?: number;
   /** Die Lernenden dürfen nichts davon ändern. */
   readonly locked: boolean;
 }
@@ -83,6 +88,8 @@ export function readLevelsSetup(raw: unknown): LevelsSetup | undefined {
     levels, rules,
     knownShare: finite(raw.knownShare) ? clamp(raw.knownShare > 1 ? raw.knownShare / 100 : raw.knownShare, 0.1, 1) : 1,
     pillarWidth: finite(raw.pillarWidth) ? clamp(raw.pillarWidth > 1 ? raw.pillarWidth / 100 : raw.pillarWidth, PILLAR_MIN, 1) : DEFAULT_PILLAR,
+    /* Ab der letzten Stufe ist es die Eroberung selbst: dann gilt die Vorgabe (kein Wert). */
+    ...(finite(raw.openAt) && Math.round(raw.openAt) >= 0 && (levels === 0 ? Math.round(raw.openAt) === 0 : Math.round(raw.openAt) < levels) ? { openAt: Math.round(raw.openAt) } : {}),
     locked: raw.locked === true
   };
 }
@@ -90,7 +97,7 @@ export function readLevelsSetup(raw: unknown): LevelsSetup | undefined {
 /** Für das JSON der Ustawienia. */
 export const levelsSetupDoc = (s: LevelsSetup): Record<string, unknown> => ({
   levels: s.levels, rules: s.rules.slice(0, s.levels).map((r) => ({ pct: r.pct, attempts: r.attempts })),
-  knownShare: s.knownShare, pillarWidth: s.pillarWidth, ...(s.locked ? { locked: true } : {})
+  knownShare: s.knownShare, pillarWidth: s.pillarWidth, ...(s.openAt !== undefined && (s.levels === 0 ? s.openAt === 0 : s.openAt < s.levels) ? { openAt: s.openAt } : {}), ...(s.locked ? { locked: true } : {})
 });
 
 /* -- Die eigene Einstellung des Lernenden, in seinen Werten (nur Zahlen) ---------------------------------------------- */
@@ -145,6 +152,8 @@ export interface EffectiveWorld {
   readonly rules: readonly LevelRule[];
   readonly knownShare: number;
   readonly pillarWidth: number;
+  /** Ab wann sich die Pfade eines Turms öffnen (`LevelsSetup.openAt`); `null`: erst bei der Eroberung. */
+  readonly openAt: number | null;
   /** Woher die Stufen kommen. */
   readonly from: 'own' | 'area' | 'default';
   readonly changeable: boolean;
@@ -157,10 +166,12 @@ export function effectiveWorld(area: LevelsSetup | undefined, own: OwnWorld): Ef
   const share = area?.knownShare ?? 1;
   /* Die Breite der Säulen darf jeder für sich ändern (§4.7) — gesperrt sind nur die Stufen. */
   const pillarWidth = own.pillarWidth ?? area?.pillarWidth ?? DEFAULT_PILLAR;
-  if (area?.locked === true) return { levels: area.levels, rules: area.rules, knownShare: share, pillarWidth, from: 'area', changeable: false };
-  if (own.levels !== undefined) return { levels: own.levels, rules: own.rules ?? defaultRules(own.levels), knownShare: share, pillarWidth, from: 'own', changeable: true };
-  if (area !== undefined) return { levels: area.levels, rules: area.rules, knownShare: share, pillarWidth, from: 'area', changeable: true };
-  return { levels: 0, rules: [], knownShare: 1, pillarWidth, from: 'default', changeable: true };
+  const openAt = area?.openAt ?? null;
+  if (area?.locked === true) return { levels: area.levels, rules: area.rules, knownShare: share, pillarWidth, openAt, from: 'area', changeable: false };
+  /* Eigene Stufen: gelten nur, wenn `openAt` noch hineinpasst (mehr als die eigenen Stufen heisst: erst die Eroberung). */
+  if (own.levels !== undefined) return { levels: own.levels, rules: own.rules ?? defaultRules(own.levels), knownShare: share, pillarWidth, openAt: openAt !== null && openAt < own.levels ? openAt : openAt === 0 ? 0 : null, from: 'own', changeable: true };
+  if (area !== undefined) return { levels: area.levels, rules: area.rules, knownShare: share, pillarWidth, openAt, from: 'area', changeable: true };
+  return { levels: 0, rules: [], knownShare: 1, pillarWidth, openAt: null, from: 'default', changeable: true };
 }
 
 /* -- Der Durchgang als Stapel ------------------------------------------------------------------------------------------- */

@@ -46,6 +46,8 @@ export interface WorldSettings {
   readonly levels: number;
   /** Mit 0 Stufen: welcher Anteil der Karten gekonnt sein muss (0–1). */
   readonly knownShare: number;
+  /** Ab wann sich die Pfade eines Turms öffnen: 0 sofort, k ab Stufe k, `null`/fehlt: erst bei der Eroberung. */
+  readonly openAt?: number | null;
 }
 
 export const DEFAULT_SETTINGS: WorldSettings = { levels: 0, knownShare: 1 };
@@ -241,12 +243,24 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     }
   }
 
+  /*
+    2026-11-10 (Eigentümer) — DIE PFADE EINES TURMS ÖFFNEN SICH (`openAt`): erobert, oder — wenn der Autor es so einstellt — sofort (0)
+    oder schon ab Stufe k.
+  */
+  const openAt = settings.openAt ?? null;
+  const towerOpen = (p: string): boolean => {
+    const ps = places.get(p);
+    if (ps === undefined) return false;
+    if (ps.conquered) return true;
+    if (openAt === null) return false;
+    return openAt === 0 || (levels > 0 && ps.level >= Math.min(openAt, levels));
+  };
   const sections = new Map<string, SectionState>();
   for (const s of lines.sections.values()) {
     const ticket = ticketOf(s);
     const was = travelled.get(s.id) === true;
     sections.set(s.id, {
-      ticket, travelled: was, open: s.from === HOME || places.get(s.from)?.conquered === true,
+      ticket, travelled: was, open: s.from === HOME || towerOpen(s.from),
       cost: s.from === s.to || !Number.isFinite(ticket.cost) ? Infinity : 1 + ticket.cost - (was ? 0.5 : 0),
       fresh: s.introduces.filter((k) => band(k) === 'unseen')
     });
@@ -329,7 +343,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     .map((id) => { const st = sections.get(id)!; return { section: id, met: st.ticket.met, travelled: st.travelled, cost: st.cost }; })
     .sort((a, b) => (a.cost - b.cost) || (a.section < b.section ? -1 : 1));
 
-  return { world, lines, settings: { levels, knownShare: share }, ctx, band, places, sections, routeTo, summary, conquestOrder, sources };
+  return { world, lines, settings: { levels, knownShare: share, openAt: settings.openAt ?? null }, ctx, band, places, sections, routeTo, summary, conquestOrder, sources };
 }
 
 /**

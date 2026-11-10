@@ -278,6 +278,10 @@
 :root[data-motion='reduced'] .cg-fin-confetti, :root[data-motion='off'] .cg-fin-confetti { display: none; }
 :root[data-motion='reduced'] .cg-fin-burst, :root[data-motion='off'] .cg-fin-burst { opacity: 1; }
 
+/* Zwei Wege zum Turm (2026-11-10): erst wiederholen, was man nicht kann — oder gleich erobern. */
+.cg-wm-ways { display: flex; flex-direction: column; gap: var(--wk-space-3); }
+.cg-wm-way1 { display: flex; flex-direction: column; align-items: flex-start; gap: var(--wk-space-1); }
+
 /* Von vorn beginnen im Durchgang (2026-11-10). */
 .cg-wm-restart { display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-3); flex-wrap: wrap; margin: var(--wk-space-3) 0 0; }
 .cg-wm-restart > span { flex: 1 1 14rem; }

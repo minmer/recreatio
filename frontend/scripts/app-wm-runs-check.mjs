@@ -265,4 +265,13 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
+/* -- 2026-11-10 · wann sich die Pfade eines Turms öffnen (`levelsSetup.openAt`) ---------------------------------------------------- */
+{
+  const doc = (levels, openAt) => R.levelsSetupDoc(R.readLevelsSetup({ levels, ...(openAt === undefined ? {} : { openAt }) }));
+  check('openAt: read and written back — 0 and a level below the last', [doc(3, 0).openAt, doc(3, 2).openAt], [0, 2]);
+  check('openAt: the last level or more is the default (no value kept); rubbish too', [doc(3, 3).openAt, doc(3, 9).openAt, doc(3, -1).openAt, doc(3, 'x').openAt, doc(3).openAt], [undefined, undefined, undefined, undefined, undefined]);
+  check('openAt: with 0 levels only 0 means something', [doc(0, 0).openAt, doc(0, 1).openAt], [0, undefined]);
+  check('openAt: reaches the effective world; a learner cannot change it', [R.effectiveWorld(R.readLevelsSetup({ levels: 3, openAt: 1 }), {}).openAt, R.effectiveWorld(R.readLevelsSetup({ levels: 3, openAt: 1 }), { levels: 2 }).openAt, R.effectiveWorld(undefined, {}).openAt], [1, 1, null]);
+}
+
 if (failed > 0) process.exit(1);

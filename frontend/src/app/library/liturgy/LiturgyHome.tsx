@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { loadVersions, type VersionRow } from '../../cogita/versions';
 import type { Me } from '../../core/me';
 import { useT } from '../../core/i18n';
@@ -19,8 +19,9 @@ import { docEntity, LITURGY_FORMAT, LITURGY_VERSION } from './liturgyJson';
 import { commitImport } from './persistence';
 import './liturgy.css';
 
-const TABS = ['resources', 'calendar', 'import', 'history'] as const;
-export function LiturgyHome({ me, library, trail }: { me: Me; library: OpenLibrary; trail: readonly string[] }) {
+const TABS = ['resources', 'calendar', 'import', 'history', 'settings'] as const;
+/** `settings`: the Library's own settings (name, who sees it, deleting the collection), given by LibraryView. */
+export function LiturgyHome({ me, library, trail, settings }: { me: Me; library: OpenLibrary; trail: readonly string[]; settings: (store: LibraryStore) => ReactNode }) {
   const { store, revision, failed } = useLibraryStore(me.ring, library);
   const t = useT();
   const own = useMemo(() => entitiesOf(store?.all() ?? []), [store, revision]);
@@ -41,6 +42,7 @@ export function LiturgyHome({ me, library, trail }: { me: Me; library: OpenLibra
         : tab === 'calendar' ? <CalendarReader entities={entities} libraryId={library.libraryId} />
         : tab === 'import' ? <LiturgyJsonPanel store={store} library={library} revision={revision} open />
         : tab === 'history' ? <ImportHistory store={store} library={library} />
+        : tab === 'settings' ? settings(store)
         : <ResourceList own={own} entities={entities} library={library} />}
     </div>
   </section>;

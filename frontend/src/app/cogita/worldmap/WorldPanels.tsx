@@ -68,10 +68,10 @@ const firstMissing = (ctx: PanelCtx, st: SectionState): string => {
   return p === undefined ? '' : ctx.t(p.view.key, p.view.params);
 };
 
-function TicketTag({ st, t }: { st: SectionState; t: T }) {
+function TicketTag({ st, t, level = null }: { st: SectionState; t: T; /** `openAt` > 0: ab welcher Stufe des Startturms. */ level?: number | null }) {
   if (st.travelled) return <span className="cg-wm-tag is-done" data-world-tag="travelled">✓ {t('cogitaWorld.panel.travelled')}</span>;
   /* 2026-11-10 — ein Weg von einem nicht eroberten Turm ist nicht offen, auch mit gültiger Fahrkarte. */
-  if (!st.open) return <span className="cg-wm-tag is-lock" data-world-tag="closed">{t('cogitaWorld.panel.towerFirst')}</span>;
+  if (!st.open) return <span className="cg-wm-tag is-lock" data-world-tag="closed">{level === null ? t('cogitaWorld.panel.towerFirst') : t('cogitaWorld.panel.towerFirstLevel', { level })}</span>;
   if (st.ticket.met) return <span className="cg-wm-tag is-ok" data-world-tag="ok">{t('cogitaWorld.panel.ticketOk')}</span>;
   if (st.ticket.unknown) return <span className="cg-wm-tag is-lock" data-world-tag="unknown">{t('cogitaWorld.panel.ticketUnknown')}</span>;
   if (st.ticket.reviewOnly) return <span className="cg-wm-tag is-lock" data-world-tag="review">{t('cogitaWorld.panel.reviewOnly')}</span>;
@@ -103,7 +103,7 @@ function Directions({ from, ctx }: { from: string; ctx: PanelCtx }) {
               {label !== null && <span> · {label}</span>}
             </span>
             <span className="cg-wm-meta">→ {ctx.nameOf(s.to)} · {t('cogitaWorld.panel.slides', { count: s.slides })}</span>
-            <TicketTag st={st} t={t} />
+            <TicketTag st={st} t={t} level={(state.settings.openAt ?? 0) > 0 ? state.settings.openAt! : null} />
             <span className="cg-wm-rowact">
               {ctx.canLearn && st.ticket.met && st.open && <button type="button" className="wk-btn is-small" onClick={() => act.travel(s.id)} data-world-choose={s.id}>{t('cogitaWorld.panel.choose')}</button>}
               <button type="button" className="wk-link-btn" onClick={() => act.show('section', s.id)} data-world-direction-more={s.id}>{t('cogitaWorld.panel.details')}</button>
@@ -147,7 +147,7 @@ function Sources({ cards, except, ctx }: { cards: readonly string[]; except: str
               <Chip colour={ctx.colours.get(s.line)} />
               <span>{t('cogitaWorld.panel.cards', { count: list.length })} · {lineOf(ctx, s)?.name ?? s.line}: {fromTo(ctx, s)}</span>
             </span>
-            <span className="cg-wm-meta">{!st.open ? t('cogitaWorld.panel.conquerStart', { name: ctx.nameOf(s.from) }) : st.ticket.met ? t('cogitaWorld.panel.openNow') : t('cogitaWorld.panel.needs', { what: firstMissing(ctx, st) })}</span>
+            <span className="cg-wm-meta">{!st.open ? ((state.settings.openAt ?? 0) > 0 ? t('cogitaWorld.panel.reachStart', { name: ctx.nameOf(s.from), level: state.settings.openAt! }) : t('cogitaWorld.panel.conquerStart', { name: ctx.nameOf(s.from) })) : st.ticket.met ? t('cogitaWorld.panel.openNow') : t('cogitaWorld.panel.needs', { what: firstMissing(ctx, st) })}</span>
             <span className="cg-wm-rowact">
               {ctx.canLearn && st.ticket.met && st.open && <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => act.travel(sec)} data-world-source-travel={sec}>{t('cogitaWorld.panel.travel')}</button>}
               <button type="button" className="wk-link-btn" onClick={() => act.show('section', sec)}>{t('cogitaWorld.panel.details')}</button>
@@ -207,7 +207,7 @@ export function SectionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx; 
       )}
       {!st.open && (
         <p className="cg-wm-lock" data-world-start-closed={s.from}>
-          {t('cogitaWorld.panel.conquerStart', { name: ctx.nameOf(s.from) })}{' '}
+          {(state.settings.openAt ?? 0) > 0 ? t('cogitaWorld.panel.reachStart', { name: ctx.nameOf(s.from), level: state.settings.openAt! }) : t('cogitaWorld.panel.conquerStart', { name: ctx.nameOf(s.from) })}{' '}
           <button type="button" className="wk-link-btn" onClick={() => act.show('place', s.from)}>{t('cogitaWorld.panel.showPlace')}</button>
         </p>
       )}
@@ -283,10 +283,24 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
             ? <button type="button" className="wk-btn" onClick={() => act.review(due, place.label)} data-world-review={due.length}>{t('cogitaWorld.panel.reviewN', { count: due.length })}</button>
             : <p className="cg-wm-ok">✓ {t('cogitaWorld.map.conquered')}</p>
         ) : gate.kind === 'ready' && ctx.canLearn ? (
-          <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level}>{t('cogitaWorld.panel.startRun', { level: gate.level })}</button>
-            {rule !== undefined && <span className="cg-wm-meta">{t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}</span>}
-          </div>
+          <>
+            {/*
+              2026-11-10 (Eigentümer) — ZWEI WEGE ZUM TURM: (1) erst nur die Karten wiederholen, die ich noch nicht kann (die Vorbereitung);
+              (2) gleich erobern: alle Karten beantworten — das erobert ihn.
+            */}
+            <div className="cg-wm-ways" data-world-ways="">
+              {notKnown.length > 0 && (
+                <div className="cg-wm-way1">
+                  <button type="button" className="wk-btn wk-btn-line" onClick={() => act.learn(notKnown, place.label)} data-world-prepare={notKnown.length}>{t('cogitaWorld.panel.prepareN', { count: notKnown.length })}</button>
+                  <span className="cg-wm-meta">{t('cogitaWorld.panel.prepareSays')}</span>
+                </div>
+              )}
+              <div className="cg-wm-way1">
+                <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level}>{t('cogitaWorld.panel.startRun', { level: gate.level })}</button>
+                <span className="cg-wm-meta">{t('cogitaWorld.panel.conquerSays', { count: ps.cards.length })}{rule !== undefined ? ` · ${t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}` : ''}</span>
+              </div>
+            </div>
+          </>
         ) : ctx.canLearn ? (
           <>
           <div className="wk-actions">
