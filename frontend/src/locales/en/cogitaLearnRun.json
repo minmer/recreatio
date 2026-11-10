@@ -167,7 +167,8 @@
     "explanation": "Explanation",
     "hintN": "Hint {n}",
     "hintCost": "Each hint lowers the score of this answer by {pct}%.",
-    "hintOf": "Hint {n}/{all}"
+    "hintOf": "Hint {n}/{all}",
+    "stats": "Statistics of this card"
   },
   "code": {
     "loading": "Starting Python… (the first time about 10 MB are downloaded)",

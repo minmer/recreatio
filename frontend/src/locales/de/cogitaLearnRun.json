@@ -167,7 +167,8 @@
     "explanation": "Erklärung",
     "hintN": "Hinweis {n}",
     "hintCost": "Jeder Hinweis senkt das Ergebnis dieser Antwort um {pct} %.",
-    "hintOf": "Hinweis {n}/{all}"
+    "hintOf": "Hinweis {n}/{all}",
+    "stats": "Statistik dieser Karte"
   },
   "code": {
     "loading": "Python wird gestartet… (beim ersten Mal werden etwa 10 MB geladen)",

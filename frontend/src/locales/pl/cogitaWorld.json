@@ -186,7 +186,9 @@
       "few": "{count} zdobyte",
       "many": "{count} zdobytych",
       "other": "{count} zdobytej"
-    }
+    },
+    "trail": "Droga powrotna",
+    "trailClose": "Zamknij drogę powrotną"
   },
   "panel": {
     "close": "Zamknij",
@@ -346,7 +348,10 @@
       "few": "{count} karty nigdy niezadane",
       "many": "{count} kart nigdy niezadanych",
       "other": "{count} karty nigdy niezadanej"
-    }
+    },
+    "paused": "Droga do {name} wstrzymana — postęp zostaje.",
+    "resume": "Wznów",
+    "forget": "Zapomnij drogę"
   },
   "issue": {
     "title": {
@@ -445,7 +450,8 @@
     "nextAfter": "Dalej na twojej drodze",
     "nextPart": "Pierwsza część",
     "go": "Dalej",
-    "partOf": "Część {n} z {all}"
+    "partOf": "Część {n} z {all}",
+    "start": "Zacznij"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

@@ -289,6 +289,9 @@ export function words(lang: Lang) {
       review: t('cogitaLearn.words.storyButton.review'), passed: t('cogitaLearn.words.storyButton.passed')
     },
     widen: t('cogitaLearn.words.widen'),
+    /* 2026-11-10 — der Plan der Erzählung als eigene Ansicht (Menü „⋯"), mit oder ohne den eigenen Weg. */
+    storyMap: t('cogitaLearn.words.storyMap'),
+    routeShown: t('cogitaLearn.words.routeShown'),
     narrow: t('cogitaLearn.words.narrow'),
     chooseRoad: (n: number): string => (n === 1 ? t('cogitaLearn.words.chooseRoadOne') : t('cogitaLearn.words.chooseRoad', { n })),
     kinds: tab(['start', 'end', 'read', 'learn', 'mixed', 'review', 'fork', 'detour'] as const, (k) => t(`cogitaLearn.words.kinds.${k}`))

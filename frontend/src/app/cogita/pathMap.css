@@ -325,3 +325,10 @@
 .cg-pm-next-hint { font-size: var(--wk-text-xs); color: var(--wk-muted); max-width: 28rem; text-align: center; }
 .cg-pm-next-way { stroke: var(--cg-pm-next); }
 .cg-pm-next-h { color: var(--cg-pm-next); }
+
+/* 2026-11-10 — der Plan einer Erzählung nur auf Wunsch, als eigene Ansicht über allem (nie als ständiges Feld daneben). */
+.cg-story-mapview { position: fixed; inset: 0; z-index: var(--wk-z-dialog); display: flex; flex-direction: column; gap: var(--wk-space-2); overflow: auto; padding: var(--wk-space-3); background: var(--wk-surface); }
+.cg-story-mapbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-3); }
+.cg-story-mapbar strong { flex: 1 1 12rem; min-width: 0; }
+.cg-story-maproute { display: inline-flex; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-sm); cursor: pointer; }
+.cg-story-mapview .cg-pm { --cg-pm-max-h: none; }

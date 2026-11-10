@@ -13,7 +13,7 @@ import type { Geometry } from './wmGeometry';
 import { HOME_ID } from './wmGeometry';
 import type { WorldState } from './wmState';
 import { laneOffset, offsetPoints } from './wmTracks';
-import type { Lines, Section, World } from './wmTypes';
+import { isJunction, type Lines, type Section, type World } from './wmTypes';
 
 export interface ScenePlace {
   readonly id: string;
@@ -38,6 +38,15 @@ export interface ScenePlace {
   readonly perfect: boolean;
   /** Wie die Karten des Ortes sitzen (gekonnt, im Lernen, verblasst/neu) — der Ring eines eroberten Ortes. */
   readonly knowledge: { readonly known: number; readonly learning: number; readonly faded: number };
+  /** 2026-11-10 — was dem Turm SELBST noch fehlt (Karten): die Höhe des Turms über seinen Scheiben. */
+  readonly own: number;
+  /**
+   * 2026-11-10 (Eigentümer: „jeder Turm steht auf Scheiben, eine je Turm, der vorher noch erobert werden muss") — DIE SCHEIBEN: jede
+   * nicht eroberte Voraussetzung (auch mittelbar) einmal; unten, was zuerst zu tun ist, oben eine unmittelbare Voraussetzung.
+   */
+  readonly discs: readonly string[];
+  /** Erobert, und Karten sind fällig (zu wiederholen): ein kleines Fähnchen, auch von weit. */
+  readonly due: boolean;
 }
 
 /**
@@ -85,6 +94,44 @@ export interface SceneLane {
    * zwischen den Anteilen `from`…`to` seiner Länge (dort, wo die Verpackungen verschieden sind). Null: keine.
    */
   readonly variants: { readonly more: number; readonly from: number; readonly to: number } | null;
+  /**
+   * 2026-11-10 (Eigentümer: „keine Farbe je Erzählung — drei Stricharten") — WIE DER PFAD GEZEICHNET WIRD: `walked` dick (schon
+   * gegangen), `known` dünn und durchgezogen (gehbar, bringt nichts Neues), `new` gestrichelt (bringt Neues); `fresh` ist der
+   * Anteil seiner Karten, die noch nicht sitzen (je weniger, desto dichter die Striche).
+   */
+  readonly style: 'walked' | 'known' | 'new';
+  readonly fresh: number;
+  /** Türme, die das eigene Tor dieses Pfades verlangt und die noch nicht erobert sind (ein Schloss an seinem Anfang). */
+  readonly requires: readonly string[];
+}
+
+/** Wie eine Spur gezeichnet wird (Bildpunkte): Breite, Strich (leer: durchgezogen), Ton. Rein — `app-wm-shapes-check` prüft es. */
+export interface LaneStroke {
+  readonly width: number;
+  readonly dash: readonly number[];
+  readonly tone: 'route' | 'current' | 'done' | 'grey' | 'walked' | 'known' | 'new' | 'locked';
+  /** Punkte je Folie und Frage nur auf gewählten Spuren. */
+  readonly dots: boolean;
+}
+
+/**
+ * 2026-11-10 — DIE STRICHE: ohne Ziel dick (gegangen), dünn (nichts Neues), gestrichelt (Neues; dichter, je weniger neu ist),
+ * gesperrt blass gestrichelt. Mit gewähltem Ziel: der offene Weg kräftig in der Farbe des Weges (der jetzige Schritt noch
+ * kräftiger), das Gegangene dünn, alles andere grau. Punkte nur auf dem gewählten Weg.
+ */
+export function laneStroke(l: SceneLane, focus: { readonly remaining: ReadonlySet<string>; readonly done: ReadonlySet<string>; readonly current: string | null } | null, selected: ReadonlySet<string> = new Set()): LaneStroke {
+  const pattern = (share: number): number[] => { const k = Math.max(0, Math.min(1, share)); return [1.5 + 4.5 * k, 1.5 + 3.5 * k]; };
+  if (focus !== null) {
+    if (focus.current === l.section) return { width: 4.4, dash: [], tone: 'current', dots: true };
+    if (focus.remaining.has(l.section)) return { width: 3.2, dash: [], tone: 'route', dots: true };
+    if (focus.done.has(l.section)) return { width: 1.4, dash: [], tone: 'done', dots: false };
+    return { width: 1, dash: [], tone: 'grey', dots: false };
+  }
+  const dots = selected.has(l.section);
+  if (l.state === 'locked') return { width: 1.2, dash: pattern(l.fresh), tone: 'locked', dots };
+  if (l.style === 'walked') return { width: 3, dash: [], tone: 'walked', dots };
+  if (l.style === 'known') return { width: 1.2, dash: [], tone: 'known', dots };
+  return { width: 1.8, dash: pattern(l.fresh), tone: 'new', dots };
 }
 
 /** 2026-11-10 — ein Knoten zwischen Türmen auf der Karte: eine Gabelung (k Wege) oder ein Tor (wo verlangte Türme zusammenkommen). */
@@ -161,7 +208,10 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       color: opts.placeColour(id), sat: st?.saturation ?? 'never', missing: st?.height ?? p.cards.length, total: p.cards.length,
       conquered: st?.conquered === true, levels: state.settings.levels, level: st?.level ?? 0, dot: st?.dot ?? null,
       station: lines.stations.has(id), perfect: st?.perfect === true,
-      knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length }
+      knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length },
+      own: st?.missing ?? p.cards.length,
+      discs: st === undefined || st.conquered ? [] : state.conquestOrder(id).filter((x) => x !== id),
+      due: st?.dot === 'orange'
     });
   }
   const byId = new Map(places.map((p) => [p.id, p] as const));
@@ -215,6 +265,26 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     const n = Math.max(1, rep.steps.length);
     variantsOf.set(rep.id, { more: list.length - 1, from: pre / (n + 1), to: Math.min(1, (n - suf + 1) / (n + 1)) });
   }
+  /* Das eigene Tor eines Pfades: die verlangten Türme (noch nicht erobert). */
+  const requiresOf = new Map<string, string[]>();
+  for (const l of lines.links) {
+    if (state.places.get(l.from)?.conquered === true) continue;
+    const list = requiresOf.get(l.section) ?? [];
+    if (!list.includes(l.from)) list.push(l.from);
+    requiresOf.set(l.section, list);
+  }
+  /* 2026-11-10 (Eigentümer: „ein Zweig heisst nach seinem Ziel, nicht nach der Erzählung") — der erste Turm, zu dem er führt. */
+  const firstOut = new Map<string, Section>();
+  for (const s of lines.sections.values()) if (s.from !== s.to && isJunction(s.from) && !firstOut.has(s.from)) firstOut.set(s.from, s);
+  const destination = (s: Section): string => {
+    let at = s.to;
+    for (let guard = 0; guard < 8 && isJunction(at); guard += 1) {
+      const next = firstOut.get(at);
+      if (next === undefined) break;
+      at = next.to;
+    }
+    return world.places.get(at)?.label ?? world.blocks.get(at)?.label ?? lines.lines.get(s.line)?.name ?? '';
+  };
   const lanes: SceneLane[] = [];
   for (const s of lines.sections.values()) {
     if (s.from === s.to) continue;
@@ -241,10 +311,14 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       if (t.a === a) points = shifted;
       else { points = []; for (let i = shifted.length - 2; i >= 0; i -= 2) points.push(shifted[i], shifted[i + 1]); }
     }
+    const open = s.introduces.filter((k) => state.band(k) !== 'known').length;
     lanes.push({
       section: s.id, line: s.line, branch: s.branch, fromId: s.from, toId: s.to, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
-      name: lines.lines.get(s.line)?.name ?? '', slides: s.slides,
+      name: lines.junctions.get(s.from)?.kind === 'fork' ? destination(s) : lines.lines.get(s.line)?.name ?? '', slides: s.slides,
+      style: st?.travelled === true ? 'walked' : open > 0 ? 'new' : 'known',
+      fresh: s.introduces.length === 0 ? 0 : open / s.introduces.length,
+      requires: requiresOf.get(s.id) ?? [],
       marks: s.steps.map((x) => (s.questions.includes(x) ? 'question' as const : 'slide' as const)), seen: st?.seen ?? [],
       forkStart: s.start?.exit !== undefined,
       review: lines.lines.get(s.line)?.review === true && s.kind !== 'return' && !lineSections(s.line).some((o) => o.id !== s.id && o.branch === s.branch && o.from === s.to),

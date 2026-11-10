@@ -18,6 +18,11 @@ export interface NavSession {
   readonly target: string;
   /** Gewählte Abzweigungen: Ort → Abschnitt. */
   readonly choices: ReadonlyMap<string, string>;
+  /**
+   * 2026-11-10 (Eigentümer: „‚Zur Karte‘ und ‚Navigation beenden‘ behalten den Fortschritt — man kann weitermachen") — angehalten:
+   * der Weg ist nicht zu sehen, aber nicht vergessen; „Weiter" nimmt ihn wieder auf (der Plan rechnet ohnehin aus dem Stand).
+   */
+  readonly paused?: boolean;
 }
 
 /** Ein Schritt beim Namen (derselbe Schritt in zwei Plänen hat denselben Schlüssel). */
@@ -91,17 +96,17 @@ export function keptNav(scope: string): NavSession | null {
   try {
     const raw = window.sessionStorage.getItem(navKey(scope));
     if (raw === null) return null;
-    const v = JSON.parse(raw) as { target?: unknown; choices?: unknown };
+    const v = JSON.parse(raw) as { target?: unknown; choices?: unknown; paused?: unknown };
     if (typeof v.target !== 'string' || v.target === '') return null;
     const choices = new Map<string, string>();
     if (Array.isArray(v.choices)) for (const pair of v.choices) if (Array.isArray(pair) && typeof pair[0] === 'string' && typeof pair[1] === 'string') choices.set(pair[0], pair[1]);
-    return { target: v.target, choices };
+    return { target: v.target, choices, ...(v.paused === true ? { paused: true } : {}) };
   } catch { return null; }
 }
 
 export function keepNav(scope: string, nav: NavSession | null): void {
   try {
     if (nav === null) window.sessionStorage.removeItem(navKey(scope));
-    else window.sessionStorage.setItem(navKey(scope), JSON.stringify({ target: nav.target, choices: [...nav.choices] }));
+    else window.sessionStorage.setItem(navKey(scope), JSON.stringify({ target: nav.target, choices: [...nav.choices], ...(nav.paused === true ? { paused: true } : {}) }));
   } catch { /* ohne Speicher: nur bis zum Neuladen */ }
 }

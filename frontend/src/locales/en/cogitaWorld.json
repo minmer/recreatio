@@ -158,7 +158,9 @@
     "reqDone": {
       "one": "{count} conquered",
       "other": "{count} conquered"
-    }
+    },
+    "trail": "Back along the way",
+    "trailClose": "Close the way back"
   },
   "panel": {
     "close": "Close",
@@ -292,7 +294,10 @@
     "runUnseen": {
       "one": "{count} card never asked",
       "other": "{count} cards never asked"
-    }
+    },
+    "paused": "Way to {name} paused — your progress is kept.",
+    "resume": "Resume",
+    "forget": "Forget the way"
   },
   "issue": {
     "title": {
@@ -371,7 +376,8 @@
     "nextAfter": "Next on your way",
     "nextPart": "First part",
     "go": "Go on",
-    "partOf": "Part {n} of {all}"
+    "partOf": "Part {n} of {all}",
+    "start": "Start"
   },
   "finish": {
     "arrive": "Goal reached!",

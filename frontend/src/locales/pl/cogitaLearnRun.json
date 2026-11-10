@@ -187,7 +187,8 @@
     "explanation": "Wyjaśnienie",
     "hintN": "Podpowiedź {n}",
     "hintCost": "Każda podpowiedź obniża wynik tej odpowiedzi o {pct}%.",
-    "hintOf": "Podpowiedź {n}/{all}"
+    "hintOf": "Podpowiedź {n}/{all}",
+    "stats": "Statystyka tej karty"
   },
   "code": {
     "loading": "Uruchamianie Pythona… (za pierwszym razem pobiera się ok. 10 MB)",

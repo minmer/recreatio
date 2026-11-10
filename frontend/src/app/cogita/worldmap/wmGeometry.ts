@@ -25,7 +25,15 @@ export interface GeometryInput {
   /** Gespeicherte Lage der Knoten (Orte, Blöcke, Haus). */
   readonly previous?: Readonly<Record<string, readonly [number, number]>>;
   readonly mode?: 'stable' | 'full';
+  /** 2026-11-10 — je Gabelung: Schritte vor ihr (vom Turm) und die mittlere Länge ihrer Zweige (Schritte) — ihre Lage auf dem Weg. */
+  readonly junctionSteps?: Readonly<Record<string, readonly [number, number]>>;
 }
+
+/** Wie weit eine Gabelung auf dem Weg vom Ausgang zum nächsten Ziel liegt (Anteil des freien Stücks zwischen den Rändern). */
+export const FORK_MIN = 0.1;
+export const FORK_MAX = 0.45;
+/** Der Anteil: mehr Folien vor der Gabelung (gegenüber der Länge ihrer Zweige) — weiter vom Ausgang, in den Grenzen. */
+export const forkShare = (before: number, after: number): number => (before + after <= 0 ? FORK_MIN : Math.max(FORK_MIN, Math.min(FORK_MAX, before / (before + after))));
 
 export interface Geometry {
   readonly version: string;
@@ -55,6 +63,8 @@ export function geometryVersion(input: GeometryInput): string {
   for (const s of input.sections.map(([a, b]) => key(a, b)).sort()) parts.push(s);
   for (const s of input.prereqs.map(([a, b]) => `${a}>${b}`).sort()) parts.push(s);
   if (input.previous !== undefined) for (const k of Object.keys(input.previous).sort()) { const p = input.previous[k]; parts.push(`${k}@${p[0]},${p[1]}`); }
+  if (input.junctionSteps !== undefined) for (const k of Object.keys(input.junctionSteps).sort()) { const w = input.junctionSteps[k]; parts.push(`${k}~${w[0]},${w[1]}`); }
+  parts.push('fork-share-2');
   let h1 = 0x811c9dc5, h2 = 0x01000193;
   const text = parts.join('\n');
   for (let i = 0; i < text.length; i += 1) { const c = text.charCodeAt(i); h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0; h2 = Math.imul(h2 ^ c, 0x85ebca6b) >>> 0; }
@@ -151,9 +161,17 @@ export function geometryOf(input: GeometryInput): Geometry {
       const targets = (outs.get(id) ?? []).map((t) => positions[t]).filter((p): p is readonly [number, number] => p !== undefined);
       if (o === undefined || targets.length === 0) { placedJ.add(id); continue; }
       const cx = targets.reduce((s, p) => s + p[0], 0) / targets.length, cy = targets.reduce((s, p) => s + p[1], 0) / targets.length;
-      const near = Math.min(...targets.map((p) => Math.hypot(p[0] - o[0], p[1] - o[1])));
-      const ro = from === undefined ? R : radii[from] ?? R;
-      const dist = Math.max(ro + JUNCTION_R + 0.5 * R, Math.min(0.4 * near, ro + 2.2 * R));
+      const outIds = outs.get(id) ?? [];
+      let near = Infinity, rNear = R;
+      outIds.forEach((t) => { const p = positions[t]; if (p === undefined) return; const d = Math.hypot(p[0] - o[0], p[1] - o[1]); if (d < near) { near = d; rNear = junctions.has(t) ? JUNCTION_R : radii[t] ?? R; } });
+      const ro = from === undefined ? R : junctions.has(from) ? JUNCTION_R : radii[from] ?? R;
+      /*
+        2026-11-10 (Eigentümer: „der Abstand vom Ausgang wächst mit den Folien vor der Gabelung, gemessen an der Länge der Zweige —
+        zwischen 10 % und 45 % des Weges zum nächsten Ziel") — gemessen auf dem freien Stück zwischen den Rändern.
+      */
+      const w = input.junctionSteps?.[id] ?? [0, 1];
+      const start = ro + JUNCTION_R + 2, end = Math.max(start, near - rNear - JUNCTION_R - 2);
+      const dist = start + forkShare(w[0], w[1]) * (end - start);
       const base = Math.atan2(cy - o[1], cx - o[0]);
       /* Weggedreht (±15°-Schritte), bis kein anderer Turm den Knoten berührt. */
       let best: [number, number] = [o[0] + Math.cos(base) * dist, o[1] + Math.sin(base) * dist];
@@ -192,7 +210,16 @@ export function geometryInputOf(world: World, lines: Lines, opts: { readonly pre
   for (const s of lines.sections.values()) if (s.from !== s.to) { sections.push([s.from, s.to]); sectionLines.push(s.line); }
   const prereqs: [string, string][] = [];
   for (const p of world.places.values()) for (const n of p.needs) prereqs.push([n, p.id]);
-  return { places, blocks, sections, sectionLines, prereqs, ...(opts.previous === undefined ? {} : { previous: opts.previous }), ...(opts.mode === undefined ? {} : { mode: opts.mode }) };
+  const junctionSteps: Record<string, readonly [number, number]> = {};
+  for (const j of lines.junctions.values()) {
+    const outs = j.out.map((id) => lines.sections.get(id)).filter((s): s is NonNullable<typeof s> => s !== undefined);
+    const after = outs.length === 0 ? 0 : outs.reduce((sum, s) => sum + s.steps.length, 0) / outs.length;
+    junctionSteps[j.id] = [j.before.slides + j.before.questions, Math.round(after * 10) / 10];
+  }
+  return {
+    places, blocks, sections, sectionLines, prereqs, ...(opts.previous === undefined ? {} : { previous: opts.previous }), ...(opts.mode === undefined ? {} : { mode: opts.mode }),
+    ...(Object.keys(junctionSteps).length === 0 ? {} : { junctionSteps })
+  };
 }
 
 /** Die Hindernisse einer fertigen Gestalt (für die Prüfung `clearance`). */

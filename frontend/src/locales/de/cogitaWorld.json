@@ -158,7 +158,9 @@
     "reqDone": {
       "one": "{count} erobert",
       "other": "{count} erobert"
-    }
+    },
+    "trail": "Zurück auf dem Weg",
+    "trailClose": "Weg zurück schliessen"
   },
   "panel": {
     "close": "Schließen",
@@ -292,7 +294,10 @@
     "runUnseen": {
       "one": "{count} Karte nie gefragt",
       "other": "{count} Karten nie gefragt"
-    }
+    },
+    "paused": "Weg zu {name} angehalten — dein Fortschritt bleibt.",
+    "resume": "Weiter",
+    "forget": "Weg vergessen"
   },
   "issue": {
     "title": {
@@ -371,7 +376,8 @@
     "nextAfter": "Als Nächstes auf deinem Weg",
     "nextPart": "Erster Teil",
     "go": "Weiter",
-    "partOf": "Teil {n} von {all}"
+    "partOf": "Teil {n} von {all}",
+    "start": "Beginnen"
   },
   "finish": {
     "arrive": "Ziel erreicht!",

@@ -95,6 +95,56 @@ export function WayPreview({ plan, ctx }: { plan: Plan; ctx: PanelCtx }) {
   );
 }
 
+/**
+ * 2026-11-10 (Eigentümer: „Doppelklick öffnet den Überblick über den Weg im Vollbild: die Schritte der Reihe nach, jeder mit seinem
+ * Inhalt; zuerst die Wiederholung, die davor nötig ist; von dort beginnt man") — DER ÜBERBLICK.
+ */
+export function RouteOverview({ tt, ctx, rules, onStart, onClose }: {
+  tt: Timetable;
+  ctx: PanelCtx;
+  rules: readonly LevelRule[];
+  onStart: (step: PlanStep) => void;
+  onClose: () => void;
+}) {
+  const { t, nameOf } = ctx;
+  const steps = tt.upcoming;
+  const first = steps[0];
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+  return (
+    <div className="cg-wm-overview" role="dialog" aria-modal="true" aria-label={t('cogitaWorld.way.title', { name: nameOf(tt.target) })} data-world-overview={steps.length}>
+      <section className="cg-wm-overbox">
+        <header className="cg-wm-nexthead">
+          <h2><PartIcon kind="target" /> {t('cogitaWorld.way.title', { name: nameOf(tt.target) })}</h2>
+          {steps.length > 0 && <p className="cg-wm-meta">{t('cogitaWorld.way.preview', { count: steps.length })} · {countLine(steps, ctx)}</p>}
+        </header>
+        <ol className="cg-wm-overlist">
+          {steps.map((step, i) => {
+            const meta = stepMeta(step, ctx, rules);
+            return (
+              <li key={`${stepKey(step)}:${i}`} className={`cg-wm-overstep is-${step.kind}${i === 0 ? ' is-current' : ''}`} data-world-overview-step={stepKey(step)}>
+                <span className="cg-wm-wdot"><PartIcon kind={step.kind} /></span>
+                <span className="cg-wm-wtext"><strong>{stepText(step, ctx)}</strong>{meta !== '' && <span className="cg-wm-meta">{meta}</span>}</span>
+              </li>
+            );
+          })}
+          <li className="cg-wm-overstep is-target" data-world-overview-target={tt.target}>
+            <span className="cg-wm-wdot"><PartIcon kind="target" /></span>
+            <span className="cg-wm-wtext"><strong>{steps.length === 0 ? t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) }) : nameOf(tt.target)}</strong></span>
+          </li>
+        </ol>
+        <div className="wk-actions">
+          {ctx.canLearn && first !== undefined && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onStart(first)} data-world-overview-start={first.kind}>{t('cogitaWorld.way.start')} ▶</button>}
+          <button type="button" className="wk-link-btn" onClick={onClose} data-world-overview-close="">{t('cogitaWorld.way.toMap')}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /** Wie lange der Weg nach einem Teil wartet, bevor der nächste von selbst beginnt (Sekunden). */
 export const NEXT_AUTO_S = 6;
 

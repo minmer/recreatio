@@ -271,7 +271,9 @@
       "fork": "wybór drogi",
       "detour": "zagłębienie w inną opowieść"
     },
-    "branchQuestions": "{questions} · {known} umiesz"
+    "branchQuestions": "{questions} · {known} umiesz",
+    "storyMap": "Plan opowieści",
+    "routeShown": "Pokaż moją drogę"
   },
   "spacing": {
     "title": "Odstępy powtórek",

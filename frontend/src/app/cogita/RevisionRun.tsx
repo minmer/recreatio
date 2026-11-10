@@ -566,6 +566,7 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
         card={asked}
         rule={session.plan.rule}
         lib={lib ?? undefined}
+        stats={learner === null ? null : { marks: () => learner.marks(card.key, card.fingerprint, rename), spacing: learner.spacing }}
         head={lib === null || fresh.length === 0 ? undefined : (
           /* 2026-10-31 — kurz, damit die Frage im Blick bleibt; mehrere Themen auf einmal je zwei Zeilen. Aufgeklappter Text wird nicht vorgelesen (aria-live der Karte). */
           <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} data-many={fresh.length > 1 ? '' : undefined} aria-label={t('cogitaLearnRun.run.newTopic')} aria-live="off">

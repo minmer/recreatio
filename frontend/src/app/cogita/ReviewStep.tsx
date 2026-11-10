@@ -8,12 +8,14 @@
 import { useState } from 'react';
 
 import type { Card } from './cardBasics';
-import { CardFace } from './CardFace';
+import { CardFace, type CardStats } from './CardFace';
 import type { Outcome } from './check';
 import type { Words } from './lang';
 import { reviewPlan, reviewResult } from './reviewRound';
 
-export function ReviewStep({ cards, known, threshold, W, onAnswer, onDone }: {
+export function ReviewStep({ cards, known, threshold, W, onAnswer, onDone, stats }: {
+  /** 2026-11-10 — „Statistik dieser Karte" (die Antworten des Lernenden). */
+  stats?: (card: Card) => CardStats | null;
   /** Die Karten der Erzählung (jede einmal). */
   cards: readonly Card[];
   /** Sitzt die Karte schon (die Regel des Spielers)? */
@@ -56,7 +58,7 @@ export function ReviewStep({ cards, known, threshold, W, onAnswer, onDone }: {
   return (
     <div className="cg-review-step" data-flow-review-step="ask" data-flow-review-at={at + 1}>
       <p className="cg-muted" data-flow-review-of="">{W.reviewStepHead} · {W.reviewStepOf(at + 1, plan.pending.length)}</p>
-      <CardFace key={`${card.key}:${at}`} card={card} lang={W.lang}
+      <CardFace key={`${card.key}:${at}`} card={card} lang={W.lang} stats={stats?.(card) ?? null}
         onAnswered={(outcome, given) => { if (answered) return; setAnswered(true); if (outcome.correct) setRight((x) => x + 1); onAnswer(card, outcome, given); }}
         onNext={nextOne} />
     </div>

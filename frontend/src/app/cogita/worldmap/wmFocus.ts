@@ -28,6 +28,8 @@ export interface RouteFocus {
   readonly nodes: ReadonlySet<string>;
   /** Die Spuren verlangter Türme zu Toren auf dem Weg (Kennungen von `Lines.links` und `requires:<von>><nach>`). */
   readonly gates: ReadonlySet<string>;
+  /** 2026-11-10 — der jetzige Schritt: die erste Spur des Weges, die noch zu gehen ist (sie sticht hervor). */
+  readonly current: string | null;
 }
 
 /** Was hervorgehoben ist, wenn der Weg dieses Plans gezeigt wird. Alles, was hier fehlt, ist grau. */
@@ -53,7 +55,27 @@ export function routeFocus(plan: Plan, state: WorldState, lines: Lines): RouteFo
   const gates = new Set<string>();
   for (const l of lines.links) if (nodes.has(l.to) || missing.has(l.to)) gates.add(l.id);
   for (const p of missing) for (const n of state.world.places.get(p)?.needs ?? []) if (missing.has(n) || state.places.get(n)?.conquered !== true) gates.add(`requires:${n}>${p}`);
-  return { missing, passed, remaining, done, nodes, gates };
+  const current = plan.route.find((id) => remaining.has(id)) ?? null;
+  return { missing, passed, remaining, done, nodes, gates, current };
+}
+
+/**
+ * 2026-11-10 (Eigentümer: „ein Klick auf einen Turm oder einen Pfad zeigt den Weg") — EIN GEWÄHLTER PFAD: führt er zu einem Turm,
+ * der noch fehlt, der Weg dorthin über genau diesen Pfad; sonst nur er selbst.
+ */
+export function sectionFocus(state: WorldState, lines: Lines, section: string, planOf: (target: string, via: string) => Plan): RouteFocus | null {
+  const s = lines.sections.get(section);
+  if (s === undefined) return null;
+  if (state.places.get(s.to)?.conquered === false) {
+    const f = routeFocus(planOf(s.to, s.id), state, lines);
+    if (f.remaining.has(section) || f.done.has(section)) return f;
+  }
+  const walked = state.sections.get(section)?.travelled === true;
+  const nodes = new Set([s.from, s.to].filter(isJunction));
+  return {
+    missing: new Set(), passed: new Set([s.from, s.to].filter((x) => x !== HOME && !isJunction(x))), nodes, gates: new Set(lines.links.filter((l) => l.section === section).map((l) => l.id)),
+    remaining: new Set(walked ? [] : [section]), done: new Set(walked ? [section] : []), current: walked ? null : section
+  };
 }
 
 /** Ist dieser Turm (oder diese Spur) bei gezeigtem Weg grau? */

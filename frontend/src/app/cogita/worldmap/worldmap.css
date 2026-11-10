@@ -290,3 +290,19 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-breqitem.is-locked::before { background: var(--wk-muted); }
 .cg-wm-breqitem.is-more::before { display: none; }
 .cg-wm-req { display: flex; flex-direction: column; gap: var(--wk-space-1); margin-bottom: var(--wk-space-2); }
+
+/* 2026-11-10 — der Weg zurück nach Klicks auf Scheiben (oben links auf der Karte). */
+.cg-wm-trail { position: absolute; top: var(--wk-space-2); left: var(--wk-space-2); z-index: 4; display: flex; flex-wrap: wrap; gap: var(--wk-space-1); max-width: calc(100% - 6rem); }
+.cg-wm-trailbtn { padding: 0.15rem 0.55rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-xs); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
+.cg-wm-trailbtn:hover, .cg-wm-trailbtn:focus-visible { border-color: var(--wk-ink); }
+.cg-wm-trailbtn.is-close { padding: 0.15rem 0.45rem; color: var(--wk-muted); }
+
+/* 2026-11-10 — der Überblick über den Weg (Doppelklick): über allem, die Schritte der Reihe nach. */
+.cg-wm-overview { position: fixed; inset: 0; z-index: var(--wk-z-dialog); display: flex; justify-content: center; overflow-y: auto; padding: var(--wk-space-4) var(--wk-space-3); background: var(--wk-surface); animation: cg-fin-rise 320ms ease-out both; }
+.cg-wm-overbox { width: min(40rem, 100%); display: flex; flex-direction: column; gap: var(--wk-space-3); }
+.cg-wm-overlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--wk-space-2); }
+.cg-wm-overstep { position: relative; display: flex; align-items: center; gap: var(--wk-space-3); padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.cg-wm-overstep:not(:last-child)::after { content: ''; position: absolute; left: calc(var(--wk-space-2) + 1.05rem); bottom: calc(-1 * var(--wk-space-2) - 1px); width: 2px; height: var(--wk-space-2); background: var(--wk-line-strong); }
+.cg-wm-overstep.is-current { border-color: var(--wk-accent); box-shadow: 0 0 0 1px var(--wk-accent); }
+.cg-wm-overstep.is-target { border-style: dashed; }
+.cg-wm-overstep .cg-wm-wtext { gap: 0.15rem; }

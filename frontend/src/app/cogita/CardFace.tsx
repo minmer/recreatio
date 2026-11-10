@@ -32,6 +32,14 @@ import { motionWords } from './motionWords';
 import { noteAnswerSource, onKnown } from './rewardBus';
 import { RewardIcon } from './RewardViews';
 import { motionLevel } from '../ui/motion';
+import { later } from '../ui/later';
+import type { Mark, Spacing } from './knowness';
+
+/** 2026-11-10 — die Geschichte einer Karte (Kenntnis nach jeder Antwort), erst geladen, wenn man sie öffnet. */
+const CardHistory = later(() => import('./KnowCharts').then((m) => m.CardHistoryChart));
+
+/** Was „Statistik dieser Karte" braucht: die Antworten des Lernenden auf sie und seine Abstände. */
+export interface CardStats { readonly marks: () => readonly Mark[]; readonly spacing?: Spacing }
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -607,8 +615,13 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
 
 /* -- Frage, Antwort, Urteil ------------------------------------------------------------------- */
 
-export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head, foot, onEntity, autoFocus = true, lang }: {
+export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head, foot, onEntity, autoFocus = true, lang, stats }: {
   card: Card;
+  /**
+   * 2026-11-10 (Eigentümer: „jede Kartenansicht bietet ‚Statistik dieser Karte‘, immer an derselben Stelle mit demselben Zeichen") —
+   * die Antworten des Lernenden; ohne sie (kein Lernender) kein Knopf.
+   */
+  stats?: CardStats | null;
   /** 2026-11-04 (Prompt 15) — die Sprache der Baza; fehlt sie, aus `lib` (`baseLang`), sonst polnisch. */
   lang?: Lang;
   rule?: Partial<TextRule>;
@@ -624,6 +637,7 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
   autoFocus?: boolean;
 }) {
   const [done, setDone] = useState<{ outcome: Outcome; given: unknown } | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   /* 2026-11-01 — wie viele Podpowiedzi schon aufgedeckt sind (eine nach der anderen, nur vor der Antwort). */
   const [hinted, setHinted] = useState(0);
   const started = useMemo(() => Date.now(), [card.key, card.fingerprint]);
@@ -652,6 +666,13 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
       onKeyDownCapture={(e) => { if (e.key === 'Enter' || e.key === ' ') pressed.current = e.target as Element; }}>
       {burst !== null && <span key={burst} className="cg-known-burst" data-known-burst="" aria-hidden><RewardIcon name="star" />{MW.known}</span>}
       {burst !== null && <span className="cg-sr" role="status">{MW.known}</span>}
+      {stats != null && (
+        <button type="button" className={`cg-face-stats${statsOpen ? ' is-on' : ''}`} aria-expanded={statsOpen} onClick={() => setStatsOpen((v) => !v)}
+          title={t('cogitaLearnRun.card.stats')} aria-label={t('cogitaLearnRun.card.stats')} data-card-stats={card.key}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5" /></svg>
+        </button>
+      )}
+      {stats != null && statsOpen && <div className="cg-card-history cg-face-statsbox" data-card-stats-open=""><CardHistory marks={stats.marks()} {...(stats.spacing === undefined ? {} : { spacing: stats.spacing })} /></div>}
       {head}
       <CardPrompt parts={card.prompt} />
       {/*

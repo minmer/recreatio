@@ -257,7 +257,9 @@
       "fork": "Wahl des Weges",
       "detour": "Abstecher in eine andere Geschichte"
     },
-    "branchQuestions": "{questions} · {known} kannst du"
+    "branchQuestions": "{questions} · {known} kannst du",
+    "storyMap": "Plan der Erzählung",
+    "routeShown": "Meinen Weg zeigen"
   },
   "spacing": {
     "title": "Abstände der Wiederholungen",

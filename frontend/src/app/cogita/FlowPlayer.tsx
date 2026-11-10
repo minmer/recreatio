@@ -29,7 +29,7 @@
 
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 
-import { AnswerInput, CardFace, CardPrompt, givenText, Verdict } from './CardFace';
+import { AnswerInput, CardFace, CardPrompt, givenText, Verdict, type CardStats } from './CardFace';
 import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
@@ -46,7 +46,7 @@ import { branchIds, branchParts, branchWork, chapterOfSteps, stepWorkOf, storyMa
 import { chaptersKept, flowFactsOf, mergeGoals } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap, type PathNext } from './PathMap';
-import { mergeWords } from './pathLayout';
+import { mergeWords, type PathMarks } from './pathLayout';
 import { positionFor, renamer, type FlowPosition, type Learner } from './learn';
 import { ask } from '../ui/dialogs';
 import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, questionsLeft, skipStep, type MarksOf } from './flowAsk';
@@ -187,13 +187,11 @@ export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: Gr
   return storyPath(flow, work, label, options);
 }
 
-const PATH_OPEN = 'cg-story-path-open:';
-const readOpen = (flow: string): boolean => { try { return sessionStorage.getItem(PATH_OPEN + flow) !== '0'; } catch { return true; } };
-const keepOpen = (flow: string, open: boolean): void => { try { sessionStorage.setItem(PATH_OPEN + flow, open ? '1' : '0'); } catch { /* ohne Speicher: offen */ } };
-/* 2026-11-04 (Prompt 11) — wie breit die Ścieżka neben einer Erzählung steht (je Browser, für alle Erzählungen). */
-const PATH_WIDE = 'cg-story-path-wide';
-const readWide = (): number => { try { const v = localStorage.getItem(PATH_WIDE); return v === '0' ? 0 : v === '2' ? 2 : 1; } catch { return 1; } };
-const keepWide = (v: number): void => { try { localStorage.setItem(PATH_WIDE, String(v)); } catch { /* ohne Speicher: mittel */ } };
+/** 2026-11-10 — ohne den Weg des Lernenden: derselbe Plan der Erzählung, nichts gegangen, nichts „jetzt". */
+const plainMarks = (m: PathMarks): PathMarks => ({
+  ...m, state: m.state.map(() => 'available' as const), due: m.due.map(() => false), current: -1, lit: m.lit.map(() => false), taken: m.taken.map(() => false),
+  forks: new Map(), skipped: undefined, done: 0
+});
 /* 2026-11-04 (Prompt 13) — aus „Co dalej" nach ihrem Überblick geöffnet: ein Abstecher, der später kommt — ohne die Sperre davor (in diesem Tab). */
 const FREE = 'cg-story-free:';
 const isFree = (flow: string): boolean => { try { return sessionStorage.getItem(FREE + flow) === '1'; } catch { return false; } };
@@ -240,6 +238,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   */
   /* 2026-11-04 (Prompt 15) — mit den Abständen des Lernenden. */
   const marksOf: MarksOf | null = learner === null ? null : Object.assign((card: Card) => learner.marks(card.key, card.fingerprint, content.rename), { spacing: learner.spacing });
+  /* 2026-11-10 — „Statistik dieser Karte" an jeder Frage der Erzählung. */
+  const statsOf = (card: Card): CardStats | null => (learner === null ? null : { marks: () => learner.marks(card.key, card.fingerprint, content.rename), spacing: learner.spacing });
   const ownCard = (id: string): Card | null => { const c = content.card(id); return c !== null && (c.question === id || c.entity === id || c.key === id) ? c : null; };
   /* 2026-11-04 (Prompt 11) — in diesem Lauf zu Ende erzählt: die Bedingung „Przebieg" sieht es sofort. */
   const doneHere = useRef(new Set<string>());
@@ -329,7 +329,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     const on = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       const t = e.target instanceof HTMLElement ? e.target : null;
-      if (t !== null && (t.isContentEditable || t.closest('input, textarea, select, .cg-story-path-side, .cg-story-menu, [role="dialog"]') !== null)) return;
+      if (t !== null && (t.isContentEditable || t.closest('input, textarea, select, .cg-story-mapview, .cg-story-menu, [role="dialog"]') !== null)) return;
       const onControl = t !== null && t.closest('button, a, summary') !== null;
       const act = e.key === 'ArrowRight' || ((e.key === 'Enter' || e.key === ' ') && !onControl) ? keys.current.next : e.key === 'ArrowLeft' ? keys.current.back : null;
       if (act === null || stage.current === null || !stage.current.isConnected || stage.current.offsetParent === null) return;
@@ -641,8 +641,18 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     onFocus: () => setHovered(branchIds(sp, step, exit)),
     onBlur: () => setHovered(null)
   });
-  const [pathOpen, setPathOpen] = useState(() => readOpen(flow.id));
-  const [pathWide, setPathWide] = useState(readWide);
+  /*
+    2026-11-10 (Eigentümer: „der Plan einer Erzählung nur im Vollbild auf Wunsch, nie als ständiges Feld daneben; im Vollbild lässt
+    sich der Weg ausschalten") — DER PLAN ALS EIGENE ANSICHT: im Menü „⋯" geöffnet, Esc oder „Schliessen" zurück.
+  */
+  const [mapOpen, setMapOpen] = useState(false);
+  const [routeShown, setRouteShown] = useState(true);
+  useEffect(() => {
+    if (!mapOpen) return undefined;
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setMapOpen(false); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [mapOpen]);
   /*
     2026-11-03 (Prompt 5) — DIE SPERRE VOR EINER ERZÄHLUNG (`storyLock.ts`, die Logik des Krajobraz): fehlt vor ihrer Einheit
     noch etwas, steht ein Bildschirm davor — was fehlt, in der Reihenfolge des Weges, mit Links und „Ucz się", dazu „Ustaw
@@ -785,41 +795,37 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     return [...detourNext, ...list, ...doneDetours, ...doneNext];
   })();
 
-  const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 ? story : (
-    <div className="cg-story-path" data-story-path="" data-story-running={running.id}>
-      <div className={`cg-story-path-grid has-path${pathOpen ? '' : ' is-closed'} is-w${pathWide}`}>
-        {story}
-        <div className="cg-story-path-side">
-          {/* 2026-11-04 (Prompt 13) — im Abstecher: die Ścieżka der inneren Erzählung, darüber, in welcher sie liegt (ein Tippen: zurück). */}
-          {depths.length > 0 && trail.length > 0 && (
-            <button type="button" className="cg-story-path-inside" onClick={() => goBack(depths[0])} data-story-path-inside={trail[trail.length - 1].id}>{W.insidePath(trail[trail.length - 1].name)}</button>
-          )}
-          {/* 2026-11-05 (Prompt 23, B6) — im Abstecher: die rufende Erzählung mit „TERAZ" auf ihrem Zweig und „tu wrócisz". */}
-          {caller !== undefined && callerSp !== null && callerMarks !== null && callerSp.model.nodes.length > 1 && (
-            <div className="cg-story-path-caller" data-story-path-caller={caller.id}>
-              <PathMap key={`caller:${caller.id}`} model={callerSp.model} marks={callerMarks} size="small" words={W} title={`${W.pathTitle}: ${caller.name}`}
-                branches={(id) => callerBranches?.get(id) ?? null} returnAt={callerReturn} />
-            </div>
-          )}
-          <PathMap key={running.id} model={pathModelNow} marks={pathNow} size="small" words={W} collapsible open={pathOpen} title={`${W.pathTitle}: ${running.name}`}
-            branches={(id) => branchMap.get(id) ?? null}
-            actions={(id) => {
-              const x = detourAt(id);
-              if (x === null) return null;
-              /* Die Karte des Abstechers; „Dalej bez tego" nur, wo der Lernende gerade an ihm steht. */
-              return <DetourCard {...detourCardOf(x.config, x.inner)} onEnter={(fresh) => { jumpToStep(x.step); enterDetour(x.inner, fresh); }} {...(state.step === x.step ? { onExit: (e: 'done' | 'skip') => go(e) } : {})} />;
-            }}
-            onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter} {...(nextItems === undefined ? {} : { next: nextItems })}
-            tools={(
-              <span className="cg-pm-tools cg-story-path-width" role="group" aria-label={W.pathTitle}>
-                <button type="button" className="cg-pm-tool is-text" disabled={pathWide === 0} onClick={() => { const v = Math.max(0, pathWide - 1); setPathWide(v); keepWide(v); }} data-story-path-narrow="">{W.narrow}</button>
-                <button type="button" className="cg-pm-tool is-text" disabled={pathWide === 2} onClick={() => { const v = Math.min(2, pathWide + 1); setPathWide(v); keepWide(v); }} data-story-path-wide="">{W.widen}</button>
-              </span>
-            )}
-            onPick={(id) => { const part = sp.parts[sp.model.index.get(id) ?? -1]; if (part !== undefined && part.kind !== 'end') jumpToStep(part.kind === 'start' ? running.start : part.first); }} />
+  const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 || !mapOpen ? story : (
+    <>
+      {story}
+      <div className="cg-story-mapview" role="dialog" aria-modal="true" aria-label={`${W.pathTitle}: ${running.name}`} data-story-path="" data-story-running={running.id}>
+        <div className="cg-story-mapbar">
+          <strong>{W.pathTitle}: {running.name}</strong>
+          <label className="cg-story-maproute"><input type="checkbox" checked={routeShown} onChange={(e) => setRouteShown(e.target.checked)} data-story-map-route="" /> {W.routeShown}</label>
+          <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => setMapOpen(false)} data-story-map-close="">{W.close}</button>
         </div>
+        {/* Im Abstecher: wo er liegt (ein Tippen: zurück), und der Plan der rufenden Erzählung mit „tu wrócisz". */}
+        {depths.length > 0 && trail.length > 0 && (
+          <button type="button" className="cg-story-path-inside" onClick={() => { setMapOpen(false); goBack(depths[0]); }} data-story-path-inside={trail[trail.length - 1].id}>{W.insidePath(trail[trail.length - 1].name)}</button>
+        )}
+        {caller !== undefined && callerSp !== null && callerMarks !== null && callerSp.model.nodes.length > 1 && (
+          <div className="cg-story-path-caller" data-story-path-caller={caller.id}>
+            <PathMap key={`caller:${caller.id}`} model={callerSp.model} marks={routeShown ? callerMarks : plainMarks(callerMarks)} size="small" words={W} title={`${W.pathTitle}: ${caller.name}`}
+              branches={(id) => (routeShown ? callerBranches?.get(id) ?? null : null)} returnAt={routeShown ? callerReturn : null} />
+          </div>
+        )}
+        <PathMap key={running.id} model={pathModelNow} marks={routeShown ? pathNow : plainMarks(pathNow)} size="full" words={W}
+          branches={(id) => (routeShown ? branchMap.get(id) ?? null : null)}
+          actions={(id) => {
+            const x = detourAt(id);
+            if (x === null) return null;
+            /* Die Karte des Abstechers; „Dalej bez tego" nur, wo der Lernende gerade an ihm steht. */
+            return <DetourCard {...detourCardOf(x.config, x.inner)} onEnter={(fresh) => { setMapOpen(false); jumpToStep(x.step); enterDetour(x.inner, fresh); }} {...(state.step === x.step ? { onExit: (e: 'done' | 'skip') => { setMapOpen(false); go(e); } } : {})} />;
+          }}
+          highlight={routeShown ? hovered ?? inChapter : null} {...(nextItems === undefined || !routeShown ? {} : { next: nextItems })}
+          onPick={(id) => { const part = sp.parts[sp.model.index.get(id) ?? -1]; if (part !== undefined && part.kind !== 'end') { setMapOpen(false); jumpToStep(part.kind === 'start' ? running.start : part.first); } }} />
       </div>
-    </div>
+    </>
   ));
 
   /* Was ein Lese-Schritt zeigt (Bild, Eintrag) — derselbe für den laufenden und für einen, zu dem „Wstecz" zurückgeht. */
@@ -1065,7 +1071,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         return (
           <>
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
-            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang} {...(cg === null ? {} : { lib: cg.lib })}
+            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang} {...(cg === null ? {} : { lib: cg.lib })} stats={statsOf(shown)}
               onAnswered={(outcome, given) => {
                 /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
                 if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: running.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }
@@ -1177,7 +1183,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
       case 'review': {
         const rc = reviewOf(running, current)!;
         return (
-          <ReviewStep key={`${current.id}:${visit}`} cards={reviewCards(running, rc, content.card, flowOf, current.id)} known={(card) => marksOf !== null && isKnown(card, marksOf)} threshold={rc.threshold} W={W}
+          <ReviewStep key={`${current.id}:${visit}`} cards={reviewCards(running, rc, content.card, flowOf, current.id)} known={(card) => marksOf !== null && isKnown(card, marksOf)} threshold={rc.threshold} W={W} stats={statsOf}
             onAnswer={(card, outcome, given) => {
               learner?.record(card, outcome.correctness, { via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
               onAnswer?.(current.id, card, outcome.correctness, given);
@@ -1250,7 +1256,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     const SW = slideWords(W.lang);
     return { label: SW.slideQuestions(qs.size), run: () => setTopicRun({ key: `slide:${id}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: Math.min(20, list.length), endWhenDone: true }), cards: content.cards ?? [], title: SW.practiseTitle(name(id)) } }) };
   })();
-  const menu = { fromStart: restart, ...(learner === null ? {} : { forget }), ...(slideHere === null ? {} : { slide: slideHere }) };
+  const menu = { fromStart: restart, ...(learner === null ? {} : { forget }), ...(slideHere === null ? {} : { slide: slideHere }), ...(pathModelNow.nodes.length < 2 ? {} : { map: () => setMapOpen(true) }) };
   const partNow = state.step === null ? undefined : sp.parts[sp.partOfStep.get(state.step) ?? -1];
   const progress = (() => {
     if (partNow?.kind === 'review') {
@@ -1358,7 +1364,7 @@ interface PastStep {
 }
 
 /** Wischen nicht in Feldern, beim Ordnen, auf der Ścieżka und nicht im Kopf. */
-const noSwipe = (t: EventTarget | null): boolean => t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"], .cg-answer, .cg-story-path-side, .cg-story-head, [draggable="true"]') !== null;
+const noSwipe = (t: EventTarget | null): boolean => t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"], .cg-answer, .cg-story-mapview, .cg-story-head, [draggable="true"]') !== null;
 
 interface StoryCrumb { readonly label: string; readonly id?: string; readonly run?: () => void }
 
@@ -1370,7 +1376,7 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
   W: ReturnType<typeof words>;
   back: { readonly label: string; readonly run: () => void; readonly detour?: string } | null;
   crumbs: readonly StoryCrumb[];
-  menu: { readonly fromStart: () => void; readonly forget?: () => void; readonly slide?: { readonly label: string; readonly run: () => void } };
+  menu: { readonly fromStart: () => void; readonly forget?: () => void; readonly slide?: { readonly label: string; readonly run: () => void }; readonly map?: () => void };
   progress?: { readonly label: string; readonly share: number; readonly review: boolean };
 }) {
   const box = useRef<HTMLDetailsElement | null>(null);
@@ -1394,6 +1400,7 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
         <details ref={box} className="cg-story-menu" data-flow-menu="">
           <summary aria-label={W.moreTools} title={W.moreTools}>⋯</summary>
           <div className="cg-story-menu-body">
+            {menu.map !== undefined && <button type="button" className="wk-link-btn" onClick={() => { close(); menu.map!(); }} data-flow-story-map="">{W.storyMap}</button>}
             {menu.slide !== undefined && <button type="button" className="wk-link-btn" onClick={() => { close(); menu.slide!.run(); }} data-flow-slide-questions="">{menu.slide.label}</button>}
             <button type="button" className="wk-link-btn" onClick={() => { close(); menu.fromStart(); }} data-flow-restart="">{W.fromStart}</button>
             {menu.forget !== undefined && <button type="button" className="wk-link-btn is-danger" onClick={() => { close(); menu.forget!(); }} data-flow-forget="">{W.forgetStory}</button>}

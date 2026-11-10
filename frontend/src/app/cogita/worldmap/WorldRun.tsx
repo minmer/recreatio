@@ -132,6 +132,7 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
       data-world-run-first={Object.values(session.first).filter((c) => c >= 0.999).length}>
       <p className="cg-muted">{t('cogitaWorld.run.title', { name })} · {session.retrying ? t('cogitaWorld.run.again') : t('cogitaWorld.run.of', { n: Math.min(n, session.order.length), all: session.order.length })}</p>
       <CardFace key={`${session.id}:${card.key}:${session.attempts}`} card={card} lib={lib} lang={L}
+        stats={{ marks: () => learner.marks(card.key, card.fingerprint, renamer(lib.merges())), spacing: learner.spacing }}
         onAnswered={(o, given, ms) => {
           if (last.current !== null) return;
           last.current = o.correctness;

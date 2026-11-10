@@ -25,7 +25,7 @@ import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from '
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
 import { greyPlace, greySection, type RouteFocus } from './wmFocus';
-import { nameOnTop, type Scene, type ScenePlace, type SceneLane } from './wmScene';
+import { laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
@@ -56,6 +56,84 @@ const RING_IN = 0.5;
 /** Ab diesem Zoom tragen gesperrte Wege ihr Schloss (fern bleibt die Karte ruhig). */
 const LOCKS_FROM = 0.9;
 
+/**
+ * 2026-11-10 — DIE SCHEIBEN unter einem Turm: jede gleich hoch (Einheiten); höchstens so viele gezeichnet. Streifen ab so vielen
+ * Bildpunkten je Scheibe, ihre Namen ab so vielen.
+ */
+export const DISC_H = 7;
+const DISC_MAX = 40;
+const DISC_STRIPE_PX = 3;
+const DISC_NAME_PX = 11;
+
+/** Die gezeichneten Scheiben eines Turms (Schirmpunkte): zum Treffen einer Scheibe. */
+interface DrawnDiscs { readonly id: string; readonly x: number; readonly base: number; readonly rx: number; readonly ry: number; readonly step: number; readonly n: number }
+
+/** Welche Scheibe unter dem Zeiger liegt (0: die unterste), oder −1. */
+export function discAt(d: DrawnDiscs, x: number, y: number): number {
+  const dx = (x - d.x) / d.rx;
+  if (Math.abs(dx) > 1) return -1;
+  const front = d.base + d.ry * Math.sqrt(Math.max(0, 1 - dx * dx));
+  const i = Math.floor((front - y) / d.step);
+  return i >= 0 && i < d.n ? i : -1;
+}
+
+/** Ein Text in Zeilen (höchstens `rows`; die letzte gekürzt mit „…"). */
+export function wrapText(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text: string, max: number, rows: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let line = '';
+  for (let i = 0; i < words.length; i += 1) {
+    const next = line === '' ? words[i] : `${line} ${words[i]}`;
+    if (ctx.measureText(next).width <= max || line === '') { line = next; continue; }
+    out.push(line);
+    line = words[i];
+    if (out.length === rows - 1) { line = words.slice(i).join(' '); break; }
+  }
+  if (line !== '') out.push(line);
+  return out.map((l) => fitText(ctx, l, max));
+}
+
+/** Ein Text gebogen auf der Vorderseite einer Scheibe (Mitte bei (x, y), Halbachsen rx, ry), mittig. */
+function curvedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, rx: number, ry: number, font: string, fill: string, halo: string): void {
+  ctx.save();
+  ctx.font = font;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const shown = fitText(ctx, text, rx * 2.2);
+  const widths = [...shown].map((ch) => ctx.measureText(ch).width);
+  const total = widths.reduce((s, w) => s + w, 0);
+  /* Von der Mitte (unten, θ = π/2) nach links zurück, dann Zeichen um Zeichen nach rechts (θ fällt). */
+  const speed = (th: number) => Math.max(1e-3, Math.hypot(rx * Math.sin(th), ry * Math.cos(th)));
+  let th = Math.PI / 2;
+  for (let walked = 0; walked < total / 2;) { const d = 0.01; walked += speed(th) * d; th += d; }
+  [...shown].forEach((ch, i) => {
+    const half = widths[i] / 2;
+    for (let walked = 0; walked < half;) { const d = 0.004; walked += speed(th) * d; th -= d; }
+    const px = x + rx * Math.cos(th), py = y + ry * Math.sin(th);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(Math.atan2(-ry * Math.cos(th), rx * Math.sin(th)));
+    ctx.lineWidth = 2.5; ctx.strokeStyle = halo; ctx.strokeText(ch, 0, 0);
+    ctx.fillStyle = fill; ctx.fillText(ch, 0, 0);
+    ctx.restore();
+    for (let walked = 0; walked < half;) { const d = 0.004; walked += speed(th) * d; th -= d; }
+  });
+  ctx.restore();
+}
+
+/** Ein kleines Fähnchen „fällig" (Schirmpunkte, deckend). */
+function drawDue(ctx: CanvasRenderingContext2D, x: number, y: number, pal: { readonly surface: Rgb; readonly ink: Rgb }): void {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 14); ctx.stroke();
+  ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 0.7, y - 14); ctx.lineTo(x + 9, y - 11); ctx.lineTo(x + 0.7, y - 8); ctx.closePath();
+  ctx.fillStyle = '#e2701b'; ctx.fill();
+  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+
 export interface PillarsHandle {
   /** Die ganze Welt ins Bild. */
   fit(): void;
@@ -65,6 +143,8 @@ export interface PillarsHandle {
   rotate(deg: number): void;
   /** Das letzte Abspielen noch einmal („Pokaż zmiany"). */
   replay(): void;
+  /** 2026-11-10 — gleitend zu einem Turm oder zur Mitte einer Spur (der geführte Weg: Schritt um Schritt). */
+  glide(kind: 'place' | 'section', id: string): void;
   readonly frames: { count: number; ms: number[] };
 }
 
@@ -362,6 +442,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const camRef = useRef<WorldCam | null>(keptCam(memoryKey));
   const groundRef = useRef<GroundLayer | null>(null);
   const drawnRef = useRef<DrawnPillar[]>([]);
+  const discsRef = useRef<DrawnDiscs[]>([]);
+  /* 2026-11-10 — wohin ein Klick auf eine Scheibe flog: der Weg zurück (die letzten Türme). */
+  const [trail, setTrail] = useState<readonly string[]>([]);
   const frames = useRef<{ count: number; ms: number[] }>({ count: 0, ms: [] });
   const raf = useRef(0);
   const settle = useRef(0);
@@ -396,10 +479,44 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     setCam(fitCam(size.w, size.h));
   }, [size, fitCam, setCam]);
 
+  /*
+    2026-11-10 (Eigentümer: „ein Klick auf eine Scheibe gleitet dorthin, kein Sprung"; „die Kamera fährt zum ersten Schritt, dann
+    zum zweiten") — DIE KAMERA GLEITET (0,7 s; ohne Bewegung: gleich dort). Jede Eingabe hält sie an.
+  */
+  const glideRaf = useRef(0);
+  const glideTo = useCallback((cx: number, cy: number, s?: number) => {
+    const c = camRef.current;
+    if (c === null) return;
+    cancelAnimationFrame(glideRaf.current);
+    const want = { ...c, cx, cy, s: Math.max(0.01, Math.min(zoomMax.current, s ?? c.s)) };
+    if (motion !== 'full') { setCam(want); return; }
+    const t0 = performance.now();
+    const MS = 700;
+    const from = c;
+    const tick = () => {
+      const k = easeInOut(Math.min(1, (performance.now() - t0) / MS));
+      setCam({ ...from, cx: from.cx + (want.cx - from.cx) * k, cy: from.cy + (want.cy - from.cy) * k, s: from.s * Math.pow(want.s / from.s, k) });
+      if (k < 1) glideRaf.current = requestAnimationFrame(tick);
+    };
+    glideRaf.current = requestAnimationFrame(tick);
+  }, [motion, setCam]);
+  useEffect(() => () => cancelAnimationFrame(glideRaf.current), []);
+  const glidePlace = useCallback((id: string) => {
+    const p = scene.byId.get(id);
+    const c = camRef.current;
+    if (p !== undefined && c !== null) glideTo(p.x, p.y, Math.max(c.s, 1.1));
+  }, [scene, glideTo]);
+  const glideSection = useCallback((id: string) => {
+    const l = scene.lanes.find((x) => x.section === id);
+    if (l === undefined) return;
+    const m = along(l.points, 0.5);
+    glideTo(m.x, m.y);
+  }, [scene, glideTo]);
+
   /* Der Boden: einmal je Stand, Breite, Farben und Ausschnitt gerastert. */
   const focusKey = useMemo(() => {
     if (focus === null) return '';
-    const text = [...focus.remaining, '|', ...focus.done, '|', ...focus.gates].join(',');
+    const text = [...focus.remaining, '|', ...focus.done, '|', ...focus.gates, '|', focus.current ?? ''].join(',');
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
     return h.toString(36);
@@ -455,16 +572,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 2 * px; g.stroke();
     }
     /*
-      Die Spuren (2026-11-09, Eigentümer): kräftig nur, was die Kenntnis weiterbringt — mit Bett, Richtung und Toren. Leise und
-      je anders: gefahren (dünn, in der Farbe der Linie), leer (dünner, grau), gesperrt (gestrichelt; das Schloss erst nah).
+      2026-11-10 (Eigentümer: „keine Farbe je Erzählung; Farbe nur für den Stand und den gewählten Weg") — DIE SPUREN in drei
+      Stricharten (`laneStroke`): dick = gegangen, dünn = gehbar ohne Neues, gestrichelt = bringt Neues (dichter, je weniger neu);
+      gesperrt blass gestrichelt. Mit gewähltem Ziel: der offene Weg in der Farbe des Weges, der jetzige Schritt kräftiger, das
+      Gegangene dünn, alles andere grau. Je Spur ein Winkel kurz vor dem Ende: die Richtung.
     */
     g.lineCap = 'round'; g.lineJoin = 'round';
     const path = (pts: readonly number[]) => { g.beginPath(); for (let i = 0; i < pts.length; i += 2) { if (i === 0) g.moveTo(pts[0], pts[1]); else g.lineTo(pts[i], pts[i + 1]); } };
-    /* Kräftig: was die Kenntnis weiterbringt — bei gewähltem Ziel: was auf dem Weg noch zu gehen ist. */
-    const strong = (l: SceneLane) => (fx !== null ? fx.remaining.has(l.section) : l.state === 'grow');
-    const quiet = scene.lanes.filter((l) => !strong(l) && !(l.deep && !deep));
-    const grow = scene.lanes.filter((l) => strong(l) && !(l.deep && !deep));
-    /* Die Richtung jeder Spur: ein kleiner Winkel kurz vor ihrem Ende (wohin man geht). */
     const chevron = (pts: readonly number[], at: number, size: number, width: number) => {
       const m = along(pts, at);
       g.beginPath();
@@ -474,62 +588,47 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.lineWidth = width;
       g.stroke();
     };
-    for (const lane of quiet) {
-      const pts = withRims(lane, pillarWidth);
-      if (fx !== null && greySection(fx, lane.section)) {
-        g.strokeStyle = rgbCss(mix(neutral, land, 0.35));
-        g.lineWidth = 1 * px;
-        path(pts);
-        g.stroke();
-        continue;
-      }
-      const grey = mix(pal.ink, pal.land, 0.5);
-      const done = fx !== null && fx.done.has(lane.section);
-      g.strokeStyle = rgbCss(done ? mix(lane.color, land, 0.5) : lane.state === 'travelled' ? mix(lane.color, pal.land, 0.5) : lane.state === 'idle' ? mix(mix(lane.color, grey, 0.6), pal.land, 0.55) : mix(lane.color, pal.land, 0.62));
-      g.lineWidth = (done ? 1.5 : lane.state === 'travelled' ? 1.8 : 1.2) * px;
-      g.setLineDash(!done && lane.state === 'locked' ? [3 * px, 5 * px] : []);
+    const toneColour = (tone: LaneStroke['tone']): Rgb => (tone === 'route' || tone === 'current' ? pal.lit
+      : tone === 'grey' ? mix(neutral, land, 0.35) : tone === 'done' ? mix(pal.ink, land, 0.62) : tone === 'locked' ? mix(pal.ink, land, 0.74)
+        : tone === 'known' ? mix(pal.ink, land, 0.5) : tone === 'walked' ? mix(pal.ink, land, 0.38) : mix(pal.ink, land, 0.28));
+    const RANK: Readonly<Record<LaneStroke['tone'], number>> = { grey: 0, done: 1, locked: 1, known: 2, new: 3, walked: 3, route: 4, current: 5 };
+    const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: laneStroke(l, fx), pts: withRims(l, pillarWidth) }))
+      .sort((x, y) => RANK[x.k.tone] - RANK[y.k.tone]);
+    for (const { l, k, pts } of strokes) {
+      const lead = k.tone === 'route' || k.tone === 'current';
+      if (lead) { g.strokeStyle = rgbCss(pal.casing); g.lineWidth = (k.width + 3) * px; g.setLineDash([]); path(pts); g.stroke(); }
+      const colour = rgbCss(toneColour(k.tone));
+      g.strokeStyle = colour;
+      g.lineWidth = k.width * px;
+      g.setLineDash(k.dash.map((d) => d * px));
       path(pts);
       g.stroke();
       g.setLineDash([]);
-      chevron(pts, 0.82, 3 * px, 1.1 * px);
-      if (!done && lane.state === 'locked' && lane.symbol !== null && v.s >= LOCKS_FROM) {
+      if (k.tone === 'grey') continue;
+      if (lead) chevron(pts, 0.55, 4.5 * px, 1.8 * px);
+      chevron(pts, 0.84, (2.2 + k.width * 0.4) * px, Math.max(1, k.width * 0.6) * px);
+      /* Gesperrt aus einem anderen Grund als einem Turm (Kenntnis, Wiederholung, …): sein Zeichen, erst nah. */
+      if (k.tone === 'locked' && l.requires.length === 0 && l.symbol !== null && v.s >= LOCKS_FROM) {
         const at = along(pts, 0.2);
-        drawLock(g, at.x, at.y, 4.5 * px, lane.symbol, rgbCss(mix(lane.color, pal.land, 0.3)), rgbCss(pal.land));
+        drawLock(g, at.x, at.y, 4.5 * px, l.symbol, colour, rgbCss(pal.land));
       }
     }
-    for (const lane of grow) { g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 7 * px; path(withRims(lane, pillarWidth)); g.stroke(); }
-    for (const lane of grow) {
-      const pts = withRims(lane, pillarWidth);
-      g.strokeStyle = rgbCss(lane.color);
-      g.lineWidth = 3.2 * px;
-      path(pts);
-      g.stroke();
-      /* Die Richtung: in der Mitte und kurz vor dem Ende. */
-      chevron(pts, 0.55, 4.5 * px, 1.8 * px);
-      chevron(pts, 0.86, 3.5 * px, 1.4 * px);
-      /* Tore: kleine Quadrate am gezeichneten Rand. */
-      g.fillStyle = rgbCss(pal.casing);
-      for (const [x, y] of [[pts[0], pts[1]], [pts[pts.length - 2], pts[pts.length - 1]]]) g.fillRect(x - 2.6 * px, y - 2.6 * px, 5.2 * px, 5.2 * px);
-    }
-    /*
-      Umsteigeorte: ein Ring auf dem Boden — deutlich nur, wo gerade ein offener Weg beginnt, der Neues bringt (2026-11-10,
-      Eigentümer); sonst kaum zu sehen.
-    */
-    const hubs = new Set(grow.map((l) => l.fromId));
+    /* Umsteigeorte: ein Ring auf dem Boden — deutlich nur, wo gerade ein offener Weg beginnt, der Neues bringt. */
+    const hubs = new Set(strokes.filter((x) => x.k.tone === 'new' || x.k.tone === 'route' || x.k.tone === 'current').map((x) => x.l.fromId));
     for (const p of scene.places) {
       if (!p.station) continue;
-      const on = hubs.has(p.id);
+      const on = hubs.has(p.id) && (fx === null || !greyPlace(fx, p.id));
       g.strokeStyle = rgbCss(mix(pal.ink, pal.land, on ? 0.35 : 0.85));
       g.lineWidth = (on ? 1.8 : 0.8) * px;
       g.beginPath(); g.arc(p.x, p.y, p.r * pillarWidth + 7, 0, Math.PI * 2); g.stroke();
     }
     /*
-      2026-11-10 (Eigentümer: „Tore werden gezeichnet") — VON JEDEM VERLANGTEN TURM EINE SPUR ZU SEINEM TOR: zu einer Gabelung,
-      einem Tor-Knoten oder zum gesperrten Turm. Gestrichelt, solange der verlangte Turm nicht erobert ist; am Ende ein Pfeil.
+      2026-11-10 (Eigentümer: „die grauen Linien der Voraussetzungen nicht in der gewöhnlichen Ansicht") — die Spuren verlangter
+      Türme zu ihren Toren nur, wenn ein Ziel gewählt ist und das Tor auf seinem Weg liegt. Gestrichelt, solange der verlangte
+      Turm nicht erobert ist; am Ende ein Pfeil. (Ein Zweig mit eigenem Tor trägt sonst sein Schloss mit dem Namen des Turms.)
     */
     for (const lk of scene.links) {
-      /* Ohne Ziel nur die Tore der Gabelungen und Linien; die Voraussetzungen eines Turms zeigt die Karte, wenn er gewählt ist. */
-      if (fx === null ? lk.kind !== 'gate' : !fx.gates.has(lk.id)) continue;
+      if (fx === null || !fx.gates.has(lk.id)) continue;
       const [ax, ay] = lk.a, [bx, by] = lk.b;
       const d = Math.hypot(bx - ax, by - ay) || 1;
       const ux = (bx - ax) / d, uy = (by - ay) / d;
@@ -537,8 +636,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const ex = bx - ux * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4), ey = by - uy * (lk.rb * (lk.rb > 10 ? pillarWidth : 1) + 4);
       const bend = lk.kind === 'gate' ? 0.1 : 0.16;
       const mx = (sx + ex) / 2 - uy * d * bend, my = (sy + ey) / 2 + ux * d * bend;
-      g.strokeStyle = rgbCss(mix(pal.ink, pal.land, lk.met ? 0.55 : lk.kind === 'gate' ? 0.25 : 0.4));
-      g.lineWidth = (lk.kind === 'gate' ? 1.5 : 1.1) * px;
+      g.strokeStyle = rgbCss(mix(pal.ink, pal.land, lk.met ? 0.55 : 0.3));
+      g.lineWidth = 1.3 * px;
       g.setLineDash(lk.met ? [] : [4 * px, 3.5 * px]);
       g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
       g.setLineDash([]);
@@ -612,7 +711,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.beginPath();
         for (let i = 0; i < lane.points.length; i += 2) { const [sx, sy] = toScr(v, lane.points[i], lane.points[i + 1]); if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy); }
         ctx.stroke();
-        ctx.strokeStyle = rgbCss(lane.color);
+        ctx.strokeStyle = rgbCss(strong ? mix(pal.lit, pal.ink, 0.25) : mix(pal.lit, pal.floor, 0.3));
         ctx.lineWidth = strong ? 3 : 1.6;
         ctx.stroke();
       }
@@ -662,7 +761,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const tau = play === null ? 0 : performance.now() - play.t0;
     const SATMIX = [0.65, 0.35, 0] as const;
     const look = (p: ScenePlace) => {
-      const h = pillarHeight(p.missing, p.conquered);
+      const h = pillarHeight(p.own, p.conquered);
       const sat = p.sat === 'never' ? 0.65 : p.sat === 'partly' ? 0.35 : 0;
       const still = { h, sat, level: p.level, from: p.level, dot: p.dot, conquered: p.conquered, flash: 0, ring: -1, outline: 0 };
       if (play === null) return still;
@@ -672,7 +771,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       if (pb.kind === 'first') return play.fresh.has(p.id) ? { ...still, h: h * k } : still;
       const b = pb.before.get(p.id);
       if (b === undefined) return still;
-      const hb = pillarHeight(b.missing, b.conquered);
+      /* Vorher: die Höhe zählte auch die Grundlage — was davon jetzt fehlt, fehlte dem Turm selbst. */
+      const hb = pillarHeight(Math.max(0, p.own + b.missing - p.missing), b.conquered);
       const sb = SATMIX[b.sat];
       const q = tau >= sched.flash0 && tau < sched.flash0 + FLASH_MS ? (tau - sched.flash0) / FLASH_MS : -1;
       return {
@@ -683,13 +783,20 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     };
     let litCount = 0;
     let portalSigns = 0;
+    const discsDrawn: DrawnDiscs[] = [];
+    let stripeCount = 0;
+    let discNames = 0;
+    let dueFlags = 0;
     for (const { p, d: dp } of list) {
       treesUpTo(dp);
       const [X, Yb] = toScr(v, p.x, p.y, 0);
       const rx = p.r * pillarWidth * v.s, ry = rx * v.fore;
       if (X + rx < -40 || X - rx > size.w + 40 || Yb + ry < -40) continue;
       const a = look(p);
-      const hWorld = a.h * heightScale;
+      /* Die Scheiben (je fehlende Voraussetzung eine, alle gleich hoch), darauf der Turm. */
+      const nDisc = Math.min(p.discs.length, DISC_MAX);
+      const discPx = DISC_H * heightScale * v.lift * v.s;
+      const hWorld = a.h * heightScale + nDisc * DISC_H * heightScale;
       const Yt = Yb - hWorld * v.lift * v.s - (a.conquered ? 1.5 * v.lift * v.s : 0);
       if (Yt - ry > size.h + 40) continue;
       /* Die Farbe: Thema; der Stand nur als Sättigung; fern blasser, nie durchsichtig; eine Ansicht, die den Ort nicht meint: grau. */
@@ -724,6 +831,27 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.fillStyle = gr;
         } else ctx.fillStyle = rgbCss(side);
         ctx.fill();
+        /*
+          2026-11-10 (Eigentümer) — DIE SCHEIBEN: fern nur der Turm und seine Höhe; näher je Scheibe ein Streifen (der oberste,
+          wo der Turm beginnt, kräftiger); nah auf jeder Scheibe, gebogen, der Name des Turms, für den sie steht.
+        */
+        if (nDisc > 0 && discPx >= DISC_STRIPE_PX && rx > 5) {
+          for (let i = 1; i <= nDisc; i += 1) {
+            ctx.strokeStyle = rgbCss(i === nDisc ? mix(side, pal.ink, 0.45) : mix(side, pal.surface, 0.4));
+            ctx.lineWidth = i === nDisc ? 1.6 : 1;
+            ctx.beginPath(); ctx.ellipse(X, Yb - i * discPx, rx, ry, 0, 0.04, Math.PI - 0.04); ctx.stroke();
+          }
+          discsDrawn.push({ id: p.id, x: X, base: Yb, rx, ry, step: discPx, n: nDisc });
+          stripeCount += 1;
+          if (discPx >= DISC_NAME_PX && rx >= 30) {
+            const fs = Math.max(8, Math.min(11, discPx * 0.72));
+            for (let i = 0; i < nDisc; i += 1) {
+              const name = scene.byId.get(p.discs[i])?.label ?? '';
+              curvedText(ctx, name, X, Yb - (i + 0.5) * discPx, rx, ry, `600 ${fs.toFixed(1)}px system-ui, sans-serif`, rgbCss(pal.ink), rgbCss(mix(side, pal.surface, 0.55)));
+            }
+            discNames += nDisc;
+          }
+        }
       }
       ctx.fillStyle = rgbCss(top);
       ctx.beginPath(); ctx.ellipse(X, Yt, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
@@ -764,7 +892,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
       }
       const named = nameOnTop(rx, ry);
+      /* 2026-11-10 (Eigentümer) — der Stern „Mistrzowsko" mitten auf dem Turm; der Name bleibt, wo er ist (über dem Stern). */
       if (p.perfect && rx > 4) drawStar(ctx, X, Yt, Math.max(4, Math.min(12, rx * RING_IN * 0.8, ry * RING_IN * 1.6)), rgbCss(pal.star), rgbCss(pal.ink));
+      /* Fällige Karten an einem eroberten Turm: ein kleines Fähnchen, auch von weit. */
+      if (p.due) { drawDue(ctx, X + Math.max(3, rx * 0.55), Yt - Math.max(1, ry * 0.3), pal); dueFlags += 1; }
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
@@ -776,18 +907,27 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         */
         const fsz = Math.max(9, Math.min(15, rx * 0.3));
         ctx.save();
-        ctx.translate(X, p.perfect ? Yt - ry * 0.56 : Yt);
+        ctx.translate(X, Yt);
         ctx.scale(1, v.fore);
         ctx.font = `600 ${fsz.toFixed(1)}px system-ui, sans-serif`;
-        const text = fitText(ctx, p.label, rx * (p.perfect ? 1.4 : 1.76));
+        /* 2026-11-10 (Eigentümer: „Namen brechen um") — bis zu drei Zeilen, in der Mitte der Oberseite. */
+        const rows = wrapText(ctx, p.label, rx * 1.6, rx > 40 ? 3 : 2);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';
-        ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(mix(top, pal.surface, 0.5)); ctx.strokeText(text, 0, 0);
-        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, 0, 0);
+        const lh = fsz * 1.15;
+        rows.forEach((row, i) => {
+          const y = (i - (rows.length - 1) / 2) * lh;
+          ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(mix(top, pal.surface, 0.5)); ctx.strokeText(row, 0, y);
+          ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(row, 0, y);
+        });
         ctx.restore();
       }
     }
     treesUpTo(Infinity);
+    discsRef.current = discsDrawn;
+    canvas.dataset.wmDiscStripes = String(stripeCount);
+    canvas.dataset.wmDiscNames = String(discNames);
+    canvas.dataset.wmDue = String(dueFlags);
     /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
     const grid = pickGrid(drawn);
     gridRef.current = grid;
@@ -871,24 +1011,23 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       /* Die gezeigten zuerst (sie gewinnen), dann die längsten. */
       const lenOf = (pts: readonly number[]) => { let s = 0; for (let i = 2; i < pts.length; i += 2) s += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]); return s; };
       const screenOf = (l: SceneLane) => { const pts = withRims(l, pillarWidth); const out: number[] = []; for (let i = 0; i < pts.length; i += 2) { const [sx, sy] = toScr(v, pts[i], pts[i + 1], 0); out.push(sx, sy); } return out; };
-      /* 2026-11-10 (Eigentümer: „die Punkte immer, auf jedem Pfad") — jeder Pfad trägt seine Schritte; Namen nur die kräftigen und gezeigten. */
-      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || focus.remaining.has(l.section))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section) }; }).filter((x) => x.len >= 14);
-      const items = every.filter((x) => x.l.name !== '' && (focus !== null || x.l.state === 'grow' || x.on) && x.len >= 36)
-        .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.l.state === 'grow') - Number(a.l.state === 'grow') || b.len - a.len);
       /*
-        2026-11-10 (Eigentümer: „nicht als Text, sondern als Punkte auf dem Pfad") — DIE SCHRITTE AUF DEM PFAD: je Folie ein
-        Punkt, je Frage eine Raute, in ihrer Reihenfolge; gesehen: gefüllt in der Farbe des Pfades, sonst hohl. Passen nicht alle,
-        stehen so viele da, wie Platz haben (gleichmässig ausgewählt). Am Anfang ein kleines Zeichen der Art: Abzweig (Gabel —
-        nur wo die Wahl ist), Vertiefung (hinab), Rückweg (Bogen zurück); der Hauptpfad trägt keins. Der vereinfachte innere Weg
-        dazu: der nächste Schritt nach Gesehenem trägt einen Ring („jetzt"), und wo die Erzählung mit dem Przegląd endet, ein ↻.
+        2026-11-10 (Eigentümer: „nicht gewählte Pfade grob, ohne Punkte; ein gewählter Pfad zeigt je Folie und Frage einen Punkt") —
+        Punkte, Zeichen der Art und Przegląd nur auf gewählten Spuren (dem Weg); was in der Erzählung auseinandergeht und wieder
+        zusammenkommt (Verpackungen, Abstecher), als Linien ohne Punkte — erst nah oder gewählt.
       */
+      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || !greySection(focus, l.section))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
+      const items = every.filter((x) => x.l.name !== '' && (x.k.dots || (x.l.kind === 'branch' && x.l.forkStart && v.s >= LOCKS_FROM)) && x.len >= 36)
+        .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.k.dots) - Number(a.k.dots) || b.len - a.len);
       let markCount = 0;
       let variantCount = 0;
+      let lockCount = 0;
       const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
-      for (const { l, sp, len } of every) {
-        const col = l.state === 'locked' ? mix(l.color, pal.land, 0.45) : l.color;
-        /* Dieselben Karten anders verpackt: die weiteren Verpackungen als kleine Bögen neben dem Pfad, wo sie verschieden sind. */
-        if (l.variants !== null && len >= 30) {
+      const near = v.s >= LOCKS_FROM;
+      for (const { l, sp, len, k: stroke } of every) {
+        const col = stroke.tone === 'route' || stroke.tone === 'current' ? pal.lit : mix(pal.ink, pal.land, stroke.tone === 'locked' ? 0.6 : 0.3);
+        /* Dieselben Karten anders verpackt: der Pfad teilt sich sichtbar in N Teile und kommt wieder zusammen (nah oder gewählt). */
+        if (l.variants !== null && len >= 30 && (near || stroke.dots)) {
           ctx.strokeStyle = rgbCss(mix(col, pal.land, 0.3)); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
           for (let k = 1; k <= l.variants.more; k += 1) {
             const off = (k % 2 === 1 ? 1 : -1) * (6 + 4 * Math.floor((k - 1) / 2));
@@ -904,6 +1043,23 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           }
           variantCount += 1;
         }
+        /* 2026-11-10 (Eigentümer) — ein Zweig mit eigenem Tor: ein kleines Schloss an seinem Anfang, dabei der verlangte Turm. */
+        if (l.requires.length > 0 && len >= 20) {
+          const at = along(sp, Math.min(0.3, 12 / len));
+          drawLock(ctx, at.x, at.y, 5.5, 'place', rgbCss(mix(pal.ink, pal.land, 0.25)), halo0);
+          if (near) {
+            const names = l.requires.map((id) => scene.byId.get(id)?.label ?? id);
+            const text = fitText(ctx, names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', '), 160);
+            ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+            ctx.lineWidth = 3; ctx.strokeStyle = halo0; ctx.strokeText(text, at.x + 9, at.y);
+            ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, at.x + 9, at.y);
+            const w = ctx.measureText(text).width;
+            boxes.push({ x0: at.x - 7, y0: at.y - 8, x1: at.x + 11 + w, y1: at.y + 8 });
+          }
+          lockCount += 1;
+        }
+        if (!stroke.dots) continue;
+        /* Je Folie ein Punkt, je Frage eine Raute, in ihrer Reihenfolge; gesehen gefüllt, sonst hohl; der nächste trägt einen Ring. */
         const n = l.marks.length;
         const room = Math.max(0, Math.floor((len - 26) / 10));
         const count = Math.min(n, room);
@@ -920,8 +1076,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.fillStyle = seenHere ? rgbCss(col) : halo0;
           ctx.strokeStyle = seenHere ? halo0 : rgbCss(col);
           ctx.fill(); ctx.stroke();
-          /* „Jetzt": der erste noch nicht gesehene Schritt nach einem gesehenen. */
-          if (!seenHere && i > 0 && l.seen[i - 1] === true && l.seen.slice(0, i).every(Boolean)) {
+          if (!seenHere && (i === 0 ? stroke.tone === 'current' : l.seen.slice(0, i).every(Boolean))) {
             ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(at.x, at.y, 7.5, 0, Math.PI * 2); ctx.stroke();
           }
@@ -936,25 +1091,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.beginPath(); ctx.moveTo(at.x + 3 * Math.cos(-Math.PI * 0.2) + 1.6, at.y + 3 * Math.sin(-Math.PI * 0.2) - 1.2); ctx.lineTo(at.x + 3 * Math.cos(-Math.PI * 0.2), at.y + 3 * Math.sin(-Math.PI * 0.2)); ctx.lineTo(at.x + 3 * Math.cos(-Math.PI * 0.2) - 1.8, at.y + 3 * Math.sin(-Math.PI * 0.2) - 1.2); ctx.stroke();
           markCount += 1;
         }
-        if (l.kind !== 'main' && !(l.kind === 'branch' && !l.forkStart) && len >= 44) {
-          const at = along(sp, Math.min(0.35, 14 / len));
-          const r = 6.5;
-          ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(at.x, at.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-          ctx.save(); ctx.translate(at.x, at.y); ctx.rotate(at.a);
-          ctx.strokeStyle = rgbCss(mix(col, pal.ink, 0.35)); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-          ctx.beginPath();
-          if (l.kind === 'branch') { ctx.moveTo(-3, 0); ctx.lineTo(0, 0); ctx.lineTo(3, -2.6); ctx.moveTo(0, 0); ctx.lineTo(3, 2.6); }
-          else if (l.kind === 'deepening') { ctx.moveTo(-2.6, -1.4); ctx.lineTo(0, 1.4); ctx.lineTo(2.6, -1.4); ctx.moveTo(-2.6, -3.6); ctx.lineTo(0, -0.8); ctx.lineTo(2.6, -3.6); }
-          else { ctx.arc(0, 0, 2.6, -Math.PI * 0.9, Math.PI * 0.6); ctx.moveTo(-2.6, -0.8); ctx.lineTo(-2.2, 1.6); ctx.lineTo(0, 0.6); }
-          ctx.stroke(); ctx.restore();
-        }
       }
       canvas.dataset.wmPathMarks = String(markCount);
       canvas.dataset.wmVariants = String(variantCount);
+      canvas.dataset.wmLocks = String(lockCount);
       /*
         2026-11-10 (Eigentümer: „ein Abstecher ist eine Schleife an genau diesem Schritt") — DIE ABSTECHER: eine kleine Schleife neben
-        dem Pfad an der Stelle des Schrittes, mit den Schritten der gerufenen Erzählung als Punkte.
+        dem Pfad an der Stelle des Schrittes; ihre Schritte als Punkte nur nah auf einem gewählten Pfad.
       */
       let loopCount = 0;
       const laneAt = new Map(every.map((x) => [x.l.section, x] as const));
@@ -965,9 +1108,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const nx = -Math.sin(at.a), ny = Math.cos(at.a);
         const R0 = 10;
         const cx = at.x + nx * R0, cy = at.y + ny * R0;
-        ctx.strokeStyle = rgbCss(lp.color); ctx.lineWidth = 1.6;
+        const lc = rgbCss(it.k.dots ? pal.lit : mix(pal.ink, pal.land, 0.4));
+        ctx.strokeStyle = lc; ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.arc(cx, cy, R0, 0, Math.PI * 2); ctx.stroke();
-        const n = v.s >= 1.2 || focus !== null ? Math.min(lp.marks.length, 9) : 0;
+        const n = v.s >= 1.2 && it.k.dots ? Math.min(lp.marks.length, 9) : 0;
         const a0 = Math.atan2(-ny, -nx);
         for (let k = 0; k < n; k += 1) {
           const i = n === lp.marks.length ? k : Math.round((k * (lp.marks.length - 1)) / Math.max(1, n - 1));
@@ -976,7 +1120,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.beginPath();
           if (lp.marks[i] === 'question') { const r = 3.2; ctx.moveTo(px, py - r); ctx.lineTo(px + r, py); ctx.lineTo(px, py + r); ctx.lineTo(px - r, py); ctx.closePath(); }
           else ctx.arc(px, py, 2.4, 0, Math.PI * 2);
-          ctx.fillStyle = halo0; ctx.strokeStyle = rgbCss(lp.color); ctx.lineWidth = 1.3;
+          ctx.fillStyle = halo0; ctx.strokeStyle = lc; ctx.lineWidth = 1.3;
           ctx.fill(); ctx.stroke();
         }
         loopCount += 1;
@@ -1022,10 +1166,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       let nameCount = 0;
       const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
-      /* 2026-11-10 (Eigentümer: „nur, was nötig ist") — der Name einer Erzählung steht einmal, an ihrem längsten Stück. */
+      /* 2026-11-10 (Eigentümer: „nur, was nötig ist") — jeder Name einmal (ein Zweig heisst nach seinem Ziel). */
       const named = new Set<string>();
       for (const { l, sp, len, on } of items) {
-        if (named.has(l.line)) continue;
+        if (named.has(l.name)) continue;
         /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
         const text = fitText(ctx, l.name, Math.min(260, Math.max(len * 0.9, 160)));
         const w = ctx.measureText(text).width;
@@ -1054,7 +1198,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           }
           if (pick !== null) break;
         }
-        const use = pick ?? (on || l.state === 'grow' ? fallback : null);
+        const use = pick ?? (on ? fallback : null);
         if (use === null) continue;
         boxes.push(use.box);
         ctx.save();
@@ -1062,10 +1206,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.rotate(use.a);
         const halo = rgbCss(mix(pal.surface, pal.land, 0.15));
         ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, 0, 0);
-        ctx.fillStyle = rgbCss(mix(l.color, pal.ink, 0.45)); ctx.fillText(text, 0, 0);
+        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, 0, 0);
         ctx.restore();
         nameCount += 1;
-        named.add(l.line);
+        named.add(l.name);
       }
       canvas.dataset.wmPathNames = String(nameCount);
     }
@@ -1209,6 +1353,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const down = (e: React.PointerEvent) => {
     seenGrid.current = gridRef.current;
     skip();
+    cancelAnimationFrame(glideRaf.current);
     const c = camRef.current;
     if (c === null) return;
     canvasRef.current?.setPointerCapture(e.pointerId);
@@ -1264,6 +1409,17 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const p = local(e);
     const id = hit(p.x, p.y, seenGrid.current ?? gridRef.current);
     if (id !== null) {
+      /* Eine Scheibe (nah, als Streifen zu sehen): zu dem Turm, für den sie steht — gleitend, mit dem Weg zurück. */
+      const dd = discsRef.current.find((d) => d.id === id);
+      const di = dd === undefined ? -1 : discAt(dd, p.x, p.y);
+      const to = di < 0 ? undefined : scene.byId.get(id)?.discs[di];
+      if (to !== undefined) {
+        lastTap.current = null;
+        setTrail((tr) => [...tr.filter((x) => x !== id && x !== to), id].slice(-4));
+        glidePlace(to);
+        onPick?.(to);
+        return;
+      }
       /* Zweimal kurz nacheinander auf dieselbe Säule (Maus oder Finger): „Prowadź mnie tutaj". */
       const now = performance.now();
       const last = lastTap.current;
@@ -1377,8 +1533,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     },
     rotate: (deg: number) => { const c = camRef.current; if (c !== null) { setCam({ ...c, rot: c.rot + deg }); draw(); } },
     replay: () => { if (lastPb.current !== null) start(lastPb.current); },
+    glide: (kind, id) => { if (kind === 'place') glidePlace(id); else glideSection(id); },
     frames: frames.current
-  }), [scene, size, setCam, fitCam, draw, start]);
+  }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection]);
 
   const c = cam;
   return (
@@ -1387,6 +1544,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         <canvas ref={canvasRef} className="cg-wm-canvas" tabIndex={0} aria-label={t('cogitaWorld.map.label', { count: scene.places.length })}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
           onPointerLeave={() => onHover?.(null, null)} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
+        {trail.length > 0 && (
+          <nav className="cg-wm-trail" aria-label={t('cogitaWorld.map.trail')} data-world-trail={trail.length}>
+            {trail.map((id, i) => (
+              <button key={id} type="button" className="cg-wm-trailbtn" onClick={() => { setTrail(trail.slice(0, i)); glidePlace(id); onPick?.(id); }} data-world-trail-to={id}>
+                ‹ {scene.byId.get(id)?.label ?? id}
+              </button>
+            ))}
+            <button type="button" className="cg-wm-trailbtn is-close" onClick={() => setTrail([])} aria-label={t('cogitaWorld.map.trailClose')} title={t('cogitaWorld.map.trailClose')}>×</button>
+          </nav>
+        )}
       </div>
       {c !== null && (
         <div className="cg-wm-tools" data-world-tools="">

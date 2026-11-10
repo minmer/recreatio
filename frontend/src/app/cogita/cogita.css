@@ -1070,3 +1070,11 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 @keyframes cg-known-fade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 :root[data-motion='off'] .cg-answer.is-revealed *, :root[data-motion='off'] .cg-answer.is-revealed input, :root[data-motion='off'] .cg-known-burst, :root[data-motion='off'] .cg-known-burst *, :root[data-motion='off'] .cg-run-streak { animation: none !important; }
 :root[data-motion='off'] .cg-known-burst { display: none; }
+
+/* 2026-11-10 — „Statistik dieser Karte": an jeder Kartenansicht oben rechts, dasselbe Zeichen; darunter ihre Geschichte. */
+.cg-face { position: relative; }
+.cg-face-stats { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 1; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-muted); cursor: pointer; }
+.cg-face-stats svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.cg-face-stats:hover, .cg-face-stats:focus-visible, .cg-face-stats.is-on { color: var(--wk-ink); border-color: var(--wk-ink); }
+.cg-face-statsbox { margin: 0 0 var(--wk-space-2); text-align: left; }
+.cg-face:has(> .cg-face-stats) > .cg-prompt { padding-inline: 1.6rem; }

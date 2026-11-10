@@ -257,7 +257,9 @@
       "fork": "choice of road",
       "detour": "detour into another story"
     },
-    "branchQuestions": "{questions} · {known} known"
+    "branchQuestions": "{questions} · {known} known",
+    "storyMap": "Story map",
+    "routeShown": "Show my way"
   },
   "spacing": {
     "title": "Review spacing",
