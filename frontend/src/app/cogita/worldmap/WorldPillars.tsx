@@ -24,7 +24,7 @@ import type { LockSymbol } from './wmConditions';
 import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from './wmPick';
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
-import { greyPlace, greySection, type RouteFocus } from './wmFocus';
+import { greyPlace, type RouteFocus } from './wmFocus';
 import { dueLevel, laneOn, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';

@@ -407,6 +407,18 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   check('passable: without openAt only the full conquest counts', S.stateOf(world, lines, F.fakeLearner({ levels: { A: 2 } }), { levels: 3, knownShare: 1 }).places.get('A').passable, false);
 }
 
+/* 2026-11-11 — ein Weg über eine Verpackung, die nicht gezeichnet ist (Eigentümer: „der Weg fehlt bei einer inneren Gabelung"). */
+{
+  const made = SH.packaging();
+  const learner = F.fakeLearner({ levels: { A: 1 } });
+  const w = open(made, learner);
+  const pl = P.plan(w.state, 'P');
+  const f = FO.routeFocus(pl, w.state, w.lines);
+  const lane = w.scene.lanes.find((l) => l.toId === 'P');
+  const viaVariant = pl.route.find((id) => w.lines.sections.get(id).to === 'P');
+  check('packaging on the way: the drawn track stands for every packaging, so the route lights it whichever one the plan takes', [lane.sections.length, lane.sections.includes(viaVariant), ['route', 'current'].includes(SC.laneStroke(lane, f).tone), SC.laneOn(lane, new Set(pl.route))], [3, true, true, true]);
+}
+
 /* §5 Der geführte Weg: zuerst die nötige Wiederholung, nur was das Ziel braucht, er endet erst am Ziel. */
 {
   const made = SH.reviewGate();
