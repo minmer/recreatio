@@ -90,6 +90,10 @@ const oneOnly = F.readFlow('f', { start: 's', graph: { nodes: [node('s', 'show')
 check('3: a choice with one option goes on by itself', play(oneOnly, {}), 'a');
 const held = F.readFlow('f', { start: 's', graph: { nodes: [node('s', 'show'), node('c', 'choice', { hold: true, options: [{ label: 'Dalej' }] }), node('a', 'show')], edges: [edge('s', 'next', 'c'), edge('c', 'o0', 'a')] } });
 check('3: "hold": true keeps the choice', play(held, {}), 'c');
+/* 2026-11-11 — eine Wahl mit eigener Folie ("of") wird immer gelesen: sie wählt nie selbst, auch mit einer einzigen Möglichkeit. */
+const withOf = F.readFlow('f', { start: 's', graph: { nodes: [node('s', 'show'), node('c', 'choice', { of: 'slajd', title: 'Którędy?', options: [{ label: 'Dalej', hint: 'Krótko o drodze.' }] }), node('a', 'show')], edges: [edge('s', 'next', 'c'), edge('c', 'o0', 'a')] } });
+check('3: a choice with "of" never chooses by itself (as if "hold": true)', play(withOf, {}), 'c');
+check('3: "of" and "hint" are kept as written', [withOf.graph.nodes.find((n) => n.id === 'c').config.of, withOf.graph.nodes.find((n) => n.id === 'c').config.options[0].hint], ['slajd', 'Krótko o drodze.']);
 const actions = F.readFlow('f', { start: 's', graph: { nodes: [node('s', 'show'), node('c', 'choice', { options: [{ label: 'Dalej', actions: [{ type: 'set', value: 'punkty', to: 5 }] }] }), node('a', 'show')], edges: [edge('s', 'next', 'c'), edge('c', 'o0', 'a')] } });
 check('3: the actions of the taken option still run', (() => { const ctx = ctxOf({}); const st = F.advance(actions, F.startFlow(actions), 'next', ctx); return [st.step, st.values.punkty]; })(), ['a', 5]);
 check('3: no option valid → the choice stops (nothing to take)', play(flowOf({}, { options: [{ label: 'A', condition: { type: 'knowness', of: 'zz', op: 'ge', than: 9 } }] }), { ...fresh }), 'c');

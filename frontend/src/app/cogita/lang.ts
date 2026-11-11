@@ -291,6 +291,8 @@ export function words(lang: Lang) {
     widen: t('cogitaLearn.words.widen'),
     /* 2026-11-10 — der Plan der Erzählung als eigene Ansicht (Menü „⋯"), mit oder ohne den eigenen Weg. */
     storyMap: t('cogitaLearn.words.storyMap'),
+    /* 2026-11-11 — eine frühere Wahl neu treffen (ein weiterer Weg). */
+    chooseAgain: t('cogitaLearn.words.chooseAgain'),
     routeShown: t('cogitaLearn.words.routeShown'),
     narrow: t('cogitaLearn.words.narrow'),
     chooseRoad: (n: number): string => (n === 1 ? t('cogitaLearn.words.chooseRoadOne') : t('cogitaLearn.words.chooseRoad', { n })),

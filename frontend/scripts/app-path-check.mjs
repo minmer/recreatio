@@ -238,6 +238,26 @@ check('… two options open, the third locked by its condition (shown locked, wi
 sv = F.advance(choose, sv, 'o1', ctxV);
 check('… and goes where the learner chose', sv.step, 'b');
 
+/* 2026-11-11 — die Beschreibung auf der Wahl ("of") statt einer eigenen Folie davor: EIN Schritt, eine Gabel, die Folie gezeigt. */
+const described = F.readFlow('d', {
+  name: 'Mit Beschreibung', start: 'pick',
+  graph: {
+    nodes: [node('pick', 'choice', { of: 'opis', title: 'Którędy?', options: [{ label: 'Droga A', hint: 'krótko i z obrazkiem' }, { label: 'Droga B', hint: 'dokładnie, z pytaniami' }] }),
+      node('a', 'show', { of: 'a' }), node('b', 'question', { of: 'qb' }), node('fin', 'show', { of: 'fin' }), node('end', 'end')],
+    edges: [edge('pick', 'o0', 'a'), edge('pick', 'o1', 'b'), edge('a', 'next', 'fin'), edge('b', 'right', 'fin'), edge('b', 'wrong', 'fin'), edge('fin', 'next', 'end')]
+  }
+});
+const before = F.readFlow('e', { name: 'Folia przed wyborem', start: 'intro', graph: { nodes: [node('intro', 'show', { of: 'opis' }), ...described.graph.nodes.map((n) => ({ ...n, config: { ...n.config, ...(n.id === 'pick' ? { of: undefined } : {}) } }))], edges: [edge('intro', 'next', 'pick'), ...described.graph.edges.map((e) => [e.from, e.out, e.to]).map(([a, o, b]) => edge(a, o, b))] } });
+const workOf = SP.stepWorkOf((n) => (typeof n.config.of === 'string' ? [n.config.of] : []));
+const SPd = SP.storyPath(described, workOf, (id) => id);
+const SPe = SP.storyPath(before, workOf, (id) => id);
+const fd = SPd.parts.findIndex((p) => p.kind === 'fork');
+check('a choice with "of": still one fork node, no separate "slides to read" part for its slide', [SPd.parts[fd].kind, SPd.parts.filter((p) => p.steps.includes('pick')).length, SPd.parts.some((p) => p.kind !== 'fork' && p.steps.includes('pick'))], ['fork', 1, false]);
+check('… the progress counts one step less than a slide before the choice (description and choice on one screen)', [SP.storyMarks(SPd, { visited: [], step: 'pick' }).total, SP.storyMarks(SPe, { visited: [], step: 'intro' }).total - SP.storyMarks(SPd, { visited: [], step: 'pick' }).total], [SP.storyMarks(SPd, { visited: [], step: 'pick' }).total, 1]);
+check('… its slide counts as shown (as for a "show" step)', workOf(described.graph.nodes.find((n) => n.id === 'pick')).shown, ['opis']);
+let sd = F.startFlow(described);
+check('… and the player waits there (never chooses by itself)', [sd.step, sd.ended], ['pick', false]);
+
 /* -- 2026-11-04: ist die Ścieżka folgerichtig? ---------------------------------------------------------------------- */
 
 const texts = (fl, raw) => FC.flowProblems(fl, (id) => id, raw).map((p) => `${p.level}: ${p.text}`);

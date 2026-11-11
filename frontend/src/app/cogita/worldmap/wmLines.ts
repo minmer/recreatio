@@ -596,7 +596,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
         fork.forEach((f, i) => {
           const id = `${flow.id}/${at}:${f.exit}`;
           made.push(id);
-          branches.set(id, { id, parent, fork: { step: n.orig, exit: f.exit, label: f.label } });
+          const hint = n.type === 'choice' ? optionHintOf(n, f.exit) : '';
+          branches.set(id, { id, parent, fork: { step: n.orig, exit: f.exit, label: f.label, ...(hint === '' ? {} : { hint }) } });
           /* (b) — die Bedingung der Möglichkeit, mit der der Zweig beginnt. */
           const option = n.type === 'choice' ? (Array.isArray(n.config.options) ? n.config.options : [])[Number(f.exit.slice(1))] : undefined;
           const ticket: TicketPart[] = isObject(option) && option.condition !== undefined && option.condition !== null ? [{ source: 'option', step: n.orig, condition: readTicketCondition(option.condition) }] : [];
@@ -662,6 +663,12 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   }
   return { flow, sections, branches, ends, calls, forks, meetings, trunkStops, issues, stepFlow, review: reviewBlock.size > 0, junctions };
 }
+
+/** 2026-11-11 — der Hinweis einer Möglichkeit einer Wahl ("options[].hint"). */
+const optionHintOf = (n: { config: Readonly<Record<string, unknown>> }, exit: string): string => {
+  const o = (Array.isArray(n.config.options) ? n.config.options : [])[Number(exit.slice(1))];
+  return isObject(o) ? str(o.hint).trim() : '';
+};
 
 const exitLabel = (n: { type: string; config: Readonly<Record<string, unknown>> }, exit: string): string => {
   if (n.type === 'choice') { const o = (Array.isArray(n.config.options) ? n.config.options : [])[Number(exit.slice(1))]; return isObject(o) ? str(o.label) : str(o); }

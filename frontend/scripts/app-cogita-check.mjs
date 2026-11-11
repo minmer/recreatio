@@ -3523,6 +3523,55 @@ check('goals and lines follow the one logic', [
   check('slide face: an entry with no text at all keeps the old field view (null)', face('m1'), null);
 }
 
+/* ══ 2026-11-11 — eine Wahl mit Beschreibung ("of") und Hinweisen je Möglichkeit ("hint"): Import, Warnung, Export ══════════════ */
+{
+  const map = new Map();
+  let n = 0;
+  const store = {
+    libraryId: 'W', areaId: 'area-w', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `W-neu-${n += 1}`, libraryId: 'W' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+    refreshAiNow: async () => null,
+    saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+    remove: async (id) => { map.delete(id); store.revision += 1; },
+    subscribe: () => () => undefined
+  };
+  const lib = new So.CogitaLibrary(store, true);
+  const long = 'x'.repeat(130);
+  const graph = (choice) => ({
+    nodes: [{ id: 'pick', type: 'choice', config: choice }, { id: 'a', type: 'show', config: { of: '@w/s/a' } }, { id: 'b', type: 'show', config: { of: '@w/s/b' } }, { id: 'end', type: 'end', config: {} }],
+    edges: [['pick', 'o0', 'a'], ['pick', 'o1', 'b'], ['a', 'next', 'end'], ['b', 'next', 'end']].map(([from, out, to]) => ({ id: `${from}-${out}`, from, out, to, in: 'in' }))
+  });
+  const doc = {
+    format: 'recreatio.cogita.course', version: 1, name: 'W',
+    kinds: [{ ref: '@w/slajd', name: 'Slajd', label: '{tytul}', reading: '{tresc}', fields: [{ key: 'tytul', label: 'Tytuł', type: 'line' }, { key: 'tresc', label: 'Treść', type: 'markup' }] }],
+    entities: [
+      { ref: '@w/s/opis', kind: '@w/slajd', data: { tytul: 'Jak mam to opowiedzieć?', tresc: 'Trzy sposoby na tę samą rzecz.' } },
+      { ref: '@w/s/a', kind: '@w/slajd', data: { tytul: 'A', tresc: 'a' } },
+      { ref: '@w/s/b', kind: '@w/slajd', data: { tytul: 'B', tresc: 'b' } }
+    ],
+    flows: [
+      { ref: '@w/nowa', name: 'Nowa', start: 'pick', graph: graph({ of: '@w/s/opis', title: 'Wybierz', options: [{ label: 'Dla dzieci', hint: 'krótko, z obrazkami' }, { label: 'Dla dorosłych', hint: long }] }) },
+      { ref: '@w/stara', name: 'Stara', start: 'pick', graph: graph({ title: 'Wybierz', options: [{ label: 'Dla dzieci' }, { label: 'Dla dorosłych' }] }) }
+    ]
+  };
+  const plan = Js.planImport(lib, doc);
+  check('choice "of"/"hint": the import plans both flows without errors', ['error' in plan, plan.docs.filter((d) => d.kind === 'flow').length], [false, 2]);
+  const hintWarn = plan.warnings.filter((w) => w.includes('130'));
+  check('… a hint longer than 120 characters is a warning (not an error), once', [hintWarn.length, plan.warnings.some((w) => w.includes('krótko'))], [1, false]);
+  await Js.applyImport(lib, plan, () => undefined);
+  const slide = [...map.values()].find((e) => e.kind === 'entity' && e.data.tytul === 'Jak mam to opowiedzieć?');
+  const stored = (name) => lib.docs('flow').find((d) => d.data.name === name).data.graph.nodes.find((x) => x.id === 'pick').config;
+  check('… "of" is resolved like "show.of" (to the slide entry), the hints stay as written', [stored('Nowa').of === slide?.id, stored('Nowa').options.map((o) => o.hint)], [true, ['krótko, z obrazkami', long]]);
+  check('… a choice without the new fields stays exactly as before', stored('Stara'), { title: 'Wybierz', options: [{ label: 'Dla dzieci' }, { label: 'Dla dorosłych' }] });
+  const out = Js.exportCourse(lib, 'W');
+  const exported = (name) => out.flows.find((f) => f.name === name).graph.nodes.find((x) => x.id === 'pick').config;
+  check('… the export writes "of" back as the slide\'s lasting name and every hint unchanged', [exported('Nowa').of, exported('Nowa').options.map((o) => o.hint), exported('Nowa').title], ['@w/s/opis', ['krótko, z obrazkami', long], 'Wybierz']);
+  check('… round trip: the exported choice equals the imported one', exported('Nowa'), doc.flows[0].graph.nodes[0].config);
+  check('… and the old choice round-trips unchanged too', exported('Stara'), doc.flows[1].graph.nodes[0].config);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

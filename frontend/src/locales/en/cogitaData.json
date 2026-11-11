@@ -122,7 +122,8 @@
     "refreshingAi": "Refreshing the copy for AI…",
     "aiRefreshed": "Copy for AI (MCP) refreshed — the assistant already sees this state.",
     "aiFailed": "The copy for AI (MCP) could not be refreshed — it will refresh with the next change.",
-    "aiFailedBecause": "The copy for AI (MCP) could not be refreshed: {reason} — it will refresh with the next change."
+    "aiFailedBecause": "The copy for AI (MCP) could not be refreshed: {reason} — it will refresh with the next change.",
+    "hintLong": "the option \"{label}\" has a hint of {count} characters — keep it to one short line (at most {max})"
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",

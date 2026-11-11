@@ -1164,6 +1164,9 @@ export class ImportBlocked extends Error {
 }
 
 /** 2026-11-04 — die Probleme der Ścieżka jedes Ablaufs eines Plans, beim Namen des Ablaufs und des Schrittes. */
+/** 2026-11-11 — wie lang der Hinweis einer Möglichkeit sein darf, bevor der Import warnt. */
+const HINT_MAX = 120;
+
 function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): { level: 'error' | 'warning'; text: string }[] {
   const planTitle = (id: string): string | undefined => { const d = entities.find((e) => e.id === id)?.data; if (d === undefined) return undefined; for (const v of Object.values(d)) if (typeof v === 'string' && v.trim() !== '') return v.trim().slice(0, 80); return undefined; };
   const label = (id: string) => { const e = lib.entity(id); return e === undefined ? planTitle(id) ?? id : lib.label(e); };
@@ -1209,7 +1212,12 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
   return docs.filter((d) => d.kind === 'flow').flatMap((d) => {
     const flow = readFlow(d.id, d.data);
     const detours = detourProblems(flow, all, resolve).filter((p) => { if (p.step !== undefined) return true; if (said.has(p.text)) return false; said.add(p.text); return true; });
-    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain)].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
+    /* 2026-11-11 — "hint" einer Möglichkeit: eine kurze Zeile (über 120 Zeichen: Warnung). */
+    const hints = flow.graph.nodes.filter((n) => n.type === 'choice').flatMap((n) => (Array.isArray(n.config.options) ? n.config.options : []).flatMap((o) => {
+      const h = isObject(o) && typeof o.hint === 'string' ? o.hint.trim() : '';
+      return h.length > HINT_MAX ? [{ level: 'warning' as const, text: t('cogitaData.import.hintLong', { label: isObject(o) ? str(o.label) : '', count: h.length, max: HINT_MAX }) }] : [];
+    }));
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
   });
 }
 const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] => flowIssues(lib, docs, entities).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));

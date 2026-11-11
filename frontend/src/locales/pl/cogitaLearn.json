@@ -273,7 +273,8 @@
     },
     "branchQuestions": "{questions} · {known} umiesz",
     "storyMap": "Plan opowieści",
-    "routeShown": "Pokaż moją drogę"
+    "routeShown": "Pokaż moją drogę",
+    "chooseAgain": "Możesz wybrać ponownie — inną drogę albo tę samą jeszcze raz."
   },
   "spacing": {
     "title": "Odstępy powtórek",

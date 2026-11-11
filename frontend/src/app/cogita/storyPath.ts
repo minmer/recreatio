@@ -151,6 +151,9 @@ export function stepWorkOf(entries: (node: GraphNode) => readonly string[]): Wor
         return node.config.question === true ? { slides: 0, questions: 1, shown: [], asked: of } : { slides: 1, questions: 0, shown: of, asked: [] };
       case 'subflow': case 'each':
         return { slides: 1, questions: 0, shown: [], asked: [] };
+      /* 2026-11-11 — eine Wahl mit Folie ("of"): kein eigener Teil, aber ihre Folie ist gezeigt (ihr „about" zählt wie bei „show"). */
+      case 'choice':
+        return { slides: 0, questions: 0, shown: str(node.config.of) === '' ? [] : of, asked: [] };
       /* 2026-11-04 (Prompt 13) — ein Abstecher bringt hier nichts: seine Erzählung zählt für sich (ein eigener Teil, `detour`). */
       default:
         return { slides: 0, questions: 0, shown: [], asked: [] };

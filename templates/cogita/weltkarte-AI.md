@@ -56,6 +56,7 @@ Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z krok
 - Jeśli gałęzie rozwidlenia się później schodzą, kończą się na najbliższym wspólnym przystanku.
 - Miejsce, w którym zatrzymuje się kilka linii, to **węzeł przesiadkowy** (pierścień wokół filaru). Panel wieży i panel rozwidlenia wymieniają wszystkie kierunki: linia, gałąź, cel, liczba slajdów i pytań, bilet. Uczący się wybiera na mapie, a opowieść otwiera się od razu w wybranej gałęzi.
 - Etykieta opcji wyboru jest nazwą gałęzi („Do warsztatów”, „Z Dominikiem Savio”) — pisz ją krótko.
+- **Opis rozwidlenia (2026-11-11)**: co czeka na drogach, opisz w samym wyborze — `"of"` (slajd nad możliwościami) i `"hint"` przy możliwości (jedna linia). Etykiety zostają nazwami linii; węzeł przesiadkowy pokazuje w swoim panelu przy każdej drodze jej "hint". Nie dodawaj osobnego slajdu przed wyborem tylko do opisu — slajd drogi przed rozwidleniem leży na torze do węzła i liczyłby się jak każdy inny slajd.
 
 ## 5. Bilety: kiedy odcinek jest otwarty
 

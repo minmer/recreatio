@@ -132,7 +132,8 @@
     "refreshingAi": "Odświeżanie kopii dla AI…",
     "aiRefreshed": "Kopia dla AI (MCP) odświeżona — asystent widzi już ten stan.",
     "aiFailed": "Kopii dla AI (MCP) nie udało się odświeżyć — odświeży się przy następnej zmianie.",
-    "aiFailedBecause": "Kopii dla AI (MCP) nie udało się odświeżyć: {reason} — odświeży się przy następnej zmianie."
+    "aiFailedBecause": "Kopii dla AI (MCP) nie udało się odświeżyć: {reason} — odświeży się przy następnej zmianie.",
+    "hintLong": "możliwość „{label}” ma wskazówkę z {count} znakami — wystarczy jedna krótka linia (najwyżej {max})"
   },
   "progress": {
     "tallyOne": "Odpowiedź {n}: {text}",

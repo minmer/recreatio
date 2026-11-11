@@ -841,7 +841,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     const media = typeof k.media === 'object' && k.media !== null ? k.media as MediaRef : null;
     const shownEntity = id === '' ? null : content.entity(node.type === 'expand' && typeof k.explain === 'string' ? k.explain : id);
     /* 2026-11-05 (Prompt 23, D1) — ein Rysunek neben dem Text der Folie ("drawing" im Schritt oder ein Feld des Eintrags). */
-    const drawingText = node.type === 'show' ? slideDrawingText(k.drawing, shownEntity) : null;
+    const drawingText = node.type === 'show' || node.type === 'choice' ? slideDrawingText(k.drawing, shownEntity) : null;
     return (
       <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken}>
         {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? t('cogitaLearnPath.flow.guess') : t('cogitaLearnPath.flow.recall')}</p>}
@@ -881,21 +881,36 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
       case 'chapters': {
         const list = node.type === 'choice' ? (Array.isArray(k.options) ? k.options : []) : (Array.isArray(k.chapters) ? k.chapters : []);
         const prefix = node.type === 'choice' ? 'o' : 'c';
+        /*
+          2026-11-11 (Eigentümer: „einen Weg neu wählen können — und mehr als einen Weg gehen") — eine frühere Wahl dieser Erzählung
+          ist wieder wählbar: zurück an die Wahl und in den gewählten Weg (ein gegangener bleibt gegangen, ein weiterer kommt dazu).
+        */
+        const again = node.type === 'choice' && entry.run.state.flow === running.id && entry.run.state.stack.length === state.stack.length;
+        const open = again ? new Set(optionsOf(node, facts(entry.run.state)).map((o) => o.exit)) : new Set<string>();
+        const pastOf = node.type === 'choice' && typeof k.of === 'string' && k.of !== '';
         return (
+          <>
+          {pastOf && showBody(node, stItem)}
           <div className="cg-choices cg-choice-list" data-flow-past-choice={entry.exit ?? ''}>
+            {pastOf && typeof k.title === 'string' && k.title !== '' && <h3 className="cg-choice-head" data-flow-choice-head=""><TexText text={k.title} /></h3>}
+            {again && <p className="cg-muted" data-flow-choose-again="">{W.chooseAgain}</p>}
             {list.map((o, i) => {
               const exit = `${prefix}${i}`;
               const raw = typeof o === 'object' && o !== null ? (o as { label?: unknown; title?: unknown }) : null;
               const label = (typeof raw?.label === 'string' ? raw.label : typeof raw?.title === 'string' ? raw.title : typeof o === 'string' ? o : '') || `${i + 1}`;
               const chosen = entry.exit === exit;
+              const can = again && open.has(exit);
               return (
-                <button key={exit} type="button" className={`cg-option cg-choice-item${chosen ? ' is-chosen' : ''}`} disabled>
+                <button key={exit} type="button" className={`cg-option cg-choice-item${chosen ? ' is-chosen' : ''}`} disabled={!can}
+                  onClick={can ? () => { jumpToStep(node.id); go(exit); } : undefined} data-flow-past-option={exit}>
                   <TexText text={label} />
+                  {optionHint(o) !== '' && <span className="cg-option-hint" data-flow-option-hint=""><Markup text={optionHint(o)} /></span>}
                   {chosen && <span className="cg-muted">{W.chosenHere}</span>}
                 </button>
               );
             })}
           </div>
+          </>
         );
       }
       case 'detour': {
@@ -1044,7 +1059,12 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   /* 2026-11-05 (Prompt 23, A7a) — der Titel des Schrittes; ohne ihn bei einer Folie (Feld „blocks“) ihr eigener (ihr Name, z. B. „tytul“). */
   /* 2026-11-11 — auch eine Folie mit einem Wzór tekstu (`reading`) oder mit Textfeldern: ihr Name steht als Titel, einmal. */
   const slideTitle = (current.type === 'show' || current.type === 'expand') && typeof c.of === 'string' && c.of !== '' ? (() => { const e = content.entity(content.resolve?.(c.of as string) ?? (c.of as string)); return e !== null && slideText(e, cg?.lib ?? null) !== null ? e.label : null; })() : null;
-  const title = typeof c.title === 'string' && c.title !== '' ? c.title : slideTitle;
+  /*
+    2026-11-11 (Eigentümer: „Beschreibung und Wahl auf EINEM Bildschirm") — eine Wahl mit Folie ("of"): oben die Folie mit ihrem
+    Titel, darunter die Möglichkeiten; der "title" der Wahl ist dann die Überschrift der Möglichkeiten.
+  */
+  const choiceOf = current.type === 'choice' && typeof c.of === 'string' && c.of !== '' ? c.of : null;
+  const title = choiceOf !== null ? content.entity(content.resolve?.(choiceOf) ?? choiceOf)?.label ?? null : typeof c.title === 'string' && c.title !== '' ? c.title : slideTitle;
   const item = state.item === undefined ? null : content.entity(state.item);
   /* 2026-11-05 — wer erzählt, steht nicht mehr da (der Eigentümer: „remove completely"); die Erzähler wirken nur noch in Präsentationen. */
 
@@ -1107,8 +1127,12 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         const open = new Set(optionsOf(current, facts(state)).map((o) => o.exit));
         const list = Array.isArray(c.options) ? c.options : [];
         const fork = sp.parts[sp.partOfStep.get(current.id) ?? -1]?.fork;
+        const withOf = typeof c.of === 'string' && c.of !== '';
         return (
-          <div className="cg-choices cg-choice-list" data-flow-choice={list.length}>
+          <>
+          {withOf && showBody(current, state.item)}
+          <div className="cg-choices cg-choice-list" data-flow-choice={list.length} data-flow-choice-of={withOf ? '1' : '0'}>
+            {withOf && typeof c.title === 'string' && c.title !== '' && <h3 className="cg-choice-head" data-flow-choice-head=""><TexText text={c.title} /></h3>}
             <p className="cg-muted">{W.chooseRoad(list.length)}</p>
             {list.map((o, i) => {
               const exit = `o${i}`;
@@ -1124,6 +1148,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
               return (
                 <button key={exit} type="button" className="cg-option cg-choice-item" disabled={locked} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-locked={locked ? '1' : '0'}>
                   <TexText text={label} />
+                  {optionHint(o) !== '' && <span className="cg-option-hint" data-flow-option-hint=""><Markup text={optionHint(o)} /></span>}
                   {wordsOf !== '' && <span className="cg-muted" data-flow-option-work="">{wordsOf}</span>}
                   {walked && <span className="cg-muted" data-flow-option-done="">{W.done}</span>}
                   {locked && cond !== null && !holds(cond, facts(state)) && (
@@ -1135,6 +1160,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
               );
             })}
           </div>
+          </>
         );
       }
       case 'chapters': {
@@ -1330,7 +1356,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         const r = shownPast.run;
         const pFlow = flowOf(r.state.flow);
         const node = r.state.step === null ? undefined : pFlow?.graph.nodes.find((n) => n.id === r.state.step);
-        const pTitle = node !== undefined && typeof node.config.title === 'string' && node.config.title !== '' ? node.config.title : null;
+        const pOf = node?.type === 'choice' && typeof node.config.of === 'string' && node.config.of !== '' ? node.config.of : null;
+        const pTitle = pOf !== null ? content.entity(content.resolve?.(pOf) ?? pOf)?.label ?? null : node !== undefined && typeof node.config.title === 'string' && node.config.title !== '' ? node.config.title : null;
         return (
           <section className={`${lookClass} is-past`} data-flow-past={backBy} data-flow-step={r.state.step ?? ''}>
             {head(crumbsOf(r, pTitle, false))}
@@ -1499,6 +1526,9 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
     </div>
   );
 }
+
+/** 2026-11-11 — die eine Zeile unter dem Namen einer Möglichkeit ("hint"); leer: keine. */
+const optionHint = (o: unknown): string => (typeof o === 'object' && o !== null && typeof (o as { hint?: unknown }).hint === 'string' ? (o as { hint: string }).hint.trim() : '');
 
 /** Ein Eintrag im Ablauf: eine Aussage ganz, andere mit ihren Feldern und Bildern. */
 export function EntityView({ entity }: { entity: PublicEntity | null }) {

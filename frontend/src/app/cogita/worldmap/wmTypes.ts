@@ -226,7 +226,7 @@ export interface LineBranch {
   readonly line: string;
   readonly parent: string | null;
   /** Die Wahl, an der er beginnt, und ihr Ausgang (null: der Stamm). */
-  readonly fork: { readonly step: string; readonly exit: string; readonly label: string } | null;
+  readonly fork: { readonly step: string; readonly exit: string; readonly label: string; /** 2026-11-11 — der Hinweis der Möglichkeit ("hint"). */ readonly hint?: string } | null;
   readonly sections: readonly string[];
 }
 

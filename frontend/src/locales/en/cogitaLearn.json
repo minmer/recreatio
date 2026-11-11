@@ -259,7 +259,8 @@
     },
     "branchQuestions": "{questions} · {known} known",
     "storyMap": "Story map",
-    "routeShown": "Show my way"
+    "routeShown": "Show my way",
+    "chooseAgain": "You can choose again — take another path or walk this one once more."
   },
   "spacing": {
     "title": "Review spacing",

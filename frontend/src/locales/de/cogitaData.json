@@ -122,7 +122,8 @@
     "refreshingAi": "Aktualisiere die Kopie für KI…",
     "aiRefreshed": "Kopie für KI (MCP) aktualisiert — der Assistent sieht schon diesen Stand.",
     "aiFailed": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren — sie wird bei der nächsten Änderung aktualisiert.",
-    "aiFailedBecause": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren: {reason} — sie wird bei der nächsten Änderung aktualisiert."
+    "aiFailedBecause": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren: {reason} — sie wird bei der nächsten Änderung aktualisiert.",
+    "hintLong": "die Möglichkeit „{label}“ hat einen Hinweis mit {count} Zeichen — eine kurze Zeile genügt (höchstens {max})"
   },
   "progress": {
     "tallyOne": "Antwort {n}: {text}",

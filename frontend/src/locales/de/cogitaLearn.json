@@ -259,7 +259,8 @@
     },
     "branchQuestions": "{questions} · {known} kannst du",
     "storyMap": "Plan der Erzählung",
-    "routeShown": "Meinen Weg zeigen"
+    "routeShown": "Meinen Weg zeigen",
+    "chooseAgain": "Du kannst neu wählen — einen anderen Weg nehmen oder diesen noch einmal gehen."
   },
   "spacing": {
     "title": "Abstände der Wiederholungen",

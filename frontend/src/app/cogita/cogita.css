@@ -1078,3 +1078,8 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-face-stats:hover, .cg-face-stats:focus-visible, .cg-face-stats.is-on { color: var(--wk-ink); border-color: var(--wk-ink); }
 .cg-face-statsbox { margin: 0 0 var(--wk-space-2); text-align: left; }
 .cg-face:has(> .cg-face-stats) > .cg-prompt { padding-inline: 1.6rem; }
+
+/* 2026-11-11 — eine Wahl mit Folie: die Überschrift der Möglichkeiten, die Zeile unter dem Namen einer Möglichkeit. */
+.cg-choice-head { margin: var(--wk-space-3) 0 0; font-size: var(--wk-text-md); }
+.cg-option-hint { display: block; color: var(--wk-ink-2); font-size: var(--wk-text-sm); font-weight: 400; }
+.cg-option-hint p { margin: 0; }

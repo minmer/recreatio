@@ -194,6 +194,20 @@ try {
       const at = await ev(`(() => { const s = document.querySelector('[data-world-running="story"] [data-flow-running]'); return { step: s?.dataset.flowStep ?? null, locked: document.querySelector('[data-flow-locked]') !== null }; })()`);
       check(P, 'the player opens in the chosen branch (its first slide)', at.step === 'sh11' && !at.locked, at);
       await shot('p2-branch-open');
+      /* 2026-11-11 — zurück zur Wahl („Wstecz"): eine andere Möglichkeit ist wieder wählbar und führt in ihren Weg. */
+      for (let i = 0; i < 8 && !(await ev(`document.querySelector('[data-flow-past-option]:not([disabled]):not(.is-chosen)') !== null`)); i += 1) {
+        if (!(await ev(`(() => { const b = document.querySelector('[data-flow-back]'); if (!b) return false; b.click(); return true; })()`))) break;
+        await sleep(200);
+      }
+      const other = await ev(`document.querySelector('[data-flow-past-option]:not([disabled]):not(.is-chosen)')?.dataset.flowPastOption ?? null`);
+      check(P, 'looking back at a past choice: another path can be chosen', other !== null, other);
+      if (other !== null) {
+        await click(`[data-flow-past-option="${other}"]`);
+        await sleep(400);
+        const now = await ev(`(() => { const s = document.querySelector('[data-world-running="story"] [data-flow-running]:not(.is-behind)'); return { step: s?.dataset.flowStep ?? null, past: document.querySelector('[data-flow-past]') !== null }; })()`);
+        check(P, '… choosing it goes into that path (a second path of the same story)', now.step !== null && now.step !== 'sh11' && !now.past, now);
+        await shot('p2-rechoose');
+      }
     }
   }
 
@@ -570,6 +584,36 @@ try {
       check(P, 'every card view offers "statistics of this card" (same place, same sign)', await ev(`document.querySelector('[data-card-stats-open]') !== null`));
       await shot('p8-card-stats');
     } else check(P, 'a question was reached to try "statistics of this card"', false);
+  }
+
+  /*
+    -- 10 · 2026-11-11: eine Wahl mit ihrer Beschreibung ("of") und je Möglichkeit einem Hinweis ("hint") — EIN Bildschirm; nur mit
+    einer Testwelt, deren Wahl sie trägt (scratch fixture-choice.json, siehe Bericht) ------------------------------------------------
+  */
+  if (runs('10')) {
+    const P = '10 choice with description';
+    await open('all');
+    const lane = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.to.startsWith('~j:'));
+    await clickMap('lane', lane.section);
+    await waitFor(`document.querySelector('[data-world-panel="section"] [data-world-travel]')`, 'the section panel');
+    await click('[data-world-panel="section"] [data-world-travel]');
+    await waitFor(`document.querySelector('[data-world-running="story"] [data-flow-running]')`, 'the story');
+    for (let i = 0; i < 30 && !(await ev(`document.querySelector('[data-flow-choice-of="1"]') !== null`)); i += 1) {
+      if (!(await ev(`(() => { const b = document.querySelector('[data-flow-go]') ?? document.querySelector('[data-card-next]'); if (b) { b.click(); return true; } const t = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => !x.disabled); if (t) { t.click(); return true; } return false; })()`))) break;
+      await sleep(150);
+    }
+    const scr = await ev(`(() => { const s = document.querySelector('[data-flow-running]:not(.is-behind)'); const ch = s?.querySelector('[data-flow-choice-of="1"]'); if (!ch) return null; const slide = ch.previousElementSibling; return { title: s.querySelector('[data-flow-title]')?.textContent ?? '', head: ch.querySelector('[data-flow-choice-head]')?.textContent ?? '', hints: ch.querySelectorAll('[data-flow-option-hint]').length, options: ch.querySelectorAll('[data-flow-option]').length, slideAbove: slide !== null && slide.textContent.trim().length > 0, next: document.querySelector('[data-flow-go]') !== null }; })()`);
+    check(P, 'the slide stands above the options on ONE screen; the choice title heads the options; one hint per option', scr !== null && scr.slideAbove && scr.head === 'Którędy dalej?' && scr.hints === scr.options && scr.options >= 2 && !scr.next, scr);
+    await shot('p10-choice');
+    await click('[data-flow-option][data-flow-option-locked="0"]');
+    await sleep(400);
+    for (let i = 0; i < 12 && !(await ev(`document.querySelector('[data-flow-past-choice]') !== null`)); i += 1) {
+      if (!(await ev(`(() => { const b = document.querySelector('[data-flow-back]'); if (!b) return false; b.click(); return true; })()`))) break;
+      await sleep(200);
+    }
+    const past = await ev(`(() => { const c = document.querySelector('[data-flow-past-choice]'); if (!c) return null; return { chosen: c.querySelectorAll('.is-chosen').length, hints: c.querySelectorAll('[data-flow-option-hint]').length, slideAbove: (c.previousElementSibling?.textContent ?? '').trim().length > 0 }; })()`);
+    check(P, 'review mode shows the text and the options, the chosen one marked', past !== null && past.chosen === 1 && past.hints >= 2 && past.slideAbove, past);
+    await shot('p10-review');
   }
 
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');

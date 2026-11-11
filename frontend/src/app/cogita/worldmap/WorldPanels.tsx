@@ -61,6 +61,8 @@ function PanelTop({ title, onClose, t }: { title: ReactNode; onClose: () => void
 
 const lineOf = (ctx: PanelCtx, s: Section) => ctx.state.lines.lines.get(s.line);
 const branchLabel = (ctx: PanelCtx, s: Section): string | null => lineOf(ctx, s)?.branches.find((b) => b.id === s.branch)?.fork?.label ?? null;
+/** 2026-11-11 — der Hinweis der Möglichkeit, mit der ein Zweig beginnt (Klartext). */
+const branchHint = (ctx: PanelCtx, s: Section): string => lineOf(ctx, s)?.branches.find((b) => b.id === s.branch)?.fork?.hint ?? '';
 const fromTo = (ctx: PanelCtx, s: Section): string => (s.from === s.to ? ctx.nameOf(s.to) : `${ctx.nameOf(s.from)} → ${ctx.nameOf(s.to)}`);
 /** Was eine Fahrkarte als erstes fehlt (für „wymaga: …"). */
 const firstMissing = (ctx: PanelCtx, st: SectionState): string => {
@@ -318,6 +320,7 @@ export function JunctionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx;
           return (
             <li key={s.id} className="cg-wm-row" data-world-junction-way={s.id}>
               <span className="cg-wm-rowmain"><strong>→ {nameOf(s.to)}</strong>{label !== null && <span> · {label}</span>}</span>
+              {branchHint(ctx, s) !== '' && <span className="cg-wm-meta" data-world-junction-hint="">{branchHint(ctx, s)}</span>}
               <span className="cg-wm-meta">
                 {t('cogitaWorld.panel.slides', { count: s.slides })} · {t('cogitaWorld.panel.questionsN', { count: s.questions.length })}{styles > 1 ? ` · ${t('cogitaWorld.panel.styles', { count: styles })}` : ''}
               </span>

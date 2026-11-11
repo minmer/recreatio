@@ -394,7 +394,8 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   if (SKIPPABLE.has(node.type) && !(node.type === 'scene' && c.question === true) && skips(c.skipWhen, facts)) {
     return enter(flow, here, follow(flow, to, 'next'), ctx, guard + 1);
   }
-  if (node.type === 'choice' && c.hold !== true) {
+  /* 2026-11-11 — eine Wahl mit eigener Folie ("of") wird immer gelesen: sie wählt nie selbst (wie "hold": true). */
+  if (node.type === 'choice' && c.hold !== true && str(c.of) === '') {
     const only = optionsOf(node, facts);
     if (only.length === 1) return takeOption(flow, here, node, only[0].exit, ctx, guard + 1);
   }
