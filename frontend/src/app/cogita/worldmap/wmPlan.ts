@@ -75,6 +75,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const { world, lines } = state;
   const levels = state.settings.levels;
   const conquered = (p: string) => state.places.get(p)?.conquered === true;
+  /* 2026-11-11 — eine Voraussetzung genügt, sobald sie passierbar ist (die Stufe, die ihre Pfade öffnet); nur das Ziel wird ganz erobert. */
+  const passable = (p: string) => state.places.get(p)?.passable === true;
   /* Türme, die der Plan vor dem jetzigen Schritt erobert; Spuren, die er geht; Karten, die seine Fahrten einführen. */
   const soon = new Set<string>();
   const walked = new Set<string>();
@@ -126,7 +128,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     let c = travelled(s.id) ? COST_TRAVELLED : COST_NEW + COST_STEP * s.steps.length;
     if (!st.ticket.met) {
       if (st.ticket.unknown) return Infinity;
-      const towers = ticketTowers(s).filter((p) => !conquered(p) && !soon.has(p));
+      const towers = ticketTowers(s).filter((p) => !passable(p) && !soon.has(p));
       const other = st.ticket.parts.some((p) => !p.result.met && placesOf(p.part.condition).length === 0);
       c += COST_TOWER * new Set(towers).size + (other ? 1 + 0.5 * st.ticket.missing.new.length + 0.3 * st.ticket.missing.review.length : 0);
     }
@@ -228,7 +230,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   while (queue.length > 0 && guard < 2000) {
     guard += 1;
     const T = queue[0];
-    if (conquered(T) || soon.has(T)) { queue.shift(); continue; }
+    if ((T === target ? conquered(T) : passable(T)) || soon.has(T)) { queue.shift(); continue; }
     const pin = opts.choices?.get(T) ?? null;
     /* Eine gewählte Abzweigung: der Weg führt über sie (zu ihrem Anfang, sie selbst, von ihrem Ende zum Turm). */
     const pinned = pin === null ? undefined : lines.sections.get(pin);
@@ -242,9 +244,9 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     for (const e of path ?? []) {
       if (e.back) continue;
       if (world.places.has(e.s.from) && e.s.from !== T && !openFrom(e.s.from, e.s)) need.push(e.s.from);
-      for (const p of ticketTowers(e.s)) if (p !== T && !conquered(p) && !soon.has(p)) need.push(p);
+      for (const p of ticketTowers(e.s)) if (p !== T && !passable(p) && !soon.has(p)) need.push(p);
     }
-    const first = [...new Set(need)].flatMap((p) => state.conquestOrder(p)).filter((p, i, all) => all.indexOf(p) === i && p !== T && !soon.has(p) && !conquered(p));
+    const first = [...new Set(need)].flatMap((p) => state.conquestOrder(p)).filter((p, i, all) => all.indexOf(p) === i && p !== T && !soon.has(p) && !passable(p));
     const n = tries.get(T) ?? 0;
     if (first.length > 0 && n < 6) {
       tries.set(T, n + 1);

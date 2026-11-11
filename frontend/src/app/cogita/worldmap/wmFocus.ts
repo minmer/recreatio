@@ -83,7 +83,7 @@ export function routeFocus(plan: Plan, state: WorldState, lines: Lines): RouteFo
   /* Die Tore: Spuren in Knoten des Weges oder in fehlende Türme. */
   const gates = new Set<string>();
   for (const l of lines.links) if (nodes.has(l.to) || missing.has(l.to)) gates.add(l.id);
-  for (const p of missing) for (const n of state.world.places.get(p)?.needs ?? []) if (missing.has(n) || state.places.get(n)?.conquered !== true) gates.add(`requires:${n}>${p}`);
+  for (const p of missing) for (const n of state.world.places.get(p)?.needs ?? []) if (missing.has(n) || state.places.get(n)?.passable !== true) gates.add(`requires:${n}>${p}`);
   const current = plan.route.find((id) => remaining.has(id)) ?? null;
   return { missing, passed, remaining, done, nodes, gates, current };
 }

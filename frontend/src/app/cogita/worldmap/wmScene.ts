@@ -277,7 +277,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   /* Das eigene Tor eines Pfades: die verlangten Türme (noch nicht erobert). */
   const requiresOf = new Map<string, string[]>();
   for (const l of lines.links) {
-    if (state.places.get(l.from)?.conquered === true) continue;
+    if (state.places.get(l.from)?.passable === true) continue;
     const list = requiresOf.get(l.section) ?? [];
     if (!list.includes(l.from)) list.push(l.from);
     requiresOf.set(l.section, list);
@@ -364,7 +364,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     if (p === undefined) return null;
     return { p, r: id === HOME_ID ? 0 : g.radii[id] ?? 28 };
   };
-  const conqueredOf = (p: string) => state.places.get(p)?.conquered === true || (world.blocks.get(p)?.parts.every((x) => state.places.get(x)?.conquered === true) ?? false);
+  const conqueredOf = (p: string) => state.places.get(p)?.passable === true || (world.blocks.get(p)?.parts.every((x) => state.places.get(x)?.passable === true) ?? false);
   for (const l of lines.links) {
     const a = at(l.from), b = at(l.to);
     if (a === null || b === null) continue;
@@ -379,12 +379,12 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   const shownBy = (need: string, place: string): boolean => (into.get(place) ?? []).some((s) => s.from === need
     || (lines.junctions.get(s.from)?.from === need) || lines.links.some((l) => l.from === need && l.to === s.from));
   for (const p of world.places.values()) {
-    if (state.places.get(p.id)?.conquered === true || p.needs.every((n) => state.places.get(n)?.conquered === true)) continue;
+    if (state.places.get(p.id)?.conquered === true || p.needs.every((n) => state.places.get(n)?.passable === true)) continue;
     for (const n of p.needs) {
       if (shownBy(n, p.id)) continue;
       const a = at(n), b = at(p.id);
       if (a === null || b === null) continue;
-      links.push({ id: `requires:${n}>${p.id}`, from: n, to: p.id, a: a.p, b: b.p, ra: a.r, rb: b.r, met: state.places.get(n)?.conquered === true, kind: 'requires' });
+      links.push({ id: `requires:${n}>${p.id}`, from: n, to: p.id, a: a.p, b: b.p, ra: a.r, rb: b.r, met: state.places.get(n)?.passable === true, kind: 'requires' });
     }
   }
   const loops: SceneLoop[] = [];

@@ -65,6 +65,11 @@ export interface PlaceState {
   readonly conquered: boolean;
   /** „Mistrzowsko": ein Durchgang mit jeder Karte beim ersten Mal richtig. */
   readonly perfect: boolean;
+  /**
+   * 2026-11-11 (Eigentümer: „was genügt, um vom Turm weiterzugehen, genügt auch für die Türme, die auf ihm aufbauen") — PASSIERBAR:
+   * erobert, oder die Stufe erreicht, ab der sich seine Pfade öffnen (`openAt`). Jede Voraussetzung fragt das, nicht „erobert".
+   */
+  readonly passable: boolean;
   /** Was diesem Ort selbst noch fehlt (Karten). */
   readonly missing: number;
   /** Was bis hierher fehlt: der Ort und seine ganze Grundlage. */
@@ -176,11 +181,14 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     const missing = conquered ? 0 : levels > 0 ? total : unseen + learning;
     const saturation = (empty || (levels > 0 ? level >= 1 : conquered)) ? 'full' : unseen < total ? 'partly' : 'never';
     const dot = !conquered || empty ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
-    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
+    const openAt = settings.openAt ?? null;
+    const passable = conquered || (openAt !== null && (openAt === 0 || (levels > 0 && level >= Math.min(openAt, levels))));
+    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, passable, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
   }
   /* Die Höhe über der Bitmenge der Grundlage (5 000 Orte: keine Mengen je Ort). */
   const miss = new Float64Array(world.bitOrder.length);
-  world.bitOrder.forEach((id, i) => { miss[i] = own.get(id)?.missing ?? 0; });
+  /* Die Grundlage zählt nur, solange sie nicht passierbar ist. */
+  world.bitOrder.forEach((id, i) => { const o = own.get(id); miss[i] = o === undefined || o.passable ? 0 : o.missing; });
   const places = new Map<string, PlaceState>();
   for (const [id, s] of own) {
     let h = s.missing;
@@ -190,7 +198,8 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
   }
 
   const ctx: LearnerContext = {
-    world, lines, knowness, facts: learner.facts, storyPassed, conquered: (p) => places.get(p)?.conquered === true,
+    /* Als Voraussetzung (Tore, Durchgänge) zählt „passierbar" — dieselbe Schwelle, die die Pfade des Turms öffnet. */
+    world, lines, knowness, facts: learner.facts, storyPassed, conquered: (p) => places.get(p)?.passable === true,
     ...(learner.prepared === undefined ? {} : { prepared: learner.prepared }), ...(off === undefined ? {} : { suspended: off })
   };
 
@@ -249,14 +258,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     2026-11-10 (Eigentümer) — DIE PFADE EINES TURMS ÖFFNEN SICH (`openAt`): erobert, oder — wenn der Autor es so einstellt — sofort (0)
     oder schon ab Stufe k.
   */
-  const openAt = settings.openAt ?? null;
-  const towerOpen = (p: string): boolean => {
-    const ps = places.get(p);
-    if (ps === undefined) return false;
-    if (ps.conquered) return true;
-    if (openAt === null) return false;
-    return openAt === 0 || (levels > 0 && ps.level >= Math.min(openAt, levels));
-  };
+  const towerOpen = (p: string): boolean => places.get(p)?.passable === true;
   /*
     2026-11-10 — EIN KNOTEN ZWISCHEN TÜRMEN (Gabelung, Tor) ist offen, wenn eine Spur zu ihm offen ist und ihr Tor erfüllt:
     die Zweige einer Gabelung öffnen sich mit dem Weg zu ihr; ein Tor-Knoten erst, wenn alles, was die Linie verlangt, sitzt.
@@ -358,7 +360,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
 
   const rank = new Map(world.order.map((id, i) => [id, i] as const));
   const conquestOrder = (place: string): string[] => {
-    const all = [place, ...world.base(place)].filter((p) => places.get(p)?.conquered === false);
+    const all = [...(places.get(place)?.conquered === false ? [place] : []), ...[...world.base(place)].filter((p) => places.get(p)?.passable === false)];
     return all.sort((a, b) => (world.places.get(a)!.depth - world.places.get(b)!.depth) || (rank.get(a)! - rank.get(b)!));
   };
   const sources = (card: string): CardSource[] => (lines.introducedBy.get(card) ?? [])

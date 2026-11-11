@@ -394,6 +394,19 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   check('a clicked tower shows what it needs as arcs in the air (also when conquered)', [...(fb.arcs ?? [])].map(([a]) => a).sort(), ['B', 'K']);
 }
 
+/* 2026-11-11 — was genügt, um vom Turm weiterzugehen (openAt), genügt auch den Türmen, die ihn verlangen. */
+{
+  const made = SH.gates();
+  const world = G.readWorld(made.input);
+  const lines = L.linesOf(world, made.input.flows);
+  const st = (lv) => S.stateOf(world, lines, F.fakeLearner({ levels: lv }), { levels: 3, knownShare: 1, openAt: 2 });
+  const half = st({ A: 2 });
+  check('passable: A at level 2 of 3 (its paths open from level 2) is not conquered, but passable', [half.places.get('A').conquered, half.places.get('A').passable, st({ A: 1 }).places.get('A').passable], [false, true, false]);
+  check('passable: the towers that need A treat it as done — B can be tried, no disc for A, A not listed as missing', [R.runGate(half.ctx, 'B', R.levelOf([], R.defaultRules(3), 3), 3).kind, half.conquestOrder('Z').includes('A'), PN.requiredTowers(half, 'B').map((x) => x.id)], ['ready', false, []]);
+  check('passable: the way to B does not send the learner back to finish A (only what the branch itself needs: K)', P.plan(half, 'B').places, ['K', 'B']);
+  check('passable: without openAt only the full conquest counts', S.stateOf(world, lines, F.fakeLearner({ levels: { A: 2 } }), { levels: 3, knownShare: 1 }).places.get('A').passable, false);
+}
+
 /* §5 Der geführte Weg: zuerst die nötige Wiederholung, nur was das Ziel braucht, er endet erst am Ziel. */
 {
   const made = SH.reviewGate();

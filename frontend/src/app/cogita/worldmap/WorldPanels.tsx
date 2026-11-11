@@ -233,10 +233,10 @@ export type RequiredState = 'done' | 'open' | 'locked';
 export function requiredTowers(state: WorldState, place: string): { readonly id: string; readonly state: RequiredState }[] {
   const rank = new Map(state.world.order.map((p, i) => [p, i] as const));
   return [...state.world.base(place)]
-    .filter((p) => state.world.places.has(p))
+    .filter((p) => state.world.places.has(p) && state.places.get(p)?.passable !== true)
     .map((p) => ({
       id: p,
-      state: (state.places.get(p)?.conquered === true ? 'done' : (state.world.places.get(p)?.needs ?? []).every((n) => state.places.get(n)?.conquered === true) ? 'open' : 'locked') as RequiredState
+      state: (state.places.get(p)?.passable === true ? 'done' : (state.world.places.get(p)?.needs ?? []).every((n) => state.places.get(n)?.passable === true) ? 'open' : 'locked') as RequiredState
     }))
     .sort((a, b) => (state.world.places.get(a.id)!.depth - state.world.places.get(b.id)!.depth) || ((rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)));
 }
