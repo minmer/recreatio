@@ -55,6 +55,9 @@ import { cardsAbout } from './prerequisites';
 import { conditionText, holds, readCondition, type Facts, type FlowFacts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
 import { slideText } from './slideText';
+import { PlacementStep } from './worldmap/PlacementStep';
+import { placementWorld } from './worldmap/placementWorld';
+import { exploreOnBranch, hasOpen, scopeKey, scopeTowers } from './worldmap/wmPlacement';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
@@ -685,6 +688,23 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   }, [cg, cg?.lib.revision, content.cards, learner, progressNow, lockUnit, lockTick, running, sp, state.stack.length, state.ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const lock = around.lock;
   /*
+    2026-11-12 (Einstufung, „push") — eine Möglichkeit, deren Zweig eine Einstufung trägt (ein Schritt "explore" vor der nächsten
+    Wahl, oder ein Abstecher/Unterablauf, dessen Erzählung mit ihr beginnt), die nicht gemacht und nicht ausgelassen ist und offene
+    Türme hat: zuerst und als empfohlen.
+  */
+  const pushAt = useMemo((): ReadonlySet<string> => {
+    if (current?.type !== 'choice' || cg === null || learner === null || content.cards === undefined) return new Set();
+    const options = Array.isArray(current.config.options) ? current.config.options : [];
+    const found = options.map((_, i) => [`o${i}`, exploreOnBranch(running, current.id, `o${i}`, (id) => flowOf(id))] as const).filter((x) => x[1] !== null);
+    if (found.length === 0) return new Set();
+    const pw = placementWorld(cg.lib, content.cards, learner);
+    return new Set(found.filter(([, c]) => {
+      const pos = learner.progress.positions.get(scopeKey(c!));
+      if (pos?.done === true || (pos?.chapters ?? []).includes('skip')) return false;
+      return hasOpen({ world: pw.world, state: pw.state, scope: scopeTowers(pw.world, pw.lines, c!), cardsOf: (p) => pw.state.places.get(p)?.cards ?? [] });
+    }).map(([e]) => e));
+  }, [current?.id, running, cg, cg?.lib.revision, learner, progressNow, content.cards]); // eslint-disable-line react-hooks/exhaustive-deps
+  /*
     2026-11-04 (Prompt 13) — DIREKT GEÖFFNET (nicht als Abstecher aus ihrem Überblick): verlangt ihre Einheit die Einheit einer
     anderen Erzählung, die er noch nicht zu Ende erzählt hat, sagt der Spieler es („Najpierw: Etap 1").
   */
@@ -1081,6 +1101,18 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         next(() => go('next'));
         return showBody(current, state.item);
       }
+      /* 2026-11-12 — die Einstufung: ihre Folie ("of") darüber, dann sie selbst; „done" führt weiter (zu Ende, ausgelassen, nichts offen). */
+      case 'explore': {
+        const withOf = typeof c.of === 'string' && c.of !== '';
+        if (cg === null || learner === null || content.cards === undefined) { next(() => go('done')); return withOf ? showBody(current, state.item) : null; }
+        return (
+          <>
+            {withOf && showBody(current, state.item)}
+            <PlacementStep key={current.id} lib={cg.lib} cards={content.cards} learner={learner} config={c} onDone={() => go('done')}
+              onLearn={(p) => startTopic(p)} onGoal={(p) => setRouteTarget({ id: p, aim: true })} />
+          </>
+        );
+      }
       case 'question': {
         const card = askedCardOf(current, content.card);
         if (card === null) return <><p className="wk-hint">{t('cogitaLearnPath.flow.noQuestion')}</p>{next(() => go('right'))}</>;
@@ -1134,7 +1166,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           <div className="cg-choices cg-choice-list" data-flow-choice={list.length} data-flow-choice-of={withOf ? '1' : '0'}>
             {withOf && typeof c.title === 'string' && c.title !== '' && <h3 className="cg-choice-head" data-flow-choice-head=""><TexText text={c.title} /></h3>}
             <p className="cg-muted">{W.chooseRoad(list.length)}</p>
-            {list.map((o, i) => {
+            {list.map((o, i) => [o, i] as const).sort((a, b) => Number(pushAt.has(`o${b[1]}`)) - Number(pushAt.has(`o${a[1]}`))).map(([o, i]) => {
               const exit = `o${i}`;
               const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || t('cogitaLearnPath.flow.option', { n: i + 1 });
               const branch = fork?.branches.find((x) => x.exit === exit);
@@ -1148,6 +1180,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
               return (
                 <button key={exit} type="button" className="cg-option cg-choice-item" disabled={locked} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-locked={locked ? '1' : '0'}>
                   <TexText text={label} />
+                  {pushAt.has(exit) && <span className="cg-option-push" data-flow-option-push="">{t('cogitaWorld.placement.recommended')}</span>}
                   {optionHint(o) !== '' && <span className="cg-option-hint" data-flow-option-hint=""><Markup text={optionHint(o)} /></span>}
                   {wordsOf !== '' && <span className="cg-muted" data-flow-option-work="">{wordsOf}</span>}
                   {walked && <span className="cg-muted" data-flow-option-done="">{W.done}</span>}

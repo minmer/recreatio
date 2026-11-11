@@ -123,7 +123,10 @@
     "aiRefreshed": "Kopie für KI (MCP) aktualisiert — der Assistent sieht schon diesen Stand.",
     "aiFailed": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren — sie wird bei der nächsten Änderung aktualisiert.",
     "aiFailedBecause": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren: {reason} — sie wird bei der nächsten Änderung aktualisiert.",
-    "hintLong": "die Möglichkeit „{label}“ hat einen Hinweis mit {count} Zeichen — eine kurze Zeile genügt (höchstens {max})"
+    "hintLong": "die Möglichkeit „{label}“ hat einen Hinweis mit {count} Zeichen — eine kurze Zeile genügt (höchstens {max})",
+    "exploreRange": "die Einstufung: \"{field}\" ist {value} — erlaubt ist eine ganze Zahl von 1 bis 10 (sie wird begrenzt)",
+    "exploreLevels": "die Einstufung: die Zielstufen {list} gibt es in dieser Baza nicht (sie hat {levels})",
+    "exploreEmpty": "die Einstufung: ihr Bereich nennt nichts, was es hier gibt — offen kann nie etwas sein"
   },
   "progress": {
     "tallyOne": "Antwort {n}: {text}",

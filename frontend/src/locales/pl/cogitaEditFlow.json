@@ -18,7 +18,8 @@
     "review": "Przegląd",
     "scene": "Scena prezentacji",
     "end": "Koniec",
-    "return": "Powrót"
+    "return": "Powrót",
+    "explore": "Sprawdź, ile już umiesz"
   },
   "stepSays": {
     "show": "Pokazuje wpis albo wypowiedź (\"of\"), albo plik (\"media\"); \"title\" — nagłówek ekranu.",
@@ -39,7 +40,8 @@
     "review": "Przegląd opowieści w jednym kroku: pyta jeszcze raz o pytania tej opowieści (\"of\": \"story\" — albo @przebieg), których uczący się jeszcze nie umie — każde raz w rundzie; gdy umie co najmniej \"threshold\" (np. 0.9) z nich, wyjście \"passed\", inaczej \"notyet\". Zapisuje wartość \"value\" (domyślnie <nazwa opowieści>.przeglad: 1 zdany, 0 nie); bez \"goals\" przebieg dostaje cel „Przegląd zdany” (\"goal\" — jego nazwa) i „Powtórz przegląd” wraca do tego kroku.",
     "scene": "Scena prezentacji (\"page\" — adres strony, \"scene\" — klucz sceny, \"title\"); wyjście \"next\", przy pytaniu na scenie \"right\" i \"wrong\", przyciski \"b0\", \"b1\", … (\"buttons\": [{\"exit\", \"label\", \"target\"}]).",
     "end": "Koniec przebiegu.",
-    "return": "Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł."
+    "return": "Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł.",
+    "explore": "Sprawdza prawdziwymi pytaniami, które wieże zakresu uczący się już umie, i idzie dalej do tego, co na nich buduje (adaptacyjnie albo do poziomu docelowego)."
   },
   "look": {
     "reading": "Czytanie",
@@ -68,7 +70,8 @@
     "skip": "bez tego",
     "chapter": "rozdział {n}",
     "allDone": "wszystkie przerobione",
-    "next": "dalej"
+    "next": "dalej",
+    "explored": "po sprawdzeniu"
   },
   "reviewPassed": "Przegląd zdany",
   "chapterN": "Rozdział {n}",

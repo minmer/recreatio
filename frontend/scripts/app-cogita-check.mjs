@@ -3572,6 +3572,43 @@ check('goals and lines follow the one logic', [
   check('… and the old choice round-trips unchanged too', exported('Stara'), doc.flows[1].graph.nodes[0].config);
 }
 
+/* ══ 2026-11-12 — die Einstufung (Schritt "explore"): Import prüft, Export gibt sie genau zurück ════════════════════════════════════ */
+{
+  const map = new Map();
+  let n = 0;
+  const store = {
+    libraryId: 'X', areaId: 'area-x', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `X-neu-${n += 1}`, libraryId: 'X' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+    refreshAiNow: async () => null,
+    saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+    remove: async (id) => { map.delete(id); store.revision += 1; },
+    subscribe: () => () => undefined
+  };
+  const lib = new So.CogitaLibrary(store, true);
+  const edges = (list) => list.map(([from, out, to]) => ({ id: `${from}-${out}`, from, out, to, in: 'in' }));
+  const explore = (config) => ({ start: 'e', graph: { nodes: [{ id: 'e', type: 'explore', config }, { id: 'z', type: 'end', config: {} }], edges: edges([['e', 'done', 'z']]) } });
+  const good = { scope: ['@x/t/a'], downTo: '@x/t/b', modes: ['adaptive'], default: 'adaptive', streak: 3, errors: 2, recheck: 2, once: true, push: true, title: 'Sprawdź, ile już umiesz' };
+  const doc = {
+    format: 'recreatio.cogita.course', version: 1, name: 'X',
+    kinds: [{ ref: '@x/turm', name: 'Wieża', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'wymaga', label: 'Wymaga', type: 'ref', multi: true, to: ['@x/turm'], prerequisite: 'up' }] }],
+    entities: [{ ref: '@x/t/a', kind: '@x/turm', data: { nazwa: 'A' } }, { ref: '@x/t/b', kind: '@x/turm', data: { nazwa: 'B', wymaga: ['@x/t/a'] } }],
+    flows: [
+      { ref: '@x/f/dobra', name: 'Dobra', ...explore(good) },
+      { ref: '@x/f/zla', name: 'Zła', ...explore({ scope: [], streak: 20, errors: 0, targetLevels: [5] }) }
+    ]
+  };
+  const plan = Js.planImport(lib, doc);
+  check('explore: the import plans the step (no error)', ['error' in plan, plan.docs.filter((d) => d.kind === 'flow').length], [false, 2]);
+  const ws = plan.warnings.join('\n');
+  check('… warns: streak / errors outside 1–10, target levels beyond the base, a scope with nothing that can be open; nothing for the good one', [/"streak" .*20/.test(ws), /"errors" .*0/.test(ws), ws.includes('5'), plan.warnings.filter((w) => w.includes('Dobra')).length], [true, true, true, 0]);
+  await Js.applyImport(lib, plan, () => undefined);
+  const out = Js.exportCourse(lib, 'X');
+  const ex = out.flows.find((f) => f.name === 'Dobra').graph.nodes.find((x) => x.id === 'e').config;
+  check('… export round trip exact (scope and downTo back as lasting names)', ex, good);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

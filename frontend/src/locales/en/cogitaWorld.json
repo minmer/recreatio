@@ -441,5 +441,50 @@
     },
     "repeatRun": "Review: cards below {pct} %",
     "nothing": "No card below {pct} %"
+  },
+  "placement": {
+    "title": "Check how much you already know",
+    "says": {
+      "one": "To check now: {count} tower (not yet conquered in this scope: {scope}). The questions are real — every answer counts as always.",
+      "other": "To check now: {count} towers (not yet conquered in this scope: {scope}). The questions are real — every answer counts as always."
+    },
+    "modeLabel": "How to check",
+    "adaptive": "Adaptive",
+    "target": "Up to a level",
+    "adaptiveSays": "{streak} right answers in a row credit a tower and open what builds on it; {errors} wrong answers in one tower end it for this check.",
+    "targetSays": "Each tower is asked like a real conquest of the chosen level; conquered — you move on.",
+    "levelLabel": "Target level",
+    "level": "Level {level}",
+    "start": "Start checking",
+    "again": "Check again",
+    "continue": "Continue",
+    "skip": "Go on without checking",
+    "stop": "Stop for now",
+    "next": "Next",
+    "doneBefore": "This check has run already — again, it asks only what is still open.",
+    "skippedBefore": "Last time you went on without checking.",
+    "recheck": "checking again",
+    "sofar": {
+      "one": "{count} credited",
+      "other": "{count} credited"
+    },
+    "endTitle": "Done — this is how much you already know",
+    "credited": {
+      "one": "{count} tower credited. ",
+      "other": "{count} towers credited. "
+    },
+    "reached": {
+      "one": "{count} tower conquered at level {level}. ",
+      "other": "{count} towers conquered at level {level}. "
+    },
+    "nothingCredited": "No tower was credited this time.",
+    "gaps": {
+      "one": "Here is a gap:",
+      "other": "Here are the gaps:"
+    },
+    "learn": "Learn",
+    "goal": "Set as goal",
+    "recommended": "Recommended: first check how much you already know",
+    "placed": "credited by placement — cards still to be confirmed"
   }
 }

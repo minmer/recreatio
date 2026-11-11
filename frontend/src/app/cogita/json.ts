@@ -26,6 +26,7 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { flowProblems } from './flowCheck';
+import { effectiveWorldFor } from './worldmap/wmReview';
 import { detourProblems } from './detour';
 import { mountainProblems, type MountainContext } from './mountain';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
@@ -1217,7 +1218,26 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
       const h = isObject(o) && typeof o.hint === 'string' ? o.hint.trim() : '';
       return h.length > HINT_MAX ? [{ level: 'warning' as const, text: t('cogitaData.import.hintLong', { label: isObject(o) ? str(o.label) : '', count: h.length, max: HINT_MAX }) }] : [];
     }));
-    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
+    /*
+      2026-11-12 (Einstufung) — ein Schritt "explore": "streak", "errors", "recheck" zwischen 1 und 10; "targetLevels" innerhalb der
+      Stufen der Baza; ein Bereich, in dem nichts offen sein kann (leer oder nichts davon gibt es), ist eine Warnung.
+    */
+    const baseLevels = effectiveWorldFor(lib, null).levels;
+    const explores = flow.graph.nodes.filter((n) => n.type === 'explore').flatMap((n) => {
+      const c = n.config;
+      const out: { level: 'warning'; text: string }[] = [];
+      for (const field of ['streak', 'errors', 'recheck'] as const) {
+        const v = c[field];
+        if (v !== undefined && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 10)) out.push({ level: 'warning', text: t('cogitaData.import.exploreRange', { field, value: String(v) }) });
+      }
+      const levels = Array.isArray(c.targetLevels) ? c.targetLevels : [];
+      const wrong = levels.filter((l) => typeof l !== 'number' || !Number.isInteger(l) || l < 1 || l > baseLevels);
+      if (wrong.length > 0) out.push({ level: 'warning', text: t('cogitaData.import.exploreLevels', { list: wrong.map(String).join(', '), levels: baseLevels }) });
+      const scope = [...(Array.isArray(c.scope) ? c.scope : typeof c.scope === 'string' ? [c.scope] : []), ...(typeof c.downTo === 'string' ? [c.downTo] : [])];
+      if (scope.length === 0 || scope.every((r) => typeof r !== 'string' || entityOf(r) === null)) out.push({ level: 'warning', text: t('cogitaData.import.exploreEmpty') });
+      return out;
+    });
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
   });
 }
 const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] => flowIssues(lib, docs, entities).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));

@@ -787,6 +787,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     let stripeCount = 0;
     let discNames = 0;
     let dueFlags = 0;
+    let placedRings = 0;
     for (const { p, d: dp } of list) {
       treesUpTo(dp);
       const [X, Yb] = toScr(v, p.x, p.y, 0);
@@ -899,6 +900,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.beginPath(); ctx.ellipse(X, Yt, sr * 0.8, sr * 0.8 * v.fore, 0, 0, Math.PI * 2); ctx.fill();
         drawStar(ctx, X, Yt - ry - sr * 1.6, sr, rgbCss(pal.star), rgbCss(pal.ink));
       }
+      /* 2026-11-12 (Einstufung) — gutgeschrieben: ein gestrichelter Ring um die Oberseite („vorläufig, durch Prüfung"). */
+      if (p.placed && rx > 3) {
+        ctx.save();
+        ctx.setLineDash([4, 3]); ctx.lineWidth = 1.8; ctx.strokeStyle = rgbCss(pal.ink);
+        ctx.beginPath(); ctx.ellipse(X, Yt, rx + 3, ry + 3 * v.fore, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        placedRings += 1;
+      }
       /* Fällige Karten an einem eroberten Turm: ein kleines Fähnchen, auch von weit. */
       if (p.due) { drawDue(ctx, X + Math.max(3, rx * 0.55), Yt - Math.max(1, ry * 0.3), pal, DUE_COLOUR[dueLevel(p.dueShare)]); dueFlags += 1; }
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
@@ -979,6 +988,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmDiscStripes = String(stripeCount);
     canvas.dataset.wmDiscNames = String(discNames);
     canvas.dataset.wmDue = String(dueFlags);
+    canvas.dataset.wmPlaced = String(placedRings);
     /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
     const grid = pickGrid(drawn);
     gridRef.current = grid;

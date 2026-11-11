@@ -319,7 +319,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   };
   /* R2 — ein Ablauf, der keinen Ort zeigt, hält an den Orten seiner Fragen. */
   const showsPlaces = dag.order.some((id) => { const n = g.nodes.get(id)!; return !reviewBlock.has(id) && showOf(n) !== null; });
-  const isSlide = (n: XNode) => n.type === 'show' || n.type === 'scene';
+  /* 2026-11-12 — die Einstufung („explore") ist auf der Linie ein Schritt (ein Punkt), wie eine Wegfolie. */
+  const isSlide = (n: XNode) => n.type === 'show' || n.type === 'scene' || n.type === 'explore';
   /* 2026-11-10 (Eigentümer) — eine Karte ist auch dort eingeführt, wo die Folie gezeigt wird, die sie erklärt („explain"). */
   const explainedHere = (n: XNode): string[] => (isSlide(n) ? [...new Set(shownEntries(n).flatMap((id) => explainedBy(id)))].filter((k) => world.cards.has(k)) : []);
   /** Der Halt eines Schrittes (R1, R2). */

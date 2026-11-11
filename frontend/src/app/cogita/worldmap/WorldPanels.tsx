@@ -393,6 +393,8 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
         {' · '}{ps.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: ps.missing })}
       </p>
       {progress.perfect && <p className="cg-wm-perfect" data-world-perfect="">★ {t('cogitaWorld.run.perfect')}</p>}
+      {/* 2026-11-12 (Einstufung) — gutgeschrieben, nicht durch alle Karten erobert. */}
+      {ps.placed > 0 && <p className="cg-wm-meta cg-wm-placed" data-world-placed={id}>◇ {t('cogitaWorld.placement.placed')}</p>}
       {/*
         2026-11-09 (Eigentümer: „es soll klar sein, was zu tun ist") — EIN nächster Schritt, gross; alles andere eingeklappt.
         Erobert: wiederholen (wenn etwas fällig ist). Ein Durchgang geht: ihn beginnen. Sonst: „Prowadź mnie tutaj".
@@ -520,6 +522,8 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
   Schwelle liegt (90 % … 130 %; über 100 % heisst „na zapas"), einmal und in zufälliger Folge. Die Schwelle merkt sich dieses Gerät.
 */
 const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;
+/** Wie `PLACED_PER_RUN` (WorldLandscape): so viele nie gefragte Karten gutgeschriebener Türme je Wiederholung. */
+const PLACED_LIMIT = 20;
 const REPEAT_KEY = 'cg-wm-repeat-at';
 const keptRepeatAt = (): number => {
   try { const v = Number(localStorage.getItem(REPEAT_KEY)); return (REPEAT_AT as readonly number[]).includes(v) ? v : 1; } catch { return 1; }
@@ -531,7 +535,9 @@ function HomeRepeat({ ctx }: { ctx: PanelCtx }) {
   const choose = (v: number) => { setAt(v); try { localStorage.setItem(REPEAT_KEY, String(v)); } catch { /* ohne Speicher: nur jetzt */ } };
   /* Was wiederholt werden darf (eroberte Orte), schon gesehen, nicht ausgesetzt. */
   const seen = useMemo(() => [...state.world.cardPlaces.keys()].filter((k) => reviewable(k, state) && state.band(k) !== 'unseen' && state.ctx.suspended?.(k) !== true), [state]);
-  const below = (v: number) => seen.filter((k) => state.ctx.knowness(k) < v);
+  /* 2026-11-12 (Einstufung) — dazu die nie gefragten Karten gutgeschriebener Türme (die Wiederholung deckelt sie). */
+  const placedUnseen = useMemo(() => [...state.places].filter(([, ps]) => ps.placed > 0).flatMap(([, ps]) => ps.cards.filter((k) => state.band(k) === 'unseen')), [state]);
+  const below = (v: number) => [...seen.filter((k) => state.ctx.knowness(k) < v), ...placedUnseen.slice(0, PLACED_LIMIT)];
   const list = below(at);
   const pct = Math.round(at * 100);
   return (

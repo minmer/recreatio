@@ -58,6 +58,7 @@ import { linesOf, outerStep } from './wmLines';
 import { finishStats, type FinishSnap } from './wmFinish';
 import { followPlan, keepNav, keptNav, navMarks, stepKey, type NavSession, type Timetable } from './wmNav';
 import { nodeFocus, routeFocus, sectionFocus } from './wmFocus';
+import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
@@ -102,6 +103,9 @@ export interface WorldLandscapeProps {
   /** Die Regeln der Nagrody, wo die Läufe hier Punkte zeigen (wie im Krajobraz): der Zähler und die Punkte beim Abspielen. */
   readonly rewards?: RewardRules | null;
 }
+
+/** 2026-11-12 (Einstufung) — so viele nie gefragte Karten gutgeschriebener Türme kommen höchstens in eine Wiederholung. */
+export const PLACED_PER_RUN = 20;
 
 /** Wie oft „jetzt" neu gilt, solange die Karte offen ist. */
 const CLOCK_MS = 10 * 60 * 1000;
@@ -167,7 +171,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       level: (place) => levels.get(place)?.level ?? 0,
       perfect: (place) => levels.get(place)?.perfect === true,
       /* Step 3 · 1 — ausgesetzte Karten zählen nirgends (sonst sperrte eine einzige ihren Ort für immer). */
-      suspended: (card) => progress?.suspended.has(card) === true
+      suspended: (card) => progress?.suspended.has(card) === true,
+      /* 2026-11-12 (Einstufung) — Gutschriften (`~placed.<turm>`): der Zeitpunkt, 0 = zurückgenommen. */
+      placed: (place) => progress?.values[`${PLACED_PREFIX}${place}`] ?? 0
     };
   }, [gauge, progress, learner, flowFacts, flowById, cardOfQ, levels, clock]);
   const state = useMemo(() => stateOf(world, lines, learnerInput, { levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt }), [world, lines, learnerInput, eff.levels, eff.knownShare, eff.openAt]);
@@ -339,6 +345,13 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     review: (keysOf, title) => startCards(keysOf, title, true),
     repeat: (keysOf, title) => {
       const list = cardsOf(keysOf).filter((c) => reviewable(c.key, state));
+      /*
+        2026-11-12 (Einstufung) — die nie gefragten Karten gutgeschriebener Türme sind fällig, aber sie überfluten die Wiederholung
+        nicht: höchstens PLACED_PER_RUN je Wiederholung, die der zuletzt gutgeschriebenen Türme zuerst.
+      */
+      const placedUnseen = [...state.places].filter(([, ps]) => ps.placed > 0).sort((a, b) => b[1].placed - a[1].placed)
+        .flatMap(([, ps]) => ps.cards.filter((k) => state.band(k) === 'unseen' && !list.some((c) => c.key === k))).slice(0, PLACED_PER_RUN);
+      list.push(...cardsOf(placedUnseen));
       if (list.length === 0) { setNote(t('cogitaWorld.panel.nothing')); return; }
       setNote(null);
       setRunning({ kind: 'cards', key: `review:${Date.now()}`, source: { plan: readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' }), cards, title, review: true } });

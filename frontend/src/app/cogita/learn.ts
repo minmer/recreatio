@@ -1266,6 +1266,16 @@ export class Learner {
   }
 
   /** 2026-11-09 (Weltkarte) — die eigene Breite der Säulen (0,4–1); `null`: die des Admins. */
+  /**
+   * 2026-11-12 (Einstufung) — Gutschriften als Werte `~placed.<turm>`: der Zeitpunkt, 0 = zurückgenommen. Privat wie alle Werte,
+   * geräteübergreifend, ohne Antwort (die Antworten der Einstufung gehen als gewöhnliche Antworten mit `via: "placement"` hinaus).
+   */
+  async keepPlaced(changes: Readonly<Record<string, number>>): Promise<void> {
+    const out: Record<string, number> = {};
+    for (const [place, at] of Object.entries(changes)) if (Number.isFinite(at)) out[`~placed.${place}`] = Math.max(0, at);
+    await this.change(out);
+  }
+
   async keepPillar(width: number | null): Promise<void> {
     await this.change(valueChanges(this.progress.values, withOwnPillar(this.progress.values, width)));
   }

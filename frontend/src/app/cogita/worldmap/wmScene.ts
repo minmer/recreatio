@@ -45,6 +45,8 @@ export interface ScenePlace {
    * nicht eroberte Voraussetzung (auch mittelbar) einmal; unten, was zuerst zu tun ist, oben eine unmittelbare Voraussetzung.
    */
   readonly discs: readonly string[];
+  /** 2026-11-12 (Einstufung) — durch eine Einstufung gutgeschrieben (nicht durch alle Karten erobert): ein gestricheltes Zeichen. */
+  readonly placed: boolean;
   /** Erobert, und Karten sind fällig (zu wiederholen): ein Fähnchen, auch von weit. */
   readonly due: boolean;
   /** 2026-11-11 — wie viel zu wiederholen ist (Anteil der Karten): die Farbe des Fähnchens (`dueLevel`). */
@@ -229,6 +231,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       own: st?.missing ?? p.cards.length,
       discs: st === undefined || st.conquered ? [] : state.conquestOrder(id).filter((x) => x !== id),
       due: st?.dot === 'orange',
+      placed: (st?.placed ?? 0) > 0,
       dueShare: st === undefined || st.total === 0 ? 0 : (st.unseen + st.learning) / st.total
     });
   }

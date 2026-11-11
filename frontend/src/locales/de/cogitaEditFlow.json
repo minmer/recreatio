@@ -18,7 +18,8 @@
     "review": "Rückblick",
     "scene": "Präsentationsszene",
     "end": "Ende",
-    "return": "Rückkehr"
+    "return": "Rückkehr",
+    "explore": "Einstufung"
   },
   "stepSays": {
     "show": "Zeigt einen Eintrag oder eine Aussage (\"of\") oder eine Datei (\"media\"); \"title\" — die Überschrift des Bildschirms.",
@@ -39,7 +40,8 @@
     "review": "Ein Rückblick auf die Erzählung in einem Schritt: fragt noch einmal die Fragen dieser Erzählung (\"of\": \"story\" — oder @przebieg), die der Lernende noch nicht kann — jede einmal pro Runde; kann er mindestens \"threshold\" (z. B. 0.9) davon, Ausgang \"passed\", sonst \"notyet\". Speichert den Wert \"value\" (standardmäßig <Name der Erzählung>.przeglad: 1 bestanden, 0 nicht); ohne \"goals\" bekommt der Ablauf das Ziel „Rückblick bestanden“ (\"goal\" — sein Name), und „Rückblick wiederholen“ führt zu diesem Schritt zurück.",
     "scene": "Eine Präsentationsszene (\"page\" — die Adresse der Seite, \"scene\" — der Schlüssel der Szene, \"title\"); Ausgang \"next\", mit einer Frage auf der Szene \"right\" und \"wrong\", Knöpfe \"b0\", \"b1\", … (\"buttons\": [{\"exit\", \"label\", \"target\"}]).",
     "end": "Ende des Ablaufs.",
-    "return": "Kehrt aus einem inneren Ablauf an die Stelle zurück, von der er kam."
+    "return": "Kehrt aus einem inneren Ablauf an die Stelle zurück, von der er kam.",
+    "explore": "Prüft mit echten Fragen, welche Türme eines Bereichs der Lernende schon kann, und geht zu dem weiter, was darauf aufbaut (adaptiv oder bis zu einer Zielstufe)."
   },
   "look": {
     "reading": "Lesen",
@@ -68,7 +70,8 @@
     "skip": "ohne das",
     "chapter": "Kapitel {n}",
     "allDone": "alle durchgearbeitet",
-    "next": "weiter"
+    "next": "weiter",
+    "explored": "nach der Einstufung"
   },
   "reviewPassed": "Rückblick bestanden",
   "chapterN": "Kapitel {n}",

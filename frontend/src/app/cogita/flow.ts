@@ -56,7 +56,9 @@ import { apply, holds, readAction, readCondition, type Action, type Condition, t
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
-  'expand', 'opening', 'line', 'handoff', 'detour', 'review', 'scene', 'end', 'return'
+  'expand', 'opening', 'line', 'handoff', 'detour', 'review', 'scene', 'end', 'return',
+  /* 2026-11-12 — die Einstufung („Sprawdź, ile już umiesz", `worldmap/wmPlacement.ts`): ein Knoten, Ausgang „done". */
+  'explore'
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -64,7 +66,8 @@ export const STEP_LABEL: Record<StepType, string> = texts({
   show: 'cogitaEditFlow.stepLabel.show', question: 'cogitaEditFlow.stepLabel.question', choice: 'cogitaEditFlow.stepLabel.choice', condition: 'cogitaEditFlow.stepLabel.condition', set: 'cogitaEditFlow.stepLabel.set',
   chapters: 'cogitaEditFlow.stepLabel.chapters', chapterEnd: 'cogitaEditFlow.stepLabel.chapterEnd', restart: 'cogitaEditFlow.stepLabel.restart', subflow: 'cogitaEditFlow.stepLabel.subflow',
   each: 'cogitaEditFlow.stepLabel.each', expand: 'cogitaEditFlow.stepLabel.expand', opening: 'cogitaEditFlow.stepLabel.opening',
-  line: 'cogitaEditFlow.stepLabel.line', handoff: 'cogitaEditFlow.stepLabel.handoff', detour: 'cogitaEditFlow.stepLabel.detour', review: 'cogitaEditFlow.stepLabel.review', scene: 'cogitaEditFlow.stepLabel.scene', end: 'cogitaEditFlow.stepLabel.end', return: 'cogitaEditFlow.stepLabel.return'
+  line: 'cogitaEditFlow.stepLabel.line', handoff: 'cogitaEditFlow.stepLabel.handoff', detour: 'cogitaEditFlow.stepLabel.detour', review: 'cogitaEditFlow.stepLabel.review', scene: 'cogitaEditFlow.stepLabel.scene', end: 'cogitaEditFlow.stepLabel.end', return: 'cogitaEditFlow.stepLabel.return',
+  explore: 'cogitaEditFlow.stepLabel.explore'
 });
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
@@ -87,7 +90,8 @@ export const STEP_SAYS: Record<StepType, string> = texts({
   review: 'cogitaEditFlow.stepSays.review',
   scene: 'cogitaEditFlow.stepSays.scene',
   end: 'cogitaEditFlow.stepSays.end',
-  return: 'cogitaEditFlow.stepSays.return'
+  return: 'cogitaEditFlow.stepSays.return',
+  explore: 'cogitaEditFlow.stepSays.explore'
 });
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -104,6 +108,8 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: zdany oder noch nicht. */
     case 'review': return [port('passed', t('cogitaEditFlow.exit.passed')), port('notyet', t('cogitaEditFlow.exit.notYet'))];
     /* 2026-11-04 (Prompt 13) — ein Abstecher: nach der anderen Erzählung „done", ausgelassen „skip" (nur, wenn er freiwillig ist). */
+    /* 2026-11-12 — nach der Einstufung (zu Ende, auf später verschoben oder ausgelassen): weiter. */
+    case 'explore': return [port('done', t('cogitaEditFlow.exit.explored'))];
     case 'detour': return config.optional === false || config.required === true ? [port('done', t('cogitaEditFlow.exit.afterStory'))] : [port('done', t('cogitaEditFlow.exit.afterStory')), port('skip', t('cogitaEditFlow.exit.skip'))];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || t('cogitaEditFlow.exit.chapter', { n: i + 1 }))), port('done', t('cogitaEditFlow.exit.allDone'))];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */

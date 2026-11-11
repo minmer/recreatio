@@ -123,7 +123,10 @@
     "aiRefreshed": "Copy for AI (MCP) refreshed — the assistant already sees this state.",
     "aiFailed": "The copy for AI (MCP) could not be refreshed — it will refresh with the next change.",
     "aiFailedBecause": "The copy for AI (MCP) could not be refreshed: {reason} — it will refresh with the next change.",
-    "hintLong": "the option \"{label}\" has a hint of {count} characters — keep it to one short line (at most {max})"
+    "hintLong": "the option \"{label}\" has a hint of {count} characters — keep it to one short line (at most {max})",
+    "exploreRange": "the placement step: \"{field}\" is {value} — it must be a whole number from 1 to 10 (it is clamped)",
+    "exploreLevels": "the placement step: the target levels {list} are not levels of this base (it has {levels})",
+    "exploreEmpty": "the placement step: its scope names nothing that exists here — nothing can ever be open"
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",

@@ -521,5 +521,60 @@
     },
     "repeatRun": "Powtórka: karty poniżej {pct} %",
     "nothing": "Żadnej karty poniżej {pct} %"
+  },
+  "placement": {
+    "title": "Sprawdź, ile już umiesz",
+    "says": {
+      "one": "Do sprawdzenia teraz: {count} wieża (w zakresie jeszcze nie zdobytych: {scope}). Pytania są prawdziwe — każda odpowiedź liczy się jak zawsze.",
+      "few": "Do sprawdzenia teraz: {count} wieże (w zakresie jeszcze nie zdobytych: {scope}). Pytania są prawdziwe — każda odpowiedź liczy się jak zawsze.",
+      "many": "Do sprawdzenia teraz: {count} wież (w zakresie jeszcze nie zdobytych: {scope}). Pytania są prawdziwe — każda odpowiedź liczy się jak zawsze.",
+      "other": "Do sprawdzenia teraz: {count} wieży (w zakresie jeszcze nie zdobytych: {scope}). Pytania są prawdziwe — każda odpowiedź liczy się jak zawsze."
+    },
+    "modeLabel": "Sposób sprawdzania",
+    "adaptive": "Adaptacyjnie",
+    "target": "Do poziomu",
+    "adaptiveSays": "{streak} dobre odpowiedzi z rzędu zaliczają wieżę i otwierają to, co na niej buduje; {errors} błędy w jednej wieży kończą ją w tym sprawdzaniu.",
+    "targetSays": "Każda wieża jest pytana jak prawdziwe zdobycie wybranego poziomu; zdobyta — idziesz dalej.",
+    "levelLabel": "Poziom docelowy",
+    "level": "Poziom {level}",
+    "start": "Zacznij sprawdzanie",
+    "again": "Sprawdź jeszcze raz",
+    "continue": "Kontynuuj",
+    "skip": "Dalej bez sprawdzania",
+    "stop": "Zakończ na razie",
+    "next": "Dalej",
+    "doneBefore": "To sprawdzanie już się odbyło — jeszcze raz pyta tylko o to, co zostało otwarte.",
+    "skippedBefore": "Ostatnio poszedłeś dalej bez sprawdzania.",
+    "recheck": "sprawdzam jeszcze raz",
+    "sofar": {
+      "one": "zaliczona {count}",
+      "few": "zaliczone {count}",
+      "many": "zaliczonych {count}",
+      "other": "zaliczonych {count}"
+    },
+    "endTitle": "Gotowe — oto, ile już umiesz",
+    "credited": {
+      "one": "Zaliczona {count} wieża. ",
+      "few": "Zaliczone {count} wieże. ",
+      "many": "Zaliczonych {count} wież. ",
+      "other": "Zaliczonych {count} wieży. "
+    },
+    "reached": {
+      "one": "Zdobyta {count} wieża na poziomie {level}. ",
+      "few": "Zdobyte {count} wieże na poziomie {level}. ",
+      "many": "Zdobytych {count} wież na poziomie {level}. ",
+      "other": "Zdobytych {count} wieży na poziomie {level}. "
+    },
+    "nothingCredited": "Tym razem żadna wieża nie została zaliczona.",
+    "gaps": {
+      "one": "Tu jest luka:",
+      "few": "Tu są luki:",
+      "many": "Tu są luki:",
+      "other": "Tu są luki:"
+    },
+    "learn": "Ucz się",
+    "goal": "Ustaw jako cel",
+    "recommended": "Zalecane: najpierw sprawdź, ile już umiesz",
+    "placed": "zaliczona sprawdzeniem — karty jeszcze do potwierdzenia"
   }
 }

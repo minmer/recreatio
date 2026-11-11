@@ -441,5 +441,50 @@
     },
     "repeatRun": "Wiederholung: Karten unter {pct} %",
     "nothing": "Keine Karte unter {pct} %"
+  },
+  "placement": {
+    "title": "Prüfe, wie viel du schon kannst",
+    "says": {
+      "one": "Jetzt zu prüfen: {count} Turm (im Bereich noch nicht erobert: {scope}). Die Fragen sind echt — jede Antwort zählt wie immer.",
+      "other": "Jetzt zu prüfen: {count} Türme (im Bereich noch nicht erobert: {scope}). Die Fragen sind echt — jede Antwort zählt wie immer."
+    },
+    "modeLabel": "Art der Prüfung",
+    "adaptive": "Adaptiv",
+    "target": "Bis zu einer Stufe",
+    "adaptiveSays": "{streak} richtige Antworten in Folge schreiben einen Turm gut und öffnen, was darauf aufbaut; {errors} Fehler in einem Turm beenden ihn für diese Prüfung.",
+    "targetSays": "Jeder Turm wird gefragt wie eine echte Eroberung der gewählten Stufe; erobert — es geht weiter.",
+    "levelLabel": "Zielstufe",
+    "level": "Stufe {level}",
+    "start": "Prüfung beginnen",
+    "again": "Noch einmal prüfen",
+    "continue": "Weitermachen",
+    "skip": "Weiter ohne Prüfung",
+    "stop": "Für jetzt beenden",
+    "next": "Weiter",
+    "doneBefore": "Diese Prüfung lief schon — noch einmal fragt sie nur, was offen geblieben ist.",
+    "skippedBefore": "Zuletzt bist du ohne Prüfung weitergegangen.",
+    "recheck": "noch einmal geprüft",
+    "sofar": {
+      "one": "{count} gutgeschrieben",
+      "other": "{count} gutgeschrieben"
+    },
+    "endTitle": "Fertig — so viel kannst du schon",
+    "credited": {
+      "one": "{count} Turm gutgeschrieben. ",
+      "other": "{count} Türme gutgeschrieben. "
+    },
+    "reached": {
+      "one": "{count} Turm auf Stufe {level} erobert. ",
+      "other": "{count} Türme auf Stufe {level} erobert. "
+    },
+    "nothingCredited": "Diesmal wurde kein Turm gutgeschrieben.",
+    "gaps": {
+      "one": "Hier ist eine Lücke:",
+      "other": "Hier sind Lücken:"
+    },
+    "learn": "Lernen",
+    "goal": "Als Ziel setzen",
+    "recommended": "Empfohlen: erst prüfen, wie viel du schon kannst",
+    "placed": "durch Einstufung gutgeschrieben — Karten noch zu bestätigen"
   }
 }

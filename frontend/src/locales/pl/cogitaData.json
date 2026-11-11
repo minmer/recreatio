@@ -133,7 +133,10 @@
     "aiRefreshed": "Kopia dla AI (MCP) odświeżona — asystent widzi już ten stan.",
     "aiFailed": "Kopii dla AI (MCP) nie udało się odświeżyć — odświeży się przy następnej zmianie.",
     "aiFailedBecause": "Kopii dla AI (MCP) nie udało się odświeżyć: {reason} — odświeży się przy następnej zmianie.",
-    "hintLong": "możliwość „{label}” ma wskazówkę z {count} znakami — wystarczy jedna krótka linia (najwyżej {max})"
+    "hintLong": "możliwość „{label}” ma wskazówkę z {count} znakami — wystarczy jedna krótka linia (najwyżej {max})",
+    "exploreRange": "sprawdzanie: \"{field}\" ma wartość {value} — dozwolona jest liczba całkowita od 1 do 10 (zostanie ograniczona)",
+    "exploreLevels": "sprawdzanie: poziomów docelowych {list} nie ma w tej bazie (ma ich {levels})",
+    "exploreEmpty": "sprawdzanie: jego zakres nie wskazuje niczego, co tu istnieje — nic nigdy nie będzie otwarte"
   },
   "progress": {
     "tallyOne": "Odpowiedź {n}: {text}",

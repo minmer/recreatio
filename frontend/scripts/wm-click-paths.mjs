@@ -616,6 +616,46 @@ try {
     await shot('p10-review');
   }
 
+  /*
+    -- 11 · 2026-11-12: die Einstufung (Schritt "explore") am Anfang einer Erzählung — nur mit einer Testwelt, die ihn trägt
+    (scratch fixture-explore.json, siehe Bericht): Anfang, Fragen, Gutschrift (ein gestrichelter Ring auf der Karte), anhalten, weiter
+  */
+  if (runs('11')) {
+    const P = '11 placement';
+    await open();
+    await clickMap('home', '~home');
+    await waitFor(`document.querySelector('[data-world-panel="home"] [data-world-choose]')`, 'the stories from home');
+    await ev(`(() => { const b = [...document.querySelectorAll('[data-world-panel="home"] [data-world-direction]')].find((r) => r.textContent.includes('Małgorzat'))?.querySelector('[data-world-choose]'); if (b) { b.click(); return true; } return false; })()`);
+    await waitFor(`document.querySelector('[data-placement="start"]')`, 'the placement at the start of the story');
+    const start = await ev(`(() => { const s = document.querySelector('[data-placement="start"]'); return { open: Number(s.dataset.placementOpen), skip: s.querySelector('[data-placement-skip]') !== null }; })()`);
+    check(P, 'a story that starts with a placement opens it first; it can be skipped ("Dalej bez sprawdzania")', start.open >= 1 && start.skip, start);
+    await shot('p11-start');
+    await click('[data-placement-start]');
+    await waitFor(`document.querySelector('[data-placement="ask"]')`, 'the first question');
+    let credited = 0;
+    for (let i = 0; i < 12 && credited === 0; i += 1) {
+      const picked = await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Tak' && !x.disabled); if (!b) return false; b.click(); return true; })()`);
+      if (!picked) { await sleep(150); continue; }
+      await waitFor(`document.querySelector('[data-card-next]') !== null`, 'next', 10000);
+      await click('[data-card-next]');
+      await sleep(250);
+      credited = Number(await ev(`document.querySelector('[data-placement]')?.dataset.placementCount ?? document.querySelector('[data-placement]')?.dataset.placementCredited ?? 0`));
+    }
+    check(P, 'right answers in a row credit a tower (streak 2) and the run goes on', credited >= 1, credited);
+    await shot('p11-ask');
+    if (await ev(`document.querySelector('[data-placement-stop]') !== null`)) {
+      await click('[data-placement-stop]');
+      await waitFor(`document.querySelector('[data-placement-continue]')`, 'the continue button');
+      check(P, '"Zakończ na razie" keeps the run: "Kontynuuj" continues it', true);
+    }
+    await click('[data-flow-close]');
+    await sleep(800);
+    await ev(`(() => { const f = document.querySelector('[data-world-finish-close]'); if (f) f.click(); return true; })()`);
+    await sleep(800);
+    check(P, 'the credited tower is marked on the map (dashed ring)', Number(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmPlaced ?? 0`)) >= 1);
+    await shot('p11-map');
+  }
+
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');
   check('all', 'no exceptions in the page', errors.filter((c) => c.level === 'exception').length === 0, errors.slice(0, 5));
 } finally {

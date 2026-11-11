@@ -348,3 +348,11 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-waynextkind { color: var(--wk-ink-2); font-weight: 500; }
 .cg-wm-waynextwhere { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .cg-wm-waynext { justify-content: center; gap: var(--wk-space-2); }
+/* 2026-11-12 — die Einstufung im Spieler. */
+.cg-placement { display: flex; flex-direction: column; gap: var(--wk-space-2); }
+.cg-placement-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.5rem; margin: 0; }
+.cg-placement-head > button { margin-left: auto; }
+.cg-placement-gaps { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--wk-space-1); }
+.cg-placement-gaps li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.8rem; }
+.cg-option-push { display: inline-block; margin-left: 0.4rem; padding: 0 0.45rem; border-radius: var(--wk-radius-pill); background: var(--wk-accent-soft); color: var(--wk-accent); font-size: var(--wk-text-xs); font-weight: 600; }
+.cg-wm-placed { color: var(--wk-ink-2); }

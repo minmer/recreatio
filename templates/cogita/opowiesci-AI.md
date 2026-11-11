@@ -148,6 +148,27 @@ Opowieść może zaprosić do **innej bazy wiedzy** („świata”) — Fizyka p
 
 W widoku z `"landscape": {"style": "world"}` każda opowieść jest **linią** między miejscami (tematami), rozwidlenie — **węzłem przesiadkowym**, a „Wymaga” jednostki, warunek opcji wyboru i krok "condition" — **biletem** odcinka. Żeby ta mapa była czytelna: każdy slajd i każde pytanie wskazuje właściwy temat, przebieg zaczyna się od pierwszego slajdu, etykiety opcji są krótkie (to nazwy gałęzi), a zagłębienia wołają opowieści, które naprawdę należą do wątku. Wszystko o miejscach, blokach (`"part": "up"`), przystankach, biletach, poziomach i liście dla autorów: **guide-world-map** (templates/cogita/weltkarte-AI.md).
 
+## 8e. Einstufung — „Sprawdź, ile już umiesz” (2026-11-12)
+
+W dużym świecie uczący się nie musi przechodzić przez wieże, które już umie. Krok **"explore"** sprawdza jeszcze nie zdobyte wieże zakresu **prawdziwymi pytaniami bazy** (każda odpowiedź liczy się jak zawsze, z `via: "placement"`) i idzie dalej do wież, które na nich budują — tak daleko, jak uczący się sięga. Jeden węzeł w opowieści (jak "detour"), wyjście "done"; ten sam krok może stać w kilku opowieściach (stan jest wspólny dla zakresu).
+
+```json
+{"id": "sprawdz", "type": "explore", "config": {
+  "title": "Sprawdź, ile już umiesz",
+  "scope": ["@kurs/dziedzina/mechanika"], "downTo": "@kurs/t/swobodny-spadek",
+  "modes": ["adaptive", "target"], "default": "adaptive", "targetLevels": [1, 2],
+  "streak": 3, "errors": 2, "recheck": 2, "once": true, "push": true}}
+```
+
+- **Zakres**: dziedziny (z ich wieżami), wieże, jednostki (to, czego wymagają, z podstawą, i przystanki ich linii); `"downTo"` — cała podstawa wieży razem z nią. Wszystko liczy aplikacja z grafu wymagań ("prerequisite": "up").
+- **Czoło**: wieże zakresu jeszcze nie zdobyte, których wszystkie warunki są przejezdne (jak wszędzie, od "openAt"). Następne pytanie losuje się z całego czoła — uczący się skacze między obszarami. Pytania, które odtwarzacz pominąłby jako znane (7a), liczą się jako dobre — wieża może zostać zaliczona bez jednego pytania.
+- **Adaptacyjnie** ("adaptive"): "streak" dobrych z rzędu zalicza wieżę; "errors" błędów w jednej wieży kończy ją w tym sprawdzaniu (jej następcy nie wchodzą) i cofa o krok: jej warunki zaliczone w TYM sprawdzaniu są sprawdzane jeszcze raz, po kolei ("recheck" dobrych z rzędu potwierdza; jeden błąd cofa zaliczenie i sprawdza jego warunki zaliczone w tym sprawdzaniu — i tak w dół). Wieże zdobyte wcześniej prawdziwymi odpowiedziami nie są nigdy sprawdzane ponownie.
+- **Zaliczenie** daje poziom potrzebny do pójścia dalej: "openAt" bazy (co najmniej 1; bez "openAt" — wszystkie poziomy); bez poziomów: „zdobyta (zaliczona sprawdzeniem)”. Wyższe poziomy i gwiazdki dają tylko przebiegi. Zaliczenie to prywatna wartość uczącego się (`~placed.<wieża>`), nie odpowiedź; ważne tylko, dopóki warunki wieży są przejezdne (cofnięte zaliczenie odbiera je też następcom). Znajomość kart się nie zmienia.
+- **Do poziomu** ("target"): uczący się wybiera poziom z "targetLevels"; wieża jest pytana jak prawdziwe zdobycie tego poziomu (procent i zasada prób), losowo bez powtórzeń, kończy się wcześniej, gdy wynik jest przesądzony; zdobyta — zwykły przebieg; nie — jej następcy nie wchodzą (także gdy "openAt" by ich otworzył). Tylko z poziomami i gdy serwer zapisuje przebiegi.
+- „Zakończ na razie” zachowuje stan, „Kontynuuj” go wznawia. Na końcu: ile zaliczono, luki z „Ucz się” i „Ustaw jako cel” przy pierwszej. Z "once" sprawdzanie jest potem zrobione; „Sprawdź jeszcze raz” pyta tylko o to, co zostało otwarte. „Dalej bez sprawdzania” zapamiętuje pominięcie dla zakresu. Gdy w zakresie nic nie jest otwarte, krok przechodzi sam dalej.
+- **Zachęta** ("push"): przy wyborze możliwość, której droga ma niezrobione sprawdzanie z otwartymi wieżami (krok "explore" przed następnym wyborem albo "detour"/"subflow" do opowieści, która się nim zaczyna), stoi pierwsza z „Zalecane: najpierw sprawdź, ile już umiesz”.
+- Ścieżka i mapa świata pokazują krok jako jeden krok.
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.

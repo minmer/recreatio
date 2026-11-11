@@ -18,7 +18,8 @@
     "review": "Review",
     "scene": "Presentation scene",
     "end": "End",
-    "return": "Return"
+    "return": "Return",
+    "explore": "Placement"
   },
   "stepSays": {
     "show": "Shows an entry or a statement (\"of\"), or a file (\"media\"); \"title\" — the screen heading.",
@@ -39,7 +40,8 @@
     "review": "A review of the story in one step: asks once more the questions of this story (\"of\": \"story\" — or @przebieg) that the learner doesn't know yet — each once per round; when they know at least \"threshold\" (e.g. 0.9) of them, exit \"passed\", otherwise \"notyet\". Saves the value \"value\" (by default <story name>.przeglad: 1 passed, 0 not); without \"goals\" the flow gets the goal “Review passed” (\"goal\" — its name) and “Repeat the review” goes back to this step.",
     "scene": "A presentation scene (\"page\" — the page address, \"scene\" — the scene key, \"title\"); exit \"next\", with a question on the scene \"right\" and \"wrong\", buttons \"b0\", \"b1\", … (\"buttons\": [{\"exit\", \"label\", \"target\"}]).",
     "end": "End of the flow.",
-    "return": "Returns from an inner flow to the place it entered from."
+    "return": "Returns from an inner flow to the place it entered from.",
+    "explore": "Checks with real questions which towers of a scope the learner already masters and moves on to what builds on them (adaptive or up to a target level)."
   },
   "look": {
     "reading": "Reading",
@@ -68,7 +70,8 @@
     "skip": "without it",
     "chapter": "chapter {n}",
     "allDone": "all finished",
-    "next": "next"
+    "next": "next",
+    "explored": "after the placement"
   },
   "reviewPassed": "Review passed",
   "chapterN": "Chapter {n}",

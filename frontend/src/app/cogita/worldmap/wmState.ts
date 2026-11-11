@@ -39,6 +39,11 @@ export interface LearnerInput {
   readonly prepared?: ReadonlyMap<string, unknown>;
   /** Step 3 · 1 — ausgesetzte Karten (der Lernende hat sie angehalten): nie gefragt, also nirgends gezählt. */
   readonly suspended?: (card: string) => boolean;
+  /**
+   * 2026-11-12 (Einstufung) — wann eine Einstufung diesen Turm gutschrieb (Wert `~placed.<turm>`; 0 oder fehlt: nicht). Gültig ist
+   * die Gutschrift nur, solange alle Voraussetzungen passierbar sind (aus dem Graphen, keine eigene Kaskade).
+   */
+  readonly placed?: (place: string) => number;
 }
 
 export interface WorldSettings {
@@ -74,6 +79,11 @@ export interface PlaceState {
   readonly missing: number;
   /** Was bis hierher fehlt: der Ort und seine ganze Grundlage. */
   readonly height: number;
+  /**
+   * 2026-11-12 (Einstufung) — gutgeschrieben (Zeitpunkt; 0: nicht): der Turm gilt als erobert bis zur Stufe, die zum Weitergehen
+   * nötig ist (`openAt`, mindestens 1; ohne Stufen: erobert), ohne dass seine Karten sitzen — „durch Einstufung".
+   */
+  readonly placed: number;
   /** Sättigung der Farbe (§4.2): nie gesehen · teilweise · voll (erste Stufe, ohne Stufen: erfüllt). */
   readonly saturation: 'never' | 'partly' | 'full';
   /** Der Punkt auf der Säule — nur auf eroberten Orten (§4.2): orange heisst „wiederholen". */
@@ -145,6 +155,9 @@ export interface WorldState {
 const SOON = 1.5;
 
 /** Die Höhe einer Säule (§6.2): 6 + 3,6·√Karten, höchstens 110; erobert flach. */
+/** 2026-11-12 (Einstufung) — welche Stufe eine Gutschrift gibt: die Stufe, ab der sich die Pfade öffnen (`openAt`, mindestens 1); ohne `openAt` alle Stufen (erst erobert ist passierbar); ohne Stufen 0 (dann heisst sie „erobert"). */
+export const creditLevel = (s: { readonly levels: number; readonly openAt: number | null }): number => (s.levels <= 0 ? 0 : s.openAt === null ? s.levels : Math.max(1, Math.min(s.openAt, s.levels)));
+
 export const pillarHeight = (cards: number, conquered: boolean): number => (conquered ? 0 : Math.min(110, 6 + 3.6 * Math.sqrt(Math.max(0, cards))));
 
 export function stateOf(world: World, lines: Lines, learner: LearnerInput, settings: WorldSettings = DEFAULT_SETTINGS): WorldState {
@@ -162,7 +175,11 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
   */
   const off = learner.suspended;
   const own = new Map<string, Omit<PlaceState, 'height'>>();
-  for (const p of world.places.values()) {
+  /* 2026-11-12 — die Stufe einer Gutschrift: die zum Weitergehen nötige (`openAt`, mindestens 1; ohne `openAt`: alle). */
+  const credit = creditLevel({ levels, openAt: settings.openAt ?? null });
+  /* Der Reihe nach von unten (`world.order` nach Tiefe): eine Gutschrift gilt nur über passierbaren Voraussetzungen. */
+  for (const id of world.order) {
+    const p = world.places.get(id)!;
     const cards = off === undefined ? p.cards : p.cards.filter((k) => !off(k));
     let unseen = 0;
     let learning = 0;
@@ -175,15 +192,19 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     }
     const total = cards.length;
     const empty = total === 0;
-    const reached = levels === 0 ? 0 : Math.max(0, Math.min(levels, learner.level?.(p.id) ?? 0));
+    const byRuns = levels === 0 ? 0 : Math.max(0, Math.min(levels, learner.level?.(p.id) ?? 0));
+    const placedAt = learner.placed?.(p.id) ?? 0;
+    const byCards = levels === 0 && !empty && known / total >= share - 1e-9;
+    const credited = placedAt > 0 && !empty && p.needs.every((n) => own.get(n)?.passable !== false) && (levels === 0 ? !byCards : byRuns < credit);
+    const reached = credited ? Math.max(byRuns, credit) : byRuns;
     const level = empty ? levels : reached;
-    const conquered = empty || (levels === 0 ? known / total >= share - 1e-9 : level >= levels);
+    const conquered = empty || (levels === 0 ? byCards || credited : level >= levels);
+    const openAtHere = settings.openAt ?? null;
+    const passable = conquered || (openAtHere !== null && (openAtHere === 0 || (levels > 0 && level >= Math.min(openAtHere, levels))));
     const missing = conquered ? 0 : levels > 0 ? total : unseen + learning;
     const saturation = (empty || (levels > 0 ? level >= 1 : conquered)) ? 'full' : unseen < total ? 'partly' : 'never';
     const dot = !conquered || empty ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
-    const openAt = settings.openAt ?? null;
-    const passable = conquered || (openAt !== null && (openAt === 0 || (levels > 0 && level >= Math.min(openAt, levels))));
-    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, passable, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
+    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, passable, placed: credited ? placedAt : 0, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
   }
   /* Die Höhe über der Bitmenge der Grundlage (5 000 Orte: keine Mengen je Ort). */
   const miss = new Float64Array(world.bitOrder.length);
