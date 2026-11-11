@@ -673,6 +673,30 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     : shownWay !== null
       ? [...shownWay.later, ...(marks === null || (chosen?.kind === 'place' && nav?.target === chosen.id && hoverWay === null) ? [] : [...marks.next, ...marks.later])]
       : marks?.later ?? null;
+  /*
+    2026-11-11 (Eigentümer: „die Beschreibung eines Pfades erscheint beim Überfahren, mit einer kleinen, dezenten Hervorhebung") —
+    DIE BLASE EINES PFADES: die Erzählung, von wo nach wo, Folien und Fragen, und was er jetzt bringt.
+  */
+  const [hoverLane, setHoverLane] = useState<{ id: string; x: number; y: number } | null>(null);
+  const laneBubble = (() => {
+    if (hoverLane === null || hover !== null) return null;
+    const s = lines.sections.get(hoverLane.id);
+    const st = state.sections.get(hoverLane.id);
+    if (s === undefined || st === undefined) return null;
+    const story = lines.lines.get(s.line)?.name ?? '';
+    const fresh = s.introduces.filter((k) => state.band(k) !== 'known').length;
+    const needs = (st.ticket.parts ?? []).filter((p) => !p.result.met).length > 0 || !st.open;
+    const status = st.travelled ? t('cogitaWorld.panel.travelled') : needs ? t('cogitaWorld.map.laneLocked') : fresh > 0 ? t('cogitaWorld.panel.newCards', { count: fresh }) : t('cogitaWorld.map.laneKnown');
+    const parts = [s.slides > 0 ? t('cogitaWorld.panel.slides', { count: s.slides }) : '', s.questions.length > 0 ? t('cogitaWorld.panel.questionsN', { count: s.questions.length }) : ''].filter(Boolean).join(' · ');
+    return (
+      <div className="cg-wm-bubble" ref={(el) => { if (el !== null) { el.style.left = `${hoverLane.x}px`; el.style.top = `${hoverLane.y}px`; } }} role="status" data-world-lane-bubble={s.id}>
+        <strong>{story === '' ? `${nameOf(s.from)} → ${nameOf(s.to)}` : story}</strong>
+        {story !== '' && <span>{nameOf(s.from)} → {nameOf(s.to)}</span>}
+        {parts !== '' && <span className="cg-muted">{parts}</span>}
+        <span className="cg-muted">{status}</span>
+      </div>
+    );
+  })();
   const bubble = (() => {
     if (hover === null || scene === null) return null;
     const p = scene.byId.get(hover.id);
@@ -822,6 +846,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               marks={marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
               lit={lit} portals={portals} goal={goal} playback={lastPlay.current} onPlayback={onPlayback}
               onHover={(id, at) => setHover(id === null || at === null ? null : { id, x: at.x, y: at.y })}
+              onHoverLane={(id, at) => setHoverLane((was) => (id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
@@ -835,6 +860,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             </div>
           )}
           {bubble}
+          {laneBubble}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
           {shownMode === 'discover' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="discover">{T.nothingReady}</div>}
           {shownMode === 'gaps' && (

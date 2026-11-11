@@ -188,7 +188,9 @@
       "other": "{count} zdobytej"
     },
     "trail": "Droga powrotna",
-    "trailClose": "Zamknij drogę powrotną"
+    "trailClose": "Zamknij drogę powrotną",
+    "laneKnown": "nic nowego — jego karty już znasz",
+    "laneLocked": "jeszcze zamknięta"
   },
   "panel": {
     "close": "Zamknij",

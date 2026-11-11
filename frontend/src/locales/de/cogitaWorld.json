@@ -160,7 +160,9 @@
       "other": "{count} erobert"
     },
     "trail": "Zurück auf dem Weg",
-    "trailClose": "Weg zurück schliessen"
+    "trailClose": "Weg zurück schliessen",
+    "laneKnown": "nichts Neues — seine Karten sitzen schon",
+    "laneLocked": "noch nicht offen"
   },
   "panel": {
     "close": "Schließen",

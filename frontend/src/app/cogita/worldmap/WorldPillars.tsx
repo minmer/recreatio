@@ -182,6 +182,8 @@ export interface PillarsProps {
   readonly onPickJunction?: (id: string) => void;
   /** Doppelklick (Doppeltippen) auf eine Säule: „Prowadź mnie tutaj". */
   readonly onLead?: (place: string) => void;
+  /** 2026-11-11 — ein Pfad unter dem Zeiger (Maus): seine Beschreibung in einer Blase; er leuchtet dezent. */
+  readonly onHoverLane?: (section: string | null, at: { x: number; y: number } | null) => void;
   /** 2026-11-10 — Doppelklick auf freien Boden: die ganze Karte, ohne Weg (die Karte passt sich selbst ein). */
   readonly onPlain?: () => void;
   /** 2026-11-10 — direkt unter dem Bild der Karte (der Weg Schritt für Schritt): die Karte bleibt ganz zu sehen. */
@@ -421,7 +423,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -451,6 +453,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const groundRef = useRef<GroundLayer | null>(null);
   const drawnRef = useRef<DrawnPillar[]>([]);
   const discsRef = useRef<DrawnDiscs[]>([]);
+  const [hoverLane, setHoverLane] = useState<string | null>(null);
   /* 2026-11-10 — wohin ein Klick auf eine Scheibe flog: der Weg zurück (die letzten Türme). */
   const [trail, setTrail] = useState<readonly string[]>([]);
   const frames = useRef<{ count: number; ms: number[] }>({ count: 0, ms: [] });
@@ -701,6 +704,20 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     };
     glowLanes(faint, false);
     glowLanes(route, true);
+    /* Der überfahrene Pfad: dezent, breit und weich unter ihm. */
+    if (hoverLane !== null) {
+      const lane = scene.lanes.find((l) => l.section === hoverLane);
+      if (lane !== undefined) {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = rgbCss(mix(pal.lit, pal.floor, 0.45));
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        const pts = withRims(lane, pillarWidth);
+        for (let i = 0; i < pts.length; i += 2) { const [sx, sy] = toScr(v, pts[i], pts[i + 1]); if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy); }
+        ctx.stroke();
+      }
+    }
+    canvas.dataset.wmHoverLane = hoverLane ?? '';
 
     /* Säulen von hinten nach vorn. */
     const list = scene.places.map((p) => ({ p, d: depth(v, p.x, p.y) })).sort((x, y) => x.d - y.d);
@@ -1051,8 +1068,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         zusammenkommt (Verpackungen, Abstecher), als Linien ohne Punkte — erst nah oder gewählt.
       */
       const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || !greySection(focus, l.section))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
-      const items = every.filter((x) => x.l.name !== '' && (x.k.dots || (x.l.kind === 'branch' && x.l.forkStart && v.s >= LOCKS_FROM)) && x.len >= 36)
-        .sort((a, b) => Number(b.on) - Number(a.on) || Number(b.k.dots) - Number(a.k.dots) || b.len - a.len);
       let markCount = 0;
       let variantCount = 0;
       let lockCount = 0;
@@ -1185,58 +1200,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         junctionCount += 1;
       }
       canvas.dataset.wmJunctions = String(junctionCount);
-      ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      let nameCount = 0;
-      const hit = (box: { x0: number; y0: number; x1: number; y1: number }) => boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
-      /* 2026-11-10 (Eigentümer: „nur, was nötig ist") — jeder Name einmal (ein Zweig heisst nach seinem Ziel). */
-      const named = new Set<string>();
-      const nameBoxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
-      for (const { l, sp, len, on } of items) {
-        if (named.has(l.name)) continue;
-        /* Ein kurzer Pfad trägt seinen Namen über seine Enden hinaus (der Name ist wichtiger als die Länge). */
-        const text = fitText(ctx, l.name, Math.min(260, Math.max(len * 0.9, 160)));
-        const w = ctx.measureText(text).width;
-        /* Stellen entlang des Pfades und Abstände von ihm; die erste ohne Zusammenstoss, sonst (kräftige, gezeigte) die Mitte. */
-        type Spot = { cx: number; cy: number; a: number; box: { x0: number; y0: number; x1: number; y1: number } };
-        let pick = null as Spot | null;
-        let fallback = null as Spot | null;
-        for (const t of [0.5, 0.4, 0.6, 0.3, 0.7]) {
-          const at = along(sp, t);
-          let a = at.a;
-          if (a > Math.PI / 2) a -= Math.PI; else if (a < -Math.PI / 2) a += Math.PI;
-          /* Steil: der Name steht waagerecht neben dem Pfad (lesbar), sonst entlang und über/unter ihm. */
-          const steep = Math.abs(a) > 1.0;
-          if (steep) a = 0;
-          const c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
-          const hw = (w * c + 14 * sn) / 2 + 3, hh = (w * sn + 14 * c) / 2 + 3;
-          const spots: [number, number][] = steep
-            ? [[w / 2 + 12, 0], [-(w / 2 + 12), 0], [w / 2 + 12, 22], [-(w / 2 + 12), -22]]
-            : [[0, -12], [0, 13], [0, -32], [0, 33]].map(([, off]) => [-Math.sin(a) * off, Math.cos(a) * off] as [number, number]);
-          for (const [dx, dy] of spots) {
-            const cx = at.x + dx, cy = at.y + dy;
-            const box = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
-            if (box.x1 < 0 || box.y1 < 0 || box.x0 > size.w || box.y0 > size.h) continue;
-            fallback ??= { cx, cy, a, box };
-            if (!hit(box)) { pick = { cx, cy, a, box }; break; }
-          }
-          if (pick !== null) break;
-        }
-        /* Ersatzweise auf einem Turm, nie auf einem anderen Namen. */
-        const use = pick ?? (on && fallback !== null && !nameBoxes.some((b) => fallback!.box.x0 < b.x1 && fallback!.box.x1 > b.x0 && fallback!.box.y0 < b.y1 && fallback!.box.y1 > b.y0) ? fallback : null);
-        if (use === null) continue;
-        boxes.push(use.box);
-        nameBoxes.push(use.box);
-        ctx.save();
-        ctx.translate(use.cx, use.cy);
-        ctx.rotate(use.a);
-        const halo = rgbCss(mix(pal.surface, pal.land, 0.15));
-        ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, 0, 0);
-        ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, 0, 0);
-        ctx.restore();
-        nameCount += 1;
-        named.add(l.name);
-      }
-      canvas.dataset.wmPathNames = String(nameCount);
+      /* 2026-11-11 (Eigentümer: „die Namen der Pfade stehen nicht auf der Karte — sie erscheinen beim Überfahren") */
+      canvas.dataset.wmPathNames = '0';
     }
     drawnRef.current = drawn;
     frames.current.count += 1;
@@ -1254,7 +1219,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmPlaying = play === null ? '' : String(play.pb.id);
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus, hoverLane]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);
@@ -1409,7 +1374,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     }
     const dr = drag.current;
     if (dr === null || dr.id !== e.pointerId) {
-      if (e.pointerType === 'mouse') { const id = hit(p.x, p.y); onHover?.(id, id === null ? null : { x: p.x, y: p.y }); }
+      if (e.pointerType === 'mouse') {
+        const id = hit(p.x, p.y);
+        onHover?.(id, id === null ? null : { x: p.x, y: p.y });
+        const lane = id === null && hitJunction(p.x, p.y) === null ? hitLane(p.x, p.y) : null;
+        if (lane !== hoverLane) setHoverLane(lane);
+        onHoverLane?.(lane, lane === null ? null : { x: p.x, y: p.y });
+      }
       return;
     }
     const dx = p.x - dr.x, dy = p.y - dr.y;
@@ -1593,7 +1564,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       <div ref={boxRef} className="cg-wm-stage" style={stageH === null ? undefined : { height: stageH, minHeight: 0 }} data-world-stage-h={stageH ?? ''}>
         <canvas ref={canvasRef} className="cg-wm-canvas" tabIndex={0} aria-label={t('cogitaWorld.map.label', { count: scene.places.length })}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
-          onPointerLeave={() => onHover?.(null, null)} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
+          onPointerLeave={() => { onHover?.(null, null); setHoverLane(null); onHoverLane?.(null, null); }} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
         {trail.length > 0 && (
           <nav className="cg-wm-trail" aria-label={t('cogitaWorld.map.trail')} data-world-trail={trail.length}>
             {trail.map((id, i) => (

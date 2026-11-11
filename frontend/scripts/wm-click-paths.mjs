@@ -153,6 +153,15 @@ try {
     check(P, 'the map shows the locked branch from the fork node (fork → cagrua)', lane !== undefined);
     const nodes = await ev(`document.querySelector('[data-world-canvas]').wmJunctionList()`);
     check(P, 'the fork is a node of its own on the map, with 3 ways', nodes.some((j) => j.id === lane.from && j.kind === 'fork' && j.ways === 3), nodes);
+    /* 2026-11-11 — keine Namen auf der Karte; ein Pfad unter der Maus zeigt seine Beschreibung und leuchtet dezent. */
+    check(P, 'path names are not printed on the map', (await ev(`document.querySelector('[data-world-canvas]').dataset.wmPathNames`)) === '0');
+    const lp = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('lane', ${JSON.stringify(lane.section)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+    if (lp !== null) {
+      await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: lp[0], y: lp[1] });
+      await waitFor(`document.querySelector('[data-world-lane-bubble]') !== null && document.querySelector('[data-world-canvas]').dataset.wmHoverLane !== ''`, 'the description of the path', 5000).catch(() => null);
+      check(P, 'hovering a path shows its description and highlights it', await ev(`document.querySelector('[data-world-lane-bubble]')?.dataset.worldLaneBubble === ${JSON.stringify(lane.section)} && document.querySelector('[data-world-canvas]').dataset.wmHoverLane === ${JSON.stringify(lane.section)}`));
+      await shot('p1-lane-hover');
+    }
     await clickMap('lane', lane.section);
     await waitFor(`document.querySelector('[data-world-panel="section"][data-world-section="${lane.section}"]')`, 'the section panel');
     const sec = await ev(`(() => { const p = document.querySelector('[data-world-panel="section"]'); return { ticket: p.dataset.worldTicket, conditions: [...p.querySelectorAll('[data-world-condition]')].map((x) => x.dataset.worldCondition), sources: [...p.querySelectorAll('[data-world-source]')].map((x) => ({ source: x.dataset.worldSource === 'direct' ? 'direct' : 'section', cards: Number(x.dataset.worldSourceCards), open: x.dataset.worldSourceOpen ?? null })), learn: Number(p.querySelector('[data-world-learn-direct]')?.dataset.worldLearnDirect ?? 0), travel: p.querySelector('[data-world-travel]')?.disabled }; })()`);

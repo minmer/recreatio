@@ -160,7 +160,9 @@
       "other": "{count} conquered"
     },
     "trail": "Back along the way",
-    "trailClose": "Close the way back"
+    "trailClose": "Close the way back",
+    "laneKnown": "nothing new — its cards are known already",
+    "laneLocked": "not open yet"
   },
   "panel": {
     "close": "Close",
