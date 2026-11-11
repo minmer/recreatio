@@ -50,6 +50,15 @@
     "queued": {
       "one": "{count} weitergeleitete Nachricht — einzeln",
       "other": "{count} weitergeleitete Nachrichten — jede einzeln"
+    },
+    "tooBigName": "„{name}“ ist zu groß — eine Datei darf höchstens 25 MB haben.",
+    "mmsEach": {
+      "one": "{count} MMS",
+      "other": "{count} MMS — eine je Datei, der Text mit der ersten"
+    },
+    "withLinks": {
+      "one": "mit {count} Link",
+      "other": "mit {count} Links"
     }
   },
   "title": "SMS",

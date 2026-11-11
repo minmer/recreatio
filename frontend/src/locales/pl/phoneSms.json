@@ -54,6 +54,19 @@
       "few": "{count} przekazywane wiadomości — każda osobno",
       "many": "{count} przekazywanych wiadomości — każda osobno",
       "other": "{count} przekazywanej wiadomości — każda osobno"
+    },
+    "tooBigName": "„{name}” jest za duży — plik może mieć najwyżej 25 MB.",
+    "mmsEach": {
+      "one": "{count} MMS",
+      "few": "{count} MMS-y — po jednym na plik, tekst z pierwszym",
+      "many": "{count} MMS-ów — po jednym na plik, tekst z pierwszym",
+      "other": "{count} MMS-a — po jednym na plik, tekst z pierwszym"
+    },
+    "withLinks": {
+      "one": "z {count} linkiem",
+      "few": "z {count} linkami",
+      "many": "z {count} linkami",
+      "other": "z {count} linku"
     }
   },
   "title": "SMS",

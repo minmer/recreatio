@@ -50,6 +50,15 @@
     "queued": {
       "one": "{count} forwarded message — separately",
       "other": "{count} forwarded messages — each separately"
+    },
+    "tooBigName": "“{name}” is too big — a file can be at most 25 MB.",
+    "mmsEach": {
+      "one": "{count} MMS",
+      "other": "{count} MMS — one per file, the text with the first"
+    },
+    "withLinks": {
+      "one": "with {count} link",
+      "other": "with {count} links"
     }
   },
   "title": "SMS",

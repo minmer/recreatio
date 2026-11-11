@@ -84,7 +84,6 @@
   },
   "reply": {
     "wait": "Wait until this message has gone to the phone.",
-    "oneFile": "One file goes with the reply: {name}. Add several at once in „Files by link”.",
     "readOnly": "You can read this archive; replying is for those who can write in it.",
     "onePerson": "From the browser you can reply in conversations with one person.",
     "pickLine": "Choose in the header the number the phone should send from.",

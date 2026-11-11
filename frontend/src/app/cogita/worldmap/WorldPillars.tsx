@@ -25,7 +25,7 @@ import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from '
 import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
 import { BEACH, islandOf } from './wmIsland';
 import { greyPlace, greySection, type RouteFocus } from './wmFocus';
-import { dueLevel, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
+import { dueLevel, laneOn, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
@@ -690,7 +690,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const set = new Set(ids);
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       for (const lane of scene.lanes) {
-        if (!set.has(lane.section)) continue;
+        if (!laneOn(lane, set)) continue;
         ctx.strokeStyle = rgbCss(strong ? pal.lit : mix(pal.lit, pal.floor, 0.55));
         ctx.globalAlpha = 1;
         ctx.lineWidth = strong ? 7 : 3;
@@ -1067,7 +1067,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         Punkte, Zeichen der Art und Przegląd nur auf gewählten Spuren (dem Weg); was in der Erzählung auseinandergeht und wieder
         zusammenkommt (Verpackungen, Abstecher), als Linien ohne Punkte — erst nah oder gewählt.
       */
-      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || !greySection(focus, l.section))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: shown.has(l.section), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
+      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || laneOn(l, focus.remaining) || laneOn(l, focus.done))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: laneOn(l, shown), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
       let markCount = 0;
       let variantCount = 0;
       let lockCount = 0;

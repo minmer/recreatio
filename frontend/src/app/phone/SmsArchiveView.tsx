@@ -782,24 +782,26 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   const [busy, setBusy] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [sendMenu, setSendMenu] = useState<{ rect: DOMRect; from: Element } | null>(null);
-  /* 0117 — eine Datei geht als Link mit (in voller Grösse, versiegelt im eigenen Bereich). */
-  const [file, setFile] = useState<File | null>(null);
+  /* 0117 — Dateien gehen als Links mit (in voller Grösse, versiegelt im eigenen Bereich); 2026-11-11 — mehrere, je ein Link in einer Zeile. */
+  const [files, setFiles] = useState<readonly File[]>([]);
   const [daysText, setDaysText] = useRemembered('sms.linkDays', '30');
   const [progress, setProgress] = useState<number | null>(null);
-  const uploaded = useRef<{ readonly file: File; readonly link: string } | null>(null);
+  const uploaded = useRef(new Map<File, string>());
   const picker = useRef<HTMLInputElement | null>(null);
   const days = (SHARE_DAYS as readonly number[]).includes(Number(daysText)) ? Number(daysText) : 30;
 
-  /** Eine Datei für die Antwort — gewählt, hineingezogen oder eingefügt. Eine SMS trägt einen Link. */
-  const take = (files: readonly File[]) => {
-    const chosen = files[0];
-    if (chosen === undefined) return;
+  /** Dateien für die Antwort — gewählt, hineingezogen oder eingefügt; sie kommen zu den schon gewählten dazu. */
+  const take = (more: readonly File[]) => {
+    if (more.length === 0) return;
     if (busy) { toast(t('phoneArchive.reply.wait')); return; }
-    if (chosen.size > SHARE_MAX) { toast(t('phoneSms.compose.tooBig')); return; }
-    uploaded.current = null;
-    setFile(chosen);
-    if (files.length > 1) toast(t('phoneArchive.reply.oneFile', { name: chosen.name }));
+    const fit = more.filter((f) => {
+      if (f.size <= SHARE_MAX) return true;
+      toast(t('phoneSms.compose.tooBigName', { name: f.name }));
+      return false;
+    });
+    if (fit.length > 0) setFiles((had) => [...had, ...fit.filter((f) => !had.includes(f))]);
   };
+  const dropFile = (one: File) => { setFiles((had) => had.filter((f) => f !== one)); uploaded.current.delete(one); };
   useEffect(() => {
     if (dropped !== null) take(dropped.files);
     // Nur, wenn wieder etwas hineingezogen wurde.
@@ -809,9 +811,9 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   if (!mayWrite) return <p className="ch-compose is-readonly">{t('phoneArchive.reply.readOnly')}</p>;
   if (conversation.peers.length !== 1) return <p className="ch-compose is-readonly">{t('phoneArchive.reply.onePerson')}</p>;
 
-  const content = text.trim() !== '' || file !== null;
-  const withLink = (link: string) => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
-  const count = smsParts(file === null ? text : withLink(shareLink('x'.repeat(22))));
+  const content = text.trim() !== '' || files.length > 0;
+  const withLinks = (links: readonly string[]) => (text.trim() === '' ? links.join('\n') : `${text.trimEnd()}\n${links.join('\n')}`);
+  const count = smsParts(files.length === 0 ? text : withLinks(files.map(() => shareLink('x'.repeat(22)))));
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
     const chosen = Array.from(e.target.files ?? []);
     e.target.value = '';
@@ -823,25 +825,30 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
     setBusy(true);
     try {
       let body = text;
-      if (file !== null) {
-        let link = uploaded.current !== null && uploaded.current.file === file ? uploaded.current.link : null;
-        if (link === null) {
-          setProgress(0);
-          try {
-            link = (await shareFile(await openPhone(who), file, {
-              days, to: conversation.peers, onProgress: (done, total) => setProgress(total > 0 ? done / total : 0)
-            })).link;
-            uploaded.current = { file, link };
-          } finally {
-            setProgress(null);
+      if (files.length > 0) {
+        /* Eine nach der anderen hinauf — schon oben gewesene (ein zweiter Versuch) nicht noch einmal. */
+        const links: string[] = [];
+        for (const [i, file] of files.entries()) {
+          let link = uploaded.current.get(file) ?? null;
+          if (link === null) {
+            setProgress(i / files.length);
+            try {
+              link = (await shareFile(await openPhone(who), file, {
+                days, to: conversation.peers, onProgress: (done, total) => setProgress((i + (total > 0 ? done / total : 0)) / files.length)
+              })).link;
+              uploaded.current.set(file, link);
+            } finally {
+              setProgress(null);
+            }
           }
+          links.push(link);
         }
-        body = withLink(link);
+        body = withLinks(links);
       }
       await queueReply(ctx, { to: conversation.peers, body, line, sendAt: at, conversation: conversation.key });
       setText('');
-      setFile(null);
-      uploaded.current = null;
+      setFiles([]);
+      uploaded.current.clear();
       toast(at === null ? t('phoneArchive.reply.queued') : t('phoneArchive.reply.queuedAt', { when: aheadWhen(at) }));
       onQueued();
     } catch (e) {
@@ -854,24 +861,26 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   const status = busy && progress !== null ? t('phoneSms.compose.uploading', { percent: Math.round(progress * 100) })
     : line === '' ? t('phoneArchive.reply.pickLine')
     : [
-      ...(text !== '' || file !== null ? [
+      ...(text !== '' || files.length > 0 ? [
         ...(count.parts > 1 ? [t('phoneSms.compose.parts', { count: count.parts })] : []),
         t('phoneSms.compose.left', { left: count.left }),
-        ...(file !== null ? [t('phoneSms.compose.withLink')] : [])
+        ...(files.length > 1 ? [t('phoneSms.compose.withLinks', { count: files.length })] : files.length === 1 ? [t('phoneSms.compose.withLink')] : [])
       ] : []),
       t('phoneArchive.reply.sentBy', { line: phoneShown(line) })
     ].join(' · ');
 
   return (
     <form className="ch-compose ph-compose ph-reply" onSubmit={(e) => { e.preventDefault(); void send(null); }}>
-      {file !== null && (
+      {files.length > 0 && (
         <div className="ch-files">
-          <span className="ch-file-chip">
-            <span className="ch-file-ic"><Icon name="file" /></span>
-            <span className="ch-file-text"><span className="ch-file-name">{file.name}</span><small>{sizeText(file.size)} · {t('phoneArchive.reply.linkFull')}</small></span>
-            <button type="button" className="ch-icon-btn is-small" aria-label={t('phoneSms.compose.removeAttachment', { name: file.name })} disabled={busy}
-              onClick={() => { setFile(null); uploaded.current = null; }}><Icon name="x" /></button>
-          </span>
+          {files.map((file, i) => (
+            <span key={`${i}:${file.name}`} className="ch-file-chip">
+              <span className="ch-file-ic"><Icon name="file" /></span>
+              <span className="ch-file-text"><span className="ch-file-name">{file.name}</span><small>{sizeText(file.size)} · {t('phoneArchive.reply.linkFull')}</small></span>
+              <button type="button" className="ch-icon-btn is-small" aria-label={t('phoneSms.compose.removeAttachment', { name: file.name })} disabled={busy}
+                onClick={() => dropFile(file)}><Icon name="x" /></button>
+            </span>
+          ))}
           <select aria-label={t('phoneSms.compose.linkDays')} value={days} disabled={busy} onChange={(e) => setDaysText(e.target.value)}>
             {SHARE_DAYS.map((d) => <option key={d} value={d}>{t('phoneSms.compose.valid', { days: daysLabel(d) })}</option>)}
           </select>
@@ -905,7 +914,7 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
       </div>
       {progress !== null && <progress className="ph-progress" value={progress} max={1} aria-label={t('phoneSms.compose.uploadBar')} />}
       <p className="ch-compose-line" role="status">{status}</p>
-      <input ref={picker} type="file" className="ch-picker" tabIndex={-1} aria-label={t('phoneSms.compose.pickFile')} onChange={pick} />
+      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label={t('phoneSms.compose.pickFile')} onChange={pick} />
       {sendMenu !== null && (
         <PopMenu anchor={{ rect: sendMenu.rect, above: true }} from={sendMenu.from} label={t('phoneSms.compose.sending')} onClose={() => setSendMenu(null)} items={[
           { label: t('phoneSms.compose.laterDots'), icon: 'clock', onSelect: () => setPlanning(true) }

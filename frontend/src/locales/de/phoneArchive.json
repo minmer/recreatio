@@ -84,7 +84,6 @@
   },
   "reply": {
     "wait": "Warte, bis diese Nachricht beim Telefon ist.",
-    "oneFile": "Mit der Antwort geht eine Datei: {name}. Mehrere auf einmal fügst du unter „Dateien per Link” hinzu.",
     "readOnly": "Dieses Archiv kannst du lesen; antworten können die, die darin schreiben dürfen.",
     "onePerson": "Aus dem Browser kann man in Gesprächen mit einer Person antworten.",
     "pickLine": "Wähle im Kopf die Nummer, von der das Telefon senden soll.",

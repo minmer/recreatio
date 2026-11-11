@@ -97,6 +97,11 @@ export interface SceneLane {
    */
   readonly variants: { readonly more: number; readonly from: number; readonly to: number } | null;
   /**
+   * 2026-11-11 — alle Abschnitte, für die diese Spur steht (sie selbst und die anderen Verpackungen derselben Strecke): ein Weg
+   * über eine nicht gezeichnete Verpackung leuchtet auf dieser Spur.
+   */
+  readonly sections: readonly string[];
+  /**
    * 2026-11-10 (Eigentümer: „keine Farbe je Erzählung — drei Stricharten") — WIE DER PFAD GEZEICHNET WIRD: `walked` dick (schon
    * gegangen), `known` dünn und durchgezogen (gehbar, bringt nichts Neues), `new` gestrichelt (bringt Neues); `fresh` ist der
    * Anteil seiner Karten, die noch nicht sitzen (je weniger, desto dichter die Striche).
@@ -112,6 +117,9 @@ export interface SceneLane {
  * der Karten, die zu wiederholen sind: unter 20 % grün, unter 50 % orange, sonst rot.
  */
 export const dueLevel = (share: number): 'few' | 'some' | 'many' => (share < 0.2 ? 'few' : share < 0.5 ? 'some' : 'many');
+
+/** Liegt eine Spur auf einem Weg (auch über eine ihrer anderen Verpackungen)? */
+export const laneOn = (l: Pick<SceneLane, 'sections'>, ids: ReadonlySet<string>): boolean => l.sections.some((id) => ids.has(id));
 
 /** Wie eine Spur gezeichnet wird (Bildpunkte): Breite, Strich (leer: durchgezogen), Ton. Rein — `app-wm-shapes-check` prüft es. */
 export interface LaneStroke {
@@ -129,13 +137,14 @@ export interface LaneStroke {
  */
 export function laneStroke(l: SceneLane, focus: { readonly remaining: ReadonlySet<string>; readonly done: ReadonlySet<string>; readonly current: string | null } | null, selected: ReadonlySet<string> = new Set()): LaneStroke {
   const pattern = (share: number): number[] => { const k = Math.max(0, Math.min(1, share)); return [1.5 + 4.5 * k, 1.5 + 3.5 * k]; };
+  const on = (set: ReadonlySet<string>) => l.sections.some((id) => set.has(id));
   if (focus !== null) {
-    if (focus.current === l.section) return { width: 4.4, dash: [], tone: 'current', dots: true };
-    if (focus.remaining.has(l.section)) return { width: 3.2, dash: [], tone: 'route', dots: true };
-    if (focus.done.has(l.section)) return { width: 2, dash: [], tone: 'done', dots: false };
+    if (focus.current !== null && l.sections.includes(focus.current)) return { width: 4.4, dash: [], tone: 'current', dots: true };
+    if (on(focus.remaining)) return { width: 3.2, dash: [], tone: 'route', dots: true };
+    if (on(focus.done)) return { width: 2, dash: [], tone: 'done', dots: false };
     return { width: 1.3, dash: [], tone: 'grey', dots: false };
   }
-  const dots = selected.has(l.section);
+  const dots = on(selected);
   if (l.state === 'locked') return { width: 1.2, dash: pattern(l.fresh), tone: 'locked', dots };
   if (l.style === 'walked') return { width: 3, dash: [], tone: 'walked', dots };
   if (l.style === 'known') return { width: 1.2, dash: [], tone: 'known', dots };
@@ -261,11 +270,13 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     const l = groups.get(k) ?? []; l.push(s); groups.set(k, l);
   }
   const shownOf = new Map<string, string>();
+  const membersOf = new Map<string, string[]>();
   const variantsOf = new Map<string, SceneLane['variants']>();
   for (const list of groups.values()) {
     const seenCount = (s: Section) => (state.sections.get(s.id)?.seen ?? []).filter(Boolean).length;
     const rep = list.slice().sort((a, b) => seenCount(b) - seenCount(a) || (a.variant!.index - b.variant!.index))[0];
     for (const s of list) shownOf.set(s.id, rep.id);
+    membersOf.set(rep.id, list.map((s) => s.id));
     if (list.length < 2) continue;
     let pre = 0;
     while (list.every((s) => s.steps[pre] !== undefined && s.steps[pre] === rep.steps[pre])) pre += 1;
@@ -333,7 +344,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       review: lines.lines.get(s.line)?.review === true && s.kind !== 'return' && !lineSections(s.line).some((o) => o.id !== s.id && o.branch === s.branch && o.from === s.to),
       kind: s.kind === 'return' ? 'back' : lines.lines.get(s.line)?.deepening === true ? 'deepening' : s.branch !== s.line ? 'branch' : 'main',
       color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? (st?.ticket.met !== true ? st?.ticket.symbol ?? 'knowledge' : 'place') : null,
-      variants: variantsOf.get(s.id) ?? null
+      variants: variantsOf.get(s.id) ?? null,
+      sections: membersOf.get(s.id) ?? [s.id]
     });
   }
   const tracks = g.tracks.map((t) => ({ key: pairKey(t.a, t.b), points: t.points, lanes: lanesOf.get(pairKey(t.a, t.b))?.length ?? 1 }));

@@ -84,7 +84,6 @@
   },
   "reply": {
     "wait": "Poczekaj, aż ta wiadomość pójdzie do telefonu.",
-    "oneFile": "W odpowiedzi pójdzie jeden plik: {name}. Kilka naraz dodasz w „Pliki przez link”.",
     "readOnly": "To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.",
     "onePerson": "Z przeglądarki można odpowiadać w rozmowach z jedną osobą.",
     "pickLine": "Wybierz w nagłówku numer, z którego telefon ma wysłać.",
