@@ -335,3 +335,16 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-waymain .cg-wm-allparts { margin: 0; max-width: none; font-size: var(--wk-text-sm); }
 .cg-wm-wayhead strong { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-wm-wayhead .cg-wm-meta { white-space: nowrap; }
+/* 2026-11-11 — „ganze Welt" als kleines Zeichen oben links auf der Karte (statt der Leiste). */
+.cg-wm-fitbtn { position: absolute; top: var(--wk-space-2); left: var(--wk-space-2); z-index: 3; display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink-2); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
+.cg-wm-fitbtn svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.cg-wm-fitbtn:hover, .cg-wm-fitbtn:focus-visible { color: var(--wk-ink); border-color: var(--wk-ink); }
+.cg-wm-trail { left: calc(var(--wk-space-2) + 2.5rem); }
+/* Die Kette: Platz für den grösseren jetzigen Kreis und seinen Hof (nicht abgeschnitten). */
+.cg-wm-parts.is-centre { padding-top: var(--wk-space-2); padding-bottom: var(--wk-space-2); }
+/* Der nächste Schritt: gross und kurz. */
+.cg-wm-waynexttext { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.4rem; font-size: var(--wk-text-lg); line-height: 1.25; }
+.cg-wm-waynexttext .cg-wm-picon { width: 1.4rem; height: 1.4rem; }
+.cg-wm-waynextkind { color: var(--wk-ink-2); font-weight: 500; }
+.cg-wm-waynextwhere { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cg-wm-waynext { justify-content: center; gap: var(--wk-space-2); }

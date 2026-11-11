@@ -1470,6 +1470,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
       wmDiscs?: () => { id: string; discs: readonly string[] }[];
       wmLookAt?: (place: string, zoom: number) => boolean;
+      wmTurn?: (deg: number) => void;
     };
     const el = canvasRef.current as Hooked | null;
     if (el === null) return undefined;
@@ -1522,7 +1523,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       return null;
     };
-    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; };
+    el.wmTurn = (deg) => { const c = camRef.current; if (c !== null) setCam({ ...c, rot: c.rot + deg }); };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; delete el.wmTurn; };
   });
 
   /*
@@ -1565,6 +1567,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         <canvas ref={canvasRef} className="cg-wm-canvas" tabIndex={0} aria-label={t('cogitaWorld.map.label', { count: scene.places.length })}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
           onPointerLeave={() => { onHover?.(null, null); setHoverLane(null); onHoverLane?.(null, null); }} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
+        {/* 2026-11-11 (Eigentümer: „die Leiste unter der Karte ist nicht nötig") — nur „ganze Welt" als kleines Zeichen auf der Karte (auch: Doppelklick auf freien Boden). */}
+        {c !== null && (
+          <button type="button" className="cg-wm-fitbtn" onClick={() => setCam(fitCam(size.w, size.h, c.rot, c.fore))} aria-label={t('cogitaWorld.map.whole')} title={t('cogitaWorld.map.whole')} data-world-fit="">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
+          </button>
+        )}
         {trail.length > 0 && (
           <nav className="cg-wm-trail" aria-label={t('cogitaWorld.map.trail')} data-world-trail={trail.length}>
             {trail.map((id, i) => (
@@ -1577,22 +1585,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         )}
       </div>
       {under}
-      {c !== null && (
-        <div className="cg-wm-tools" data-world-tools="">
-          <button type="button" className="cg-rm-tool" onClick={() => zoomAt(1.5, size.w / 2, size.h / 2)} aria-label={t('cogitaWorld.map.zoomIn')} title={t('cogitaWorld.map.zoomIn')} data-world-zoom="in">+</button>
-          <button type="button" className="cg-rm-tool" onClick={() => zoomAt(1 / 1.5, size.w / 2, size.h / 2)} aria-label={t('cogitaWorld.map.zoomOut')} title={t('cogitaWorld.map.zoomOut')} data-world-zoom="out">−</button>
-          <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => setCam(fitCam(size.w, size.h, c.rot, c.fore))} data-world-fit="">{t('cogitaWorld.map.whole')}</button>
-          <label className="cg-wm-range">
-            <span>{t('cogitaWorld.map.rotate')}</span>
-            <input type="range" min={0} max={360} step={1} value={Math.round((((c.rot % 360) + 360) % 360))} onChange={(e) => setCam({ ...c, rot: Number(e.target.value) })} data-world-rotate="" />
-          </label>
-          <label className="cg-wm-range">
-            <span>{t('cogitaWorld.map.tilt')}</span>
-            <input type="range" min={25} max={88} step={1} value={Math.round((Math.asin(Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore))) * 180) / Math.PI)} onChange={(e) => setCam({ ...c, fore: Math.sin((Number(e.target.value) * Math.PI) / 180) })} data-world-tilt="" />
-          </label>
-          {!compact && <span className="cg-wm-meta" data-world-turn-hint="">{t('cogitaWorld.map.turnHint')}</span>}
-        </div>
-      )}
     </div>
   );
 });

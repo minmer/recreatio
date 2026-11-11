@@ -90,7 +90,7 @@ try {
     }
     /* 2026-11-10 — jede Prüfung legt die Welt neu an (neue Kennungen, andere Lage): verdeckt ein Turm die Stelle, die Karte drehen. */
     for (let turn = 0; turn < 3 && at === null; turn += 1) {
-      await ev(`(() => { const r = document.querySelector('[data-world-rotate]'); if (!r) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(r, String((Number(r.value) + 90) % 360)); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await ev(`document.querySelector('[data-world-canvas]').wmTurn(90)`);
       await sleep(400);
       at = await locate();
     }

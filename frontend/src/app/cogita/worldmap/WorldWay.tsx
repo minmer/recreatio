@@ -35,7 +35,7 @@ function partWords(step: PlanStep, ctx: PanelCtx): { kind: string; where: string
   return { kind: t(`cogitaWorld.way.kind.${step.kind}`), where };
 }
 
-export function WayChain({ parts, ctx, target, big = false, more = 0, centre = false, onPick }: {
+export function WayChain({ parts, ctx, target, big = false, more = 0, centre = false, onPick, onStart }: {
   parts: readonly { readonly step: PlanStep; readonly state: PartState }[];
   ctx: PanelCtx;
   target: string;
@@ -46,6 +46,8 @@ export function WayChain({ parts, ctx, target, big = false, more = 0, centre = f
    */
   centre?: boolean;
   onPick?: (step: PlanStep) => void;
+  /** 2026-11-11 — Doppelklick auf einen Schritt: ihn beginnen (nicht schon erledigte). */
+  onStart?: (step: PlanStep) => void;
   /** Weitere Teile, die nicht gezeigt sind (vor der Fahne). */
   more?: number;
 }) {
@@ -73,7 +75,7 @@ export function WayChain({ parts, ctx, target, big = false, more = 0, centre = f
                 <span className="cg-wm-wtext"><span className="cg-wm-wkind">{w.kind}</span><span className="cg-wm-wwhere">{w.where}</span></span>
               </>
             ) : (
-              <button type="button" className="cg-wm-wbtn" onClick={() => onPick(step)} data-world-way-show={stepKey(step)}>
+              <button type="button" className="cg-wm-wbtn" onClick={() => onPick(step)} onDoubleClick={() => onStart?.(step)} data-world-way-show={stepKey(step)}>
                 <span className="cg-wm-wdot"><PartIcon kind={step.kind} />{(state === 'done' || state === 'just') && <span className="cg-wm-wcheck" aria-hidden="true">✓</span>}</span>
                 <span className="cg-wm-wtext"><span className="cg-wm-wkind">{w.kind}</span><span className="cg-wm-wwhere">{w.where}</span></span>
               </button>
@@ -196,7 +198,8 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
               <span className="cg-wm-cheermark" aria-hidden="true">✓</span> {t('cogitaWorld.way.stepDone', { text: stepText(cheer, ctx) })}
             </p>
           )}
-          <WayChain parts={parts} ctx={ctx} target={tt.target} centre {...(onShow === undefined ? {} : { onPick: onShow })} />
+          <WayChain parts={parts} ctx={ctx} target={tt.target} centre {...(onShow === undefined ? {} : { onPick: onShow })}
+            onStart={ctx.canLearn ? (s) => { if (tt.upcoming.some((u) => stepKey(u) === stepKey(s))) onGo(s); } : undefined} />
           {more}
         </div>
         {next === undefined ? (
@@ -206,11 +209,12 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
           </div>
         ) : (
           <div className={`cg-wm-waynext is-${next.kind}`} data-world-next-invite={next.kind}>
-            <span className="cg-wm-invitekind"><PartIcon kind={next.kind} /> {tt.done.length > 0 ? t('cogitaWorld.way.nextAfter') : t('cogitaWorld.way.nextPart')}</span>
-            <p className="cg-wm-waynexttext" title={meta}>{stepText(next, ctx)}</p>
+            <p className="cg-wm-waynexttext" title={[stepText(next, ctx), meta].filter(Boolean).join(' · ')}>
+              <PartIcon kind={next.kind} /> <span className="cg-wm-waynextkind">{partWords(next, ctx).kind}</span> <span className="cg-wm-waynextwhere">{partWords(next, ctx).where}</span>
+            </p>
             <div className="cg-wm-waybtns">
-              {ctx.canLearn && <button type="button" className="wk-btn is-small cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
-              {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
+              {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
+              {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
             </div>
             {left !== null && (
               <p className="cg-fin-auto" role="timer" aria-live="off" data-world-next-auto={left}>
