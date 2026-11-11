@@ -56,6 +56,17 @@ export interface MarkupLinkTo {
 
 export const MarkupLinks = createContext<MarkupLinkTo>({});
 
+/** 2026-11-11 — die Wege zur Quelle einer Fussnote hinter einem kleinen Zeichen (leer: gar nichts). */
+function NoteActs({ children }: { children: ReactNode }) {
+  const t = useT();
+  return (
+    <details className="lib-note-acts">
+      <summary aria-label={t('librarySource.openSource')} title={t('librarySource.openSource')}>↗</summary>
+      <span className="lib-note-acts-body">{children}</span>
+    </details>
+  );
+}
+
 /** 2026-11-08 — jede lesbare Quelle eines Przypis führt zu ihrem Eintrag („Otwórz źródło"), auch ohne abgeschriebenen Text. */
 function CitationSource({ entry, look }: { entry: LibEntry; look: Lookup }) {
   const t = useT();
@@ -152,7 +163,11 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): 
           if (i > 0) segs.push({ text: '; ' });
           segs.push(...citeSegs(target, item.locator, look, state));
         });
-        list.push({ n, body: <><Segs segs={segs} />.{jumps.map((j, i) => <Fragment key={i}><CitationSource entry={j.entry} look={look} />{j.workId !== undefined && <TextJump look={look} workId={j.workId} locator={j.locator} />}</Fragment>)}</> });
+        /*
+          2026-11-11 (Eigentümer: „drei Links an jeder Fussnote sind zu viel") — EIN kleines Zeichen je Fussnote; ein Tippen klappt
+          „Otwórz źródło", „pokaż w tekście" und „czytnik" auf.
+        */
+        list.push({ n, body: <><Segs segs={segs} />.{jumps.length > 0 && <NoteActs>{jumps.map((j, i) => <Fragment key={i}><CitationSource entry={j.entry} look={look} />{j.workId !== undefined && <TextJump look={look} workId={j.workId} locator={j.locator} />}</Fragment>)}</NoteActs>}</> });
       } else if (inline.t === 'note') {
         const n = list.length + 1;
         numbers.set(inline, n);

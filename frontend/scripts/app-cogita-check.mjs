@@ -3492,6 +3492,37 @@ check('goals and lines follow the one logic', [
   check('… importing the export again changes the same document', again.docs.filter((d) => d.kind === 'reward').map((d) => [d.isNew, d.id === saved[0]?.id]), [[false, true]]);
 }
 
+/* ══ 2026-11-11 — eine Folie im Spieler zeigt ihren Text, nicht ihre Felder (slideText.ts) ══════════════════════════════════ */
+{
+  const out = join(workspace, 'slide');
+  await build({
+    stdin: { contents: "export { slideText } from './slideText'; export { CogitaLibrary } from './store'; export { publicEntity } from './publish';", resolveDir: 'src/app/cogita', loader: 'ts', sourcefile: 'slide-entry.ts' },
+    bundle: true, format: 'esm', platform: 'node', outfile: join(out, 'slide.js'), jsx: 'automatic', loader: { '.css': 'empty' }, logLevel: 'error',
+    define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
+  });
+  const SL = await import(pathToFileURL(join(out, 'slide.js')).href);
+  const map = new Map([
+    { id: 'kS', kind: 'kind', data: { name: 'Slajd', label: '{tytul}', reading: '{tresc}', fields: [{ key: 'tytul', label: 'Tytuł', type: 'line' }, { key: 'tresc', label: 'Treść', type: 'markup' }, { key: 'miejsce', label: 'O czym', type: 'ref', multi: true, to: ['kM'] }, { key: 'linia', label: 'Linia', type: 'ref', to: ['kM'] }] } },
+    { id: 'kM', kind: 'kind', data: { name: 'Miejsce', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }] } },
+    { id: 'kF', kind: 'kind', data: { name: 'Folia', label: '{tytul}', fields: [{ key: 'tytul', label: 'Tytuł', type: 'line' }, { key: 'tekst', label: 'Treść', type: 'blocks' }] } },
+    { id: 'kN', kind: 'kind', data: { name: 'Notatka', label: '{tytul}', fields: [{ key: 'tytul', label: 'Tytuł', type: 'line' }, { key: 'opis', label: 'Opis', type: 'markup' }, { key: 'gdzie', label: 'O czym', type: 'ref', to: ['kM'] }] } },
+    { id: 'm1', kind: 'entity', data: { _kinds: ['kM'], nazwa: 'Sakramenty' } },
+    { id: 'kkk', kind: 'work', key: 'kkk', data: { title: 'Katechizm Kościoła Katolickiego' } },
+    { id: 's1', kind: 'entity', data: { _kinds: ['kS'], tytul: 'Znak, który działa', tresc: 'Sakramenty są skutecznymi znakami łaski.[@kkk, nr 1131]', miejsce: ['m1'], linia: 'm1' } },
+    { id: 'f1', kind: 'entity', data: { _kinds: ['kF'], tytul: 'Folia z blokami', tekst: [{ type: 'paragraph', text: 'Pierwszy akapit folii.' }] } },
+    { id: 'n1', kind: 'entity', data: { _kinds: ['kN'], tytul: 'Notatka', opis: 'Tylko tekst notatki.', gdzie: 'm1' } }
+  ].map((e) => [e.id, e]));
+  const store = { libraryId: 'Z', areaId: 'area-z', revision: 1, loaded: true, all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: (k) => [...map.values()].find((e) => e.key === k), ownByKey: (k) => [...map.values()].find((e) => e.key === k), save: async (i) => i, saveAll: async (i) => i, refreshAiNow: async () => null, remove: async () => undefined, subscribe: () => () => undefined };
+  const lib = new SL.CogitaLibrary(store, true);
+  const face = (id) => SL.slideText(SL.publicEntity(lib, lib.entity(id)), lib);
+  const s = face('s1');
+  check('slide face: a kind with "reading" shows that text — once, without labels, without the title, without the reference fields', [s?.from, s?.text.includes('skutecznymi znakami'), /Tytuł|Treść|O czym|Linia|Znak, który działa|Sakramenty(?! są)/.test(s?.text ?? '')], ['reading', true, false]);
+  check('slide face: the footnote with its locator stays in the text (rendered as a numbered note)', s?.text.includes('[@kkk, nr 1131]'), true);
+  check('slide face: a kind without "reading" but with a blocks field shows the blocks (as before)', [face('f1')?.from, face('f1')?.text], ['blocks', 'Pierwszy akapit folii.']);
+  check('slide face: without both, only its text fields — no labels, no title, no references', [face('n1')?.from, face('n1')?.text], ['markup', 'Tylko tekst notatki.']);
+  check('slide face: an entry with no text at all keeps the old field view (null)', face('m1'), null);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

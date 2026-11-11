@@ -436,3 +436,10 @@ audio.lib-music-view { inline-size: 100%; }
 .lib-music-image { display: block; block-size: auto; border: 1px solid var(--wk-line); }
 .lib-music-pdf { display: block; inline-size: 100%; block-size: min(80vh, 60rem); border: 1px solid var(--wk-line); }
 .src-partnav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--wk-space-2); padding-top: var(--wk-space-2); border-top: 1px solid var(--wk-line); }
+
+/* 2026-11-11 — die Wege zur Quelle einer Fussnote: ein kleines Zeichen, ein Tippen zeigt sie. */
+.lib-note-acts { display: inline; margin-left: 0.3em; }
+.lib-note-acts > summary { display: inline; list-style: none; cursor: pointer; color: var(--wk-accent); font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-xs); padding: 0 0.2em; border-radius: var(--wk-radius-sm); }
+.lib-note-acts > summary::-webkit-details-marker { display: none; }
+.lib-note-acts > summary:hover, .lib-note-acts > summary:focus-visible { background: var(--wk-sunk); }
+.lib-note-acts[open] > summary { color: var(--wk-muted); }

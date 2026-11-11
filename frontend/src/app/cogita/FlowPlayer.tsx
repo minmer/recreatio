@@ -54,6 +54,7 @@ import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
 import { conditionText, holds, readCondition, type Facts, type FlowFacts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
+import { slideText } from './slideText';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
@@ -1041,7 +1042,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
 
   const c = current.config;
   /* 2026-11-05 (Prompt 23, A7a) — der Titel des Schrittes; ohne ihn bei einer Folie (Feld „blocks“) ihr eigener (ihr Name, z. B. „tytul“). */
-  const slideTitle = (current.type === 'show' || current.type === 'expand') && typeof c.of === 'string' && c.of !== '' ? (() => { const e = content.entity(content.resolve?.(c.of as string) ?? (c.of as string)); return e !== null && e.fields.some((f) => f.type === 'blocks') ? e.label : null; })() : null;
+  /* 2026-11-11 — auch eine Folie mit einem Wzór tekstu (`reading`) oder mit Textfeldern: ihr Name steht als Titel, einmal. */
+  const slideTitle = (current.type === 'show' || current.type === 'expand') && typeof c.of === 'string' && c.of !== '' ? (() => { const e = content.entity(content.resolve?.(c.of as string) ?? (c.of as string)); return e !== null && slideText(e, cg?.lib ?? null) !== null ? e.label : null; })() : null;
   const title = typeof c.title === 'string' && c.title !== '' ? c.title : slideTitle;
   const item = state.item === undefined ? null : content.entity(state.item);
   /* 2026-11-05 — wer erzählt, steht nicht mehr da (der Eigentümer: „remove completely"); die Erzähler wirken nur noch in Präsentationen. */
@@ -1507,9 +1509,21 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
     (freiwillig — nur, wenn der Autor sie gesetzt hat; Links im Text stehen im Text).
   */
   const worlds = <WorldsSection data={cg?.lib.entry(entity.id)?.data} compact />;
-  /* 2026-10-22 — eine Aussage (ihre Bausteine als Zapis): ganz. 2026-10-23: jeder Eintrag mit Feld blocks. */
-  const text = entity.fields.find((f) => f.type === 'blocks');
-  if (text !== undefined) return <><Markup text={text.text} />{worlds}</>;
+  /*
+    2026-10-22 — eine Aussage (ihre Bausteine als Zapis): ganz. 2026-11-11 (Eigentümer: „eine Folie zeigt ihren Text, nicht ihre
+    Felder") — ebenso ein Eintrag mit Wzór tekstu (`reading`) oder mit Textfeldern: nur der Text, ohne Beschriftungen, ohne den
+    Titel (er steht darüber) und ohne Verweisfelder (`slideText.ts`).
+  */
+  const text = slideText(entity, cg?.lib ?? null);
+  if (text !== null) {
+    return (
+      <>
+        {!text.blocks && entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} />)}
+        <Markup text={text.text} />
+        {worlds}
+      </>
+    );
+  }
   return (
     <div className="cg">
       <h3><TexText text={entity.label} /></h3>
