@@ -190,7 +190,23 @@
     "trail": "Droga powrotna",
     "trailClose": "Zamknij drogę powrotną",
     "laneKnown": "nic nowego — jego karty już znasz",
-    "laneLocked": "jeszcze zamknięta"
+    "laneLocked": "jeszcze zamknięta",
+    "lightLabel": "Kolory mapy",
+    "lightNext": "kliknij: następne",
+    "light": {
+      "day": "Pora dnia",
+      "light": "Jasne",
+      "dark": "Ciemne"
+    },
+    "phase": {
+      "night": "noc",
+      "dawn": "świt",
+      "morning": "rano",
+      "noon": "południe",
+      "afternoon": "popołudnie",
+      "evening": "wieczór",
+      "dusk": "zmierzch"
+    }
   },
   "panel": {
     "close": "Zamknij",

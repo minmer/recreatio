@@ -78,6 +78,40 @@ function exitsMap(flow: Pick<Flow, 'graph'>): Map<string, Exit[]> {
 export const hasChoice = (flow: Pick<Flow, 'graph'>): boolean => flow.graph.nodes.some((n) => n.type === 'choice');
 
 /**
+ * 2026-11-12 — EINE MÖGLICHKEIT, DIE ZUR WAHL ZURÜCKKEHRT („Sprawdź, ile już umiesz" → Einstufung → zurück zur Wahl): von ihrem
+ * Ziel aus führt jeder Weg — ohne durch die Wahl selbst zu gehen — zurück zu ihr und nie an ein Ende. Sie ist kein Zweig und
+ * kein Weg für sich, sondern ein Abstecher; der Lernende wählt danach noch einmal. Schlüssel: `<wahl>:<ausgang>`.
+ */
+function returningOptions(flow: Pick<Flow, 'graph'>): Set<string> {
+  const exits = exitsMap(flow);
+  const type = new Map(flow.graph.nodes.map((n) => [n.id, n.type] as const));
+  const out = new Set<string>();
+  for (const n of flow.graph.nodes) {
+    if (n.type !== 'choice') continue;
+    const list = exits.get(n.id) ?? [];
+    for (const o of list) {
+      let back = false, ends = false;
+      const seen = new Set<string>();
+      const stack = [o.to];
+      while (stack.length > 0 && !ends) {
+        const id = stack.pop()!;
+        if (id === n.id) { back = true; continue; }
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const ty = type.get(id) ?? '';
+        const next = exits.get(id) ?? [];
+        if (TERMINAL.has(ty) || ty === 'chapterEnd' || next.length === 0) { ends = true; break; }
+        for (const e of next) stack.push(e.to);
+      }
+      if (back && !ends) out.add(`${n.id}:${o.out}`);
+    }
+    /* Kehren alle zurück, ist keine davon ein Abstecher (sonst gäbe es keinen Weg). */
+    if (list.length > 0 && list.every((o) => out.has(`${n.id}:${o.out}`))) for (const o of list) out.delete(`${n.id}:${o.out}`);
+  }
+  return out;
+}
+
+/**
  * Führt jeder Weg vom Anfang zu `q`? Rückwärts von q — eine Wahl gilt als „führt zu q", wenn jede ihrer Möglichkeiten dahin
  * führt (eine Gabelung aus `picks`: die gewählte), jeder andere Schritt, wenn einer seiner Ausgänge es tut.
  */
@@ -88,6 +122,8 @@ function everyRoute(flow: FlowShape): (q: string, picks?: Readonly<Record<string
   const preds = new Map<string, Set<string>>();
   for (const [from, list] of exits) for (const e of list) preds.set(e.to, (preds.get(e.to) ?? new Set<string>()).add(from));
   const type = new Map(flow.graph.nodes.map((n) => [n.id, n.type] as const));
+  /* 2026-11-12 — eine Möglichkeit, die zur Wahl zurückkehrt, zählt hier nicht mit (an ihr führt jeder Weg vorbei). */
+  const back = returningOptions(flow);
   return (q, picks = {}) => {
     if (start === null || start === undefined) return false;
     if (q === start) return true;
@@ -99,7 +135,7 @@ function everyRoute(flow: FlowShape): (q: string, picks?: Readonly<Record<string
       for (const p of preds.get(at) ?? []) {
         if (forced.has(p)) continue;
         if (type.get(p) === 'choice') {
-          const list = exits.get(p) ?? [];
+          const list = (exits.get(p) ?? []).filter((e) => !back.has(`${p}:${e.out}`));
           const pick = picks[p];
           if (pick !== undefined) {
             if (!list.some((e) => e.out === pick && e.to === at)) continue;
@@ -221,10 +257,11 @@ function forwardOf(flow: FlowShape): Forward {
 
 function forksOf(flow: FlowShape, fw: Forward): Set<string> {
   const type = new Map(flow.graph.nodes.map((n) => [n.id, n.type] as const));
+  const back = returningOptions(flow);
   const out = new Set<string>();
   for (const n of flow.graph.nodes) {
     if (n.type !== 'choice') continue;
-    const ahead = fw.next.get(n.id);
+    const ahead = fw.next.get(n.id)?.filter((e) => !back.has(`${n.id}:${e.out}`));
     if (ahead === undefined || new Set(ahead.map((e) => e.to)).size < 2) continue;
     const join = fw.ipdom.get(n.id) ?? EXIT;
     if (join === EXIT || TERMINAL.has(type.get(join) ?? '')) out.add(n.id);
@@ -251,6 +288,8 @@ export interface ForkRoute {
   readonly mandatory: ReadonlySet<string>;
   /** Die Przegląd-Schritte auf jedem seiner Wege. */
   readonly reviews: ReadonlySet<string>;
+  /** 2026-11-12 — die Einstufungen ("explore") auf jedem seiner Wege: sie prüfen wie Fragen. */
+  readonly explores: ReadonlySet<string>;
 }
 
 /**
@@ -260,12 +299,14 @@ export interface ForkRoute {
 export function forkRoutes(flow: FlowShape, cap = 64): ForkRoute[] {
   const questions = flow.graph.nodes.filter((n) => n.type === 'question').map((n) => n.id);
   const reviews = flow.graph.nodes.filter((n) => n.type === 'review').map((n) => n.id);
+  const explores = flow.graph.nodes.filter((n) => n.type === 'explore').map((n) => n.id);
   /* Ohne Wahl: ein Weg über alle Schritte, alle Fragen zählen (wie bisher — auch ohne Kanten oder Anfang). */
-  if (!hasChoice(flow)) return [{ picks: {}, steps: new Set(flow.graph.nodes.map((n) => n.id)), mandatory: new Set(questions), reviews: new Set(reviews) }];
+  if (!hasChoice(flow)) return [{ picks: {}, steps: new Set(flow.graph.nodes.map((n) => n.id)), mandatory: new Set(questions), reviews: new Set(reviews), explores: new Set(explores) }];
   const start = flow.start;
-  if (start === null || start === undefined) return [{ picks: {}, steps: new Set(), mandatory: new Set(), reviews: new Set() }];
+  if (start === null || start === undefined) return [{ picks: {}, steps: new Set(), mandatory: new Set(), reviews: new Set(), explores: new Set() }];
   const fw = forwardOf(flow);
   const forks = forksOf(flow, fw);
+  const back = returningOptions(flow);
   const exits = exitsMap(flow);
   const on = everyRoute(flow);
   const out: ForkRoute[] = [];
@@ -287,10 +328,11 @@ export function forkRoutes(flow: FlowShape, cap = 64): ForkRoute[] {
     }
     if (open === null) {
       const fixed = (id: string) => reach.has(id) && on(id, picks);
-      out.push({ picks, steps: reach, mandatory: new Set(questions.filter(fixed)), reviews: new Set(reviews.filter(fixed)) });
+      out.push({ picks, steps: reach, mandatory: new Set(questions.filter(fixed)), reviews: new Set(reviews.filter(fixed)), explores: new Set(explores.filter(fixed)) });
       return;
     }
-    for (const x of [...new Set((fw.next.get(open) ?? []).map((e) => e.out))]) walk({ ...picks, [open]: x });
+    const at = open;
+    for (const x of [...new Set((fw.next.get(at) ?? []).map((e) => e.out))].filter((x) => !back.has(`${at}:${x}`))) walk({ ...picks, [at]: x });
   };
   walk({});
   return out;
@@ -402,6 +444,8 @@ export function routesOf(flow: Flow, cap = 64): { readonly routes: Route[]; read
   if (flow.start === null) return { routes, capped };
   const exits = exitsMap(flow);
   const type = new Map(flow.graph.nodes.map((n) => [n.id, n.type] as const));
+  /* 2026-11-12 — eine Möglichkeit, die zur Wahl zurückkehrt, ist kein Weg für sich (der Lernende wählt danach noch einmal). */
+  const back = returningOptions(flow);
   const walk = (picks: Record<string, string>) => {
     if (routes.length >= cap) { capped = true; return; }
     const reach = new Set<string>();
@@ -419,7 +463,8 @@ export function routesOf(flow: Flow, cap = 64): { readonly routes: Route[]; read
       } else for (const e of list) stack.push(e.to);
     }
     if (open === null) { routes.push({ picks, steps: reach }); return; }
-    for (const x of [...new Set((exits.get(open) ?? []).map((e) => e.out))]) walk({ ...picks, [open]: x });
+    const at = open;
+    for (const x of [...new Set((exits.get(at) ?? []).map((e) => e.out))].filter((x) => !back.has(`${at}:${x}`))) walk({ ...picks, [at]: x });
   };
   walk({});
   return { routes, capped };
@@ -507,7 +552,7 @@ export function mountainProblems(flow: Flow, ctx: MountainContext): MountainProb
   }
   /* Jeder Zweig prüft: eine Pflichtfrage oder ein Przegląd auf jedem seiner Wege. */
   for (const b of branches) {
-    if (b.mandatory.size > 0 || b.reviews.size > 0) continue;
+    if (b.mandatory.size > 0 || b.reviews.size > 0 || b.explores.size > 0) continue;
     warn(forked ? t('cogitaEditFlow.mountain.noAssessmentBranch', { route: routeName(flow, b.picks) }) : t('cogitaEditFlow.mountain.noAssessment'));
   }
 

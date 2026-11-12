@@ -259,7 +259,7 @@ function entryOf(graph: Graph): string | null {
 
 export function readFlow(id: string, raw: unknown): Flow {
   const d = isObject(raw) ? raw : {};
-  const graph = migratePrerequisites(readGraph(d.graph, true));
+  const graph = exploreDone(migratePrerequisites(readGraph(d.graph, true)));
   const start = str(d.start);
   const fill: Record<string, string> = {};
   if (isObject(d.fill)) for (const [k, v] of Object.entries(d.fill)) if (typeof v === 'string' && v !== '') fill[k] = v;
@@ -626,6 +626,18 @@ export function proposedDependencies(flow: Flow): { parent: string; child: strin
     if (parent !== '' && child !== '' && parent !== child) out.push({ parent, child });
   }
   return out;
+}
+
+/**
+ * 2026-11-12 — DIE EINSTUFUNG ("explore") HAT EINEN AUSGANG: "done". Ein Übergang aus Inhalten, die (vor der Korrektur der
+ * Prüfung) "next" verbanden: steht nur "next" da, gilt es als "done"; stehen beide da, bleibt "next" ein zweiter Weg zum
+ * selben Ziel (keine Warnung).
+ */
+export function exploreDone(graph: Graph): Graph {
+  const lone = new Set(graph.nodes.filter((n) => n.type === 'explore'
+    && !graph.edges.some((e) => e.from === n.id && e.out === 'done') && graph.edges.some((e) => e.from === n.id && e.out === 'next')).map((n) => n.id));
+  if (lone.size === 0) return graph;
+  return { nodes: graph.nodes, edges: graph.edges.map((e) => (lone.has(e.from) && e.out === 'next' ? { ...e, out: 'done' } : e)) };
 }
 
 /** Der frühere Schritt „Najpierw podstawy" als die Bedingung, die er war: wer `of` kennt (ab `threshold`, sonst 1). */

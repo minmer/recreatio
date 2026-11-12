@@ -410,3 +410,4 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-main > .cg-prompt { font-size: var(--wk-text-lg); }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-after { display: flex; grid-column: 2; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-left: var(--wk-space-4); border-left: 1px solid var(--wk-line); text-align: left; }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-statsbox { position: absolute; top: 2.8rem; right: var(--wk-space-2); z-index: 2; width: min(30rem, 46%); max-height: 75%; overflow-y: auto; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
+.cg-wm-lightbtn { top: calc(var(--wk-space-2) + 2.4rem); }

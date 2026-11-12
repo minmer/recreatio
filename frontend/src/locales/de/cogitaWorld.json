@@ -162,7 +162,23 @@
     "trail": "Zurück auf dem Weg",
     "trailClose": "Weg zurück schliessen",
     "laneKnown": "nichts Neues — seine Karten sitzen schon",
-    "laneLocked": "noch nicht offen"
+    "laneLocked": "noch nicht offen",
+    "lightLabel": "Farben der Karte",
+    "lightNext": "Klick: weiter",
+    "light": {
+      "day": "Tageszeit",
+      "light": "Hell",
+      "dark": "Dunkel"
+    },
+    "phase": {
+      "night": "Nacht",
+      "dawn": "Morgendämmerung",
+      "morning": "Morgen",
+      "noon": "Mittag",
+      "afternoon": "Nachmittag",
+      "evening": "Abend",
+      "dusk": "Abenddämmerung"
+    }
   },
   "panel": {
     "close": "Schließen",

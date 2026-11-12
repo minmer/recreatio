@@ -347,5 +347,38 @@ check('the facts of a story with forks carry its last run; any other story’s f
 check('… a base marks its stories with forks', FF.flowRefsOf({ docs: () => [{ id: 'G', data: { graph: G.graph, start: 'path' } }, { id: 'M', data: { graph: M.graph, start: 'intro' } }, { id: 'P', data: { name: 'Bez grafu' } }] }).map((r) => [r.id, r.forked === true]),
   [['G', true], ['M', false], ['P', false]]);
 
+/* == 2026-11-12 — die Einstufung ("explore"): ein Ausgang "done", sie prüft, und eine Möglichkeit, die zur Wahl zurückkehrt ===== */
+{
+  const start = (more = {}) => flowOf('X', {
+    name: 'Start', unit: 'U',
+    graph: {
+      nodes: [
+        node('s1', 'show', { of: 'F1' }),
+        node('w1', 'choice', { title: 'Od czego zaczniesz?', hold: true, options: [{ label: 'Sprawdź, ile już umiesz' }, { label: 'Kim była Karolina?' }] }),
+        node('x_swiat', 'explore', { scope: ['@U'], modes: ['adaptive', 'target'], default: 'adaptive', targetLevels: [1, 2, 3], streak: 3, errors: 2, recheck: 2, once: true, push: true, title: 'Sprawdź, ile już umiesz' }),
+        node('q1', 'question', { of: 'Q1' }), node('end', 'end')
+      ],
+      edges: [edge('s1', 'next', 'w1'), edge('w1', 'o0', 'x_swiat'), ...(more.done === false ? [] : [edge('x_swiat', 'done', 'w1')]), ...(more.next === true ? [edge('x_swiat', 'next', 'w1')] : []), edge('w1', 'o1', 'q1'), ...asked('q1', 'end')]
+    }
+  });
+  const X = start();
+  check('explore → done back to the choice (the example): no path warning, no mountain warning', [FC.flowProblems(X).map((p) => p.text), texts(X, { X })], [[], []]);
+  check('… the option that returns to the choice is no branch and no route of its own', [MT.forkChoices(X).size, MT.routesOf(X).routes.map((r) => Object.values(r.picks).join())], [0, ['o1']]);
+  const loose = start({ done: false });
+  const dead = FC.flowProblems(loose).filter((p) => p.step === 'x_swiat').map((p) => p.text);
+  const doneLabel = FL.exitsOf('explore', {})[0].label;
+  check('explore without a connected "done": the dead-end warning names "done", not "next"', [dead.length, dead.some((x) => x.includes(doneLabel)), FL.exitsOf('explore', {}).map((p) => p.id)], [1, true, ['done']]);
+  const both = start({ next: true });
+  check('the workaround: "done" and "next" both to the same target — no new warning', [FC.flowProblems(both).map((p) => p.text), texts(both, { X: both })], [[], []]);
+  const onlyNext = start({ done: false, next: true });
+  check('… only "next" (older content): read as "done", no warning', [onlyNext.graph.edges.filter((e) => e.from === 'x_swiat').map((e) => e.out), FC.flowProblems(onlyNext).map((p) => p.text)], [['done'], []]);
+  /* Eine Linie, die mit der Einstufung beginnt: Folie → explore → done → die erste Folie der Geschichte — sie prüft. */
+  const line = flowOf('L', { name: 'Linia', unit: 'U', graph: { nodes: [node('a', 'show', { of: 'F1' }), node('x', 'explore', { scope: ['@U'] }), node('b', 'show', { of: 'F2' }), node('e', 'end')], edges: [edge('a', 'next', 'x'), edge('x', 'done', 'b'), edge('b', 'next', 'e')] } });
+  check('a line slide → explore → slide: the explore counts as its check', [FC.flowProblems(line).map((p) => p.text), texts(line, { L: line })], [[], []]);
+  /* Zwei echte Zweige, einer nur mit einer Einstufung: auch er prüft. */
+  const two = flowOf('T', { name: 'Zwei', unit: 'U', graph: { nodes: [node('a', 'show', { of: 'F1' }), node('w', 'choice', { options: [{ label: 'A' }, { label: 'B' }] }), node('x', 'explore', { scope: ['@U'] }), node('ea', 'end'), node('q', 'question', { of: 'Q1' }), node('eb', 'end')], edges: [edge('a', 'next', 'w'), edge('w', 'o0', 'x'), edge('x', 'done', 'ea'), edge('w', 'o1', 'q'), ...asked('q', 'eb')] } });
+  check('a fork whose branch only has an explore: no "no check" warning for it', [MT.forkChoices(two).size, texts(two, { T: two })], [1, []]);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

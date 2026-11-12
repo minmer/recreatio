@@ -162,7 +162,23 @@
     "trail": "Back along the way",
     "trailClose": "Close the way back",
     "laneKnown": "nothing new — its cards are known already",
-    "laneLocked": "not open yet"
+    "laneLocked": "not open yet",
+    "lightLabel": "Map colours",
+    "lightNext": "click: next",
+    "light": {
+      "day": "Time of day",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "phase": {
+      "night": "night",
+      "dawn": "dawn",
+      "morning": "morning",
+      "noon": "midday",
+      "afternoon": "afternoon",
+      "evening": "evening",
+      "dusk": "dusk"
+    }
   },
   "panel": {
     "close": "Close",

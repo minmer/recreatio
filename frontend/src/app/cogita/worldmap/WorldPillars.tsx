@@ -27,6 +27,7 @@ import { BEACH, islandOf } from './wmIsland';
 import { greyPlace, type RouteFocus } from './wmFocus';
 import { dueLevel, laneOn, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
+import { hourOf, keepLight, keptLight, mapPalette, MAP_LIGHTS, type MapLight, type MapPalette } from './wmDaylight';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
 export { FORE_HIGH, FORE_LOW } from './wmCamera';
@@ -221,70 +222,14 @@ export interface PillarsProps {
   readonly playAfter?: number;
 }
 
-interface Palette {
-  readonly floor: Rgb;
-  readonly floorDeep: Rgb;
-  readonly surface: Rgb;
-  readonly ink: Rgb;
-  readonly haze: Rgb;
-  readonly lit: Rgb;
-  readonly casing: Rgb;
-  /** Die Farbe des Ziels (wie die Fahne im Krajobraz). */
-  readonly goal: Rgb;
-  readonly dark: boolean;
-  /** Das Gelände: Wasser, Strand, Land, Bäume (Krone und ihr Schatten). */
-  readonly water: Rgb;
-  readonly sand: Rgb;
-  readonly land: Rgb;
-  readonly tree: Rgb;
-  readonly treeShade: Rgb;
-  readonly treeLight: Rgb;
-  readonly trunk: Rgb;
-  /** Die Farbe des Sterns „Mistrzowsko". */
-  readonly star: Rgb;
-}
+/** 2026-11-12 — die Farben der Karte kommen aus dem Licht (Tageszeit, hell, dunkel — `wmDaylight.ts`), nicht mehr aus dem Thema der App. */
+type Palette = MapPalette;
 
-const parse = (v: string): Rgb => {
-  const s = v.trim();
-  if (s.startsWith('#')) {
-    const h = s.length === 4 ? s.slice(1).split('').map((c) => c + c).join('') : s.slice(1, 7);
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-  }
-  const m = s.match(/rgba?\(([^)]+)\)/);
-  if (m !== null) { const p = m[1].split(/[ ,/]+/).map(Number); return [p[0] ?? 128, p[1] ?? 128, p[2] ?? 128]; }
-  return [128, 128, 128];
-};
-
-function readPalette(el: HTMLElement): Palette {
-  const probe = document.createElement('span');
-  el.appendChild(probe);
-  const cs = getComputedStyle(el);
-  const get = (name: string, fallback: string): Rgb => {
-    const raw = cs.getPropertyValue(name).trim();
-    probe.style.color = raw === '' ? fallback : raw;
-    return parse(getComputedStyle(probe).color);
-  };
-  const surface = get('--wk-surface', '#ffffff');
-  const floor = get('--cg-ls-floor', '#f3f0ea');
-  const ink = get('--wk-ink', '#222222');
-  probe.remove();
-  const dark = (surface[0] + surface[1] + surface[2]) / 3 < 110;
-  return {
-    floor, surface, ink, dark,
-    floorDeep: mix(floor, ink, dark ? 0.16 : 0.1),
-    haze: mix(surface, floor, 0.5),
-    lit: parse(cs.getPropertyValue('--cg-ls-route').trim() || '#b07800'),
-    casing: mix(floor, ink, dark ? 0.24 : 0.14),
-    goal: parse(cs.getPropertyValue('--cg-ls-goal').trim() || (dark ? '#6aaeff' : '#2f7fd0')),
-    water: dark ? mix(surface, [40, 78, 110], 0.55) : mix(surface, [150, 196, 222], 0.6),
-    sand: dark ? mix(floor, [92, 80, 56], 0.55) : mix(floor, [236, 220, 178], 0.7),
-    land: dark ? mix(floor, [44, 64, 40], 0.45) : mix(floor, [204, 222, 178], 0.45),
-    tree: dark ? [62, 104, 62] : [110, 158, 96],
-    treeShade: dark ? [34, 58, 36] : [76, 116, 70],
-    treeLight: dark ? [92, 140, 88] : [150, 196, 128],
-    trunk: dark ? [74, 56, 38] : [124, 92, 60],
-    star: dark ? [244, 196, 64] : [214, 158, 20]
-  };
+/** Die Farbe einer Spur nach ihrer Strichart (auf dem Boden und für ihre Teilwege gleich). */
+function laneColour(tone: LaneStroke['tone'], pal: Palette, land: Rgb): Rgb {
+  return tone === 'route' || tone === 'current' ? pal.lit
+    : tone === 'grey' ? mix(pal.ink, land, 0.7) : tone === 'done' ? mix(pal.lit, land, 0.55) : tone === 'locked' ? mix(pal.ink, land, 0.74)
+      : tone === 'known' ? mix(pal.ink, land, 0.5) : tone === 'walked' ? mix(pal.ink, land, 0.38) : mix(pal.ink, land, 0.28);
 }
 
 /** Grau in einer Ansicht, die den Ort nicht meint — deckend, nur ohne Farbe (wie im Krajobraz). */
@@ -480,14 +425,23 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     setSize({ w: el.clientWidth, h: el.clientHeight });
-    const repaint = () => { if (canvasRef.current !== null) { setPalette(readPalette(canvasRef.current)); groundRef.current = null; } };
-    repaint();
-    const mo = new MutationObserver(repaint);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode', 'data-scheme', 'class', 'style'] });
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    mq?.addEventListener?.('change', repaint);
-    return () => { ro.disconnect(); mo.disconnect(); mq?.removeEventListener?.('change', repaint); };
+    return () => { ro.disconnect(); };
   }, []);
+  /*
+    2026-11-12 — DAS LICHT (Vorgabe: Tageszeit): die Farben neu, sobald sich das Licht merklich ändert (jede Minute geprüft, neu
+    nur bei einem anderen Schlüssel — etwa alle zehn Minuten; dann auch der Boden).
+  */
+  const [light, setLightState] = useState<MapLight>(keptLight);
+  const setLight = (l: MapLight) => { keepLight(l); setLightState(l); };
+  useEffect(() => {
+    const repaint = () => setPalette((was) => { const next = mapPalette(light, hourOf(new Date())); return was !== null && was.key === next.key ? was : next; });
+    repaint();
+    if (light !== 'day') return undefined;
+    const id = window.setInterval(repaint, 60_000);
+    const vis = () => { if (!document.hidden) repaint(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', vis); };
+  }, [light]);
 
   const setCam = useCallback((c: WorldCam) => {
     const next = { ...c, fore: Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore)), s: Math.max(0.01, Math.min(zoomMax.current, c.s)) };
@@ -573,8 +527,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const neutral = mix(pal.surface, pal.ink, 0.12);
     const calm = (c: Rgb, k: number): Rgb => (fx === null ? c : mix(c, neutral, k));
     const land = calm(pal.land, 0.55);
-    g.fillStyle = rgbCss(calm(pal.water, 0.5));
-    g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    /* 2026-11-12 — ohne gewähltes Ziel bleibt das Wasser frei: darunter liegt der Verlauf des Lichts (Himmel, Sonne). */
+    if (fx !== null) { g.fillStyle = rgbCss(calm(pal.water, 0.5)); g.fillRect(x0, y0, x1 - x0, y1 - y0); }
     g.fillStyle = rgbCss(calm(pal.sand, 0.55));
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
     g.fillStyle = rgbCss(land);
@@ -583,7 +537,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const flat = v.s * TREE_SIZE < TREE_UPRIGHT;
     for (const [tx, ty, ts] of island.trees) {
       g.fillStyle = rgbCss(calm(mix(pal.treeShade, pal.land, flat ? 0 : 0.45), 0.6));
-      g.beginPath(); g.ellipse(tx + ts * 0.35, ty + ts * 0.3, ts, ts * 0.8, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(tx + ts * pal.shadow.dx, ty + ts * pal.shadow.dy, ts, ts * 0.8, 0, 0, Math.PI * 2); g.fill();
       if (!flat) continue;
       g.fillStyle = rgbCss(calm(pal.tree, 0.6));
       g.beginPath(); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); g.fill();
@@ -611,9 +565,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.lineWidth = width;
       g.stroke();
     };
-    const toneColour = (tone: LaneStroke['tone']): Rgb => (tone === 'route' || tone === 'current' ? pal.lit
-      : tone === 'grey' ? mix(pal.ink, land, 0.7) : tone === 'done' ? mix(pal.lit, land, 0.55) : tone === 'locked' ? mix(pal.ink, land, 0.74)
-        : tone === 'known' ? mix(pal.ink, land, 0.5) : tone === 'walked' ? mix(pal.ink, land, 0.38) : mix(pal.ink, land, 0.28));
+    const toneColour = (tone: LaneStroke['tone']): Rgb => laneColour(tone, pal, land);
     const RANK: Readonly<Record<LaneStroke['tone'], number>> = { grey: 0, done: 1, locked: 1, known: 2, new: 3, walked: 3, route: 4, current: 5 };
     const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: laneStroke(l, fx), pts: withRims(l, pillarWidth) }))
       .sort((x, y) => RANK[x.k.tone] - RANK[y.k.tone]);
@@ -652,7 +604,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.beginPath(); g.arc(hm.x, hm.y, hm.r, 0, Math.PI * 2); g.fill();
       g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 2 * px; g.stroke();
     }
-    return { canvas, k, x0, y0, w: cw, h: ch, stamp: `${sceneId.current}:${stampOf}:${pal.dark ? 'd' : 'l'}`, deep, flat };
+    return { canvas, k, x0, y0, w: cw, h: ch, stamp: `${sceneId.current}:${stampOf}:${pal.key}`, deep, flat };
   };
 
   const draw = useCallback(() => {
@@ -667,13 +619,19 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (ctx === null) return;
     const v = viewOf(c, size.w, size.h);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    /* Ringsum Wasser (die Insel liegt darin). */
-    ctx.fillStyle = rgbCss(pal.water);
+    /* Ringsum Wasser (die Insel liegt darin) — oben spiegelt sich der Himmel, von der Seite der Sonne (des Mondes) ein Schein. */
+    /* Deckend (§4.2): ein Verlauf von der Seite der Sonne oben (Himmel + Schein) zum Wasser unten auf der anderen Seite. */
+    const gx = size.w * (0.04 + 0.92 * pal.glow.x);
+    const sea = ctx.createLinearGradient(gx, 0, size.w - gx, size.h);
+    sea.addColorStop(0, rgbCss(mix(mix(pal.water, pal.sky, 0.55), pal.glow.colour, Math.min(0.6, pal.glow.a * 1.4))));
+    sea.addColorStop(0.5, rgbCss(pal.water));
+    sea.addColorStop(1, rgbCss(mix(pal.water, pal.ink, pal.dark ? 0.04 : 0.06)));
+    ctx.fillStyle = sea;
     ctx.fillRect(0, 0, size.w, size.h);
 
     /* Der Boden: neu, wenn er nicht mehr deckt, zu grob ist oder der Stand sich änderte. */
     let gl = groundRef.current;
-    const stamp = `${sceneId.current}:${stampOf}:${pal.dark ? 'd' : 'l'}`;
+    const stamp = `${sceneId.current}:${stampOf}:${pal.key}`;
     const need = (layer: GroundLayer | null): boolean => {
       if (layer === null || layer.stamp !== stamp || layer.deep !== (v.s >= DEEP_FROM) || layer.flat !== (v.s * TREE_SIZE < TREE_UPRIGHT)) return true;
       const half = Math.hypot(size.w, size.h) / (2 * v.s * v.fore);
@@ -820,7 +778,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const far = dmax > dmin ? (dmax - dp) / (dmax - dmin) : 0;
       const own = greyed ? greyOf(p.color, pal) : p.color;
       const satMix = greyed || meant ? 0 : a.sat;
-      const base = mix(mix(own, pal.floor, satMix), pal.haze, far * 0.32);
+      const base = mix(mix(mix(own, pal.floor, satMix), pal.haze, far * 0.32), pal.tint, greyed ? pal.tintK * 0.5 : pal.tintK);
       const top = mix(base, pal.dark ? pal.ink : pal.surface, 0.12);
       const side = mix(base, pal.dark ? pal.surface : pal.ink, 0.2);
       /* Eben erobert: ein Ring läuft über den Boden (hinter der Säule verdeckt, wie der Boden). */
@@ -1099,7 +1057,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const col = stroke.tone === 'route' || stroke.tone === 'current' ? pal.lit : mix(pal.ink, pal.land, stroke.tone === 'locked' ? 0.6 : 0.3);
         /* Dieselben Karten anders verpackt: der Pfad teilt sich sichtbar in N Teile und kommt wieder zusammen (nah oder gewählt). */
         if (l.variants !== null && len >= 30 && (near || stroke.dots)) {
-          ctx.strokeStyle = rgbCss(mix(col, pal.land, 0.3)); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+          /* 2026-11-12 (Eigentümer: „alle Pfade gleich gezeichnet") — die Teilwege wie die Spur selbst: dieselbe Farbe, Breite und Strichelung. */
+          ctx.strokeStyle = rgbCss(laneColour(stroke.tone, pal, pal.land)); ctx.lineWidth = stroke.width; ctx.lineCap = 'round'; ctx.setLineDash(stroke.dash);
           for (let k = 1; k <= l.variants.more; k += 1) {
             const off = (k % 2 === 1 ? 1 : -1) * (6 + 4 * Math.floor((k - 1) / 2));
             ctx.beginPath();
@@ -1112,6 +1071,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             }
             ctx.stroke();
           }
+          ctx.setLineDash([]);
           variantCount += 1;
         }
         /* 2026-11-10 (Eigentümer) — ein Zweig mit eigenem Tor: ein kleines Schloss an seinem Anfang, dabei der verlangte Turm. */
@@ -1630,6 +1590,17 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         {c !== null && (
           <button type="button" className="cg-wm-fitbtn" onClick={() => setCam(fitCam(size.w, size.h, c.rot, c.fore))} aria-label={t('cogitaWorld.map.whole')} title={t('cogitaWorld.map.whole')} data-world-fit="">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
+          </button>
+        )}
+        {/* 2026-11-12 — das Licht der Karte: Tageszeit (Vorgabe), hell, dunkel — ein Knopf, der weiterschaltet. */}
+        {c !== null && palette !== null && (
+          <button type="button" className="cg-wm-fitbtn cg-wm-lightbtn" onClick={() => setLight(MAP_LIGHTS[(MAP_LIGHTS.indexOf(light) + 1) % MAP_LIGHTS.length]!)}
+            aria-label={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light}`)}`}
+            title={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light}`)}${palette.phase === null ? '' : ` — ${t(`cogitaWorld.map.phase.${palette.phase}`)}`} (${t('cogitaWorld.map.lightNext')})`}
+            data-world-light={light} data-world-phase={palette.phase ?? ''}>
+            {light === 'light' ? <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" /><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" /></svg>
+              : light === 'dark' ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.8 10.4A5.5 5.5 0 0 1 5.6 3.2a5.5 5.5 0 1 0 7.2 7.2z" /></svg>
+                : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11.5h12M4.5 11.5a3.5 3.5 0 0 1 7 0M8 4v1.5M3.6 6.6l1 1M12.4 6.6l-1 1" /></svg>}
           </button>
         )}
         {trail.length > 0 && (
