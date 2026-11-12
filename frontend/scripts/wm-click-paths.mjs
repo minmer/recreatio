@@ -729,6 +729,61 @@ try {
     await shot('p12-landed');
   }
 
+  /*
+    -- 13 · 2026-11-12 (Prompt 25): Wege zu einer Frage — nur mit einer Testwelt, die sie trägt (scratch fixture-paths.json, siehe
+    Bericht): Wegweiser am Haus, an einem Ort und an einer Gabelung; das Haus listet alle Fragen; das Feld eines Weges; „Idź tą
+    drogą" beginnt den ersten offenen Schritt; mit erledigten Schritten der Abschluss, danach ist der Weg erledigt (Haken)
+  */
+  if (runs('13')) {
+    const P = '13 question paths';
+    const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
+    await open();
+    check(P, 'signposts stand next to their anchors (home, 1854, the fork of L4)', Number(await canvas('wmSigns')) >= 2, await canvas('wmSigns'));
+    await clickMap('home', '~home');
+    await waitFor(`document.querySelector('[data-world-path-list]')`, 'the questions at home');
+    check(P, 'home lists every question ("Czego chcesz się dowiedzieć?")', Number(await ev(`document.querySelector('[data-world-path-list]').dataset.worldPathList`)), 2);
+    await shot('p13-home');
+    await clickMap('sign', 'home');
+    await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel from the signpost');
+    const panel = await ev(`(() => { const p = document.querySelector('[data-world-panel="path"]'); return { id: p.dataset.worldPath, state: p.dataset.worldPathState, steps: [...p.querySelectorAll('[data-world-path-step]')].map((x) => x.dataset.worldPathStep), go: p.querySelector('[data-world-path-go]') !== null, goal: p.querySelector('[data-world-path-goal]') !== null }; })()`);
+    check(P, 'a signpost with one question opens it: the steps with their state (the first open), the closing check, "Idź tą drogą" and "Ustaw jako cel"',
+      panel.state === 'new' && panel.steps[0] === 'open' && panel.steps.includes('check') && panel.go && panel.goal, panel);
+    check(P, 'the chosen path is lit like any chosen route', (await canvas('wmRoute')) !== '', await canvas('wmRoute'));
+    await shot('p13-path');
+    await click('[data-world-path-go]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the path', 15000);
+    check(P, '"Idź tą drogą" begins the first open step (guided like "Prowadź mnie tutaj")', await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`) !== '');
+    /* Den ersten Schritt zu Ende gehen (eine Stufe, wie in Pfad 7): danach sind die Schritte erledigt, der Abschluss ist dran. */
+    await ev(`(() => { const b = document.querySelector('[data-world-back], [data-world-run-back], [data-flow-close]'); if (b) b.click(); return true; })()`);
+    await sleep(600);
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
+    await click('[data-world-my-settings]');
+    await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
+    await click('[data-levels-n="1"]');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force', 15000);
+    await click('[data-world-run-for="1"]');
+    await waitFor(`document.querySelector('[data-world-running="run"]')`, 'the run');
+    await answerAll('[data-world-finish]');
+    await sleep(800);
+    await ev(`(() => { const f = document.querySelector('[data-world-finish-close]'); if (f) f.click(); return true; })()`);
+    await sleep(1500);
+    await clickMap('sign', 'home');
+    await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel');
+    const half = await ev(`(() => { const p = document.querySelector('[data-world-panel="path"]'); return { state: p.dataset.worldPathState, check: p.querySelector('[data-world-path-check]') !== null, steps: [...p.querySelectorAll('[data-world-path-step]')].map((x) => x.dataset.worldPathStep) }; })()`);
+    check(P, 'its step done but not the check: on the way, "Sprawdź się" offered', half.state === 'going' && half.check, half);
+    if (half.check) {
+      await click('[data-world-path-check]');
+      await answerAll('[data-world-finish], [data-world-panel="path"][data-world-path-state="done"]');
+      await sleep(800);
+      await ev(`(() => { const f = document.querySelector('[data-world-finish-close]'); if (f) f.click(); return true; })()`);
+      await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel after the check', 15000);
+      const after = await ev(`(() => { const p = document.querySelector('[data-world-panel="path"]'); return { state: p.dataset.worldPathState, deeper: p.querySelector('[data-world-path-deeper]')?.dataset.worldPathDeeper ?? null }; })()`);
+      check(P, 'the check passed: the path is done and offers "Głębiej"', after.state === 'done' && after.deeper !== null, after);
+      await shot('p13-done');
+    }
+  }
+
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');
   check('all', 'no exceptions in the page', errors.filter((c) => c.level === 'exception').length === 0, errors.slice(0, 5));
 } finally {

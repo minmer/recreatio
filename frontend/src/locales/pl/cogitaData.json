@@ -136,7 +136,21 @@
     "hintLong": "możliwość „{label}” ma wskazówkę z {count} znakami — wystarczy jedna krótka linia (najwyżej {max})",
     "exploreRange": "sprawdzanie: \"{field}\" ma wartość {value} — dozwolona jest liczba całkowita od 1 do 10 (zostanie ograniczona)",
     "exploreLevels": "sprawdzanie: poziomów docelowych {list} nie ma w tej bazie (ma ich {levels})",
-    "exploreEmpty": "sprawdzanie: jego zakres nie wskazuje niczego, co tu istnieje — nic nigdy nie będzie otwarte"
+    "exploreEmpty": "sprawdzanie: jego zakres nie wskazuje niczego, co tu istnieje — nic nigdy nie będzie otwarte",
+    "pathIssue": "Droga „{name}”: {text}",
+    "qpathNoTitle": "brak pytania (\"name\").",
+    "qpathNoSteps": "nie ma kroków (\"steps\").",
+    "qpathPlace": "krok {n}: nie ma miejsca {ref}.",
+    "qpathFlow": "krok {n}: nie ma opowieści {ref}.",
+    "qpathFrom": "krok {n}: opowieść nie ma kroku \"from\" {ref}.",
+    "qpathUnreachable": "krok {n}: {ref} nie leży na mapie świata — tej drogi nie da się tam poprowadzić.",
+    "qpathRepeat": "krok {n} powtarza krok przed nim (pętla).",
+    "qpathAnchor": "kotwica {ref} nie istnieje.",
+    "qpathAnchorShape": "kotwica nie jest ani \"home\", ani miejscem, ani {\"flow\", \"step\"} — pominięta.",
+    "qpathCheck": "zakończenie: nie ma {ref}.",
+    "qpathCheckMany": "zakończenie ma {count} pytań — liczą się pierwsze {max}.",
+    "qpathDeeper": "\"deeper\": nie ma drogi {ref}.",
+    "qpathLoop": "\"deeper\" prowadzi z powrotem do tej drogi (pętla)."
   },
   "progress": {
     "tallyOne": "Odpowiedź {n}: {text}",
@@ -417,7 +431,8 @@
     "merge": "Połączenie",
     "contribution": "Propozycja",
     "reward": "Nagrody",
-    "worldmap": "Położenie mapy świata"
+    "worldmap": "Położenie mapy świata",
+    "qpath": "Droga do pytania"
   },
   "questionGroup": {
     "write": "Piszesz odpowiedź",

@@ -50,7 +50,7 @@ function Chip({ colour }: { colour: LineColour | undefined }) {
   return <span className="cg-wm-chip" aria-hidden="true" ref={(el) => { if (el !== null && colour !== undefined) el.style.background = rgbCss(colour.color); }} />;
 }
 
-function PanelTop({ title, onClose, t }: { title: ReactNode; onClose: () => void; t: T }) {
+export function PanelTop({ title, onClose, t }: { title: ReactNode; onClose: () => void; t: T }) {
   return (
     <div className="cg-wm-ptop">
       <h3>{title}</h3>

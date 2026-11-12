@@ -3609,6 +3609,53 @@ check('goals and lines follow the one logic', [
   check('… export round trip exact (scope and downTo back as lasting names)', ex, good);
 }
 
+/* ══ 2026-11-12 (Prompt 25) — Wege zu einer Frage ("paths"): Import prüft, Export gibt sie genau zurück, Entfernen beim Namen ═════════ */
+{
+  const map = new Map();
+  let n = 0;
+  const store = {
+    libraryId: 'P', areaId: 'area-p', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `P-neu-${n += 1}`, libraryId: 'P' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+    refreshAiNow: async () => null,
+    saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+    remove: async (id) => { map.delete(id); store.revision += 1; },
+    subscribe: () => () => undefined
+  };
+  const lib = new So.CogitaLibrary(store, true);
+  const edges = (list) => list.map(([from, out, to]) => ({ id: `${from}-${out}`, from, out, to, in: 'in' }));
+  const why = {
+    ref: '@b/p/dlaczego', name: 'Dlaczego ksiądz Bosko założył salezjanów?', promise: 'Potem powiesz, dlaczego.',
+    anchors: ['@b/t/s1855', 'home', { flow: '@b/f/glowna', step: 'w' }],
+    steps: [{ place: '@b/t/s1854', why: 'Tu pada nazwa.' }, { flow: '@b/f/glowna', from: 's2', why: 'Wątek.' }, { place: '@b/t/s1854', level: 2, why: 'Druga runda.' }],
+    check: { questions: ['@b/q/1', '@b/q/2'] }, deeper: '@b/p/glebiej'
+  };
+  const deep = { ref: '@b/p/glebiej', name: 'Co jest najważniejsze w Zgromadzeniu?', anchors: ['@b/t/s1854'], steps: [{ place: '@b/t/s1855' }], check: { slide: '@b/s/koniec' } };
+  const doc = {
+    format: 'recreatio.cogita.course', version: 1, name: 'B',
+    kinds: [{ ref: '@b/turm', name: 'Wieża', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'wymaga', label: 'Wymaga', type: 'ref', multi: true, to: ['@b/turm'], prerequisite: 'up' }] }],
+    entities: [
+      { ref: '@b/t/s1854', kind: '@b/turm', data: { nazwa: '1854' } }, { ref: '@b/t/s1855', kind: '@b/turm', data: { nazwa: '1855', wymaga: ['@b/t/s1854'] } },
+      { ref: '@b/q/1', kind: '@b/turm', data: { nazwa: 'P1' } }, { ref: '@b/q/2', kind: '@b/turm', data: { nazwa: 'P2' } }, { ref: '@b/s/koniec', kind: '@b/turm', data: { nazwa: 'Koniec' } }
+    ],
+    flows: [{ ref: '@b/f/glowna', name: 'Główna', start: 's1', graph: { nodes: [{ id: 's1', type: 'show', config: {} }, { id: 'w', type: 'choice', config: { options: [{ label: 'a' }] } }, { id: 's2', type: 'show', config: {} }, { id: 'z', type: 'end', config: {} }], edges: edges([['s1', 'next', 'w'], ['w', 'o0', 's2'], ['s2', 'next', 'z']]) } }],
+    paths: [why, deep, { ref: '@b/p/zla', name: 'Zła', anchors: [{ flow: '@b/f/glowna', step: 'brak' }], steps: [{ flow: '@b/f/glowna', from: 'brak' }], deeper: '@b/p/zla' }]
+  };
+  const plan = Js.planImport(lib, doc);
+  check('paths: the import plans them as documents (no error)', ['error' in plan, plan.docs.filter((d) => d.kind === 'qpath').length], [false, 3]);
+  const pw = plan.warnings.filter((w) => w.includes('Zła'));
+  check('… warns for the bad one by name: a "from" the story lacks, an anchor step that does not exist, a loop over "deeper"; nothing for the good ones',
+    [pw.some((w) => w.includes('brak') && w.includes('from')), pw.some((w) => w.includes('brak') && !w.includes('from')), pw.some((w) => /pętla|loop|Schleife/.test(w)), plan.warnings.filter((w) => w.includes('Dlaczego') || w.includes('najważniejsze')).length],
+    [true, true, true, 0]);
+  await Js.applyImport(lib, plan, () => undefined);
+  const out = Js.exportCourse(lib, 'B');
+  const back = (ref) => { const p = out.paths.find((x) => x.ref === ref); if (p === undefined) return null; const { id: _i, ...rest } = p; return rest; };
+  check('… export round trip exact (lasting names for places, stories, questions, the deeper path; anchors as written)', [back('@b/p/dlaczego'), back('@b/p/glebiej')], [why, deep]);
+  const rm2 = Js.planImport(lib, { format: 'recreatio.cogita.course', version: 1, name: 'B', paths: [{ ref: '@b/p/zla', remove: true }] });
+  check('… removed by its lasting name ({"ref", "remove": true}): the plan removes exactly that path, nothing else, no warning', [(rm2.removals ?? []).map((r) => [r.kind, r.title.includes('Zła')]), rm2.warnings], [[['qpath', true]], []]);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

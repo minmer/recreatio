@@ -26,6 +26,7 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { flowProblems } from './flowCheck';
+import { pathProblems, readPath, type PathCheckCtx } from './worldmap/wmPaths';
 import { effectiveWorldFor } from './worldmap/wmReview';
 import { detourProblems } from './detour';
 import { mountainProblems, type MountainContext } from './mountain';
@@ -64,7 +65,9 @@ const LIST_OF: Record<DocKind, string> = {
   /* 2026-11-02 — Nagrody: punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
   reward: 'rewards',
   /* 2026-11-09 — die Lage der Weltkarte: gerechnet, nie exportiert oder eingespielt (spec §9.7). */
-  worldmap: 'worldmaps'
+  worldmap: 'worldmaps',
+  /* 2026-11-12 (Prompt 25) — Wege zu einer Frage („Czego chcesz się dowiedzieć?", `worldmap/wmPaths.ts`). */
+  qpath: 'paths'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -455,10 +458,12 @@ const PREFER: Readonly<Record<string, DocKind>> = {
   /* 2026-11-01 — die nächste Lektion einer Powtórka („Następna lekcja"). */
   next: 'revision',
   /* 2026-11-02 — die Nagrody der Nauka (Ustawienia `rewards`). */
-  reward: 'reward', rewards: 'reward'
+  reward: 'reward', rewards: 'reward',
+  /* 2026-11-12 (Prompt 25) — „Głębiej": der tiefere Weg zu einer Frage. */
+  deeper: 'qpath'
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
-const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint']);
+const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint', 'promise', 'why']);
 
 /**
  * EIN DOKUMENT PLANEN — was angelegt, was geändert würde, und was nicht geht.
@@ -749,7 +754,9 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     /* 2026-10-25 (Wywód) — nach den Widokach: ein Wejście nennt seinen Widok auch beim Namen. */
     ['anchor', doc.anchors],
     /* 2026-11-02 — Nagrody: Punkte, Serie, Tagesziel, Stufen, Abzeichen (`rewards.ts`). */
-    ['reward', doc.rewards]
+    ['reward', doc.rewards],
+    /* 2026-11-12 (Prompt 25) — nach Einträgen und Abläufen: ein Weg nennt Orte, Erzählungen und andere Wege beim Namen. */
+    ['qpath', doc.paths]
   ];
   type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; at: number; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
   const incoming: Incoming[] = [];
@@ -860,6 +867,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     if (kind === 'flow' && isObject(data.graph)) data = { ...data, graph: graphJson(migratePrerequisites(readGraph(data.graph, true))) };
     /* 2026-11-02 — Nagrody in der Gestalt, die `readRewards` liest: was fehlt, aus der eingebauten Regel. */
     if (kind === 'reward') data = rewardsData(readRewards(data));
+    /* 2026-11-12 (Prompt 25) — "title" heisst wie überall "name" (die Frage). */
+    if (kind === 'qpath' && str(data.name) === '' && str(data.title) !== '') { const { title, ...restPath } = data; data = { ...restPath, name: title }; }
     if (kind === 'addform') {
       /* Ein Rodzaj darf auch beim Namen stehen; einer aus demselben Dokument hat schon seine neue Kennung. */
       const kindOf = (k: string) => (kinds.some((x) => x.id === k) ? k : kindId(k));
@@ -946,6 +955,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   }
   /* 2026-11-04 — die Ścieżka jedes Ablaufs: ein Anfang, ein Ende, keine Sackgassen (`flowCheck.ts`; ohne Anfang oder Ende geht der Zapis nicht). */
   warnings.push(...flowWarnings(lib, docs, entities));
+  warnings.push(...pathWarnings(lib, docs, entities));
   /* 2026-11-03 — der Krajobraz: Kreise in der Reihenfolge des Lernens, unbekannte Achsen, keine Reihenfolge (`landscapeImport.ts`). */
   warnings.push(...landscapeImportWarnings(lib, { kinds, entities, docs }));
   /* 2026-11-03 — die Generatoren: übersetzen ihre Ausdrücke, gelingen Proben (mit den Einträgen nach dem Import)? */
@@ -1240,6 +1250,24 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
     return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
   });
 }
+/**
+ * 2026-11-12 (Prompt 25) — DIE WEGE ZU EINER FRAGE prüfen (`wmPaths.ts` `pathProblems`): gegen die Einträge, Abläufe und Wege
+ * nach dem Zapis (die des Dokuments ersetzen die der Baza) — ein unbekannter Ort, ein unbekannter Ablauf oder Schritt, ein Anker,
+ * den es nicht gibt, eine Schleife über "deeper", zu viele Abschlussfragen. Warnungen; gespeichert wird trotzdem.
+ */
+function pathWarnings(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] {
+  const planned = docs.filter((d) => d.kind === 'qpath');
+  if (planned.length === 0) return [];
+  const paths = new Map([...lib.docs('qpath').map((e) => [e.id, readPath(e.id, e.data)] as const), ...planned.map((d) => [d.id, readPath(d.id, d.data)] as const)]);
+  const flows = new Map([...lib.docs('flow').map((e) => [e.id, readFlow(e.id, e.data)] as const), ...docs.filter((d) => d.kind === 'flow').map((d) => [d.id, readFlow(d.id, d.data)] as const)]);
+  const ctx: PathCheckCtx = {
+    entity: (id) => entities.some((e) => e.id === id) || lib.entity(id) !== undefined,
+    flowSteps: (id) => { const f = flows.get(id); return f === undefined ? undefined : new Set(f.graph.nodes.map((n) => n.id)); },
+    path: (id) => paths.get(id)
+  };
+  return planned.flatMap((d) => pathProblems(paths.get(d.id)!, d.data, ctx).map((p) => t('cogitaData.import.pathIssue', { name: paths.get(d.id)!.title || '—', text: t(`cogitaData.import.${p.key}`, p.params) })));
+}
+
 const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] => flowIssues(lib, docs, entities).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));
 
 /** Was ein Widok an Rodzajen nennt — nur, was dort sicher ein Rodzaj ist (Quelle, Gruppe, Achse). */
@@ -1472,7 +1500,7 @@ export function withRemovals(lib: CogitaLibrary, plan: ImportPlan): { plan: Impo
 /** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
 const DOC_ORDER: Readonly<Record<DocKind, number>> = {
   collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
-  view: 2, revision: 3, flow: 4, anchor: 5, merge: 6, contribution: 6, worldmap: 7
+  view: 2, revision: 3, flow: 4, anchor: 5, qpath: 5, merge: 6, contribution: 6, worldmap: 7
 };
 
 /**
@@ -1756,6 +1784,7 @@ ${t('cogitaDataFormat.course.main.s55Name')}
 ${t('cogitaDataFormat.course.main.s56Name')}
 ${t('cogitaDataFormat.course.main.s57View')}
 ${rewardsSection()}
+${pathsSection()}
 ${t('cogitaDataFormat.course.anchors.s01Anchors')}
 ${t('cogitaDataFormat.course.anchors.s02')}
 ${t('cogitaDataFormat.course.anchors.s03')}
@@ -1776,6 +1805,9 @@ ${t('cogitaDataFormat.rewards.s04Goal')}
 ${t('cogitaDataFormat.rewards.s05Badges')}
 ${t('cogitaDataFormat.rewards.s06')}`;
 
+/** 2026-11-12 (Prompt 25) — DROGI DO PYTAŃ ("paths", `worldmap/wmPaths.ts`). */
+const pathsSection = (): string => [1, 2, 3, 4, 5, 6, 7].map((i) => t(`cogitaDataFormat.paths.${['s01Paths', 's02Shape', 's03Steps', 's04Anchors', 's05Check', 's06Checks', 's07Example'][i - 1]}`)).join('\n');
+
 /**
  * 2026-10-30 — WAS AUS DEM IMPORTIERTEN WIRD, im ganzen System (der Wunsch des Besitzers: neben jedem Import, wie die
  * Daten gebraucht werden). Jede Zeile ist im Code nachgeprüft.
@@ -1792,6 +1824,7 @@ ${t('cogitaDataFormat.usage.s09')}
 ${t('cogitaDataFormat.usage.s10')}
 ${t('cogitaDataFormat.usage.s11')}
 ${t('cogitaDataFormat.usage.s12Remove')}
+${t('cogitaDataFormat.usage.s13Paths')}
 `;
 
 /**

@@ -169,6 +169,10 @@ W dużym świecie uczący się nie musi przechodzić przez wieże, które już u
 - **Zachęta** ("push"): przy wyborze możliwość, której droga ma niezrobione sprawdzanie z otwartymi wieżami (krok "explore" przed następnym wyborem albo "detour"/"subflow" do opowieści, która się nim zaczyna), stoi pierwsza z „Zalecane: najpierw sprawdź, ile już umiesz”.
 - Ścieżka i mapa świata pokazują krok jako jeden krok.
 
+## 8f. Opowieść jako krok drogi do pytania (2026-11-12)
+
+Opowieść (albo jej część od kroku "from") może być krokiem **drogi do pytania** ("paths", guide-world-map §10): `{"flow": "@opowieść", "from": "<id kroku>", "why": "…"}`. Krok jest zrobiony, gdy odcinki opowieści na mapie są przejechane. Kotwica `{"flow": "@opowieść", "step": "<id>"}` stawia drogowskaz przy rozwidleniu (krok "choice") albo przy kroku na torze. Opowieść niczego tu nie zmienia — droga tylko ją proponuje; dlatego trwałe identyfikatory kroków ("id") są ważne: "from" i "step" wskazują na nie.
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.

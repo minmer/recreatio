@@ -62,13 +62,15 @@ export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
 /* 2026-11-09 — `worldmap`: die gespeicherte Lage der Weltkarte (nur Schreibende legen sie ab; nie im JSON des Kurses). */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
   addform: 'cogitaData.docKind.addform',
   /* 2026-10-25 (Wywód) — ein Weg aus der Bibliothek: ein Werk (ganz oder Teile davon) → ein Eintrag, ein Widok (`anchors.ts`). */
   anchor: 'cogitaData.docKind.anchor',
+  /* 2026-11-12 (Prompt 25) — ein Weg zu einer Frage auf der Weltkarte (`worldmap/wmPaths.ts`). */
+  qpath: 'cogitaData.docKind.qpath',
   kind: 'cogitaData.docKind.kind',
   template: 'cogitaData.docKind.template',
   revision: 'cogitaData.docKind.revision',

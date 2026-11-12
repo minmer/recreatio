@@ -1276,6 +1276,11 @@ export class Learner {
     await this.change(out);
   }
 
+  /** 2026-11-12 (Prompt 25) — der Abschluss eines Weges zu einer Frage bestanden (`~qpath.<weg>` = Zeitpunkt; nie eine Antwort). */
+  async keepPathDone(path: string, at: number): Promise<void> {
+    await this.change({ [`~qpath.${path}`]: Math.max(0, at) });
+  }
+
   async keepPillar(width: number | null): Promise<void> {
     await this.change(valueChanges(this.progress.values, withOwnPillar(this.progress.values, width)));
   }

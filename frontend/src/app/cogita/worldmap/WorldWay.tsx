@@ -144,7 +144,7 @@ export function useAutoGo(on: boolean, seconds: number, go: () => void): number 
 }
 
 /** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -166,6 +166,8 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   onShow?: (step: PlanStep) => void;
   /** Unter der Kette (die Karte des Weges): alle Teile, aufklappbar. */
   more?: ReactNode;
+  /** 2026-11-12 (Prompt 25) — am Ende eines Weges zu einer Frage: der Abschluss („Sprawdź się") statt nur „Zakończ". */
+  arrived?: ReactNode;
 }) {
   const { t, nameOf } = ctx;
   const first = tt.upcoming[0];
@@ -205,6 +207,7 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
         {next === undefined ? (
           <div className="cg-wm-waynext is-arrived" data-world-next-arrived="">
             <p className="cg-wm-waynexttext"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</p>
+            {arrived}
             <button type="button" className="wk-btn is-small" autoFocus onClick={onEnd} data-world-next-end="">{t('cogitaWorld.way.finish')}</button>
           </div>
         ) : (
@@ -246,6 +249,7 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
       {next === undefined ? (
         <div className="cg-wm-invite is-arrived" data-world-next-arrived="">
           <p className="cg-wm-invitebig"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</p>
+          {arrived}
           <div className="wk-actions">
             <button type="button" className="wk-btn" autoFocus onClick={onEnd} data-world-next-end="">{t('cogitaWorld.way.finish')}</button>
             <button type="button" className="wk-link-btn" onClick={onMap}>{t('cogitaWorld.way.toMap')}</button>

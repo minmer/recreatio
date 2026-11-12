@@ -106,6 +106,91 @@ Nie zapisuj w imporcie współrzędnych, kolorów ani wysokości. Położenie li
 
 - **Zaliczone sprawdzeniem (2026-11-12)**: wieża zaliczona krokiem "explore" („Sprawdź, ile już umiesz”, zob. guide-stories §8e) ma na mapie przerywany pierścień wokół wierzchu, a w panelu „zaliczona sprawdzeniem — karty jeszcze do potwierdzenia”. Bramy, bilety, drogi i "openAt" traktują ją jak zdobytą na poziomie "openAt". Jej jeszcze nie pytane karty wchodzą do powtórki przy domu, ale najwyżej 20 na jedną powtórkę (najpierw ostatnio zaliczonych wież). Przy rozwidleniu możliwość, która prowadzi do niezrobionego sprawdzania z otwartymi wieżami, stoi pierwsza jako „Zalecane”.
 
+## 10. Drogi do pytań ("paths", 2026-11-12)
+
+Uczący się często przychodzi z pytaniem, nie z miejscem. **Droga do pytania** prowadzi go po mapie do odpowiedzi: szerokie pytanie („Kim był ksiądz Bosko?”) albo konkretne („Dlaczego ksiądz Bosko założył salezjanów?”). Lista "paths" w kursie, każda droga z trwałą nazwą ("ref"; zmiana i usuwanie jak przy innych dokumentach: {"ref", "remove": true}).
+
+```json
+{
+  "ref": "@bosko/p/dlaczego-salezjanie",
+  "name": "Dlaczego ksiądz Bosko założył salezjanów?",
+  "promise": "Potem powiesz, dlaczego powstało Zgromadzenie i kto do niego należał.",
+  "anchors": [
+    "@bosko/t/1855",
+    {
+      "flow": "@bosko/f/glowna",
+      "step": "w5"
+    }
+  ],
+  "steps": [
+    {
+      "place": "@bosko/t/1854",
+      "why": "Tu pada nazwa „salezjanie”."
+    },
+    {
+      "flow": "@bosko/f/zgromadzenie",
+      "from": "s3",
+      "why": "Wątek Zgromadzenia aż do 18 grudnia 1859."
+    },
+    {
+      "place": "@bosko/t/1854",
+      "level": 2,
+      "why": "Druga runda: szczegóły."
+    }
+  ],
+  "check": {
+    "questions": [
+      "@bosko/q/zgromadzenie-1",
+      "@bosko/q/zgromadzenie-2"
+    ]
+  },
+  "deeper": "@bosko/p/najwazniejsze"
+}
+```
+
+- **"name"** — samo pytanie (tekst drogowskazu i panelu); **"promise"** — jedno zdanie, co uczący się potem umie.
+- **"steps"** w kolejności, każdy z jednym zdaniem **"why"**: `{"place": "@miejsce"}` — temat; zrobiony, gdy wieża jest przejezdna (jej "openAt"); `{"place": "@miejsce", "level": 2}` — **spirala**: to samo miejsce drugi raz, głębiej (zrobione dopiero na tym poziomie; pierwsza runda = przegląd, druga = wyższy poziom); `{"flow": "@opowieść", "from": "<id kroku>"}` — opowieść albo jej część od tego kroku (zrobiona, gdy jej odcinki na mapie są przejechane).
+- **"anchors"** — gdzie droga jest proponowana; aplikacja stawia **drogowskaz** obok kotwicy (mały słupek z tabliczką „?”, bez własnych kart; kilka dróg przy jednej kotwicy dzieli jeden drogowskaz, na tabliczce ich liczba): `"home"` (Start — Start i tak wymienia wszystkie drogi: „Czego chcesz się dowiedzieć?”), `"@miejsce"` (wieża albo węzeł przesiadkowy; panel miejsca też ją wymienia), `{"flow": "@opowieść", "step": "<id>"}` — rozwidlenie (krok "choice") albo krok na torze. **Bez współrzędnych.**
+- **"check"** — zakończenie: 1–3 pytania bazy (`{"questions": [...]}`; zaliczone, gdy każde ostatnio w pełni dobrze) albo slajd (`{"slide": "@slajd"}`: „Teraz możesz odpowiedzieć…”). **"deeper"** — głębsza droga, proponowana, gdy ta jest zrobiona („Głębiej”).
+- **Stan** (u każdego uczącego się): nie zaczęta / w drodze (jakiś krok zrobiony) / zrobiona (kroki zrobione i zakończenie zaliczone; bez "check": kroki zrobione) — znak na drogowskazie. Wybrana droga świeci jak każda wybrana trasa.
+- **„Idź tą drogą”** prowadzi jak „Prowadź mnie tutaj”: najpierw drogi do kolejnych otwartych kroków, opowieści jako przejazdy ich odcinków, znane pomija; na końcu sprawdzenie. **„Ustaw jako cel”** ustawia drogę jako cel.
+- **Zasady:** droga jest ofertą — nigdy nie zmienia wymagań, kolejności, wysokości wież, znajomości ani poziomów; kto ją pomija, nic nie traci. Dobra droga ma 3–8 kroków, pytanie, które uczący się naprawdę zadaje, i obietnicę, którą zakończenie sprawdza.
+- **Import ostrzega** (z nazwą drogi): nieznane miejsce, opowieść albo krok "from"; kotwica, której nie ma; pętla ("deeper" wraca do tej drogi, ten sam krok dwa razy z rzędu); więcej niż 3 pytania zakończenia. Na mapie autor widzi też krok, którego nie ma na mapie świata (nie da się tam poprowadzić).
+- **Dla AI:** get_knowledge_setup ma sekcję "paths" (dokładnie jak w imporcie), a mapa świata w "landscapes" — "signs": kotwica, drogi i miejsce drogowskazu [x, y].
+
+Szeroka droga ze Startu:
+
+```json
+{
+  "ref": "@bosko/p/kim-byl",
+  "name": "Kim był ksiądz Bosko?",
+  "promise": "Potem opowiesz jego życie w ośmiu etapach.",
+  "anchors": [
+    "home"
+  ],
+  "steps": [
+    {
+      "flow": "@bosko/f/glowna",
+      "why": "Przegląd całego życia."
+    },
+    {
+      "place": "@bosko/t/etap-1",
+      "why": "Dzieciństwo."
+    },
+    {
+      "place": "@bosko/t/etap-2"
+    },
+    {
+      "place": "@bosko/t/etap-8",
+      "why": "Ostatnie lata."
+    }
+  ],
+  "check": {
+    "slide": "@bosko/s/kim-byl-koniec"
+  }
+}
+```
+
 ## 9. Jak aplikacja używa tych danych
 
 Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy nie widziane, częściowo, pełne) na krążkach brakujących wymagań, wysokość wieży = jej brakujące karty, łuki poziomów na krawędzi i pierścień wiedzy na zdobytych, chorągiewka przy zdobytych z kartami do powtórki; linie na torach (równolegle, ze strzałką kierunku; gruby — przebyty, cienki — nic nowego, przerywany — nowa wiedza), pierścienie węzłów, dom „Start”. Kliknięcie wieży lub toru pokazuje drogę do niej: reszta mapy szarzeje, zrobione części cienkie, otwarte wyraźne, bieżący krok najwyraźniejszy. Dymek pokazuje nazwę, „jeszcze N kart” i drogę z domu. Panele: miejsce (poziom, przebieg, brakujące wieże ze stanem, kolejność zdobywania, źródła kart, linie tutaj), odcinek (bilet ze źródłami), rozwidlenie (drogi z celem, slajdami i pytaniami), węzeł (wybór kierunku). „Prowadź mnie tutaj” prowadzi tylko w tej sesji (podwójne kliknięcie wieży otwiera najpierw przegląd całej drogi: kroki po kolei z zawartością, na początku potrzebna powtórka), **łańcuchem**: do pierwszej brakującej wieży, potem do następnej (w porządku wymagań), na końcu do celu — każda wzdłuż swojego toru, przez każde rozwidlenie, bez skoków; przejechane tory zostają w drodze (są tańsze, wolno po nich też wracać). Cała droga świeci jako jedna linia; dymek i panel liczą z tego samego planu. Rozkład jazdy (2 kroki zrobione, bieżący, 4 następne), „Tu możesz też skręcić” z innymi drogami do tej samej wieży, chorągiewka „Zacznij tutaj” i flaga celu. Autorzy (kto pisze w bazie) widzą pod mapą listę uwag do danych. Przez MCP (`get_knowledge_setup`, sekcja "landscapes") widok mapy świata ma postać `{"style": "world", "places": [[x, y, "@temat", "@blok" | null], …], "home": [x, y], "lines": [{"flow", "name", "stops", "deepening", "branches"}], "stations"}` — współrzędne w jednostkach ziemi (promień filaru 28), takie, jakie widzi każdy; do wglądu, nie do importu.

@@ -126,7 +126,21 @@
     "hintLong": "the option \"{label}\" has a hint of {count} characters — keep it to one short line (at most {max})",
     "exploreRange": "the placement step: \"{field}\" is {value} — it must be a whole number from 1 to 10 (it is clamped)",
     "exploreLevels": "the placement step: the target levels {list} are not levels of this base (it has {levels})",
-    "exploreEmpty": "the placement step: its scope names nothing that exists here — nothing can ever be open"
+    "exploreEmpty": "the placement step: its scope names nothing that exists here — nothing can ever be open",
+    "pathIssue": "Path “{name}”: {text}",
+    "qpathNoTitle": "no question (\"name\").",
+    "qpathNoSteps": "no steps (\"steps\").",
+    "qpathPlace": "step {n}: there is no place {ref}.",
+    "qpathFlow": "step {n}: there is no story {ref}.",
+    "qpathFrom": "step {n}: the story has no step \"from\" {ref}.",
+    "qpathUnreachable": "step {n}: {ref} is not on the world map — this path cannot be guided there.",
+    "qpathRepeat": "step {n} repeats the step before it (a loop).",
+    "qpathAnchor": "the anchor {ref} does not exist.",
+    "qpathAnchorShape": "an anchor is neither \"home\", a place nor {\"flow\", \"step\"} — left out.",
+    "qpathCheck": "closing check: there is no {ref}.",
+    "qpathCheckMany": "the closing check has {count} questions — the first {max} count.",
+    "qpathDeeper": "\"deeper\": there is no path {ref}.",
+    "qpathLoop": "\"deeper\" leads back to this path (a loop)."
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",
@@ -397,7 +411,8 @@
     "merge": "Merge",
     "contribution": "Proposal",
     "reward": "Rewards",
-    "worldmap": "World map positions"
+    "worldmap": "World map positions",
+    "qpath": "Question path"
   },
   "questionGroup": {
     "write": "You write the answer",

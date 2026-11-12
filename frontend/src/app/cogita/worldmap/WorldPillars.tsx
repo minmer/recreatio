@@ -220,7 +220,16 @@ export interface PillarsProps {
    */
   readonly hold?: boolean;
   readonly playAfter?: number;
+  /**
+   * 2026-11-12 (Prompt 25) — WEGWEISER der Wege zu einer Frage (`wmPaths.ts` `signsOf`): ein kleiner Pfosten mit einem Schild „?"
+   * neben seinem Anker, ohne eigene Karten; sein Stand als Zeichen am Schild (leer · halb · Haken). Ein Klick: `onPickSign`.
+   */
+  readonly signs?: readonly MapSign[];
+  readonly chosenSign?: string | null;
+  readonly onPickSign?: (key: string) => void;
 }
+
+export interface MapSign { readonly key: string; readonly x: number; readonly y: number; readonly paths: readonly string[]; readonly status: 'new' | 'going' | 'done' }
 
 /** 2026-11-12 — die Farben der Karte kommen aus dem Licht (Tageszeit, hell, dunkel — `wmDaylight.ts`), nicht mehr aus dem Thema der App. */
 type Palette = MapPalette;
@@ -381,7 +390,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0 } = props;
+    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -409,6 +418,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const camRef = useRef<WorldCam | null>(keptCam(memoryKey));
   const groundRef = useRef<GroundLayer | null>(null);
   const drawnRef = useRef<DrawnPillar[]>([]);
+  /* 2026-11-12 (Prompt 25) — wo die Schilder der Wegweiser gezeichnet sind (für den Klick). */
+  const signsRef = useRef<{ key: string; x0: number; y0: number; x1: number; y1: number }[]>([]);
   const discsRef = useRef<DrawnDiscs[]>([]);
   const [hoverLane, setHoverLane] = useState<string | null>(null);
   /* 2026-11-10 — wohin ein Klick auf eine Scheibe flog: der Weg zurück (die letzten Türme). */
@@ -1186,6 +1197,36 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         junctionCount += 1;
       }
       canvas.dataset.wmJunctions = String(junctionCount);
+      /*
+        2026-11-12 (Prompt 25) — DIE WEGWEISER: ein Pfosten vom Boden nach oben (die Höhe wie jede Höhe mit v.lift), oben ein Schild mit
+        „?" (mehrere Fragen: ihre Zahl); rechts oben der Stand. Gewählt: kräftiger Rand in der Farbe des Weges.
+      */
+      const signBoxes: { key: string; x0: number; y0: number; x1: number; y1: number }[] = [];
+      for (const sg of signs) {
+        const [gx, gy] = toScr(v, sg.x, sg.y, 0);
+        if (gx < -30 || gy < -40 || gx > size.w + 30 || gy > size.h + 30) continue;
+        const post = Math.max(10, 22 * v.lift + 6);
+        const bw = sg.paths.length > 1 ? 22 : 16, bh = 14;
+        const bx = gx - bw / 2, by = gy - post - bh;
+        const on = chosenSign === sg.key;
+        ctx.strokeStyle = rgbCss(mix(pal.trunk, pal.ink, 0.2)); ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, gy - post); ctx.stroke();
+        ctx.fillStyle = rgbCss(pal.surface); ctx.strokeStyle = rgbCss(on ? pal.lit : mix(pal.ink, pal.land, 0.2)); ctx.lineWidth = on ? 2.5 : 1.5;
+        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = rgbCss(pal.ink); ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(sg.paths.length > 1 ? `?${sg.paths.length}` : '?', gx, by + bh / 2 + 0.5);
+        /* Der Stand: leer (keiner begonnen), halb (unterwegs), voll mit Haken (alle erledigt). */
+        const mx = bx + bw, my = by;
+        const done: Rgb = pal.dark ? [110, 200, 130] : [40, 140, 70];
+        ctx.beginPath(); ctx.arc(mx, my, 4.2, 0, Math.PI * 2);
+        ctx.fillStyle = rgbCss(sg.status === 'done' ? done : pal.surface); ctx.fill();
+        ctx.strokeStyle = rgbCss(sg.status === 'done' ? done : sg.status === 'going' ? pal.lit : mix(pal.ink, pal.land, 0.35)); ctx.lineWidth = 1.4; ctx.stroke();
+        if (sg.status === 'going') { ctx.beginPath(); ctx.moveTo(mx, my - 4.2); ctx.arc(mx, my, 4.2, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fillStyle = rgbCss(pal.lit); ctx.fill(); }
+        if (sg.status === 'done') { ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(mx - 2, my); ctx.lineTo(mx - 0.5, my + 1.6); ctx.lineTo(mx + 2.2, my - 1.6); ctx.stroke(); }
+        signBoxes.push({ key: sg.key, x0: bx - 4, y0: by - 6, x1: bx + bw + 6, y1: gy + 2 });
+      }
+      signsRef.current = signBoxes;
+      canvas.dataset.wmSigns = String(signBoxes.length);
       /* 2026-11-11 (Eigentümer: „die Namen der Pfade stehen nicht auf der Karte — sie erscheinen beim Überfahren") */
       canvas.dataset.wmPathNames = '0';
     }
@@ -1206,7 +1247,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmHeld = play !== null && play.t0 === Infinity ? String(play.pb.id) : '';
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus, hoverLane]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus, hoverLane, signs, chosenSign]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);
@@ -1282,6 +1323,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const [hx, hy] = toScr(viewOf(c, size.w, size.h), scene.home.x, scene.home.y, 0);
     return Math.hypot(x - hx, y - hy) < Math.max(14, scene.home.r * c.s);
   };
+  const hitSign = (x: number, y: number): string | null => signsRef.current.find((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1)?.key ?? null;
   /** 2026-11-10 — eine Gabelung oder ein Tor unter dem Zeiger. */
   const hitJunction = (x: number, y: number): string | null => {
     const c = camRef.current;
@@ -1407,6 +1449,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     drag.current = null;
     if (dr === null || dr.id !== e.pointerId || dr.moved) return;
     const p = local(e);
+    /* 2026-11-12 (Prompt 25) — ein Wegweiser steht über allem: sein Schild gewinnt. */
+    const sign0 = hitSign(p.x, p.y);
+    if (sign0 !== null && onPickSign !== undefined) { onPickSign(sign0); return; }
     /* Eine Gabelung oder ein Tor ist über den Säulen gezeichnet: ihr Zeichen gewinnt. */
     const jn0 = hitJunction(p.x, p.y);
     if (jn0 !== null && onPickJunction !== undefined) { onPickJunction(jn0); return; }
@@ -1504,6 +1549,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         if (d === undefined) return null;
         const y = d.base + d.ry - (i + 0.5) * d.step;
         return inside(d.x, y) && hit(d.x, y) === place && hitJunction(d.x, y) === null && discAt(d, d.x, y) === i ? [d.x, y] : null;
+      }
+      if (kind === 'sign') {
+        const b = signsRef.current.find((x) => x.key === id);
+        if (b === undefined) return null;
+        const cx = (b.x0 + b.x1) / 2, cy = b.y0 + 9;
+        return inside(cx, cy) && hitSign(cx, cy) === id ? [cx, cy] : null;
       }
       if (kind === 'junction') {
         const j = scene.junctions.find((x) => x.id === id);

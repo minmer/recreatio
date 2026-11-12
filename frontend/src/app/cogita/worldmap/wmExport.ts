@@ -14,6 +14,7 @@
  */
 
 import type { Card } from '../cardBasics';
+import { anchorKey, readPath, type QAnchor, type QPath } from './wmPaths';
 import { nameIn } from '../json';
 import { readNest } from '../landscapeNest';
 import { buildRegions, type RegionTree } from '../regions';
@@ -70,6 +71,21 @@ export interface WorldLayoutDoc {
   readonly places: readonly (readonly [number, number, string, string | null])[];
   readonly lines: readonly { readonly flow: string; readonly name: string; readonly stops: readonly string[]; readonly deepening: boolean; readonly branches: number }[];
   readonly stations: readonly string[];
+  /**
+   * 2026-11-12 (Prompt 25) — DIE WEGWEISER der Wege zu einer Frage: ihr Anker ("home", ein Ort, {"flow", "step"}), die Wege, die
+   * dort hängen, und wo die App das Schild hinstellt ([x, y] neben dem Anker; ohne Lage, wo der Anker nicht auf der Karte ist).
+   */
+  readonly signs: readonly { readonly anchor: string | { readonly flow: string; readonly step: string }; readonly paths: readonly string[]; readonly at: readonly [number, number] | null }[];
+}
+
+/** Die Wegweiser: je Anker die Wege (bleibende Namen), mit der Lage, die `at` gibt. */
+function signsFor(paths: readonly QPath[], at: (a: QAnchor) => readonly [number, number] | null, ref: (id: string) => string): WorldLayoutDoc['signs'] {
+  const by = new Map<string, { anchor: QAnchor; paths: string[] }>();
+  for (const p of paths) for (const a of p.anchors) { const k = anchorKey(a); const s = by.get(k) ?? { anchor: a, paths: [] }; s.paths.push(ref(p.id)); by.set(k, s); }
+  return [...by.values()].map(({ anchor, paths: list }) => ({
+    anchor: anchor.kind === 'home' ? 'home' : anchor.kind === 'place' ? ref(anchor.place) : { flow: ref(anchor.flow), step: anchor.step },
+    paths: list, at: at(anchor)
+  }));
 }
 
 /** Die Weltkarte jedes Widoku `style: "world"` — dieselbe Lage wie in der Ansicht (abgelegt, sonst im Worker gerechnet). */
@@ -99,7 +115,14 @@ export async function worldLayouts(lib: CogitaLibrary, cards: readonly Card[]): 
         return [r1(p[0]), r1(p[1]), ref(id), block === undefined ? null : ref(block)] as const;
       }),
       lines: [...lines.lines.values()].map((l) => ({ flow: `@${name(l.id)}`, name: l.name, stops: l.stops.map(ref), deepening: l.deepening, branches: Math.max(0, l.branches.length - 1) })),
-      stations: [...lines.stations.keys()].filter((k) => k !== HOME).map(ref)
+      stations: [...lines.stations.keys()].filter((k) => k !== HOME).map(ref),
+      signs: signsFor(lib.docs('qpath').map((e) => readPath(e.id, e.data)), (anchor) => {
+        if (anchor.kind === 'home') return home === undefined ? null : [r1(home[0] + 30), r1(home[1] + 8)];
+        if (anchor.kind === 'place') { const p = g.positions[anchor.place]; const r = g.radii[anchor.place] ?? 28; return p === undefined ? null : [r1(p[0] + r * 1.05), r1(p[1] + r * 0.75)]; }
+        const jn = [...lines.junctions.values()].find((j) => j.line === anchor.flow && j.step === anchor.step);
+        const p = jn === undefined ? undefined : g.positions[jn.id];
+        return p === undefined ? null : [r1(p[0] + 14), r1(p[1] + 10)];
+      }, ref)
     });
   }
   return out;

@@ -230,7 +230,7 @@ export function readSources(raw: unknown): SourceRef[] {
 export const BOOK_KINDS: ReadonlySet<string> = new Set(LIBRARY_KINDS.map((k) => k.kind));
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
-const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform', 'reward']);
+const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform', 'reward', 'qpath']);
 
 /* -- Zbiory: gespeicherte Filter und Listen [F1, F19] -------------------------------------- */
 

@@ -418,3 +418,27 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-lightitem:hover, .cg-wm-lightitem:focus-visible { background: var(--wk-sunk); }
 .cg-wm-lightitem.is-on { background: var(--wk-accent-soft); font-weight: 700; }
 .cg-wm-lightitem.is-sep { margin-top: var(--wk-space-1); border-top: 1px solid var(--wk-line); border-radius: 0; }
+
+/* 2026-11-12 (Prompt 25) — Wege zu einer Frage: Liste (am Haus, an einem Ort, am Wegweiser), Feld eines Weges, das Zeichen des Standes. */
+.cg-wm-qlist { margin-top: var(--wk-space-2); }
+.cg-wm-qhead { margin: 0 0 var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 700; }
+.cg-wm-qlist > ul { display: flex; flex-direction: column; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; }
+.cg-wm-qitem { display: flex; align-items: center; gap: var(--wk-space-2); width: 100%; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wm-qitem:hover, .cg-wm-qitem:focus-visible { border-color: var(--wk-accent); }
+.cg-wm-qtitle { font-weight: 600; }
+.cg-wm-qmark { display: inline-block; flex: 0 0 auto; width: 0.8rem; height: 0.8rem; border: 2px solid var(--wk-muted); border-radius: 50%; box-sizing: border-box; vertical-align: middle; }
+.cg-wm-qmark.is-going { border-color: var(--wk-accent); background: linear-gradient(90deg, var(--wk-surface) 50%, var(--wk-accent) 50%); }
+.cg-wm-qmark.is-done { border-color: var(--wk-ok); background: var(--wk-ok); }
+.cg-wm-qpromise { margin: 0 0 var(--wk-space-1); color: var(--wk-ink-2); font-style: italic; }
+.cg-wm-qsteps { display: flex; flex-direction: column; gap: var(--wk-space-1); margin: var(--wk-space-2) 0; padding: 0; list-style: none; }
+.cg-wm-qstepbtn { display: flex; align-items: flex-start; gap: var(--wk-space-2); width: 100%; padding: var(--wk-space-1) var(--wk-space-2); border: 0; border-left: 3px solid var(--wk-line); border-radius: 0; background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wm-qstep.is-done .cg-wm-qstepbtn { border-left-color: var(--wk-ok); color: var(--wk-muted); }
+.cg-wm-qstep.is-open .cg-wm-qstepbtn { border-left-color: var(--wk-accent); }
+.cg-wm-qstep.is-check .cg-wm-qstepbtn { cursor: default; }
+.cg-wm-qstepmark { flex: 0 0 1.2rem; text-align: center; font-weight: 700; }
+.cg-wm-qsteptext { display: flex; flex-direction: column; min-width: 0; }
+.cg-wm-qsteptext > strong { font-size: var(--wk-text-sm); }
+.cg-wm-qwhy { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.cg-wm-qactions { margin-top: var(--wk-space-1); }
+.cg-wm-qdeeper { margin-top: var(--wk-space-2); }
+.cg-wm-qissues { margin: var(--wk-space-2) 0 0; padding-left: 1.2rem; color: var(--wk-warn); font-size: var(--wk-text-sm); }

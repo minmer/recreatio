@@ -512,5 +512,40 @@
     "pageSays": "Die Karte füllt das Fenster des Browsers",
     "best": "Empfohlen",
     "stay": "Als Teil der Seite lassen"
+  },
+  "paths": {
+    "homeTitle": "Was möchtest du herausfinden?",
+    "hereTitle": "Fragen hier",
+    "status": {
+      "new": "nicht begonnen",
+      "going": "unterwegs",
+      "done": "erledigt"
+    },
+    "step": {
+      "done": "erledigt",
+      "open": "offen",
+      "locked": "noch gesperrt"
+    },
+    "stepLevel": "{name} — Stufe {level}",
+    "stepFlow": "Erzählung: {name}",
+    "cards": {
+      "one": "{count} Karte",
+      "other": "{count} Karten"
+    },
+    "go": "Diesen Weg gehen",
+    "goal": "Als Ziel setzen",
+    "goalClear": "Dieses Ziel aufgeben",
+    "checkQuestions": {
+      "one": "Am Ende: {count} Frage",
+      "other": "Am Ende: {count} Fragen"
+    },
+    "checkSlide": "Am Ende: eine Folie",
+    "checkSays": "Jetzt kannst du antworten: {question}",
+    "checkNow": "Prüfe dich",
+    "checkTitle": "Prüfung: {name}",
+    "passed": "Erledigt — du kannst diese Frage jetzt beantworten.",
+    "notPassed": "Noch nicht alles richtig — du kannst es noch einmal versuchen.",
+    "done": "Erledigt — du kannst diese Frage beantworten.",
+    "deeper": "Tiefer: {name}"
   }
 }
