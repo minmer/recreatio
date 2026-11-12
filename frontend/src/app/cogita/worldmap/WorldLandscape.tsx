@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { tFor } from '../../core/i18n';
+import { tFor, useT } from '../../core/i18n';
 import { useDark } from '../../core/theme';
 import type { Card } from '../cardBasics';
 import { readFlow, resolveFlow, type Flow } from '../flow';
@@ -44,7 +44,7 @@ import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
-import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathProblems, pathStatus, readPath, signsOf, type PathCtx, type QPath, type QStep } from './wmPaths';
+import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathProblems, pathStatus, readPath, signsOf, stepsDone, type PathCtx, type QPath, type QStep } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
 import { useRunFit } from './wmRunFit';
@@ -197,10 +197,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   }), [state, lines, learnerInput, progress]);
 
   /* -- Wie im Krajobraz (Step-1-Bericht §3: behalten): Ansichten, Luki, Portale, das Ziel ------------------------------------ */
-  const T = useMemo(() => landscapeWords(lang), [lang]);
-  const W = useMemo(() => words(lang), [lang]);
-  const SC = useMemo(() => selfCheckWords(lang), [lang]);
-  const MW = useMemo(() => motionWords(lang), [lang]);
+  /*
+    2026-11-12 (Eigentümer: Schlüssel statt Worte, „cogitaLearn.landscape.modeAll") — die Sprache der Baza lädt oft erst nach dem ersten
+    Bild (wenn sie nicht die der App ist): die Worte neu, sobald ein Wörterbuch ankommt (`useT` ändert sich mit jeder geladenen Sprache).
+  */
+  const loaded = useT();
+  const T = useMemo(() => landscapeWords(lang), [lang, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  const W = useMemo(() => words(lang), [lang, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  const SC = useMemo(() => selfCheckWords(lang), [lang, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  const MW = useMemo(() => motionWords(lang), [lang, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const memo = `${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`;
   /* Die Ansicht, gemerkt mit dem Blick (dieser Browser). */
   const [mode, setModeNow] = useState<WorldMode>(() => keptMode(memo));
@@ -722,8 +727,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* 2026-11-12 (Prompt 25) — die Wegweiser neben ihren Ankern, je mit dem Stand ihrer Wege (alle erledigt · einer begonnen · keiner). */
   const signs = useMemo(() => (scene === null ? [] : signsOf(paths, scene, lines).map((sg) => {
     const st = sg.paths.map((id) => pathById.get(id)).filter((p): p is QPath => p !== undefined).map((p) => pathStatus(pctx, p));
-    return { ...sg, status: st.length > 0 && st.every((x) => x === 'done') ? 'done' as const : st.some((x) => x !== 'new') ? 'going' as const : 'new' as const };
-  })), [scene, paths, lines, pathById, pctx]);
+    const mine = sg.paths.map((id) => pathById.get(id)).filter((p): p is QPath => p !== undefined);
+    /* 2026-11-12 (Prompt 27) — wartet auf die Wahl: alle Schritte eines Weges gegangen, sein Abschluss offen; laut: Ziel oder geführt. */
+    const ready = mine.some((p) => pathStatus(pctx, p) !== 'done' && stepsDone(pctx, p));
+    const loud = sg.paths.some((id) => goal === `${PATH_TARGET}${id}` || nav?.target === `${PATH_TARGET}${id}`);
+    return { ...sg, ready, loud, status: st.length > 0 && st.every((x) => x === 'done') ? 'done' as const : st.some((x) => x !== 'new') ? 'going' as const : 'new' as const };
+  })), [scene, paths, lines, pathById, pctx, goal, nav]);
   const pickSign = (key: string) => {
     const sg = signs.find((x) => x.key === key);
     if (sg === undefined) return;

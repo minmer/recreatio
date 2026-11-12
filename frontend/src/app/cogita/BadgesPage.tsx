@@ -21,7 +21,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { t } from '../core/i18n';
+import { t, useT } from '../core/i18n';
 import { rewardWords, type Lang, type RewardWords } from './lang';
 import { dayStart } from './lessons';
 import {
@@ -88,7 +88,9 @@ function useClock(fixed: number | undefined): number {
 }
 
 export function BadgesPage({ rules, answers, rename, keys, values, extra, now, readOnly = false, lang = 'pl', title, onAwards }: BadgesPageProps) {
-  const W = useMemo(() => rewardWords(lang), [lang]);
+  /* 2026-11-12 — neu, sobald das Wörterbuch der Sprache geladen ist (sonst blieben die Schlüssel stehen). */
+  const loaded = useT();
+  const W = useMemo(() => rewardWords(lang), [lang, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const clock = useClock(now);
   const awarded = useMemo(() => awardsOf(values), [values]);
   const view = useMemo(() => {

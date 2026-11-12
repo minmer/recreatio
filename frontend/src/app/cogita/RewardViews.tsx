@@ -530,7 +530,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   const cg = useContext(CogitaContext);
   const MW = motionWords(cg === null ? 'pl' : baseLang(cg.lib));
   /* 2026-11-05 (Odznaki) — die Worte der Abzeichen (Kategorien, Stoffe) in der Sprache der Baza. */
-  const RW = useMemo(() => rewardWords(MW.lang), [MW.lang]);
+  const RW = useMemo(() => rewardWords(MW.lang), [MW.lang, t]); // eslint-disable-line react-hooks/exhaustive-deps
   const show = (p: RewardPiece) => hidden === undefined || !hidden.has(p);
   const now = Date.now();
   const list = useMemo(() => (state === null ? null : lastDays(state, now, shape === 'full' ? 28 : 7)), [state, shape]); // eslint-disable-line react-hooks/exhaustive-deps
