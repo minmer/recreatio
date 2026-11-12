@@ -122,6 +122,20 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 /* Der nächste Schritt eines Ortes, gross; der Rest eingeklappt (2026-11-09: ruhiger). */
 .cg-wm-next { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
 .cg-wm-next .cg-wm-h { margin: 0; }
+/* 2026-11-12 — ein eroberter Turm: „Powtórz" in der Farbe, wie nötig es ist, darunter die Wege weiter als Knöpfe. */
+.cg-wm-done { display: grid; gap: var(--wk-space-2); }
+.cg-wm-done .cg-wm-h { margin: 0; }
+.cg-wm-onward { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+.cg-wm-onward .wk-btn { min-width: 0; overflow-wrap: anywhere; text-align: left; }
+.cg-wm-onward .cg-wm-jway { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); min-width: 0; }
+.wk-btn.cg-wm-need { color: var(--wk-on-accent); }
+.wk-btn.cg-wm-need.is-green { background: var(--wk-ok); border-color: var(--wk-ok); }
+.wk-btn.cg-wm-need.is-yellow { background: var(--wk-warn); border-color: var(--wk-warn); }
+.wk-btn.cg-wm-need.is-orange { background: color-mix(in oklab, var(--wk-warn) 45%, var(--wk-danger)); border-color: color-mix(in oklab, var(--wk-warn) 45%, var(--wk-danger)); }
+.wk-btn.cg-wm-need:hover:not(:disabled) { filter: brightness(0.92); color: var(--wk-on-accent); }
+.wk-btn.cg-wm-need.is-green:hover:not(:disabled) { background: var(--wk-ok); border-color: var(--wk-ok); }
+.wk-btn.cg-wm-need.is-yellow:hover:not(:disabled) { background: var(--wk-warn); border-color: var(--wk-warn); }
+.wk-btn.cg-wm-need.is-orange:hover:not(:disabled) { background: color-mix(in oklab, var(--wk-warn) 45%, var(--wk-danger)); }
 .cg-wm-more > summary { cursor: pointer; color: var(--wk-ink-2); font-size: var(--wk-text-sm); font-weight: 600; }
 .cg-wm-more[open] { display: grid; gap: var(--wk-space-2); }
 .cg-wm-side { display: grid; gap: var(--wk-space-3); align-content: start; min-width: 0; }
@@ -421,6 +435,8 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 
 /* 2026-11-12 (Prompt 25) — Wege zu einer Frage: Liste (am Haus, an einem Ort, am Wegweiser), Feld eines Weges, das Zeichen des Standes. */
 .cg-wm-qlist { margin-top: var(--wk-space-2); }
+.cg-wm-qbtns { display: grid; gap: var(--wk-space-2); }
+.cg-wm-qbtn { justify-content: flex-start; text-align: left; overflow-wrap: anywhere; }
 .cg-wm-qhead { margin: 0 0 var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); font-weight: 700; }
 .cg-wm-qlist > ul { display: flex; flex-direction: column; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; }
 .cg-wm-qitem { display: flex; align-items: center; gap: var(--wk-space-2); width: 100%; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }

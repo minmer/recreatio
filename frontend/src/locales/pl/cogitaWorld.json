@@ -224,6 +224,8 @@
       "yellow": "wkrótce powtórka",
       "orange": "czas na powtórkę"
     },
+    "review": "Powtórz",
+    "further": "Dalsze drogi",
     "reviewN": "Powtórz ({count})",
     "conquer": "Zdobywanie",
     "startRun": "Rozpocznij przebieg na poziom {level}",
@@ -611,30 +613,7 @@
       "going": "w drodze",
       "done": "zrobione"
     },
-    "step": {
-      "done": "zrobione",
-      "open": "otwarte",
-      "locked": "jeszcze zamknięte"
-    },
-    "stepLevel": "{name} — poziom {level}",
-    "stepFlow": "Opowieść: {name}",
-    "cards": {
-      "one": "{count} karta",
-      "few": "{count} karty",
-      "many": "{count} kart",
-      "other": "{count} karty"
-    },
-    "go": "Idź tą drogą",
-    "goal": "Ustaw jako cel",
-    "goalClear": "Zrezygnuj z tego celu",
-    "checkQuestions": {
-      "one": "Na koniec: {count} pytanie",
-      "few": "Na koniec: {count} pytania",
-      "many": "Na koniec: {count} pytań",
-      "other": "Na koniec: {count} pytania"
-    },
-    "checkSlide": "Na koniec: slajd",
-    "checkSays": "Teraz możesz odpowiedzieć: {question}",
+    "go": "Odkryj",
     "checkNow": "Sprawdź się",
     "checkTitle": "Sprawdzenie: {name}",
     "passed": "Zrobione — umiesz już odpowiedzieć na to pytanie.",

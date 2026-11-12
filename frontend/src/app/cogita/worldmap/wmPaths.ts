@@ -213,6 +213,16 @@ export function pathLength(state: WorldState, lines: Lines, path: QPath): { read
   return { slides, questions, cards };
 }
 
+/** 2026-11-12 — die Karten eines Weges: die seiner Türme und die, die seine Erzählungen einführen (für „Powtórz"). */
+export function pathCards(state: WorldState, lines: Lines, path: QPath): string[] {
+  const out = new Set<string>();
+  for (const step of path.steps) {
+    if (step.kind === 'place') { for (const k of state.places.get(step.place)?.cards ?? []) out.add(k); continue; }
+    for (const id of flowSections(lines, step.flow, step.from)) for (const k of lines.sections.get(id)?.introduces ?? []) out.add(k);
+  }
+  return [...out];
+}
+
 /** Ein Wegweiser auf der Karte: wo (Boden), welche Wege dort hängen. */
 export interface Sign {
   readonly key: string;

@@ -194,6 +194,8 @@
       "yellow": "review soon",
       "orange": "review due"
     },
+    "review": "Review",
+    "further": "Further paths",
     "reviewN": "Review ({count})",
     "conquer": "Conquer",
     "startRun": "Start run for level {level}",
@@ -521,26 +523,7 @@
       "going": "on the way",
       "done": "done"
     },
-    "step": {
-      "done": "done",
-      "open": "open",
-      "locked": "still locked"
-    },
-    "stepLevel": "{name} — level {level}",
-    "stepFlow": "Story: {name}",
-    "cards": {
-      "one": "{count} card",
-      "other": "{count} cards"
-    },
-    "go": "Go this way",
-    "goal": "Set as goal",
-    "goalClear": "Drop this goal",
-    "checkQuestions": {
-      "one": "At the end: {count} question",
-      "other": "At the end: {count} questions"
-    },
-    "checkSlide": "At the end: a slide",
-    "checkSays": "Now you can answer: {question}",
+    "go": "Explore",
     "checkNow": "Check yourself",
     "checkTitle": "Check: {name}",
     "passed": "Done — you can now answer this question.",

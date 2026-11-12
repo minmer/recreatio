@@ -194,6 +194,8 @@
       "yellow": "bald wiederholen",
       "orange": "Wiederholung fällig"
     },
+    "review": "Wiederholen",
+    "further": "Weitere Wege",
     "reviewN": "Wiederholen ({count})",
     "conquer": "Erobern",
     "startRun": "Durchgang für Stufe {level} starten",
@@ -521,26 +523,7 @@
       "going": "unterwegs",
       "done": "erledigt"
     },
-    "step": {
-      "done": "erledigt",
-      "open": "offen",
-      "locked": "noch gesperrt"
-    },
-    "stepLevel": "{name} — Stufe {level}",
-    "stepFlow": "Erzählung: {name}",
-    "cards": {
-      "one": "{count} Karte",
-      "other": "{count} Karten"
-    },
-    "go": "Diesen Weg gehen",
-    "goal": "Als Ziel setzen",
-    "goalClear": "Dieses Ziel aufgeben",
-    "checkQuestions": {
-      "one": "Am Ende: {count} Frage",
-      "other": "Am Ende: {count} Fragen"
-    },
-    "checkSlide": "Am Ende: eine Folie",
-    "checkSays": "Jetzt kannst du antworten: {question}",
+    "go": "Erkunden",
     "checkNow": "Prüfe dich",
     "checkTitle": "Prüfung: {name}",
     "passed": "Erledigt — du kannst diese Frage jetzt beantworten.",

@@ -44,11 +44,11 @@ import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
-import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathProblems, pathStatus, readPath, signsOf, stepsDone, type PathCtx, type QPath, type QStep } from './wmPaths';
+import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, type PathCtx, type QPath } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
 import { useRunFit } from './wmRunFit';
-import { AuthorList, HomePanel, JunctionPanel, NavPanel, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
+import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
 import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
 import { NextView, PartIcon, WayPreview } from './WorldWay';
@@ -736,13 +736,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const pickSign = (key: string) => {
     const sg = signs.find((x) => x.key === key);
     if (sg === undefined) return;
-    setChosen(sg.paths.length === 1 ? { kind: 'qpath', id: sg.paths[0]! } : { kind: 'sign', id: key });
-  };
-  /* Ein Schritt eines Weges angeklickt: die Karte gleitet dorthin. */
-  const showPathStep = (st: QStep) => {
-    if (st.kind === 'place') { pillars.current?.glide('place', st.place); return; }
-    const sec = [...lines.sections.values()].find((x) => x.line === st.flow);
-    if (sec !== undefined) pillars.current?.glide('section', sec.id);
+    /* 2026-11-12 (Eigentümer) — ein Wegweiser zeigt nur die Fragen, die man hier wählen kann (auch eine einzige), jede ein Knopf. */
+    setChosen({ kind: 'sign', id: key });
   };
   const pathIssues = useMemo(() => (!writes ? [] : paths.flatMap((p) => pathProblems(p, lib.docs('qpath').find((e) => e.id === p.id)?.data ?? {}, {
     entity: (id) => lib.entity(id) !== undefined,
@@ -1076,14 +1071,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           {chosen?.kind === 'place' && <PathList paths={pathsAt(`p:${chosen.id}`)} pctx={pctx} t={t} title={t('cogitaWorld.paths.hereTitle')} onOpen={(id) => setChosen({ kind: 'qpath', id })} />}
           {chosen?.kind === 'sign' && (
             <section className="cg-wm-panel" data-world-panel="sign" data-world-sign={chosen.id}>
-              <PathList paths={pathsAt(chosen.id)} pctx={pctx} t={t} title={t('cogitaWorld.paths.hereTitle')} onOpen={(id) => setChosen({ kind: 'qpath', id })} />
+              <PanelTop t={t} onClose={() => setChosen(null)} title={t('cogitaWorld.paths.hereTitle')} />
+              <PathList paths={pathsAt(chosen.id)} pctx={pctx} t={t} onOpen={(id) => setChosen({ kind: 'qpath', id })} />
             </section>
           )}
           {chosenPath !== null && (
-            <PathPanel path={chosenPath} pctx={pctx} t={t} nameOf={nameOf} canLearn={learner !== null} onClose={() => setChosen(null)}
-              onGo={() => leadPath(chosenPath.id)} onShowStep={showPathStep}
-              goal={{ isGoal: goal === `${PATH_TARGET}${chosenPath.id}`, set: () => setGoal(`${PATH_TARGET}${chosenPath.id}`), clear: () => setGoal(null) }}
+            <PathPanel path={chosenPath} pctx={pctx} t={t} canLearn={learner !== null} onClose={() => setChosen(null)}
+              onGo={() => leadPath(chosenPath.id)}
               onCheck={chosenPath.check === null ? null : () => startCheck(chosenPath)}
+              onRepeat={(() => { const cards = pathCards(state, lines, chosenPath).filter((k) => state.band(k) !== 'unseen'); return cards.length === 0 ? null : () => panel.act.review(cards, chosenPath.title); })()}
               deeper={chosenPath.deeper === null ? null : pathById.get(chosenPath.deeper) ?? null} onOpen={(id) => setChosen({ kind: 'qpath', id })} />
           )}
           {chosen?.kind === 'junction' && <JunctionPanel id={chosen.id} ctx={panel} onClose={() => setChosen(null)} />}
