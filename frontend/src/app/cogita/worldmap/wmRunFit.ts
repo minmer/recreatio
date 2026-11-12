@@ -27,32 +27,75 @@ export function runFit(w: number, h: number): { zoom: number; wide: boolean } {
   return { zoom, wide: w / zoom >= WIDE_MIN && h / zoom >= WIDE_MIN_H };
 }
 
+/** So klein darf ein Teil höchstens werden, damit eine lange Frage (eine Reihenfolge mit vielen Teilen) ganz zu sehen ist. */
+const MIN_ZOOM = 0.7;
+/** Der Abstand über der Frage: höchstens so viel (Teil der Höhe), weniger, wenn die Frage den Platz braucht. */
+const PAD_SHARE = 0.09;
+const PAD_MAX = 96;
+
+/*
+  2026-11-12 (Eigentümer: „solche Situationen sind beim Skalieren zu vermeiden" — eine Reihenfolge mit sechs Teilen, „Sprawdź"
+  unter dem Rand) — JE FRAGE EINMAL EINGEPASST: zuerst der Abstand über der Frage weniger, dann der ganze Teil kleiner, bis die
+  linke Spalte (Frage, Antworten, „Sprawdź") ganz zu sehen ist. Danach (die Antwort) bleibt alles, wie es ist — nichts bewegt
+  sich; nur bei einer neuen Frage oder einer anderen Fenstergrösse wird neu eingepasst.
+*/
 export function useRunFit(ref: RefObject<HTMLElement | null>, on: boolean): void {
   useEffect(() => {
     const el = ref.current;
     if (!on || el === null) return undefined;
     let raf = 0;
+    let fitted = '';
+    let zoom = 1, pad = 0;
+    /* Die Höhe der Karte bei diesem Zoom (vom oberen Rand der Karte bis unten, ohne was darunter steht). */
+    const faceHeight = (face: HTMLElement, h: number) => {
+      const box = el.getBoundingClientRect(), fr = face.getBoundingClientRect();
+      const top = fr.top - box.top;
+      const bottomPad = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+      /* Was unter der Karte steht (z. B. „Zacznij od nowa"), bleibt mit im Bild. */
+      const content = face.closest('.cg-wm-runzoom') ?? face;
+      const trailing = Math.max(0, content.getBoundingClientRect().bottom - fr.bottom);
+      const avail = Math.max(240, (h - bottomPad - top - trailing) / zoom - BOTTOM);
+      const next = `${Math.floor(avail)}px`;
+      if (face.style.getPropertyValue('--face-h') !== next) face.style.setProperty('--face-h', next);
+    };
+    const apply = (face: HTMLElement | null, h: number) => {
+      el.style.setProperty('--run-zoom', zoom.toFixed(3));
+      if (face === null) return;
+      face.style.setProperty('--main-pad', `${Math.round(pad)}px`);
+      faceHeight(face, h);
+    };
     const fit = () => {
       raf = 0;
       const w = el.clientWidth, h = el.clientHeight;
       if (w === 0 || h === 0) return;
-      const { zoom, wide } = runFit(w, h);
-      el.style.setProperty('--run-zoom', zoom.toFixed(3));
-      if (wide) el.setAttribute('data-run-wide', ''); else el.removeAttribute('data-run-wide');
+      const base = runFit(w, h);
+      if (base.wide) el.setAttribute('data-run-wide', ''); else el.removeAttribute('data-run-wide');
       const face = el.querySelector<HTMLElement>('.cg-face');
-      if (face === null) return;
-      if (!wide) { face.style.removeProperty('--face-h'); return; }
-      /* getBoundingClientRect misst im Fenster (gezoomt); die Höhe gilt im Teil (ungezoomt). */
-      const box = el.getBoundingClientRect(), fr = face.getBoundingClientRect();
-      const top = fr.top - box.top;
-      const pad = parseFloat(getComputedStyle(el).paddingBottom) || 0;
-      /* Was unter der Karte steht (z. B. „Zacznij od nowa"), bleibt mit im Bild. */
-      const content = face.closest('.cg-wm-runzoom') ?? face;
-      const trailing = Math.max(0, content.getBoundingClientRect().bottom - fr.bottom);
-      const avail = Math.max(320, (h - pad - top - trailing) / zoom - BOTTOM);
-      const now = face.style.getPropertyValue('--face-h');
-      const next = `${Math.floor(avail)}px`;
-      if (now !== next) face.style.setProperty('--face-h', next);
+      if (face === null || !base.wide) {
+        zoom = base.zoom;
+        el.style.setProperty('--run-zoom', zoom.toFixed(3));
+        face?.style.removeProperty('--face-h');
+        fitted = '';
+        return;
+      }
+      const key = `${face.dataset.card ?? ''}|${w}x${h}`;
+      /* Dieselbe Frage: nur die Höhe nachführen (etwas darüber oder darunter änderte sich), Zoom und Abstand bleiben. */
+      if (key === fitted) { faceHeight(face, h); return; }
+      fitted = key;
+      zoom = base.zoom;
+      pad = Math.min(PAD_MAX, h * PAD_SHARE) / zoom;
+      apply(face, h);
+      for (let i = 0; i < 6; i += 1) {
+        const main = face.querySelector<HTMLElement>('.cg-face-main');
+        if (main === null) break;
+        const over = main.scrollHeight - main.clientHeight;
+        if (over <= 1) break;
+        if (pad > 0) { pad = Math.max(0, pad - over - 2); apply(face, h); continue; }
+        if (zoom <= MIN_ZOOM) break;
+        zoom = Math.max(MIN_ZOOM, zoom * (main.clientHeight / main.scrollHeight) * 0.98);
+        apply(face, h);
+      }
+      face.dataset.runZoom = zoom.toFixed(2);
     };
     const ask = () => { if (raf === 0) raf = requestAnimationFrame(fit); };
     const ro = new ResizeObserver(ask);

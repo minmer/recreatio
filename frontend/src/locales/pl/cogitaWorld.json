@@ -192,9 +192,8 @@
     "laneKnown": "nic nowego — jego karty już znasz",
     "laneLocked": "jeszcze zamknięta",
     "lightLabel": "Kolory mapy",
-    "lightNext": "kliknij: następne",
     "light": {
-      "day": "Pora dnia",
+      "day": "Pora dnia (według zegara)",
       "light": "Jasne",
       "dark": "Ciemne"
     },
@@ -206,7 +205,8 @@
       "afternoon": "popołudnie",
       "evening": "wieczór",
       "dusk": "zmierzch"
-    }
+    },
+    "phaseFixed": "{phase} (na stałe)"
   },
   "panel": {
     "close": "Zamknij",

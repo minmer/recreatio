@@ -164,9 +164,8 @@
     "laneKnown": "nichts Neues — seine Karten sitzen schon",
     "laneLocked": "noch nicht offen",
     "lightLabel": "Farben der Karte",
-    "lightNext": "Klick: weiter",
     "light": {
-      "day": "Tageszeit",
+      "day": "Tageszeit (nach der Uhr)",
       "light": "Hell",
       "dark": "Dunkel"
     },
@@ -178,7 +177,8 @@
       "afternoon": "Nachmittag",
       "evening": "Abend",
       "dusk": "Abenddämmerung"
-    }
+    },
+    "phaseFixed": "{phase} (fest)"
   },
   "panel": {
     "close": "Schließen",

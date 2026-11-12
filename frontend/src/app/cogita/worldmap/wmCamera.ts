@@ -6,8 +6,8 @@
 
 import type { WorldCam } from '../worldView';
 
-/** Neigung als Stauchung des Bodens: sin(42°) bis sin(88°) — 2026-11-12 (Eigentümer): nicht flacher, damit die Bögen der Abhängigkeiten zu sehen bleiben. */
-export const FORE_LOW = Math.sin((42 * Math.PI) / 180);
+/** Neigung als Stauchung des Bodens: sin(10°) bis sin(88°) — 2026-11-12 (Eigentümer: „mehr Neigung möglich, damit die Bögen der Abhängigkeiten gut zu sehen sind"): fast von der Seite. */
+export const FORE_LOW = Math.sin((10 * Math.PI) / 180);
 export const FORE_HIGH = Math.sin((88 * Math.PI) / 180);
 
 /** Die Abbildung: Boden (x, y, Höhe z) → Schirm. */

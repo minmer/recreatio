@@ -360,8 +360,8 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-placed { color: var(--wk-ink-2); }
 
 /*
-  2026-11-12 — DER FLUG VON DER TAFEL ZUR KARTE (WorldFlight.tsx): Zeichen über allem, fest im Fenster; die Bewegung macht die
-  Web Animations API (Bogen, Landung als Ring).
+  2026-11-12 — DER FLUG VON DER TAFEL ZUR KARTE (WorldFlight.tsx): Zeichen über allem, fest im Fenster; jedes Bild
+  zum Ziel, wo es gerade steht (Bogen, Landung als Ring).
 */
 .cg-wm-flights { position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) + 1); pointer-events: none; overflow: hidden; }
 .cg-wm-fly, .cg-wm-flyland { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
@@ -406,8 +406,15 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-runzoom { zoom: var(--run-zoom, 1); }
 .cg-wm-fullview.is-run[data-run-wide] .cg-run-head, .cg-wm-fullview.is-run[data-run-wide] .cg-flow, .cg-wm-fullview.is-run[data-run-wide] .cg-face { max-width: 74rem; }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; column-gap: var(--wk-space-5, 2rem); height: var(--face-h, auto); }
-.cg-wm-fullview.is-run[data-run-wide] .cg-face-main { display: flex; grid-column: 1; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-top: clamp(1rem, 9vh, 6rem); }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face-main { display: flex; grid-column: 1; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-top: var(--main-pad, clamp(1rem, 9vh, 6rem)); }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-main > .cg-prompt { font-size: var(--wk-text-lg); }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-after { display: flex; grid-column: 2; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-left: var(--wk-space-4); border-left: 1px solid var(--wk-line); text-align: left; }
 .cg-wm-fullview.is-run[data-run-wide] .cg-face-statsbox { position: absolute; top: 2.8rem; right: var(--wk-space-2); z-index: 2; width: min(30rem, 46%); max-height: 75%; overflow-y: auto; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-lightbtn { top: calc(var(--wk-space-2) + 2.4rem); }
+.cg-fin-tile.is-score { border-color: var(--score-edge); background: var(--score-bg); }
+/* 2026-11-12 — die Wahl des Lichts: nach der Uhr, eine feste Tageszeit, hell, dunkel. */
+.cg-wm-lightmenu { position: absolute; top: calc(var(--wk-space-2) + 4.8rem); left: var(--wk-space-2); z-index: 6; display: flex; flex-direction: column; min-width: 13rem; padding: var(--wk-space-1); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
+.cg-wm-lightitem { padding: var(--wk-space-1) var(--wk-space-2); border: 0; border-radius: var(--wk-radius-sm); background: none; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); text-align: left; cursor: pointer; }
+.cg-wm-lightitem:hover, .cg-wm-lightitem:focus-visible { background: var(--wk-sunk); }
+.cg-wm-lightitem.is-on { background: var(--wk-accent-soft); font-weight: 700; }
+.cg-wm-lightitem.is-sep { margin-top: var(--wk-space-1); border-top: 1px solid var(--wk-line); border-radius: 0; }

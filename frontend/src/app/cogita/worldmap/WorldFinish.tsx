@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { T } from '../../core/i18n';
 import { useMotion } from '../../ui/motion';
 import { FlagIcon } from '../WorldMap';
+import { scoreHue } from '../scoreColour';
 import { PartIcon } from './WorldWay';
 import type { Consequence, FinishStats } from './wmFinish';
 import './worldmap.css';
@@ -44,10 +45,10 @@ const vars = (pairs: Record<string, string | number>) => (el: HTMLElement | SVGE
   for (const [k, v] of Object.entries(pairs)) el.style.setProperty(k, String(v));
 };
 
-function Tile({ label, value, suffix = '', i, accent = false, src }: { label: string; value: number; suffix?: string; i: number; accent?: boolean; src: string }) {
+function Tile({ label, value, suffix = '', i, accent = false, src, score }: { label: string; value: number; suffix?: string; i: number; accent?: boolean; src: string; score?: number }) {
   const v = useCount(value, 300 + i * 120);
   return (
-    <div className={`cg-fin-tile${accent ? ' is-accent' : ''}`} ref={vars({ '--i': i })} data-world-finish-tile={label} data-fin-src={src}>
+    <div className={`cg-fin-tile${score !== undefined ? ' cg-score is-score' : accent ? ' is-accent' : ''}`} ref={vars({ '--i': i, ...(score === undefined ? {} : { '--score-h': scoreHue(score).toFixed(1) }) })} data-world-finish-tile={label} data-fin-src={src}>
       <span className="cg-fin-num">{suffix === '+' ? `+${v}` : `${v}${suffix}`}</span>
       <span className="cg-fin-label">{label}</span>
     </div>
@@ -126,8 +127,8 @@ export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext,
             : kind === 'story' ? t('cogitaWorld.finish.story') : t('cogitaWorld.finish.cards');
   /* 2026-11-10 (Eigentümer: „zu viel auf einmal") — höchstens drei Zahlen: wie gut, was neu sitzt, die Stufen (sonst die gelesenen Schritte). */
   /* 2026-11-12 — jede Zahl ist eine Quelle des Flugs zur Karte (`data-fin-src`, WorldFlight.tsx). */
-  const tiles: { label: string; value: number; suffix?: string; accent?: boolean; src: string }[] = [];
-  if (s.answers > 0) tiles.push({ label: t('cogitaWorld.finish.right'), value: Math.round(s.accuracy * 100), suffix: '%', accent: s.accuracy >= 0.9, src: 'right' });
+  const tiles: { label: string; value: number; suffix?: string; accent?: boolean; src: string; score?: number }[] = [];
+  if (s.answers > 0) tiles.push({ label: t('cogitaWorld.finish.right'), value: Math.round(s.accuracy * 100), suffix: '%', src: 'right', score: s.accuracy });
   else if (s.visited > 0) tiles.push({ label: t('cogitaWorld.finish.steps'), value: s.visited, src: 'steps' });
   if (s.known > 0) tiles.push({ label: t('cogitaWorld.finish.known'), value: s.known, suffix: '+', accent: true, src: 'known' });
   if (s.level !== null) tiles.push({ label: t('cogitaWorld.finish.levels'), value: s.level.to - s.level.from, suffix: '+', accent: true, src: 'levels' });

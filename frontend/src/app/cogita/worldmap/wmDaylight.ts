@@ -15,9 +15,17 @@
 
 import { mix, type Rgb } from './wmColors';
 
-export type MapLight = 'day' | 'light' | 'dark';
-export const MAP_LIGHTS: readonly MapLight[] = ['day', 'light', 'dark'];
 export type DayPhase = 'night' | 'dawn' | 'morning' | 'noon' | 'afternoon' | 'evening' | 'dusk';
+/**
+ * 2026-11-12 (Eigentümer: „im Modus Tageszeit auch von Hand eine Tageszeit wählen") — 'day' folgt der Uhr; eine Phase
+ * ('morning', 'evening', …) hält das Licht dieser Tageszeit fest (ihre Stunde: PHASE_HOUR); 'light'/'dark' wie bisher.
+ */
+export type MapLight = 'day' | DayPhase | 'light' | 'dark';
+export const DAY_PHASES: readonly DayPhase[] = ['dawn', 'morning', 'noon', 'afternoon', 'evening', 'dusk', 'night'];
+export const MAP_LIGHTS: readonly MapLight[] = ['day', ...DAY_PHASES, 'light', 'dark'];
+/** Die Stunde, deren Licht eine festgehaltene Phase zeigt (die Mitte ihres Bildes). */
+export const PHASE_HOUR: Readonly<Record<DayPhase, number>> = { night: 1, dawn: 6.25, morning: 8.5, noon: 13, afternoon: 16, evening: 18.75, dusk: 20.25 };
+const isPhase = (l: MapLight): l is DayPhase => (DAY_PHASES as readonly string[]).includes(l);
 
 export interface MapPalette {
   readonly floor: Rgb;
@@ -120,7 +128,9 @@ export function sunAt(hour: number): { x: number; alt: number; moon: boolean } {
 }
 
 /** Die Farben der Karte für ein Licht und eine Stunde (nur 'day' fragt die Stunde). */
-export function mapPalette(light: MapLight, hour: number): MapPalette {
+export function mapPalette(light: MapLight, hour0: number): MapPalette {
+  if (isPhase(light)) return { ...mapPalette('day', PHASE_HOUR[light]), key: `phase:${light}` };
+  const hour = hour0;
   if (light !== 'day') {
     const s = solid(light === 'dark');
     return { ...s, sky: mix(s.water, s.surface, light === 'dark' ? 0.15 : 0.35), glow: { x: 0.5, colour: s.surface, a: 0 }, tint: s.floor, tintK: 0, shadow: { dx: 0.35, dy: 0.3 }, phase: null, key: light };
@@ -158,7 +168,7 @@ export function mapPalette(light: MapLight, hour: number): MapPalette {
 /** Die Wahl je Gerät (Vorgabe: Tageszeit). */
 const KEEP = 'cg-wm-light';
 export function keptLight(): MapLight {
-  try { const v = localStorage.getItem(KEEP); return v === 'light' || v === 'dark' || v === 'day' ? v : 'day'; } catch { return 'day'; }
+  try { const v = localStorage.getItem(KEEP); return v !== null && (MAP_LIGHTS as readonly string[]).includes(v) ? v as MapLight : 'day'; } catch { return 'day'; }
 }
 export function keepLight(l: MapLight): void {
   try { localStorage.setItem(KEEP, l); } catch { /* ohne Speicher: nur diesmal */ }

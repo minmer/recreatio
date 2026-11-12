@@ -65,6 +65,7 @@ check('light and dark stay fixed (whatever the hour) and keep their former colou
   D.mapPalette('light', 2).key, D.mapPalette('light', 2).dark, JSON.stringify(D.mapPalette('light', 2).land) === JSON.stringify(D.mapPalette('light', 14).land),
   D.mapPalette('dark', 12).dark, D.mapPalette('dark', 12).tintK
 ], ['light', false, true, true, 0]);
+check('a time of day can be chosen by hand: it holds that light whatever the clock says, and is kept', [D.mapPalette('evening', 3).phase, D.mapPalette('night', 13).dark, D.mapPalette('morning', 23).key, JSON.stringify(D.mapPalette('noon', 2).land) === JSON.stringify(D.mapPalette('day', 13).land), (D.keepLight('dusk'), D.keptLight()), D.MAP_LIGHTS.length], ['evening', true, 'phase:morning', true, 'dusk', 10]);
 check('the cache key changes about every ten minutes (not every frame)', [at(10.01).key === at(10.05).key, at(10.0).key === at(10.2).key], [true, false]);
 check('tree shadows fall away from the sun: west in the morning sun from the east, east in the evening', [at(8).shadow.dx > 0, at(17.5).shadow.dx < 0], [true, true]);
 check('the sun shines from its side by day; at night a fainter moon', [at(8).glow.x < 0.3, at(17.5).glow.x > 0.7, at(1).glow.a < at(12).glow.a], [true, true, true]);

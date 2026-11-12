@@ -25,6 +25,7 @@ import { entityName, entityNameTex, percent } from './ui';
 import { fmtDate, useT, type Lang } from '../core/i18n';
 import { hasTex } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
+import { scoreRef } from './scoreColour';
 
 /* -- Bausteine ---------------------------------------------------------------------------------------------- */
 
@@ -718,10 +719,10 @@ export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING 
             {h.past.length > 1 && <path className="cg-viz-line" d={path(h.past)} />}
             {answer !== null && <line className="cg-viz-cross" x1={x(answer.at)} x2={x(answer.at)} y1={PAD_T} y2={H_PLOT} />}
             {h.answers.map((a, i) => (
-              <circle key={`${a.at}-${i}`} className={`cg-hist-dot is-${a.grade}${i === at ? ' is-at' : ''}`} cx={x(a.at)} cy={y(a.after)} r={i === at ? 5 : 3.5} data-history-dot={a.grade} />
+              <circle key={`${a.at}-${i}`} ref={scoreRef(a.correctness)} className={`cg-hist-dot is-score is-${a.grade}${i === at ? ' is-at' : ''}`} cx={x(a.at)} cy={y(a.after)} r={i === at ? 5 : 3.5} data-history-dot={a.grade} />
             ))}
             {h.total > 0 && (
-              <text className="cg-viz-end" x={x(now) + 6} y={Math.max(PAD_T + 10, y(h.k) - 8)} data-history-now={Math.round(h.k * 100)}>{kText(h.k)}</text>
+              <text ref={scoreRef(h.k)} className="cg-viz-end cg-score-text" x={x(now) + 6} y={Math.max(PAD_T + 10, y(h.k) - 8)} data-history-now={Math.round(h.k * 100)}>{kText(h.k)}</text>
             )}
             {ticks.map((at, i) => <text key={at} className="cg-viz-tick" x={x(at)} y={H_PLOT + 15} textAnchor={i === 0 ? 'start' : 'middle'}>{tickText(at)}</text>)}
             <text className="cg-viz-tick" x={x(now)} y={H_PLOT + 15} textAnchor="middle">{t('cogitaViewsStats.chart.hist.nowTick')}</text>

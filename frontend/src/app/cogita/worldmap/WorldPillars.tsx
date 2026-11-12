@@ -432,7 +432,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     nur bei einem anderen Schlüssel — etwa alle zehn Minuten; dann auch der Boden).
   */
   const [light, setLightState] = useState<MapLight>(keptLight);
-  const setLight = (l: MapLight) => { keepLight(l); setLightState(l); };
+  const [lightMenu, setLightMenu] = useState(false);
+  const setLight = (l: MapLight) => { keepLight(l); setLightState(l); setLightMenu(false); };
   useEffect(() => {
     const repaint = () => setPalette((was) => { const next = mapPalette(light, hourOf(new Date())); return was !== null && was.key === next.key ? was : next; });
     repaint();
@@ -527,8 +528,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const neutral = mix(pal.surface, pal.ink, 0.12);
     const calm = (c: Rgb, k: number): Rgb => (fx === null ? c : mix(c, neutral, k));
     const land = calm(pal.land, 0.55);
-    /* 2026-11-12 — ohne gewähltes Ziel bleibt das Wasser frei: darunter liegt der Verlauf des Lichts (Himmel, Sonne). */
-    if (fx !== null) { g.fillStyle = rgbCss(calm(pal.water, 0.5)); g.fillRect(x0, y0, x1 - x0, y1 - y0); }
+    /* 2026-11-12 — das Wasser malt der Boden nicht (sonst stünde sein Rechteck im Verlauf des Lichts): darunter liegen Himmel und Sonne. */
     g.fillStyle = rgbCss(calm(pal.sand, 0.55));
     for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
     g.fillStyle = rgbCss(land);
@@ -863,12 +863,16 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
       }
       const named = nameOnTop(rx, ry);
-      /* 2026-11-10 (Eigentümer: „der Stern schwebt über dem Turm, räumlich wie das Haus") — aufrecht über der Oberseite, sein Schatten auf ihr; der Name bleibt in der Mitte. */
+      /*
+        2026-11-10 (Eigentümer: „der Stern schwebt über dem Turm, räumlich wie das Haus") — 2026-11-12: wirklich räumlich: er schwebt
+        über der MITTE der Oberseite, in fester Höhe über ihr. Von oben gesehen steht er auf der Mitte, je flacher der Blick, desto
+        höher über dem Turm (die Höhe wird wie jede Höhe mit v.lift abgebildet); sein Schatten liegt auf der Mitte der Oberseite.
+      */
       if (p.perfect && rx > 3) {
         const sr = Math.max(5, Math.min(14, rx * 0.42));
         ctx.fillStyle = rgbCss(mix(top, pal.ink, 0.25));
         ctx.beginPath(); ctx.ellipse(X, Yt, sr * 0.8, sr * 0.8 * v.fore, 0, 0, Math.PI * 2); ctx.fill();
-        drawStar(ctx, X, Yt - ry - sr * 1.6, sr, rgbCss(pal.star), rgbCss(pal.ink));
+        drawStar(ctx, X, Yt - sr * 2.6 * v.lift, sr, rgbCss(pal.star), rgbCss(pal.ink));
       }
       /* 2026-11-12 (Einstufung) — gutgeschrieben: ein gestrichelter Ring um die Oberseite („vorläufig, durch Prüfung"). */
       if (p.placed && rx > 3) {
@@ -1592,11 +1596,21 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
           </button>
         )}
-        {/* 2026-11-12 — das Licht der Karte: Tageszeit (Vorgabe), hell, dunkel — ein Knopf, der weiterschaltet. */}
+        {/* 2026-11-12 — das Licht der Karte: Tageszeit nach der Uhr (Vorgabe), eine festgehaltene Tageszeit, hell, dunkel — ein Knopf mit Auswahl. */}
+        {c !== null && palette !== null && lightMenu && (
+          <div className="cg-wm-lightmenu" role="menu" aria-label={t('cogitaWorld.map.lightLabel')} data-world-light-menu="">
+            {MAP_LIGHTS.map((l) => (
+              <button key={l} type="button" role="menuitemradio" aria-checked={l === light} className={`cg-wm-lightitem${l === light ? ' is-on' : ''}${l === 'light' ? ' is-sep' : ''}`}
+                onClick={() => setLight(l)} data-world-light-choose={l}>
+                {l === 'day' || l === 'light' || l === 'dark' ? t(`cogitaWorld.map.light.${l}`) : t(`cogitaWorld.map.phaseFixed`, { phase: t(`cogitaWorld.map.phase.${l}`) })}
+              </button>
+            ))}
+          </div>
+        )}
         {c !== null && palette !== null && (
-          <button type="button" className="cg-wm-fitbtn cg-wm-lightbtn" onClick={() => setLight(MAP_LIGHTS[(MAP_LIGHTS.indexOf(light) + 1) % MAP_LIGHTS.length]!)}
-            aria-label={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light}`)}`}
-            title={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light}`)}${palette.phase === null ? '' : ` — ${t(`cogitaWorld.map.phase.${palette.phase}`)}`} (${t('cogitaWorld.map.lightNext')})`}
+          <button type="button" className="cg-wm-fitbtn cg-wm-lightbtn" onClick={() => setLightMenu((v) => !v)} aria-haspopup="menu" aria-expanded={lightMenu}
+            aria-label={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light === 'light' || light === 'dark' ? light : 'day'}`)}`}
+            title={`${t('cogitaWorld.map.lightLabel')}: ${light === 'light' || light === 'dark' ? t(`cogitaWorld.map.light.${light}`) : `${t('cogitaWorld.map.light.day')}${palette.phase === null ? '' : ` — ${t(`cogitaWorld.map.phase.${palette.phase}`)}`}`}`}
             data-world-light={light} data-world-phase={palette.phase ?? ''}>
             {light === 'light' ? <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" /><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" /></svg>
               : light === 'dark' ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.8 10.4A5.5 5.5 0 0 1 5.6 3.2a5.5 5.5 0 1 0 7.2 7.2z" /></svg>

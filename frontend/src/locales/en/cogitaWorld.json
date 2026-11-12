@@ -164,9 +164,8 @@
     "laneKnown": "nothing new — its cards are known already",
     "laneLocked": "not open yet",
     "lightLabel": "Map colours",
-    "lightNext": "click: next",
     "light": {
-      "day": "Time of day",
+      "day": "Time of day (by the clock)",
       "light": "Light",
       "dark": "Dark"
     },
@@ -178,7 +177,8 @@
       "afternoon": "afternoon",
       "evening": "evening",
       "dusk": "dusk"
-    }
+    },
+    "phaseFixed": "{phase} (fixed)"
   },
   "panel": {
     "close": "Close",

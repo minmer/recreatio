@@ -34,6 +34,7 @@ import { RewardIcon } from './RewardViews';
 import { motionLevel } from '../ui/motion';
 import { later } from '../ui/later';
 import type { Mark, Spacing } from './knowness';
+import { scoreRef } from './scoreColour';
 
 /** 2026-11-10 — die Geschichte einer Karte (Kenntnis nach jeder Antwort), erst geladen, wenn man sie öffnet. */
 const CardHistory = later(() => import('./KnowCharts').then((m) => m.CardHistoryChart));
@@ -522,7 +523,8 @@ function CountPercent({ value, delay }: { value: number; delay: number }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [target, delay]);
-  return <span className="cg-count" data-count={Math.round(target * 100)}>{percent(shown)}</span>;
+  /* 2026-11-12 — in der Farbe des Anteils (rot → orange → gelb → grün), sie wandert mit dem Hochzählen. */
+  return <span ref={scoreRef(shown)} className="cg-count cg-score" data-count={Math.round(target * 100)}>{percent(shown)}</span>;
 }
 
 /** Formen, deren Antwort nach der Prüfung mit ihren Marken stehen bleibt — dort steht das Ergebnis, nicht in einem langen Satz. */

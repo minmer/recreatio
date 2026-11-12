@@ -792,7 +792,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       {finSlide}
       {finSlide === null && pendingFin && <div className="cg-wm-fin is-pending" aria-hidden="true" data-world-finish-pending="" />}
       {inviteOn && <WorldInvite t={t} compact={compact} onScreen={() => { setInvite(false); enterFull('screen'); }} onPage={() => { setInvite(false); enterFull('page'); }} onStay={() => setInvite(false)} />}
-      {flights !== null && <WorldFlight key={flights.id} flights={flights.list} onDone={() => setFlights(null)} />}
+      {flights !== null && <WorldFlight key={flights.id} flights={flights.list} locate={(kind, id) => pillars.current?.spot(kind, id) ?? null} onDone={() => setFlights(null)} />}
     </div>
   );
 

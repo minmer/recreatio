@@ -685,6 +685,21 @@ try {
     const before = await ev(rectOf);
     check(P, 'the run fills the screen: two fixed columns, scaled with the window', before.wide && before.zoom >= 1, before);
     await shot('p12-run-ask');
+    /*
+      2026-11-12 (Eigentümer: eine Reihenfolge mit sechs Teilen, „Sprawdź" unter dem Rand) — eine lange Frage: (hier künstlich
+      verlängert) sie wird beim Einpassen kleiner, bis die linke Spalte ganz zu sehen ist; danach wieder die normale Grösse.
+    */
+    await page.setViewport({ width: 1440, height: 760 });
+    await sleep(500);
+    await ev(`(() => { const m = document.querySelector('.cg-face-main'); for (let i = 0; i < 6; i += 1) { const d = document.createElement('div'); d.className = 'cg-test-long'; d.style.height = '90px'; d.style.border = '1px dashed'; m.appendChild(d); } return true; })()`);
+    await page.setViewport({ width: 1440, height: 780 });
+    await sleep(600);
+    const long = await ev(`(() => { const m = document.querySelector('.cg-face-main'); const v = document.querySelector('[data-full-view="run"]'); const last = m.lastElementChild.getBoundingClientRect(); const vb = v.getBoundingClientRect(); return { over: m.scrollHeight - m.clientHeight, zoom: Number(document.querySelector('.cg-face').dataset.runZoom), inside: last.bottom <= vb.bottom + 1, pageScroll: v.scrollHeight - v.clientHeight }; })()`);
+    check(P, 'a long question is fitted (less space above, then smaller) until all of it is visible — nothing below the edge', long.over <= 1 && long.inside && long.pageScroll <= 2, long);
+    await shot('p12-run-long');
+    await ev(`(() => { document.querySelectorAll('.cg-test-long').forEach((d) => d.remove()); return true; })()`);
+    await page.setViewport({ width: 1440, height: 1000 });
+    await sleep(600);
     await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Tak' && !x.disabled); b.click(); return true; })()`);
     await waitFor(`document.querySelector('[data-card-next]') !== null`, 'the verdict');
     await sleep(500);
