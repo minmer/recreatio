@@ -486,5 +486,15 @@
     "goal": "Als Ziel setzen",
     "recommended": "Empfohlen: erst prüfen, wie viel du schon kannst",
     "placed": "durch Einstufung gutgeschrieben — Karten noch zu bestätigen"
+  },
+  "invite": {
+    "title": "Wie möchtest du die Weltkarte öffnen?",
+    "says": "Die Karte braucht Platz: im Vollbild siehst du die ganze Welt und jede Änderung nach einem Schritt.",
+    "screen": "Vollbild",
+    "screenSays": "Der ganze Bildschirm, ohne alles andere — Esc führt zurück",
+    "page": "Ganze Seite",
+    "pageSays": "Die Karte füllt das Fenster des Browsers",
+    "best": "Empfohlen",
+    "stay": "Als Teil der Seite lassen"
   }
 }

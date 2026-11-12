@@ -43,6 +43,9 @@ import { holdStore } from '../worldPlay';
 import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
+import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
+import { inviteWanted, WorldInvite } from './WorldInvite';
+import { useRunFit } from './wmRunFit';
 import { AuthorList, HomePanel, JunctionPanel, NavPanel, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
 import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
@@ -392,6 +395,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   */
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [full, setFull] = useState<FullMode | null>(null);
+  /* 2026-11-12 — beim Laden die Frage: Vollbild, ganze Seite oder als Teil der Seite (WorldInvite.tsx). */
+  const [invite, setInvite] = useState(inviteWanted);
+  /* Ein Teil im Vollbild füllt den Platz und steht still (wmRunFit.ts). */
+  const runViewRef = useRef<HTMLDivElement | null>(null);
   /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
   const wayPartNext = useRef<WayPart & { at: number } | null>(null);
   const [wayPart, setWayPart] = useState<WayPart | null>(null);
@@ -400,6 +407,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const enterAs = useRef<'zoom' | 'rise' | 'left' | 'right'>('rise');
   /* Im Vollbild ist jeder Teil ganz zu sehen; unten wechselt man: Karte, Trasa, Punkte, Folie/Fragen (2026-11-10, Eigentümer). */
   const [fullTab, setFullTab] = useState<FullTab>('map');
+  useRunFit(runViewRef, full !== null && running !== null && fullTab === 'run');
   /*
     Beginnt etwas (eine Erzählung, Fragen, ein Durchgang), zeigt das Vollbild es; endet es, der Weg („Dalej") oder die Karte.
     2026-11-10 (Eigentümer) — beim Beginn ein Abzug des Stands, am Ende im Vollbild der Abschluss mit seinen Zahlen (`wmFinish.ts`).
@@ -516,7 +524,16 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* Im Vollbild erst, wenn die Karte zu sehen ist (nicht hinter dem Abschluss oder einem anderen Teil): dann spielt sie, was sich änderte. */
   /* Im Vollbild, sobald die Karte zu sehen ist — auch unter der Seite des Weges (sie deckt nur den unteren Rand): dann spielt sie, was sich änderte. */
   /* Nicht zu sehen, solange ein eben beendeter Teil noch auf seine Folie wartet (sonst merkte sich die Karte den neuen Stand, bevor sie ihn zeigt). */
-  const mapShown = running === null && scene !== null && finished === null && finSnap.current === null && (full === null || fullTab === 'map');
+  /*
+    2026-11-12 (Eigentümer: „die Statistik gleich, als Tafel über der ganzen Karte; was sich änderte, spielt eine halbe bis eine
+    Sekunde, nachdem sie zu ist") — die Karte ist schon unter der Tafel zu sehen, aber ANGEHALTEN auf dem Stand davor
+    (`playHeld`, WorldPillars `hold`): der gemerkte Stand bleibt der alte, bis die Tafel zu ist; dann fliegt, was sie brachte,
+    zur Karte (WorldFlight.tsx), und die Karte spielt nach PLAY_AFTER_MS. Endet ein Teil, deckt die Tafel schon im selben Bild
+    (`pendingFin`) — kein Aufblitzen der Karte davor.
+  */
+  const pendingFin = running === null && finSnap.current !== null;
+  const playHeld = pendingFin || finished !== null;
+  const mapShown = running === null && scene !== null && (full === null || fullTab !== 'points');
   /* 2026-11-10 (Eigentümer: „die Kamera fährt zum ersten Schritt, dann zum zweiten …") — sobald die Karte zu sehen ist, gleitet sie zum jetzigen Schritt. */
   const nowStep = tt?.upcoming[0];
   const nowKey = nowStep === undefined ? null : stepKey(nowStep);
@@ -591,15 +608,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     playSeq.current += 1;
     return { id: playSeq.current, kind, ...d, points, rest };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- der gemerkte Stand ändert sich nur nach dem Zeigen (unten)
-  }, [mapShown, shownNow, events, learner]);
-  /* Gezeigt ist gezeigt: der Stand von jetzt wird der letzte (gleich gespeichert — auch wenn er gleich weitergeht). */
+  }, [mapShown, shownNow, events, learner, playHeld]);
+  /* Gezeigt ist gezeigt: der Stand von jetzt wird der letzte (gleich gespeichert — auch wenn er gleich weitergeht). Unter der Tafel noch nicht. */
   useEffect(() => {
-    if (!mapShown || learner === null) return;
+    if (!mapShown || playHeld || learner === null) return;
     const now: ShownState = { v: 1, at: Date.now(), topics: Object.fromEntries([...shownNow].map(([id, s]) => [shortId(id), packPlace(s)])), pieces: [] };
     shownMem.current = { key: shownStore, state: now };
     back.current = false;
     keepShown(shownStore, now);
-  }, [mapShown, shownNow, shownStore, learner]);
+  }, [mapShown, shownNow, shownStore, learner, playHeld]);
   /* Das zuletzt errechnete Abspielen bleibt, bis die Karte es nimmt (sie beginnt erst, wenn sie ihre Farben kennt). */
   const lastPlay = useRef<WorldPlayback | null>(null);
   if (!mapShown) lastPlay.current = null;
@@ -741,19 +758,41 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Nach einem Teil: zuerst die Folie mit seinen Zahlen (über der Karte, ganz); dann — von selbst oder mit einem Klick — die Karte,
     die abspielt, was sich änderte, und unten der Weg mit dem geschafften Schritt.
   */
-  const toMapAfter = () => { setFinished(null); setFullTab('map'); if (tt !== null) setAskNext(true); };
+  const [flights, setFlights] = useState<{ readonly id: number; readonly list: readonly Flight[] } | null>(null);
+  /* Was die Tafel brachte, fliegt beim Schliessen zur Karte: gemessen, solange die Tafel noch steht. */
+  const flightsNow = (): Flight[] => {
+    const pb = lastPlay.current, pl = pillars.current, h = hostRef.current;
+    if (pb === null || pl === null || h === null || finStats === null) return [];
+    const src = (key: string) => {
+      const el = h.querySelector(`[data-fin-src="${CSS.escape(key)}"]`);
+      if (el === null) return null;
+      const r = el.getBoundingClientRect();
+      return r.width === 0 ? null : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const opened = finStats.consequences.flatMap((c) => (c.kind === 'opened' ? [c.section] : []));
+    return flightsOf(pb, opened, src, (kind, id) => pl.spot(kind, id));
+  };
+  const toMapAfter = () => {
+    const list = flightsNow();
+    setFinished(null); setFullTab('map'); if (tt !== null) setAskNext(true);
+    if (list.length > 0) setFlights({ id: Date.now(), list });
+  };
   const finSlide: ReactNode = finished !== null && finStats !== null && finStats.worth ? (
     <FinishShow stats={finStats} title={finished.snap.title} t={t} nameOf={nameOf} sectionName={(id) => { const s = lines.sections.get(id); if (s === undefined) return id; const line = lines.lines.get(s.line)?.name ?? ''; return line === '' ? nameOf(s.to) : `${line} → ${nameOf(s.to)}`; }}
       next={null} onNext={null} onWay={null} onClose={toMapAfter}
       onShow={(kind, id) => { toMapAfter(); act.show(kind, id); }}
       paused={tt !== null && finStats.just.length === 0 && (finStats.kind === 'story' || finStats.kind === 'cards')} tower={null} />
   ) : null;
+  const inviteOn = invite && full === null && running === null && scene !== null;
   const host = (body: ReactNode) => (
     <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}`} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
       data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
       {body}
       {more}
       {finSlide}
+      {finSlide === null && pendingFin && <div className="cg-wm-fin is-pending" aria-hidden="true" data-world-finish-pending="" />}
+      {inviteOn && <WorldInvite t={t} compact={compact} onScreen={() => { setInvite(false); enterFull('screen'); }} onPage={() => { setInvite(false); enterFull('page'); }} onStay={() => setInvite(false)} />}
+      {flights !== null && <WorldFlight key={flights.id} flights={flights.list} onDone={() => setFlights(null)} />}
     </div>
   );
 
@@ -857,7 +896,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               route={peek !== null && lines.sections.has(peek) ? [peek] : route} faint={peek !== null && lines.sections.has(peek) ? route : faint}
               chosen={peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={focus}
               marks={marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
-              lit={lit} portals={portals} goal={goal} playback={lastPlay.current} onPlayback={onPlayback}
+              lit={lit} portals={portals} goal={goal} playback={lastPlay.current} onPlayback={onPlayback} hold={playHeld} playAfter={PLAY_AFTER_MS}
               onHover={(id, at) => setHover(id === null || at === null ? null : { id, x: at.x, y: at.y })}
               onHoverLane={(id, at) => setHoverLane((was) => (id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
@@ -951,7 +990,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     <>
       <div className="cg-wm-fullview is-map" hidden={tab !== 'map'} data-full-view="map" data-enter={tab === 'map' ? enter : undefined}>{mapBody}</div>
       {runNode !== null && (
-        <div className="cg-wm-fullview is-page is-run" hidden={tab !== 'run'} data-full-view="run" data-enter={tab === 'run' ? enter : undefined}>
+        <div ref={runViewRef} className="cg-wm-fullview is-page is-run" hidden={tab !== 'run'} data-full-view="run" data-enter={tab === 'run' ? enter : undefined}>
           {wayPart !== null && tt !== null && (
             <p className="cg-wm-partbanner" data-world-part={wayPart.n}>
               <PartIcon kind={wayPart.kind} />
@@ -960,7 +999,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               <span className="cg-wm-partbar" ref={(el) => { if (el !== null) el.style.setProperty('--done', String(wayPart.all === 0 ? 0 : (wayPart.n - 1) / wayPart.all)); }} aria-hidden="true" />
             </p>
           )}
-          {runNode}
+          <div className="cg-wm-runzoom">{runNode}</div>
         </div>
       )}
       {tab === 'points' && learner !== null && rewards !== null && (

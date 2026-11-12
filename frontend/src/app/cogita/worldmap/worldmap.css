@@ -32,7 +32,7 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-fullbtn { display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.3rem 0.7rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
 .cg-wm-fullbtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 .cg-wm-host.is-full { --cg-wm-bar: 3.2rem; position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) - 1); display: block; padding: 0; overflow: hidden; background: var(--wk-surface); }
-.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin) { display: none; }
+.cg-wm-host.is-full > :not(.cg-wm-fullview):not(.cg-wm-fullbar):not(.cg-wm-fin):not(.cg-wm-flights) { display: none; }
 /* Im Vollbild läuft auch eine Erzählung, eine Frage oder ein Durchgang über den ganzen Schirm (blättert für sich). */
 /* Die Teile des Vollbilds: jeder füllt den Schirm über der Leiste; Seiten (Fahrplan, Punkte, Folie/Fragen) blättern für sich. */
 .cg-wm-fullview { position: absolute; inset: 0 0 var(--cg-wm-bar) 0; overflow: hidden; }
@@ -228,7 +228,9 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 */
 .cg-wm-host { position: relative; }
 /* 2026-11-10 (Eigentümer) — nach einem Schritt eine eigene Folie mit seinen Zahlen (über der ganzen Karte), danach die Karte. */
-.cg-wm-fin { position: absolute; inset: 0 0 var(--cg-wm-bar, 0px); z-index: 8; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: var(--wk-space-3); background: var(--wk-surface); animation: cg-wm-slide-in 320ms ease-out both; }
+.cg-wm-fin { position: absolute; inset: 0 0 var(--cg-wm-bar, 0px); z-index: 8; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: var(--wk-space-3); background: color-mix(in oklab, var(--wk-surface) 62%, transparent); backdrop-filter: blur(1.5px) saturate(0.85); animation: cg-wm-slide-in 320ms ease-out both; }
+/* 2026-11-12 — eben zu Ende, die Zahlen kommen im nächsten Bild: der Schleier steht schon (kein Aufblitzen der Karte). */
+.cg-wm-fin.is-pending { animation: none; }
 .cg-wm-fin > .cg-fin-card { flex: 0 1 40rem; max-height: 100%; }
 @keyframes cg-wm-slide-in { from { opacity: 0; } to { opacity: 1; } }
 .cg-fin-card { position: relative; flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: var(--wk-space-3) var(--wk-space-4); border: 1px solid var(--wk-line); border-top: 3px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
@@ -356,3 +358,55 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-placement-gaps li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.8rem; }
 .cg-option-push { display: inline-block; margin-left: 0.4rem; padding: 0 0.45rem; border-radius: var(--wk-radius-pill); background: var(--wk-accent-soft); color: var(--wk-accent); font-size: var(--wk-text-xs); font-weight: 600; }
 .cg-wm-placed { color: var(--wk-ink-2); }
+
+/*
+  2026-11-12 — DER FLUG VON DER TAFEL ZUR KARTE (WorldFlight.tsx): Zeichen über allem, fest im Fenster; die Bewegung macht die
+  Web Animations API (Bogen, Landung als Ring).
+*/
+.cg-wm-flights { position: fixed; inset: 0; z-index: calc(var(--wk-z-dialog) + 1); pointer-events: none; overflow: hidden; }
+.cg-wm-fly, .cg-wm-flyland { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
+.cg-wm-fly { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--wk-surface); box-shadow: 0 2px 8px color-mix(in oklab, var(--wk-ink) 25%, transparent); color: var(--wk-accent); }
+.cg-wm-fly svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cg-wm-fly.is-flag { color: var(--wk-ok); }
+.cg-wm-fly.is-level { color: var(--wk-warn); }
+.cg-wm-fly.is-way svg { fill: currentColor; }
+.cg-wm-fly.is-card { width: auto; height: auto; padding: 0; border-radius: var(--wk-radius-sm); background: transparent; box-shadow: none; }
+.cg-wm-flycard { display: block; width: 0.8rem; height: 1.1rem; border: 1.5px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); box-shadow: 0 1px 4px color-mix(in oklab, var(--wk-ink) 20%, transparent); }
+.cg-wm-flyland { width: 2.2rem; height: 2.2rem; border: 2px solid var(--wk-accent); border-radius: 50%; }
+.cg-wm-flyland.is-flag { border-color: var(--wk-ok); }
+.cg-wm-flyland.is-level { border-color: var(--wk-warn); }
+
+/*
+  2026-11-12 — DIE FRAGE BEIM LADEN (WorldInvite.tsx): das Modul grau, darüber drei Wege; der Vollbild-Weg gross und empfohlen.
+*/
+.cg-wm-openask { position: absolute; inset: 0; z-index: 9; display: flex; align-items: flex-start; justify-content: center; padding: clamp(var(--wk-space-3), 10%, 7rem) var(--wk-space-3) var(--wk-space-3); background: color-mix(in oklab, var(--wk-sunk) 72%, transparent); backdrop-filter: grayscale(1) blur(2px); animation: cg-wm-slide-in 260ms ease-out both; }
+.cg-wm-askcard { display: flex; flex: 0 1 34rem; flex-direction: column; gap: var(--wk-space-2); box-sizing: border-box; padding: var(--wk-space-4); border: 1px solid var(--wk-line); border-top: 3px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
+.cg-wm-askhead { margin: 0; font-size: var(--wk-text-md); }
+.cg-wm-asksays { margin: 0; color: var(--wk-ink-2); font-size: var(--wk-text-sm); }
+.cg-wm-askways { display: flex; flex-direction: column; gap: var(--wk-space-2); margin-top: var(--wk-space-1); }
+.cg-wm-askway { position: relative; display: flex; align-items: center; gap: var(--wk-space-3); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wm-askway:hover { border-color: var(--wk-accent); }
+.cg-wm-askway.is-best { padding-block: var(--wk-space-3); border: 2px solid var(--wk-accent); background: var(--wk-accent-soft); }
+.cg-wm-askicon { flex: 0 0 auto; font-size: var(--wk-text-lg); line-height: 1; }
+.cg-wm-askway.is-best .cg-wm-askicon { font-size: var(--wk-text-2xl); }
+.cg-wm-asktext { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.cg-wm-asktext > span { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-wm-askway.is-best .cg-wm-asktext > strong { font-size: var(--wk-text-md); }
+.cg-wm-askbest { flex: 0 0 auto; padding: 0.1rem 0.5rem; border-radius: var(--wk-radius-pill); background: var(--wk-accent); color: var(--wk-surface); font-size: var(--wk-text-xs); font-weight: 700; }
+.cg-wm-askstay { align-self: center; margin-top: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.cg-wm-openask.is-compact { padding-top: var(--wk-space-2); }
+.cg-wm-openask.is-compact .cg-wm-askcard { padding: var(--wk-space-3); }
+.cg-wm-openask.is-compact .cg-wm-asksays, .cg-wm-openask.is-compact .cg-wm-asktext > span { display: none; }
+:root[data-motion='off'] .cg-wm-openask { animation: none; }
+
+/*
+  2026-11-12 — EIN TEIL IM VOLLBILD FÜLLT DEN PLATZ UND STEHT STILL (wmRunFit.ts): alles wächst mit dem Fenster (--run-zoom);
+  mit genug Platz steht eine Frage in zwei festen Spalten — links Frage und Antwort, rechts, was danach kommt (rollt in sich).
+*/
+.cg-wm-runzoom { zoom: var(--run-zoom, 1); }
+.cg-wm-fullview.is-run[data-run-wide] .cg-run-head, .cg-wm-fullview.is-run[data-run-wide] .cg-flow, .cg-wm-fullview.is-run[data-run-wide] .cg-face { max-width: 74rem; }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; column-gap: var(--wk-space-5, 2rem); height: var(--face-h, auto); }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face-main { display: flex; grid-column: 1; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-top: clamp(1rem, 9vh, 6rem); }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face-main > .cg-prompt { font-size: var(--wk-text-lg); }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face-after { display: flex; grid-column: 2; grid-row: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding-left: var(--wk-space-4); border-left: 1px solid var(--wk-line); text-align: left; }
+.cg-wm-fullview.is-run[data-run-wide] .cg-face-statsbox { position: absolute; top: 2.8rem; right: var(--wk-space-2); z-index: 2; width: min(30rem, 46%); max-height: 75%; overflow-y: auto; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }

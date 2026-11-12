@@ -576,5 +576,15 @@
     "goal": "Ustaw jako cel",
     "recommended": "Zalecane: najpierw sprawdź, ile już umiesz",
     "placed": "zaliczona sprawdzeniem — karty jeszcze do potwierdzenia"
+  },
+  "invite": {
+    "title": "Jak chcesz otworzyć mapę świata?",
+    "says": "Mapa potrzebuje miejsca: na pełnym ekranie widzisz cały świat i każdą zmianę po kroku.",
+    "screen": "Pełny ekran",
+    "screenSays": "Cały ekran, bez niczego innego — Esc wraca",
+    "page": "Cała strona",
+    "pageSays": "Mapa wypełnia okno przeglądarki",
+    "best": "Zalecane",
+    "stay": "Zostaw jako część strony"
   }
 }

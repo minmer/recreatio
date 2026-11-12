@@ -673,6 +673,8 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
         </button>
       )}
       {stats != null && statsOpen && <div className="cg-card-history cg-face-statsbox" data-card-stats-open=""><CardHistory marks={stats.marks()} {...(stats.spacing === undefined ? {} : { spacing: stats.spacing })} /></div>}
+      {/* 2026-11-12 — zwei Teile (sonst display: contents, wie bisher): im Vollbild der Weltkarte zwei feste Spalten, die Frage bleibt stehen (wmRunFit.ts). */}
+      <div className="cg-face-main">
       {head}
       <CardPrompt parts={card.prompt} />
       {/*
@@ -702,8 +704,11 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
         setDone({ outcome, given });
         onAnswered(outcome, given, Date.now() - started);
       }} />
+      </div>
+      <div className="cg-face-after">
       {done !== null && <Verdict card={card} outcome={done.outcome} given={done.given} lib={lib} onEntity={onEntity} showGiven={false} marked />}
       {foot}
+      </div>
     </section>
   );
 }

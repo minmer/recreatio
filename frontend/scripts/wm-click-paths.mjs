@@ -103,8 +103,8 @@ try {
   };
   /* Nach einem Teil mit Navigation steht erst der Weg da (2026-11-10): „Wróć do mapy" führt zur Karte. */
   const ready = `(() => { const back = document.querySelector('[data-world-next-page] [data-world-next-map]'); if (back) back.click(); const h = document.querySelector('[data-world-geometry]'); const c = document.querySelector('[data-world-canvas]'); return h && h.dataset.worldGeometry !== 'pending' && c && Number(c.dataset.wmFrame || 0) > 0; })()`;
-  const open = async (progress = 'none', author = false) => {
-    await page.navigate(`${base}/preview.html?lang=pl`);
+  const open = async (progress = 'none', author = false, query = '') => {
+    await page.navigate(`${base}/preview.html?lang=pl${query}`);
     await waitFor('typeof window.recreatioPreview === "object"', 'the preview');
     const r = await ev(`window.recreatioPreview.knowledge({ doc: ${doc}, view: ${JSON.stringify(VIEW)}, progress: ${JSON.stringify(progress)}, author: ${author} }).then((x) => ({ error: x.error ?? null }))`);
     if (r.error !== null) throw new Error(r.error);
@@ -654,6 +654,64 @@ try {
     await sleep(800);
     check(P, 'the credited tower is marked on the map (dashed ring)', Number(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmPlaced ?? 0`)) >= 1);
     await shot('p11-map');
+  }
+
+  /*
+    -- 12 · 2026-11-12: beim Laden die Frage (Vollbild / ganze Seite / Teil der Seite); ein Teil im Vollbild füllt den Platz und
+    steht still; nach dem Teil die Tafel über der angehaltenen Karte, beim Schliessen fliegt, was sie brachte, zur Karte, und
+    die Karte spielt erst danach
+  */
+  if (runs('12')) {
+    const P = '12 invite, still run, flight';
+    const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
+    await open('none', false, '&invite=1');
+    const inv = await ev(`(() => { const d = document.querySelector('[data-world-invite]'); return d === null ? null : [...d.querySelectorAll('[data-world-invite-choose]')].map((b) => b.dataset.worldInviteChoose + (b.classList.contains('is-best') ? '*' : '')).join(); })()`);
+    check(P, 'on load the module is greyed with the question: full screen (recommended), full page, part of the page', inv === 'screen*,page,stay', inv);
+    await shot('p12-invite');
+    await click('[data-world-invite-choose="screen"]');
+    await waitFor(`document.querySelector('[data-world-view]').dataset.worldFullMode === 'screen'`, 'the whole screen');
+    check(P, '"full screen" opens the whole screen and the question is gone', await ev(`document.querySelector('[data-world-invite]') === null`));
+    await sleep(600);
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
+    await click('[data-world-my-settings]');
+    await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
+    await click('[data-levels-n="1"]');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force', 15000);
+    await click('[data-world-run-for="1"]');
+    await waitFor(`document.querySelector('[data-world-running="run"] .cg-options [role=radio]')`, 'the first question');
+    await sleep(400);
+    const rectOf = `(() => { const v = document.querySelector('[data-full-view="run"]'); const o = document.querySelector('.cg-options [role=radio]'); const p = document.querySelector('.cg-face .cg-prompt'); const r = o.getBoundingClientRect(), q = p.getBoundingClientRect(); return { wide: v.hasAttribute('data-run-wide'), zoom: Number(getComputedStyle(v).getPropertyValue('--run-zoom') || 0), x: Math.round(r.left), y: Math.round(r.top), py: Math.round(q.top), scroll: v.scrollHeight - v.clientHeight }; })()`;
+    const before = await ev(rectOf);
+    check(P, 'the run fills the screen: two fixed columns, scaled with the window', before.wide && before.zoom >= 1, before);
+    await shot('p12-run-ask');
+    await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Tak' && !x.disabled); b.click(); return true; })()`);
+    await waitFor(`document.querySelector('[data-card-next]') !== null`, 'the verdict');
+    await sleep(500);
+    const after = await ev(rectOf);
+    check(P, 'after the answer nothing moved (question and answers in the same place) and the view does not scroll', after.x === before.x && after.y === before.y && after.py === before.py && after.scroll <= 2, { before, after });
+    await shot('p12-run-answered');
+    await click('[data-card-next]');
+    await answerAll('[data-world-finish]');
+    await waitFor(`document.querySelector('[data-world-finish]')`, 'the panel of the part');
+    await sleep(1500);
+    const under = { held: await canvas('wmHeld'), playing: await canvas('wmPlaying') };
+    check(P, 'the panel lies over the map; the map waits on the state before (held, not playing)', (under.held ?? '') !== '' && under.playing === '', under);
+    await shot('p12-panel');
+    const played0 = await canvas('wmPlayed');
+    await click('[data-world-finish-close]');
+    const t0 = Date.now();
+    await sleep(250);
+    const flying = Number(await ev(`document.querySelector('[data-world-flights]')?.dataset.worldFlights ?? 0`));
+    check(P, 'closing the panel sends what it brought flying to the map', flying >= 1, flying);
+    await shot('p12-flight');
+    await waitFor(`(document.querySelector('[data-world-canvas]')?.dataset.wmPlayed ?? '') !== ${JSON.stringify(played0 ?? '')}`, 'the map to play', 10000);
+    const startedAfter = Date.now() - t0;
+    await sleep(150);
+    const ms = Number(await canvas('wmPlayedMs'));
+    check(P, 'the map plays what changed only after the panel closed (started, return)', (await canvas('wmPlayedKind')) === 'return' && ms > 0, { startedAfter, ms });
+    await waitFor(`document.querySelector('[data-world-flights]') === null`, 'the flight to land', 5000);
+    await shot('p12-landed');
   }
 
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');

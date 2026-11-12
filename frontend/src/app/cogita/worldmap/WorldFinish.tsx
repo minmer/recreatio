@@ -44,10 +44,10 @@ const vars = (pairs: Record<string, string | number>) => (el: HTMLElement | SVGE
   for (const [k, v] of Object.entries(pairs)) el.style.setProperty(k, String(v));
 };
 
-function Tile({ label, value, suffix = '', i, accent = false }: { label: string; value: number; suffix?: string; i: number; accent?: boolean }) {
+function Tile({ label, value, suffix = '', i, accent = false, src }: { label: string; value: number; suffix?: string; i: number; accent?: boolean; src: string }) {
   const v = useCount(value, 300 + i * 120);
   return (
-    <div className={`cg-fin-tile${accent ? ' is-accent' : ''}`} ref={vars({ '--i': i })} data-world-finish-tile={label}>
+    <div className={`cg-fin-tile${accent ? ' is-accent' : ''}`} ref={vars({ '--i': i })} data-world-finish-tile={label} data-fin-src={src}>
       <span className="cg-fin-num">{suffix === '+' ? `+${v}` : `${v}${suffix}`}</span>
       <span className="cg-fin-label">{label}</span>
     </div>
@@ -80,7 +80,7 @@ function Follow({ c, i, t, nameOf, sectionName, onShow }: {
         : c.why === 'tower' ? t('cogitaWorld.finish.why.tower', { place: nameOf(c.start) }) : t('cogitaWorld.finish.why.openLevel', { place: nameOf(c.start) });
   const target = c.kind === 'opened' ? { kind: 'section' as const, id: c.section } : { kind: 'place' as const, id: c.place };
   return (
-    <li className={`cg-fin-follow is-${c.kind}`} ref={vars({ '--i': i })} data-world-finish-follow={c.kind}>
+    <li className={`cg-fin-follow is-${c.kind}`} ref={vars({ '--i': i })} data-world-finish-follow={c.kind} data-fin-src={`${target.kind}:${target.id}`}>
       <span className="cg-fin-ficon" aria-hidden="true"><ConsequenceIcon kind={c.kind} /></span>
       <span className="cg-fin-ftext">
         <strong>{what}</strong>
@@ -125,12 +125,13 @@ export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext,
           : kind === 'tower' ? (s.level !== null ? t('cogitaWorld.finish.level', { level: s.level.to }) : t('cogitaWorld.finish.run'))
             : kind === 'story' ? t('cogitaWorld.finish.story') : t('cogitaWorld.finish.cards');
   /* 2026-11-10 (Eigentümer: „zu viel auf einmal") — höchstens drei Zahlen: wie gut, was neu sitzt, die Stufen (sonst die gelesenen Schritte). */
-  const tiles: { label: string; value: number; suffix?: string; accent?: boolean }[] = [];
-  if (s.answers > 0) tiles.push({ label: t('cogitaWorld.finish.right'), value: Math.round(s.accuracy * 100), suffix: '%', accent: s.accuracy >= 0.9 });
-  else if (s.visited > 0) tiles.push({ label: t('cogitaWorld.finish.steps'), value: s.visited });
-  if (s.known > 0) tiles.push({ label: t('cogitaWorld.finish.known'), value: s.known, suffix: '+', accent: true });
-  if (s.level !== null) tiles.push({ label: t('cogitaWorld.finish.levels'), value: s.level.to - s.level.from, suffix: '+', accent: true });
-  else if (s.points > 0) tiles.push({ label: t('cogitaWorld.finish.points'), value: s.points, suffix: '+', accent: true });
+  /* 2026-11-12 — jede Zahl ist eine Quelle des Flugs zur Karte (`data-fin-src`, WorldFlight.tsx). */
+  const tiles: { label: string; value: number; suffix?: string; accent?: boolean; src: string }[] = [];
+  if (s.answers > 0) tiles.push({ label: t('cogitaWorld.finish.right'), value: Math.round(s.accuracy * 100), suffix: '%', accent: s.accuracy >= 0.9, src: 'right' });
+  else if (s.visited > 0) tiles.push({ label: t('cogitaWorld.finish.steps'), value: s.visited, src: 'steps' });
+  if (s.known > 0) tiles.push({ label: t('cogitaWorld.finish.known'), value: s.known, suffix: '+', accent: true, src: 'known' });
+  if (s.level !== null) tiles.push({ label: t('cogitaWorld.finish.levels'), value: s.level.to - s.level.from, suffix: '+', accent: true, src: 'levels' });
+  else if (s.points > 0) tiles.push({ label: t('cogitaWorld.finish.points'), value: s.points, suffix: '+', accent: true, src: 'points' });
   const follows = s.consequences.slice(0, FOLLOWS_SHOWN);
   const moreFollows = s.consequences.length - follows.length;
   /* Das Zeichen des Teils (wie in der Kette des Weges). */
@@ -168,9 +169,9 @@ export function FinishShow({ stats, title, t, nameOf, sectionName, next, onNext,
 
   return (
     <div className={`cg-wm-fin is-${kind}`} role="dialog" aria-modal="false" aria-labelledby="cg-wm-fin-head" data-world-finish={kind} data-world-finish-answers={s.answers} data-world-finish-follows={s.consequences.length}>
-      <div className="cg-fin-card">
+      <div className="cg-fin-card" data-fin-src="card">
         <header className="cg-fin-top">
-          <span className="cg-fin-badge" aria-hidden="true">{kind === 'conquer' || kind === 'perfect' ? <FlagIcon size={16} /> : <PartIcon kind={icon} />}</span>
+          <span className="cg-fin-badge" aria-hidden="true" data-fin-src="head">{kind === 'conquer' || kind === 'perfect' ? <FlagIcon size={16} /> : <PartIcon kind={icon} />}</span>
           <span className="cg-fin-titles">
             <span className="cg-fin-what">{title}</span>
             <h2 id="cg-wm-fin-head" className="cg-fin-head">{head}</h2>

@@ -486,5 +486,15 @@
     "goal": "Set as goal",
     "recommended": "Recommended: first check how much you already know",
     "placed": "credited by placement — cards still to be confirmed"
+  },
+  "invite": {
+    "title": "How do you want to open the world map?",
+    "says": "The map needs room: on the whole screen you see the whole world and every change after a step.",
+    "screen": "Full screen",
+    "screenSays": "The whole screen, without anything else — Esc goes back",
+    "page": "Full page",
+    "pageSays": "The map fills the browser window",
+    "best": "Recommended",
+    "stay": "Keep it as a part of the page"
   }
 }

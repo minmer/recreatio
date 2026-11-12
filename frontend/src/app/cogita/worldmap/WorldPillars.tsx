@@ -149,6 +149,11 @@ export interface PillarsHandle {
   replay(): void;
   /** 2026-11-10 — gleitend zu einem Turm oder zur Mitte einer Spur (der geführte Weg: Schritt um Schritt). */
   glide(kind: 'place' | 'section', id: string): void;
+  /**
+   * 2026-11-12 — wo ein Turm (oben an seinem Schaft) oder die Mitte eines Pfades gerade im Fenster steht (Bildschirmpunkte,
+   * wie getBoundingClientRect) — dorthin fliegt, was der Abschluss gebracht hat. Ausserhalb des Bildes: null.
+   */
+  spot(kind: 'place' | 'section', id: string): { readonly x: number; readonly y: number } | null;
   readonly frames: { count: number; ms: number[] };
 }
 
@@ -207,6 +212,13 @@ export interface PillarsProps {
   /** Was sich seit dem letzten Zeigen änderte (einmal je `id`; `wmViews.ts`). */
   readonly playback?: WorldPlayback | null;
   readonly onPlayback?: (e: PlayEvent) => void;
+  /**
+   * 2026-11-12 (Eigentümer: „erst die Statistik, darüber die Karte; die Änderungen spielen eine halbe bis eine Sekunde, nachdem
+   * die Tafel zu ist") — ANGEHALTEN: die Karte zeigt den Stand VOR dem Abspielen (unter der Tafel) und spielt erst, wenn
+   * `hold` wieder false ist — dann nach `playAfter` ms (so lange fliegt, was die Tafel gebracht hat, zu den Türmen).
+   */
+  readonly hold?: boolean;
+  readonly playAfter?: number;
 }
 
 interface Palette {
@@ -424,7 +436,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null } = props;
+    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0 } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -1226,7 +1238,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmGoal = goal ?? '';
     canvas.dataset.wmRoute = (route ?? []).join(' ');
     canvas.dataset.wmFaint = (faint ?? []).join(' ');
-    canvas.dataset.wmPlaying = play === null ? '' : String(play.pb.id);
+    canvas.dataset.wmPlaying = play === null || play.t0 === Infinity ? '' : String(play.pb.id);
+    canvas.dataset.wmHeld = play !== null && play.t0 === Infinity ? String(play.pb.id) : '';
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus, hoverLane]);
@@ -1258,23 +1271,40 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     drawRef.current();
     playRaf.current = requestAnimationFrame(tick);
   }, [finish]);
-  const start = useCallback((pb: WorldPlayback) => {
-    if (playRef.current !== null) finish(true);
-    lastPb.current = pb;
+  /* Ein Abspielen, das um `t0` beginnt (Infinity: angehalten — gezeichnet wird der Stand davor). */
+  const prepared = useCallback((pb: WorldPlayback, t0: number): Playing => {
     const sched = scheduleOf(pb, motion, (id) => { const p = scene.byId.get(id); return p === undefined ? undefined : [p.x, p.y] as const; }, [scene.extent.cx, scene.extent.cy]);
     const total = [...pb.points.values()].reduce((s, n) => s + n, 0) + pb.rest;
+    return { pb, sched, t0, total, fresh: new Set(pb.fresh), changed: new Set([...pb.before.keys(), ...pb.fresh]), conqSent: false, ptsSent: false };
+  }, [motion, scene]);
+  const start = useCallback((pb: WorldPlayback, after = 0) => {
+    if (playRef.current !== null && playRef.current.t0 !== Infinity) finish(true);
+    lastPb.current = pb;
+    const play = prepared(pb, performance.now() + after);
     const canvas = canvasRef.current;
-    if (canvas !== null) { canvas.dataset.wmPlayed = String(pb.id); canvas.dataset.wmPlayedKind = pb.kind; canvas.dataset.wmPlayedMs = sched.end.toFixed(0); }
-    onPlaybackRef.current?.({ kind: 'start', id: pb.id, points: total });
-    playRef.current = { pb, sched, t0: performance.now(), total, fresh: new Set(pb.fresh), changed: new Set([...pb.before.keys(), ...pb.fresh]), conqSent: false, ptsSent: false };
-    if (sched.end <= 0) { finish(false); return; }
+    if (canvas !== null) { canvas.dataset.wmPlayed = String(pb.id); canvas.dataset.wmPlayedKind = pb.kind; canvas.dataset.wmPlayedMs = play.sched.end.toFixed(0); }
+    onPlaybackRef.current?.({ kind: 'start', id: pb.id, points: play.total });
+    playRef.current = play;
+    if (play.sched.end <= 0) { finish(false); return; }
     tick();
-  }, [motion, scene, finish, tick]);
+  }, [prepared, finish, tick]);
   useEffect(() => {
-    if (playback === null || palette === null || size.w === 0 || playedId.current === playback.id) return;
+    if (palette === null || size.w === 0) return;
+    const play = playRef.current;
+    const held = play !== null && play.t0 === Infinity;
+    if (playback === null) { if (held) { playRef.current = null; drawRef.current(); } return; }
+    /* Angehalten (unter der Tafel): der Stand davor steht still da; ein neuer Stand ersetzt ihn still. */
+    if (hold) {
+      if (held && play.pb.id === playback.id) return;
+      if (play !== null && !held) finish(true);
+      playRef.current = prepared(playback, Infinity);
+      drawRef.current();
+      return;
+    }
+    if (playedId.current === playback.id) return;
     playedId.current = playback.id;
-    start(playback);
-  }, [playback, palette, size.w, start]);
+    start(playback, held ? playAfter : 0);
+  }, [playback, palette, size.w, start, hold, playAfter, prepared, finish]);
   useEffect(() => () => cancelAnimationFrame(playRaf.current), []);
   const skip = () => { if (playRef.current !== null) finish(true); };
 
@@ -1567,8 +1597,27 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     rotate: (deg: number) => { const c = camRef.current; if (c !== null) { setCam({ ...c, rot: c.rot + deg }); draw(); } },
     replay: () => { if (lastPb.current !== null) start(lastPb.current); },
     glide: (kind, id) => { if (kind === 'place') glidePlace(id); else glideSection(id); },
+    spot: (kind, id) => {
+      const canvas = canvasRef.current;
+      const c = camRef.current;
+      if (canvas === null || c === null || size.w === 0) return null;
+      let x: number, y: number;
+      if (kind === 'place') {
+        const d = drawnRef.current.find((q) => q.id === id);
+        if (d === undefined) return null;
+        x = d.x; y = d.top + Math.min(14, (d.bottom - d.top) / 3);
+      } else {
+        const lane = scene.lanes.find((l) => l.section === id);
+        if (lane === undefined) return null;
+        const a = along(withRims(lane, pillarWidth), 0.5);
+        [x, y] = toScr(viewOf(c, size.w, size.h), a.x, a.y, 0);
+      }
+      if (x < 0 || y < 0 || x > size.w || y > size.h) return null;
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + (x * r.width) / size.w, y: r.top + (y * r.height) / size.h };
+    },
     frames: frames.current
-  }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection]);
+  }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection, pillarWidth]);
 
   const c = cam;
   return (

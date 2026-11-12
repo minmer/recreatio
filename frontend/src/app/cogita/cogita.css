@@ -200,6 +200,8 @@
 .cg-prompt { font-size: var(--wk-text-lg); line-height: 1.45; }
 /* 2026-10-18 — die Karte mittig: Frage, Antwort, Urteil und „Dalej" in der Mitte; die Wahlmöglichkeiten in einer mittigen Spalte. */
 .cg-face { justify-self: center; text-align: center; }
+/* 2026-11-12 — die zwei Teile einer Karte zählen sonst nicht (im Vollbild der Weltkarte: zwei Spalten, worldmap.css). */
+.cg-face-main, .cg-face-after { display: contents; }
 .cg-face .cg-answer, .cg-face .cg-options { width: 100%; max-width: 34rem; margin-inline: auto; }
 .cg-face .cg-answer .cg-row, .cg-face .wk-actions { justify-content: center; }
 /* 2026-10-31 — lange Möglichkeiten brechen um und stehen links; alle gleich breit (eine Spalte des Rasters). */
@@ -1077,7 +1079,7 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-face-stats svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .cg-face-stats:hover, .cg-face-stats:focus-visible, .cg-face-stats.is-on { color: var(--wk-ink); border-color: var(--wk-ink); }
 .cg-face-statsbox { margin: 0 0 var(--wk-space-2); text-align: left; }
-.cg-face:has(> .cg-face-stats) > .cg-prompt { padding-inline: 1.6rem; }
+.cg-face:has(> .cg-face-stats) > .cg-face-main > .cg-prompt { padding-inline: 1.6rem; }
 
 /* 2026-11-11 — eine Wahl mit Folie: die Überschrift der Möglichkeiten, die Zeile unter dem Namen einer Möglichkeit. */
 .cg-choice-head { margin: var(--wk-space-3) 0 0; font-size: var(--wk-text-md); }
