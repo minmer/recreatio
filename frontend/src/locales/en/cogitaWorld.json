@@ -313,7 +313,7 @@
     "costSame": "same effort",
     "end": "End navigation",
     "arrived": "You are there: {name}",
-    "startHere": "Start here",
+    "startHere": "Next step",
     "runAll": "all right first time: straight to level {upTo}",
     "review": "Review before exploring {to}",
     "runUnseen": {
@@ -404,7 +404,8 @@
       "know": "Practice until it sits.",
       "run": "Show what you know — this conquers the tower."
     },
-    "start": "Start"
+    "start": "Go to step",
+    "stepButton": "Step {n}: {kind}"
   },
   "finish": {
     "arrive": "Goal reached!",
@@ -458,12 +459,14 @@
   },
   "home": {
     "repeatTitle": "Review everything",
-    "repeatSays": "Every card you have seen, once each, in random order.",
+    "repeatSays": "Every card below the chosen knowledge in the towers you have begun — also those never asked there — once each, in random order.",
+    "below": "below {pct} %",
     "repeatN": {
-      "one": "Review all ({count} card)",
-      "other": "Review all ({count} cards)"
+      "one": "Review {count} card",
+      "other": "Review {count} cards"
     },
-    "nothing": "Nothing to review yet — no card seen."
+    "repeatRun": "Review: cards below {pct} %",
+    "nothing": "No card below {pct} %"
   },
   "placement": {
     "title": "Check how much you already know",

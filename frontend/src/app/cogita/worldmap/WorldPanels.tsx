@@ -6,7 +6,7 @@
  * die Liste für Autoren (§11). Rechnet nichts am Modell: alles kommt aus `WorldState`, die Taten aus `PanelActions`.
  */
 
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
@@ -521,26 +521,58 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
 /* -- Das Haus ------------------------------------------------------------------------------------------------------------------ */
 
 /*
-  2026-11-14 (Eigentümer: „das Haus wiederholt nicht alle Karten, nur ausgewählte") — AM HAUS DIE WIEDERHOLUNG VON ALLEM: jede Karte,
-  die man schon gesehen hat (in jedem Turm, erobert oder nicht, wie gut sie auch sitzt), einmal und in zufälliger Folge; dazu
-  höchstens PLACED_LIMIT nie gefragte Karten gutgeschriebener Türme. Ein Knopf, keine Schwelle mehr.
+  2026-11-10 (Eigentümer) — AM HAUS DIE WIEDERHOLUNG VON ALLEM unter der gewählten Schwelle (90 % … 130 %; über 100 % heisst „na
+  zapas"), jede Karte einmal, in zufälliger Folge. Die Schwelle merkt sich dieses Gerät.
+  2026-11-14 (Eigentümer: „auch wenn alle Karten bestanden waren, blieben Türme mit Karten, die nie gefragt wurden") — nicht mehr nur
+  Karten eroberter Türme: jede Karte unter der Schwelle in jedem Turm, den man angefangen hat (eine Karte gesehen, erobert oder
+  gutgeschrieben) — auch die dort noch nie gefragten; nie berührte Türme bleiben draussen (sie sind Neues, keine Wiederholung).
+  Gutgeschriebene Türme bringen ihre nie gefragten Karten höchstens PLACED_LIMIT auf einmal.
 */
+const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;
 /** Wie `PLACED_PER_RUN` (WorldLandscape): so viele nie gefragte Karten gutgeschriebener Türme je Wiederholung. */
 const PLACED_LIMIT = 20;
+const REPEAT_KEY = 'cg-wm-repeat-at';
+const keptRepeatAt = (): number => {
+  try { const v = Number(localStorage.getItem(REPEAT_KEY)); return (REPEAT_AT as readonly number[]).includes(v) ? v : 1; } catch { return 1; }
+};
 
 function HomeRepeat({ ctx }: { ctx: PanelCtx }) {
   const { t, state, act } = ctx;
-  const list = useMemo(() => {
-    const seen = [...state.world.cardPlaces.keys()].filter((k) => state.band(k) !== 'unseen' && state.ctx.suspended?.(k) !== true);
-    const placedUnseen = [...state.places].filter(([, ps]) => ps.placed > 0).flatMap(([, ps]) => ps.cards.filter((k) => state.band(k) === 'unseen'));
-    return [...new Set([...seen, ...placedUnseen.slice(0, PLACED_LIMIT)])];
+  const [at, setAt] = useState(keptRepeatAt);
+  const choose = (v: number) => { setAt(v); try { localStorage.setItem(REPEAT_KEY, String(v)); } catch { /* ohne Speicher: nur jetzt */ } };
+  /* Die Karten angefangener Türme (ohne ausgesetzte); die nie gefragten gutgeschriebener Türme gedeckelt. */
+  const pool = useMemo(() => {
+    const out: string[] = [];
+    let placed = 0;
+    const free = (k: string) => state.ctx.suspended?.(k) !== true;
+    for (const [, ps] of state.places) {
+      const begun = ps.conquered || ps.placed > 0 || ps.cards.some((k) => state.band(k) !== 'unseen');
+      if (!begun) continue;
+      for (const k of ps.cards) {
+        if (!free(k)) continue;
+        if (state.band(k) === 'unseen' && ps.placed > 0 && !ps.cards.some((x) => state.band(x) !== 'unseen')) { if (placed >= PLACED_LIMIT) continue; placed += 1; }
+        out.push(k);
+      }
+    }
+    return [...new Set(out)];
   }, [state]);
-  if (!ctx.canLearn) return null;
+  const below = (v: number) => pool.filter((k) => state.band(k) === 'unseen' || state.ctx.knowness(k) < v);
+  const list = below(at);
+  const pct = Math.round(at * 100);
   return (
-    <div className="cg-wm-done" data-world-repeat={list.length}>
-      {list.length > 0
-        ? <button type="button" className="wk-btn" onClick={() => act.repeat(list, t('cogitaWorld.home.repeatTitle'))} title={t('cogitaWorld.home.repeatSays')} data-world-repeat-go={list.length}>{t('cogitaWorld.home.repeatN', { count: list.length })}</button>
-        : <p className="cg-wm-meta" data-world-repeat-none="">{t('cogitaWorld.home.nothing')}</p>}
+    <div className="cg-wm-next" data-world-repeat={list.length} data-world-repeat-at={at}>
+      <p className="cg-wm-h">{t('cogitaWorld.home.repeatTitle')}</p>
+      <p className="cg-wm-meta">{t('cogitaWorld.home.repeatSays')}</p>
+      <div className="cg-wm-modes" role="group" aria-label={t('cogitaWorld.home.repeatTitle')}>
+        {REPEAT_AT.map((v) => (
+          <button key={v} type="button" className={`cg-wm-mode${at === v ? ' is-on' : ''}`} aria-pressed={at === v} onClick={() => choose(v)} data-world-repeat-choose={v}>
+            {t('cogitaWorld.home.below', { pct: Math.round(v * 100) })} ({below(v).length})
+          </button>
+        ))}
+      </div>
+      {!ctx.canLearn ? null : list.length > 0
+        ? <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => act.repeat(list, t('cogitaWorld.home.repeatRun', { pct }))} data-world-repeat-go={list.length}>{t('cogitaWorld.home.repeatN', { count: list.length })}</button></div>
+        : <p className="cg-wm-ok" data-world-repeat-none="">✓ {t('cogitaWorld.home.nothing', { pct })}</p>}
     </div>
   );
 }

@@ -367,7 +367,7 @@
     "costSame": "ten sam wysiłek",
     "end": "Zakończ nawigację",
     "arrived": "Jesteś na miejscu: {name}",
-    "startHere": "Zacznij tutaj",
+    "startHere": "Następny krok",
     "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}",
     "review": "Powtórka przed odkrywaniem: {to}",
     "runUnseen": {
@@ -476,7 +476,8 @@
       "know": "Ćwiczenie, aż będzie pewne.",
       "run": "Pokaż, co umiesz — tak zdobywa się wieżę."
     },
-    "start": "Zacznij"
+    "start": "Przejdź do kroku",
+    "stepButton": "Krok {n}: {kind}"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",
@@ -534,14 +535,16 @@
   },
   "home": {
     "repeatTitle": "Powtórka wszystkiego",
-    "repeatSays": "Każda karta, która już była, po razie, w losowej kolejności.",
+    "repeatSays": "Każda karta poniżej wybranej znajomości w rozpoczętych wieżach — także te, o które jeszcze nie pytano — po razie, w losowej kolejności.",
+    "below": "poniżej {pct} %",
     "repeatN": {
-      "one": "Powtórz wszystko ({count} karta)",
-      "few": "Powtórz wszystko ({count} karty)",
-      "many": "Powtórz wszystko ({count} kart)",
-      "other": "Powtórz wszystko ({count} kart)"
+      "one": "Powtórz {count} kartę",
+      "few": "Powtórz {count} karty",
+      "many": "Powtórz {count} kart",
+      "other": "Powtórz {count} karty"
     },
-    "nothing": "Na razie nie ma czego powtarzać — żadna karta jeszcze nie była."
+    "repeatRun": "Powtórka: karty poniżej {pct} %",
+    "nothing": "Żadna karta poniżej {pct} %"
   },
   "placement": {
     "title": "Sprawdź, ile już umiesz",

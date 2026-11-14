@@ -313,7 +313,7 @@
     "costSame": "gleicher Aufwand",
     "end": "Navigation beenden",
     "arrived": "Du bist da: {name}",
-    "startHere": "Hier beginnen",
+    "startHere": "Nächster Schritt",
     "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}",
     "review": "Wiederholen, bevor du {to} erkundest",
     "runUnseen": {
@@ -404,7 +404,8 @@
       "know": "Üben, bis es sitzt.",
       "run": "Zeig, was du kannst — so eroberst du den Turm."
     },
-    "start": "Starten"
+    "start": "Zum Schritt",
+    "stepButton": "Schritt {n}: {kind}"
   },
   "finish": {
     "arrive": "Ziel erreicht!",
@@ -458,12 +459,14 @@
   },
   "home": {
     "repeatTitle": "Alles wiederholen",
-    "repeatSays": "Jede Karte, die du schon gesehen hast, je einmal, in zufälliger Folge.",
+    "repeatSays": "Jede Karte unter dem gewählten Wissen in den Türmen, die du begonnen hast — auch die dort nie gefragten —, je einmal, in zufälliger Folge.",
+    "below": "unter {pct} %",
     "repeatN": {
-      "one": "Alles wiederholen ({count} Karte)",
-      "other": "Alles wiederholen ({count} Karten)"
+      "one": "{count} Karte wiederholen",
+      "other": "{count} Karten wiederholen"
     },
-    "nothing": "Noch nichts zu wiederholen — keine Karte gesehen."
+    "repeatRun": "Wiederholung: Karten unter {pct} %",
+    "nothing": "Keine Karte unter {pct} %"
   },
   "placement": {
     "title": "Prüfe, wie viel du schon kannst",

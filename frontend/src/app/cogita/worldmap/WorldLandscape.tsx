@@ -786,7 +786,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     const r = state.routeTo(id);
     return r === null ? null : { next: r, later: [] };
   }, [state]);
-  const hoverWay = useMemo(() => (hover === null ? null : wayOf(hover.id, hoverPlan)), [hover, hoverPlan, wayOf]);
+  /* 2026-11-14 — der gewählte Turm unter dem Zeiger zeigt weiter, was er gewählt zeigt (seine Wege weiter), nicht den Weg vom Haus. */
+  const hoverWay = useMemo(() => (hover === null || (chosen?.kind === 'place' && chosen.id === hover.id) ? null : wayOf(hover.id, hoverPlan)), [hover, hoverPlan, wayOf, chosen]);
   /* Ein angeklickter Turm: sein Weg bleibt sichtbar, bis etwas anderes gewählt ist; die Navigation zu ihm: derselbe Weg. */
   const chosenWay = useMemo(() => (chosen?.kind === 'place' ? (nav?.target === chosen.id && marks !== null ? { next: marks.next, later: marks.later } : wayOf(chosen.id, wayPlan))
     : chosen?.kind === 'section' ? { next: [chosen.id], later: [] }
@@ -1042,7 +1043,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onLead={(id) => { setGoal(id); lead(id); }} onPlain={() => { setChosen(null); setHover(null); setOverview(false); setAskNext(false); setPlain(true); }}
               full={full !== null} squeeze={hasSide} under={wayCard}
               startAction={tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
-                ? { label: t('cogitaWorld.nav.startHere'), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
+                /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
+                ? { label: t('cogitaWorld.way.stepButton', { n: tt.done.length + 1, kind: t(`cogitaWorld.way.kind.${tt.upcoming[0].kind}`) }), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
               <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('screen')} title={t('cogitaWorld.map.fullSays')} data-world-full="screen">⛶ <span>{t('cogitaWorld.map.fullOn')}</span></button>
