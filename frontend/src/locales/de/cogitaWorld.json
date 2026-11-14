@@ -290,7 +290,9 @@
       "one": "{count} Erklärweise",
       "other": "{count} Erklärweisen"
     },
-    "gateFrom": "Hier treffen sich die Wege von {names}."
+    "gateFrom": "Hier treffen sich die Wege von {names}.",
+    "explore": "Erkunden",
+    "conquerDirect": "Direkt erobern"
   },
   "nav": {
     "target": "Ziel: {name}",
@@ -371,24 +373,6 @@
       "know": "Festigen",
       "target": "Ziel"
     },
-    "count": {
-      "travel": {
-        "one": "{count} Erzählung",
-        "other": "{count} Erzählungen"
-      },
-      "review": {
-        "one": "{count} Wiederholung",
-        "other": "{count} Wiederholungen"
-      },
-      "learn": {
-        "one": "{count} Lernteil",
-        "other": "{count} Lernteile"
-      },
-      "run": {
-        "one": "{count} Eroberung",
-        "other": "{count} Eroberungen"
-      }
-    },
     "preview": {
       "one": "Der Weg hierher: {count} Teil",
       "other": "Der Weg hierher: {count} Teile"
@@ -419,7 +403,8 @@
       "learn": "Karten, die keine Erzählung bringt — direkt gelernt.",
       "know": "Üben, bis es sitzt.",
       "run": "Zeig, was du kannst — so eroberst du den Turm."
-    }
+    },
+    "start": "Starten"
   },
   "finish": {
     "arrive": "Ziel erreicht!",
@@ -473,14 +458,12 @@
   },
   "home": {
     "repeatTitle": "Alles wiederholen",
-    "repeatSays": "Karten eroberter Orte, jede einmal, in zufälliger Folge. Wähle, wie gut eine Karte höchstens sitzen darf.",
-    "below": "unter {pct} %",
+    "repeatSays": "Jede Karte, die du schon gesehen hast, je einmal, in zufälliger Folge.",
     "repeatN": {
-      "one": "{count} Karte wiederholen",
-      "other": "{count} Karten wiederholen"
+      "one": "Alles wiederholen ({count} Karte)",
+      "other": "Alles wiederholen ({count} Karten)"
     },
-    "repeatRun": "Wiederholung: Karten unter {pct} %",
-    "nothing": "Keine Karte unter {pct} %"
+    "nothing": "Noch nichts zu wiederholen — keine Karte gesehen."
   },
   "placement": {
     "title": "Prüfe, wie viel du schon kannst",

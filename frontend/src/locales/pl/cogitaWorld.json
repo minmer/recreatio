@@ -342,7 +342,9 @@
       "many": "{count} sposobów wyjaśnienia",
       "other": "{count} sposobu wyjaśnienia"
     },
-    "gateFrom": "Tu spotykają się drogi z: {names}."
+    "gateFrom": "Tu spotykają się drogi z: {names}.",
+    "explore": "Odkryj",
+    "conquerDirect": "Zdobądź od razu"
   },
   "nav": {
     "target": "Cel: {name}",
@@ -437,32 +439,6 @@
       "know": "Utrwalenie",
       "target": "Cel"
     },
-    "count": {
-      "travel": {
-        "one": "{count} opowieść",
-        "few": "{count} opowieści",
-        "many": "{count} opowieści",
-        "other": "{count} opowieści"
-      },
-      "review": {
-        "one": "{count} powtórka",
-        "few": "{count} powtórki",
-        "many": "{count} powtórek",
-        "other": "{count} powtórki"
-      },
-      "learn": {
-        "one": "{count} nauka",
-        "few": "{count} nauki",
-        "many": "{count} nauk",
-        "other": "{count} nauki"
-      },
-      "run": {
-        "one": "{count} zdobycie",
-        "few": "{count} zdobycia",
-        "many": "{count} zdobyć",
-        "other": "{count} zdobycia"
-      }
-    },
     "preview": {
       "one": "Droga tutaj: {count} część",
       "few": "Droga tutaj: {count} części",
@@ -499,7 +475,8 @@
       "learn": "Karty, których nie wprowadza żadna opowieść — nauka wprost.",
       "know": "Ćwiczenie, aż będzie pewne.",
       "run": "Pokaż, co umiesz — tak zdobywa się wieżę."
-    }
+    },
+    "start": "Zacznij"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",
@@ -557,16 +534,14 @@
   },
   "home": {
     "repeatTitle": "Powtórka wszystkiego",
-    "repeatSays": "Karty zdobytych miejsc, każda raz, w losowej kolejności. Wybierz, do jakiej znajomości karta ma wrócić.",
-    "below": "poniżej {pct} %",
+    "repeatSays": "Każda karta, która już była, po razie, w losowej kolejności.",
     "repeatN": {
-      "one": "Powtórz {count} kartę",
-      "few": "Powtórz {count} karty",
-      "many": "Powtórz {count} kart",
-      "other": "Powtórz {count} karty"
+      "one": "Powtórz wszystko ({count} karta)",
+      "few": "Powtórz wszystko ({count} karty)",
+      "many": "Powtórz wszystko ({count} kart)",
+      "other": "Powtórz wszystko ({count} kart)"
     },
-    "repeatRun": "Powtórka: karty poniżej {pct} %",
-    "nothing": "Żadnej karty poniżej {pct} %"
+    "nothing": "Na razie nie ma czego powtarzać — żadna karta jeszcze nie była."
   },
   "placement": {
     "title": "Sprawdź, ile już umiesz",

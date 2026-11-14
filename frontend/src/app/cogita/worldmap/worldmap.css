@@ -470,7 +470,6 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-annbar { position: relative; display: block; height: 4px; overflow: hidden; border-radius: var(--wk-radius-pill); background: var(--wk-line); }
 .cg-wm-annbar::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--wk-accent); transform-origin: left; transform: scaleX(var(--to, 0)); animation: cg-wm-annbar 900ms 180ms ease-out both; }
 .cg-wm-announce .cg-wm-picon path { stroke-dasharray: 90; stroke-dashoffset: 0; animation: cg-wm-draw 1s 250ms ease-out both; }
-.cg-wm-annabout { margin: 0; color: var(--wk-ink-2); font-size: var(--wk-text-sm); line-height: 1.35; }
 @keyframes cg-wm-ann { from { opacity: 0; transform: translateX(1.5rem); } to { opacity: 1; transform: none; } }
 @keyframes cg-wm-annbar { from { transform: scaleX(var(--from, 0)); } }
 @keyframes cg-wm-draw { from { stroke-dashoffset: 90; } }
@@ -497,3 +496,26 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
   .cg-wm-fullview.is-page { padding-block: var(--wk-space-2); }
   .cg-wm-partbanner { margin-bottom: var(--wk-space-2); padding-block: var(--wk-space-1); }
 }
+
+/*
+  2026-11-14 (Eigentümer: „über dem Turm fliegt ein Knopf Start; ein Klick: der Schritt fliegt aus der Leiste unten in die Mitte, dort
+  in einem Satz, was getan wird, und Start") — der Knopf über dem Ort des jetzigen Schrittes (WorldPillars setzt ihn in jedem Bild)
+  und die Tafel des Schrittes über der Mitte der Karte.
+*/
+.cg-wm-startbtn { position: absolute; z-index: 4; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.8rem; border: 0; border-radius: var(--wk-radius-pill); background: var(--wk-accent); color: var(--wk-on-accent); font: inherit; font-size: var(--wk-text-sm); font-weight: 700; white-space: nowrap; cursor: pointer; box-shadow: var(--wk-shadow-pop); transform: translate(-50%, calc(-100% - 0.9rem)); animation: cg-wm-bob 1.8s ease-in-out infinite; }
+.cg-wm-startbtn::after { content: ''; position: absolute; left: 50%; bottom: -0.4rem; width: 0.8rem; height: 0.8rem; background: inherit; transform: translateX(-50%) rotate(45deg); z-index: -1; }
+.cg-wm-startbtn:hover, .cg-wm-startbtn:focus-visible { filter: brightness(1.08); }
+.cg-wm-startbtn[hidden] { display: none; }
+@keyframes cg-wm-bob { 0%, 100% { transform: translate(-50%, calc(-100% - 0.9rem)); } 50% { transform: translate(-50%, calc(-100% - 1.3rem)); } }
+.cg-wm-sheetback { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: var(--wk-space-3); background: color-mix(in oklab, var(--wk-surface) 30%, transparent); animation: cg-fin-fade 240ms ease-out both; }
+.cg-wm-sheet { position: relative; display: grid; justify-items: center; gap: var(--wk-space-2); width: min(26rem, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: var(--wk-space-4) var(--wk-space-4) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); text-align: center; box-shadow: var(--wk-shadow-pop); animation: cg-wm-sheet-in 560ms cubic-bezier(.2, 1.1, .35, 1) both; }
+.cg-wm-sheetx { position: absolute; top: var(--wk-space-1); right: var(--wk-space-1); }
+.cg-wm-sheeticon { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; border-radius: 50%; background: var(--wk-accent-soft); color: var(--wk-accent); }
+.cg-wm-sheeticon .cg-wm-picon { width: 1.9rem; height: 1.9rem; }
+.cg-wm-sheeticon .cg-wm-picon path { stroke-dasharray: 90; animation: cg-wm-draw 1s 300ms ease-out both; }
+.cg-wm-sheethead { margin: 0; font-size: var(--wk-text-lg); line-height: 1.3; }
+.cg-wm-sheetabout { margin: 0; color: var(--wk-ink-2); line-height: 1.45; }
+.cg-wm-sheetbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--wk-space-2); margin-top: var(--wk-space-1); }
+@keyframes cg-wm-sheet-in { from { opacity: 0; transform: translateY(45%) scale(0.55); } to { opacity: 1; transform: none; } }
+:root[data-motion='reduced'] .cg-wm-startbtn, :root[data-motion='off'] .cg-wm-startbtn, :root[data-motion='off'] .cg-wm-sheet, :root[data-motion='off'] .cg-wm-sheet *, :root[data-motion='off'] .cg-wm-sheetback { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .cg-wm-startbtn, .cg-wm-sheet, .cg-wm-sheet *, .cg-wm-sheetback { animation: none; } }

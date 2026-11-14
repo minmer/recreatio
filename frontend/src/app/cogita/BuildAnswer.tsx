@@ -37,6 +37,12 @@ const SLOP = 5;
 const TEXT_ESC: Readonly<Record<string, string>> = { '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', $: '\\$', '&': '\\&', '#': '\\#', '^': '\\^{}', _: '\\_', '%': '\\%', '~': '\\~{}' };
 const asText = (text: string): string => (text.trim() === '' ? '' : `\\text{${text.replace(/[\\{}$&#^_%~]/g, (c) => TEXT_ESC[c] ?? c)}}`);
 
+/** 2026-11-14 — der wirksame CSS-`zoom` eines Elements (im Vollbild der Weltkarte ≠ 1). */
+function zoomOf(el: Element | null): number {
+  const z = (el as (Element & { currentCSSZoom?: number }) | null)?.currentCSSZoom;
+  return typeof z === 'number' && z > 0 ? z : 1;
+}
+
 /** Eine Kachel als Stück LaTeX: ihr Wzór (ohne Dollar), Text als `\text{…}`. */
 function tileTex(tile: string): string {
   return texPieces(tile).map((p) => (p.t === 'math' ? p.tex : asText(p.v))).join('');
@@ -93,7 +99,8 @@ function flip(root: HTMLElement | null, before: ReadonlyMap<string, DOMRect> | n
     const dx = was.left - now.left;
     const dy = was.top - now.top;
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    const k = zoomOf(el);
+    el.style.transform = `translate(${dx / k}px, ${dy / k}px)`;
     moved.push(el);
   }
   void root.offsetHeight;
@@ -177,7 +184,9 @@ export function BuildAnswer({ card, locked, autoFocus = true, given, outcome, on
     const el = root.querySelector<HTMLElement>(`[data-tile-id="${d.id}"]`);
     if (el === null) return;
     const box = root.getBoundingClientRect();
-    el.style.transform = `translate(${d.x - box.left - d.grabX - el.offsetLeft}px, ${d.y - box.top - d.grabY - el.offsetTop}px)`;
+    /* Zeiger und Rahmen in Bildschirm-Pixeln, offsetLeft/Top und translate in denen des Elements (CSS-`zoom` im Vollbild). */
+    const k = zoomOf(root);
+    el.style.transform = `translate(${(d.x - box.left - d.grabX) / k - el.offsetLeft}px, ${(d.y - box.top - d.grabY) / k - el.offsetTop}px)`;
   };
   /* Nach jedem Umordnen beim Ziehen: die gezogene Kachel bleibt unter dem Zeiger. */
   useLayoutEffect(() => { if (dragging !== null) place(); });

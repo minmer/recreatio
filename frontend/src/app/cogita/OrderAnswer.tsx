@@ -77,6 +77,15 @@ function edgeOf(scroller: Element, y: number): number {
  * FLIP: wo die Stücke vorher standen (`before`), dorthin werden sie verschoben — und gleiten dann an ihren neuen Platz.
  * Ohne `before` (das erste Zeichnen) geschieht nichts.
  */
+/**
+ * 2026-11-14 (Eigentümer: „das Ziehen ist verschoben“) — in einem Teil mit CSS-`zoom` (das Vollbild der Weltkarte) messen Zeiger und
+ * `getBoundingClientRect` in Bildschirm-Pixeln, `translateY` aber in den Pixeln des Elements: geteilt durch seinen Zoom.
+ */
+function zoomOf(el: Element | null): number {
+  const z = (el as (Element & { currentCSSZoom?: number }) | null)?.currentCSSZoom;
+  return typeof z === 'number' && z > 0 ? z : 1;
+}
+
 function flip(list: HTMLElement | null, before: ReadonlyMap<number, number> | null) {
   if (list === null || before === null) return;
   const items = [...list.querySelectorAll<HTMLElement>('[data-order-id]')];
@@ -88,7 +97,7 @@ function flip(list: HTMLElement | null, before: ReadonlyMap<number, number> | nu
     if (was === undefined) continue;
     const dy = was - el.getBoundingClientRect().top;
     if (Math.abs(dy) < 0.5) continue;
-    el.style.transform = `translateY(${dy}px)`;
+    el.style.transform = `translateY(${dy / zoomOf(el)}px)`;
     moved.push(el);
   }
   void list.offsetHeight;
@@ -161,10 +170,11 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action, pr
     for (let i = 0; i < d.tops.length; i += 1) if (i !== d.from && d.tops[i]! + d.heights[i]! / 2 < center) to += 1;
     d.to = to;
     const room = d.heights[d.from]! + d.gap;
+    const k = zoomOf(list.current);
     els.forEach((el, i) => {
-      if (i === d.from) { el.style.transform = `translateY(${dy}px)`; return; }
+      if (i === d.from) { el.style.transform = `translateY(${dy / k}px)`; return; }
       const shift = d.from < to && i > d.from && i <= to ? -room : d.from > to && i >= to && i < d.from ? room : 0;
-      el.style.transform = shift === 0 ? '' : `translateY(${shift}px)`;
+      el.style.transform = shift === 0 ? '' : `translateY(${shift / k}px)`;
     });
   };
 

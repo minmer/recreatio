@@ -51,7 +51,7 @@ import { useRunFit } from './wmRunFit';
 import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
 import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
-import { NextView, PartIcon, WayPreview } from './WorldWay';
+import { NextView, PartIcon, StepSheet } from './WorldWay';
 import { authorIssues } from './wmAuthors';
 import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
 import { lineColours, oklch, type Rgb } from './wmColors';
@@ -417,8 +417,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     travel,
     learn: (keysOf, title) => startCards(keysOf, title, false),
     review: (keysOf, title) => startCards(keysOf, title, true),
+    /* 2026-11-14 (Eigentümer) — alles, was übergeben ist (am Haus: jede gesehene Karte), nicht nur Karten eroberter Türme. */
     repeat: (keysOf, title) => {
-      const list = cardsOf(keysOf).filter((c) => reviewable(c.key, state));
+      const list = cardsOf(keysOf);
       /*
         2026-11-12 (Einstufung) — die nie gefragten Karten gutgeschriebener Türme sind fällig, aber sie überfluten die Wiederholung
         nicht: höchstens PLACED_PER_RUN je Wiederholung, die der zuletzt gutgeschriebenen Türme zuerst.
@@ -428,7 +429,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       list.push(...cardsOf(placedUnseen));
       if (list.length === 0) { setNote(t('cogitaWorld.panel.nothing')); return; }
       setNote(null);
-      setRunning({ kind: 'cards', key: `review:${Date.now()}`, source: { plan: readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' }), cards, title, review: true } });
+      setRunning({ kind: 'cards', key: `review:${Date.now()}`, source: { plan: readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' }), cards, title } });
     },
     run: (place) => { setNote(null); setRunning({ kind: 'run', key: `run:${place}:${Date.now()}`, place }); },
     /* 2026-11-14 — wer sich zu einem Turm führen lässt, hat ihn zum Ziel (wie der Doppelklick). */
@@ -485,6 +486,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const [lastDone, setLastDone] = useState<ReadonlySet<string> | null>(null);
   /* 2026-11-10 (Eigentümer: „ein Schritt nach dem anderen bis zum Turm") — nach jedem Teil mit Navigation: der Weg und die Einladung zum nächsten. */
   const [askNext, setAskNext] = useState(false);
+  /*
+    2026-11-14 (Eigentümer) — DIE TAFEL DES SCHRITTES in der Mitte der Karte: „Zacznij" unten oder der Knopf über dem Turm öffnet sie,
+    dort steht in einem Satz, was jetzt getan wird; erst ihr „Start" beginnt den Schritt.
+  */
+  const [sheet, setSheet] = useState<PlanStep | null>(null);
+  useEffect(() => { if (running !== null) setSheet(null); }, [running]);
   useEffect(() => {
     if (running !== null) {
       setFullTab('run');
@@ -951,7 +958,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     <div className="cg-wm-waycard" data-world-next-page="">
       <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep}
         onSkip={(s) => skipStep(stepKey(s))} skipped={skippedSet} onUnskip={unskip}
-        onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }}
+        onGo={(s) => setSheet(s)} onPrepare={(s) => { closeWay(); prepareStep(s); }}
         onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
         arrived={(() => {
           const p = isPathTarget(tt.target) ? pathById.get(pathOfTarget(tt.target)) : undefined;
@@ -1033,7 +1040,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
               onPickJunction={(id) => setChosen({ kind: 'junction', id })}
               onLead={(id) => { setGoal(id); lead(id); }} onPlain={() => { setChosen(null); setHover(null); setOverview(false); setAskNext(false); setPlain(true); }}
-              full={full !== null} squeeze={hasSide} under={wayCard} />}
+              full={full !== null} squeeze={hasSide} under={wayCard}
+              startAction={tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
+                ? { label: t('cogitaWorld.nav.startHere'), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
               <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('screen')} title={t('cogitaWorld.map.fullSays')} data-world-full="screen">⛶ <span>{t('cogitaWorld.map.fullOn')}</span></button>
@@ -1042,6 +1051,17 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           )}
           {bubble}
           {laneBubble}
+          {sheet !== null && tt !== null && running === null && (() => {
+            const at = tt.upcoming.findIndex((u) => stepKey(u) === stepKey(sheet));
+            if (at < 0) return null;
+            return (
+              <StepSheet step={sheet} n={tt.done.length + at + 1} all={tt.done.length + tt.upcoming.length} ctx={panel} rules={rules}
+                onStart={() => { const s = sheet; setSheet(null); closeWay(); go(s); }}
+                onPrepare={() => { const s = sheet; setSheet(null); closeWay(); prepareStep(s); }}
+                onSkip={() => { const k = stepKey(sheet); setSheet(null); skipStep(k); }}
+                onClose={() => setSheet(null)} />
+            );
+          })()}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
           {shownMode === 'discover' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="discover">{T.nothingReady}</div>}
           {shownMode === 'gaps' && (
@@ -1097,7 +1117,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             <PlacePanel id={chosen.id} ctx={panel} levels={levels} rules={rules} onClose={() => setChosen(null)} onSettings={() => setMine((v) => !v)}
               settings={mine ? <OwnWorldSettings lib={lib} learner={learner} onPillarLive={setPillarLive} /> : null}
               goal={{ isGoal: goal === chosen.id, set: () => setGoal(chosen.id), clear: () => setGoal(null) }}
-              way={wayPlan === null ? null : <WayPreview plan={wayPlan} ctx={panel} />}
               worlds={<WorldsSection data={lib.entry(chosen.id)?.data} compact />} />
           )}
           {chosen?.kind === 'section' && <SectionPanel id={chosen.id} ctx={panel} onClose={() => setChosen(null)} />}

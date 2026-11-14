@@ -118,6 +118,12 @@ try {
     if (await ev(`document.querySelector('[data-world-finish]') !== null`)) await click('[data-world-finish-close]');
     await waitFor(`document.querySelector('[data-world-finish]') === null`, 'the statistics slide to close', 10000);
   };
+  /** 2026-11-14 — „Zacznij“ (unten oder über dem Turm) öffnet die Tafel des Schrittes in der Mitte; ihr „Start“ beginnt ihn. */
+  const startStep = async (via = '[data-world-next-go]') => {
+    await click(via);
+    await waitFor(`document.querySelector('[data-world-sheet] [data-world-sheet-start]')`, 'the step sheet in the middle of the map');
+    await click('[data-world-sheet-start]');
+  };
   /** Die Karte des Weges offen, mit allen Teilen (der Fahrplan mit seinen Abzweigungen). */
   const wayOpen = async () => {
     if (await ev(`document.querySelector('[data-world-way-open]') !== null`)) await click('[data-world-way-open]');
@@ -246,7 +252,7 @@ try {
     check(P, 'skipping marks the step ↷ in the chain and announces the next one', await ev(`document.querySelector('[data-world-way-part="${intro.skip}"]')?.dataset.worldWayState === 'skipped'`));
     await shot('p3-skipped');
     /* Mitten im Schritt: oben „Schritt 2 von N" mit „Pomiń" — der Schritt endet gleich, ohne Tafel. */
-    await click('[data-world-next-go]');
+    await startStep();
     await waitFor(`document.querySelector('[data-world-running]') && document.querySelector('[data-world-part-skip]')`, 'the running step with its banner');
     const midKey = await ev(`document.querySelector('[data-world-part-skip]').dataset.worldPartSkip`);
     check(P, `the running step shows "step 2 of N" with a skip button (${midKey})`, await ev(`document.querySelector('[data-world-part]')?.dataset.worldPart === '2'`));
@@ -254,7 +260,14 @@ try {
     await click('[data-world-part-skip]');
     await waitFor(`document.querySelector('[data-world-running]') === null && document.querySelector('[data-world-step-skipped="${midKey}"]') && document.querySelector('[data-world-announce="3"]')`, 'step 3 announced after skipping mid-step');
     check(P, 'skipping mid-step ends it without the statistics slide', await ev(`document.querySelector('[data-world-finish]') === null`));
-    await click('[data-world-next-go]');
+    /* 2026-11-14 — über dem Turm des Schrittes fliegt „Zacznij tutaj“; er öffnet die Tafel des Schrittes (ein Satz, was getan wird). */
+    await waitFor(`(() => { const b = document.querySelector('[data-world-start-btn]'); return b !== null && !b.hidden && b.getBoundingClientRect().width > 0; })()`, 'the start button above the tower', 10000);
+    await click('[data-world-start-btn]');
+    await waitFor(`document.querySelector('[data-world-sheet] [data-world-sheet-start]')`, 'the step sheet');
+    const sheet = await ev(`(() => { const x = document.querySelector('[data-world-sheet]'); return { n: x.querySelector('.cg-wm-annnum')?.textContent ?? '', about: x.querySelector('.cg-wm-sheetabout')?.textContent ?? '', buttons: x.querySelectorAll('.cg-wm-sheetbtns button').length }; })()`);
+    check(P, 'the start button above the tower opens the step sheet in the middle: step n of m, one sentence what is done, Start / Skip', sheet.n !== '' && sheet.about.length > 10 && sheet.buttons >= 2, sheet);
+    await shot('p3-sheet');
+    await click('[data-world-sheet-start]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'step 3 to start');
     const firstKind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     check(P, `"Start" begins the announced step (${firstKind})`, ['story', 'learn', 'run', 'review'].includes(firstKind), firstKind);
@@ -571,7 +584,7 @@ try {
     check(P, 'the steps of the way can be clicked: the map shows where the step is', shown >= 3);
     await sleep(300);
     await shot('p8-overview');
-    await click('[data-world-next-go]');
+    await startStep();
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step from the overview');
     const kind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
     check(P, `"start" in the overview begins the first step (${kind})`, kind === ov.start || (ov.start === 'travel' && kind === 'story') || (['learn', 'know', 'review'].includes(ov.start) && ['learn', 'review'].includes(kind)), { kind, start: ov.start });
@@ -811,12 +824,15 @@ try {
     await click('[data-world-path-go]');
     /* 2026-11-14 — wie „Prowadź mnie tutaj“: zuerst die Ansage des ersten Schrittes, dann „Start“. */
     await waitFor(`document.querySelector('[data-world-next-page] [data-world-announce="1"]')`, 'the announcement of the first step of the path', 15000);
-    await click('[data-world-next-go]');
+    await startStep();
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the path', 15000);
     check(P, '"Odkryj" announces the first open step, then begins it (guided like "Prowadź mnie tutaj")', await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`) !== '');
     /* Den ersten Schritt zu Ende gehen (eine Stufe, wie in Pfad 7): danach sind die Schritte erledigt, der Abschluss ist dran. */
     await ev(`(() => { const b = document.querySelector('[data-world-back], [data-world-run-back], [data-flow-close]'); if (b) b.click(); return true; })()`);
     await sleep(600);
+    /* Der Weg pausiert (sonst steht „Zacznij tutaj“ über dem Turm, den der Klick sucht). */
+    await ev(`(() => { const b = document.querySelector('[data-world-next-stop]'); if (b) b.click(); return true; })()`);
+    await sleep(300);
     await clickMap('label', N.becchi);
     await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
     await click('[data-world-my-settings]');

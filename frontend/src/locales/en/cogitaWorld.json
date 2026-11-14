@@ -290,7 +290,9 @@
       "one": "{count} explanation style",
       "other": "{count} explanation styles"
     },
-    "gateFrom": "The ways of {names} meet here."
+    "gateFrom": "The ways of {names} meet here.",
+    "explore": "Explore",
+    "conquerDirect": "Conquer directly"
   },
   "nav": {
     "target": "Target: {name}",
@@ -371,24 +373,6 @@
       "know": "Master",
       "target": "Goal"
     },
-    "count": {
-      "travel": {
-        "one": "{count} story",
-        "other": "{count} stories"
-      },
-      "review": {
-        "one": "{count} review",
-        "other": "{count} reviews"
-      },
-      "learn": {
-        "one": "{count} learning part",
-        "other": "{count} learning parts"
-      },
-      "run": {
-        "one": "{count} conquest",
-        "other": "{count} conquests"
-      }
-    },
     "preview": {
       "one": "The way here: {count} part",
       "other": "The way here: {count} parts"
@@ -419,7 +403,8 @@
       "learn": "Cards that no story brings — learned directly.",
       "know": "Practice until it sits.",
       "run": "Show what you know — this conquers the tower."
-    }
+    },
+    "start": "Start"
   },
   "finish": {
     "arrive": "Goal reached!",
@@ -473,14 +458,12 @@
   },
   "home": {
     "repeatTitle": "Review everything",
-    "repeatSays": "Cards of conquered places, each once, in random order. Choose how well a card may be known at most.",
-    "below": "below {pct} %",
+    "repeatSays": "Every card you have seen, once each, in random order.",
     "repeatN": {
-      "one": "Review {count} card",
-      "other": "Review {count} cards"
+      "one": "Review all ({count} card)",
+      "other": "Review all ({count} cards)"
     },
-    "repeatRun": "Review: cards below {pct} %",
-    "nothing": "No card below {pct} %"
+    "nothing": "Nothing to review yet — no card seen."
   },
   "placement": {
     "title": "Check how much you already know",

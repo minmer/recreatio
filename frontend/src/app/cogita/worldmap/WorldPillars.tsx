@@ -194,6 +194,11 @@ export interface PillarsProps {
   readonly onPlain?: () => void;
   /** 2026-11-10 — direkt unter dem Bild der Karte (der Weg Schritt für Schritt): die Karte bleibt ganz zu sehen. */
   readonly under?: React.ReactNode;
+  /**
+   * 2026-11-14 (Eigentümer: „über dem Turm fliegt ein Knopf: Start") — ein Knopf über dem Ort des jetzigen Schrittes (`marks.start`,
+   * sonst das Ziel); er folgt der Kamera (in jedem Bild gesetzt, ohne React). null: keiner.
+   */
+  readonly startAction?: { readonly label: string; readonly onClick: () => void; /** 2026-11-14 (Eigentümer) — wo der nächste Schritt liegt: sein Turm oder die Mitte seiner Spur (nicht das Ziel). */ readonly at: { readonly kind: 'place' | 'section'; readonly id: string } } | null;
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
   readonly full?: boolean;
@@ -430,7 +435,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -444,6 +449,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen). */
   const gridRef = useRef<PickGrid | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const startBtn = useRef<HTMLButtonElement | null>(null);
+  const startAt = useRef<{ readonly kind: 'place' | 'section'; readonly id: string } | null>(null);
+  startAt.current = startAction?.at ?? null;
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [palette, setPalette] = useState<Palette | null>(null);
   /* Die Scheiben der Welt (Säulen und Haus) — für Einpassen und Zoomgrenze. */
@@ -1097,7 +1105,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       /* Ist das Ziel der Navigation auch das gesetzte Ziel, steht dort eine Fahne (die des Ziels). */
       if (marks.target !== null && marks.target !== goal) { const at = topOf(marks.target); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.lit)); }
-      if (marks.start !== null && marks.start !== marks.target) {
+      if (marks.start !== null && marks.start !== marks.target && startBtn.current === null) {
         const at = topOf(marks.start);
         if (at !== null) {
           drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.ink), true);
@@ -1368,6 +1376,18 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     frames.current.ms.push(performance.now() - t0);
     if (frames.current.ms.length > 600) frames.current.ms.splice(0, frames.current.ms.length - 600);
     canvas.dataset.wmFrame = String(frames.current.count);
+    /* Der fliegende Knopf über dem Ort des jetzigen Schrittes: an seine Stelle (ausserhalb des Bildes: verborgen). */
+    const sb = startBtn.current;
+    if (sb !== null) {
+      const where = startAt.current;
+      const lane = where?.kind === 'section' ? scene.lanes.find((l) => l.section === where.id) : undefined;
+      const mid = lane === undefined ? null : along(withRims(lane, pillarWidth), 0.5);
+      const at = where === null ? null : where.kind === 'place' ? topOf(where.id) : mid === null ? null : toScr(v, mid.x, mid.y, 0);
+      const k = canvas.clientWidth / Math.max(1, size.w);
+      const shown = at !== null && at[0] >= 0 && at[0] <= size.w && at[1] >= 0 && at[1] <= size.h;
+      sb.hidden = !shown;
+      if (shown) { sb.style.left = `${Math.round(at[0] * k)}px`; sb.style.top = `${Math.round(at[1] * k)}px`; }
+    }
     canvas.dataset.wmMs = (performance.now() - t0).toFixed(2);
     canvas.dataset.wmPillar = pillarWidth.toFixed(3);
     canvas.dataset.wmRadius = (scene.places.length === 0 ? 0 : scene.places[0].r * pillarWidth * v.s).toFixed(2);
@@ -1771,6 +1791,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     frames: frames.current
   }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection, pillarWidth]);
 
+  /* Erscheint der Knopf (oder ändert er sich), gleich an seine Stelle. */
+  useEffect(() => { if (startAction !== null) draw(); }, [startAction !== null, startAction?.label, startAction?.at.kind, startAction?.at.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = cam;
   return (
     <div className={`cg-wm${compact ? ' is-compact' : ''}`} data-world-map={scene.places.length} data-world-lanes={scene.lanes.length}>
@@ -1814,6 +1836,11 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             ))}
             <button type="button" className="cg-wm-trailbtn is-close" onClick={() => setTrail([])} aria-label={t('cogitaWorld.map.trailClose')} title={t('cogitaWorld.map.trailClose')}>×</button>
           </nav>
+        )}
+        {startAction !== null && (
+          <button ref={startBtn} type="button" className="cg-wm-startbtn" hidden onClick={startAction.onClick} data-world-start-btn="">
+            <span aria-hidden="true">▶</span> {startAction.label}
+          </button>
         )}
       </div>
       {under}

@@ -3,7 +3,6 @@
  * (Erzählung = Fahrt durch einen Abschnitt, Powtórka, direkt lernen, Zdobycie = Durchgang, am Ende die Fahne).
  * <code>
  *   WayChain     die Kette; erledigt ✓, eben erledigt (springt auf), jetzt (pulsiert), kommend
- *   WayPreview   im Feld des Ortes: so geht der Weg, bevor man ihn beginnt
  *   NextView     im Vollbild der Teil „Dalej": nach jedem erledigten Teil der Weg und die Einladung zum nächsten
  * </code>
  */
@@ -12,7 +11,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { stepAction, stepMeta, stepText, type PanelCtx } from './WorldPanels';
 import { stepKey, type Timetable } from './wmNav';
-import type { Plan, PlanStep } from './wmPlan';
+import type { PlanStep } from './wmPlan';
 import type { LevelRule } from './wmRuns';
 import './worldmap.css';
 
@@ -95,27 +94,6 @@ export function WayChain({ parts, ctx, target, big = false, more = 0, centre = f
         <span className="cg-wm-wtext"><span className="cg-wm-wkind">{t('cogitaWorld.way.kind.target')}</span><span className="cg-wm-wwhere">{nameOf(target)}</span></span>
       </li>
     </ol>
-  );
-}
-
-/** Wie viele Teile jeder Art (für die Zeile über der Kette). */
-export function countLine(steps: readonly PlanStep[], ctx: PanelCtx): string {
-  const n = (k: PlanStep['kind']) => steps.filter((s) => s.kind === k).length;
-  return ([['travel', n('travel')], ['review', n('review')], ['learn', n('learn') + n('know')], ['run', n('run')]] as const)
-    .filter(([, c]) => c > 0).map(([k, c]) => ctx.t(`cogitaWorld.way.count.${k}`, { count: c })).join(' · ');
-}
-
-/** Im Feld des Ortes: der Weg dorthin, bevor man ihn beginnt (nur, wenn er mehr als einen Teil hat). */
-export function WayPreview({ plan, ctx }: { plan: Plan; ctx: PanelCtx }) {
-  if (plan.steps.length < 2) return null;
-  const SHOWN = 7;
-  const parts = plan.steps.slice(0, SHOWN).map((step, i) => ({ step, state: (i === 0 ? 'current' : 'next') as PartState }));
-  /* 2026-11-10 (Eigentümer: „was nicht immer nötig ist, hinter einen Knopf") — die Karte zeigt den Weg schon; die Teile aufklappbar. */
-  return (
-    <details className="cg-wm-waybox" data-world-way-preview={plan.steps.length}>
-      <summary className="cg-wm-meta">{ctx.t('cogitaWorld.way.preview', { count: plan.steps.length })} · {countLine(plan.steps, ctx)}</summary>
-      <WayChain parts={parts} ctx={ctx} target={plan.target} more={Math.max(0, plan.steps.length - SHOWN)} />
-    </details>
   );
 }
 
@@ -245,10 +223,9 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
               <p className="cg-wm-waynexttext" title={[stepText(next, ctx), meta].filter(Boolean).join(' · ')}>
                 <PartIcon kind={next.kind} /> <span className="cg-wm-waynextkind">{partWords(next, ctx).kind}</span> <span className="cg-wm-waynextwhere">{partWords(next, ctx).where}</span>
               </p>
-              <p className="cg-wm-annabout">{t(`cogitaWorld.way.about.${next.kind}`)}{meta === '' ? '' : ` · ${meta}`}</p>
             </div>
             <div className="cg-wm-waybtns">
-              {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
+              {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{t('cogitaWorld.way.start')} ▶</button>}
               {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
               {ctx.canLearn && onSkip !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onSkip(next)} title={t('cogitaWorld.way.skipSays')} data-world-next-skip={stepKey(next)}>{t('cogitaWorld.way.skip')} ↷</button>}
             </div>
@@ -308,5 +285,50 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * 2026-11-14 (Eigentümer: „ein Klick auf Start: der Schritt fliegt aus der Leiste unten in die Mitte, dort steht in einem Satz, was
+ * jetzt getan wird — Wiederholung, eine Geschichte erkunden, einen Turm erobern — mit einem Knopf Start") — DIE TAFEL DES SCHRITTES
+ * über der Mitte der Karte. Esc oder ein Klick daneben schliesst sie (der Weg bleibt).
+ */
+export function StepSheet({ step, n, all, ctx, rules, onStart, onPrepare, onSkip, onClose }: {
+  step: PlanStep;
+  n: number;
+  all: number;
+  ctx: PanelCtx;
+  rules: readonly LevelRule[];
+  onStart: () => void;
+  onPrepare?: () => void;
+  onSkip: () => void;
+  onClose: () => void;
+}) {
+  const { t } = ctx;
+  const w = partWords(step, ctx);
+  const meta = stepMeta(step, ctx, rules);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); closeRef.current(); } };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  return (
+    <div className="cg-wm-sheetback" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-world-sheet-back="">
+      <section className={`cg-wm-sheet is-${step.kind}`} role="dialog" aria-modal="true" aria-labelledby="cg-wm-sheet-head" data-world-sheet={stepKey(step)}>
+        <button type="button" className="cg-wm-wayx cg-wm-sheetx" onClick={onClose} aria-label={t('cogitaWorld.way.toMap')} title={t('cogitaWorld.way.toMap')} data-world-sheet-close="">×</button>
+        <span className="cg-wm-sheeticon" aria-hidden="true"><PartIcon kind={step.kind} /></span>
+        <span className="cg-wm-annnum">{t('cogitaWorld.way.partOf', { n, all })}</span>
+        <h3 id="cg-wm-sheet-head" className="cg-wm-sheethead"><span className="cg-wm-waynextkind">{w.kind}</span> {w.where}</h3>
+        <p className="cg-wm-sheetabout">{t(`cogitaWorld.way.about.${step.kind}`)}</p>
+        {meta !== '' && <p className="cg-wm-meta">{meta}</p>}
+        <div className="cg-wm-sheetbtns">
+          <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={onStart} data-world-sheet-start={step.kind}>{stepAction(step, ctx) ?? t('cogitaWorld.way.start')} ▶</button>
+          {step.kind === 'run' && step.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={onPrepare} data-world-sheet-prepare={step.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: step.prepare.length })}</button>}
+          <button type="button" className="wk-btn wk-btn-line" onClick={onSkip} title={t('cogitaWorld.way.skipSays')} data-world-sheet-skip={stepKey(step)}>{t('cogitaWorld.way.skip')} ↷</button>
+        </div>
+      </section>
+    </div>
   );
 }

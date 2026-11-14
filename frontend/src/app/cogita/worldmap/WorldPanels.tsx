@@ -6,7 +6,7 @@
  * die Liste für Autoren (§11). Rechnet nichts am Modell: alles kommt aus `WorldState`, die Taten aus `PanelActions`.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
@@ -346,7 +346,7 @@ export function JunctionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx;
 /** Wie viele Orte der Reihenfolge das Feld zeigt (der Rest als Zahl). */
 const ORDER_SHOWN = 6;
 
-export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goal = null, worlds = null, way = null }: {
+export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goal = null, worlds = null }: {
   id: string;
   ctx: PanelCtx;
   levels: ReadonlyMap<string, LevelProgress>;
@@ -359,8 +359,6 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
   goal?: { readonly isGoal: boolean; readonly set: () => void; readonly clear: () => void } | null;
   /** Die Verweise dieses Ortes in andere Welten (`WorldsSection`) — nie eine Voraussetzung. */
   worlds?: ReactNode;
-  /** Der Weg hierher in Teilen, wenn der Ort nicht gleich erreichbar ist (`WayPreview`). */
-  way?: ReactNode;
 }) {
   const { state, t, act } = ctx;
   const place = state.world.places.get(id);
@@ -381,8 +379,6 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
     was keine Erzählung erreicht).
   */
   const storyUnseen = unseen.filter((k) => storyReaches(state, k));
-  const direct = unseen.filter((k) => !storyReaches(state, k));
-  const prepare = notKnown.filter((k) => state.band(k) !== 'unseen' || !storyReaches(state, k));
   const hiddenOrder = Math.max(0, state.conquestOrder(id).length - 1 - ORDER_SHOWN);
   const due = ps.conquered ? dueOf(state, id) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
@@ -448,58 +444,24 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
           )}
         </div>
       ) : (
-      <div className="cg-wm-next" data-world-next="">
-        <p className="cg-wm-h">{t('cogitaWorld.panel.next')}</p>
-        {!ctx.canLearn ? <p className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: ps.missing })}</p>
-        : gate.kind === 'locked' ? (
-          <>
-            {/* 2026-11-10 — gesperrt: jeder fehlende Turm (auch mittelbar), offen oder gesperrt; der Weg führt der Reihe nach hin. */}
-            <RequiredList id={id} ctx={ctx} />
-            <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button></div>
-            {way}
-          </>
-        ) : gate.kind === 'ready' ? (
-          <>
-            {/*
-              2026-11-10 (Eigentümer) — AM TURM ZWEI WEGE, jederzeit: gleich erobern (alle Karten; wie viele nie gefragt wurden, steht
-              dabei) — oder erst wiederholen, was man noch nicht kann. Erklärt eine Erzählung noch Karten, kann man sie erst erkunden.
-            */}
-            <div className="cg-wm-ways" data-world-ways="">
-              <div className="cg-wm-way1">
-                <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level} data-world-run-unseen={unseen.length}
-                  title={unseen.length > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen.length, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length })}>
-                  {t('cogitaWorld.panel.conquerNow')}
-                </button>
-              </div>
-              {prepare.length > 0 && (
-                <div className="cg-wm-way1">
-                  <button type="button" className="wk-btn wk-btn-line" onClick={() => act.learn(prepare, place.label)} data-world-prepare={prepare.length}>{t('cogitaWorld.panel.prepareN', { count: prepare.length })}</button>
-                </div>
-              )}
-              {storyUnseen.length > 0 && (
-                <div className="cg-wm-way1">
-                  <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id} title={t('cogitaWorld.panel.exploreSays', { count: storyUnseen.length })}>{t('cogitaWorld.panel.exploreFirst')}</button>
-                </div>
-              )}
-            </div>
-            {way}
-          </>
-        ) : (
-          <>
-          <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button>
-            {prepare.length > 0 && (
-              <button type="button" className="wk-link-btn" onClick={() => act.learn(prepare, place.label)} data-world-learn-direct={prepare.length}>
-                {t('cogitaWorld.panel.learnDirectlyN', { count: prepare.length })}
+        /*
+          2026-11-14 (Eigentümer: „ein Klick auf einen Turm: nur zwei Knöpfe — Odkryj (dezent, umrandet) und gleich erobern") —
+          „Odkryj" zeigt den Weg Schritt für Schritt (unten die Karte des Weges, über dem Turm „Zacznij tutaj"); „Zdobądź od razu"
+          beginnt gleich den Durchgang (auch, wenn davor etwas fehlt — es ist die Wahl des Lernenden). Alles andere unter „Więcej".
+        */
+        <div className="cg-wm-done" data-world-next="" data-world-unseen={unseen.length}>
+          {!ctx.canLearn ? <p className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: ps.missing })}</p> : (
+            <div className="cg-wm-onward" data-world-tower-actions="">
+              <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id}
+                title={storyUnseen.length > 0 ? t('cogitaWorld.panel.exploreSays', { count: storyUnseen.length }) : undefined}>{t('cogitaWorld.panel.explore')}</button>
+              <button type="button" className="wk-btn" onClick={() => (L > 0 ? act.run(id) : act.learn(notKnown, place.label))}
+                data-world-run-for={L > 0 ? Math.min(L, progress.level + 1) : 0} data-world-run-unseen={unseen.length}
+                title={unseen.length > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen.length, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length })}>
+                {t('cogitaWorld.panel.conquerDirect')}
               </button>
-            )}
-          </div>
-          <RequiredList id={id} ctx={ctx} />
-          {way}
-          </>
-        )}
-        {direct.length > 0 && <p className="cg-wm-meta" data-world-direct={direct.length}>{t('cogitaWorld.panel.noStory', { count: direct.length })}</p>}
-      </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Alles Weitere eingeklappt: die Reihenfolge, woher die Karten kommen, die Linien, die Richtungen, Ziel und Einstellungen. */}
@@ -507,6 +469,7 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
         <summary>{t('cogitaWorld.panel.more')}</summary>
         {!ps.conquered && (
           <div className="cg-wm-conquer" data-world-conquer={gate.kind}>
+            <RequiredList id={id} ctx={ctx} />
             {order.length > 0 && (
               <>
                 <p className="cg-wm-h">{t('cogitaWorld.panel.conquerFirst')}</p>
@@ -558,42 +521,26 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
 /* -- Das Haus ------------------------------------------------------------------------------------------------------------------ */
 
 /*
-  2026-11-10 (Eigentümer) — AM HAUS DIE WIEDERHOLUNG VON ALLEM: jede Karte eroberter Orte, deren Kenntnis unter der gewählten
-  Schwelle liegt (90 % … 130 %; über 100 % heisst „na zapas"), einmal und in zufälliger Folge. Die Schwelle merkt sich dieses Gerät.
+  2026-11-14 (Eigentümer: „das Haus wiederholt nicht alle Karten, nur ausgewählte") — AM HAUS DIE WIEDERHOLUNG VON ALLEM: jede Karte,
+  die man schon gesehen hat (in jedem Turm, erobert oder nicht, wie gut sie auch sitzt), einmal und in zufälliger Folge; dazu
+  höchstens PLACED_LIMIT nie gefragte Karten gutgeschriebener Türme. Ein Knopf, keine Schwelle mehr.
 */
-const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;
 /** Wie `PLACED_PER_RUN` (WorldLandscape): so viele nie gefragte Karten gutgeschriebener Türme je Wiederholung. */
 const PLACED_LIMIT = 20;
-const REPEAT_KEY = 'cg-wm-repeat-at';
-const keptRepeatAt = (): number => {
-  try { const v = Number(localStorage.getItem(REPEAT_KEY)); return (REPEAT_AT as readonly number[]).includes(v) ? v : 1; } catch { return 1; }
-};
 
 function HomeRepeat({ ctx }: { ctx: PanelCtx }) {
   const { t, state, act } = ctx;
-  const [at, setAt] = useState(keptRepeatAt);
-  const choose = (v: number) => { setAt(v); try { localStorage.setItem(REPEAT_KEY, String(v)); } catch { /* ohne Speicher: nur jetzt */ } };
-  /* Was wiederholt werden darf (eroberte Orte), schon gesehen, nicht ausgesetzt. */
-  const seen = useMemo(() => [...state.world.cardPlaces.keys()].filter((k) => reviewable(k, state) && state.band(k) !== 'unseen' && state.ctx.suspended?.(k) !== true), [state]);
-  /* 2026-11-12 (Einstufung) — dazu die nie gefragten Karten gutgeschriebener Türme (die Wiederholung deckelt sie). */
-  const placedUnseen = useMemo(() => [...state.places].filter(([, ps]) => ps.placed > 0).flatMap(([, ps]) => ps.cards.filter((k) => state.band(k) === 'unseen')), [state]);
-  const below = (v: number) => [...seen.filter((k) => state.ctx.knowness(k) < v), ...placedUnseen.slice(0, PLACED_LIMIT)];
-  const list = below(at);
-  const pct = Math.round(at * 100);
+  const list = useMemo(() => {
+    const seen = [...state.world.cardPlaces.keys()].filter((k) => state.band(k) !== 'unseen' && state.ctx.suspended?.(k) !== true);
+    const placedUnseen = [...state.places].filter(([, ps]) => ps.placed > 0).flatMap(([, ps]) => ps.cards.filter((k) => state.band(k) === 'unseen'));
+    return [...new Set([...seen, ...placedUnseen.slice(0, PLACED_LIMIT)])];
+  }, [state]);
+  if (!ctx.canLearn) return null;
   return (
-    <div className="cg-wm-next" data-world-repeat={list.length} data-world-repeat-at={at}>
-      <p className="cg-wm-h">{t('cogitaWorld.home.repeatTitle')}</p>
-      <p className="cg-wm-meta">{t('cogitaWorld.home.repeatSays')}</p>
-      <div className="cg-wm-modes" role="group" aria-label={t('cogitaWorld.home.repeatTitle')}>
-        {REPEAT_AT.map((v) => (
-          <button key={v} type="button" className={`cg-wm-mode${at === v ? ' is-on' : ''}`} aria-pressed={at === v} onClick={() => choose(v)} data-world-repeat-choose={v}>
-            {t('cogitaWorld.home.below', { pct: Math.round(v * 100) })} ({below(v).length})
-          </button>
-        ))}
-      </div>
-      {!ctx.canLearn ? null : list.length > 0
-        ? <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => act.repeat(list, t('cogitaWorld.home.repeatRun', { pct }))} data-world-repeat-go={list.length}>{t('cogitaWorld.home.repeatN', { count: list.length })}</button></div>
-        : <p className="cg-wm-ok" data-world-repeat-none="">✓ {t('cogitaWorld.home.nothing', { pct })}</p>}
+    <div className="cg-wm-done" data-world-repeat={list.length}>
+      {list.length > 0
+        ? <button type="button" className="wk-btn" onClick={() => act.repeat(list, t('cogitaWorld.home.repeatTitle'))} title={t('cogitaWorld.home.repeatSays')} data-world-repeat-go={list.length}>{t('cogitaWorld.home.repeatN', { count: list.length })}</button>
+        : <p className="cg-wm-meta" data-world-repeat-none="">{t('cogitaWorld.home.nothing')}</p>}
     </div>
   );
 }
