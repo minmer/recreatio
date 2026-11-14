@@ -142,6 +142,13 @@ export function parseInline(text: string): Inline[] {
         i = end + 1;
         continue;
       }
+      /* 2026-11-14 — `[[słowo]]` ohne Ziel ist eine markierte Lücke (Karten „Luki w tekście“): beim Lesen nur das Wort. */
+      if (inside !== '' && !inside.includes('|') && !inside.includes('[')) {
+        flush();
+        out.push(...parseInline(inside));
+        i = end + 1;
+        continue;
+      }
       const bar = inside.lastIndexOf('|@');
       if (bar > 0 && TOKEN_ONLY.test(inside.slice(bar + 2))) {
         flush();

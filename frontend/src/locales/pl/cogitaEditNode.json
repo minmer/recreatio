@@ -175,7 +175,8 @@
     "page": "Strona z prezentacją (adres)",
     "scene": "Scena (klucz)",
     "skipWhen": "Pomiń ten krok, gdy",
-    "holdOne": "Zatrzymaj, nawet gdy zostaje jedna możliwość"
+    "holdOne": "Zatrzymaj, nawet gdy zostaje jedna możliwość",
+    "gapChoose": "Luki"
   },
   "opt": {
     "maskPrefix": "koniec (zostaje początek)",
@@ -210,6 +211,8 @@
     "screen": "nowy ekran",
     "inline": "rozwija się w miejscu",
     "discovery": "odkrywanie — najpierw pytanie",
-    "recall": "przypomnienie — najpierw treść"
+    "recall": "przypomnienie — najpierw treść",
+    "gapType": "wpisywane",
+    "gapBank": "wybierane ze słów luk"
   }
 }

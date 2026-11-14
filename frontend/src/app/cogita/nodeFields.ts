@@ -143,7 +143,7 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
   python: [f('code', K('cogitaEditNode.f.code'), 'code'), f('inputs', K('cogitaEditNode.f.inputs'), 'number')],
   prompt: [],
   'answer.text': [f('rule', K('cogitaEditNode.f.rule'), 'rule')],
-  'answer.gap': [f('rule', K('cogitaEditNode.f.rule'), 'rule')],
+  'answer.gap': [f('rule', K('cogitaEditNode.f.rule'), 'rule'), f('choose', K('cogitaEditNode.f.gapChoose'), 'select', { options: opts([['type', K('cogitaEditNode.opt.gapType')], ['bank', K('cogitaEditNode.opt.gapBank')]]) })],
   'answer.number': [f('tolerance', K('cogitaEditNode.f.tolerance'), 'number'), f('relative', K('cogitaEditNode.f.relative'), 'bool'), f('unit', K('cogitaEditNode.f.unit'), 'text'), f('quantity', K('cogitaEditNode.f.quantity'), 'select', { options: QUANTITY_OPTIONS })],
   'answer.date': [f('precision', K('cogitaEditNode.f.precision'), 'select', { options: opts([['year', K('cogitaEditNode.opt.year')], ['month', K('cogitaEditNode.opt.month')], ['day', K('cogitaEditNode.opt.day')]]) }), f('tolerance', K('cogitaEditNode.f.tolerance'), 'number')],
   'answer.one': [],

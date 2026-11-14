@@ -92,6 +92,16 @@
       "label": "Gaps in a quote",
       "says": "Splits the text into pieces and asks for each — the pieces first, then the whole.",
       "name": "Gaps: {field}"
+    },
+    "markedGaps": {
+      "label": "Marked gaps — all at once",
+      "says": "In the field, write [[word]] where a gap should be (also several). One card with all the gaps of the text.",
+      "name": "Gaps: {field}"
+    },
+    "markedGap": {
+      "label": "Marked gaps — each separately",
+      "says": "In the field, write [[word]] where a gap should be. One card per gap, the other words stay visible. Together with “all at once”, each answer counts for both.",
+      "name": "One gap: {field}"
     }
   },
   "rev": {

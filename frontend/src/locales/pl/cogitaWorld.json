@@ -344,7 +344,13 @@
     },
     "gateFrom": "Tu spotykają się drogi z: {names}.",
     "explore": "Odkryj",
-    "conquerDirect": "Zdobądź od razu"
+    "conquerDirect": "Zdobądź od razu",
+    "statKnown": "umiem",
+    "statLearning": "w nauce",
+    "statNew": "nowe",
+    "statDue": "do powtórki",
+    "askButton": "? {name}",
+    "roadButton": "→ {name}"
   },
   "nav": {
     "target": "Cel: {name}",
@@ -477,7 +483,10 @@
       "run": "Pokaż, co umiesz — tak zdobywa się wieżę."
     },
     "start": "Przejdź do kroku",
-    "stepButton": "Krok {n}: {kind}"
+    "stepButton": "Krok {n}: {kind}",
+    "arrivedHead": "Cel osiągnięty — droga ukończona",
+    "continueWay": "Kontynuuj drogę do: {name}",
+    "continueStory": "Kontynuuj: {name}"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
-import { onwardRoads } from './wmFocus';
 import { rgbCss, type LineColour } from './wmColors';
 import { stepKey, type Timetable } from './wmNav';
 import type { PlanStep } from './wmPlan';
@@ -372,20 +371,12 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
   const linesHere = [...state.lines.lines.values()].filter((l) => l.stops.includes(id) || l.sections.some((sid) => { const s = state.lines.sections.get(sid); return s !== undefined && (s.to === id || s.from === id); }));
   /* Step 3 · 1 — nur Karten, die zählen (ausgesetzte nie). */
   const unseen = ps.cards.filter((k) => state.band(k) === 'unseen');
-  const notKnown = ps.cards.filter((k) => state.band(k) !== 'known');
-  /*
-    2026-11-10 (Eigentümer: „Direkt lernen nur, was keine Erzählung erreicht") — nie gesehene Karten, die eine Erzählung erklärt,
-    lernt man auf ihrem Weg; direkt nur die, die keine erreicht. Vorher wiederholen: was man gesehen hat und noch nicht kann (und
-    was keine Erzählung erreicht).
-  */
-  const storyUnseen = unseen.filter((k) => storyReaches(state, k));
+  const known = ps.cards.filter((k) => state.band(k) === 'known').length;
+  const learning = ps.cards.filter((k) => state.band(k) === 'learning').length;
   const hiddenOrder = Math.max(0, state.conquestOrder(id).length - 1 - ORDER_SHOWN);
   const due = ps.conquered ? dueOf(state, id) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
-  const repeatClass = due.length === 0 ? 'wk-btn wk-btn-line' : `wk-btn cg-wm-need is-${ps.dot ?? 'orange'}`;
-  /* 2026-11-14 — die Wege von hier weiter, über Gabelungen bis zum nächsten Turm (`onwardRoads`; die Karte zeigt dieselben). */
-  const onward = ps.conquered ? onwardRoads(state, state.lines, id) : [];
   return (
     <section className="cg-wm-panel" data-world-panel="place" data-world-place={id} data-world-gate={gate.kind} data-world-conquered={ps.conquered ? '1' : '0'} data-world-level={ps.level}>
       <PanelTop t={t} onClose={onClose} title={place.label} />
@@ -399,69 +390,20 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
       {/* 2026-11-12 (Einstufung) — gutgeschrieben, nicht durch alle Karten erobert. */}
       {ps.placed > 0 && <p className="cg-wm-meta cg-wm-placed" data-world-placed={id}>◇ {t('cogitaWorld.placement.placed')}</p>}
       {/*
-        2026-11-09 (Eigentümer: „es soll klar sein, was zu tun ist") — EIN nächster Schritt, gross; alles andere eingeklappt.
-        Erobert: wiederholen (wenn etwas fällig ist). Ein Durchgang geht: ihn beginnen. Sonst: „Prowadź mnie tutaj".
+        2026-11-14 (Eigentümer: „das Feld daneben ist eher für die Statistik als für Knöpfe") — die Knöpfe stehen über dem Turm (Odkryj,
+        Zdobądź od razu; erobert: die Wege weiter und Powtórz); hier die Zahlen des Turms: gekonnt, im Lernen, neu, fällig, und wie aktuell.
       */}
-      {/*
-        2026-11-12 (Eigentümer: „nur zwei Arten von Knöpfen, weniger Text") — EIN EROBERTER TURM: „Powtórz" in der Farbe, wie nötig
-        es ist (nichts fällig: nur umrandet, wiederholt alle Karten des Turms); darunter die Wege weiter — gegangene umrandet, nicht
-        gegangene voll. Kein Kasten „Twój następny krok", keine Zeile „Wiedza"; der Rest unter „Więcej o tym miejscu".
-      */}
-      {ps.conquered ? (ctx.canLearn || onward.length > 0) && (
-        <div className="cg-wm-done" data-world-next="">
-          {ctx.canLearn && (
-            <button type="button" className={repeatClass}
-              title={ps.dot === null ? undefined : `${t('cogitaWorld.panel.knowledge')}: ${t(`cogitaWorld.panel.dot.${ps.dot}`)}`}
-              onClick={() => act.review(due.length > 0 ? due : ps.cards, place.label)} data-world-review={due.length > 0 ? due.length : ps.cards.length} data-world-dot={ps.dot ?? ''}>
-              {due.length > 0 ? t('cogitaWorld.panel.reviewN', { count: due.length }) : t('cogitaWorld.panel.review')}
-            </button>
-          )}
-          {/*
-            2026-11-14 (Eigentümer: „hier hast du drei Wege — und sie sollen zu sehen sein") — „N Wege führen weiter": jeder Weg ein
-            Knopf (gegangen umrandet); die Karte zeigt alle, unter dem Zeiger nur ihn. Ein Weg zu einem Turm, der noch fehlt, führt
-            Schritt für Schritt hin; ein gegangener zeigt seine Spur.
-          */}
-          {onward.length > 0 && (
-            <>
-              <p className="cg-wm-h" data-world-roads={onward.length}>{t('cogitaWorld.panel.roads', { count: onward.length })}</p>
-              <div className="cg-wm-onward" data-world-onward={onward.length} onPointerLeave={() => act.peek?.(null)}>
-                {onward.map((r) => {
-                  const last = state.lines.sections.get(r.sections[r.sections.length - 1]!);
-                  const first = state.lines.sections.get(r.sections[0]!);
-                  const label = last === undefined ? null : branchLabel(ctx, last);
-                  const toConquer = state.places.get(r.to)?.conquered !== true;
-                  return (
-                    <button key={r.sections.join('>')} type="button" className={r.travelled ? 'wk-btn wk-btn-line' : 'wk-btn'} title={first === undefined ? undefined : lineOf(ctx, first)?.name ?? undefined}
-                      onPointerEnter={() => act.peek?.(r.sections)} onFocus={() => act.peek?.(r.sections)} onBlur={() => act.peek?.(null)}
-                      onClick={() => { act.peek?.(null); if (ctx.canLearn && toConquer && last !== undefined) act.lead(r.to, last.id); else act.show('place', r.to); }}
-                      data-world-onward-to={r.to} data-world-onward-road={r.sections.join(' ')} data-world-onward-done={r.travelled ? '1' : '0'}>
-                      <Chip colour={first === undefined ? undefined : ctx.colours.get(first.line)} /> {ctx.nameOf(r.to)}{label !== null ? ` · ${label}` : ''}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        /*
-          2026-11-14 (Eigentümer: „ein Klick auf einen Turm: nur zwei Knöpfe — Odkryj (dezent, umrandet) und gleich erobern") —
-          „Odkryj" zeigt den Weg Schritt für Schritt (unten die Karte des Weges, über dem Turm „Zacznij tutaj"); „Zdobądź od razu"
-          beginnt gleich den Durchgang (auch, wenn davor etwas fehlt — es ist die Wahl des Lernenden). Alles andere unter „Więcej".
-        */
-        <div className="cg-wm-done" data-world-next="" data-world-unseen={unseen.length}>
-          {!ctx.canLearn ? <p className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: ps.missing })}</p> : (
-            <div className="cg-wm-onward" data-world-tower-actions="">
-              <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id}
-                title={storyUnseen.length > 0 ? t('cogitaWorld.panel.exploreSays', { count: storyUnseen.length }) : undefined}>{t('cogitaWorld.panel.explore')}</button>
-              <button type="button" className="wk-btn" onClick={() => (L > 0 ? act.run(id) : act.learn(notKnown, place.label))}
-                data-world-run-for={L > 0 ? Math.min(L, progress.level + 1) : 0} data-world-run-unseen={unseen.length}
-                title={unseen.length > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen.length, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length })}>
-                {t('cogitaWorld.panel.conquerDirect')}
-              </button>
-            </div>
-          )}
-        </div>
+      <dl className="cg-wm-stats" data-world-place-numbers="">
+        <div><dt>{t('cogitaWorld.panel.statKnown')}</dt><dd data-world-stat="known">{known}</dd></div>
+        <div><dt>{t('cogitaWorld.panel.statLearning')}</dt><dd data-world-stat="learning">{learning}</dd></div>
+        <div><dt>{t('cogitaWorld.panel.statNew')}</dt><dd data-world-stat="new">{unseen.length}</dd></div>
+        {ps.conquered && <div><dt>{t('cogitaWorld.panel.statDue')}</dt><dd data-world-stat="due">{due.length}</dd></div>}
+      </dl>
+      {ps.dot !== null && (
+        <p className="cg-wm-row" data-world-dot={ps.dot}>
+          <span className={`cg-wm-dot is-${ps.dot}`} aria-hidden="true" />
+          <span>{t('cogitaWorld.panel.knowledge')}: {t(`cogitaWorld.panel.dot.${ps.dot}`)}</span>
+        </p>
       )}
 
       {/* Alles Weitere eingeklappt: die Reihenfolge, woher die Karten kommen, die Linien, die Richtungen, Ziel und Einstellungen. */}

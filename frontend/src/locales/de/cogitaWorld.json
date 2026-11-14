@@ -292,7 +292,13 @@
     },
     "gateFrom": "Hier treffen sich die Wege von {names}.",
     "explore": "Erkunden",
-    "conquerDirect": "Direkt erobern"
+    "conquerDirect": "Direkt erobern",
+    "statKnown": "gekonnt",
+    "statLearning": "im Lernen",
+    "statNew": "neu",
+    "statDue": "zu wiederholen",
+    "askButton": "? {name}",
+    "roadButton": "→ {name}"
   },
   "nav": {
     "target": "Ziel: {name}",
@@ -405,7 +411,10 @@
       "run": "Zeig, was du kannst — so eroberst du den Turm."
     },
     "start": "Zum Schritt",
-    "stepButton": "Schritt {n}: {kind}"
+    "stepButton": "Schritt {n}: {kind}",
+    "arrivedHead": "Ziel erreicht — der Weg ist zu Ende",
+    "continueWay": "Weiter auf dem Weg zu {name}",
+    "continueStory": "Weiter: {name}"
   },
   "finish": {
     "arrive": "Ziel erreicht!",

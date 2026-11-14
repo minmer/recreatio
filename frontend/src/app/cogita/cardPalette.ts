@@ -2,7 +2,7 @@
  * Die Bausteine einer Vorlage (COGITA.md §5): Daten, Text, Wahl, Zahlen, Karte — und die Palette, aus der der Editor sie anbietet.
  */
 
-import { type AnswerSpec, type Fragment, type Item, type PromptPart, type TemplateContext, fragmentTree, isObject, lines, num, rngOf, shuffle, shuffleAway, shuffledPairs, str } from './cardBasics';
+import { type AnswerSpec, type Fragment, type GapSlot, type Item, type PromptPart, type TemplateContext, fragmentTree, hashOf, isObject, lines, num, rngOf, shuffle, shuffleAway, shuffledPairs, str } from './cardBasics';
 import { GAP_RULE, TEXT_RULE, readDateAnswer, readRule } from './check';
 import { type NodeKind, type Port, paletteOf } from './graph';
 import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey, fieldOf, labelOf, plainOf, readDate, readNumber, valueText, valuesOf } from './schema';
@@ -347,6 +347,73 @@ const MASK: Kind = {
       hidden: hidden.length === 0 ? [] : [{ text: hidden.join(' ') }],
       full: text === '' ? [] : [{ text }]
     };
+  }
+};
+
+/*
+ * 2026-11-14 (Eigentümer: „Karten mit fehlenden Wörtern, auch an mehreren Stellen im Text — für die Schemata") — LÜCKEN, DIE DER
+ * AUTOR IM TEXT MARKIERT: in einem Feld eines Eintrags steht `[[słowo]]` dort, wo eine Lücke sein soll (wie in der Frage
+ * „Uzupełnij lukę"; `[[słowo|@ziel]]` bleibt ein Verweis). Beim Lesen des Eintrags steht nur das Wort da (`libraryMarkup`).
+ * <code>
+ *   all      eine Karte mit ALLEN Lücken des Textes (jede an ihrer Stelle, jede für sich geprüft)
+ *   each     je Lücke ein Stück (für „Dla każdej wartości"): nur diese Lücke offen, die anderen Wörter stehen da
+ *   hidden   die Wörter der Lücken · full  der ganze Text ohne Zeichen
+ * </code>
+ * Die Antwort „Odpowiedź: luka" macht daraus die Lücken; die Karten einer Vorlage teilen je Lücke einen Fakt (`gapSet`):
+ * wer die Karte mit allen Lücken beantwortet, zählt für jede Karte einer einzelnen Lücke mit — und umgekehrt.
+ */
+export interface GapText {
+  /** Der Text zwischen den Lücken (eins mehr als `words`), Wzory als `$…$`. */
+  readonly pieces: readonly string[];
+  readonly words: readonly string[];
+  /** Welche Lücken offen sind (Stellen in `words`). */
+  readonly hide: readonly number[];
+  /** Der ganze Text ohne Zeichen — sein Abdruck verbindet die Karten derselben Lücken. */
+  readonly full: string;
+}
+const GAP_MARK = /\[\[([^\]|]+)\]\]/;
+/** Ein Stück Zapis zwischen Lücken als Text (Wzory bleiben), mit seinen Rändern. */
+const gapPiece = (raw: string): string => {
+  const inner = plainOf(raw, 'keep');
+  if (inner === '') return /\s/.test(raw) ? ' ' : '';
+  return `${/^\s/.test(raw) ? ' ' : ''}${inner}${/\s$/.test(raw) ? ' ' : ''}`;
+};
+export function gapTextOf(raw: string): Omit<GapText, 'hide'> | null {
+  const parts = raw.split(new RegExp(GAP_MARK.source, 'g'));
+  if (parts.length < 3) return null;
+  const words = parts.filter((_p, i) => i % 2 === 1).map((w) => plainOf(w, 'keep').trim());
+  if (words.some((w) => w === '')) return null;
+  const pieces = parts.filter((_p, i) => i % 2 === 0).map(gapPiece);
+  const full = pieces.map((p, i) => p + (words[i] ?? '')).join('').replace(/\s+/g, ' ').trim();
+  return { pieces, words, full };
+}
+/** Der Text mit den offenen Lücken als „…". */
+const gapShown = (g: Omit<GapText, 'hide'>, hide: ReadonlySet<number>): string =>
+  g.pieces.map((p, i) => p + (i < g.words.length ? (hide.has(i) ? '…' : g.words[i]) : '')).join('').replace(/\s+/g, ' ').trim();
+
+const GAPS: Kind = {
+  type: 'gaps', get label() { return t('cogitaEditCard.kind.gaps.label'); }, get group() { return t('cogitaEditCard.group.text'); },
+  get says() { return t('cogitaEditCard.kind.gaps.says'); },
+  ports: () => ({
+    inputs: [port('text', t('cogitaEditCard.port.text'))],
+    outputs: [port('all', t('cogitaEditCard.port.allGaps')), port('each', t('cogitaEditCard.port.eachGap')), port('hidden', t('cogitaEditCard.port.hidden')), port('full', t('cogitaEditCard.port.whole'))]
+  }),
+  run: ({ inputs }) => {
+    const all: Item[] = [], each: Item[] = [], hidden: Item[] = [], full: Item[] = [];
+    for (const it of itemsAt(inputs, 'text')) {
+      /* Das Feld, wie es geschrieben ist (ein Zapis-Feld bringt es als `value`), sonst der Text. */
+      const g = gapTextOf(typeof it.value === 'string' ? it.value : it.text);
+      if (g === null) continue;
+      const at = it.entity === undefined ? {} : { entity: it.entity };
+      const every = g.words.map((_w, i) => i);
+      full.push({ text: g.full, ...at });
+      all.push({ text: gapShown(g, new Set(every)), value: { gapText: { ...g, hide: every } }, ...at });
+      g.words.forEach((w, i) => {
+        each.push({ text: gapShown(g, new Set([i])), value: { gapText: { ...g, hide: [i] } }, ...at });
+        hidden.push({ text: w });
+      });
+    }
+    return { all, each, hidden, full };
   }
 };
 
@@ -817,6 +884,8 @@ const PROMPT: Kind = {
 
 export interface Draft {
   readonly answer: AnswerSpec;
+  /** 2026-11-14 — markierte Lücken: der Abdruck ihres Textes (die Karten derselben Lücken teilen je Lücke einen Fakt). */
+  readonly gapSet?: string;
 }
 
 const answerPort = () => [port('answer', t('cogitaEditCard.port.answer'), 'answer')];
@@ -845,10 +914,36 @@ const unique = (list: readonly string[]): string[] => {
 const ANSWER_GAP: Kind = {
   type: 'answer.gap', get label() { return t('cogitaEditCard.kind.answerGap.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
   get says() { return t('cogitaEditCard.kind.answerGap.says'); },
-  ports: () => ({ inputs: [port('shown', t('cogitaEditCard.port.textWithGap')), port('hidden', t('cogitaEditCard.port.hidden'), 'items', true), port('fragment', t('cogitaEditCard.port.fragment'))], outputs: answerPort() }),
+  ports: () => ({ inputs: [port('shown', t('cogitaEditCard.port.textWithGap')), port('hidden', t('cogitaEditCard.port.hidden'), 'items', true), port('fragment', t('cogitaEditCard.port.fragment')), port('gaps', t('cogitaEditCard.port.markedGaps'))], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     const fragment = itemsAt(inputs, 'fragment')[0];
     const rule = readRule(config.rule, GAP_RULE);
+    /*
+     * 2026-11-14 — MARKIERTE LÜCKEN (`Luki w tekście`): jede offene Lücke an ihrer Stelle, jede für sich geprüft; die anderen
+     * Wörter stehen im Text. `choose: "bank"`: jede Lücke wählt aus den Wörtern aller Lücken des Textes (alphabetisch — so
+     * bleibt die Karte dieselbe), sonst getippt.
+     */
+    const marked = itemsAt(inputs, 'gaps').map((i) => (isObject(i.value) && isObject(i.value.gapText) ? i.value.gapText as unknown as GapText : null)).find((g) => g !== null);
+    if (marked !== undefined && marked !== null) {
+      const hide = new Set(marked.hide);
+      const bank = config.choose === 'bank' ? unique(marked.words).sort((a, b) => a.localeCompare(b)) : [];
+      const pieces: string[] = [];
+      const slots: GapSlot[] = [];
+      let cur = '';
+      marked.pieces.forEach((p, i) => {
+        cur += p;
+        if (i >= marked.words.length) return;
+        const word = marked.words[i]!;
+        if (!hide.has(i)) { cur += word; return; }
+        pieces.push(cur);
+        cur = '';
+        slots.push(bank.length >= 2 ? { accepted: [word], choices: bank } : { accepted: [word] });
+      });
+      pieces.push(cur);
+      if (slots.length === 0) return {};
+      const shown = pieces.join('…').replace(/\s+/g, ' ').trim();
+      return { answer: { answer: { form: 'gap', shown, accepted: [slots.map((s) => s.accepted[0]).join(' ')], rule, pieces, gaps: slots }, gapSet: hashOf(marked.full) } satisfies Draft };
+    }
     if (fragment !== undefined && isObject(fragment.value) && isObject(fragment.value.fragment)) {
       const f = fragment.value.fragment as unknown as Fragment;
       const full = str(fragment.value.full);
@@ -1033,7 +1128,7 @@ const CARD: Kind = {
 export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
   FIELD, MEDIA, FOLLOW, LIST, SELF, ENTRIES, FILTER, UNIQUE,
   STATEMENT_THESIS, STATEMENT_PART, STATEMENT_TABLE, STATEMENT_SUBJECTS,
-  PATTERN, MASK, FRAGMENTS,
+  PATTERN, MASK, GAPS, FRAGMENTS,
   PICK, DISTRACTORS, EACH, PAIRS, FIELD_PAIRS,
   RANDOM, MATH, CALC, AGGREGATE, GENERATE, COMPARE, WHEN, PYTHON,
   PROMPT, ANSWER_TEXT, ANSWER_GAP, ANSWER_NUMBER, ANSWER_DATE, ANSWER_ONE, ANSWER_MANY, ANSWER_TRUEFALSE, ANSWER_ORDER, ANSWER_MATCH, ANSWER_FLASH, ANSWER_CODE, ANSWER_POINT,

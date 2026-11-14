@@ -139,6 +139,19 @@ function drawDue(ctx: CanvasRenderingContext2D, x: number, y: number, pal: { rea
   ctx.restore();
 }
 
+/** 2026-11-14 — ein Knopf über einem Turm: `line` umrandet, `tone` die Farbe, wie nötig (Powtórz), `peek` beim Überfahren. */
+export interface TowerButton {
+  readonly key: string;
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly line?: boolean;
+  readonly small?: boolean;
+  readonly tone?: string;
+  readonly title?: string;
+  readonly peek?: (on: boolean) => void;
+  readonly data?: Readonly<Record<string, string>>;
+}
+
 export interface PillarsHandle {
   /** Die ganze Welt ins Bild. */
   fit(): void;
@@ -198,6 +211,11 @@ export interface PillarsProps {
    * 2026-11-14 (Eigentümer: „über dem Turm fliegt ein Knopf: Start") — ein Knopf über dem Ort des jetzigen Schrittes (`marks.start`,
    * sonst das Ziel); er folgt der Kamera (in jedem Bild gesetzt, ohne React). null: keiner.
    */
+  /**
+   * 2026-11-14 (Eigentümer: „einfacher — nur die zwei Möglichkeiten als Knöpfe über dem Turm") — Knöpfe über einem Turm (folgen der
+   * Kamera wie `startAction`); `line`: umrandet.
+   */
+  readonly towerActions?: { readonly place: string; readonly buttons: readonly TowerButton[] } | null;
   readonly startAction?: { readonly label: string; readonly onClick: () => void; /** 2026-11-14 (Eigentümer) — wo der nächste Schritt liegt: sein Turm oder die Mitte seiner Spur (nicht das Ziel). */ readonly at: { readonly kind: 'place' | 'section'; readonly id: string } } | null;
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
@@ -435,7 +453,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, compact = false, full = false, squeeze = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, towerActions = null, compact = false, full = false, squeeze = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -452,6 +470,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const startBtn = useRef<HTMLButtonElement | null>(null);
   const startAt = useRef<{ readonly kind: 'place' | 'section'; readonly id: string } | null>(null);
   startAt.current = startAction?.at ?? null;
+  const towerBox = useRef<HTMLDivElement | null>(null);
+  const towerAt = useRef<string | null>(null);
+  towerAt.current = towerActions?.place ?? null;
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [palette, setPalette] = useState<Palette | null>(null);
   /* Die Scheiben der Welt (Säulen und Haus) — für Einpassen und Zoomgrenze. */
@@ -1158,10 +1179,25 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       let markCount = 0;
       let variantCount = 0;
       let lockCount = 0;
+      let progressCount = 0;
       const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
       const near = v.s >= LOCKS_FROM;
       for (const { l, sp, len, k: stroke } of every) {
         const col = stroke.tone === 'route' || stroke.tone === 'current' ? pal.lit : mix(pal.ink, pal.land, stroke.tone === 'locked' ? 0.6 : 0.3);
+        /*
+          2026-11-14 (Eigentümer: „eine begonnene Erzählung: der Pfad bis zur Folie, an der man steht, gefärbt") — DER FORTSCHRITT IN EINER
+          SPUR: bis zum zuletzt gesehenen Schritt (dort, wo sein Punkt steht) kräftig in der Farbe des Weges — auch ohne Punkte.
+        */
+        if (l.state !== 'travelled' && l.marks.length > 0 && l.seen.some(Boolean)) {
+          const upTo = (l.seen.lastIndexOf(true) + 1) / (l.marks.length + 1);
+          behind(boxOf(sp, 8), groundDepth(along(sp, upTo / 2).x, along(sp, upTo / 2).y), () => {
+            ctx.setLineDash([]); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            const path = () => { ctx.beginPath(); for (let q = 0; q <= 24; q += 1) { const at = along(sp, (upTo * q) / 24); if (q === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y); } };
+            path(); ctx.strokeStyle = halo0; ctx.lineWidth = stroke.width + 4; ctx.stroke();
+            path(); ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = stroke.width + 1.5; ctx.stroke();
+          });
+          progressCount += 1;
+        }
         /* Dieselben Karten anders verpackt: der Pfad teilt sich sichtbar in N Teile und kommt wieder zusammen (nah oder gewählt). */
         if (l.variants !== null && len >= 30 && (near || stroke.dots)) { const vr = l.variants; behind(boxOf(sp, 14), groundDepth(along(sp, 0.5).x, along(sp, 0.5).y), () => {
           /* 2026-11-12 (Eigentümer: „alle Pfade gleich gezeichnet") — die Teilwege wie die Spur selbst: dieselbe Farbe, Breite und Strichelung. */
@@ -1242,6 +1278,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       canvas.dataset.wmPathMarks = String(markCount);
       canvas.dataset.wmVariants = String(variantCount);
       canvas.dataset.wmLocks = String(lockCount);
+      canvas.dataset.wmLaneProgress = String(progressCount);
       /*
         2026-11-10 (Eigentümer: „ein Abstecher ist eine Schleife an genau diesem Schritt") — DIE ABSTECHER: eine kleine Schleife neben
         dem Pfad an der Stelle des Schrittes; ihre Schritte als Punkte nur nah auf einem gewählten Pfad.
@@ -1331,38 +1368,46 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           Akzentfarbe. Laut (gefüllt und hell) nur beim Überfahren, gewählt, als Ziel oder geführt. Fern: ein kleines Quadrat mit „?".
           Die Klickfläche ist immer die des vollen Wegweisers.
         */
+        /*
+          2026-11-14 (Eigentümer: „statt des Fragezeichens etwas, das einen Weg zeigt — ein Pfosten mit zwei Richtungsschildern") — ein
+          Wegweiser: oben ein Schild nach rechts, darunter eines nach links, als Strichzeichnung mit Hof; mehrere Fragen: ihre Zahl klein
+          über dem Pfosten. Fern: Pfosten mit zwei kurzen Pfeilen. Der Stand an der oberen rechten Ecke; die Klickfläche bleibt ganz.
+        */
         const post = Math.max(13, 29 * v.lift + 8);
-        const bw = sg.paths.length > 1 ? 29 : 21, bh = 18;
+        const sh = 9, gap = 3, reach = 17;
+        const bh = sh * 2 + gap, bw = (reach + 6) * 2;
         const bx = gx - bw / 2, by = gy - post - bh;
         const loud = chosenSign === sg.key || sg.loud === true || hoverMark === `s:${sg.key}`;
         const far = !loud && v.s < MARKS_FULL;
         const st: MarkState = sg.status === 'done' ? 'done' : sg.status;
         const col = loud ? pal.lit : sg.ready === true ? pal.goal : mix(pal.ink, pal.land, st === 'done' ? 0.45 : 0.25);
         const w = sg.ready === true ? 2.2 : 1.5;
-        behind({ x0: bx - 8, y0: by - 8, x1: bx + bw + 8, y1: gy + 3 }, depth(v, sg.x, sg.y), () => {
+        /* Ein Schild: ein Rechteck mit Spitze in seine Richtung (dir 1: rechts, -1: links), am Pfosten beginnend. */
+        const board = (top: number, dir: 1 | -1, len: number, hgt: number) => {
+          const x0 = gx - dir * 4, x1 = gx + dir * len;
+          ctx.moveTo(x0, top); ctx.lineTo(x1, top); ctx.lineTo(x1 + dir * hgt * 0.55, top + hgt / 2); ctx.lineTo(x1, top + hgt); ctx.lineTo(x0, top + hgt); ctx.closePath();
+        };
+        behind({ x0: bx - 8, y0: by - 12, x1: bx + bw + 8, y1: gy + 3 }, depth(v, sg.x, sg.y), () => {
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          const pole = loud ? pal.lit : mix(pal.trunk, pal.ink, 0.2);
           if (far) {
-            const q = 6, sy = gy - q - 2;
-            haloStroke(ctx, pal.land, col, w, () => ctx.rect(gx - q, sy - q, q * 2, q * 2));
-            ctx.font = '700 9px system-ui, sans-serif'; ctx.fillStyle = rgbCss(col); ctx.fillText('?', gx, sy + 0.5);
+            const top = gy - 16;
+            haloStroke(ctx, pal.land, pole, 1.6, () => { ctx.moveTo(gx, gy); ctx.lineTo(gx, top); });
+            haloStroke(ctx, pal.land, col, w, () => { board(top, 1, 6, 4); board(top + 6, -1, 6, 4); });
             return;
           }
-          haloStroke(ctx, pal.land, loud ? pal.lit : mix(pal.trunk, pal.ink, 0.2), 2, () => { ctx.moveTo(gx, gy); ctx.lineTo(gx, by + bh); });
+          haloStroke(ctx, pal.land, pole, 2, () => { ctx.moveTo(gx, gy); ctx.lineTo(gx, by - 3); });
           if (loud) {
-            ctx.fillStyle = rgbCss(pal.surface); ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 4); ctx.fill(); ctx.stroke();
-          } else haloStroke(ctx, pal.land, col, w, () => ctx.roundRect(bx, by, bw, bh, 4));
-          const qx = sg.paths.length > 1 ? bx + 9 : gx;
-          ctx.font = '700 13px system-ui, sans-serif';
-          if (!loud) { ctx.strokeStyle = rgbCss(pal.land); ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeText('?', qx, by + bh / 2 + 0.5); }
-          ctx.fillStyle = rgbCss(loud ? pal.ink : col); ctx.fillText('?', qx, by + bh / 2 + 0.5);
+            ctx.fillStyle = rgbCss(pal.surface); ctx.strokeStyle = rgbCss(col); ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+            ctx.beginPath(); board(by, 1, reach, sh); board(by + sh + gap, -1, reach, sh); ctx.fill(); ctx.stroke();
+          } else haloStroke(ctx, pal.land, col, w, () => { board(by, 1, reach, sh); board(by + sh + gap, -1, reach, sh); });
           if (sg.paths.length > 1) {
-            ctx.font = '600 9px system-ui, sans-serif';
-            if (!loud) ctx.strokeText(String(sg.paths.length), bx + bw - 8, by + bh / 2 + 1);
-            ctx.fillText(String(sg.paths.length), bx + bw - 8, by + bh / 2 + 1);
+            ctx.font = '700 10px system-ui, sans-serif';
+            if (!loud) { ctx.strokeStyle = rgbCss(pal.land); ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeText(String(sg.paths.length), gx, by - 8); }
+            ctx.fillStyle = rgbCss(loud ? pal.ink : col); ctx.fillText(String(sg.paths.length), gx, by - 8);
           }
           /* Der Stand an der rechten oberen Ecke: leer (keiner begonnen) zeigt nichts. */
-          if (st !== 'new') stateMark(ctx, pal.land, loud ? pal.lit : col, bx + bw, by, 4.5, st);
+          if (st !== 'new') stateMark(ctx, pal.land, loud ? pal.lit : col, gx + reach + 4, by, 4.5, st);
         });
         signBoxes.push({ key: sg.key, x0: bx - 5, y0: by - 7, x1: bx + bw + 7, y1: gy + 3 });
       }
@@ -1377,6 +1422,15 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (frames.current.ms.length > 600) frames.current.ms.splice(0, frames.current.ms.length - 600);
     canvas.dataset.wmFrame = String(frames.current.count);
     /* Der fliegende Knopf über dem Ort des jetzigen Schrittes: an seine Stelle (ausserhalb des Bildes: verborgen). */
+    const tb = towerBox.current;
+    if (tb !== null) {
+      const at = towerAt.current === null ? null : topOf(towerAt.current);
+      const k = canvas.clientWidth / Math.max(1, size.w);
+      const shown = at !== null && at[0] >= 0 && at[0] <= size.w && at[1] >= 0 && at[1] <= size.h;
+      tb.hidden = !shown;
+      /* Ganz im Bild: am Rand rückt die Reihe der Knöpfe nach innen (die Spitze bleibt über dem Turm). */
+      if (shown) { const half = tb.offsetWidth / 2 + 8; const x = Math.max(half, Math.min(canvas.clientWidth - half, at[0] * k)); tb.style.left = `${Math.round(x)}px`; tb.style.top = `${Math.round(Math.max(tb.offsetHeight + 16, at[1] * k))}px`; }
+    }
     const sb = startBtn.current;
     if (sb !== null) {
       const where = startAt.current;
@@ -1641,8 +1695,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (last !== null && last.id === '~ground' && now - last.at < 380) {
       lastTap.current = null;
       setTrail([]);
+      /* 2026-11-14 (Eigentümer: „ein Doppelklick ins Leere zeigt nicht die ganze Karte, er beendet nur die Navigation“) — die Kamera bleibt. */
       onPlain?.();
-      if (size.w > 0) { const c = camRef.current; const want = fitCam(size.w, size.h, c?.rot ?? -20, c?.fore ?? FORE_FIRST); glideTo(want.cx, want.cy, want.s); }
       return;
     }
     onPick?.(null);
@@ -1792,6 +1846,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection, pillarWidth]);
 
   /* Erscheint der Knopf (oder ändert er sich), gleich an seine Stelle. */
+  useEffect(() => { if (towerActions !== null) draw(); }, [towerActions?.place]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (startAction !== null) draw(); }, [startAction !== null, startAction?.label, startAction?.at.kind, startAction?.at.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = cam;
   return (
@@ -1836,6 +1891,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             ))}
             <button type="button" className="cg-wm-trailbtn is-close" onClick={() => setTrail([])} aria-label={t('cogitaWorld.map.trailClose')} title={t('cogitaWorld.map.trailClose')}>×</button>
           </nav>
+        )}
+        {towerActions !== null && (
+          <div ref={towerBox} className="cg-wm-towerbtns" hidden data-world-tower-actions={towerActions.place}>
+            {towerActions.buttons.map((b) => (
+              <button key={b.key} type="button" className={`wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
+                onClick={() => { b.peek?.(false); b.onClick(); }} onPointerEnter={() => b.peek?.(true)} onPointerLeave={() => b.peek?.(false)} onFocus={() => b.peek?.(true)} onBlur={() => b.peek?.(false)} {...Object.fromEntries(Object.entries(b.data ?? {}).map(([k, v]) => [`data-${k}`, v]))}>{b.label}</button>
+            ))}
+          </div>
         )}
         {startAction !== null && (
           <button ref={startBtn} type="button" className="cg-wm-startbtn" hidden onClick={startAction.onClick} data-world-start-btn="">

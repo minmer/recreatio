@@ -292,7 +292,13 @@
     },
     "gateFrom": "The ways of {names} meet here.",
     "explore": "Explore",
-    "conquerDirect": "Conquer directly"
+    "conquerDirect": "Conquer directly",
+    "statKnown": "known",
+    "statLearning": "learning",
+    "statNew": "new",
+    "statDue": "due for review",
+    "askButton": "? {name}",
+    "roadButton": "→ {name}"
   },
   "nav": {
     "target": "Target: {name}",
@@ -405,7 +411,10 @@
       "run": "Show what you know — this conquers the tower."
     },
     "start": "Go to step",
-    "stepButton": "Step {n}: {kind}"
+    "stepButton": "Step {n}: {kind}",
+    "arrivedHead": "Goal reached — the way is complete",
+    "continueWay": "Continue the way to {name}",
+    "continueStory": "Continue: {name}"
   },
   "finish": {
     "arrive": "Goal reached!",

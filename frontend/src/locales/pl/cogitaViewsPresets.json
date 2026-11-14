@@ -92,6 +92,16 @@
       "label": "Luki w cytacie",
       "says": "Dzieli tekst na kawałki i pyta o każdy — najpierw kawałki, potem całość.",
       "name": "Luki: {field}"
+    },
+    "markedGaps": {
+      "label": "Zaznaczone luki — wszystkie naraz",
+      "says": "W polu napisz [[słowo]] tam, gdzie ma być luka (także kilka). Jedna karta ze wszystkimi lukami tekstu.",
+      "name": "Luki: {field}"
+    },
+    "markedGap": {
+      "label": "Zaznaczone luki — każda osobno",
+      "says": "W polu napisz [[słowo]] tam, gdzie ma być luka. Jedna karta na każdą lukę, pozostałe słowa widać. Razem z „wszystkie naraz\" każda odpowiedź liczy się dla obu.",
+      "name": "Jedna luka: {field}"
     }
   },
   "rev": {

@@ -92,6 +92,16 @@
       "label": "Lücken in einem Zitat",
       "says": "Teilt den Text in Stücke und fragt nach jedem — erst die Stücke, dann das Ganze.",
       "name": "Lücken: {field}"
+    },
+    "markedGaps": {
+      "label": "Markierte Lücken — alle auf einmal",
+      "says": "Im Feld [[Wort]] schreiben, wo eine Lücke sein soll (auch mehrere). Eine Karte mit allen Lücken des Textes.",
+      "name": "Lücken: {field}"
+    },
+    "markedGap": {
+      "label": "Markierte Lücken — jede einzeln",
+      "says": "Im Feld [[Wort]] schreiben, wo eine Lücke sein soll. Eine Karte je Lücke, die anderen Wörter bleiben stehen. Zusammen mit „alle auf einmal\" zählt jede Antwort für beide.",
+      "name": "Eine Lücke: {field}"
     }
   },
   "rev": {

@@ -122,7 +122,7 @@
     },
     "answerGap": {
       "label": "Antwort: Lücke im Zitat",
-      "says": "Der Lernende füllt eine Lücke. Nimmt den Text mit Lücke und den verdeckten Teil (aus einer Maske) oder ein Zitatfragment."
+      "says": "Der Lernende füllt die Lücke. Nimmt den Text mit Lücke und den verdeckten Teil (aus einer Maske), ein Stück eines Zitats oder markierte Lücken (aus „Lücken im Text\") — dann steht jede Lücke an ihrer Stelle und wird für sich geprüft."
     },
     "answerNumber": {
       "label": "Antwort: Zahl",
@@ -167,6 +167,10 @@
     "card": {
       "label": "Karte",
       "says": "Setzt eine Karte zusammen: Frage, Antwort und (nach der Antwort) eine Erklärung aus den verbundenen Einträgen. Für Generator-Aufgaben: „Hinweise“ (Texte, von sanft bis konkret) und „Lösung“ (ein Text mit den gezogenen Werten und Zwischenergebnissen — nach der Antwort)."
+    },
+    "gaps": {
+      "label": "Lücken im Text",
+      "says": "Lücken dort, wo der Text sie mit [[Wort]] markiert (auch mehrere). Gibt ein Stück mit allen Lücken, ein Stück je Lücke (für „Für jeden Wert\"), die verdeckten Wörter und den ganzen Text. Beim Lesen des Eintrags steht nur das Wort da."
     }
   },
   "group": {
@@ -231,7 +235,10 @@
     "onward": "Weiter",
     "quote": "Zitat",
     "whole": "Ganzes",
-    "inputN": "Eingang {n}"
+    "inputN": "Eingang {n}",
+    "allGaps": "alle Lücken auf einmal",
+    "eachGap": "jede Lücke einzeln",
+    "markedGaps": "markierte Lücken"
   },
   "error": {
     "filterNothing": "Der Filter hat nichts zum Vergleichen: schließe „Vergleiche mit“ an oder tippe einen Wert ein.",

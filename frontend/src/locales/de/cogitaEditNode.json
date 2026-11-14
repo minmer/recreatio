@@ -171,7 +171,8 @@
     "page": "Seite mit der Präsentation (Adresse)",
     "scene": "Szene (Schlüssel)",
     "skipWhen": "Diesen Schritt überspringen, wenn",
-    "holdOne": "Auch anhalten, wenn nur eine Möglichkeit bleibt"
+    "holdOne": "Auch anhalten, wenn nur eine Möglichkeit bleibt",
+    "gapChoose": "Lücken"
   },
   "opt": {
     "maskPrefix": "das Ende (der Anfang bleibt)",
@@ -206,6 +207,8 @@
     "screen": "neuer Bildschirm",
     "inline": "klappt an Ort und Stelle auf",
     "discovery": "Entdecken — zuerst die Frage",
-    "recall": "Erinnern — zuerst der Inhalt"
+    "recall": "Erinnern — zuerst der Inhalt",
+    "gapType": "getippt",
+    "gapBank": "gewählt aus den Wörtern der Lücken"
   }
 }

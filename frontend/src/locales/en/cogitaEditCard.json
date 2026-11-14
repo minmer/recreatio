@@ -122,7 +122,7 @@
     },
     "answerGap": {
       "label": "Answer: gap in a quote",
-      "says": "The learner fills in a gap. Takes the text with a gap and the hidden part (from a mask) or a quote fragment."
+      "says": "The learner fills the gap. Takes the text with a gap and the hidden part (from a mask), a fragment of a quote, or marked gaps (from “Gaps in the text”) — then every gap stands in its place and is checked on its own."
     },
     "answerNumber": {
       "label": "Answer: number",
@@ -167,6 +167,10 @@
     "card": {
       "label": "Card",
       "says": "Assembles a card: question, answer and (after answering) an explanation from the connected entries. For generator tasks: “Hints” (texts, from gentle to specific) and “Solution” (a text with the drawn values and intermediate results — after answering)."
+    },
+    "gaps": {
+      "label": "Gaps in the text",
+      "says": "Gaps where the text marks them with [[word]] (also several). Gives one item with all gaps, one item per gap (for “For each value”), the hidden words and the whole text. When reading the entry, only the word shows."
     }
   },
   "group": {
@@ -231,7 +235,10 @@
     "onward": "Onward",
     "quote": "Quote",
     "whole": "Whole",
-    "inputN": "input {n}"
+    "inputN": "input {n}",
+    "allGaps": "all gaps at once",
+    "eachGap": "each gap separately",
+    "markedGaps": "marked gaps"
   },
   "error": {
     "filterNothing": "The filter has nothing to compare with: connect “Compare with” or type a value.",

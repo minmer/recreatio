@@ -496,6 +496,38 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
         ])
       };
     }
+  },
+  /*
+   * 2026-11-14 (Eigentümer) — MARKIERTE LÜCKEN: im Feld steht [[słowo]], wo eine Lücke sein soll (auch mehrere). „Wszystkie
+   * luki naraz": eine Karte mit allen Lücken; „Każda luka osobno": eine Karte je Lücke, die anderen Wörter stehen da. Beide
+   * Vorlagen zusammen teilen je Lücke einen Fakt.
+   */
+  {
+    id: 'markedGaps', get label() { return t('cogitaViewsPresets.tpl.markedGaps.label'); }, get says() { return t('cogitaViewsPresets.tpl.markedGaps.says'); }, needs: ['field'],
+    make: (kind, field) => {
+      const text = node('field', 0, 0, { key: field.key });
+      const gaps = node('gaps', 230, 0);
+      const answer = node('answer.gap', 460, 0);
+      const card = node('card', 690, 0);
+      return {
+        name: t('cogitaViewsPresets.tpl.markedGaps.name', { field: field.label }), kinds: [kind], direction: `${field.key}:luki-wszystkie`,
+        graph: graphOf([text, gaps, answer, card], [edge(text, 'values', gaps, 'text'), edge(gaps, 'all', answer, 'gaps'), edge(answer, 'answer', card, 'answer')])
+      };
+    }
+  },
+  {
+    id: 'markedGap', get label() { return t('cogitaViewsPresets.tpl.markedGap.label'); }, get says() { return t('cogitaViewsPresets.tpl.markedGap.says'); }, needs: ['field'],
+    make: (kind, field) => {
+      const text = node('field', 0, 0, { key: field.key });
+      const gaps = node('gaps', 230, 0);
+      const each = node('each', 460, 0);
+      const answer = node('answer.gap', 690, 0);
+      const card = node('card', 920, 0);
+      return {
+        name: t('cogitaViewsPresets.tpl.markedGap.name', { field: field.label }), kinds: [kind], direction: `${field.key}:luka`,
+        graph: graphOf([text, gaps, each, answer, card], [edge(text, 'values', gaps, 'text'), edge(gaps, 'each', each, 'items'), edge(each, 'item', answer, 'gaps'), edge(answer, 'answer', card, 'answer')])
+      };
+    }
   }
 ];
 

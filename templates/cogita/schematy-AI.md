@@ -80,6 +80,17 @@ Znajomość wpisu to średnia jego kart z odpowiedzią, ważona `"tests"`. Karta
 | coś trzeba umieć wcześniej, choć to nie ogólniejsze | pole z `"prerequisite": "up"` |
 | długa lista par do zapamiętania | jedno pytanie „Połącz w pary” z „Ile par naraz” (4–6) — pary są faktami same |
 
+### 2.2a Luki w tekście (2026-11-14)
+
+W polu wpisu (tekst, werset, definicja, cytat) zaznacz luki podwójnymi nawiasami: `Na [[początku]] było Słowo, a Słowo było u [[Boga]].` — także kilka w jednym tekście. Przy czytaniu wpisu widać samo słowo; `[[słowo|@cel]]` pozostaje odnośnikiem, nie luką.
+
+Szablon: `field` (to pole) → `gaps` („Luki w tekście”) → `answer.gap` (wejście `gaps`) → `card`.
+- `gaps` → wyjście `all`: jedna karta ze wszystkimi lukami tekstu, każda na swoim miejscu i sprawdzana osobno;
+- `gaps` → wyjście `each` → `each` („Dla każdej wartości”) → `answer.gap`: jedna karta na każdą lukę, pozostałe słowa widać;
+- w `answer.gap` `"choose": "bank"` — każda luka wybierana ze słów wszystkich luk tekstu (bez tego: wpisywana).
+
+Bez `asks` każda luka jest faktem: karta ze wszystkimi lukami i karty pojedynczych luk tego samego tekstu dzielą każdą odpowiedź, luka po luce. Gotowe szablony: „Zaznaczone luki — wszystkie naraz” i „— każda osobno”.
+
 ### 2.3 Pytania pisane ręcznie (rodzaj „Pytanie”, `scheme-pytania`)
 
 - `"about"` — wpisy, które pytanie sprawdza (liczy się dla nich i czeka na to, co trzeba znać przed nimi); `"needs"` — co dokładnie musi być poznane przed nim.

@@ -61,6 +61,8 @@ try {
     const t0 = Date.now();
     for (;;) {
       if (await ev(`Boolean(${expr})`)) return Date.now() - t0;
+      /* 2026-11-14 — ein Turm zeigt zuerst seine Knöpfe; das Feld mit allem Weiteren öffnet „⋯“. */
+      if (expr.includes('data-world-panel="place"')) await ev(`(() => { if (document.querySelector('[data-world-panel="place"]') === null) document.querySelector('[data-world-tower-more]')?.click(); return true; })()`);
       if (Date.now() - t0 > ms) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`waited ${ms} ms for ${what}`); }
       await sleep(80);
     }
@@ -73,6 +75,8 @@ try {
   };
   /** Ein Ort, das Haus oder ein Abschnitt — dort, wo die Karte ihn wirklich trifft. */
   const clickMap = async (kind, id) => {
+    /* 2026-11-14 — die Knöpfe über einem gewählten Turm (und der Knopf des Schrittes) liegen über der Karte: für den Klick auf die Karte durchlässig. */
+    await ev(`(() => { document.querySelectorAll('[data-world-tower-actions], [data-world-start-btn]').forEach((e) => { e.style.pointerEvents = 'none'; }); return true; })()`);
     const locate = () => ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c?.wmLocate?.(${JSON.stringify(kind)}, ${JSON.stringify(id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
     /* Erst, wenn die Stelle stillsteht (eine Bildlaufleiste, die eben erscheint, verschiebt die Leinwand um ein paar Punkte). */
     let at = await locate();
@@ -240,7 +244,7 @@ try {
       2026-11-14 (Eigentümer: „die Seite sagt, was sie tut: so viele Schritte; dann die Ansage des ersten Schrittes — beginnen oder
       überspringen") — „Prowadź mnie tutaj" zeigt zuerst die Karte des Weges: „N Schritte führen zu …", „Schritt 1 von N".
     */
-    await click('[data-world-panel="place"] [data-world-lead]');
+    await click('[data-world-tower-actions] [data-world-lead]');
     await waitFor(`document.querySelector('[data-world-next-page] [data-world-announce="1"]')`, 'the announcement of the first step');
     const intro = await ev(`({ intro: Number(document.querySelector('[data-world-way-intro]')?.dataset.worldWayIntro ?? 0), running: document.querySelector('[data-world-running]') !== null, go: document.querySelector('[data-world-next-go]') !== null, skip: document.querySelector('[data-world-next-skip]')?.dataset.worldNextSkip ?? null, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
     check(P, `"take me there" says how many steps lead to the target (${intro.intro}) and announces step 1 — nothing starts by itself`, intro.intro >= 3 && !intro.running && intro.go && intro.skip !== null, intro);
@@ -368,16 +372,25 @@ try {
     await sleep(1200);
     await shot('p5-conquered');
     /* 2026-11-14 (Eigentümer: „hier gehen drei Wege weiter — sie sollen zu sehen sein“) — die Wege weiter: gezählt, je ein Knopf, auf der Karte; unter dem Zeiger nur einer. */
-    const roads = await ev(`(() => { const p = document.querySelector('[data-world-panel="place"]'); return { said: Number(p.querySelector('[data-world-roads]')?.dataset.worldRoads ?? 0), buttons: p.querySelectorAll('[data-world-onward-to]').length, roads: [...p.querySelectorAll('[data-world-onward-road]')].map((x) => x.dataset.worldOnwardRoad), route: document.querySelector('[data-world-canvas]')?.dataset.wmRoute ?? '' }; })()`);
-    check(P, `a conquered tower says how many roads lead on (${roads.said}), one button each, and the map shows them`, roads.said > 0 && roads.said === roads.buttons && roads.route !== '', roads);
+    const roads = await ev(`(() => { const p = document.querySelector('[data-world-tower-actions]'); return { said: p.querySelectorAll('[data-world-onward-to]').length, buttons: p.querySelectorAll('[data-world-onward-to]').length, roads: [...p.querySelectorAll('[data-world-onward-road]')].map((x) => x.dataset.worldOnwardRoad), route: document.querySelector('[data-world-canvas]')?.dataset.wmRoute ?? '' }; })()`);
+    check(P, `a conquered tower shows each road on as a button above it (${roads.said}), and the map shows them`, roads.said > 0 && roads.said === roads.buttons && roads.route !== '', roads);
     if (roads.buttons > 1) {
-      await ev(`(() => { document.querySelector('[data-world-onward-to]').dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); return true; })()`);
+      await ev(`(() => { document.querySelector('[data-world-tower-actions] [data-world-onward-to]').dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); return true; })()`);
       await sleep(300);
       const one = await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmRoute ?? ''`);
       check(P, 'pointing at one road lights only that road', one !== '' && one !== roads.route && one.split(' ').length < roads.route.split(' ').length, { one, all: roads.route });
       await shot('p5-road-peek');
-      await ev(`(() => { document.querySelector('[data-world-onward]').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body })); return true; })()`);
+      await ev(`(() => { document.querySelector('[data-world-tower-actions] [data-world-onward-to]').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body })); return true; })()`);
     }
+    /* 2026-11-14 (Eigentümer: „am Ziel von selbst eine Animation, der Weg ist zu Ende“) — ein Weg, der schon am Ziel ist, endet von selbst. */
+    await ev(`(() => { document.querySelector('[data-world-panel="place"] .cg-wm-close, [data-world-panel="place"] [aria-label]')?.click(); return true; })()`);
+    await sleep(400);
+    const at = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const q = c?.wmLocate?.('label', ${JSON.stringify(N.becchi)}); if (!q) return null; const r = c.getBoundingClientRect(); return [r.left + q[0], r.top + q[1]]; })()`);
+    /* Erst einmal (das Feld öffnet sich, die Karte rückt), dann an der neuen Stelle zweimal kurz. */ if (at !== null) { await clickAt(at[0], at[1]); await sleep(900); const at2 = (await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const q = c?.wmLocate?.('label', ${JSON.stringify(N.becchi)}); if (!q) return null; const r = c.getBoundingClientRect(); return [r.left + q[0], r.top + q[1]]; })()`)) ?? at; await clickAt(at2[0], at2[1]); await sleep(60); await clickAt(at2[0], at2[1]); }
+    await waitFor(`document.querySelector('[data-world-arrived]') !== null`, 'the arrival animation', 8000).catch(() => undefined);
+    const arr = await ev(`({ shown: document.querySelector('[data-world-arrived]') !== null, nav: document.querySelector('[data-world-view]')?.dataset.worldNav ?? '?', card: document.querySelector('[data-world-next-arrived]') !== null })`);
+    check(P, 'a way that is at its goal ends by itself: the arrival rises over the map, no navigation, no card to close', arr.shown && arr.nav === '' && !arr.card, arr);
+    await shot('p5-arrived');
   }
 
   /* -- 6 · Wie im Krajobraz: Ansichten, „Sprawdź, co wiesz" → Luki, Abspielen, das Ziel, Portale, die Liste der Orte ------------- */
@@ -431,7 +444,7 @@ try {
     await click('[data-world-fit]');
     await sleep(300);
     await clickMap('label', N.magone);
-    await waitFor(`document.querySelector('[data-world-goal-set]')`, 'the goal button');
+    await waitFor(`document.querySelector('[data-world-panel="place"]') && document.querySelector('[data-world-goal-set]')`, 'the goal button');
     const magone = await ev(`document.querySelector('[data-world-panel="place"]').dataset.worldPlace`);
     await click('[data-world-goal-set]');
     await waitFor(`document.querySelector('[data-world-goal]')`, 'the goal line');
@@ -567,12 +580,14 @@ try {
       await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.id)}`, 'back to the tower', 10000).catch(() => null);
       check(P, 'the way back returns to the tower', await ev(`document.querySelector('[data-world-panel="place"]')?.dataset.worldPlace === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-trail]') === null`));
     }
-    /* Doppelklick: der Überblick über den Weg, von dort beginnt man. */
+    /* Doppelklick: der Überblick über den Weg, von dort beginnt man (erst das Feld zu, die Kamera still). */
+    await ev(`(() => { document.querySelector('[data-world-panel-close]')?.click(); return true; })()`);
+    await sleep(900);
     await click('[data-world-fit]');
-    await sleep(500);
+    await sleep(1200);
     const pt = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c.wmLocate('place', ${JSON.stringify(magone.id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
     await clickAt(pt[0], pt[1]);
-    await sleep(90);
+    await sleep(60);
     await clickAt(pt[0], pt[1]);
     await waitFor(`document.querySelector('[data-world-next-page] [data-world-next-invite]')`, 'the way at the bottom of the map');
     const ov = await ev(`({ steps: [...document.querySelectorAll('[data-world-next-page] [data-world-way-part]')].map((x) => x.dataset.worldWayPart), target: document.querySelector('[data-world-next-page] [data-world-way-target]')?.dataset.worldWayTarget, start: document.querySelector('[data-world-next-go]')?.dataset.worldNextGo, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
@@ -613,8 +628,13 @@ try {
     } else await click('[data-world-back]');
     await afterPart();
     await waitFor(`document.querySelector('[data-world-next-stop]')`, 'the way after the part', 15000);
+    /* 2026-11-14 (Eigentümer) — eine begonnene Erzählung: ihre Spur ist bis zur zuletzt gesehenen Folie gefärbt. */
+    await sleep(600);
+    check(P, 'a story begun but not finished is coloured on the map up to its last seen slide', Number(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmLaneProgress ?? 0`)) >= 1, await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmLaneProgress`));
     await click('[data-world-next-stop]');
     await waitFor(`document.querySelector('[data-world-nav-paused]')`, 'the paused way');
+    /* 2026-11-14 (Eigentümer) — ein angehaltener Weg: oben auf der Karte „Kontynuuj drogę“. */
+    check(P, 'a paused way offers "continue" on the map', await ev(`document.querySelector('[data-world-continue="way"]') !== null`));
     check(P, '"end navigation" only pauses the way (the progress stays); it can be resumed', await ev(`document.querySelector('[data-world-nav-paused]').dataset.worldNavPaused === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-panel="nav"]') === null`));
     await click('[data-world-nav-resume]');
     await wayOpen();
@@ -798,16 +818,18 @@ try {
     const P = '13 question paths';
     const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
     await open();
-    check(P, 'signposts stand next to their anchors (home, 1854, the fork of L4)', Number(await canvas('wmSigns')) >= 2, await canvas('wmSigns'));
+    /* 2026-11-14 (Eigentümer) — nur, wo man losgehen kann: am Haus; an einem Turm erst, wenn er erobert ist (1854 und die Gabelung von L4 noch nicht). */
+    check(P, 'signposts stand only where one can start now: at home (towers not yet conquered carry none)', Number(await canvas('wmSigns')), 1);
     await clickMap('home', '~home');
     await waitFor(`document.querySelector('[data-world-path-list]')`, 'the questions at home');
     check(P, 'home lists every question ("Czego chcesz się dowiedzieć?")', Number(await ev(`document.querySelector('[data-world-path-list]').dataset.worldPathList`)), 2);
     await shot('p13-home');
     /* 2026-11-12 (Eigentümer) — ein Wegweiser zeigt nur seine Fragen, jede ein Knopf; die Frage zeigt nur „Odkryj" (kein Text). */
     const fromSign = async () => {
-      await clickMap('sign', 'home');
-      await waitFor(`document.querySelector('[data-world-panel="sign"] [data-world-path-open]')`, 'the questions of the signpost');
-      await click('[data-world-panel="sign"] [data-world-path-open]');
+      /* 2026-11-14 — ein Weg, dessen Schritte gegangen sind, hat keinen Wegweiser mehr: dann die Liste am Haus. */
+      if (Number(await canvas('wmSigns')) > 0) await clickMap('sign', 'home'); else await clickMap('home', '~home');
+      await waitFor(`document.querySelector('[data-world-path-open]')`, 'the questions of the signpost (or the house)');
+      await click('[data-world-path-open]');
       await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel from the signpost');
     };
     await clickMap('sign', 'home');

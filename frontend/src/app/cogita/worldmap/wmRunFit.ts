@@ -66,7 +66,12 @@ export function useRunFit(ref: RefObject<HTMLElement | null>, on: boolean): void
     };
     const fit = () => {
       raf = 0;
-      const w = el.clientWidth, h = el.clientHeight;
+      /*
+        2026-11-14 (Eigentümer: „das Neuskalieren und der verdeckte ‚Dalej' kommen davon, dass sich beim Antworten die Grösse ändert") —
+        gemessen OHNE die Bildlaufleiste: erscheint sie nach einer Antwort (Urteil, Erklärung), änderte sich sonst die Breite, und der
+        ganze Teil skalierte neu (die Antwort sprang, „Dalej" rutschte nach unten). Die Leiste hat ihren Platz ohnehin (scrollbar-gutter).
+      */
+      const w = el.offsetWidth, h = el.offsetHeight;
       if (w === 0 || h === 0) return;
       const base = runFit(w, h);
       if (base.wide) el.setAttribute('data-run-wide', ''); else el.removeAttribute('data-run-wide');

@@ -341,7 +341,14 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     const direction = template.direction;
     const prefix = `${template.id}:${ctx.entity.id}`;
     const tests = testsOf(template.tests, ctx.entity, ctx.look);
-    const facts = factsOf(template.asks, ctx.entity, ctx.look, run.variant);
+    /*
+     * 2026-11-14 — markierte Lücken ohne eigenes `asks`: je Lücke ein Fakt (der Text und sein Wort) — die Karte mit allen Lücken
+     * und die Karten einzelner Lücken desselben Textes zählen füreinander (`answerFacts`: jede Lücke für sich).
+     */
+    const ans = made.draft.answer;
+    const facts = template.asks.length === 0 && made.draft.gapSet !== undefined && ans.form === 'gap' && ans.gaps !== undefined
+      ? ans.gaps.map((g) => gapFact(`${ctx.entity.id}:${made.draft!.gapSet}`, g.accepted[0] ?? ''))
+      : factsOf(template.asks, ctx.entity, ctx.look, run.variant);
     /* 2026-11-03 — eine Karte mit Zufall nimmt mit, was gezogen wurde (Generator, Losowa wartość), und ihren Samen. */
     const params = varies ? drawnOf(graph, result.outputs) : undefined;
     const hints = (made.hints ?? []).map((h) => h.trim()).filter((h) => h !== '');

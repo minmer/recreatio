@@ -386,6 +386,32 @@ const changed = S.lookupOf(KINDS, ENTITIES.map((x) => (x.id === 'w1' ? { ...x, d
 const who3 = (await Cards.cardsOf(WHO, { ...ctx(byId('w1')), look: changed, entity: { ...byId('w1'), data: { ...byId('w1').data, authors: ['p2'] } } })).cards[0];
 check('when the right answer changes, the history starts again', who3.fingerprint === who1.fingerprint, false);
 
+/* 2026-11-14 — MARKIERTE LÜCKEN in einem Feld ([[słowo]], auch mehrere): eine Karte mit allen, eine je Lücke; je Lücke ein Fakt, den beide teilen. */
+{
+  const VERSE = S.readKind('k-verse', { name: 'Werset', fields: [{ key: 'tekst', label: 'Tekst', type: 'markup' }] });
+  const verse = { id: 'v1', kinds: ['k-verse'], data: { tekst: 'Na [[początku]] było **Słowo**, a Słowo było u [[Boga]].' } };
+  const vLook = S.lookupOf([VERSE], [verse]);
+  const vCtx = { look: vLook, entity: verse, pool: () => [verse], seed: 's' };
+  const ALL = tpl('gapsAll', ['k-verse'], 'tekst:luki', [n('f', 'field', { key: 'tekst' }), n('g', 'gaps'), n('a', 'answer.gap'), n('c', 'card')],
+    [l('1', 'f', 'values', 'g', 'text'), l('2', 'g', 'all', 'a', 'gaps'), l('3', 'a', 'answer', 'c', 'answer')]);
+  const EACH = tpl('gapsEach', ['k-verse'], 'tekst:luka', [n('f', 'field', { key: 'tekst' }), n('g', 'gaps'), n('e', 'each'), n('a', 'answer.gap', { choose: 'bank' }), n('c', 'card')],
+    [l('1', 'f', 'values', 'g', 'text'), l('2', 'g', 'each', 'e', 'items'), l('3', 'e', 'item', 'a', 'gaps'), l('4', 'a', 'answer', 'c', 'answer')]);
+  const all = (await Cards.cardsOf(ALL, vCtx)).cards;
+  const each = (await Cards.cardsOf(EACH, vCtx)).cards;
+  const a0 = all[0];
+  check('marked gaps: one card with every gap in its place (the text between them without markup)',
+    [all.length, a0.answer.gaps.map((g) => g.accepted[0]), a0.answer.pieces], [1, ['początku', 'Boga'], ['Na ', ' było Słowo, a Słowo było u ', '.']]);
+  check('… each gap checked on its own', [Cards.checkCard(a0, ['początku', 'Boga']).correct, Cards.checkCard(a0, ['początku', 'Bogu']).marks], [true, [true, false]]);
+  check('… one card per gap: the other word stands in the text; bank offers the words of the gaps',
+    [each.length, each.map((c) => c.answer.gaps.length), each[0].answer.pieces, each[1].answer.gaps[0].choices], [2, [1, 1], ['Na ', ' było Słowo, a Słowo było u Boga.'], ['Boga', 'początku']]);
+  check('… a fact per gap, shared by both templates (the card with all gaps counts for each single one)',
+    [a0.facts.length, each.every((c) => c.facts.length === 1 && a0.facts.includes(c.facts[0]))], [2, true]);
+  const ev = Cards.answerEvidence(a0, ['początku', 'Bogu'], { correctness: 0.5, marks: [true, false] }, [a0, ...each]);
+  check('… answering all gaps counts for each single-gap card by its own gap',
+    each.map((c) => ev.find((x) => x.card.key === c.key)?.correctness), [1, 0]);
+  check('reading the entry, a marked gap shows only its word', S.plainOf(verse.data.tekst), 'Na początku było Słowo, a Słowo było u Boga.');
+}
+
 const VOCAB = (id, from, to, direction) => tpl(id, ['k-word'], direction, [
   n('front', 'field', { key: from }), n('prompt', 'prompt'),
   n('back', 'field', { key: to }), n('alt', 'field', { key: 'alt' }),

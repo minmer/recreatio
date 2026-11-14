@@ -171,7 +171,8 @@
     "page": "Page with the presentation (address)",
     "scene": "Scene (key)",
     "skipWhen": "Skip this step when",
-    "holdOne": "Stop even when only one option is left"
+    "holdOne": "Stop even when only one option is left",
+    "gapChoose": "Gaps"
   },
   "opt": {
     "maskPrefix": "the end (the beginning stays)",
@@ -206,6 +207,8 @@
     "screen": "new screen",
     "inline": "unfolds in place",
     "discovery": "discovery — question first",
-    "recall": "recall — content first"
+    "recall": "recall — content first",
+    "gapType": "typed",
+    "gapBank": "chosen from the words of the gaps"
   }
 }

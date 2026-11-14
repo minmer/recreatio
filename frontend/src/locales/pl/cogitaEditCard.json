@@ -122,7 +122,7 @@
     },
     "answerGap": {
       "label": "Odpowiedź: luka w cytacie",
-      "says": "Uczący się uzupełnia lukę. Przyjmuje tekst z luką i zakrytą część (z maski) albo fragment cytatu."
+      "says": "Uczący się uzupełnia lukę. Przyjmuje tekst z luką i zakrytą część (z maski), fragment cytatu albo zaznaczone luki (z „Luk w tekście\") — wtedy każda luka stoi na swoim miejscu i jest sprawdzana osobno."
     },
     "answerNumber": {
       "label": "Odpowiedź: liczba",
@@ -167,6 +167,10 @@
     "card": {
       "label": "Karta",
       "says": "Składa kartę: pytanie, odpowiedź i (po odpowiedzi) wyjaśnienie z połączonych wpisów. Dla zadań z generatora: „Podpowiedzi” (teksty, od łagodnej do konkretnej) i „Rozwiązanie” (tekst z wylosowanymi wartościami i wynikami pośrednimi — po odpowiedzi)."
+    },
+    "gaps": {
+      "label": "Luki w tekście",
+      "says": "Luki tam, gdzie tekst zaznacza je [[słowem]] (także kilka). Daje jedną wartość ze wszystkimi lukami, jedną na każdą lukę (do „Dla każdej wartości\"), zakryte słowa i cały tekst. Przy czytaniu wpisu widać samo słowo."
     }
   },
   "group": {
@@ -231,7 +235,10 @@
     "onward": "Dalej",
     "quote": "Cytat",
     "whole": "Całość",
-    "inputN": "wejście {n}"
+    "inputN": "wejście {n}",
+    "allGaps": "wszystkie luki naraz",
+    "eachGap": "każda luka osobno",
+    "markedGaps": "zaznaczone luki"
   },
   "error": {
     "filterNothing": "Filtr nie ma z czym porównać: podłącz „Porównaj z\" albo wpisz wartość.",
