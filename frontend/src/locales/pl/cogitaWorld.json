@@ -225,7 +225,12 @@
       "orange": "czas na powtórkę"
     },
     "review": "Powtórz",
-    "further": "Dalsze drogi",
+    "roads": {
+      "one": "1 droga prowadzi dalej",
+      "few": "{count} drogi prowadzą dalej",
+      "many": "{count} dróg prowadzi dalej",
+      "other": "{count} drogi prowadzą dalej"
+    },
     "reviewN": "Powtórz ({count})",
     "conquer": "Zdobywanie",
     "startRun": "Rozpocznij przebieg na poziom {level}",
@@ -470,8 +475,31 @@
     "nextAfter": "Dalej na twojej drodze",
     "nextPart": "Pierwsza część",
     "go": "Dalej",
-    "partOf": "Część {n} z {all}",
-    "stepDone": "Krok zrobiony: {text}"
+    "partOf": "Krok {n} z {all}",
+    "stepDone": "Krok zrobiony: {text}",
+    "intro": {
+      "one": "{count} krok do celu: {name}",
+      "few": "{count} kroki do celu: {name}",
+      "many": "{count} kroków do celu: {name}",
+      "other": "{count} kroków do celu: {name}"
+    },
+    "skip": "Pomiń",
+    "skipSays": "Pomiń ten krok i idź dalej — zostaje otwarty, można do niego wrócić",
+    "stepSkipped": "Pominięto: {text}",
+    "endSkipped": {
+      "one": "{count} pominięty krok jest jeszcze otwarty",
+      "few": "{count} pominięte kroki są jeszcze otwarte",
+      "many": "{count} pominiętych kroków jest jeszcze otwartych",
+      "other": "{count} pominiętych kroków jest jeszcze otwartych"
+    },
+    "unskip": "Wróć do pominiętych",
+    "about": {
+      "travel": "Opowieść pokaże coś nowego.",
+      "review": "Powtórka tego, co już było — żeby zostało w pamięci.",
+      "learn": "Karty, których nie wprowadza żadna opowieść — nauka wprost.",
+      "know": "Ćwiczenie, aż będzie pewne.",
+      "run": "Pokaż, co umiesz — tak zdobywa się wieżę."
+    }
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

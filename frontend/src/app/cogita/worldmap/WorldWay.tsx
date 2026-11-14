@@ -16,7 +16,7 @@ import type { Plan, PlanStep } from './wmPlan';
 import type { LevelRule } from './wmRuns';
 import './worldmap.css';
 
-type PartState = 'done' | 'just' | 'current' | 'next';
+type PartState = 'done' | 'just' | 'skipped' | 'current' | 'next';
 
 /** Die Zeichen der Teile (eigene Striche, in der Farbe des Textes). */
 export function PartIcon({ kind }: { kind: PlanStep['kind'] | 'target' }): ReactNode {
@@ -33,6 +33,12 @@ function partWords(step: PlanStep, ctx: PanelCtx): { kind: string; where: string
   const { t, nameOf, state } = ctx;
   const where = step.kind === 'travel' ? nameOf(state.lines.sections.get(step.section)?.to ?? step.place) : nameOf(step.place);
   return { kind: t(`cogitaWorld.way.kind.${step.kind}`), where };
+}
+
+/** Erledigt ✓, übersprungen ↷ (2026-11-14). */
+function PartMark({ state }: { state: PartState }) {
+  if (state === 'skipped') return <span className="cg-wm-wcheck is-skipped" aria-hidden="true">↷</span>;
+  return state === 'done' || state === 'just' ? <span className="cg-wm-wcheck" aria-hidden="true">✓</span> : null;
 }
 
 export function WayChain({ parts, ctx, target, big = false, more = 0, centre = false, onPick, onStart }: {
@@ -71,12 +77,12 @@ export function WayChain({ parts, ctx, target, big = false, more = 0, centre = f
             title={stepText(step, ctx)} ref={(el) => { el?.style.setProperty('--i', String(i)); }}>
             {onPick === undefined ? (
               <>
-                <span className="cg-wm-wdot"><PartIcon kind={step.kind} />{(state === 'done' || state === 'just') && <span className="cg-wm-wcheck" aria-hidden="true">✓</span>}</span>
+                <span className="cg-wm-wdot"><PartIcon kind={step.kind} /><PartMark state={state} /></span>
                 <span className="cg-wm-wtext"><span className="cg-wm-wkind">{w.kind}</span><span className="cg-wm-wwhere">{w.where}</span></span>
               </>
             ) : (
               <button type="button" className="cg-wm-wbtn" onClick={() => onPick(step)} onDoubleClick={() => onStart?.(step)} data-world-way-show={stepKey(step)}>
-                <span className="cg-wm-wdot"><PartIcon kind={step.kind} />{(state === 'done' || state === 'just') && <span className="cg-wm-wcheck" aria-hidden="true">✓</span>}</span>
+                <span className="cg-wm-wdot"><PartIcon kind={step.kind} /><PartMark state={state} /></span>
                 <span className="cg-wm-wtext"><span className="cg-wm-wkind">{w.kind}</span><span className="cg-wm-wwhere">{w.where}</span></span>
               </button>
             )}
@@ -143,8 +149,10 @@ export function useAutoGo(on: boolean, seconds: number, go: () => void): number 
   return left;
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 /** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived, onSkip, skipped = NONE, onUnskip }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -168,19 +176,27 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   more?: ReactNode;
   /** 2026-11-12 (Prompt 25) — am Ende eines Weges zu einer Frage: der Abschluss („Sprawdź się") statt nur „Zakończ". */
   arrived?: ReactNode;
+  /**
+   * 2026-11-14 (Eigentümer: „alles soll überspringbar sein, auch gegen die Regeln") — den jetzigen Schritt überspringen; die
+   * übersprungenen (ihre Schlüssel) stehen in der Kette mit ↷, am Ende lassen sie sich nachholen (`onUnskip`).
+   */
+  onSkip?: (step: PlanStep) => void;
+  skipped?: ReadonlySet<string>;
+  onUnskip?: () => void;
 }) {
   const { t, nameOf } = ctx;
   const first = tt.upcoming[0];
   const left = useAutoGo(auto && ctx.canLearn && first !== undefined && first.kind !== 'run', NEXT_AUTO_S, () => { if (first !== undefined) onGo(first); });
   const all = tt.done.length + tt.upcoming.length;
   const parts = [
-    ...tt.done.map((step) => ({ step, state: (just.has(stepKey(step)) ? 'just' : 'done') as PartState })),
+    ...tt.done.map((step) => ({ step, state: (skipped.has(stepKey(step)) ? 'skipped' : just.has(stepKey(step)) ? 'just' : 'done') as PartState })),
     ...tt.upcoming.map((step, i) => ({ step, state: (i === 0 ? 'current' : 'next') as PartState }))
   ];
   const next = tt.upcoming[0];
   const pct = all === 0 ? 100 : Math.round((100 * tt.done.length) / all);
   /* Was eben geschafft wurde (der letzte erledigte Teil, der neu ist). */
   const cheer = [...tt.done].reverse().find((s) => just.has(stepKey(s)));
+  const skippedHere = tt.done.filter((s) => skipped.has(stepKey(s))).length;
   /*
     2026-11-10 (Eigentümer: „das Feld unten ist zu hoch; der nächste Schritt rechts und kürzer") — ALS LEISTE UNTER DER KARTE: links
     eine Zeile (Ziel, wie weit) und die Kette (rollbar, der jetzige Schritt in der Mitte), rechts kurz der nächste Schritt.
@@ -195,10 +211,13 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
             <span className="cg-wm-meta"> · {t('cogitaWorld.nav.progress', { done: tt.done.length, all })}</span>
             <button type="button" className="cg-wm-wayx" onClick={onMap} aria-label={t('cogitaWorld.way.toMap')} title={t('cogitaWorld.way.toMap')} data-world-next-map="">×</button>
           </p>
-          {cheer !== undefined && (
-            <p className="cg-wm-cheer" role="status" data-world-step-done={stepKey(cheer)}>
-              <span className="cg-wm-cheermark" aria-hidden="true">✓</span> {t('cogitaWorld.way.stepDone', { text: stepText(cheer, ctx) })}
-            </p>
+          {cheer !== undefined ? (
+            skipped.has(stepKey(cheer))
+              ? <p className="cg-wm-cheer is-skipped" role="status" data-world-step-skipped={stepKey(cheer)}><span className="cg-wm-cheermark" aria-hidden="true">↷</span> {t('cogitaWorld.way.stepSkipped', { text: stepText(cheer, ctx) })}</p>
+              : <p className="cg-wm-cheer" role="status" data-world-step-done={stepKey(cheer)}><span className="cg-wm-cheermark" aria-hidden="true">✓</span> {t('cogitaWorld.way.stepDone', { text: stepText(cheer, ctx) })}</p>
+          ) : tt.done.length === 0 && next !== undefined && (
+            /* 2026-11-14 (Eigentümer: „die Seite soll klar sagen, was sie tut") — am Anfang: so viele Schritte führen zum Ziel. */
+            <p className="cg-wm-wayintro" data-world-way-intro={all}>{t('cogitaWorld.way.intro', { count: all, name: nameOf(tt.target) })}</p>
           )}
           <WayChain parts={parts} ctx={ctx} target={tt.target} centre {...(onShow === undefined ? {} : { onPick: onShow })}
             onStart={ctx.canLearn ? (s) => { if (tt.upcoming.some((u) => stepKey(u) === stepKey(s))) onGo(s); } : undefined} />
@@ -207,17 +226,31 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
         {next === undefined ? (
           <div className="cg-wm-waynext is-arrived" data-world-next-arrived="">
             <p className="cg-wm-waynexttext"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</p>
+            {/* Übersprungenes ist nicht vergessen: es lässt sich nachholen (der Plan nimmt es wieder auf). */}
+            {skippedHere > 0 && <p className="cg-wm-meta" data-world-way-skipped={skippedHere}>{t('cogitaWorld.way.endSkipped', { count: skippedHere })}</p>}
+            {skippedHere > 0 && onUnskip !== undefined && ctx.canLearn && <button type="button" className="wk-btn wk-btn-line is-small" onClick={onUnskip} data-world-way-unskip="">{t('cogitaWorld.way.unskip')}</button>}
             {arrived}
             <button type="button" className="wk-btn is-small" autoFocus onClick={onEnd} data-world-next-end="">{t('cogitaWorld.way.finish')}</button>
           </div>
         ) : (
           <div className={`cg-wm-waynext is-${next.kind}`} data-world-next-invite={next.kind}>
-            <p className="cg-wm-waynexttext" title={[stepText(next, ctx), meta].filter(Boolean).join(' · ')}>
-              <PartIcon kind={next.kind} /> <span className="cg-wm-waynextkind">{partWords(next, ctx).kind}</span> <span className="cg-wm-waynextwhere">{partWords(next, ctx).where}</span>
-            </p>
+            {/*
+              2026-11-14 (Eigentümer: „eine Animation zeigt, dass wir jetzt den ersten Schritt machen — z. B. die Wiederholung von
+              früher; man kann ihn überspringen") — DIE ANSAGE DES SCHRITTES: „Schritt n von m" (der Balken wächst bis hierher), was
+              es ist und wozu; neu bei jedem Schritt (key). Darunter: beginnen oder überspringen.
+            */}
+            <div key={stepKey(next)} className="cg-wm-announce" data-world-announce={tt.done.length + 1}>
+              <span className="cg-wm-annnum">{t('cogitaWorld.way.partOf', { n: tt.done.length + 1, all })}</span>
+              <span className="cg-wm-annbar" aria-hidden="true" ref={(el) => { if (el !== null) { el.style.setProperty('--from', String(all === 0 ? 0 : Math.max(0, tt.done.length - 1) / all)); el.style.setProperty('--to', String(all === 0 ? 1 : tt.done.length / all)); } }} />
+              <p className="cg-wm-waynexttext" title={[stepText(next, ctx), meta].filter(Boolean).join(' · ')}>
+                <PartIcon kind={next.kind} /> <span className="cg-wm-waynextkind">{partWords(next, ctx).kind}</span> <span className="cg-wm-waynextwhere">{partWords(next, ctx).where}</span>
+              </p>
+              <p className="cg-wm-annabout">{t(`cogitaWorld.way.about.${next.kind}`)}{meta === '' ? '' : ` · ${meta}`}</p>
+            </div>
             <div className="cg-wm-waybtns">
               {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} data-world-next-go={next.kind}>{stepAction(next, ctx) ?? t('cogitaWorld.way.go')} ▶</button>}
               {ctx.canLearn && next.kind === 'run' && next.prepare.length > 0 && onPrepare !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onPrepare(next)} data-world-next-prepare={next.prepare.length}>{t('cogitaWorld.panel.prepareN', { count: next.prepare.length })}</button>}
+              {ctx.canLearn && onSkip !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => onSkip(next)} title={t('cogitaWorld.way.skipSays')} data-world-next-skip={stepKey(next)}>{t('cogitaWorld.way.skip')} ↷</button>}
             </div>
             {left !== null && (
               <p className="cg-fin-auto" role="timer" aria-live="off" data-world-next-auto={left}>

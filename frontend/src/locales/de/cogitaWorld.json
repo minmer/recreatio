@@ -195,7 +195,10 @@
       "orange": "Wiederholung fällig"
     },
     "review": "Wiederholen",
-    "further": "Weitere Wege",
+    "roads": {
+      "one": "1 Weg führt weiter",
+      "other": "{count} Wege führen weiter"
+    },
     "reviewN": "Wiederholen ({count})",
     "conquer": "Erobern",
     "startRun": "Durchgang für Stufe {level} starten",
@@ -396,8 +399,27 @@
     "nextAfter": "Als Nächstes auf deinem Weg",
     "nextPart": "Erster Teil",
     "go": "Weiter",
-    "partOf": "Teil {n} von {all}",
-    "stepDone": "Schritt geschafft: {text}"
+    "partOf": "Schritt {n} von {all}",
+    "stepDone": "Schritt geschafft: {text}",
+    "intro": {
+      "one": "{count} Schritt führt zu {name}",
+      "other": "{count} Schritte führen zu {name}"
+    },
+    "skip": "Überspringen",
+    "skipSays": "Diesen Schritt überspringen und weitergehen — er bleibt offen, du kannst zurückkommen",
+    "stepSkipped": "Übersprungen: {text}",
+    "endSkipped": {
+      "one": "{count} übersprungener Schritt ist noch offen",
+      "other": "{count} übersprungene Schritte sind noch offen"
+    },
+    "unskip": "Übersprungenes nachholen",
+    "about": {
+      "travel": "Eine Erzählung zeigt dir Neues.",
+      "review": "Eine Wiederholung dessen, was du schon gelernt hast — damit es bleibt.",
+      "learn": "Karten, die keine Erzählung bringt — direkt gelernt.",
+      "know": "Üben, bis es sitzt.",
+      "run": "Zeig, was du kannst — so eroberst du den Turm."
+    }
   },
   "finish": {
     "arrive": "Ziel erreicht!",

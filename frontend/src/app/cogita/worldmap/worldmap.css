@@ -458,3 +458,42 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-qactions { margin-top: var(--wk-space-1); }
 .cg-wm-qdeeper { margin-top: var(--wk-space-2); }
 .cg-wm-qissues { margin: var(--wk-space-2) 0 0; padding-left: 1.2rem; color: var(--wk-warn); font-size: var(--wk-text-sm); }
+
+/*
+  2026-11-14 (Eigentümer: „die Seite sagt klar, was sie tut; eine Animation zeigt den Schritt, den wir jetzt machen; alles lässt sich
+  überspringen") — DIE ANSAGE DES SCHRITTES in der Karte des Weges: „Schritt n von m", ein Balken, der bis hierher wächst, das Zeichen
+  des Teils zeichnet sich, ein Satz, was es ist. Übersprungene Teile in der Kette: gestrichelt mit ↷.
+*/
+.cg-wm-wayintro { margin: 0; font-weight: 600; }
+.cg-wm-announce { display: grid; gap: 0.3rem; animation: cg-wm-ann 560ms cubic-bezier(.2, 1.1, .35, 1) both; }
+.cg-wm-annnum { color: var(--wk-accent); font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.cg-wm-annbar { position: relative; display: block; height: 4px; overflow: hidden; border-radius: var(--wk-radius-pill); background: var(--wk-line); }
+.cg-wm-annbar::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--wk-accent); transform-origin: left; transform: scaleX(var(--to, 0)); animation: cg-wm-annbar 900ms 180ms ease-out both; }
+.cg-wm-announce .cg-wm-picon path { stroke-dasharray: 90; stroke-dashoffset: 0; animation: cg-wm-draw 1s 250ms ease-out both; }
+.cg-wm-annabout { margin: 0; color: var(--wk-ink-2); font-size: var(--wk-text-sm); line-height: 1.35; }
+@keyframes cg-wm-ann { from { opacity: 0; transform: translateX(1.5rem); } to { opacity: 1; transform: none; } }
+@keyframes cg-wm-annbar { from { transform: scaleX(var(--from, 0)); } }
+@keyframes cg-wm-draw { from { stroke-dashoffset: 90; } }
+.cg-wm-wcheck.is-skipped { background: var(--wk-muted); }
+.cg-wm-wpart.is-skipped .cg-wm-wdot { border-style: dashed; color: var(--wk-muted); }
+.cg-wm-wpart.is-skipped .cg-wm-wtext { opacity: 0.6; }
+.cg-wm-wpart.is-skipped::after { background: var(--wk-line-strong); }
+.cg-wm-cheer.is-skipped { background: var(--wk-sunk); }
+.cg-wm-cheer.is-skipped .cg-wm-cheermark { background: var(--wk-muted); }
+.cg-wm-partskip { flex: none; margin-left: auto; }
+.cg-wm-parttext { flex: 1 1 auto; }
+/* Der Durchgang: wie viele Karten schon gefragt sind. */
+.cg-wm-runbar { display: block; height: 4px; overflow: hidden; border-radius: var(--wk-radius-pill); background: var(--wk-line); }
+.cg-wm-runbar > i { display: block; height: 100%; border-radius: inherit; background: var(--wk-accent); transition: width 400ms ease-out; }
+:root[data-motion='reduced'] .cg-wm-announce, :root[data-motion='off'] .cg-wm-announce, :root[data-motion='off'] .cg-wm-announce *, :root[data-motion='off'] .cg-wm-annbar::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .cg-wm-announce, .cg-wm-announce *, .cg-wm-annbar::after { animation: none; } }
+
+/*
+  2026-11-14 (Eigentümer: „der Knopf ‚Dalej' ist oft unter dem Rand, besonders quer") — in einem niedrigen Fenster wird die Leiste des
+  Vollbilds schmaler, und der Teil darüber rückt näher an den Rand.
+*/
+@media (max-height: 30rem) {
+  .cg-wm-host.is-full { --cg-wm-bar: 2.5rem; }
+  .cg-wm-fullview.is-page { padding-block: var(--wk-space-2); }
+  .cg-wm-partbanner { margin-bottom: var(--wk-space-2); padding-block: var(--wk-space-1); }
+}

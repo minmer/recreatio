@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
+import { onwardRoads } from './wmFocus';
 import { rgbCss, type LineColour } from './wmColors';
 import { stepKey, type Timetable } from './wmNav';
 import type { PlanStep } from './wmPlan';
@@ -33,6 +34,8 @@ export interface PanelActions {
   lead(target: string, via?: string): void;
   show(kind: 'place' | 'section' | 'home' | 'junction', id: string): void;
   open?: (id: string) => void;
+  /** 2026-11-14 — ein Weg weiter unter dem Zeiger: nur er leuchtet auf der Karte (null: wieder alle). */
+  peek?: (sections: readonly string[] | null) => void;
 }
 
 export interface PanelCtx {
@@ -385,10 +388,8 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
   const repeatClass = due.length === 0 ? 'wk-btn wk-btn-line' : `wk-btn cg-wm-need is-${ps.dot ?? 'orange'}`;
-  /* Die Wege von hier weiter (wie „Kierunki"), ohne Rückwege. */
-  const onward = (state.lines.stations.get(id)?.out?.map((sid) => state.lines.sections.get(sid)) ?? [...state.lines.sections.values()].filter((s) => s.from === id))
-    .filter((s): s is Section => s !== undefined && s.kind !== 'return' && s.to !== id)
-    .map((s) => ({ s, st: state.sections.get(s.id)! })).filter((x) => x.st !== undefined);
+  /* 2026-11-14 — die Wege von hier weiter, über Gabelungen bis zum nächsten Turm (`onwardRoads`; die Karte zeigt dieselben). */
+  const onward = ps.conquered ? onwardRoads(state, state.lines, id) : [];
   return (
     <section className="cg-wm-panel" data-world-panel="place" data-world-place={id} data-world-gate={gate.kind} data-world-conquered={ps.conquered ? '1' : '0'} data-world-level={ps.level}>
       <PanelTop t={t} onClose={onClose} title={place.label} />
@@ -419,16 +420,26 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
               {due.length > 0 ? t('cogitaWorld.panel.reviewN', { count: due.length }) : t('cogitaWorld.panel.review')}
             </button>
           )}
+          {/*
+            2026-11-14 (Eigentümer: „hier hast du drei Wege — und sie sollen zu sehen sein") — „N Wege führen weiter": jeder Weg ein
+            Knopf (gegangen umrandet); die Karte zeigt alle, unter dem Zeiger nur ihn. Ein Weg zu einem Turm, der noch fehlt, führt
+            Schritt für Schritt hin; ein gegangener zeigt seine Spur.
+          */}
           {onward.length > 0 && (
             <>
-              <p className="cg-wm-h">{t('cogitaWorld.panel.further')}</p>
-              <div className="cg-wm-onward" data-world-onward={onward.length}>
-                {onward.map(({ s, st }) => {
-                  const go = ctx.canLearn && st.ticket.met && st.open;
+              <p className="cg-wm-h" data-world-roads={onward.length}>{t('cogitaWorld.panel.roads', { count: onward.length })}</p>
+              <div className="cg-wm-onward" data-world-onward={onward.length} onPointerLeave={() => act.peek?.(null)}>
+                {onward.map((r) => {
+                  const last = state.lines.sections.get(r.sections[r.sections.length - 1]!);
+                  const first = state.lines.sections.get(r.sections[0]!);
+                  const label = last === undefined ? null : branchLabel(ctx, last);
+                  const toConquer = state.places.get(r.to)?.conquered !== true;
                   return (
-                    <button key={s.id} type="button" className={st.travelled ? 'wk-btn wk-btn-line' : 'wk-btn'} title={lineOf(ctx, s)?.name ?? undefined}
-                      onClick={() => (go ? act.travel(s.id) : act.show('section', s.id))} data-world-onward-to={s.id} data-world-onward-done={st.travelled ? '1' : '0'}>
-                      <Chip colour={ctx.colours.get(s.line)} /> {ctx.nameOf(s.to)}{branchLabel(ctx, s) !== null ? ` · ${branchLabel(ctx, s)}` : ''}
+                    <button key={r.sections.join('>')} type="button" className={r.travelled ? 'wk-btn wk-btn-line' : 'wk-btn'} title={first === undefined ? undefined : lineOf(ctx, first)?.name ?? undefined}
+                      onPointerEnter={() => act.peek?.(r.sections)} onFocus={() => act.peek?.(r.sections)} onBlur={() => act.peek?.(null)}
+                      onClick={() => { act.peek?.(null); if (ctx.canLearn && toConquer && last !== undefined) act.lead(r.to, last.id); else act.show('place', r.to); }}
+                      data-world-onward-to={r.to} data-world-onward-road={r.sections.join(' ')} data-world-onward-done={r.travelled ? '1' : '0'}>
+                      <Chip colour={first === undefined ? undefined : ctx.colours.get(first.line)} /> {ctx.nameOf(r.to)}{label !== null ? ` · ${label}` : ''}
                     </button>
                   );
                 })}

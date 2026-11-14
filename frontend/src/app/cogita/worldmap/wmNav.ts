@@ -23,6 +23,18 @@ export interface NavSession {
    * der Weg ist nicht zu sehen, aber nicht vergessen; „Weiter" nimmt ihn wieder auf (der Plan rechnet ohnehin aus dem Stand).
    */
   readonly paused?: boolean;
+  /**
+   * 2026-11-14 (Eigentümer: „alles soll überspringbar sein, auch gegen die Regeln — manchmal will man zu einem bestimmten Teil
+   * des Weges") — ÜBERSPRUNGENE SCHRITTE (ihre Schlüssel): der Plan lässt sie weg, die Kette zeigt sie als übersprungen.
+   */
+  readonly skipped?: readonly string[];
+}
+
+/** Der Plan ohne die übersprungenen Schritte. */
+export function withoutSkipped<P extends { readonly steps: readonly PlanStep[] }>(plan: P, skipped: readonly string[] | undefined): P {
+  if (skipped === undefined || skipped.length === 0) return plan;
+  const out = new Set(skipped);
+  return { ...plan, steps: plan.steps.filter((s) => !out.has(stepKey(s))) };
 }
 
 /** Ein Schritt beim Namen (derselbe Schritt in zwei Plänen hat denselben Schlüssel). */
@@ -43,11 +55,12 @@ export interface Timetable {
  * DER FAHRPLAN NACH EINEM NEUEN PLAN. `replanned`: der Lernende hat eine Abzweigung gewählt (oder ein anderes Ziel) — was dabei
  * verschwindet, ist nicht erledigt. Sonst ist erledigt, was im alten Plan vor dem Neuen stand und nun fehlt.
  */
-export function followPlan(prev: Timetable | null, plan: Plan, replanned = false): Timetable {
+export function followPlan(prev: Timetable | null, plan: Plan, replanned = false, skipped: ReadonlySet<string> = new Set()): Timetable {
   if (prev === null || prev.target !== plan.target) return { target: plan.target, done: [], upcoming: plan.steps, cards: plan.cards, route: plan.route };
-  if (replanned) return { ...prev, upcoming: plan.steps, cards: plan.cards, route: plan.route };
-  const now = new Set(plan.steps.map(stepKey));
   const had = new Set(prev.done.map(stepKey));
+  /* Ein übersprungener Schritt ist vorbei (in der Kette als übersprungen), auch wenn der Plan dabei neu gerechnet wurde. */
+  if (replanned) return { ...prev, done: [...prev.done, ...prev.upcoming.filter((s) => skipped.has(stepKey(s)) && !had.has(stepKey(s)))], upcoming: plan.steps, cards: plan.cards, route: plan.route };
+  const now = new Set(plan.steps.map(stepKey));
   const newly = prev.upcoming.filter((s) => !now.has(stepKey(s)) && !had.has(stepKey(s)));
   return { target: plan.target, done: [...prev.done, ...newly], upcoming: plan.steps, cards: plan.cards, route: plan.route };
 }
@@ -96,17 +109,18 @@ export function keptNav(scope: string): NavSession | null {
   try {
     const raw = window.sessionStorage.getItem(navKey(scope));
     if (raw === null) return null;
-    const v = JSON.parse(raw) as { target?: unknown; choices?: unknown; paused?: unknown };
+    const v = JSON.parse(raw) as { target?: unknown; choices?: unknown; paused?: unknown; skipped?: unknown };
     if (typeof v.target !== 'string' || v.target === '') return null;
     const choices = new Map<string, string>();
     if (Array.isArray(v.choices)) for (const pair of v.choices) if (Array.isArray(pair) && typeof pair[0] === 'string' && typeof pair[1] === 'string') choices.set(pair[0], pair[1]);
-    return { target: v.target, choices, ...(v.paused === true ? { paused: true } : {}) };
+    const skipped = Array.isArray(v.skipped) ? v.skipped.filter((x): x is string => typeof x === 'string') : [];
+    return { target: v.target, choices, ...(v.paused === true ? { paused: true } : {}), ...(skipped.length > 0 ? { skipped } : {}) };
   } catch { return null; }
 }
 
 export function keepNav(scope: string, nav: NavSession | null): void {
   try {
     if (nav === null) window.sessionStorage.removeItem(navKey(scope));
-    else window.sessionStorage.setItem(navKey(scope), JSON.stringify({ target: nav.target, choices: [...nav.choices], ...(nav.paused === true ? { paused: true } : {}) }));
+    else window.sessionStorage.setItem(navKey(scope), JSON.stringify({ target: nav.target, choices: [...nav.choices], ...(nav.paused === true ? { paused: true } : {}), ...(nav.skipped !== undefined && nav.skipped.length > 0 ? { skipped: nav.skipped } : {}) }));
   } catch { /* ohne Speicher: nur bis zum Neuladen */ }
 }

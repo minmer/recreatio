@@ -61,7 +61,7 @@ import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
-import { followPlan, keepNav, keptNav, navMarks, stepKey, type NavSession, type Timetable } from './wmNav';
+import { followPlan, keepNav, keptNav, navMarks, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
 import { nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
@@ -299,8 +299,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const navPlan = useMemo(() => {
     if (nav === null || nav.paused === true) return null;
     /* 2026-11-12 (Prompt 25) — „Idź tą drogą": die Pläne der offenen Schritte des Weges aneinander (`pathPlan`). */
-    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : pathPlan(pctx, p, nav.choices); }
-    return world.places.has(nav.target) ? planRoute(state, nav.target, { choices: nav.choices }) : null;
+    /* 2026-11-14 — ohne die übersprungenen Schritte (`NavSession.skipped`). */
+    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : withoutSkipped(pathPlan(pctx, p, nav.choices), nav.skipped); }
+    return world.places.has(nav.target) ? withoutSkipped(planRoute(state, nav.target, { choices: nav.choices }), nav.skipped) : null;
   }, [nav, state, world, pathById, pctx]);
   /* 2026-11-10 — angehalten, nicht vergessen; am Ziel ist der Weg zu Ende. */
   const pauseNav = () => setNav((n) => (n === null || (navPlan !== null && navPlan.steps.length === 0) ? null : { ...n, paused: true }));
@@ -318,7 +319,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const tt = useMemo((): Timetable | null => {
     if (navPlan === null) { ttRef.current = { tt: null, nav }; return null; }
     const prev = ttRef.current;
-    const next = followPlan(prev.tt, navPlan, prev.nav !== nav);
+    const next = followPlan(prev.tt, navPlan, prev.nav !== nav, new Set(nav?.skipped ?? []));
     ttRef.current = { tt: next, nav };
     return next;
   }, [navPlan, nav]);
@@ -356,18 +357,38 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setRunning({ kind: 'story', key: `story:${full.id}:${Date.now()}`, flow: full, jump: step === null ? null : { step, at: Date.now(), ...(exit === undefined ? {} : { exit }) } });
   };
   /*
-    „Prowadź mnie tutaj" (Knopf oder Doppelklick auf die Säule): die Navigation steht UND ihr erster Schritt beginnt gleich
-    (2026-11-10, Eigentümer: „es soll den Weg beginnen") — das Feld des Ortes schliesst sich, der Fahrplan bleibt.
+    „Prowadź mnie tutaj" (Knopf oder Doppelklick auf die Säule): die Navigation steht, das Feld des Ortes schliesst sich.
+    2026-11-14 (Eigentümer: „die Seite soll klar sagen, was sie tut: so viele Schritte; dann zeigt eine Animation, dass wir den
+    ersten machen — und man kann ihn überspringen") — nicht mehr gleich hinein: zuerst die Karte des Weges mit der Ansage des
+    ersten Schrittes (beginnen oder überspringen). Übersprungenes bleibt, solange das Ziel dasselbe ist.
   */
-  const startNav = useRef<string | null>(null);
-  const lead = (target: string, via?: string, first: 'start' | 'overview' = 'start') => {
-    const choices = new Map<string, string>(nav !== null && nav.target === target ? nav.choices : []);
+  const lead = (target: string, via?: string) => {
+    const same = nav !== null && nav.target === target;
+    const choices = new Map<string, string>(same ? nav.choices : []);
     if (via !== undefined) for (const k of lines.sections.get(via)?.introduces ?? []) for (const p of world.cardPlaces.get(k) ?? []) choices.set(p, via);
-    if (first === 'start') startNav.current = target; else setOverview(true);
+    setOverview(true);
+    setAskNext(false);
+    setLastDone(null);
     setPlain(false);
     setChosen(null);
-    setNav({ target, choices });
+    setNav({ target, choices, ...(same && nav.skipped !== undefined ? { skipped: nav.skipped } : {}) });
   };
+  /* 2026-11-14 — einen Schritt überspringen (vor ihm oder mitten in ihm): er gilt als vorbei, die Kette zeigt ihn mit ↷. */
+  const skipStep = (key: string) => {
+    if (nav === null) return;
+    setLastDone(new Set(tt?.done.map(stepKey) ?? []));
+    setNav({ ...nav, skipped: [...(nav.skipped ?? []).filter((k) => k !== key), key] });
+    setAskNext(true);
+  };
+  /* Am Ende: das Übersprungene nachholen — der Weg beginnt mit dem, was noch fehlt. */
+  const unskip = () => {
+    if (nav === null) return;
+    ttRef.current = { tt: null, nav: null };
+    setLastDone(null);
+    setNav({ target: nav.target, choices: nav.choices });
+    setAskNext(true);
+  };
+  const skippedSet = useMemo(() => new Set(nav?.skipped ?? []), [nav]);
   /* 2026-11-12 (Prompt 25) — „Idź tą drogą": wie „Prowadź mnie tutaj", das Ziel ist der Weg; sind seine Schritte schon erledigt, gleich der Abschluss. */
   const leadPath = (id: string) => {
     const p = pathById.get(id);
@@ -410,31 +431,27 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       setRunning({ kind: 'cards', key: `review:${Date.now()}`, source: { plan: readPlan(list, { mode: 'once', order: 'random', pick: 'weighted' }), cards, title, review: true } });
     },
     run: (place) => { setNote(null); setRunning({ kind: 'run', key: `run:${place}:${Date.now()}`, place }); },
-    lead,
+    /* 2026-11-14 — wer sich zu einem Turm führen lässt, hat ihn zum Ziel (wie der Doppelklick). */
+    lead: (target, via) => { if (world.places.has(target)) setGoal(target); lead(target, via); },
     show: (kind, id) => { setChosen({ kind, id }); if (kind === 'place') pillars.current?.focus(id); },
+    peek: (ids) => setPeekRoad(ids),
     ...(onOpen === undefined ? {} : { open: onOpen })
   };
   /* 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man gesehen hat und noch nicht kann (und was keine Erzählung erreicht). */
   const prepareStep = (step: PlanStep) => { if (step.kind === 'run' && step.prepare.length > 0) startCards(step.prepare, nameOf(step.place), false); };
   const go = (step: PlanStep) => {
-    if (tt !== null) wayPartNext.current = { n: tt.done.length + 1, all: tt.done.length + tt.upcoming.length, kind: step.kind, text: stepText(step, panel), at: Date.now() };
+    if (tt !== null) wayPartNext.current = { n: tt.done.length + 1, all: tt.done.length + tt.upcoming.length, kind: step.kind, text: stepText(step, panel), key: stepKey(step), at: Date.now() };
     if (step.kind === 'travel') {
       const st = state.sections.get(step.section);
       const s = lines.sections.get(step.section);
-      if (st !== undefined && !st.ticket.met) { startCards([...st.ticket.missing.new, ...st.ticket.missing.review], s === undefined ? '' : nameOf(s.to), false); return; }
+      /* 2026-11-14 — wurde die Wiederholung vor dieser Fahrt übersprungen, fährt man trotzdem (auch gegen die Regeln). */
+      if (st !== undefined && !st.ticket.met && !skippedSet.has(`review:${step.section}`)) { startCards([...st.ticket.missing.new, ...st.ticket.missing.review], s === undefined ? '' : nameOf(s.to), false); return; }
       travel(step.section);
       return;
     }
     if (step.kind === 'learn' || step.kind === 'know' || step.kind === 'review') { startCards(step.cards, nameOf(step.place), false); return; }
     if (step.kind === 'run') act.run(step.place);
   };
-  useEffect(() => {
-    if (startNav.current === null || tt === null || tt.target !== startNav.current || learner === null) return;
-    startNav.current = null;
-    const first = tt.upcoming[0];
-    if (first !== undefined) go(first);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tt]);
 
   /*
     -- Vollbild (2026-11-10, Eigentümer): nur die Karte; das Feld liegt darüber. ----------------------------------------------
@@ -768,6 +785,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     : chosen?.kind === 'section' ? { next: [chosen.id], later: [] }
       : chosen?.kind === 'junction' ? { next: lines.junctions.get(chosen.id)?.out ?? [], later: [] } : null), [chosen, wayOf, nav, marks, wayPlan, lines]);
   const shownWay = hoverWay ?? chosenWay;
+  /* 2026-11-14 — ein Weg weiter unter dem Zeiger (im Feld eines eroberten Turms): nur er kräftig. */
+  const [peekRoad, setPeekRoad] = useState<readonly string[] | null>(null);
+  useEffect(() => { setPeekRoad(null); }, [chosen]);
   /*
     2026-11-10 (Eigentümer: „ist ein Ziel gewählt, zeigt die Karte den Weg — alles andere grau; Erledigtes dünn und gedämpft,
     was noch offen ist, kräftig") — DER BLICK AUF DAS ZIEL: ein angeklickter Turm, der noch fehlt, oder das Ziel der Navigation.
@@ -783,8 +803,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const focus = useMemo(() => (plain ? null : laneFocus ?? (focusPlan !== null ? routeFocus(focusPlan, state, lines)
     : chosen?.kind === 'junction' || (chosen?.kind === 'place' && state.places.get(chosen.id)?.conquered === true) ? nodeFocus(state, lines, chosen.id) : null)),
   [plain, laneFocus, focusPlan, state, lines, chosen]);
-  const route = hoverWay !== null ? hoverWay.next : plain ? null : focus !== null ? [...focus.remaining] : shownWay?.next ?? marks?.next ?? null;
-  const faint = hoverWay !== null ? hoverWay.later : plain ? null : focus !== null ? [...focus.done]
+  const route = peekRoad !== null ? [...peekRoad] : hoverWay !== null ? hoverWay.next : plain ? null : focus !== null ? [...focus.remaining] : shownWay?.next ?? marks?.next ?? null;
+  const faint = peekRoad !== null ? (focus === null ? null : [...focus.remaining, ...focus.done].filter((x) => !peekRoad.includes(x))) : hoverWay !== null ? hoverWay.later : plain ? null : focus !== null ? [...focus.done]
     : shownWay !== null
       ? [...shownWay.later, ...(marks === null || (chosen?.kind === 'place' && nav?.target === chosen.id && hoverWay === null) ? [] : [...marks.next, ...marks.later])]
       : marks?.later ?? null;
@@ -903,7 +923,22 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={backToMap} backToMap={backToMap} onDone={backToMap} />
       </div>
     ) : null;
-  if (full === null && runNode !== null) return host(runNode);
+  /*
+    2026-11-14 (Eigentümer: „ein Fortschrittsbalken zeigt, wo wir stehen; alles soll überspringbar sein") — ÜBER DEM LAUFENDEN
+    SCHRITT eines Weges (auch ohne Vollbild): „Schritt n von m", was es ist, der Balken des Weges und „Pomiń" (der Schritt endet
+    gleich, ohne Tafel; die Kette zeigt ihn mit ↷). Den Fortschritt im Schritt zeigt der Schritt selbst (Karten, Folien).
+  */
+  const partBanner: ReactNode = runNode === null || wayPart === null || tt === null ? null : (
+    <p className="cg-wm-partbanner" data-world-part={wayPart.n}>
+      <PartIcon kind={wayPart.kind} />
+      <span className="cg-wm-partn">{t('cogitaWorld.way.partOf', { n: wayPart.n, all: wayPart.all })}</span>
+      <span className="cg-wm-parttext">{wayPart.text}</span>
+      {learner !== null && <button type="button" className="wk-btn wk-btn-line is-small cg-wm-partskip" title={t('cogitaWorld.way.skipSays')}
+        onClick={() => { finSnap.current = null; skipStep(wayPart.key); setRunning(null); }} data-world-part-skip={wayPart.key}>{t('cogitaWorld.way.skip')} ↷</button>}
+      <span className="cg-wm-partbar" ref={(el) => { if (el !== null) el.style.setProperty('--done', String(wayPart.all === 0 ? 0 : (wayPart.n - 1) / wayPart.all)); }} aria-hidden="true" />
+    </p>
+  );
+  if (full === null && runNode !== null) return host(<>{partBanner}{runNode}</>);
   const doneKeys = tt === null ? [] : tt.done.map(stepKey);
   const just = new Set(lastDone === null ? [] : doneKeys.filter((k) => !lastDone.has(k)));
   const closeWay = () => { setAskNext(false); setOverview(false); setPeek(null); };
@@ -915,6 +950,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const wayCard: ReactNode = tt === null || running !== null || finished !== null || plain ? null : wayOpen ? (
     <div className="cg-wm-waycard" data-world-next-page="">
       <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep}
+        onSkip={(s) => skipStep(stepKey(s))} skipped={skippedSet} onUnskip={unskip}
         onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }}
         onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
         arrived={(() => {
@@ -927,7 +963,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           <details className="cg-wm-allparts" data-world-all-parts="">
             <summary>{t('cogitaWorld.map.fullPath')}</summary>
             <NavPanel tt={tt} ctx={panel} rules={rules} onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }} onEnd={() => { pauseNav(); closeWay(); }}
-              onChoose={(place, section) => setNav((n) => (n === null ? n : { target: n.target, choices: new Map([...n.choices, [place, section]]) }))} />
+              onChoose={(place, section) => setNav((n) => (n === null ? n : { ...n, choices: new Map([...n.choices, [place, section]]) }))} />
           </details>
         )} />
     </div>
@@ -976,7 +1012,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         {nav !== null && nav.paused === true && (
           <p className="cg-ls-goal" data-world-nav-paused={nav.target}>
             <span>{t('cogitaWorld.nav.paused', { name: nameOf(nav.target) })}</span>
-            <button type="button" className="wk-link-btn" onClick={() => setNav({ target: nav.target, choices: nav.choices })} data-world-nav-resume="">{t('cogitaWorld.nav.resume')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setNav({ target: nav.target, choices: nav.choices, ...(nav.skipped === undefined ? {} : { skipped: nav.skipped }) })} data-world-nav-resume="">{t('cogitaWorld.nav.resume')}</button>
             <button type="button" className="wk-link-btn" onClick={() => setNav(null)} data-world-nav-forget="">{t('cogitaWorld.nav.forget')}</button>
           </p>
         )}
@@ -996,7 +1032,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickLane={(id) => setChosen({ kind: 'section', id })}
               onPickHome={() => setChosen({ kind: 'home', id: HOME })}
               onPickJunction={(id) => setChosen({ kind: 'junction', id })}
-              onLead={(id) => { setGoal(id); lead(id, undefined, 'overview'); }} onPlain={() => { setChosen(null); setHover(null); setOverview(false); setAskNext(false); setPlain(true); }}
+              onLead={(id) => { setGoal(id); lead(id); }} onPlain={() => { setChosen(null); setHover(null); setOverview(false); setAskNext(false); setPlain(true); }}
               full={full !== null} squeeze={hasSide} under={wayCard} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
@@ -1106,14 +1142,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       <div className="cg-wm-fullview is-map" hidden={tab !== 'map'} data-full-view="map" data-enter={tab === 'map' ? enter : undefined}>{mapBody}</div>
       {runNode !== null && (
         <div ref={runViewRef} className="cg-wm-fullview is-page is-run" hidden={tab !== 'run'} data-full-view="run" data-enter={tab === 'run' ? enter : undefined}>
-          {wayPart !== null && tt !== null && (
-            <p className="cg-wm-partbanner" data-world-part={wayPart.n}>
-              <PartIcon kind={wayPart.kind} />
-              <span className="cg-wm-partn">{t('cogitaWorld.way.partOf', { n: wayPart.n, all: wayPart.all })}</span>
-              <span className="cg-wm-parttext">{wayPart.text}</span>
-              <span className="cg-wm-partbar" ref={(el) => { if (el !== null) el.style.setProperty('--done', String(wayPart.all === 0 ? 0 : (wayPart.n - 1) / wayPart.all)); }} aria-hidden="true" />
-            </p>
-          )}
+          {partBanner}
           <div className="cg-wm-runzoom">{runNode}</div>
         </div>
       )}
@@ -1139,4 +1168,4 @@ const FULL_ORDER: readonly FullTab[] = ['map', 'points', 'run'];
 /** Die zwei Arten: der ganze Bildschirm oder die ganze Seite im Browser. */
 type FullMode = 'screen' | 'page';
 /** Ein Teil des Weges, wie er oben im laufenden Teil steht. */
-interface WayPart { readonly n: number; readonly all: number; readonly kind: PlanStep['kind']; readonly text: string }
+interface WayPart { readonly n: number; readonly all: number; readonly kind: PlanStep['kind']; readonly text: string; readonly key: string }

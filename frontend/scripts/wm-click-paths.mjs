@@ -230,11 +230,34 @@ try {
     /* 2026-11-10 — jede fehlende Voraussetzung (auch mittelbar) steht in der Reihenfolge der Eroberung; der Weg führt der Reihe nach hin. */
     const order = await ev(`({ count: Number(document.querySelector('[data-world-order]').dataset.worldOrder), names: [...document.querySelectorAll('[data-world-order-item]')].map((li) => li.querySelector('.cg-ref').textContent), required: Number(document.querySelector('[data-world-required]')?.dataset.worldRequired ?? 0) })`);
     check(P, `the target lists its missing prerequisites in order (${order.count}), the panel names each with open / locked`, order.count >= 3 && order.required >= 3 && [N.domkos, N.savioPlace, N.warsz].every((x) => order.names.includes(x) || order.count > 6), order);
-    /* 2026-11-10 — „Prowadź mnie tutaj" beginnt den Weg: der erste Schritt läuft gleich; zurück zur Karte steht der Fahrplan da. */
+    /*
+      2026-11-14 (Eigentümer: „die Seite sagt, was sie tut: so viele Schritte; dann die Ansage des ersten Schrittes — beginnen oder
+      überspringen") — „Prowadź mnie tutaj" zeigt zuerst die Karte des Weges: „N Schritte führen zu …", „Schritt 1 von N".
+    */
     await click('[data-world-panel="place"] [data-world-lead]');
-    await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the way to start');
+    await waitFor(`document.querySelector('[data-world-next-page] [data-world-announce="1"]')`, 'the announcement of the first step');
+    const intro = await ev(`({ intro: Number(document.querySelector('[data-world-way-intro]')?.dataset.worldWayIntro ?? 0), running: document.querySelector('[data-world-running]') !== null, go: document.querySelector('[data-world-next-go]') !== null, skip: document.querySelector('[data-world-next-skip]')?.dataset.worldNextSkip ?? null, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
+    check(P, `"take me there" says how many steps lead to the target (${intro.intro}) and announces step 1 — nothing starts by itself`, intro.intro >= 3 && !intro.running && intro.go && intro.skip !== null, intro);
+    check(P, 'the target becomes the goal', intro.goal !== null && intro.goal !== '', intro);
+    await shot('p3-announce');
+    /* Überspringen (auch gegen die Regeln): der Schritt ist vorbei (↷ in der Kette), die Ansage geht zu Schritt 2. */
+    await click('[data-world-next-skip]');
+    await waitFor(`document.querySelector('[data-world-step-skipped="${intro.skip}"]') && document.querySelector('[data-world-announce="2"]')`, 'the skipped step and the announcement of step 2');
+    check(P, 'skipping marks the step ↷ in the chain and announces the next one', await ev(`document.querySelector('[data-world-way-part="${intro.skip}"]')?.dataset.worldWayState === 'skipped'`));
+    await shot('p3-skipped');
+    /* Mitten im Schritt: oben „Schritt 2 von N" mit „Pomiń" — der Schritt endet gleich, ohne Tafel. */
+    await click('[data-world-next-go]');
+    await waitFor(`document.querySelector('[data-world-running]') && document.querySelector('[data-world-part-skip]')`, 'the running step with its banner');
+    const midKey = await ev(`document.querySelector('[data-world-part-skip]').dataset.worldPartSkip`);
+    check(P, `the running step shows "step 2 of N" with a skip button (${midKey})`, await ev(`document.querySelector('[data-world-part]')?.dataset.worldPart === '2'`));
+    await shot('p3-banner');
+    await click('[data-world-part-skip]');
+    await waitFor(`document.querySelector('[data-world-running]') === null && document.querySelector('[data-world-step-skipped="${midKey}"]') && document.querySelector('[data-world-announce="3"]')`, 'step 3 announced after skipping mid-step');
+    check(P, 'skipping mid-step ends it without the statistics slide', await ev(`document.querySelector('[data-world-finish]') === null`));
+    await click('[data-world-next-go]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'step 3 to start');
     const firstKind = await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`);
-    check(P, `"take me there" starts the first step at once (${firstKind})`, ['story', 'learn', 'run'].includes(firstKind), firstKind);
+    check(P, `"Start" begins the announced step (${firstKind})`, ['story', 'learn', 'run', 'review'].includes(firstKind), firstKind);
     if (firstKind === 'story') await click('[data-flow-close]'); else await click('[data-world-back]');
     /* 2026-11-10 — nach jedem Teil: die Karte, unten der Weg (Schritt für Schritt) mit der Einladung zum nächsten Teil — kein eigener Reiter. */
     await afterPart();
@@ -243,7 +266,7 @@ try {
     await shot('p3-next');
     await wayOpen();
     const before = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), stops: [...p.querySelectorAll('[data-world-stop]')].map((s, i) => ({ i, key: s.dataset.worldStop, state: s.dataset.worldStopState, turns: Number(s.querySelector('[data-world-turns]')?.dataset.worldTurns ?? 0) })) }; })()`);
-    check(P, 'the timetable lists every step, the current one first', before.steps >= 6 && before.stops[0].state === 'current', { steps: before.steps, stops: before.stops.map((s) => s.key) });
+    check(P, 'the timetable lists every step, the current one after the done (and skipped) ones', before.steps >= 6 && before.stops.findIndex((x) => x.state === 'current') === before.done, { steps: before.steps, stops: before.stops.map((s) => s.key) });
     /* Eine Möglichkeit nach dem ersten Teil (die Teile davor bleiben, wenn man sie wählt). */
     const turnAt = before.stops.find((s) => s.turns > 0 && s.i > 0);
     check(P, 'a branch option is offered on the way', turnAt !== undefined && turnAt.i > 0, before.stops.map((s) => `${s.key}:${s.turns}`));
@@ -254,7 +277,7 @@ try {
     await click(`[data-world-stop="${turnAt.key}"] [data-world-turn-choose]`);
     await waitFor(`[...document.querySelectorAll('[data-world-stop]')].some((s) => s.dataset.worldStop === 'travel:${alt}') && document.querySelector('[data-world-stop="${turnAt.key}"]') === null`, 'the route to be recomputed from that stop');
     const afterNav = await ev(`(() => { const p = document.querySelector('[data-world-panel="nav"]'); return { steps: Number(p.dataset.worldNavSteps), done: Number(p.dataset.worldNavDone), target: p.dataset.worldNavTarget, stops: [...p.querySelectorAll('[data-world-stop]')].map((s) => s.dataset.worldStop) }; })()`);
-    check(P, 'choosing the option recomputes the route from that stop (nothing marked done)', afterNav.done === 0 && afterNav.stops.slice(0, turnAt.i).join() === before.stops.slice(0, turnAt.i).map((s) => s.key).join(), { turned: turnAt.key, to: alt, ...afterNav });
+    check(P, 'choosing the option recomputes the route from that stop (nothing new marked done)', afterNav.done === before.done && afterNav.stops.slice(0, turnAt.i).join() === before.stops.slice(0, turnAt.i).map((s) => s.key).join(), { turned: turnAt.key, to: alt, ...afterNav });
     check(P, 'the map shows the route: start pennant, target flag', await ev(`document.querySelector('[data-world-view]').dataset.worldNav !== ''`));
     await shot('p3-turned');
     /* Die Navigation hält in der Sitzung: eine Erzählung öffnen und zurück. */
@@ -329,7 +352,19 @@ try {
     await click('[data-world-finish-close]');
     await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldConquered === '1'`, 'the place to be conquered', 15000);
     check(P, 'the place is conquered (flat, full colour, knowledge dot)', true);
+    await sleep(1200);
     await shot('p5-conquered');
+    /* 2026-11-14 (Eigentümer: „hier gehen drei Wege weiter — sie sollen zu sehen sein“) — die Wege weiter: gezählt, je ein Knopf, auf der Karte; unter dem Zeiger nur einer. */
+    const roads = await ev(`(() => { const p = document.querySelector('[data-world-panel="place"]'); return { said: Number(p.querySelector('[data-world-roads]')?.dataset.worldRoads ?? 0), buttons: p.querySelectorAll('[data-world-onward-to]').length, roads: [...p.querySelectorAll('[data-world-onward-road]')].map((x) => x.dataset.worldOnwardRoad), route: document.querySelector('[data-world-canvas]')?.dataset.wmRoute ?? '' }; })()`);
+    check(P, `a conquered tower says how many roads lead on (${roads.said}), one button each, and the map shows them`, roads.said > 0 && roads.said === roads.buttons && roads.route !== '', roads);
+    if (roads.buttons > 1) {
+      await ev(`(() => { document.querySelector('[data-world-onward-to]').dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); return true; })()`);
+      await sleep(300);
+      const one = await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmRoute ?? ''`);
+      check(P, 'pointing at one road lights only that road', one !== '' && one !== roads.route && one.split(' ').length < roads.route.split(' ').length, { one, all: roads.route });
+      await shot('p5-road-peek');
+      await ev(`(() => { document.querySelector('[data-world-onward]').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body })); return true; })()`);
+    }
   }
 
   /* -- 6 · Wie im Krajobraz: Ansichten, „Sprawdź, co wiesz" → Luki, Abspielen, das Ziel, Portale, die Liste der Orte ------------- */
@@ -707,6 +742,17 @@ try {
     const after = await ev(rectOf);
     check(P, 'after the answer nothing moved (question and answers in the same place) and the view does not scroll', after.x === before.x && after.y === before.y && after.py === before.py && after.scroll <= 2, { before, after });
     await shot('p12-run-answered');
+    /* 2026-11-14 (Eigentümer: „‚Dalej‘ ist wegen des Rollens oft verdeckt, besonders quer“) — ein Telefon quer, die Antwort künstlich lang: „Dalej“ bleibt im Bild. */
+    await page.setViewport({ width: 760, height: 360 });
+    await sleep(600);
+    await ev(`(() => { const o = document.querySelector('.cg-answer .cg-options'); for (let i = 0; i < 5; i += 1) { const d = document.createElement('div'); d.className = 'cg-test-long'; d.style.height = '80px'; d.style.border = '1px dashed'; o.appendChild(d); } return true; })()`);
+    await sleep(400);
+    const land = await ev(`(() => { const n = document.querySelector('[data-card-next]').getBoundingClientRect(); const v = document.querySelector('[data-full-view="run"]').getBoundingClientRect(); return { top: Math.round(n.top), bottom: Math.round(n.bottom), viewTop: Math.round(v.top), viewBottom: Math.round(v.bottom) }; })()`);
+    check(P, 'landscape phone, long answer: "Dalej" stays in view', land.top >= land.viewTop && land.bottom <= land.viewBottom + 1, land);
+    await shot('p12-landscape-next');
+    await ev(`(() => { document.querySelectorAll('.cg-test-long').forEach((d) => d.remove()); return true; })()`);
+    await page.setViewport({ width: 1440, height: 1000 });
+    await sleep(600);
     await click('[data-card-next]');
     await answerAll('[data-world-finish]');
     await waitFor(`document.querySelector('[data-world-finish]')`, 'the panel of the part');
@@ -763,8 +809,11 @@ try {
     check(P, 'the chosen path is lit like any chosen route', (await canvas('wmRoute')) !== '', await canvas('wmRoute'));
     await shot('p13-path');
     await click('[data-world-path-go]');
+    /* 2026-11-14 — wie „Prowadź mnie tutaj“: zuerst die Ansage des ersten Schrittes, dann „Start“. */
+    await waitFor(`document.querySelector('[data-world-next-page] [data-world-announce="1"]')`, 'the announcement of the first step of the path', 15000);
+    await click('[data-world-next-go]');
     await waitFor(`document.querySelector('[data-world-running]')`, 'the first step of the path', 15000);
-    check(P, '"Idź tą drogą" begins the first open step (guided like "Prowadź mnie tutaj")', await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`) !== '');
+    check(P, '"Odkryj" announces the first open step, then begins it (guided like "Prowadź mnie tutaj")', await ev(`document.querySelector('[data-world-running]').dataset.worldRunning`) !== '');
     /* Den ersten Schritt zu Ende gehen (eine Stufe, wie in Pfad 7): danach sind die Schritte erledigt, der Abschluss ist dran. */
     await ev(`(() => { const b = document.querySelector('[data-world-back], [data-world-run-back], [data-flow-close]'); if (b) b.click(); return true; })()`);
     await sleep(600);

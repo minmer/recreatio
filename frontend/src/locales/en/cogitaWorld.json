@@ -195,7 +195,10 @@
       "orange": "review due"
     },
     "review": "Review",
-    "further": "Further paths",
+    "roads": {
+      "one": "1 road leads on",
+      "other": "{count} roads lead on"
+    },
     "reviewN": "Review ({count})",
     "conquer": "Conquer",
     "startRun": "Start run for level {level}",
@@ -396,8 +399,27 @@
     "nextAfter": "Next on your way",
     "nextPart": "First part",
     "go": "Go on",
-    "partOf": "Part {n} of {all}",
-    "stepDone": "Step done: {text}"
+    "partOf": "Step {n} of {all}",
+    "stepDone": "Step done: {text}",
+    "intro": {
+      "one": "{count} step leads to {name}",
+      "other": "{count} steps lead to {name}"
+    },
+    "skip": "Skip",
+    "skipSays": "Skip this step and go on — it stays open, you can come back to it",
+    "stepSkipped": "Skipped: {text}",
+    "endSkipped": {
+      "one": "{count} skipped step is still open",
+      "other": "{count} skipped steps are still open"
+    },
+    "unskip": "Do the skipped steps",
+    "about": {
+      "travel": "A story shows you something new.",
+      "review": "A review of what you learned before, so it stays.",
+      "learn": "Cards that no story brings — learned directly.",
+      "know": "Practice until it sits.",
+      "run": "Show what you know — this conquers the tower."
+    }
   },
   "finish": {
     "arrive": "Goal reached!",

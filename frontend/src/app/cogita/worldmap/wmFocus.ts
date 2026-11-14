@@ -35,6 +35,34 @@ export interface RouteFocus {
 }
 
 /**
+ * 2026-11-14 (Eigentümer: „an einem Turm, an dem ich war: hier gehen drei Wege weiter — und diese drei Wege sollen zu sehen sein")
+ * — DIE WEGE WEITER von einem Turm: jede Spur hinaus (ohne Rückwege), über Gabelungen und Tore hindurch bis zum nächsten Turm.
+ * Ein Weg ist die Folge seiner Spuren; gegangen ist er, wenn jede gegangen ist.
+ */
+export interface Road {
+  readonly sections: readonly string[];
+  /** Der Turm am Ende. */
+  readonly to: string;
+  readonly travelled: boolean;
+}
+
+export function onwardRoads(state: WorldState, lines: Lines, id: string): Road[] {
+  const out: Road[] = [];
+  const outOf = (n: string) => [...lines.sections.values()].filter((s) => s.from === n && s.to !== n && s.kind !== 'return');
+  const walk = (n: string, prefix: readonly string[], seen: ReadonlySet<string>) => {
+    for (const s of outOf(n)) {
+      if (seen.has(s.to) || s.to === id) continue;
+      const sections = [...prefix, s.id];
+      if (isJunction(s.to) && sections.length < 6) { walk(s.to, sections, new Set([...seen, s.to])); continue; }
+      if (s.to === HOME || isJunction(s.to)) continue;
+      out.push({ sections, to: s.to, travelled: sections.every((x) => state.sections.get(x)?.travelled === true) });
+    }
+  };
+  walk(id, [], new Set([id]));
+  return out;
+}
+
+/**
  * 2026-11-10 (Eigentümer: „ein Klick auf eine Gabelung oder einen Turm zeigt die Abhängigkeiten wie im Weg") — EIN KNOTEN ODER EIN
  * EROBERTER TURM: seine Wege (offen kräftig, gegangen dezent), woher er kommt (vom Haus), und als Bögen, was er verlangt.
  */
@@ -45,20 +73,24 @@ export function nodeFocus(state: WorldState, lines: Lines, id: string): RouteFoc
   const remaining = new Set<string>();
   const done = new Set<string>();
   const nodes = new Set<string>(j === undefined ? [] : [id]);
+  const missing = new Set<string>();
   const passed = new Set<string>();
   const travelled = (s: string) => state.sections.get(s)?.travelled === true;
   /* Woher: der Weg vom Haus her (dezent), über Knoten zu ihm. */
   const into = [...lines.sections.values()].filter((s) => s.to === id && s.from !== s.to);
   const from = j !== undefined ? j.from : null;
   for (const s of state.routeTo(from ?? id) ?? []) done.add(s);
-  for (const s of into) if (from === null || s.from === from) { if (travelled(s.id)) done.add(s.id); else remaining.add(s.id); }
+  /* Ein eroberter Turm: woher er kommt, nur leise — kräftig sind die Wege weiter (`onwardRoads`), bis zum nächsten Turm. */
+  const roads = j === undefined && state.places.get(id)?.conquered === true ? onwardRoads(state, lines, id) : [];
+  for (const s of into) if (from === null || s.from === from) { if (travelled(s.id) || roads.length > 0) done.add(s.id); else remaining.add(s.id); }
+  for (const r of roads) { for (const s of r.sections) { if (travelled(s)) done.add(s); else remaining.add(s); } if (state.places.get(r.to)?.conquered === true) passed.add(r.to); else missing.add(r.to); }
   /* Wohin: die Wege einer Gabelung. */
   for (const s of j?.out ?? []) { if (travelled(s)) done.add(s); else remaining.add(s); const t = lines.sections.get(s)?.to; if (t !== undefined && !isJunction(t)) passed.add(t); }
   for (const s of [...done, ...remaining]) { const x = lines.sections.get(s); for (const n of [x?.from, x?.to]) if (n !== undefined && n !== HOME) { if (isJunction(n)) nodes.add(n); else passed.add(n); } }
   if (place !== undefined) passed.add(id);
   const gates = new Set(lines.links.filter((l) => l.to === id || (j !== undefined && j.out.includes(l.section))).map((l) => l.id));
   const arcs = (place?.needs ?? []).map((n) => [n, id] as const);
-  return { missing: new Set(), passed, remaining, done, nodes, gates, current: null, arcs };
+  return { missing, passed, remaining, done, nodes, gates, current: null, arcs };
 }
 
 /** Was hervorgehoben ist, wenn der Weg dieses Plans gezeigt wird. Alles, was hier fehlt, ist grau. */

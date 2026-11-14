@@ -109,6 +109,11 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
     <div className="cg-world-run" data-world-run="ask" data-world-run-card={card.key} data-world-run-again={session.retrying ? '1' : '0'}
       data-world-run-first={Object.values(session.first).filter((c) => c >= 0.999).length}>
       <p className="cg-muted">{t('cogitaWorld.run.title', { name })} · {session.retrying ? t('cogitaWorld.run.again') : t('cogitaWorld.run.of', { n: Math.min(n, session.order.length), all: session.order.length })}</p>
+      {/* 2026-11-14 (Eigentümer: „ein Fortschrittsbalken zeigt, wo wir gerade stehen") — wie viele Karten des Durchgangs schon gefragt sind. */}
+      <span className="cg-wm-runbar" role="progressbar" aria-valuemin={0} aria-valuemax={session.order.length} aria-valuenow={session.order.length - session.queue.length}
+        aria-label={t('cogitaWorld.run.of', { n: Math.min(n, session.order.length), all: session.order.length })} data-world-run-progress={session.order.length - session.queue.length}>
+        <i ref={(el) => { if (el !== null) el.style.width = `${session.order.length === 0 ? 0 : Math.round((100 * (session.order.length - session.queue.length)) / session.order.length)}%`; }} />
+      </span>
       <CardFace key={`${session.id}:${card.key}:${session.attempts}`} card={card} lib={lib} lang={L}
         stats={{ marks: () => learner.marks(card.key, card.fingerprint, renamer(lib.merges())), spacing: learner.spacing }}
         onAnswered={(o, given, ms) => {

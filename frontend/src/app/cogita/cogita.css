@@ -1093,3 +1093,9 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-hist-dot.is-score, .cg-hist-dot.is-score.is-partly, .cg-hist-dot.is-score.is-wrong { fill: oklch(0.7 0.17 var(--score-h, 150)); stroke: var(--wk-surface); stroke-width: 2; }
 .cg-score-text { fill: oklch(0.5 0.14 var(--score-h, 150)); font-weight: 700; }
 :root[data-mode='dark'] .cg-score-text, :root[data-theme='dark'] .cg-score-text { fill: oklch(0.82 0.13 var(--score-h, 150)); }
+
+/*
+  2026-11-14 (Eigentümer: „der Knopf ‚Dalej' ist wegen des Rollens oft verdeckt, besonders quer") — „Sprawdź"/„Dalej" unter einer langen
+  Antwort bleibt am unteren Rand stehen, solange die Antwort zu sehen ist (die Möglichkeiten rollen darunter durch).
+*/
+.cg-answer > .cg-answer-actions { position: sticky; bottom: 0; z-index: 1; padding-block: var(--wk-space-2); background: var(--wk-surface); }
