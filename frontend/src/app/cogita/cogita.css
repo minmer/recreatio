@@ -1099,3 +1099,6 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
   Antwort bleibt am unteren Rand stehen, solange die Antwort zu sehen ist (die Möglichkeiten rollen darunter durch).
 */
 .cg-answer > .cg-answer-actions { position: sticky; bottom: 0; z-index: 1; padding-block: var(--wk-space-2); background: var(--wk-surface); }
+/* 2026-11-14 — auch wo „Dalej" ohne eigene Zeile steht (Reihenfolge, Paare, Lücken, Code): es bleibt unten im Bild stehen. */
+.cg-answer .cg-next { position: sticky; bottom: var(--wk-space-2); z-index: 1; box-shadow: 0 0 0 var(--wk-space-2) var(--wk-surface); }
+.cg-answer > .cg-answer-actions .cg-next { position: static; box-shadow: none; }

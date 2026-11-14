@@ -470,35 +470,40 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
   gutgeschrieben) — auch die dort noch nie gefragten; nie berührte Türme bleiben draussen (sie sind Neues, keine Wiederholung).
   Gutgeschriebene Türme bringen ihre nie gefragten Karten höchstens PLACED_LIMIT auf einmal.
 */
-const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;
+export const REPEAT_AT = [0.9, 1, 1.15, 1.3] as const;
 /** Wie `PLACED_PER_RUN` (WorldLandscape): so viele nie gefragte Karten gutgeschriebener Türme je Wiederholung. */
 const PLACED_LIMIT = 20;
 const REPEAT_KEY = 'cg-wm-repeat-at';
-const keptRepeatAt = (): number => {
+export const keptRepeatAt = (): number => {
   try { const v = Number(localStorage.getItem(REPEAT_KEY)); return (REPEAT_AT as readonly number[]).includes(v) ? v : 1; } catch { return 1; }
 };
+export const keepRepeatAt = (v: number): void => { try { localStorage.setItem(REPEAT_KEY, String(v)); } catch { /* ohne Speicher: nur jetzt */ } };
+
+/** Die Karten angefangener Türme (ohne ausgesetzte); die nie gefragten gutgeschriebener Türme gedeckelt. */
+export function homeRepeatPool(state: WorldState): string[] {
+  const out: string[] = [];
+  let placed = 0;
+  const free = (k: string) => state.ctx.suspended?.(k) !== true;
+  for (const [, ps] of state.places) {
+    const begun = ps.conquered || ps.placed > 0 || ps.cards.some((k) => state.band(k) !== 'unseen');
+    if (!begun) continue;
+    for (const k of ps.cards) {
+      if (!free(k)) continue;
+      if (state.band(k) === 'unseen' && ps.placed > 0 && !ps.cards.some((x) => state.band(x) !== 'unseen')) { if (placed >= PLACED_LIMIT) continue; placed += 1; }
+      out.push(k);
+    }
+  }
+  return [...new Set(out)];
+}
+/** Was davon unter der Schwelle liegt (nie gefragte immer). */
+export const homeRepeatBelow = (state: WorldState, pool: readonly string[], v: number): string[] => pool.filter((k) => state.band(k) === 'unseen' || state.ctx.knowness(k) < v);
 
 function HomeRepeat({ ctx }: { ctx: PanelCtx }) {
   const { t, state, act } = ctx;
   const [at, setAt] = useState(keptRepeatAt);
-  const choose = (v: number) => { setAt(v); try { localStorage.setItem(REPEAT_KEY, String(v)); } catch { /* ohne Speicher: nur jetzt */ } };
-  /* Die Karten angefangener Türme (ohne ausgesetzte); die nie gefragten gutgeschriebener Türme gedeckelt. */
-  const pool = useMemo(() => {
-    const out: string[] = [];
-    let placed = 0;
-    const free = (k: string) => state.ctx.suspended?.(k) !== true;
-    for (const [, ps] of state.places) {
-      const begun = ps.conquered || ps.placed > 0 || ps.cards.some((k) => state.band(k) !== 'unseen');
-      if (!begun) continue;
-      for (const k of ps.cards) {
-        if (!free(k)) continue;
-        if (state.band(k) === 'unseen' && ps.placed > 0 && !ps.cards.some((x) => state.band(x) !== 'unseen')) { if (placed >= PLACED_LIMIT) continue; placed += 1; }
-        out.push(k);
-      }
-    }
-    return [...new Set(out)];
-  }, [state]);
-  const below = (v: number) => pool.filter((k) => state.band(k) === 'unseen' || state.ctx.knowness(k) < v);
+  const choose = (v: number) => { setAt(v); keepRepeatAt(v); };
+  const pool = useMemo(() => homeRepeatPool(state), [state]);
+  const below = (v: number) => homeRepeatBelow(state, pool, v);
   const list = below(at);
   const pct = Math.round(at * 100);
   return (

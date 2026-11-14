@@ -62,7 +62,7 @@ try {
     for (;;) {
       if (await ev(`Boolean(${expr})`)) return Date.now() - t0;
       /* 2026-11-14 — ein Turm zeigt zuerst seine Knöpfe; das Feld mit allem Weiteren öffnet „⋯“. */
-      if (expr.includes('data-world-panel="place"')) await ev(`(() => { if (document.querySelector('[data-world-panel="place"]') === null) document.querySelector('[data-world-tower-more]')?.click(); return true; })()`);
+      if (/data-world-panel="(place|home)"|data-world-path-list|data-world-path-open/.test(expr)) await ev(`(() => { if (document.querySelector('[data-world-side]') === null) document.querySelector('[data-world-tower-more]')?.click(); return true; })()`);
       if (Date.now() - t0 > ms) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`waited ${ms} ms for ${what}`); }
       await sleep(80);
     }
@@ -156,6 +156,8 @@ try {
     const P = '1 lock';
     await open();
     await clickMap('home', '~home');
+    await sleep(500);
+    await shot('p1-home-buttons');
     await waitFor(`document.querySelector('[data-world-panel="home"]')`, 'the home panel');
     check(P, 'Home opens its panel with the lines that start there', await ev(`document.querySelectorAll('[data-world-panel="home"] [data-world-direction]').length`) >= 1);
     await shot('p1-home');
@@ -775,6 +777,13 @@ try {
     const after = await ev(rectOf);
     check(P, 'after the answer nothing moved (question and answers in the same place) and the view does not scroll', after.x === before.x && after.y === before.y && after.py === before.py && after.scroll <= 2, { before, after });
     await shot('p12-run-answered');
+    /* 2026-11-14 (Eigentümer: „das Neuskalieren kommt davon, dass sich beim Antworten die Grösse ändert“) — erscheint eine Bildlaufleiste, bleibt alles, wie es ist. */
+    await ev(`(() => { const d = document.createElement('div'); d.className = 'cg-test-tall'; d.style.height = '2400px'; document.querySelector('[data-full-view="run"]').appendChild(d); return true; })()`);
+    await sleep(600);
+    const tall = await ev(rectOf);
+    check(P, 'a scroll bar appearing after the answer changes nothing: same scale, same place', tall.zoom === after.zoom && tall.x === after.x && tall.y === after.y, { after, tall });
+    await ev(`(() => { document.querySelectorAll('.cg-test-tall').forEach((d) => d.remove()); return true; })()`);
+    await sleep(300);
     /* 2026-11-14 (Eigentümer: „‚Dalej‘ ist wegen des Rollens oft verdeckt, besonders quer“) — ein Telefon quer, die Antwort künstlich lang: „Dalej“ bleibt im Bild. */
     await page.setViewport({ width: 760, height: 360 });
     await sleep(600);
@@ -827,7 +836,7 @@ try {
     /* 2026-11-12 (Eigentümer) — ein Wegweiser zeigt nur seine Fragen, jede ein Knopf; die Frage zeigt nur „Odkryj" (kein Text). */
     const fromSign = async () => {
       /* 2026-11-14 — ein Weg, dessen Schritte gegangen sind, hat keinen Wegweiser mehr: dann die Liste am Haus. */
-      if (Number(await canvas('wmSigns')) > 0) await clickMap('sign', 'home'); else await clickMap('home', '~home');
+      await clickMap('home', '~home');
       await waitFor(`document.querySelector('[data-world-path-open]')`, 'the questions of the signpost (or the house)');
       await click('[data-world-path-open]');
       await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel from the signpost');
@@ -835,7 +844,7 @@ try {
     await clickMap('sign', 'home');
     await waitFor(`document.querySelector('[data-world-panel="sign"]')`, 'the signpost panel');
     const sign = await ev(`(() => { const p = document.querySelector('[data-world-panel="sign"]'); return { buttons: p.querySelectorAll('button[data-world-path-open]').length, text: p.querySelectorAll('p, li, .cg-wm-meta').length }; })()`);
-    check(P, 'a signpost shows only its questions, each one button, no other text', sign.buttons === 1 && sign.text === 0, sign);
+    check(P, 'a signpost shows only its questions, each one button, no other text', sign.buttons >= 1 && sign.text === 0, sign);
     await click('[data-world-panel="sign"] [data-world-path-open]');
     await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel from the signpost');
     const panel = await ev(`(() => { const p = document.querySelector('[data-world-panel="path"]'); return { id: p.dataset.worldPath, state: p.dataset.worldPathState, buttons: [...p.querySelectorAll('.wk-actions button')].map((b) => Object.keys(b.dataset).join()), text: p.querySelectorAll('p, li, ol').length }; })()`);

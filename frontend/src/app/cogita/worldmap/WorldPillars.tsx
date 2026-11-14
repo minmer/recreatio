@@ -1373,8 +1373,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           Wegweiser: oben ein Schild nach rechts, darunter eines nach links, als Strichzeichnung mit Hof; mehrere Fragen: ihre Zahl klein
           über dem Pfosten. Fern: Pfosten mit zwei kurzen Pfeilen. Der Stand an der oberen rechten Ecke; die Klickfläche bleibt ganz.
         */
-        const post = Math.max(13, 29 * v.lift + 8);
-        const sh = 9, gap = 3, reach = 17;
+        /* 2026-11-14 (Eigentümer: „die Wegweiser kleiner") — etwa zwei Drittel der bisherigen Grösse. */
+        const post = Math.max(10, 20 * v.lift + 6);
+        const sh = 6, gap = 2, reach = 11;
         const bh = sh * 2 + gap, bw = (reach + 6) * 2;
         const bx = gx - bw / 2, by = gy - post - bh;
         const loud = chosenSign === sg.key || sg.loud === true || hoverMark === `s:${sg.key}`;
@@ -1391,9 +1392,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           const pole = loud ? pal.lit : mix(pal.trunk, pal.ink, 0.2);
           if (far) {
-            const top = gy - 16;
+            const top = gy - 12;
             haloStroke(ctx, pal.land, pole, 1.6, () => { ctx.moveTo(gx, gy); ctx.lineTo(gx, top); });
-            haloStroke(ctx, pal.land, col, w, () => { board(top, 1, 6, 4); board(top + 6, -1, 6, 4); });
+            haloStroke(ctx, pal.land, col, w, () => { board(top, 1, 4, 3); board(top + 4.5, -1, 4, 3); });
             return;
           }
           haloStroke(ctx, pal.land, pole, 2, () => { ctx.moveTo(gx, gy); ctx.lineTo(gx, by - 3); });

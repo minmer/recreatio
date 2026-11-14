@@ -44,11 +44,11 @@ import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
-import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
+import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, type PathCtx, type QPath } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
 import { useRunFit } from './wmRunFit';
-import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx } from './WorldPanels';
+import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx, homeRepeatBelow, homeRepeatPool, keepRepeatAt, keptRepeatAt, REPEAT_AT } from './WorldPanels';
 import { WorldPillars, type TowerButton, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
 import { NextView, PartIcon, StepSheet } from './WorldWay';
@@ -61,8 +61,8 @@ import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
-import { followPlan, keepNav, keptNav, navMarks, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
-import { nodeFocus, onwardRoads, routeFocus, sectionFocus } from './wmFocus';
+import { followPlan, keepNav, keptNav, navMarks, stepKey, stepPlace, withoutSkipped, type NavSession, type Timetable } from './wmNav';
+import { freshRoads, nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
@@ -608,7 +608,31 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     (`onwardRoads`, gegangen umrandet; unter dem Zeiger leuchtet er) — steht ein Wegweiser am Turm, zuerst seine Fragen; „Powtórz" nur,
     wenn etwas fällig ist (in der Farbe, wie nötig). Gibt es nichts davon, kein Knopf. Immer klein „⋯": das Feld mit den Zahlen.
   */
+  /*
+    2026-11-14 (Eigentümer: „ein Klick auf das Haus öffnet nur, was von dort direkt geht, und die Wiederholung — über ihm, nicht im
+    Feld") — AM HAUS: die Fragen, die hier beginnen, die Wege, die von hier etwas Neues bringen, und „Powtórz (N)" mit der Schwelle
+    (ein Klick auf „< 100 %" wechselt sie: 90 · 100 · 115 · 130 %).
+  */
+  const homeButtons = (): TowerButton[] => {
+    const out: TowerButton[] = [];
+    for (const qp of pathsAt('home')) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
+    for (const r of freshRoads(state, lines, HOME)) {
+      const last = r.sections[r.sections.length - 1]!;
+      out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }),
+        onClick: () => (state.places.get(r.to)?.conquered !== true ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
+        data: { 'world-onward-to': r.to, 'world-onward-road': r.sections.join(' '), 'world-onward-done': '0' } });
+    }
+    const list = homeRepeatBelow(state, homePool, repeatAt);
+    const pct = Math.round(repeatAt * 100);
+    if (list.length > 0) out.push({ key: 'repeat', label: t('cogitaWorld.home.repeatN', { count: list.length }), title: t('cogitaWorld.home.repeatSays'), onClick: () => act.repeat(list, t('cogitaWorld.home.repeatRun', { pct })), data: { 'world-repeat-go': String(list.length) } });
+    /* Die Schwelle nur, wenn es überhaupt etwas zu wiederholen gibt. */
+    if (homePool.length > 0) out.push({ key: 'at', label: t('cogitaWorld.home.below', { pct }), small: true, line: true, title: t('cogitaWorld.home.repeatTitle'),
+      onClick: () => { const i = REPEAT_AT.indexOf(repeatAt as (typeof REPEAT_AT)[number]); const v = REPEAT_AT[(i + 1) % REPEAT_AT.length]!; setRepeatAt(v); keepRepeatAt(v); }, data: { 'world-repeat-at': String(repeatAt) } });
+    out.push({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': HOME } });
+    return out;
+  };
   const towerButtons = (id: string): TowerButton[] => {
+    if (id === HOME) return homeButtons();
     const ps = state.places.get(id);
     const more: TowerButton = { key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } };
     if (ps === undefined) return [more];
@@ -625,7 +649,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     }
     const out: TowerButton[] = [];
     for (const qp of pathsAt(`p:${id}`)) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
-    for (const r of onwardRoads(state, lines, id)) {
+    for (const r of freshRoads(state, lines, id)) {
       const last = r.sections[r.sections.length - 1]!;
       const toConquer = state.places.get(r.to)?.conquered !== true;
       out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }), line: r.travelled,
@@ -836,14 +860,16 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Anfang (den Turm, an dem ihr Abschnitt beginnt); an einem Turm nur, wenn er erobert ist (am Haus und an Gabelungen immer); ein Weg,
     dessen Schritte alle gegangen sind, hat keinen Wegweiser mehr (er bleibt am Haus in der Liste).
   */
+  /*
+    2026-11-14 (Eigentümer: „die Wegweiser nur am Turm, an dem es losgeht — an keinem weiteren") — JE WEG EIN WEGWEISER: dort, wo sein
+    nächster offener Schritt beginnt (eine Erzählung an ihrem Anfang, ein Turm an ihm selbst; das Haus, wenn sie dort beginnt).
+  */
   const signPaths = useMemo(() => paths.filter((p) => !stepsDone(pctx, p)).map((p) => {
-    const anchors = p.anchors.map((a) => {
-      if (a.kind !== 'track') return a;
-      const from = lines.sections.get(flowSections(lines, a.flow, a.step)[0] ?? '')?.from;
-      return from !== undefined && world.places.has(from) ? { kind: 'place' as const, place: from } : a;
-    }).filter((a) => a.kind !== 'place' || state.places.get(a.place)?.conquered === true);
+    const first = pathPlan(pctx, p).steps[0];
+    const at = first === undefined ? null : stepPlace(first, lines);
+    const anchors = at === null ? [] : at === HOME ? [{ kind: 'home' as const }] : world.places.has(at) ? [{ kind: 'place' as const, place: at }] : [];
     return { ...p, anchors };
-  }), [paths, pctx, lines, world, state]);
+  }).filter((p) => p.anchors.length > 0), [paths, pctx, lines, world]);
   const signs = useMemo(() => (scene === null ? [] : signsOf(signPaths, scene, lines).map((sg) => {
     const st = sg.paths.map((id) => pathById.get(id)).filter((p): p is QPath => p !== undefined).map((p) => pathStatus(pctx, p));
     const mine = sg.paths.map((id) => pathById.get(id)).filter((p): p is QPath => p !== undefined);
@@ -898,7 +924,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   */
   const [placeMore, setPlaceMore] = useState(false);
   useEffect(() => { setPlaceMore(false); }, [chosen]);
-  const towerPlain = chosen?.kind === 'place' && learner !== null && !placeMore;
+  const towerPlain = (chosen?.kind === 'place' || chosen?.kind === 'home') && learner !== null && !placeMore;
+  const [repeatAt, setRepeatAt] = useState(keptRepeatAt);
+  const homePool = useMemo(() => homeRepeatPool(state), [state]);
   /*
     2026-11-10 (Eigentümer: „ist ein Ziel gewählt, zeigt die Karte den Weg — alles andere grau; Erledigtes dünn und gedämpft,
     was noch offen ist, kräftig") — DER BLICK AUF DAS ZIEL: ein angeklickter Turm, der noch fehlt, oder das Ziel der Navigation.
@@ -1165,8 +1193,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickJunction={(id) => setChosen({ kind: 'junction', id })}
               onLead={(id) => { setGoal(id); lead(id); }} onPlain={() => { setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
               full={full !== null} squeeze={hasSide} under={wayCard}
-              towerActions={chosen?.kind === 'place' && learner !== null ? { place: chosen.id, buttons: towerButtons(chosen.id) } : null}
-              startAction={chosen?.kind !== 'place' && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
+              towerActions={(chosen?.kind === 'place' || chosen?.kind === 'home') && learner !== null ? { place: chosen.id, buttons: towerButtons(chosen.id) } : null}
+              startAction={chosen?.kind !== 'place' && chosen?.kind !== 'home' && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
                 /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
                 ? { label: t('cogitaWorld.way.stepButton', { n: tt.done.length + 1, kind: t(`cogitaWorld.way.kind.${tt.upcoming[0].kind}`) }), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
           {scene !== null && full === null && (

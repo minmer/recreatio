@@ -63,6 +63,24 @@ export function onwardRoads(state: WorldState, lines: Lines, id: string): Road[]
 }
 
 /**
+ * 2026-11-14 (Eigentümer: „nur Wege vorschlagen, die etwas Neues bringen — eine neue Karte oder einen Turm; ein gegangener oder einer,
+ * der einem anderen gleicht, nicht") — DIE WEGE WEITER, DIE ETWAS BRINGEN: nicht gegangen, und entweder zu einem Turm, der noch fehlt,
+ * oder mit Karten, die man noch nie gesehen hat; je Ziel nur einer (der mit den meisten neuen Karten, sonst der kürzere).
+ */
+export function freshRoads(state: WorldState, lines: Lines, id: string): Road[] {
+  const fresh = (r: Road) => r.sections.reduce((n, s) => n + (state.sections.get(s)?.fresh.length ?? 0), 0);
+  const best = new Map<string, { road: Road; fresh: number }>();
+  for (const r of onwardRoads(state, lines, id)) {
+    if (r.travelled) continue;
+    const f = fresh(r);
+    if (f === 0 && state.places.get(r.to)?.conquered === true) continue;
+    const had = best.get(r.to);
+    if (had === undefined || f > had.fresh || (f === had.fresh && r.sections.length < had.road.sections.length)) best.set(r.to, { road: r, fresh: f });
+  }
+  return [...best.values()].map((x) => x.road);
+}
+
+/**
  * 2026-11-10 (Eigentümer: „ein Klick auf eine Gabelung oder einen Turm zeigt die Abhängigkeiten wie im Weg") — EIN KNOTEN ODER EIN
  * EROBERTER TURM: seine Wege (offen kräftig, gegangen dezent), woher er kommt (vom Haus), und als Bögen, was er verlangt.
  */
@@ -81,7 +99,7 @@ export function nodeFocus(state: WorldState, lines: Lines, id: string): RouteFoc
   const from = j !== undefined ? j.from : null;
   for (const s of state.routeTo(from ?? id) ?? []) done.add(s);
   /* Ein eroberter Turm: woher er kommt, nur leise — kräftig sind die Wege weiter (`onwardRoads`), bis zum nächsten Turm. */
-  const roads = j === undefined && state.places.get(id)?.conquered === true ? onwardRoads(state, lines, id) : [];
+  const roads = j === undefined && state.places.get(id)?.conquered === true ? freshRoads(state, lines, id) : [];
   for (const s of into) if (from === null || s.from === from) { if (travelled(s.id) || roads.length > 0) done.add(s.id); else remaining.add(s.id); }
   for (const r of roads) { for (const s of r.sections) { if (travelled(s)) done.add(s); else remaining.add(s); } if (state.places.get(r.to)?.conquered === true) passed.add(r.to); else missing.add(r.to); }
   /* Wohin: die Wege einer Gabelung. */
