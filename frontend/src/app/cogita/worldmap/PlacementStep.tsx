@@ -164,6 +164,8 @@ export function PlacementStep({ lib, cards, learner, config, onDone, onLearn, on
     <section className="cg-placement is-start" data-placement="start" data-placement-open={front.length} data-placement-done={done ? '1' : '0'} data-placement-skipped={skipped ? '1' : '0'}>
       {/* Der "title" des Schrittes steht schon als Überschrift des Spielers. */}
       {cfg.title === '' && <h3>{title}</h3>}
+      {/* 2026-11-14 (Eigentümer: „besser erklären, wozu dieses Prüfen ist — so kommt man schneller zu den Türmen") */}
+      <p className="cg-placement-why" data-placement-why="">{t('cogitaWorld.placement.why')}</p>
       <p>{t('cogitaWorld.placement.says', { count: front.length, scope: [...scope].filter((p) => pw.state.places.get(p)?.conquered !== true).length })}</p>
       {done && <p className="cg-muted">{t('cogitaWorld.placement.doneBefore')}</p>}
       {skipped && !done && <p className="cg-muted">{t('cogitaWorld.placement.skippedBefore')}</p>}
@@ -175,11 +177,21 @@ export function PlacementStep({ lib, cards, learner, config, onDone, onLearn, on
               <button type="button" className={`cg-wm-mode${mode === 'target' ? ' is-on' : ''}`} aria-pressed={mode === 'target'} onClick={() => setMode('target')} data-placement-mode="target">{t('cogitaWorld.placement.target')}</button>
             </div>
           )}
-          <p className="cg-muted">{mode === 'adaptive' ? t('cogitaWorld.placement.adaptiveSays', { streak: cfg.streak, errors: cfg.errors }) : t('cogitaWorld.placement.targetSays')}</p>
+          {/* 2026-11-14 (Eigentümer) — je Art: was sie tut, was für sie spricht und was gegen sie; beim Poziom, wozu er ist. */}
+          <div className="cg-placement-explain" data-placement-explain={mode}>
+            <p>{mode === 'adaptive' ? t('cogitaWorld.placement.adaptiveSays', { streak: cfg.streak, errors: cfg.errors }) : t('cogitaWorld.placement.targetSays')}</p>
+            <ul className="cg-placement-pc">
+              <li className="is-pro"><span className="cg-placement-pcmark" aria-hidden="true">+</span><span><strong>{t('cogitaWorld.placement.pros')}</strong> {t(`cogitaWorld.placement.${mode}Pros`)}</span></li>
+              <li className="is-con"><span className="cg-placement-pcmark" aria-hidden="true">−</span><span><strong>{t('cogitaWorld.placement.cons')}</strong> {t(`cogitaWorld.placement.${mode}Cons`)}</span></li>
+            </ul>
+          </div>
           {mode === 'target' && (
-            <div className="cg-wm-modes" role="group" aria-label={t('cogitaWorld.placement.levelLabel')}>
-              {levelsOffered.map((l) => <button key={l} type="button" className={`cg-wm-mode${level === l ? ' is-on' : ''}`} aria-pressed={level === l} onClick={() => setLevel(l)} data-placement-level={l}>{t('cogitaWorld.placement.level', { level: l })}</button>)}
-            </div>
+            <>
+              <div className="cg-wm-modes" role="group" aria-label={t('cogitaWorld.placement.levelLabel')}>
+                {levelsOffered.map((l) => <button key={l} type="button" className={`cg-wm-mode${level === l ? ' is-on' : ''}`} aria-pressed={level === l} onClick={() => setLevel(l)} data-placement-level={l}>{t('cogitaWorld.placement.level', { level: l })}</button>)}
+              </div>
+              <p className="cg-muted" data-placement-level-says="">{t('cogitaWorld.placement.levelSays')}</p>
+            </>
           )}
           <div className="wk-actions">
             <button type="button" className="wk-btn" autoFocus onClick={() => begin(done || skipped)} data-placement-start="">{done ? t('cogitaWorld.placement.again') : t('cogitaWorld.placement.start')}</button>

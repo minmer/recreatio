@@ -554,8 +554,8 @@
     "modeLabel": "Sposób sprawdzania",
     "adaptive": "Adaptacyjnie",
     "target": "Do poziomu",
-    "adaptiveSays": "{streak} dobre odpowiedzi z rzędu zaliczają wieżę i otwierają to, co na niej buduje; {errors} błędy w jednej wieży kończą ją w tym sprawdzaniu.",
-    "targetSays": "Każda wieża jest pytana jak prawdziwe zdobycie wybranego poziomu; zdobyta — idziesz dalej.",
+    "adaptiveSays": "Adaptacyjnie: kilka pytań na wieżę. {streak} dobre odpowiedzi z rzędu zaliczają wieżę i otwierają to, co na niej buduje; {errors} błędy w jednej wieży kończą ją w tym sprawdzaniu.",
+    "targetSays": "Do poziomu: każda wieża jest pytana jak prawdziwe zdobycie wybranego poziomu — wszystkie jej karty; zdobyta — idziesz dalej.",
     "levelLabel": "Poziom docelowy",
     "level": "Poziom {level}",
     "start": "Zacznij sprawdzanie",
@@ -596,7 +596,15 @@
     "learn": "Ucz się",
     "goal": "Ustaw jako cel",
     "recommended": "Zalecane: najpierw sprawdź, ile już umiesz",
-    "placed": "zaliczona sprawdzeniem — karty jeszcze do potwierdzenia"
+    "placed": "zaliczona sprawdzeniem — karty jeszcze do potwierdzenia",
+    "why": "Po co sprawdzać? Tego, co już umiesz, nie trzeba przechodzić całą drogą. Każda wieża zaliczona tutaj liczy się od razu i otwiera drogi, które na niej budują — dzięki temu dużo szybciej dochodzi się do tego, co dla ciebie nowe. Jeśli czegoś nie wiesz, nic nie tracisz: nauczysz się tego później, po drodze.",
+    "adaptivePros": "szybko — kilka pytań na wieżę, wiele wież w krótkim czasie; od razu dalej, do tego, co buduje na tym, co umiesz.",
+    "adaptiveCons": "zaliczona wieża (◇) to oszacowanie, a nie zdobycie poziomu; karty, o które nie zapytano, przyjdą później w powtórkach.",
+    "targetPros": "wieża zaliczona tutaj jest naprawdę zdobyta na tym poziomie i liczy się jak każde zdobycie — nie trzeba niczego powtarzać.",
+    "targetCons": "wolniej — pytane są wszystkie karty każdej wieży; najlepiej, gdy dobrze znasz część kursu.",
+    "levelSays": "Poziom mówi, jak dobrze trzeba znać wieżę: poziom 1 jest najlżejszy (większość odpowiedzi dobrze), wyższe wymagają więcej dobrych odpowiedzi, za pierwszym razem. Wyższy poziom trwa dłużej, ale wieża od razu stoi wyżej.",
+    "pros": "Za:",
+    "cons": "Przeciw:"
   },
   "invite": {
     "title": "Jak chcesz otworzyć mapę świata?",

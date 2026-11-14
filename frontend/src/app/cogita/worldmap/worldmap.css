@@ -519,3 +519,13 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 @keyframes cg-wm-sheet-in { from { opacity: 0; transform: translateY(45%) scale(0.55); } to { opacity: 1; transform: none; } }
 :root[data-motion='reduced'] .cg-wm-startbtn, :root[data-motion='off'] .cg-wm-startbtn, :root[data-motion='off'] .cg-wm-sheet, :root[data-motion='off'] .cg-wm-sheet *, :root[data-motion='off'] .cg-wm-sheetback { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .cg-wm-startbtn, .cg-wm-sheet, .cg-wm-sheet *, .cg-wm-sheetback { animation: none; } }
+
+/* 2026-11-14 (Eigentümer) — die Einstufung erklärt sich: wozu sie ist, und je Art, was dafür und was dagegen spricht. */
+.cg-placement-why { margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); line-height: 1.5; }
+.cg-placement-explain { display: grid; gap: var(--wk-space-1); }
+.cg-placement-explain > p { margin: 0; }
+.cg-placement-pc { display: grid; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; color: var(--wk-ink-2); }
+.cg-placement-pc li { display: flex; gap: var(--wk-space-2); align-items: baseline; }
+.cg-placement-pcmark { flex: none; display: grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; color: var(--wk-on-accent); font-weight: 700; line-height: 1; }
+.cg-placement-pc .is-pro .cg-placement-pcmark { background: var(--wk-ok); }
+.cg-placement-pc .is-con .cg-placement-pcmark { background: var(--wk-muted); }

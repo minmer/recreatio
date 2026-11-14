@@ -474,8 +474,8 @@
     "modeLabel": "How to check",
     "adaptive": "Adaptive",
     "target": "Up to a level",
-    "adaptiveSays": "{streak} right answers in a row credit a tower and open what builds on it; {errors} wrong answers in one tower end it for this check.",
-    "targetSays": "Each tower is asked like a real conquest of the chosen level; conquered — you move on.",
+    "adaptiveSays": "Adaptive: a few questions per tower. {streak} right answers in a row credit the tower and open what builds on it; {errors} mistakes in one tower end it for this check.",
+    "targetSays": "Up to a level: each tower is asked like a real conquest of the chosen level — all its cards; conquered, you move on.",
     "levelLabel": "Target level",
     "level": "Level {level}",
     "start": "Start checking",
@@ -508,7 +508,15 @@
     "learn": "Learn",
     "goal": "Set as goal",
     "recommended": "Recommended: first check how much you already know",
-    "placed": "credited by placement — cards still to be confirmed"
+    "placed": "credited by placement — cards still to be confirmed",
+    "why": "Why check? If you already know something, you do not have to walk the whole way to it. Every tower you pass here counts at once and opens the ways that build on it — so you get to what is new for you much faster. Nothing is lost if you do not know something: you simply learn it later on the way.",
+    "adaptivePros": "quick — a few questions per tower, many towers in a short time; it goes on to what builds on what you know.",
+    "adaptiveCons": "a credited tower (◇) is an estimate, not a conquest at a level; its cards you were not asked come later in reviews.",
+    "targetPros": "a tower passed here is really conquered at that level and counts like any conquest — nothing to do again.",
+    "targetCons": "slower — every card of each tower is asked, so it fits best when you know a part of the course well.",
+    "levelSays": "The level is how well you must know a tower: level 1 is the lightest (most answers right), higher levels need more right answers, at the first try. A higher level takes longer, but the tower then stands higher at once.",
+    "pros": "For:",
+    "cons": "Against:"
   },
   "invite": {
     "title": "How do you want to open the world map?",

@@ -474,8 +474,8 @@
     "modeLabel": "Art der Prüfung",
     "adaptive": "Adaptiv",
     "target": "Bis zu einer Stufe",
-    "adaptiveSays": "{streak} richtige Antworten in Folge schreiben einen Turm gut und öffnen, was darauf aufbaut; {errors} Fehler in einem Turm beenden ihn für diese Prüfung.",
-    "targetSays": "Jeder Turm wird gefragt wie eine echte Eroberung der gewählten Stufe; erobert — es geht weiter.",
+    "adaptiveSays": "Adaptiv: wenige Fragen je Turm. {streak} richtige Antworten hintereinander rechnen den Turm an und öffnen, was auf ihm aufbaut; {errors} Fehler in einem Turm beenden ihn für diese Prüfung.",
+    "targetSays": "Bis zu einer Stufe: jeder Turm wird gefragt wie eine echte Eroberung der gewählten Stufe — alle seine Karten; erobert, geht es weiter.",
     "levelLabel": "Zielstufe",
     "level": "Stufe {level}",
     "start": "Prüfung beginnen",
@@ -508,7 +508,15 @@
     "learn": "Lernen",
     "goal": "Als Ziel setzen",
     "recommended": "Empfohlen: erst prüfen, wie viel du schon kannst",
-    "placed": "durch Einstufung gutgeschrieben — Karten noch zu bestätigen"
+    "placed": "durch Einstufung gutgeschrieben — Karten noch zu bestätigen",
+    "why": "Wozu prüfen? Was du schon kannst, musst du nicht den ganzen Weg entlang lernen. Jeder Turm, den du hier bestehst, zählt sofort und öffnet die Wege, die auf ihm aufbauen — so kommst du viel schneller zu dem, was für dich neu ist. Was du nicht weisst, kostet nichts: du lernst es später einfach auf dem Weg.",
+    "adaptivePros": "schnell — wenige Fragen je Turm, viele Türme in kurzer Zeit; es geht gleich weiter zu dem, was auf deinem Wissen aufbaut.",
+    "adaptiveCons": "ein angerechneter Turm (◇) ist eine Schätzung, keine Eroberung einer Stufe; seine nicht gefragten Karten kommen später in den Wiederholungen.",
+    "targetPros": "ein hier bestandener Turm ist wirklich auf dieser Stufe erobert und zählt wie jede Eroberung — nichts ist nachzuholen.",
+    "targetCons": "langsamer — jede Karte jedes Turms wird gefragt; passt am besten, wenn du einen Teil des Kurses gut kennst.",
+    "levelSays": "Die Stufe sagt, wie gut du einen Turm können musst: Stufe 1 ist die leichteste (die meisten Antworten richtig), höhere verlangen mehr richtige Antworten, beim ersten Versuch. Eine höhere Stufe dauert länger, dafür steht der Turm gleich höher.",
+    "pros": "Dafür:",
+    "cons": "Dagegen:"
   },
   "invite": {
     "title": "Wie möchtest du die Weltkarte öffnen?",
