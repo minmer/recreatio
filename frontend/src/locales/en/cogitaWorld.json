@@ -408,10 +408,9 @@
     "start": "Go to step",
     "stepButton": "Step {n}: {kind}",
     "arrivedHead": "Goal reached — the way is complete",
-    "continueWay": "Continue the way to {name}",
-    "continueStory": "Continue: {name}",
     "exit": "End",
-    "goHere": "Go here"
+    "goHere": "Go here",
+    "restore": "Restore"
   },
   "finish": {
     "arrive": "Goal reached!",

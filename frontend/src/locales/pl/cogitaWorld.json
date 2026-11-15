@@ -478,10 +478,9 @@
     "start": "Przejdź do kroku",
     "stepButton": "Krok {n}: {kind}",
     "arrivedHead": "Cel osiągnięty — droga ukończona",
-    "continueWay": "Kontynuuj drogę do: {name}",
-    "continueStory": "Kontynuuj: {name}",
     "exit": "Zakończ",
-    "goHere": "Przejdź tutaj"
+    "goHere": "Przejdź tutaj",
+    "restore": "Przywróć"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

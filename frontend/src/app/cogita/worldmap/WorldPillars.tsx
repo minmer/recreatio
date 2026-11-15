@@ -215,7 +215,7 @@ export interface PillarsProps {
    * 2026-11-14 (Eigentümer: „einfacher — nur die zwei Möglichkeiten als Knöpfe über dem Turm") — Knöpfe über einem Turm (folgen der
    * Kamera wie `startAction`); `line`: umrandet.
    */
-  readonly towerActions?: { readonly place: string; readonly buttons: readonly TowerButton[] } | null;
+  readonly towerActions?: { readonly place: string; readonly kind?: 'place' | 'section' | 'sign'; readonly buttons: readonly TowerButton[] } | null;
   readonly startAction?: { readonly label: string; readonly onClick: () => void; /** 2026-11-14 (Eigentümer) — wo der nächste Schritt liegt: sein Turm oder die Mitte seiner Spur (nicht das Ziel). */ readonly at: { readonly kind: 'place' | 'section'; readonly id: string } } | null;
   readonly compact?: boolean;
   /** Vollbild: die Bühne nimmt das ganze Fenster (keine eigene Höhe). */
@@ -472,7 +472,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   startAt.current = startAction?.at ?? null;
   const towerBox = useRef<HTMLDivElement | null>(null);
   const towerAt = useRef<string | null>(null);
-  towerAt.current = towerActions?.place ?? null;
+  towerAt.current = towerActions === null ? null : `${towerActions.kind ?? 'place'}:${towerActions.place}`;
+  /* Bei einer anderen Wahl beginnt die Reihe unten (am Gewählten), wie lang sie auch ist. */
+  const towerSeen = useRef<string | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [palette, setPalette] = useState<Palette | null>(null);
   /* Die Scheiben der Welt (Säulen und Haus) — für Einpassen und Zoomgrenze. */
@@ -1426,12 +1428,39 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     /* Der fliegende Knopf über dem Ort des jetzigen Schrittes: an seine Stelle (ausserhalb des Bildes: verborgen). */
     const tb = towerBox.current;
     if (tb !== null) {
-      const at = towerAt.current === null ? null : topOf(towerAt.current);
+      /*
+        2026-11-14 (Eigentümer: „die Knöpfe etwas höher, damit sie Türme und Texte nicht verdecken; sind es zu viele, oben abgeschnitten
+        statt über dem Turm") — DER ANKER: über dem Deckel des Turms (seine obere Kante), über der Mitte eines Pfades, über einem
+        Wegweiser; die Reihe wächst nach oben und rollt in sich, wenn sie nicht bis zum oberen Rand passt.
+      */
+      const ref = towerAt.current;
+      const cut = ref === null ? -1 : ref.indexOf(':');
+      const kind = ref === null ? '' : ref.slice(0, cut), id = ref === null ? '' : ref.slice(cut + 1);
+      let at: [number, number] | null = null;
+      if (kind === 'place') {
+        const d = drawn.find((x) => x.id === id);
+        const t0 = topOf(id);
+        at = t0 === null ? null : [t0[0], t0[1] - (d?.ry ?? 0)];
+      } else if (kind === 'section') {
+        const lane = scene.lanes.find((l) => l.section === id);
+        const mid = lane === undefined ? null : along(withRims(lane, pillarWidth), 0.5);
+        at = mid === null ? null : toScr(v, mid.x, mid.y, 0);
+      } else if (kind === 'sign') {
+        const b = signsRef.current.find((x) => x.key === id);
+        at = b === undefined ? null : [(b.x0 + b.x1) / 2, b.y0];
+      }
       const k = canvas.clientWidth / Math.max(1, size.w);
       const shown = at !== null && at[0] >= 0 && at[0] <= size.w && at[1] >= 0 && at[1] <= size.h;
       tb.hidden = !shown;
-      /* Ganz im Bild: am Rand rückt die Reihe der Knöpfe nach innen (die Spitze bleibt über dem Turm). */
-      if (shown) { const half = tb.offsetWidth / 2 + 8; const x = Math.max(half, Math.min(canvas.clientWidth - half, at[0] * k)); tb.style.left = `${Math.round(x)}px`; tb.style.top = `${Math.round(Math.max(tb.offsetHeight + 16, at[1] * k))}px`; }
+      if (shown && at !== null) {
+        const half = Math.min(tb.offsetWidth, canvas.clientWidth) / 2 + 8;
+        const x = Math.max(half, Math.min(canvas.clientWidth - half, at[0] * k));
+        const y = at[1] * k;
+        tb.style.left = `${Math.round(x)}px`;
+        tb.style.top = `${Math.round(y)}px`;
+        tb.style.maxHeight = `${Math.max(48, Math.round(y - 28))}px`;
+        if (towerSeen.current !== ref) { towerSeen.current = ref; tb.scrollTop = tb.scrollHeight; }
+      }
     }
     const sb = startBtn.current;
     if (sb !== null) {
@@ -1849,7 +1878,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   }), [scene, size, setCam, fitCam, draw, start, glidePlace, glideSection, pillarWidth]);
 
   /* Erscheint der Knopf (oder ändert er sich), gleich an seine Stelle. */
-  useEffect(() => { if (towerActions !== null) draw(); }, [towerActions?.place]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (towerActions !== null) draw(); }, [towerActions?.place, towerActions?.kind, towerActions?.buttons.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (startAction !== null) draw(); }, [startAction !== null, startAction?.label, startAction?.at.kind, startAction?.at.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = cam;
   return (

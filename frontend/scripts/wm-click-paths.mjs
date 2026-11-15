@@ -62,7 +62,7 @@ try {
     for (;;) {
       if (await ev(`Boolean(${expr})`)) return Date.now() - t0;
       /* 2026-11-14 — ein Turm zeigt zuerst seine Knöpfe; das Feld mit allem Weiteren öffnet „⋯“. */
-      if (/data-world-panel="(place|home)"|data-world-path-list|data-world-path-open/.test(expr)) await ev(`(() => { if (document.querySelector('[data-world-side]') === null) document.querySelector('[data-world-tower-more]')?.click(); return true; })()`);
+      if (/data-world-panel="(place|home|section|junction|sign)"|data-world-path-list|data-world-path-open|data-world-junction|data-world-ticket|data-world-travel/.test(expr)) await ev(`(() => { if (document.querySelector('[data-world-side]') === null) document.querySelector('[data-world-tower-more]')?.click(); return true; })()`);
       if (Date.now() - t0 > ms) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`waited ${ms} ms for ${what}`); }
       await sleep(80);
     }
@@ -278,6 +278,14 @@ try {
     await click('[data-world-picked-skip]');
     await waitFor(`document.querySelector('[data-world-way-part="${later}"]')?.dataset.worldWayState === 'skipped'`, 'the picked step to be skipped');
     check(P, 'skipping a picked step greys it out (the current step stays)', (await ev(`document.querySelector('[data-world-next-page] [data-world-next-view]')?.dataset.worldNextView ?? ''`)) === nowKey);
+    /* 2026-11-14 (Eigentümer) — ein übersprungener Schritt bleibt an seinem Platz (grau) und lässt sich zurückholen. */
+    const placeOf = (key) => ev(`[...document.querySelectorAll('[data-world-next-page] [data-world-way-part]')].findIndex((x) => x.dataset.worldWayPart === ${JSON.stringify(key)})`);
+    const placeSkipped = await placeOf(later);
+    await click(`[data-world-next-page] [data-world-way-show="${later}"]`);
+    await waitFor(`document.querySelector('[data-world-picked-restore]')`, 'the restore button above the skipped step');
+    await click('[data-world-picked-restore]');
+    await waitFor(`document.querySelector('[data-world-way-part="${later}"]')?.dataset.worldWayState === 'next'`, 'the step to be open again');
+    check(P, 'a skipped step stays in its place and can be restored there', placeSkipped >= 0 && (await placeOf(later)) === placeSkipped, { placeSkipped, now: await placeOf(later) });
     /* 2026-11-14 — über dem Turm des Schrittes fliegt „Zacznij tutaj“; er öffnet die Tafel des Schrittes (ein Satz, was getan wird). */
     await waitFor(`(() => { const b = document.querySelector('[data-world-start-btn]'); return b !== null && !b.hidden && b.getBoundingClientRect().width > 0; })()`, 'the start button above the tower', 10000);
     await click('[data-world-start-btn]');
@@ -648,8 +656,6 @@ try {
     check(P, 'a story begun but not finished is coloured on the map up to its last seen slide', Number(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmLaneProgress ?? 0`)) >= 1, await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmLaneProgress`));
     await click('[data-world-next-stop]');
     await waitFor(`document.querySelector('[data-world-nav-paused]')`, 'the paused way');
-    /* 2026-11-14 (Eigentümer) — ein angehaltener Weg: oben auf der Karte „Kontynuuj drogę“. */
-    check(P, 'a paused way offers "continue" on the map', await ev(`document.querySelector('[data-world-continue="way"]') !== null`));
     check(P, '"end navigation" only pauses the way (the progress stays); it can be resumed', await ev(`document.querySelector('[data-world-nav-paused]').dataset.worldNavPaused === ${JSON.stringify(magone.id)} && document.querySelector('[data-world-panel="nav"]') === null`));
     await click('[data-world-nav-resume]');
     await wayOpen();

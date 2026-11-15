@@ -551,8 +551,6 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-stats dt { color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .cg-wm-stats dd { margin: 0; font-size: var(--wk-text-lg); font-weight: 700; }
 
-/* 2026-11-14 (Eigentümer) — „Kontynuuj": oben in der Mitte der Karte, solange ein Weg angehalten oder eine Erzählung begonnen ist. */
-.cg-wm-continue { position: absolute; top: var(--wk-space-2); left: 50%; z-index: 5; max-width: min(28rem, 70%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transform: translateX(-50%); box-shadow: var(--wk-shadow-pop); animation: cg-fin-fade 240ms ease-out both; }
 
 /* 2026-11-14 (Eigentümer) — ein Teil im Vollbild hält den Platz der Bildlaufleiste frei: erscheint sie nach einer Antwort, verschiebt und skaliert sich nichts. */
 .cg-wm-fullview.is-run { scrollbar-gutter: stable; }
@@ -568,3 +566,14 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-parts.is-drag:active { cursor: grabbing; }
 .cg-wm-nextview.is-card.is-strip { align-items: stretch; min-width: 0; max-width: 100%; }
 .cg-wm-nextview.is-strip > .cg-wm-parts { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+
+/* 2026-11-14 (Eigentümer) — die Knöpfe stehen höher (über dem Deckel, nicht auf ihm); zu viele: die Reihe rollt in sich, oben abgeschnitten. */
+.cg-wm-towerbtns { transform: translate(-50%, calc(-100% - 1.1rem)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0.25rem; align-content: flex-end; }
+
+/* 2026-11-14 (Eigentümer) — die Knöpfe stehen über dem Schritt, auf den sie sich beziehen (eine kleine Spitze zeigt auf ihn). */
+.cg-wm-stepwrap { position: relative; padding-top: 3rem; min-width: 0; }
+.cg-wm-steppop { position: absolute; top: 0.2rem; z-index: 2; display: flex; align-items: center; gap: var(--wk-space-1); white-space: nowrap; transform: translateX(-50%); }
+.cg-wm-steppop::after { content: ''; position: absolute; left: calc(50% + var(--tip, 0px)); bottom: -0.45rem; width: 0.6rem; height: 0.6rem; border-right: 1px solid var(--wk-line-strong); border-bottom: 1px solid var(--wk-line-strong); background: var(--wk-surface); transform: translateX(-50%) rotate(45deg); }
+.cg-wm-steppop .wk-btn { box-shadow: var(--wk-shadow-pop); }
+.cg-wm-wpart.is-skipped { opacity: 0.55; }
+.cg-wm-wpart.is-skipped .cg-wm-wdot { background: var(--wk-sunk); }

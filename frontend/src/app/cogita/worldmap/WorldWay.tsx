@@ -7,7 +7,7 @@
  * </code>
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import { stepAction, stepMeta, stepText, type PanelCtx } from './WorldPanels';
 import { stepKey, type Timetable } from './wmNav';
@@ -161,7 +161,7 @@ export function useAutoGo(on: boolean, seconds: number, go: () => void): number 
 const NONE: ReadonlySet<string> = new Set();
 
 /** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived, onSkip, skipped = NONE, onUnskip }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived, onSkip, onRestore, order = null, skipped = NONE, onUnskip }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -185,8 +185,11 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   more?: ReactNode;
   /** 2026-11-12 (Prompt 25) — am Ende eines Weges zu einer Frage: der Abschluss („Sprawdź się") statt nur „Zakończ". */
   arrived?: ReactNode;
-  /** 2026-11-14 — einen Schritt der Leiste überspringen (angeklickt: „Pomiń"). */
+  /** 2026-11-14 — einen Schritt der Leiste überspringen (angeklickt: „Pomiń"), einen übersprungenen zurückholen. */
   onSkip?: (step: PlanStep) => void;
+  onRestore?: (step: PlanStep) => void;
+  /** Die Folge des Weges mit den übersprungenen Schritten (sie bleiben an ihrem Platz, grau). */
+  order?: readonly PlanStep[] | null;
   /**
    * 2026-11-14 (Eigentümer: „alles soll überspringbar sein, auch gegen die Regeln") — den jetzigen Schritt überspringen; die
    * übersprungenen (ihre Schlüssel) stehen in der Kette mit ↷, am Ende lassen sie sich nachholen (`onUnskip`).
@@ -218,30 +221,57 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
     was der Schritt ist, stehen in der Tafel des Schrittes; der ganze Weg mit seinen Abzweigungen klein unter „≡".
   */
   /*
-    2026-11-14 (Eigentümer: „ein Klick auf einen Schritt der Leiste: gleich dorthin gehen oder ihn überspringen — übersprungen wird er
-    grau, und gleich steht der nächste da") — DER GEWÄHLTE SCHRITT: oben rechts statt der zwei Knöpfe „Krok n · Art · wo",
-    „Przejdź tutaj" und „Pomiń" (× schliesst). Ein erledigter Schritt zeigt nur, wo er liegt.
+    2026-11-14 (Eigentümer: „ein Klick auf einen Schritt: gleich dorthin oder überspringen" — „die Knöpfe über dem Schritt, damit klar ist,
+    worauf sie sich beziehen" — „übersprungene Schritte bleiben an ihrem Platz, nur grau, und lassen sich zurückholen") — DIE LEISTE:
+    die Kette in der Folge des Weges (übersprungene grau an ihrem Platz); über dem jetzigen Schritt „Przejdź do kroku", über einem
+    angeklickten „Przejdź tutaj" / „Pomiń" (übersprungen: „Przywróć"); rechts oben „Zakończ", links „≡" (der ganze Weg).
   */
   const [picked, setPicked] = useState<string | null>(null);
-  const pickedAt = picked === null ? -1 : tt.upcoming.findIndex((u) => stepKey(u) === picked);
-  const pickedStep = pickedAt < 0 ? undefined : tt.upcoming[pickedAt];
+  const stripParts = (() => {
+    if (order === null) return parts;
+    const done = tt.done.filter((x) => !skipped.has(stepKey(x))).map((step) => ({ step, state: (just.has(stepKey(step)) ? 'just' : 'done') as PartState }));
+    let first = true;
+    const rest = order.map((step) => {
+      if (skipped.has(stepKey(step))) return { step, state: 'skipped' as PartState };
+      const state: PartState = first ? 'current' : 'next';
+      first = false;
+      return { step, state };
+    });
+    return [...done, ...rest];
+  })();
+  const pickedPart = picked === null ? undefined : stripParts.find((x) => stepKey(x.step) === picked && (x.state === 'next' || x.state === 'current' || x.state === 'skipped'));
+  const anchor = pickedPart !== undefined ? stepKey(pickedPart.step) : next === undefined ? null : stepKey(next);
+  const wrap = useRef<HTMLDivElement | null>(null);
+  const pop = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const w = wrap.current, b0 = pop.current;
+    if (!card || w === null || b0 === null) return undefined;
+    const ol = w.querySelector('ol');
+    const place = () => {
+      const li = anchor === null ? null : w.querySelector<HTMLElement>(`[data-world-way-part="${CSS.escape(anchor)}"]`);
+      if (li === null) { b0.style.visibility = 'hidden'; return; }
+      const wr = w.getBoundingClientRect(), lr = li.getBoundingClientRect();
+      const cx = lr.left + lr.width / 2 - wr.left;
+      b0.style.visibility = cx < 0 || cx > wr.width ? 'hidden' : 'visible';
+      const half = b0.offsetWidth / 2;
+      b0.style.left = `${Math.round(Math.max(half, Math.min(wr.width - half, cx)))}px`;
+      b0.style.setProperty('--tip', `${Math.round(cx - Math.max(half, Math.min(wr.width - half, cx)))}px`);
+    };
+    place();
+    const id = window.setTimeout(place, 450);
+    ol?.addEventListener('scroll', place);
+    window.addEventListener('resize', place);
+    return () => { window.clearTimeout(id); ol?.removeEventListener('scroll', place); window.removeEventListener('resize', place); };
+  });
   if (card) {
+    const nAt = (key: string) => stripParts.filter((x) => x.step !== undefined).findIndex((x) => stepKey(x.step) === key) + 1;
     return (
       <section className="cg-wm-nextview is-card is-strip" data-world-next-view={next === undefined ? 'arrived' : stepKey(next)}
         {...(tt.done.length === 0 && next !== undefined ? { 'data-world-way-intro': all } : {})}>
         <div className="cg-wm-stripbar" {...(next === undefined ? { 'data-world-next-arrived': '' } : { 'data-world-next-invite': next.kind, 'data-world-announce': tt.done.length + 1 })}
           {...(cheer === undefined ? {} : skipped.has(stepKey(cheer)) ? { 'data-world-step-skipped': stepKey(cheer) } : { 'data-world-step-done': stepKey(cheer) })}>
           {more !== undefined && <span className="cg-wm-stripmore">{more}</span>}
-          {pickedStep !== undefined && ctx.canLearn ? (
-            <>
-              <span className="cg-wm-stripnote" data-world-picked={stepKey(pickedStep)}>
-                <PartIcon kind={pickedStep.kind} /> {t('cogitaWorld.way.partOf', { n: tt.done.length + pickedAt + 1, all })} · {partWords(pickedStep, ctx).kind} · {partWords(pickedStep, ctx).where}
-              </span>
-              <button type="button" className="wk-btn cg-wm-go" onClick={() => { setPicked(null); onGo(pickedStep); }} data-world-picked-go={stepKey(pickedStep)}>{t('cogitaWorld.way.goHere')} ▶</button>
-              {onSkip !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => { setPicked(null); onSkip(pickedStep); }} title={t('cogitaWorld.way.skipSays')} data-world-picked-skip={stepKey(pickedStep)}>{t('cogitaWorld.way.skip')} ↷</button>}
-              <button type="button" className="cg-wm-wayx" onClick={() => setPicked(null)} aria-label={t('cogitaWorld.panel.close')} data-world-picked-close="">×</button>
-            </>
-          ) : next === undefined ? (
+          {next === undefined ? (
             <>
               <span className="cg-wm-stripnote"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</span>
               {skippedHere > 0 && onUnskip !== undefined && ctx.canLearn && <button type="button" className="wk-btn wk-btn-line" onClick={onUnskip} title={t('cogitaWorld.way.endSkipped', { count: skippedHere })} data-world-way-unskip="">{t('cogitaWorld.way.unskip')}</button>}
@@ -251,13 +281,32 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
           ) : (
             <>
               {left !== null && <span className="cg-wm-stripnote" role="timer" aria-live="off" data-world-next-auto={left}>{t('cogitaWorld.finish.autoGo', { s: left })}</span>}
-              {ctx.canLearn && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} title={stepText(next, ctx)} data-world-next-go={next.kind}>{t('cogitaWorld.way.start')} ▶</button>}
               <button type="button" className="wk-btn wk-btn-line" onClick={onEnd} data-world-next-stop="">{t('cogitaWorld.way.exit')}</button>
             </>
           )}
         </div>
-        <WayChain parts={parts} ctx={ctx} target={tt.target} centre drag onPick={(s) => { onShow?.(s); setPicked(tt.upcoming.some((u) => stepKey(u) === stepKey(s)) ? stepKey(s) : null); }}
-          onStart={ctx.canLearn ? (s) => { if (tt.upcoming.some((u) => stepKey(u) === stepKey(s))) onGo(s); } : undefined} />
+        <div className="cg-wm-stepwrap" ref={wrap}>
+          {ctx.canLearn && anchor !== null && (
+            <div className="cg-wm-steppop" ref={pop} {...(pickedPart === undefined ? {} : { 'data-world-picked': stepKey(pickedPart.step) })}>
+              {pickedPart === undefined ? (
+                next !== undefined && <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={() => onGo(next)} title={stepText(next, ctx)} data-world-next-go={next.kind}>{t('cogitaWorld.way.start')} ▶</button>
+              ) : pickedPart.state === 'skipped' ? (
+                <>
+                  {onRestore !== undefined && <button type="button" className="wk-btn" onClick={() => { setPicked(null); onRestore(pickedPart.step); }} title={t('cogitaWorld.way.partOf', { n: nAt(stepKey(pickedPart.step)), all })} data-world-picked-restore={stepKey(pickedPart.step)}>{t('cogitaWorld.way.restore')}</button>}
+                  <button type="button" className="cg-wm-wayx" onClick={() => setPicked(null)} aria-label={t('cogitaWorld.panel.close')} data-world-picked-close="">×</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="wk-btn cg-wm-go" onClick={() => { setPicked(null); onGo(pickedPart.step); }} title={stepText(pickedPart.step, ctx)} data-world-picked-go={stepKey(pickedPart.step)}>{t('cogitaWorld.way.goHere')} ▶</button>
+                  {onSkip !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => { setPicked(null); onSkip(pickedPart.step); }} title={t('cogitaWorld.way.skipSays')} data-world-picked-skip={stepKey(pickedPart.step)}>{t('cogitaWorld.way.skip')} ↷</button>}
+                  <button type="button" className="cg-wm-wayx" onClick={() => setPicked(null)} aria-label={t('cogitaWorld.panel.close')} data-world-picked-close="">×</button>
+                </>
+              )}
+            </div>
+          )}
+          <WayChain parts={stripParts} ctx={ctx} target={tt.target} centre drag onPick={(s) => { onShow?.(s); setPicked(stepKey(s)); }}
+            onStart={ctx.canLearn ? (s) => { if (tt.upcoming.some((u) => stepKey(u) === stepKey(s))) onGo(s); } : undefined} />
+        </div>
       </section>
     );
   }

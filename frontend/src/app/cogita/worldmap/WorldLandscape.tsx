@@ -303,6 +303,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : withoutSkipped(pathPlan(pctx, p, nav.choices), nav.skipped); }
     return world.places.has(nav.target) ? withoutSkipped(planRoute(state, nav.target, { choices: nav.choices }), nav.skipped) : null;
   }, [nav, state, world, pathById, pctx]);
+  /* 2026-11-14 (Eigentümer: „übersprungene Schritte bleiben an ihrem Platz, nur grau") — die Folge des Weges MIT den übersprungenen. */
+  const navOrder = useMemo(() => {
+    if (nav === null || nav.paused === true || (nav.skipped ?? []).length === 0) return null;
+    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : pathPlan(pctx, p, nav.choices).steps; }
+    return world.places.has(nav.target) ? planRoute(state, nav.target, { choices: nav.choices }).steps : null;
+  }, [nav, state, world, pathById, pctx]);
   /* 2026-11-10 — angehalten, nicht vergessen; am Ziel ist der Weg zu Ende. */
   const pauseNav = () => setNav((n) => (n === null || (navPlan !== null && navPlan.steps.length === 0) ? null : { ...n, paused: true }));
   /*
@@ -359,22 +365,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setNote(null);
     setRunning({ kind: 'story', key: `story:${full.id}:${Date.now()}`, flow: full, jump: step === null ? null : { step, at: Date.now(), ...(exit === undefined ? {} : { exit }) } });
   };
-  /* 2026-11-14 — eine begonnene Erzählung weiter: beim ersten Schritt ihres Abschnitts, der noch nicht gesehen ist. */
-  const continueSection = (sectionId: string) => {
-    lastTravel.current = sectionId;
-    const s = lines.sections.get(sectionId);
-    const st = state.sections.get(sectionId);
-    if (s === undefined) return;
-    const given = flowById.get(s.line) ?? findFlow(s.line);
-    if (given === undefined) return;
-    const full = resolveFlow(given, findFlow);
-    const at = st === undefined ? -1 : st.seen.indexOf(false);
-    const raw = at < 0 ? null : s.steps[at];
-    const step = raw === undefined || raw === null ? null : outerStep(raw);
-    if (step === null) { travel(sectionId); return; }
-    setNote(null);
-    setRunning({ kind: 'story', key: `story:${full.id}:${Date.now()}`, flow: full, jump: { step, at: Date.now() } });
-  };
   /*
     „Prowadź mnie tutaj" (Knopf oder Doppelklick auf die Säule): die Navigation steht, das Feld des Ortes schliesst sich.
     2026-11-14 (Eigentümer: „die Seite soll klar sagen, was sie tut: so viele Schritte; dann zeigt eine Animation, dass wir den
@@ -406,6 +396,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setLastDone(null);
     setNav({ target: nav.target, choices: nav.choices });
     setAskNext(true);
+  };
+  /* Einen übersprungenen Schritt zurückholen: er ist wieder offen (an seinem Platz). */
+  const restoreStep = (key: string) => {
+    if (nav === null) return;
+    const was = ttRef.current;
+    if (was.tt !== null) ttRef.current = { tt: { ...was.tt, done: was.tt.done.filter((x) => stepKey(x) !== key) }, nav: was.nav };
+    setLastDone(null);
+    setNav({ ...nav, skipped: (nav.skipped ?? []).filter((k) => k !== key) });
   };
   const skippedSet = useMemo(() => new Set(nav?.skipped ?? []), [nav]);
   /* 2026-11-12 (Prompt 25) — „Idź tą drogą": wie „Prowadź mnie tutaj", das Ziel ist der Weg; sind seine Schritte schon erledigt, gleich der Abschluss. */
@@ -510,8 +508,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     dort steht in einem Satz, was jetzt getan wird; erst ihr „Start" beginnt den Schritt.
   */
   const [sheet, setSheet] = useState<PlanStep | null>(null);
-  /* „Kontynuuj drogę": nach dem Wiederaufnehmen gleich die Tafel des nächsten Schrittes. */
-  const openNext = useRef(false);
+
   useEffect(() => { if (running !== null) setSheet(null); }, [running]);
   useEffect(() => {
     if (running !== null) {
@@ -646,6 +643,34 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     out.push({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': HOME } });
     return out;
   };
+  const moreButton = (id: string): TowerButton => ({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } });
+  /* Ein Pfad: ein Knopf — offen „Odkryj" (gegangen: umrandet), sonst „Prowadź mnie tutaj" zu seinem Turm. */
+  const laneButtons = (id: string): TowerButton[] => {
+    const sec = lines.sections.get(id), st = state.sections.get(id);
+    if (sec === undefined || st === undefined) return [moreButton(id)];
+    const out: TowerButton[] = [];
+    if (st.ticket.met && st.open) out.push({ key: 'go', label: st.travelled ? t('cogitaWorld.panel.travelAgain') : t('cogitaWorld.panel.travel'), line: st.travelled, onClick: () => travel(id), data: { 'world-travel': id } });
+    else if (state.places.get(sec.to)?.conquered !== true) out.push({ key: 'lead', label: t('cogitaWorld.panel.leadMe'), onClick: () => act.lead(sec.to, id), data: { 'world-lead': sec.to } });
+    return [...out, moreButton(id)];
+  };
+  /* Eine Gabelung: jeder Weg ein Knopf (offen voll, gegangen umrandet; was noch nicht geht, führt hin). */
+  const forkButtons = (id: string): TowerButton[] => {
+    const out: TowerButton[] = [];
+    for (const sid of lines.junctions.get(id)?.out ?? []) {
+      const sec = lines.sections.get(sid), st = state.sections.get(sid);
+      if (sec === undefined || st === undefined) continue;
+      const go = st.ticket.met && st.open;
+      out.push({ key: sid, label: t('cogitaWorld.panel.roadButton', { name: nameOf(sec.to) }), line: st.travelled || !go,
+        onClick: () => (go ? travel(sid) : state.places.get(sec.to)?.conquered === false ? act.lead(sec.to, sid) : act.show('section', sid)), peek: (on) => setPeekRoad(on ? [sid] : null),
+        data: go ? { 'world-choose': sid } : { 'world-lead': sec.to } });
+    }
+    return [...out, moreButton(id)];
+  };
+  /* Ein Wegweiser: seine Fragen, jede ein Knopf (gleich geführt). */
+  const signButtons = (key: string): TowerButton[] => [
+    ...pathsAt(key).map((qp): TowerButton => ({ key: qp.id, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-path-lead': qp.id } })),
+    moreButton(key)
+  ];
   const towerButtons = (id: string): TowerButton[] => {
     if (id === HOME) return homeButtons();
     const ps = state.places.get(id);
@@ -706,12 +731,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     (`pendingFin`) — kein Aufblitzen der Karte davor.
   */
   const pendingFin = running === null && finSnap.current !== null;
-  useEffect(() => {
-    if (!openNext.current || tt === null) return;
-    openNext.current = false;
-    const first = tt.upcoming[0];
-    if (first !== undefined) setSheet(first);
-  }, [tt]);
   /*
     2026-11-14 (Eigentümer: „am Ziel soll von selbst eine Animation kommen und der Weg zu Ende sein") — IST DER WEG AM ZIEL (nichts
     mehr zu tun, keine Tafel mehr offen), endet er von selbst: über der Karte steigt die Fahne mit dem Namen des Ziels auf, die
@@ -940,7 +959,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   */
   const [placeMore, setPlaceMore] = useState(false);
   useEffect(() => { setPlaceMore(false); }, [chosen]);
-  const towerPlain = (chosen?.kind === 'place' || chosen?.kind === 'home') && learner !== null && !placeMore;
+  /* 2026-11-14 (Eigentümer: „auch alle anderen anklickbaren Teile: kurze Knöpfe darüber") — Turm, Haus, Gabelung, Pfad, Wegweiser. */
+  const floatKind = chosen === null ? null : chosen.kind === 'place' || chosen.kind === 'home' || chosen.kind === 'junction' ? 'place' as const : chosen.kind === 'section' ? 'section' as const : chosen.kind === 'sign' ? 'sign' as const : null;
+  const towerPlain = floatKind !== null && learner !== null && !placeMore;
   const [repeatAt, setRepeatAt] = useState(keptRepeatAt);
   const homePool = useMemo(() => homeRepeatPool(state), [state]);
   /*
@@ -1104,7 +1125,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const wayOpen = overview || askNext;
   const wayCard: ReactNode = tt === null || running !== null || finished !== null || plain ? null : wayOpen ? (
     <div className="cg-wm-waycard" data-world-next-page="">
-      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep} onSkip={(s) => skipStep(stepKey(s))} skipped={skippedSet} onUnskip={unskip}
+      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep} onSkip={(s) => skipStep(stepKey(s))} onRestore={(s) => restoreStep(stepKey(s))} order={navOrder} skipped={skippedSet} onUnskip={unskip}
         onGo={(s) => setSheet(s)} onPrepare={(s) => { closeWay(); prepareStep(s); }}
         onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
         arrived={(() => {
@@ -1127,26 +1148,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     </button>
   );
 
-  const continueAt: { readonly kind: 'way' | 'story'; readonly label: string; readonly go: () => void } | null = (() => {
-    if (learner === null) return null;
-    if (nav !== null && nav.paused === true) {
-      return { kind: 'way', label: t('cogitaWorld.way.continueWay', { name: nameOf(nav.target) }), go: () => { openNext.current = true; setNav({ target: nav.target, choices: nav.choices, ...(nav.skipped === undefined ? {} : { skipped: nav.skipped }) }); } };
-    }
-    if (nav !== null) return null;
-    let best: { id: string; at: number } | null = null;
-    for (const [id, st] of state.sections) {
-      if (st.travelled || !st.seen.some(Boolean) || st.seen.every(Boolean)) continue;
-      const sec = lines.sections.get(id);
-      const f = sec === undefined ? undefined : flowById.get(sec.line);
-      const at = f === undefined ? 0 : positionFor(progress?.positions, f)?.at ?? 0;
-      if (best === null || at > best.at) best = { id, at };
-    }
-    if (best === null) return null;
-    const sec = lines.sections.get(best.id);
-    const name = sec === undefined ? '' : lines.lines.get(sec.line)?.name || nameOf(sec.to);
-    const id = best.id;
-    return { kind: 'story', label: t('cogitaWorld.way.continueStory', { name }), go: () => continueSection(id) };
-  })();
   const hasSide = (chosen !== null && !towerPlain) || note !== null;
   const modes = WORLD_MODES.filter((m) => m !== 'gaps' || learner !== null);
   const goalPath = goal !== null && isPathTarget(goal) ? pathById.get(pathOfTarget(goal)) ?? null : null;
@@ -1208,8 +1209,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickJunction={(id) => setChosen({ kind: 'junction', id })}
               onLead={(id) => { setGoal(id); lead(id); }} onPlain={() => { setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
               full={full !== null} squeeze={hasSide} under={wayCard}
-              towerActions={(chosen?.kind === 'place' || chosen?.kind === 'home') && learner !== null ? { place: chosen.id, buttons: towerButtons(chosen.id) } : null}
-              startAction={chosen?.kind !== 'place' && chosen?.kind !== 'home' && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
+              towerActions={floatKind !== null && chosen !== null && learner !== null ? { place: chosen.id, kind: floatKind, buttons: chosen.kind === 'section' ? laneButtons(chosen.id) : chosen.kind === 'sign' ? signButtons(chosen.id) : chosen.kind === 'junction' ? forkButtons(chosen.id) : towerButtons(chosen.id) } : null}
+              startAction={floatKind === null && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
                 /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
                 ? { label: t('cogitaWorld.way.stepButton', { n: tt.done.length + 1, kind: t(`cogitaWorld.way.kind.${tt.upcoming[0].kind}`) }), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
           {scene !== null && full === null && (
@@ -1220,14 +1221,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           )}
           {bubble}
           {laneBubble}
-          {/*
-            2026-11-14 (Eigentümer: „ein Knopf ‚Weiter', wenn es einen begonnenen Weg gibt") — DER WEG GEHT WEITER: ein angehaltener Weg
-            (zum Ziel oder zu einer Frage) mit seinem nächsten Schritt; sonst eine begonnene Erzählung (die zuletzt gelesene) bei ihrer
-            nächsten Folie. Nicht, solange etwas läuft oder eine Tafel offen ist.
-          */}
-          {continueAt !== null && running === null && finished === null && sheet === null && (
-            <button type="button" className="wk-btn cg-wm-continue" onClick={continueAt.go} data-world-continue={continueAt.kind}>▶ {continueAt.label}</button>
-          )}
           {arrival !== null && (
             /* Kein Knopf: der zweite Klick eines Doppelklicks fiele sonst gleich auf ihn; sie vergeht von selbst. */
             <div key={arrival.id} className="cg-wm-arrive" role="status" aria-live="polite" data-world-arrived={arrival.name}>
