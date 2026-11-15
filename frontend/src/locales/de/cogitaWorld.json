@@ -410,7 +410,8 @@
     "arrivedHead": "Ziel erreicht — der Weg ist zu Ende",
     "continueWay": "Weiter auf dem Weg zu {name}",
     "continueStory": "Weiter: {name}",
-    "exit": "Beenden"
+    "exit": "Beenden",
+    "goHere": "Hierhin"
   },
   "finish": {
     "arrive": "Ziel erreicht!",

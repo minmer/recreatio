@@ -269,6 +269,15 @@ try {
     await click('[data-world-part-skip]');
     await waitFor(`document.querySelector('[data-world-running]') === null && document.querySelector('[data-world-step-skipped="${midKey}"]') && document.querySelector('[data-world-announce="3"]')`, 'step 3 announced after skipping mid-step');
     check(P, 'skipping mid-step ends it without the statistics slide', await ev(`document.querySelector('[data-world-finish]') === null`));
+    /* 2026-11-14 (Eigentümer) — ein Schritt der Leiste angeklickt: „Przejdź tutaj“ oder „Pomiń“; übersprungen wird er grau. */
+    const nowKey = await ev(`document.querySelector('[data-world-next-page] [data-world-next-view]')?.dataset.worldNextView ?? ''`);
+    const later = await ev(`[...document.querySelectorAll('[data-world-next-page] [data-world-way-part]')].filter((x) => x.dataset.worldWayState === 'next')[1]?.dataset.worldWayPart ?? null`);
+    await click(`[data-world-next-page] [data-world-way-show="${later}"]`);
+    await waitFor(`document.querySelector('[data-world-picked-skip]')`, 'the menu of the picked step');
+    check(P, 'a picked step offers "go here" and "skip"', await ev(`document.querySelector('[data-world-picked-go]') !== null`));
+    await click('[data-world-picked-skip]');
+    await waitFor(`document.querySelector('[data-world-way-part="${later}"]')?.dataset.worldWayState === 'skipped'`, 'the picked step to be skipped');
+    check(P, 'skipping a picked step greys it out (the current step stays)', (await ev(`document.querySelector('[data-world-next-page] [data-world-next-view]')?.dataset.worldNextView ?? ''`)) === nowKey);
     /* 2026-11-14 — über dem Turm des Schrittes fliegt „Zacznij tutaj“; er öffnet die Tafel des Schrittes (ein Satz, was getan wird). */
     await waitFor(`(() => { const b = document.querySelector('[data-world-start-btn]'); return b !== null && !b.hidden && b.getBoundingClientRect().width > 0; })()`, 'the start button above the tower', 10000);
     await click('[data-world-start-btn]');
@@ -600,6 +609,7 @@ try {
     /* Ein Schritt der Kette zeigt, wo er auf der Karte liegt. */
     const shown = await ev(`document.querySelectorAll('[data-world-way-show]').length`);
     await click('[data-world-way-show]');
+    await ev(`(() => { document.querySelector('[data-world-picked-close]')?.click(); return true; })()`);
     await sleep(900);
     check(P, 'the steps of the way can be clicked: the map shows where the step is', shown >= 3);
     await sleep(300);
@@ -844,7 +854,9 @@ try {
       await click('[data-world-path-open]');
       await waitFor(`document.querySelector('[data-world-panel="path"]')`, 'the path panel from the signpost');
     };
-    await clickMap('sign', 'home');
+    /* 2026-11-14 — der Wegweiser steht am Anfang des ganzen Weges (nicht unbedingt am Haus). */
+    const signKey = (await canvas('wmSignKeys') ?? '').split(' ')[0] ?? '';
+    await clickMap('sign', signKey);
     await waitFor(`document.querySelector('[data-world-panel="sign"]')`, 'the signpost panel');
     const sign = await ev(`(() => { const p = document.querySelector('[data-world-panel="sign"]'); return { buttons: p.querySelectorAll('button[data-world-path-open]').length, text: p.querySelectorAll('p, li, .cg-wm-meta').length }; })()`);
     check(P, 'a signpost shows only its questions, each one button, no other text', sign.buttons >= 1 && sign.text === 0, sign);

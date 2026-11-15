@@ -161,7 +161,7 @@ export function useAutoGo(on: boolean, seconds: number, go: () => void): number 
 const NONE: ReadonlySet<string> = new Set();
 
 /** Der Weg und die Einladung zum nächsten Teil (nach einem Teil; im Vollbild der Teil „Dalej"). */
-export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived, skipped = NONE, onUnskip }: {
+export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, auto = false, card = false, onShow, more, arrived, onSkip, skipped = NONE, onUnskip }: {
   tt: Timetable;
   ctx: PanelCtx;
   rules: readonly LevelRule[];
@@ -185,6 +185,8 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
   more?: ReactNode;
   /** 2026-11-12 (Prompt 25) — am Ende eines Weges zu einer Frage: der Abschluss („Sprawdź się") statt nur „Zakończ". */
   arrived?: ReactNode;
+  /** 2026-11-14 — einen Schritt der Leiste überspringen (angeklickt: „Pomiń"). */
+  onSkip?: (step: PlanStep) => void;
   /**
    * 2026-11-14 (Eigentümer: „alles soll überspringbar sein, auch gegen die Regeln") — den jetzigen Schritt überspringen; die
    * übersprungenen (ihre Schlüssel) stehen in der Kette mit ↷, am Ende lassen sie sich nachholen (`onUnskip`).
@@ -215,6 +217,14 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
     angeklickt zeigt, wo er liegt, doppelt beginnt ihn), rechts oben „Przejdź do kroku" und „Zakończ". Überspringen, die Ansage und
     was der Schritt ist, stehen in der Tafel des Schrittes; der ganze Weg mit seinen Abzweigungen klein unter „≡".
   */
+  /*
+    2026-11-14 (Eigentümer: „ein Klick auf einen Schritt der Leiste: gleich dorthin gehen oder ihn überspringen — übersprungen wird er
+    grau, und gleich steht der nächste da") — DER GEWÄHLTE SCHRITT: oben rechts statt der zwei Knöpfe „Krok n · Art · wo",
+    „Przejdź tutaj" und „Pomiń" (× schliesst). Ein erledigter Schritt zeigt nur, wo er liegt.
+  */
+  const [picked, setPicked] = useState<string | null>(null);
+  const pickedAt = picked === null ? -1 : tt.upcoming.findIndex((u) => stepKey(u) === picked);
+  const pickedStep = pickedAt < 0 ? undefined : tt.upcoming[pickedAt];
   if (card) {
     return (
       <section className="cg-wm-nextview is-card is-strip" data-world-next-view={next === undefined ? 'arrived' : stepKey(next)}
@@ -222,7 +232,16 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
         <div className="cg-wm-stripbar" {...(next === undefined ? { 'data-world-next-arrived': '' } : { 'data-world-next-invite': next.kind, 'data-world-announce': tt.done.length + 1 })}
           {...(cheer === undefined ? {} : skipped.has(stepKey(cheer)) ? { 'data-world-step-skipped': stepKey(cheer) } : { 'data-world-step-done': stepKey(cheer) })}>
           {more !== undefined && <span className="cg-wm-stripmore">{more}</span>}
-          {next === undefined ? (
+          {pickedStep !== undefined && ctx.canLearn ? (
+            <>
+              <span className="cg-wm-stripnote" data-world-picked={stepKey(pickedStep)}>
+                <PartIcon kind={pickedStep.kind} /> {t('cogitaWorld.way.partOf', { n: tt.done.length + pickedAt + 1, all })} · {partWords(pickedStep, ctx).kind} · {partWords(pickedStep, ctx).where}
+              </span>
+              <button type="button" className="wk-btn cg-wm-go" onClick={() => { setPicked(null); onGo(pickedStep); }} data-world-picked-go={stepKey(pickedStep)}>{t('cogitaWorld.way.goHere')} ▶</button>
+              {onSkip !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={() => { setPicked(null); onSkip(pickedStep); }} title={t('cogitaWorld.way.skipSays')} data-world-picked-skip={stepKey(pickedStep)}>{t('cogitaWorld.way.skip')} ↷</button>}
+              <button type="button" className="cg-wm-wayx" onClick={() => setPicked(null)} aria-label={t('cogitaWorld.panel.close')} data-world-picked-close="">×</button>
+            </>
+          ) : next === undefined ? (
             <>
               <span className="cg-wm-stripnote"><PartIcon kind="target" /> {t('cogitaWorld.nav.arrived', { name: nameOf(tt.target) })}</span>
               {skippedHere > 0 && onUnskip !== undefined && ctx.canLearn && <button type="button" className="wk-btn wk-btn-line" onClick={onUnskip} title={t('cogitaWorld.way.endSkipped', { count: skippedHere })} data-world-way-unskip="">{t('cogitaWorld.way.unskip')}</button>}
@@ -237,7 +256,7 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
             </>
           )}
         </div>
-        <WayChain parts={parts} ctx={ctx} target={tt.target} centre drag {...(onShow === undefined ? {} : { onPick: onShow })}
+        <WayChain parts={parts} ctx={ctx} target={tt.target} centre drag onPick={(s) => { onShow?.(s); setPicked(tt.upcoming.some((u) => stepKey(u) === stepKey(s)) ? stepKey(s) : null); }}
           onStart={ctx.canLearn ? (s) => { if (tt.upcoming.some((u) => stepKey(u) === stepKey(s))) onGo(s); } : undefined} />
       </section>
     );

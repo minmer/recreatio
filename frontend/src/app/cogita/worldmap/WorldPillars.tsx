@@ -1414,6 +1414,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       signsRef.current = signBoxes;
       canvas.dataset.wmSigns = String(signBoxes.length);
+      canvas.dataset.wmSignKeys = signBoxes.map((b) => b.key).join(' ');
       /* 2026-11-11 (Eigentümer: „die Namen der Pfade stehen nicht auf der Karte — sie erscheinen beim Überfahren") */
       canvas.dataset.wmPathNames = '0';
     }
@@ -1750,7 +1751,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const want = kind === 'label' ? scene.places.find((p) => p.label === id)?.id : id;
         const d = drawnRef.current.find((x) => x.id === want);
         if (d === undefined) return null;
-        for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want && hitJunction(d.x, y) === null) return [d.x, y];
+        const onSign = (x: number, y: number) => signsRef.current.some((b) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1);
+        for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want && hitJunction(d.x, y) === null && !onSign(d.x, y)) return [d.x, y];
         return null;
       }
       if (kind === 'disc') {

@@ -44,7 +44,7 @@ import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
-import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, type PathCtx, type QPath } from './wmPaths';
+import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
 import { useRunFit } from './wmRunFit';
@@ -61,7 +61,7 @@ import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
-import { followPlan, keepNav, keptNav, navMarks, stepKey, stepPlace, withoutSkipped, type NavSession, type Timetable } from './wmNav';
+import { followPlan, keepNav, keptNav, navMarks, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
 import { freshRoads, nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
@@ -879,9 +879,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     2026-11-14 (Eigentümer: „die Wegweiser nur am Turm, an dem es losgeht — an keinem weiteren") — JE WEG EIN WEGWEISER: dort, wo sein
     nächster offener Schritt beginnt (eine Erzählung an ihrem Anfang, ein Turm an ihm selbst; das Haus, wenn sie dort beginnt).
   */
+  /* 2026-11-14 (Eigentümer: „am Anfang des ganzen Weges — am Turm, an dem er wirklich beginnt, nicht am jetzigen Schritt") */
   const signPaths = useMemo(() => paths.filter((p) => !stepsDone(pctx, p)).map((p) => {
-    const first = pathPlan(pctx, p).steps[0];
-    const at = first === undefined ? null : stepPlace(first, lines);
+    const first = p.steps[0];
+    const at = first === undefined ? null : first.kind === 'place' ? first.place : lines.sections.get(flowSections(lines, first.flow, first.from)[0] ?? '')?.from ?? null;
     const anchors = at === null ? [] : at === HOME ? [{ kind: 'home' as const }] : world.places.has(at) ? [{ kind: 'place' as const, place: at }] : [];
     return { ...p, anchors };
   }).filter((p) => p.anchors.length > 0), [paths, pctx, lines, world]);
@@ -1103,7 +1104,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const wayOpen = overview || askNext;
   const wayCard: ReactNode = tt === null || running !== null || finished !== null || plain ? null : wayOpen ? (
     <div className="cg-wm-waycard" data-world-next-page="">
-      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep} skipped={skippedSet} onUnskip={unskip}
+      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep} onSkip={(s) => skipStep(stepKey(s))} skipped={skippedSet} onUnskip={unskip}
         onGo={(s) => setSheet(s)} onPrepare={(s) => { closeWay(); prepareStep(s); }}
         onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
         arrived={(() => {

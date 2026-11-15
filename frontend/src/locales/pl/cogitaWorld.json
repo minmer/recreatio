@@ -480,7 +480,8 @@
     "arrivedHead": "Cel osiągnięty — droga ukończona",
     "continueWay": "Kontynuuj drogę do: {name}",
     "continueStory": "Kontynuuj: {name}",
-    "exit": "Zakończ"
+    "exit": "Zakończ",
+    "goHere": "Przejdź tutaj"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",
