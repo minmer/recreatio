@@ -149,6 +149,8 @@ export interface TowerButton {
   readonly tone?: string;
   readonly title?: string;
   readonly peek?: (on: boolean) => void;
+  /** 2026-11-14 — pulsiert (der Rundgang: „hier klicken"). */
+  readonly pulse?: boolean;
   readonly data?: Readonly<Record<string, string>>;
 }
 
@@ -1930,7 +1932,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         {towerActions !== null && (
           <div ref={towerBox} className="cg-wm-towerbtns" hidden data-world-tower-actions={towerActions.place}>
             {towerActions.buttons.map((b) => (
-              <button key={b.key} type="button" className={`wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
+              <button key={b.key} type="button" className={`wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.pulse === true ? ' cg-wm-pulse' : ''}${b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
                 onClick={() => { b.peek?.(false); b.onClick(); }} onPointerEnter={() => b.peek?.(true)} onPointerLeave={() => b.peek?.(false)} onFocus={() => b.peek?.(true)} onBlur={() => b.peek?.(false)} {...Object.fromEntries(Object.entries(b.data ?? {}).map(([k, v]) => [`data-${k}`, v]))}>{b.label}</button>
             ))}
           </div>

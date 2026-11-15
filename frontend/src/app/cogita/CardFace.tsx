@@ -404,7 +404,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         return (
           <button key={at} type="button" className={`cg-option${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`} aria-pressed={on} disabled={shut}
             aria-label={n > 0 ? t('cogitaLearnRun.card.pairOf', { label, n }) : label} onClick={() => tap(side, at)}>
-            {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}<span className="cg-option-text"><TexText text={label} /></span>
+            {/* 2026-11-14 (Eigentümer: „das Skalieren“) — der Platz der Nummer ist immer da: ein Paar macht die Zeilen nicht breiter oder höher. */}<span className={`cg-match-n${n > 0 ? '' : ' is-empty'}`} aria-hidden>{n > 0 ? n : ''}</span><span className="cg-option-text"><TexText text={label} /></span>
           </button>
         );
       };
@@ -416,7 +416,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
             <div className="cg-match-side" data-match-side="left">{a.heads !== undefined && a.heads[0] !== '' && <span className="cg-match-head">{a.heads[0]}</span>}{view.left.map((i) => item('l', i, a.left[i]!, pairs[i] === undefined ? undefined : i))}</div>
             <div className="cg-match-side" data-match-side="right">{a.heads !== undefined && a.heads[1] !== '' && <span className="cg-match-head">{a.heads[1]}</span>}{view.right.map((j) => item('r', j, a.right[j]!, leftOf(j)))}</div>
           </div>
-          <button type="button" className="wk-btn" disabled={shut || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
+          <button type="button" className="wk-btn cg-check" disabled={shut || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
             {lefts.length > 0 && lefts.length < a.left.length ? t('cogitaLearnRun.card.checkSome', { k: lefts.length, n: a.left.length }) : t('cogitaLearnRun.card.check')}
           </button>
         </div>

@@ -589,3 +589,23 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-tour { top: auto; bottom: var(--wk-space-3); width: min(22rem, calc(100% - 2 * var(--wk-space-3))); }
 /* 2026-11-14 (Eigentümer) — ist etwas gewählt (Knöpfe darüber), steht die Blase unter dem Zeiger: sie verdeckt die Knöpfe nicht. */
 .cg-wm-bubble.is-below { transform: translate(-50%, 22px); }
+/* 2026-11-14 (Eigentümer) — „Zakończ" und „≡" in derselben Zeile wie die Knöpfe über dem Schritt. */
+.cg-wm-nextview.is-card.is-strip > .cg-wm-stripbar { position: absolute; top: 0.2rem; left: 0; right: 0; z-index: 3; pointer-events: none; }
+.cg-wm-nextview.is-card.is-strip > .cg-wm-stripbar > * { pointer-events: auto; }
+
+/* 2026-11-14 (Eigentümer) — der interaktive Rundgang: das Gezeigte pulsiert; der Text ist länger und rollt in sich. */
+.cg-wm-tour { width: min(30rem, calc(100% - 2 * var(--wk-space-3))); max-height: min(70%, 32rem); overflow-y: auto; }
+.cg-wm-tour.is-do { border-left-color: var(--wk-goal, var(--wk-accent)); }
+.cg-wm-tourdo { font-weight: 600; }
+.wk-btn.cg-wm-pulse { animation: cg-wm-pulse-btn 1.4s ease-in-out infinite; }
+@keyframes cg-wm-pulse-btn { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--wk-accent) 55%, transparent); } 50% { box-shadow: 0 0 0 0.6rem color-mix(in oklab, var(--wk-accent) 0%, transparent); } }
+:root[data-motion='off'] .wk-btn.cg-wm-pulse, :root[data-motion='reduced'] .wk-btn.cg-wm-pulse { animation: none; }
+/* Längerer Text, kleineres Feld: kleinere Schrift, die Karte bleibt daneben sichtbar (im Vollbild mehr Platz). */
+.cg-wm-tour { width: min(23rem, calc(100% - 2 * var(--wk-space-3))); max-height: min(62%, 30rem); padding: var(--wk-space-2) var(--wk-space-3); }
+.cg-wm-tourt { font-size: var(--wk-text-sm); line-height: 1.45; }
+.cg-wm-host.is-full .cg-wm-tour { width: min(28rem, 40vw); }
+.cg-wm-host.is-full .cg-wm-tourt { font-size: var(--wk-text-md); }
+/* Genau eine Zeile: „Zakończ", „≡" und die Knöpfe über dem Schritt haben dieselbe Höhe und Mitte. */
+.cg-wm-nextview.is-card.is-strip > .cg-wm-stripbar { top: 0.2rem; height: 2.6rem; align-items: center; flex-wrap: nowrap; }
+.cg-wm-steppop { top: 0.2rem; height: 2.6rem; }
+.cg-wm-nextview.is-strip .cg-wm-stripbar .wk-btn, .cg-wm-steppop .wk-btn { height: 2.3rem; padding-block: 0; display: inline-flex; align-items: center; }

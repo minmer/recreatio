@@ -560,62 +560,71 @@
     "close": "Close the guide",
     "done": "Done",
     "sample": "The progress in this guide is made up — your own stays as it is.",
+    "tapHere": "Click here",
+    "skipDo": "Skip the click",
     "welcome": {
       "title": "The knowledge map",
-      "text": "Each tower is one topic, each path a story that explains it. This guide shows everything on this very map."
+      "text": "Knowledge is not a list of chapters but a landscape: topics depend on each other, and to understand one you need others. This map shows those dependencies. So at any moment you can see what you already know, what you can start now and how far it is to your goal. The guide walks you through your own map: you click what it shows, then read what it is and why it works this way."
     },
     "home": {
       "title": "Start",
-      "text": "This is where you begin — paths from the start need nothing. Click the house to see where to go, what to review, and to open this guide."
+      "do": "Click the house — the pulsing spot on the map.",
+      "text": "The house is the starting point. Stories leaving it assume nothing — you can begin with them without any knowledge. The house is also where you come back. From here you review everything you have seen at once (you choose how well known something may be and still be skipped), see the ways that bring something new, and open this guide again."
     },
     "tower": {
       "title": "Tower = topic",
-      "text": "The colour is the topic. The height is how many cards stand between you and conquering the tower, including what it requires. A pale tower: nothing of it seen yet."
+      "do": "Click the highlighted tower.",
+      "text": "A tower is one topic: a dozen or so questions that together check whether you understand it. The colour is the field. The height is how many cards stand between you and conquering the tower — including the towers it requires — so it honestly shows how much work is ahead. A pale tower is a topic nothing of which has come up yet. With every card you learn, it gains colour and shrinks. Once clicked, only the buttons that make sense right now stand above it."
     },
     "path": {
       "title": "Path = story",
-      "text": "Slides and questions that introduce the tower's cards; the arrow shows the direction. Solid line: you can go. Dashed with a lock: you need to know something first. On a chosen path: ● slide, ◆ question."
+      "do": "Click the highlighted path (or its marker).",
+      "text": "A path is a story: slides and questions that explain the topic before it is checked. Towers and paths are separate on purpose. The tower says WHAT you need to know; the path says HOW you can learn it. Several stories can lead to one tower, and one story can introduce cards of several towers, so the same knowledge can be reached in different ways. A solid line means you can go. Dashed with a lock: the story assumes knowledge you do not have yet. The arrow shows the direction, and on a chosen path the dots are slides (●) and questions (◆)."
     },
     "started": {
       "title": "On the way",
-      "text": "A story you have begun is coloured up to its last slide. The tower gains colour and shrinks with every card you learn."
+      "text": "This is a story half done: the path is coloured up to the last slide seen, and the tower has gained colour and shrunk by the cards that already came up. You can stop anywhere — the map remembers where you left off, and you come back from there."
     },
     "level": {
       "title": "Conquering",
-      "text": "Once every card of the tower has come up, you conquer it in a run: each card once. Each of the {levels} levels lights an arc on top of the tower."
+      "text": "Having seen the cards is not the same as mastering the topic. That is why a tower is conquered in a run: each card once, in random order, without the story's explanations. Only then does it show whether the topic sits as a whole and not just in pieces. Each of the {levels} levels asks more (for example more answers right the first time) and lights another arc on top of the tower."
     },
     "conquered": {
       "title": "Conquered",
-      "text": "A conquered tower is flat, with a flag; a star means everything right the first time. The dot in the middle: green — knowledge fresh, yellow — review soon.",
-      "text0": "When you know all its cards, the tower is conquered and flat. The dot in the middle: green — knowledge fresh, yellow — review soon, orange — time to review (then \"Review\" stands above the tower)."
+      "text": "A conquered tower is flat: there is nothing left to learn in it, so it does not hide the topics further on. The flag marks the conquest, the star a run without a single mistake the first time. The dot in the middle says how fresh the knowledge is: green — fresh, yellow — review soon. Only a conquered tower opens the ways that build on it, because the next topics assume this one is mastered.",
+      "text0": "When you know all its cards, the tower is conquered and flat: there is nothing left to learn in it, so it does not hide the topics further on. The dot in the middle says how fresh the knowledge is: green — fresh, yellow — review soon, orange — time to review (then \"Review\" stands above the tower). Only a conquered tower opens the ways that build on it."
     },
     "due": {
       "title": "Due for review",
-      "text": "Over time knowledge fades: the dot turns orange and \"Review\" appears above the tower. Only conquered towers are reviewed."
+      "text": "Memory fades over time — that is normal, not a failure. A review helps most just when knowledge starts to blur: then the dot turns orange and \"Review\" appears above the tower. Each good review lengthens the time to the next one, so over time you review less and less often. Only conquered towers are reviewed: topics still being learned do not flood your reviews, since their cards come back in stories and runs anyway."
     },
     "onward": {
       "title": "Ways on",
-      "text": "A conquered tower opens further ways. Click it: above it stand the ways that bring something new, and \"Review\" when needed."
+      "do": "Click the conquered tower.",
+      "text": "Above a conquered tower stand the ways that leave it and bring something new — new cards or a tower still missing. Ways already travelled or bringing nothing are left out, so the choice stays simple. Pointing at a way lights it on the map. When something is due, \"Review\" stands next to them, coloured by how much it is needed."
     },
     "locked": {
       "title": "A tower that waits",
-      "text": "This tower requires other topics. The discs under it are the missing towers — the bottom one comes first. \"Explore\" leads you there step by step, \"Conquer directly\" lets you try without the way."
+      "do": "Click the tall tower standing on discs.",
+      "text": "This tower requires other topics. The discs under it are the towers still missing — the bottom one comes first. Requirements are not there for their own sake: this tower's questions assume that knowledge, and without it they would be guesswork. \"Explore\" lays out the shortest way through the missing topics and guides you step by step. \"Conquer directly\" lets you try without that way — if you already know it from elsewhere, you do not have to prove it twice."
     },
     "fork": {
       "title": "Fork",
-      "text": "Here the story splits. You choose one way; you can come back to the others later."
+      "do": "Click the highlighted fork.",
+      "text": "Here the story splits: the branches tell the same thing differently or lead to different topics. You choose one; you can come back to the others later — nothing is lost."
     },
     "sign": {
       "title": "Signpost",
-      "text": "A question answered by several steps of the map. It stands where that way begins — click it to go step by step."
+      "do": "Click the signpost.",
+      "text": "A signpost is a question answered by several steps of the map at once, for example \"Who was…?\". It stands where that way begins. Clicking it guides you through all the stories and towers needed, in order, and at the end you can check whether the answer is clear now."
     },
     "way": {
       "title": "Guidance",
-      "text": "\"Explore\" or a double click on a tower: the way appears at the bottom. Buttons stand above the step — go, skip or restore. A double click on empty ground ends the guidance."
+      "text": "\"Explore\" or a double click on a tower turns on guidance: the way appears at the bottom, step by step. Each step says what will happen and gives a choice — go, skip, or restore a skipped one. Skipping is allowed on purpose: sometimes you want to get to a particular place straight away and fill in the rest later. A double click on empty ground ends the guidance; the progress stays."
     },
     "views": {
       "title": "Views",
-      "text": "At the top: what I know, to discover, to review, gaps — the map then shows only that. \"Check what you know\" asks the key questions and shows the gaps. Open this guide again by clicking the house."
+      "text": "At the top, views narrow the map: what I know, to discover (what you can start now), to review, gaps. \"Check what you know\" asks the key questions of every topic and shows the gaps — a good start if you already know something. Open this guide again by clicking the house."
     }
   }
 }

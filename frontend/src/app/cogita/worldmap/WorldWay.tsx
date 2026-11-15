@@ -253,9 +253,14 @@ export function NextView({ tt, ctx, rules, just, onGo, onMap, onEnd, onPrepare, 
       const wr = w.getBoundingClientRect(), lr = li.getBoundingClientRect();
       const cx = lr.left + lr.width / 2 - wr.left;
       b0.style.visibility = cx < 0 || cx > wr.width ? 'hidden' : 'visible';
+      /* Dieselbe Zeile wie „Zakończ“ (rechts) und „≡“ (links): die Knöpfe weichen ihnen aus. */
+      const bar = w.parentElement?.querySelector<HTMLElement>('.cg-wm-stripbar');
+      const rightGap = bar === null || bar === undefined ? 0 : [...bar.children].filter((c) => !(c as HTMLElement).classList.contains('cg-wm-stripmore')).reduce((n, c) => n + (c as HTMLElement).offsetWidth + 8, 0);
+      const leftGap = (bar?.querySelector<HTMLElement>('.cg-wm-stripmore')?.offsetWidth ?? 0) + 8;
       const half = b0.offsetWidth / 2;
-      b0.style.left = `${Math.round(Math.max(half, Math.min(wr.width - half, cx)))}px`;
-      b0.style.setProperty('--tip', `${Math.round(cx - Math.max(half, Math.min(wr.width - half, cx)))}px`);
+      const x = Math.max(half + leftGap, Math.min(wr.width - half - rightGap, cx));
+      b0.style.left = `${Math.round(x)}px`;
+      b0.style.setProperty('--tip', `${Math.round(cx - x)}px`);
     };
     place();
     const id = window.setTimeout(place, 450);

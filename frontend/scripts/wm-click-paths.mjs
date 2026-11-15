@@ -255,6 +255,16 @@ try {
     check(P, `"take me there" says how many steps lead to the target (${intro.intro}) and announces step 1 — nothing starts by itself`, intro.intro >= 3 && !intro.running && intro.go && intro.skip !== null, intro);
     check(P, 'the target becomes the goal', intro.goal !== null && intro.goal !== '', intro);
     await shot('p3-announce');
+    /* 2026-11-14 (Eigentümer) — „Zakończ“ auf derselben Höhe wie die Knöpfe über dem Schritt (auch auf der ganzen Seite). */
+    const rowOf = () => ev(`(() => { const a = document.querySelector('[data-world-next-stop]')?.getBoundingClientRect(); const b = document.querySelector('[data-world-next-go]')?.getBoundingClientRect(); return a && b ? { stop: Math.round(a.top + a.height / 2), go: Math.round(b.top + b.height / 2) } : null; })()`);
+    const row1 = await rowOf();
+    await click('[data-world-full="page"]');
+    await sleep(900);
+    const row2 = await rowOf();
+    await shot('p3-row-page');
+    await ev(`(() => { document.querySelector('[data-world-fulltab="exit"]')?.click(); return true; })()`);
+    await sleep(600);
+    check(P, '"Zakończ" stands on the same height as the button above the step (in the page and on the whole page)', row1 !== null && row2 !== null && Math.abs(row1.stop - row1.go) <= 1 && Math.abs(row2.stop - row2.go) <= 1, { row1, row2 });
     /* Überspringen (auch gegen die Regeln): der Schritt ist vorbei (↷ in der Kette), die Ansage geht zu Schritt 2. */
     /* 2026-11-14 — überspringen in der Tafel des Schrittes (die Leiste hat nur „Weiter“ und „Beenden“). */
     await click('[data-world-next-go]');
@@ -857,12 +867,21 @@ try {
     await waitFor(`document.querySelector('[data-world-tour="welcome"]')`, 'the first step of the tour');
     check(P, 'the tour starts by itself the first time (or from the house)', true, { first });
     const keys = [];
+    const acts = [];
     const frames = [];
     for (let i = 0; i < 20; i += 1) {
       const k = await ev(`document.querySelector('[data-world-tour]')?.dataset.worldTour ?? null`);
       if (k === null) break;
       keys.push(k);
       await sleep(700);
+      /* 2026-11-14 — interaktiv: erst das Gezeigte klicken (das Haus auf der Karte selbst, sonst den pulsierenden Knopf), dann die Erklärung. */
+      const doing = await ev(`document.querySelector('[data-world-tour-do]')?.dataset.worldTourDo ?? null`);
+      if (doing !== null) {
+        acts.push(doing);
+        if (doing === 'home') await clickMap('home', '~home'); else await click('[data-world-tour-tap]');
+        await waitFor(`document.querySelector('[data-world-tour-do]') === null && document.querySelector('[data-world-tour-next], [data-world-tour-done]') !== null`, 'the explanation after the click', 8000);
+        await sleep(300);
+      }
       frames.push(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmFrame ?? ''`));
       await shot(`p14-${String(i).padStart(2, '0')}-${k}`);
       if (await ev(`document.querySelector('[data-world-tour-next]') === null`)) break;
@@ -870,6 +889,7 @@ try {
       await sleep(200);
     }
     check(P, `every part is explained on this map (${keys.length} steps)`, ['welcome', 'home', 'tower', 'conquered', 'locked', 'way', 'views'].every((k) => keys.includes(k)), keys);
+    check(P, `it is interactive: the learner clicks what is shown, then the explanation follows (${acts.join(', ')})`, acts.includes('home') && acts.includes('place') && acts.length >= 4, acts);
     await click('[data-world-tour-done]');
     await waitFor(`document.querySelector('[data-world-tour]') === null`, 'the tour to close');
     check(P, 'the own progress is untouched (no tower conquered by the tour)', await ev(`document.querySelector('[data-world-won]') === null && document.querySelector('[data-world-goal-done]') === null`));

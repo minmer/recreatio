@@ -646,62 +646,71 @@
     "close": "Zamknij przewodnik",
     "done": "Gotowe",
     "sample": "Postęp w przewodniku jest udawany — twój własny się nie zmienia.",
+    "tapHere": "Kliknij tutaj",
+    "skipDo": "Pomiń klikanie",
     "welcome": {
       "title": "Mapa wiedzy",
-      "text": "Każda wieża to jeden temat, każda ścieżka to opowieść, która go wyjaśnia. Przewodnik pokazuje wszystko na tej mapie."
+      "text": "Wiedza nie jest listą rozdziałów, tylko krajobrazem: tematy zależą od siebie, a żeby zrozumieć jeden, trzeba znać inne. Ta mapa pokazuje te zależności. Dzięki temu w każdej chwili widać, co już umiesz, co możesz zacząć teraz i ile drogi zostało do celu. Przewodnik prowadzi po twojej własnej mapie: klikasz to, co pokazuje, a potem czytasz, co to jest i dlaczego działa właśnie tak."
     },
     "home": {
       "title": "Start",
-      "text": "Tu zaczynasz — ścieżki ze startu niczego nie wymagają. Kliknij dom: zobaczysz, dokąd iść, co powtórzyć, i otworzysz ten przewodnik."
+      "do": "Kliknij dom — to pulsujące miejsce na mapie.",
+      "text": "Dom to punkt wyjścia. Opowieści, które z niego wychodzą, niczego nie zakładają — od nich można zacząć bez żadnej wiedzy. Dom jest też miejscem powrotu. Stąd powtarzasz naraz wszystko, co już było (sam wybierasz, jak dobrze ma być znane, żeby się nie powtarzało), widzisz drogi, które dają coś nowego, i otwierasz znowu ten przewodnik."
     },
     "tower": {
       "title": "Wieża = temat",
-      "text": "Kolor to temat. Wysokość: ile kart dzieli cię od zdobycia wieży, razem z tym, czego ona wymaga. Blada wieża — jeszcze nic z niej nie było."
+      "do": "Kliknij wskazaną wieżę.",
+      "text": "Wieża to jeden temat: kilkanaście pytań, które razem sprawdzają, czy go rozumiesz. Kolor oznacza dziedzinę. Wysokość mówi, ile kart dzieli cię od zdobycia tej wieży — łącznie z wieżami, których ona wymaga — więc uczciwie pokazuje, ile pracy jest przed tobą. Blada wieża to temat, z którego nic jeszcze nie było. Z każdą poznaną kartą wieża nabiera koloru i maleje. Po kliknięciu nad wieżą stoją tylko te przyciski, które teraz mają sens."
     },
     "path": {
       "title": "Ścieżka = opowieść",
-      "text": "Slajdy i pytania, które wprowadzają karty wieży; strzałka pokazuje kierunek. Ciągła linia: możesz iść. Przerywana z kłódką: najpierw trzeba coś umieć. Na wybranej ścieżce: ● slajd, ◆ pytanie."
+      "do": "Kliknij podświetloną ścieżkę (albo jej znacznik).",
+      "text": "Ścieżka to opowieść: slajdy i pytania, które wyjaśniają temat, zanim zostanie sprawdzony. Wieże i ścieżki są rozdzielone celowo. Wieża mówi, CO trzeba umieć; ścieżka — JAK można się tego nauczyć. Do jednej wieży może prowadzić kilka opowieści, a jedna opowieść może wprowadzać karty kilku wież, więc tę samą wiedzę można zdobyć różnymi drogami. Ciągła linia znaczy: możesz iść. Przerywana z kłódką: opowieść zakłada wiedzę, której jeszcze nie ma. Strzałka pokazuje kierunek, a na wybranej ścieżce kropki to slajdy (●) i pytania (◆)."
     },
     "started": {
       "title": "W drodze",
-      "text": "Rozpoczęta opowieść jest pokolorowana do ostatniego slajdu. Wieża nabiera koloru i maleje z każdą poznaną kartą."
+      "text": "Tak wygląda opowieść w połowie: ścieżka jest pokolorowana do ostatniego oglądanego slajdu, a wieża nabrała koloru i zmalała o karty, które już były. Naukę można przerwać w każdym miejscu — mapa pamięta, gdzie się skończyła, i stamtąd się wraca."
     },
     "level": {
       "title": "Zdobywanie",
-      "text": "Gdy wszystkie karty wieży już były, zdobywasz ją w przebiegu: każda karta raz. Każdy z {levels} poziomów zapala łuk na górze wieży."
+      "text": "Poznać karty to nie to samo, co opanować temat. Dlatego wieżę zdobywa się w przebiegu: każda karta raz, w losowej kolejności, bez wyjaśnień z opowieści. Dopiero wtedy widać, czy temat siedzi w całości, a nie tylko kawałkami. Każdy z {levels} poziomów stawia wyższe wymagania (na przykład więcej odpowiedzi dobrze za pierwszym razem) i zapala kolejny łuk na górze wieży."
     },
     "conquered": {
       "title": "Zdobyta",
-      "text": "Zdobyta wieża jest płaska, z flagą; gwiazdka — wszystko dobrze za pierwszym razem. Kropka w środku: zielona — wiedza świeża, żółta — wkrótce powtórka.",
-      "text0": "Gdy znasz wszystkie karty wieży, jest zdobyta i płaska. Kropka w środku: zielona — wiedza świeża, żółta — wkrótce powtórka, pomarańczowa — czas powtórzyć (wtedy nad wieżą stoi „Powtórz”)."
+      "text": "Zdobyta wieża jest płaska: nie ma w niej już nic do nauczenia, więc nie zasłania dalszych tematów. Flaga oznacza zdobycie, gwiazdka — przebieg bez jednego błędu za pierwszym razem. Kropka w środku mówi, jak świeża jest wiedza: zielona — świeża, żółta — wkrótce powtórka. Dopiero zdobyta wieża otwiera drogi, które na niej budują, bo dalsze tematy zakładają, że ten jest opanowany.",
+      "text0": "Gdy znasz wszystkie karty wieży, jest zdobyta i płaska: nie ma w niej już nic do nauczenia, więc nie zasłania dalszych tematów. Kropka w środku mówi, jak świeża jest wiedza: zielona — świeża, żółta — wkrótce powtórka, pomarańczowa — czas powtórzyć (wtedy nad wieżą stoi „Powtórz”). Dopiero zdobyta wieża otwiera drogi, które na niej budują."
     },
     "due": {
       "title": "Do powtórki",
-      "text": "Z czasem wiedza blednie: kropka robi się pomarańczowa, a nad wieżą pojawia się „Powtórz”. Powtarzane są tylko zdobyte wieże."
+      "text": "Pamięć słabnie z czasem — to normalne, nie błąd. Powtórka daje najwięcej wtedy, gdy wiedza zaczyna się zacierać: kropka robi się wtedy pomarańczowa, a nad wieżą pojawia się „Powtórz”. Każda dobra powtórka wydłuża czas do następnej, więc z czasem powtarza się coraz rzadziej. Powtarzane są tylko zdobyte wieże: tematy w trakcie nauki nie zalewają powtórek, bo ich karty i tak wracają w opowieściach i przebiegach."
     },
     "onward": {
       "title": "Dalsze drogi",
-      "text": "Zdobyta wieża otwiera kolejne drogi. Kliknij ją: nad nią stoją drogi, które dają coś nowego, i „Powtórz”, gdy trzeba."
+      "do": "Kliknij zdobytą wieżę.",
+      "text": "Nad zdobytą wieżą stoją drogi, które z niej wychodzą i dają coś nowego — nowe karty albo wieżę, której jeszcze brakuje. Drogi już przebyte albo niczego niewnoszące są pomijane, żeby wybór był prosty. Najechanie na drogę podświetla ją na mapie. Kiedy coś jest do powtórki, obok stoi „Powtórz” w kolorze tego, jak bardzo jest potrzebne."
     },
     "locked": {
       "title": "Wieża, która czeka",
-      "text": "Ta wieża wymaga innych tematów. Krążki pod nią to brakujące wieże — dolny jest pierwszy. „Odkryj” prowadzi tam krok po kroku, „Zdobądź od razu” pozwala spróbować bez drogi."
+      "do": "Kliknij wysoką wieżę stojącą na krążkach.",
+      "text": "Ta wieża wymaga innych tematów. Krążki pod nią to wieże, których jeszcze brakuje — dolny jest pierwszy do zrobienia. Wymagania nie są przeszkodą dla zasady: pytania tej wieży zakładają tamtą wiedzę i bez niej byłyby zgadywaniem. „Odkryj” układa najkrótszą drogę przez brakujące tematy i prowadzi krok po kroku. „Zdobądź od razu” pozwala spróbować bez tej drogi — jeśli coś już umiesz z innych źródeł, nie musisz tego udowadniać dwa razy."
     },
     "fork": {
       "title": "Rozwidlenie",
-      "text": "Tu opowieść się dzieli. Wybierasz jedną drogę; do pozostałych możesz wrócić później."
+      "do": "Kliknij wskazane rozwidlenie.",
+      "text": "Tu opowieść się dzieli: różne odgałęzienia opowiadają o tym samym inaczej albo prowadzą do różnych tematów. Wybierasz jedno; do pozostałych możesz wrócić później — nic nie przepada."
     },
     "sign": {
       "title": "Drogowskaz",
-      "text": "Pytanie, na które odpowiada kilka kroków mapy. Stoi tam, gdzie ta droga się zaczyna — kliknij, aby iść krok po kroku."
+      "do": "Kliknij drogowskaz.",
+      "text": "Drogowskaz to pytanie, na które odpowiada kilka kroków mapy naraz, na przykład „Kim był…?”. Stoi tam, gdzie ta droga się zaczyna. Kliknięcie prowadzi po kolei przez wszystkie potrzebne opowieści i wieże, a na końcu można sprawdzić, czy odpowiedź jest już jasna."
     },
     "way": {
       "title": "Prowadzenie",
-      "text": "„Odkryj” albo podwójne kliknięcie wieży: na dole pojawia się droga. Nad krokiem są przyciski — przejdź, pomiń albo przywróć. Podwójne kliknięcie w puste miejsce kończy prowadzenie."
+      "text": "„Odkryj” albo podwójne kliknięcie wieży włącza prowadzenie: na dole pojawia się droga, krok po kroku. Każdy krok zapowiada, co się stanie, i daje wybór — przejść, pominąć albo przywrócić pominięty. Pomijanie jest dozwolone celowo: czasem chcesz od razu do konkretnego miejsca, a resztę uzupełnisz później. Podwójne kliknięcie w puste miejsce kończy prowadzenie; postęp zostaje."
     },
     "views": {
       "title": "Widoki",
-      "text": "U góry: Co umiem, Do odkrycia, Do powtórki, Luki — mapa pokazuje wtedy tylko to. „Sprawdź, co wiesz” pyta o najważniejsze pytania i pokazuje luki. Przewodnik otworzysz znowu, klikając dom."
+      "text": "U góry widoki zawężają mapę: Co umiem, Do odkrycia (co można zacząć teraz), Do powtórki, Luki. „Sprawdź, co wiesz” zadaje najważniejsze pytania każdego tematu i pokazuje luki — dobry początek, jeśli coś już umiesz. Przewodnik otworzysz znowu, klikając dom."
     }
   }
 }

@@ -1102,3 +1102,6 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 /* 2026-11-14 — auch wo „Dalej" ohne eigene Zeile steht (Reihenfolge, Paare, Lücken, Code): es bleibt unten im Bild stehen. */
 .cg-answer .cg-next { position: sticky; bottom: var(--wk-space-2); z-index: 1; box-shadow: 0 0 0 var(--wk-space-2) var(--wk-surface); }
 .cg-answer > .cg-answer-actions .cg-next { position: static; box-shadow: none; }
+/* 2026-11-14 (Eigentümer: „das Skalieren") — die Nummer eines Paars hat ihren Platz immer (leer unsichtbar), „Sprawdź" bleibt unten im Bild. */
+.cg-match-n.is-empty { visibility: hidden; }
+.cg-answer > .cg-check { position: sticky; bottom: var(--wk-space-2); z-index: 1; box-shadow: 0 0 0 var(--wk-space-2) var(--wk-surface); }
