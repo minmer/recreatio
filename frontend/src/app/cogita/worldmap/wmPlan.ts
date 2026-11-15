@@ -15,6 +15,7 @@
  *                Eroberung — mit Stufen ein Durchgang (gleich, oder nachdem man wiederholt hat, was man noch nicht kann),
  *                ohne Stufen: lernen, bis es sitzt
  *   direkt       Karten ohne Erzählung lernen nur, wenn keine Erzählung sie erreicht — nie statt einer Erzählung, die es gibt
+ *   Grundlage    (2026-11-15) vor JEDEM Schritt: sitzt alles, worauf er baut? Sonst zuerst eine Wiederholung davon (s. unten)
  * </code>
  * Nach jeder Änderung des Lernstands neu gerechnet.
  */
@@ -37,8 +38,12 @@ export type PlanStep =
   | { readonly kind: 'travel'; readonly place: string; readonly section: string; readonly cards: readonly string[]; readonly locked: boolean; readonly alternatives: readonly Alternative[] }
   /** Karten, die keine Erzählung erreicht (nur dann direkt). */
   | { readonly kind: 'learn'; readonly place: string; readonly cards: readonly string[] }
-  /** Die Wiederholungen, die die Fahrkarte eines Abschnitts verlangt — ein eigener Teil des Weges vor der Fahrt. */
-  | { readonly kind: 'review'; readonly place: string; readonly section: string; readonly cards: readonly string[] }
+  /**
+   * Die Wiederholungen vor einem Schritt — ein eigener Teil des Weges direkt davor: was die Fahrkarte eines Abschnitts verlangt, und
+   * (2026-11-15) jede Karte der Türme, auf denen der nächste Schritt baut, die nicht (mehr) sitzt. `towers`: diese Türme;
+   * `section`: der Abschnitt, vor dem sie steht, oder `tower:<Ort>` vor der Eroberung eines Turms.
+   */
+  | { readonly kind: 'review'; readonly place: string; readonly section: string; readonly cards: readonly string[]; readonly towers?: readonly string[] }
   /**
    * Ein Durchgang ab Stufe `level`; gelingt er ganz, reicht er bis `upTo`. 2026-11-10 (Eigentümer) — am Turm zwei Wege: gleich
    * erobern (alle `cards` Karten, `unseen` davon nie gefragt) oder erst wiederholen, was man noch nicht kann (`prepare`).
@@ -82,6 +87,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const walked = new Set<string>();
   const introduced = new Set<string>();
   const reviewed = new Set<string>();
+  /* 2026-11-15 — Karten, die eine Erzählung DIESES Plans neu einführt (nicht die schon gefahrener Spuren): sie sind keine Wiederholung. */
+  const taught = new Set<string>();
   const steps: PlanStep[] = [];
   const route: string[] = [];
   const order: string[] = [];
@@ -198,7 +205,37 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       .sort((a, b) => a.delta - b.delta || (a.section < b.section ? -1 : 1));
   };
 
-  /** Die Spuren eines Weges gehen: jede neue mit Inhalt ist ein Teil (davor die Wiederholungen ihres Tores). */
+  /*
+    2026-11-15 (Eigentümer: „jedes Mal, bevor ein nächster Schritt kommt, eine Wiederholungsprüfung: sind die Türme, die für den nächsten
+    Turm oder Pfad nötig sind — seine Bedingungen —, alle bekannt? Wenn nicht, werden alle Fragen gestellt; so ist die Wiederholung in
+    die Kenntnis der neuen Teile eingebaut") — DIE GRUNDLAGE EINES SCHRITTS: die Türme, die er verlangt (Tore eines Pfades und ihre
+    Grundlage, die Grundlage des Turms, zu dem er führt), die schon erobert oder passierbar sind — nicht die, die der Plan selbst erst
+    erobert (deren Durchgang fragt sie ohnehin). Jede ihrer Karten, die nicht sitzt (auch nie gefragte), kommt in eine Wiederholung
+    direkt vor dem Schritt; jede Karte einmal je Plan. Der Plan rechnet nach jeder Antwort neu: steht sie, entfällt der Teil.
+  */
+  const groundOf = (towers: Iterable<string>): { cards: string[]; towers: string[] } => {
+    const all = new Set<string>();
+    for (const p of towers) { if (!world.places.has(p)) continue; all.add(p); for (const q of world.base(p)) all.add(q); }
+    const cards: string[] = [];
+    const from: string[] = [];
+    for (const p of all) {
+      if (soon.has(p) || !(conquered(p) || passable(p))) continue;
+      const weak = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known' && !reviewed.has(k) && !taught.has(k) && !cards.includes(k));
+      if (weak.length === 0) continue;
+      cards.push(...weak);
+      from.push(p);
+    }
+    return { cards, towers: from };
+  };
+  const reviewBefore = (place: string, section: string, extra: readonly string[], towers: Iterable<string>) => {
+    const ground = groundOf(towers);
+    const cards = [...new Set([...extra, ...ground.cards])];
+    if (cards.length === 0) return;
+    steps.push({ kind: 'review', place, section, cards, ...(ground.towers.length > 0 ? { towers: ground.towers } : {}) });
+    for (const k of cards) reviewed.add(k);
+  };
+
+  /** Die Spuren eines Weges gehen: jede neue mit Inhalt ist ein Teil (davor die Wiederholungen ihres Tores und seiner Grundlage). */
   const walk = (path: readonly Edge[], place: string) => {
     for (const e of path) {
       route.push(e.s.id);
@@ -210,13 +247,15 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       if (had || e.s.steps.length === 0) { for (const k of e.s.introduces) introduced.add(k); continue; }
       const st = state.sections.get(e.s.id)!;
       const again = st.ticket.missing.review.filter((k) => !introduced.has(k) && !reviewed.has(k));
-      if (again.length > 0) { steps.push({ kind: 'review', place, section: e.s.id, cards: again }); for (const k of again) reviewed.add(k); }
+      /* Die Grundlage des Pfades: die Türme seiner Tore (erfüllt oder nicht) und die des Turms, zu dem er führt. */
+      const gates = st.ticket.parts.flatMap((p) => placesOf(p.part.condition));
+      reviewBefore(place, e.s.id, again, [...gates, ...(world.places.has(e.s.to) ? world.base(e.s.to) : [])]);
       steps.push({
         kind: 'travel', place, section: e.s.id, cards: fresh,
         locked: st.ticket.missing.new.some((k) => !introduced.has(k)) || st.ticket.unknown,
         alternatives: alternativesOf(e.s, place)
       });
-      for (const k of e.s.introduces) introduced.add(k);
+      for (const k of e.s.introduces) { introduced.add(k); taught.add(k); }
     }
   };
 
@@ -259,6 +298,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     }
     queue.shift();
     if (path !== null) walk(path, T);
+    /* Vor dem Turm selbst: was er verlangt (meist schon vor seinem Pfad wiederholt — dann nichts mehr). */
+    reviewBefore(T, `tower:${T}`, [], world.base(T));
     const ps = state.places.get(T);
     const cards = ps?.cards ?? [];
     if (levels === 0) {
@@ -291,11 +332,10 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
 
   const cardsLeft = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0);
   /*
-    2026-11-10 (Eigentümer: „der erste Schritt ist die Wiederholung, die vorher nötig ist") — Wiederholungen betreffen nur Karten,
-    die man schon gesehen hat: sie stehen am Anfang des Weges, dann geht es ohne Halt bis zum Ziel.
+    2026-11-15 (Eigentümer: „jedes Mal, bevor ein nächster Schritt kommt") — eine Wiederholung steht DIREKT VOR dem Schritt, der sie
+    braucht (früher: alle am Anfang des Weges). Der erste Schritt ist so weiter die Wiederholung, die jetzt nötig ist.
   */
-  const ordered = [...steps.filter((s) => s.kind === 'review'), ...steps.filter((s) => s.kind !== 'review')];
-  return { target, places: order, steps: ordered, cards: cardsLeft, route };
+  return { target, places: order, steps, cards: cardsLeft, route };
 }
 
 /** Das Fenster des Fahrplans (§8.2): 2 erledigte darüber, der jetzige, 4 kommende. */

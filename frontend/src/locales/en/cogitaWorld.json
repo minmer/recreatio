@@ -335,7 +335,9 @@
     },
     "paused": "Way to {name} paused — your progress is kept.",
     "resume": "Resume",
-    "forget": "Forget the way"
+    "forget": "Forget the way",
+    "reviewTower": "Review before conquering {to}",
+    "reviewFrom": "from: {towers}"
   },
   "issue": {
     "title": {
@@ -407,7 +409,7 @@
     "unskip": "Do the skipped steps",
     "about": {
       "travel": "A story shows you something new.",
-      "review": "A review of what you learned before, so it stays.",
+      "review": "Before you go on: everything the next step builds on — the towers the next tower or path requires — is checked. What no longer sits (or was never asked) comes back here, so the new part stands on firm ground.",
       "learn": "Cards that no story brings — learned directly.",
       "know": "Practice until it sits.",
       "run": "Show what you know — this conquers the tower."

@@ -547,7 +547,11 @@ export function stepText(step: PlanStep, ctx: PanelCtx): string {
       return t('cogitaWorld.nav.travel', { line: lineOf(ctx, s)?.name ?? s.line, from: nameOf(s.from), to: nameOf(s.to) });
     }
     case 'learn': return t('cogitaWorld.nav.learn', { place: nameOf(step.place) });
-    case 'review': { const s = state.lines.sections.get(step.section); return t('cogitaWorld.nav.review', { to: nameOf(s?.to ?? step.place) }); }
+    case 'review': {
+      const s = state.lines.sections.get(step.section);
+      /* 2026-11-15 — vor der Eroberung eines Turms: was er verlangt. */
+      return s === undefined && step.section.startsWith('tower:') ? t('cogitaWorld.nav.reviewTower', { to: nameOf(step.place) }) : t('cogitaWorld.nav.review', { to: nameOf(s?.to ?? step.place) });
+    }
     case 'run': return t('cogitaWorld.nav.run', { place: nameOf(step.place), level: step.level });
     case 'know': return t('cogitaWorld.nav.know', { place: nameOf(step.place) });
   }
@@ -560,8 +564,10 @@ export function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRul
       const s = state.lines.sections.get(step.section);
       return [t('cogitaWorld.panel.newCards', { count: step.cards.length }), s === undefined ? '' : t('cogitaWorld.panel.slides', { count: s.slides }), step.locked ? t('cogitaWorld.nav.locked') : ''].filter((x) => x !== '').join(' · ');
     }
-    case 'learn':
     case 'review':
+      /* 2026-11-15 — woher die Karten kommen: die Türme, auf denen der nächste Schritt baut. */
+      return [t('cogitaWorld.panel.cards', { count: step.cards.length }), step.towers === undefined || step.towers.length === 0 ? '' : t('cogitaWorld.nav.reviewFrom', { towers: step.towers.map(ctx.nameOf).join(', ') })].filter((x) => x !== '').join(' · ');
+    case 'learn':
     case 'know': return t('cogitaWorld.panel.cards', { count: step.cards.length });
     case 'run': {
       const r = rules[step.level - 1];

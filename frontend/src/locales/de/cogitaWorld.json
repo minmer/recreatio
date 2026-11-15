@@ -335,7 +335,9 @@
     },
     "paused": "Weg zu {name} angehalten — dein Fortschritt bleibt.",
     "resume": "Weiter",
-    "forget": "Weg vergessen"
+    "forget": "Weg vergessen",
+    "reviewTower": "Wiederholung vor der Eroberung: {to}",
+    "reviewFrom": "aus: {towers}"
   },
   "issue": {
     "title": {
@@ -407,7 +409,7 @@
     "unskip": "Übersprungenes nachholen",
     "about": {
       "travel": "Eine Erzählung zeigt dir Neues.",
-      "review": "Eine Wiederholung dessen, was du schon gelernt hast — damit es bleibt.",
+      "review": "Bevor es weitergeht: alles, worauf der nächste Schritt baut — die Türme, die der nächste Turm oder Pfad verlangt —, wird geprüft. Was nicht mehr sitzt (oder nie gefragt wurde), kommt hier noch einmal, damit das Neue auf sicherem Grund steht.",
       "learn": "Karten, die keine Erzählung bringt — direkt gelernt.",
       "know": "Üben, bis es sitzt.",
       "run": "Zeig, was du kannst — so eroberst du den Turm."

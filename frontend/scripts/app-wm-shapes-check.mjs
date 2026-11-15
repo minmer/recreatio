@@ -427,8 +427,18 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   const homeA = [...w0.lines.sections.values()].find((s) => s.line === 'f/a' && s.from === T.HOME);
   const w = open(made, F.fakeLearner({ levels: { A: 1, K: 1 }, progress: { 'f/k': { visited: seen('f/k') }, 'f/a': { visited: [...homeA.steps] } }, knowness: { 'q/K/0': 0.5 } }));
   const pl = P.plan(w.state, 'B');
-  check('overview: the review that the way needs comes first (the branch to B needs a card it has seen, known)', [pl.steps[0]?.kind, pl.steps[0]?.cards], ['review', ['q/K/0']]);
-  check('overview: then the way, only towards the goal, ending with its conquest', pl.steps.map((s) => `${s.kind}:${s.place}`).slice(1), ['travel:B', 'travel:B', 'run:B']);
+  /* 2026-11-15 (Eigentümer: „vor jedem nächsten Schritt eine Wiederholungsprüfung") — die Wiederholung steht direkt vor dem Schritt, der sie braucht. */
+  check('overview: the review that the branch to B needs stands right before that branch (a card seen, not known)', pl.steps.map((s) => `${s.kind}:${s.section ?? s.place}`), ['travel:f/a:1', 'review:f/a:2', 'travel:f/a:2', 'run:B']);
+  check('overview: … the card the gate asks, and every card of the conquered tower B builds on (A) that does not sit — here never asked', [pl.steps[1]?.cards, pl.steps[1]?.towers, pl.steps.at(-1)?.kind], [['q/K/0', 'q/A/0', 'q/A/1', 'q/A/2'], ['A'], 'run']);
+  /* Sitzt A, bleibt nur, was das Tor verlangt; sitzt auch das, gibt es keine Wiederholung. */
+  const sits = { 'q/A/0': 1.2, 'q/A/1': 1.2, 'q/A/2': 1.2 };
+  const wA = open(made, F.fakeLearner({ levels: { A: 1, K: 1 }, progress: { 'f/k': { visited: seen('f/k') }, 'f/a': { visited: [...homeA.steps] } }, knowness: { 'q/K/0': 0.5, ...sits } }));
+  check('foundation: when A sits, only the gate card is reviewed', P.plan(wA.state, 'B').steps.filter((s) => s.kind === 'review').map((s) => s.cards), [['q/K/0']]);
+  const wAll = open(made, F.fakeLearner({ levels: { A: 1, K: 1 }, progress: { 'f/k': { visited: seen('f/k') }, 'f/a': { visited: [...homeA.steps] } }, knowness: { 'q/K/0': 1.2, ...sits } }));
+  check('foundation: when everything B builds on sits, no review step', P.plan(wAll.state, 'B').steps.map((s) => s.kind), ['travel', 'travel', 'run']);
+  /* Ein Turm, den der Plan selbst erst erobert, wird nicht „wiederholt" — sein Durchgang fragt ihn. */
+  const wNew = open(made, F.fakeLearner({ levels: { K: 1 }, progress: { 'f/k': { visited: seen('f/k') } }, knowness: { 'q/K/0': 1.2 } }));
+  check('foundation: a tower the plan conquers first is not reviewed (its run asks it)', P.plan(wNew.state, 'B').steps.filter((s) => s.kind === 'review').flatMap((s) => s.towers ?? []), []);
   check('overview: only towers the goal needs', pl.places, ['B']);
   /* Angehalten: derselbe Plan, wenn man weitermacht (der Fortschritt steckt im Stand). */
   const tt = N.followPlan(null, pl);

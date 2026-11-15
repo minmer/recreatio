@@ -391,7 +391,9 @@
     },
     "paused": "Droga do {name} wstrzymana — postęp zostaje.",
     "resume": "Wznów",
-    "forget": "Zapomnij drogę"
+    "forget": "Zapomnij drogę",
+    "reviewTower": "Powtórka przed zdobyciem: {to}",
+    "reviewFrom": "z: {towers}"
   },
   "issue": {
     "title": {
@@ -477,7 +479,7 @@
     "unskip": "Wróć do pominiętych",
     "about": {
       "travel": "Opowieść pokaże coś nowego.",
-      "review": "Powtórka tego, co już było — żeby zostało w pamięci.",
+      "review": "Zanim pójdziesz dalej: wszystko, na czym opiera się następny krok — wieże, których wymaga następna wieża albo ścieżka — jest sprawdzane. Czego już nie pamiętasz (albo czego nigdy nie pytano), wraca tutaj, żeby nowe stało na pewnym gruncie.",
       "learn": "Karty, których nie wprowadza żadna opowieść — nauka wprost.",
       "know": "Ćwiczenie, aż będzie pewne.",
       "run": "Pokaż, co umiesz — tak zdobywa się wieżę."
