@@ -51,6 +51,15 @@ export function CogitaSettings() {
   return (
     <div className="cg">
       <BaseSection areas={areas} />
+      {/* 2026-11-15 — wozu die Baza da ist: Lernen, oder das Wissen eines Werks im Skryptorium (dann kein Kurs). */}
+      <section className="cg-card" data-settings-purpose="">
+        <h3>{t('workCogita.purpose.title')}</h3>
+        <p className="cg-muted">{t('workCogita.purpose.hint')}</p>
+        <select value={settings.purpose ?? ''} disabled={busy} aria-label={t('workCogita.purpose.title')} onChange={(e) => void save({ purpose: e.target.value === 'work' ? 'work' : undefined })}>
+          <option value="">{t('workCogita.purpose.learning')}</option>
+          <option value="work">{t('workCogita.purpose.work')}</option>
+        </select>
+      </section>
       <BaseVisibility libraries={libraries} areas={areas} onChanged={() => setRound((n) => n + 1)} />
       <Sources libraries={libraries} areas={areas} />
       <OtherWorlds libraries={libraries} />

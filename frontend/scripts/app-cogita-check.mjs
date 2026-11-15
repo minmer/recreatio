@@ -1730,7 +1730,17 @@ check('goals and lines follow the one logic', [
   truth('the comment template imports: one kind with a blocks field, two templates on it, no warning', !('error' in komentarz) && komentarz.kinds.length === 1 && komentarz.kinds[0].def.fields.some((f) => f.type === 'blocks')
     && komentarz.docs.filter((d) => d.kind === 'template').every((d) => JSON.stringify(d.data.kinds) === JSON.stringify([komentarz.kinds[0].id])) && komentarz.docs.filter((d) => d.kind === 'template').length === 2 && komentarz.warnings.length === 0,
     'error' in komentarz ? komentarz.error : komentarz.warnings);
-  truth('the psalter start imports with a place in the Scripture', !('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
+  /* 2026-11-15 — die Wiedza eines Werks (templates/cogita/dzielo.json): Rollen der Felder bleiben, Phasen zeigen auf Knoten des Skryptorium. */
+  const dzielo = Js.planImport(new So.CogitaLibrary(freshStore, true), JSON.parse(await readFile('../templates/cogita/dzielo.json', 'utf8')));
+  const termKind = 'error' in dzielo ? undefined : dzielo.kinds.find((k) => k.def.name === 'Termin')?.def;
+  const phaseKind = 'error' in dzielo ? undefined : dzielo.kinds.find((k) => k.def.name === 'Faza')?.def;
+  truth('the work knowledge start imports: nine kinds, glossary roles, a phase valid from a structure node, no warning',
+    !('error' in dzielo) && dzielo.kinds.length === 9 && dzielo.warnings.length === 0
+    && ['definition', 'usage', 'preferred', 'forbidden', 'forms'].every((r) => termKind?.fields.some((f) => f.role === r))
+    && termKind?.fields.some((f) => f.prerequisite === 'up')
+    && phaseKind?.fields.some((f) => f.role === 'validFrom' && (f.to ?? []).includes('node')) && phaseKind?.fields.some((f) => f.role === 'phaseOf'),
+    'error' in dzielo ? dzielo.error : dzielo.warnings);
+  truth('the psalter start imports with a place in the Scripture',!('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
 
   /* 2026-10-24 — EIN SPOSÓB DODAWANIA, ZWEI RODZAJE: der Komentarz biblijny (templates/cogita/komentarz-biblijny.json). */
   const kbDoc = Js.planImport(new So.CogitaLibrary(freshStore, true), JSON.parse(await readFile('../templates/cogita/komentarz-biblijny.json', 'utf8')));

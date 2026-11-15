@@ -128,7 +128,9 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
   quote: { label: '{text}', tells: 'locator' },
   text: { label: '{title}', tells: 'date' },
   project: { label: '{title}', tells: 'projectType' },
-  delivery: { label: '{date} {occasion}', tells: 'place' } // i18n-ignore
+  delivery: { label: '{date} {occasion}', tells: 'place' }, // i18n-ignore
+  /* 2026-11-15 — ein Knoten der Struktur eines Werks: eine Phase der Wiedza zeigt auf ihn („gilt ab Kapitel 5”). */
+  node: { label: '{title}', tells: 'role' }
 };
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>
@@ -236,7 +238,7 @@ export const QUESTION: KindDef = {
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'text', 'delivery', 'project', ...LIBRARY_KINDS.filter(k => k.kind.startsWith('lit_')).map(k => k.kind)].map(builtin),
+  ...['person', 'work', 'quote', 'text', 'delivery', 'project', 'node', ...LIBRARY_KINDS.filter(k => k.kind.startsWith('lit_')).map(k => k.kind)].map(builtin),
   QUESTION
 ];
 

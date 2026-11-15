@@ -93,3 +93,24 @@ export function entryByNameIn(lens: CogitaLibrary | null): ((name: string, kinds
     return found.length === 1 ? found[0].id : null;
   };
 }
+
+/**
+ * 2026-11-15 — EIN EINTRAG VON NAUKA BEIM BLEIBENDEN NAMEN („@anna", wie ein Import ihn vergibt — `_ref`/`_refs`)
+ * oder beim Namen: für Verweise eines Werks (Marken an Knoten, Regeln zu einem Eintrag) im JSON des Skryptorium.
+ */
+export function entryRefIn(lens: CogitaLibrary | null): ((token: string) => Entry | undefined) | undefined {
+  if (lens === null) return undefined;
+  return (token) => {
+    const wanted = token.replace(/^@/, '').trim().toLowerCase();
+    if (wanted === '') return undefined;
+    for (const source of lens.sourceList()) {
+      if (source.kind !== 'knowledge') continue;
+      for (const e of source.store.all()) {
+        const refs = [e.data._ref, ...(Array.isArray(e.data._refs) ? e.data._refs : [])];
+        if (refs.some((r) => typeof r === 'string' && r.toLowerCase() === wanted)) return e;
+      }
+    }
+    const byName = lens.search(token, undefined, true).filter((e) => lens.label(e).trim().toLowerCase() === wanted);
+    return byName.length === 1 ? lens.entry(byName[0].id) : undefined;
+  };
+}

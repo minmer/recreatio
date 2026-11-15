@@ -21,8 +21,12 @@
  *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, ref?, updatedAt?, refs?, data }],
  *     setup?:  { course, cards: { total, questions, templates: [{ ref, name, kinds, source?, cards, entries, problems? }] }, readers? }
  *     texts?:  [{ id, work, workTitle?, workKey?, scheme, edition, pageSeries?, parts: [{ key, label, order, first?, last?, pages?,
- *                 blocks: [{ type, level?, loc?, at?, pages?, text }] }] }] }
+ *                 blocks: [{ type, level?, loc?, at?, pages?, text }] }] }],
+ *     works?:  [WorkBrief] }      nur ein Skryptorium (2026-11-15): je Werk mit Knoten (`scriptorium/work/workBrief.ts`)
  * </code>
+ * 2026-11-15 — `works`: je Projekt mit Struktur das Werk, wie die App es sieht — Regelbuch, Baum, Dimensionen, Wege,
+ * Vorlagen, das Wissen des Werks und je Weg Reihenfolge, erste Einführungen, Befunde der Prüfung und der Kontext je Knoten.
+ * Das Wissen kommt NUR aus Bazy wiedzy, die auch in diesem Link liegen — sonst bleibt ein Eintrag eine nackte Kennung.
  * `pageSeries` (2026-10-27): die Muster der Seiten-Serien des Textes außer den gewöhnlichen („#*", „A#") — der
  * Dienst kennt damit die Zeichen, mit denen er die Seitenzahlen der Blöcke wieder schreibt (`AiAccess.PageWord`).
  *
@@ -55,6 +59,8 @@ import { citedKeys } from '../library/libraryMarkup';
 import { texSource } from '../core/tex';
 import { blockLabels, blockPages, boxesOf, pageSeriesIn, pieces, placeLabel, readManifest, readPart, statementHead, texSearchText, type SourceBlock } from '../library/sourceText';
 import type { LibraryStore } from '../library/libraryStore';
+import { workBriefs, type WorkBrief } from '../scriptorium/work/workBrief';
+import { knowledgeFrom, knowledgeOf, type WorkEntity } from '../scriptorium/work/workKnowledge';
 
 export const SNAPSHOT_VERSION = 1;
 
@@ -159,6 +165,8 @@ export interface SnapshotDoc {
   readonly setup?: SnapshotSetup;
   /** Die Texte waren zu gross für eine Abschrift und fehlen (die Einträge sind da). */
   readonly textsOmitted?: true;
+  /** 2026-11-15 — nur ein Skryptorium: seine Werke (Struktur, Regeln, Wissen, Register, Prüfung — `get_work_briefing`). */
+  readonly works?: readonly WorkBrief[];
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -444,6 +452,7 @@ export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, made
   const look = scopeLookup(parts, bases);
   const lib = bases.get(libraryId);
   const entries = part.kind === 'knowledge' && lib !== undefined ? baseEntries(part, lib, look) : sourceEntries(part, look);
+  const works = part.kind === 'writing' ? worksOf(part, look, bases) : [];
   return {
     v: SNAPSHOT_VERSION,
     library: libraryId,
@@ -454,8 +463,35 @@ export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, made
     kinds: kindsFor(part, lib, entries),
     entries,
     ...(setup === undefined || part.kind !== 'knowledge' ? {} : { setup }),
-    ...(part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const })
+    ...(part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const }),
+    ...(works.length === 0 ? {} : { works })
   };
+}
+
+/**
+ * 2026-11-15 — DIE WERKE EINES SKRYPTORIUM für die Abschrift (`workBrief.ts`). Das Wissen eines Werks kommt aus den
+ * Bazy wiedzy, die das Projekt nennt UND die in diesem Link liegen; eine Baza ausserhalb gibt nichts, nicht einmal
+ * einen Namen. Knoten, Regeln und Vorlagen sind die dieses Skryptorium; Texte und Zitate über den ganzen Link.
+ */
+function worksOf(part: ScopePart, look: Lookup, bases: ReadonlyMap<string, CogitaLibrary>): WorkBrief[] {
+  const own = part.store.all();
+  const workLook = { all: () => own, get: (id: string) => look.get(id), byKey: (key: string) => look.byKey(key) };
+  try {
+    return workBriefs(own.filter((e) => e.kind === 'project'), workLook, (wanted, extra) => {
+      const merged = new Map<string, WorkEntity>();
+      for (const id of wanted) {
+        const lib = bases.get(id);
+        if (lib === undefined) continue;
+        /* Auch genannte Einträge nur, wenn sie in einer Baza dieses Links liegen. */
+        const inLink = extra.filter((x) => { const home = lib.origin(x)?.libraryId ?? (lib.isOwn(x) ? id : undefined); return home !== undefined && bases.has(home); });
+        for (const e of knowledgeFrom(lib, [id], inLink).all()) if (!merged.has(e.id)) merged.set(e.id, e);
+      }
+      return knowledgeOf([...merged.values()]);
+    });
+  } catch {
+    /* Ein Werk, das sich nicht rechnen lässt, nimmt der Abschrift nicht die Texte. */
+    return [];
+  }
 }
 
 /** Jede Baza wiedzy des Links mit den anderen Behältern des Links als Quellen — nur mit ihnen. */

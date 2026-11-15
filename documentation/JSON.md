@@ -31,7 +31,7 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 | Biblioteka — Liturgia, a whole collection (also `example-liturgy`; current data: MCP `get_liturgy_library`) | `liturgy` | zbiór rodzaju Liturgia → „Import / eksport”; also on each resource page ([LITURGY.md](LITURGY.md)) | `library/liturgy/liturgyJson.ts`, `LiturgyJsonPanel.tsx`, `persistence.ts` |
 | Wiedza — a knowledge base | `knowledge-base` | Wiedza → baza → „Więcej” → „Import i eksport (JSON)”; Schematy → „Schemat jako JSON” | `cogita/json.ts` |
 | Wiedza — forms for adding | `knowledge-forms` | Schematy → „Sposoby dodawania” → „Z JSON (wklej)…” | `cogita/json.ts` |
-| Skryptorium | `scriptorium` | Skryptorium → „Import / eksport”; per entry | `scriptorium/scriptoriumJson.ts` |
+| Skryptorium — texts, deliveries, projects, text types; since 2026-11-15 a work's structure nodes, rules and unit templates (marks on Cogita entries by `@lasting name`; guide `guide-work`, ready kinds `scheme-dzielo` — [WORK.md](WORK.md)) | `scriptorium` | Skryptorium → „Import / eksport”; per entry | `scriptorium/scriptoriumJson.ts` |
 | Skryptorium — a text's plan | `text-plan` | tekst → „Plan z treści — przez AI we własnym czacie” | `scriptorium/sermon.ts` |
 | Strony — a page (grid, slides, presentation, every module) | `page` | Strony → strona → „Edytuj” → „JSON strony” | `pages/pageJsonText.ts` |
 | Moduły — a form | `form` | Moduły → formularz → „JSON modułu”; on a page „JSON tego modułu” | `pages/pageJsonText.ts`, `forms/formFormat.ts` |

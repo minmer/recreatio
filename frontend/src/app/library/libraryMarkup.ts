@@ -39,7 +39,8 @@ export type Inline =
   | { readonly t: 'note'; readonly c: readonly Inline[] }
   | { readonly t: 'link'; readonly href: string; readonly c: readonly Inline[] }
   /** 2026-10-22 — `[[Wort|@token]]`: ein Verweis mit eigenem Wortlaut (aus den Bazy wiedzy) — ein Link, nie eine Fussnote. */
-  | { readonly t: 'ref'; readonly key: string; readonly c: readonly Inline[] }
+  /** 2026-11-15 — `[[Wort|@token|intro]]`: dazu WIE es hier vorkommt (das Werk, `scriptorium/work/workMarks.ts`): intro, def, ex, use, recall. */
+  | { readonly t: 'ref'; readonly key: string; readonly c: readonly Inline[]; readonly mark?: string }
   /** 2026-11-01 — ein Wzór: `$x^2$` im Satz, `$$…$$` für sich (LaTeX, Pandocs Regel — `core/tex.ts`). */
   | { readonly t: 'math'; readonly tex: string; readonly display: boolean }
   | { readonly t: 'br' };
@@ -150,9 +151,10 @@ export function parseInline(text: string): Inline[] {
         continue;
       }
       const bar = inside.lastIndexOf('|@');
-      if (bar > 0 && TOKEN_ONLY.test(inside.slice(bar + 2))) {
+      const marked = bar > 0 ? splitMark(inside.slice(bar + 2)) : null;
+      if (bar > 0 && marked !== null) {
         flush();
-        out.push({ t: 'ref', key: inside.slice(bar + 2), c: parseInline(inside.slice(0, bar)) });
+        out.push({ t: 'ref', key: marked.token, c: parseInline(inside.slice(0, bar)), ...(marked.mark === undefined ? {} : { mark: marked.mark }) });
         i = end + 1;
         continue;
       }
@@ -345,6 +347,17 @@ export function markupRefs(source: string): { readonly key: string; readonly loc
 /* -- 2026-10-22: Verweise umschreiben ------------------------------------------------------- */
 
 const TOKEN_ONLY = new RegExp(`^${KEY}$`);
+/** 2026-11-15 — die Rollen eines Vorkommens im Werk, als Anhang an einen Link: `[[Anna|@anna|intro]]`. */
+export const MARK_WORDS: readonly string[] = ['intro', 'def', 'ex', 'use', 'recall'];
+/** Ein Ziel mit oder ohne Rolle: "anna" → { token }, "anna|intro" → { token, mark }; sonst `null`. */
+export function splitMark(raw: string): { token: string; mark?: string } | null {
+  const bar = raw.indexOf('|');
+  const token = bar < 0 ? raw : raw.slice(0, bar);
+  const mark = bar < 0 ? undefined : raw.slice(bar + 1);
+  if (!TOKEN_ONLY.test(token)) return null;
+  if (mark !== undefined && !MARK_WORDS.includes(mark)) return null;
+  return mark === undefined ? { token } : { token, mark };
+}
 /** 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza: "@@name:@bleibender/name" oder "@@name:kennung" (der Schlüssel des `ref` beginnt mit "@@"). */
 const CROSS_ONLY = /^@@[a-z0-9][a-z0-9_-]{0,39}:@?[A-Za-z0-9][A-Za-z0-9_.:/-]*$/i;
 const ITEM_TOKEN = new RegExp(`(^|;)(\\s*)@(${KEY})`, 'g');
@@ -373,7 +386,7 @@ export function mapRefTokens(source: string, map: (token: string) => string): st
       if (end > i + 2) {
         const inside = source.slice(i + 2, end);
         const bar = inside.lastIndexOf('|@');
-        const token = bar < 0 ? '' : inside.slice(bar + 2);
+        const token = bar < 0 ? '' : splitMark(inside.slice(bar + 2))?.token ?? '';
         if (bar >= 0 && TOKEN_ONLY.test(token)) {
           const to = map(token);
           if (to !== token) edits.push({ at: i + 2 + bar + 2, length: token.length, to });

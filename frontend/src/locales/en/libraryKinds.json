@@ -652,6 +652,38 @@
       "classes": {
         "label": "Classes",
         "says": "A school curriculum: the classes that follow it — a list { \"area\": identifier of the class's area }"
+      },
+      "lang": {
+        "label": "Language of the work",
+        "says": "Language of the work and of its printed edition: \"pl\", \"de\" or \"en\" (empty: the language of the app)"
+      },
+      "levels": {
+        "label": "Levels",
+        "says": "Names of the levels of the structure, from the top, each { \"name\": \"Chapter\", \"latex\": \"chapter\" } (latex: part, chapter, section, subsection, subsubsection, paragraph)"
+      },
+      "dimensions": {
+        "label": "Dimensions",
+        "says": "Dimensions of the work, each { \"key\": \"audience\", \"name\": \"Audience\", \"ordered\": \"yes\" | \"no\", \"values\": [{ \"key\": \"children\", \"name\": \"Children\" }] }; a node splits by one with \"split\", its children carry \"variant\""
+      },
+      "paths": {
+        "label": "Paths (editions)",
+        "says": "Editions through the dimensions, each { \"key\": \"youth\", \"name\": \"For youth\", \"choose\": [{ \"dimension\": \"audience\", \"value\": \"youth\" }] } — one value per dimension; without paths: the first value of each"
+      },
+      "roles": {
+        "label": "Own roles",
+        "says": "Roles of nodes besides the built-in ones, each { \"value\": \"meditation\", \"label\": \"Meditation\", \"brings\": \"new\" | \"nothing\" | \"any\" }"
+      },
+      "knowledge": {
+        "label": "Knowledge of the work",
+        "says": "Knowledge bases (Cogita) that hold the persons, places, terms and ideas of this work, each { \"base\": identifier of the base }"
+      },
+      "latexClass": {
+        "label": "Printed as",
+        "says": "How the work is printed: \"book\", \"article\", \"booklet\" (sermon booklet) or \"handout\" (lesson handout)"
+      },
+      "citationStyle": {
+        "label": "Citation style",
+        "says": "\"notes\" (footnotes, op. cit., ibid.) or \"authorYear\" (Author year, page in the line)"
       }
     }
   },
@@ -684,5 +716,383 @@
     "recording": "a performance: one file or several tracks (voices and instruments, played together)",
     "album": "a collection of recordings"
   },
-  "untitled": "Untitled"
+  "untitled": "Untitled",
+  "workLangs": {
+    "pl": "Polish",
+    "de": "German",
+    "en": "English"
+  },
+  "latexLevels": {
+    "part": "Part (\\part)",
+    "chapter": "Chapter (\\chapter)",
+    "section": "Section (\\section)",
+    "subsection": "Subsection",
+    "subsubsection": "Subsubsection",
+    "paragraph": "Paragraph (run-in heading)"
+  },
+  "latexClasses": {
+    "book": "Book",
+    "article": "Article",
+    "booklet": "Sermon booklet",
+    "handout": "Lesson handout"
+  },
+  "citationStyles": {
+    "notes": "Footnotes",
+    "authorYear": "Author and year"
+  },
+  "nodeRoles": {
+    "new": "New",
+    "summary": "Summary",
+    "introduction": "Introduction",
+    "transition": "Transition",
+    "example": "Example / application",
+    "exercise": "Exercise / review",
+    "conclusion": "Conclusion"
+  },
+  "roleBrings": {
+    "new": "must bring something new",
+    "nothing": "brings nothing new",
+    "any": "may bring something new"
+  },
+  "nodeStatus": {
+    "idea": "Idea",
+    "planned": "Planned",
+    "drafting": "Drafting",
+    "written": "Written",
+    "done": "Done"
+  },
+  "markRoles": {
+    "intro": "introduced",
+    "def": "defined",
+    "ex": "example",
+    "use": "used",
+    "recall": "recalled"
+  },
+  "ruleWeights": {
+    "must": "must",
+    "should": "should"
+  },
+  "ruleChecks": {
+    "sentenceWords": "Sentences at most N words",
+    "maxWords": "At most N words",
+    "minWords": "At least N words",
+    "forbid": "Forbidden words",
+    "require": "Required words",
+    "needsDefinition": "Every concept defined",
+    "needsExample": "Every concept with an example",
+    "oneNew": "Exactly one new thing"
+  },
+  "yesNo": {
+    "yes": "yes",
+    "no": "no"
+  },
+  "levelItem": {
+    "name": {
+      "label": "Name",
+      "says": "Name of the level, e.g. Chapter"
+    },
+    "latex": {
+      "label": "LaTeX",
+      "says": "How it is printed: part, chapter, section, subsection, subsubsection, paragraph"
+    }
+  },
+  "valueItem": {
+    "key": {
+      "label": "Key",
+      "says": "Short key of the value (letters, digits, -), e.g. children"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name of the value, e.g. Children"
+    }
+  },
+  "dimensionItem": {
+    "key": {
+      "label": "Key",
+      "says": "Short key of the dimension, e.g. audience"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name of the dimension, e.g. Audience"
+    },
+    "ordered": {
+      "label": "Ordered",
+      "says": "\"yes\": the values are a gradation from simple to demanding"
+    },
+    "values": {
+      "label": "Values",
+      "says": "The values, each { \"key\", \"name\" }"
+    }
+  },
+  "choiceItem": {
+    "dimension": {
+      "label": "Dimension",
+      "says": "Key of a dimension"
+    },
+    "value": {
+      "label": "Value",
+      "says": "Key of its value"
+    }
+  },
+  "pathItem": {
+    "key": {
+      "label": "Key",
+      "says": "Short key of the path, e.g. youth"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name of the edition"
+    },
+    "choose": {
+      "label": "Choices",
+      "says": "One value per dimension: [{ \"dimension\", \"value\" }]"
+    }
+  },
+  "roleItem": {
+    "value": {
+      "label": "Key",
+      "says": "Key of the role"
+    },
+    "label": {
+      "label": "Name",
+      "says": "Name of the role"
+    },
+    "brings": {
+      "label": "Brings",
+      "says": "\"new\" (must bring something new), \"nothing\" (brings nothing new) or \"any\""
+    }
+  },
+  "baseItem": {
+    "base": {
+      "label": "Knowledge base",
+      "says": "Identifier of a knowledge base"
+    }
+  },
+  "markItem": {
+    "entry": {
+      "label": "Entry",
+      "says": "The entry of the knowledge of the work (a person, place, term, idea …) — identifier or @name"
+    },
+    "role": {
+      "label": "Role",
+      "says": "How it occurs here: \"intro\" (introduced), \"def\" (defined), \"ex\" (example), \"use\" (used), \"recall\" (recalled in a summary)"
+    },
+    "note": {
+      "label": "Note",
+      "says": "A note on this occurrence"
+    }
+  },
+  "skipItem": {
+    "value": {
+      "label": "Value",
+      "says": "Key of a value of the dimension this node splits by, which is deliberately not needed"
+    },
+    "note": {
+      "label": "Why",
+      "says": "Why it is not needed"
+    }
+  },
+  "partItem": {
+    "id": {
+      "label": "Key",
+      "says": "Stable key of the part (plan points made from it carry \"tpl-KEY\")"
+    },
+    "title": {
+      "label": "Title",
+      "says": "Name of the part, e.g. Scripture"
+    },
+    "kind": {
+      "label": "Kind",
+      "says": "Kind of plan point: thought, quote, example, question, application"
+    },
+    "words": {
+      "label": "Words",
+      "says": "Length of the part in words"
+    },
+    "minutes": {
+      "label": "Minutes",
+      "says": "Length of the part in minutes (spoken)"
+    },
+    "note": {
+      "label": "Note",
+      "says": "What belongs in this part"
+    }
+  },
+  "node": {
+    "label": "Structure node",
+    "plural": "Structure nodes",
+    "says": "A part, chapter, section … down to the smallest unit of a work (a project). It exists before any prose: purpose, key thought, role, target; its prose is an ordinary text (\"text\"). Its identity stays wherever it moves.",
+    "fields": {
+      "project": {
+        "label": "Work",
+        "says": "The project (work) it belongs to"
+      },
+      "parent": {
+        "label": "Above",
+        "says": "The node above it (empty: top level of the work)"
+      },
+      "order": {
+        "label": "Order",
+        "says": "Position among its siblings (a number; 1.5 stands between 1 and 2)"
+      },
+      "title": {
+        "label": "Title",
+        "says": "Title"
+      },
+      "purpose": {
+        "label": "Purpose",
+        "says": "What the reader gains here and why it stands here"
+      },
+      "synopsis": {
+        "label": "Key thought",
+        "says": "One or two sentences: the synopsis or key thought"
+      },
+      "role": {
+        "label": "Role",
+        "says": "Role: {list}, or an own role of the project"
+      },
+      "brings": {
+        "label": "Brings / summarizes",
+        "says": "For a new section: what it brings; for a summary: what it summarizes"
+      },
+      "targetWords": {
+        "label": "Target words",
+        "says": "Target length in words"
+      },
+      "targetMinutes": {
+        "label": "Target minutes",
+        "says": "Target length in minutes (spoken pieces; ~130 words a minute)"
+      },
+      "status": {
+        "label": "State",
+        "says": "State: {list}"
+      },
+      "notes": {
+        "label": "Notes",
+        "says": "Notes"
+      },
+      "text": {
+        "label": "Text",
+        "says": "The text that holds its prose (a text of the Scriptorium)"
+      },
+      "split": {
+        "label": "Split by",
+        "says": "Key of a dimension by which its children split; the children carry \"variant\""
+      },
+      "variant": {
+        "label": "Variant",
+        "says": "Below a split node: the value it is for (empty: the shared core for all values)"
+      },
+      "skip": {
+        "label": "Not needed",
+        "says": "Values of the split that are deliberately not needed, each { \"value\", \"note\" }"
+      },
+      "template": {
+        "label": "Template",
+        "says": "The unit template it was made from"
+      },
+      "templateSig": {
+        "label": "Template shape",
+        "says": "The shape of the template when it was applied (set by the app)"
+      },
+      "marks": {
+        "label": "Concepts here",
+        "says": "What occurs here and how, each { \"entry\": entry of the knowledge, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      }
+    }
+  },
+  "rule": {
+    "label": "Rule",
+    "plural": "Rules",
+    "says": "A rule of writing — style, voice, tense, form of address, audience, citation, length — with why it exists, where it applies (all given conditions together), its weight, examples and, if possible, how it is checked. Without a project it belongs to the own rulebook and applies to every project of this Scriptorium.",
+    "fields": {
+      "project": {
+        "label": "Work",
+        "says": "The project it applies to (empty: own rulebook, every project)"
+      },
+      "rule": {
+        "label": "Rule",
+        "says": "The rule itself"
+      },
+      "why": {
+        "label": "Why",
+        "says": "Why the rule exists"
+      },
+      "weight": {
+        "label": "Weight",
+        "says": "\"must\" or \"should\""
+      },
+      "node": {
+        "label": "Only in",
+        "says": "Only in this node and everything below it"
+      },
+      "role": {
+        "label": "Only for role",
+        "says": "Only for nodes of this role (e.g. summary)"
+      },
+      "template": {
+        "label": "Only for template",
+        "says": "Only for units made from this template"
+      },
+      "dimension": {
+        "label": "Dimension",
+        "says": "Only on paths that choose a value of this dimension (key)"
+      },
+      "value": {
+        "label": "Value",
+        "says": "… namely this value (key), e.g. children"
+      },
+      "entity": {
+        "label": "Only where",
+        "says": "Only where this entry of the knowledge of the work occurs (how a person speaks, how a term is introduced)"
+      },
+      "good": {
+        "label": "Good example",
+        "says": "A good example"
+      },
+      "bad": {
+        "label": "Bad example",
+        "says": "A bad example"
+      },
+      "check": {
+        "label": "Checked automatically",
+        "says": "How it is checked: {list}"
+      },
+      "param": {
+        "label": "Parameter",
+        "says": "The number (N) or the words, separated by commas"
+      }
+    }
+  },
+  "unitTemplate": {
+    "label": "Unit template",
+    "plural": "Unit templates",
+    "says": "The inner shape of a kind of unit (a 5-minute sermon, a lesson): parts with kind and length. A cycle of units is made from it; when it changes, the checks show which units no longer match.",
+    "fields": {
+      "name": {
+        "label": "Name",
+        "says": "Name, e.g. 5-minute sermon"
+      },
+      "description": {
+        "label": "Description",
+        "says": "What this kind of unit is"
+      },
+      "role": {
+        "label": "Role",
+        "says": "Role of the units made from it (default new)"
+      },
+      "targetWords": {
+        "label": "Target words",
+        "says": "Length of a unit in words"
+      },
+      "targetMinutes": {
+        "label": "Target minutes",
+        "says": "Length of a unit in minutes"
+      },
+      "parts": {
+        "label": "Parts",
+        "says": "The parts in order, each { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
+      }
+    }
+  }
 }

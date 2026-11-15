@@ -260,7 +260,17 @@
     "work": "Źródło",
     "locator": "Miejsce w źródle",
     "description": "Opis",
-    "body": "Treść"
+    "body": "Treść",
+    "forms": "Formy (rozpoznawane w tekście dzieła)",
+    "forbidden": "Zakazane synonimy i formy",
+    "preferred": "Forma zalecana",
+    "definition": "Definicja",
+    "usage": "Jak go używać",
+    "phaseOf": "Faza (czego)",
+    "validFrom": "Obowiązuje od (w dziele)",
+    "validUntil": "Obowiązuje do (w dziele)",
+    "storyFrom": "Od (czas opowieści)",
+    "storyUntil": "Do (czas opowieści)"
   },
   "kindProblem": {
     "labelField": "Wzór etykiety używa pola „{field}\", którego ten rodzaj nie ma.",

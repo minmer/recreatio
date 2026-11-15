@@ -48,7 +48,10 @@ const TABS = [
   { slug: 'teksty', kind: 'text' },
   { slug: 'wyglaszenia', kind: 'delivery' },
   { slug: 'projekty', kind: 'project' },
-  { slug: 'rodzaje', kind: 'texttype' }
+  { slug: 'rodzaje', kind: 'texttype' },
+  /* 2026-11-15 — das eigene Regelbuch (Regeln ohne Projekt gelten in jedem Werk) und die Vorlagen der Einheiten. */
+  { slug: 'reguly', kind: 'rule' },
+  { slug: 'szablony', kind: 'unittemplate' }
 ] as const;
 
 export function ScriptoriumView({ who, trail }: { who: Who; trail: readonly string[] }) {
@@ -205,7 +208,7 @@ function ScriptoriumHome({ me, who, library, areas, trail, onChanged }: {
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
   if (!store.loaded) return <p className="wk-lede">{t('scriptorium.view.opening')}</p>;
 
-  if (isUuid(first)) return <WritingEditor me={me} who={who} store={store} library={library} entryId={first} kind={store.get(first)?.kind ?? null} />;
+  if (isUuid(first)) return <WritingEditor me={me} who={who} store={store} library={library} entryId={first} kind={store.get(first)?.kind ?? null} trail={trail.slice(1)} />;
   if (first === 'nowy' && isWritingKind(trail[1] ?? '')) {
     return <WritingEditor me={me} who={who} store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
   }
@@ -269,6 +272,12 @@ function metaOf(entry: Entry, store: LibraryStore, t: T): string {
       const texts = store.readable().filter((one) => one.kind === 'text' && ids(one.data, 'textType').includes(entry.id)).length;
       return [t('scriptorium.count.fields', { count: fields }), t('scriptorium.count.texts', { count: texts }), entry.key === undefined ? '' : `@${entry.key}`].filter(Boolean).join(' · ');
     }
+    /* 2026-11-15 — eine Regel: ihr Gewicht und wem sie gilt; eine Vorlage: ihre Teile. */
+    case 'rule': {
+      const project = store.get(ids(d, 'project')[0] ?? '');
+      return [t(str(d, 'weight') === 'must' ? 'libraryKinds.ruleWeights.must' : 'libraryKinds.ruleWeights.should'), project === undefined ? t('workUi.rules.rulebook') : store.title(project), str(d, 'why')].filter(Boolean).join(' · ');
+    }
+    case 'unittemplate': return Array.isArray(d.parts) ? t('workUi.templates.parts', { count: d.parts.length }) : '';
     default: return '';
   }
 }

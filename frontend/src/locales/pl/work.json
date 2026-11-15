@@ -1,0 +1,143 @@
+{
+  "untitled": "(bez tytułu)",
+  "check": {
+    "someNode": "pewien fragment",
+    "someEntry": "pewien wpis",
+    "nowhere": "nigdzie",
+    "usedBeforeIntro": {
+      "message": "„{entity}” pojawia się w {node}, zanim zostało wprowadzone (w {at}).",
+      "why": "Czytelnik spotyka to tutaj, nie wiedząc, czym jest; wszystko musi być wprowadzone, zanim zostanie użyte.",
+      "fix": "Wprowadź wcześniej, przesuń to użycie za {at} albo oznacz to miejsce jako wprowadzenie."
+    },
+    "notIntroducedHere": {
+      "message": "„{entity}” pojawia się w {node}, ale na tej ścieżce nigdy nie jest wprowadzone (tylko w: {elsewhere}).",
+      "why": "Czytelnicy tego wydania nigdy nie dostają wprowadzenia — stoi ono w wersji dla innych.",
+      "fix": "Wprowadź je także w tym wydaniu (we wspólnym rdzeniu albo w tej wersji) albo unikaj go tutaj."
+    },
+    "neverIntroduced": {
+      "message": "„{entity}” pojawia się w {node}, ale nigdzie nie jest wprowadzone.",
+      "why": "Wszystko, czego czytelnik potrzebuje, musi być wprowadzone, zanim zostanie użyte.",
+      "fix": "Oznacz miejsce wprowadzenia (rola „wprowadza”) albo dodaj fragment, który je wprowadza."
+    },
+    "introducedNotUsed": {
+      "message": "„{entity}” jest wprowadzone w {node}, ale potem nigdy nie jest użyte.",
+      "why": "Wprowadzenie, które donikąd nie prowadzi, kosztuje czytelnika uwagę na darmo.",
+      "fix": "Użyj go później albo usuń wprowadzenie."
+    },
+    "introducedTwice": {
+      "message": "„{entity}” jest wprowadzone ponownie w {node} (pierwszy raz w {first}).",
+      "why": "Drugie wprowadzenie myli: czy to coś nowego?",
+      "fix": "Zostaw jedno wprowadzenie; drugie miejsce oznacz jako „przypomnienie” albo „użycie”."
+    },
+    "prerequisiteLate": {
+      "message": "„{entity}” (w {node}) wymaga „{needs}”, które jest wprowadzone dopiero w {at}.",
+      "why": "Pojęcie można zrozumieć dopiero wtedy, gdy jest to, na czym się opiera.",
+      "fix": "Wprowadź „{needs}” przed {node} albo przesuń „{entity}” później."
+    },
+    "noDefinition": {
+      "message": "„{entity}” (wprowadzone w {node}) nigdzie nie jest zdefiniowane.",
+      "why": "Reguła wymaga definicji: „{rule}”.",
+      "fix": "Oznacz miejsce definicji (rola „definiuje”)."
+    },
+    "noExample": {
+      "message": "„{entity}” (wprowadzone w {node}) nie ma przykładu.",
+      "why": "Reguła wymaga przykładu: „{rule}”.",
+      "fix": "Dodaj przykład i oznacz go (rola „przykład”)."
+    },
+    "phaseInvalid": {
+      "message": "„{entity}” pojawia się w {node}, gdzie nie obowiązuje żadna z jego faz.",
+      "why": "Osoba, miejsce czy rzecz jest opisana różnie w różnych częściach dzieła; tutaj nie obowiązuje żaden opis.",
+      "fix": "Rozszerz zakres którejś fazy do tego miejsca albo sprawdź, czy chodzi o właściwą fazę."
+    },
+    "forbiddenForm": {
+      "message": "W {node} „{entity}” zapisano jako „{form}”.",
+      "why": "Słowniczek zabrania tego synonimu albo tej formy.",
+      "fix": "Pisz „{preferred}”."
+    },
+    "newBringsNothing": {
+      "message": "{node} ma rolę „nowe”, ale niczego nie wprowadza.",
+      "why": "Każdy fragment musi przynieść coś nowego albo otwarcie powiedzieć, że jest czymś innym (podsumowaniem, przejściem …).",
+      "fix": "Oznacz, co wprowadza, albo zmień jego rolę."
+    },
+    "summaryIntroduces": {
+      "message": "Podsumowanie {node} wprowadza „{entity}”.",
+      "why": "Podsumowanie nie przynosi niczego nowego — czytelnik oczekuje tylko tego, co już zna.",
+      "fix": "Wprowadź „{entity}” wcześniej albo zmień rolę {node}."
+    },
+    "summaryRecallsUnknown": {
+      "message": "Podsumowanie {node} przypomina „{entity}”, którego wcześniej nie wprowadzono.",
+      "why": "Podsumowanie może przypominać tylko to, co było wcześniej.",
+      "fix": "Wprowadź „{entity}” przed {node} albo usuń je z podsumowania."
+    },
+    "lengthOff": {
+      "message": "{node} ma {words} słów; cel to {target}.",
+      "why": "Jednostki daleko od swojej długości łamią rytm całości (i czas, który może trwać kazanie).",
+      "fix": "Skróć albo rozwiń, albo zmień cel."
+    },
+    "noPurpose": {
+      "message": "{node} nie ma celu.",
+      "why": "Bez celu nikt nie wie, co czytelnik tu zyskuje i dlaczego to stoi właśnie tutaj.",
+      "fix": "Napisz w jednym, dwóch zdaniach, po co jest ten fragment."
+    },
+    "noRole": {
+      "message": "{node} nie ma roli.",
+      "why": "Rola mówi, co czytelnik czyta: coś nowego, podsumowanie, przejście, przykład …",
+      "fix": "Wybierz jego rolę."
+    },
+    "dimensionGap": {
+      "message": "{node} jest podzielone według „{dimension}”, ale dla „{value}” nie ma niczego.",
+      "why": "Na tej ścieżce czytelnik trafia tu na lukę.",
+      "fix": "Dodaj wersję dla „{value}” albo oznacz ją jako świadomie niepotrzebną."
+    },
+    "templateChanged": {
+      "message": "Szablon „{template}” zmienił się, odkąd z niego powstało {node}.",
+      "why": "Jednostka może już nie mieć kształtu, który daje szablon.",
+      "fix": "Zastosuj szablon jeszcze raz (brakujące części zostaną dodane; nic nie przepadnie)."
+    },
+    "templateMissingParts": {
+      "message": "{node} brakuje części szablonu „{template}”: {parts}.",
+      "why": "Każda jednostka cyklu powinna mieć ten sam wewnętrzny kształt.",
+      "fix": "Zastosuj szablon do jej planu albo napisz brakujące części."
+    },
+    "ruleSentence": {
+      "message": "{node}: {count} zdań dłuższych niż {max} słów (np. „{example}”).",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Podziel długie zdania."
+    },
+    "ruleMaxWords": {
+      "message": "{node} ma {words} słów, dozwolone najwyżej {max}.",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Skróć."
+    },
+    "ruleMinWords": {
+      "message": "{node} ma {words} słów, wymagane co najmniej {min}.",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Rozwiń."
+    },
+    "ruleForbid": {
+      "message": "{node} zawiera „{phrase}”.",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Napisz to inaczej."
+    },
+    "ruleRequire": {
+      "message": "{node} nie zawiera „{phrase}”.",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Dodaj."
+    },
+    "ruleOneNew": {
+      "message": "{node} wprowadza {count} rzeczy; oczekiwana jest dokładnie jedna.",
+      "why": "Reguła: „{rule}”.",
+      "fix": "Zostaw tu jedną nową myśl, pozostałe przenieś."
+    },
+    "citationMissing": {
+      "message": "{node} cytuje „{key}”, którego nie ma (albo nie da się go otworzyć).",
+      "why": "Cytat bez celu staje się pustym przypisem.",
+      "fix": "Popraw klucz albo dodaj źródło do Biblioteki."
+    },
+    "quoteMismatch": {
+      "message": "W {node} cytat „{quote}” nie zgadza się z pełnym tekstem w Bibliotece.",
+      "why": "Cytat musi mówić dokładnie to, co mówi źródło.",
+      "fix": "Popraw cytat według pełnego tekstu."
+    }
+  }
+}

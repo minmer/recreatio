@@ -652,6 +652,38 @@
       "classes": {
         "label": "Klasy",
         "says": "Program nauczania w szkole: klasy, które go realizują — lista { \"area\": identyfikator obszaru klasy }"
+      },
+      "lang": {
+        "label": "Język dzieła",
+        "says": "Język dzieła i jego wydruku: \"pl\", \"de\" albo \"en\" (puste: język aplikacji)"
+      },
+      "levels": {
+        "label": "Poziomy",
+        "says": "Nazwy poziomów struktury, od góry, każdy { \"name\": \"Rozdział\", \"latex\": \"chapter\" } (latex: part, chapter, section, subsection, subsubsection, paragraph)"
+      },
+      "dimensions": {
+        "label": "Wymiary",
+        "says": "Wymiary dzieła, każdy { \"key\": \"audience\", \"name\": \"Odbiorcy\", \"ordered\": \"yes\" | \"no\", \"values\": [{ \"key\": \"children\", \"name\": \"Dzieci\" }] }; węzeł dzieli się według jednego z nich przez \"split\", jego dzieci mają \"variant\""
+      },
+      "paths": {
+        "label": "Ścieżki (wydania)",
+        "says": "Wydania przez wymiary, każde { \"key\": \"youth\", \"name\": \"Dla młodzieży\", \"choose\": [{ \"dimension\": \"audience\", \"value\": \"youth\" }] } — jedna wartość na wymiar; bez ścieżek: pierwsza wartość każdego"
+      },
+      "roles": {
+        "label": "Własne role",
+        "says": "Role węzłów obok wbudowanych, każda { \"value\": \"rozwazanie\", \"label\": \"Rozważanie\", \"brings\": \"new\" | \"nothing\" | \"any\" }"
+      },
+      "knowledge": {
+        "label": "Wiedza dzieła",
+        "says": "Bazy wiedzy (Cogita) z osobami, miejscami, pojęciami i ideami tego dzieła, każda { \"base\": identyfikator bazy }"
+      },
+      "latexClass": {
+        "label": "Drukowane jako",
+        "says": "Jak drukować dzieło: \"book\" (książka), \"article\" (artykuł), \"booklet\" (zeszyt kazań) albo \"handout\" (karta lekcji)"
+      },
+      "citationStyle": {
+        "label": "Styl cytowania",
+        "says": "\"notes\" (przypisy, dz. cyt., tamże) albo \"authorYear\" (autor rok, strona w tekście)"
       }
     }
   },
@@ -684,5 +716,383 @@
     "recording": "wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)",
     "album": "zbiór nagrań"
   },
-  "untitled": "Bez tytułu"
+  "untitled": "Bez tytułu",
+  "workLangs": {
+    "pl": "polski",
+    "de": "niemiecki",
+    "en": "angielski"
+  },
+  "latexLevels": {
+    "part": "Część (\\part)",
+    "chapter": "Rozdział (\\chapter)",
+    "section": "Podrozdział (\\section)",
+    "subsection": "Paragraf (\\subsection)",
+    "subsubsection": "Punkt (\\subsubsection)",
+    "paragraph": "Akapit (tytuł w tekście)"
+  },
+  "latexClasses": {
+    "book": "Książka",
+    "article": "Artykuł",
+    "booklet": "Zeszyt kazań",
+    "handout": "Karta lekcji"
+  },
+  "citationStyles": {
+    "notes": "Przypisy",
+    "authorYear": "Autor i rok"
+  },
+  "nodeRoles": {
+    "new": "Nowe",
+    "summary": "Podsumowanie",
+    "introduction": "Wprowadzenie",
+    "transition": "Przejście",
+    "example": "Przykład / zastosowanie",
+    "exercise": "Ćwiczenie / powtórka",
+    "conclusion": "Zakończenie"
+  },
+  "roleBrings": {
+    "new": "musi przynieść coś nowego",
+    "nothing": "nie przynosi niczego nowego",
+    "any": "może przynieść coś nowego"
+  },
+  "nodeStatus": {
+    "idea": "Pomysł",
+    "planned": "Zaplanowane",
+    "drafting": "W szkicu",
+    "written": "Napisane",
+    "done": "Gotowe"
+  },
+  "markRoles": {
+    "intro": "wprowadza",
+    "def": "definiuje",
+    "ex": "przykład",
+    "use": "używa",
+    "recall": "przypomina"
+  },
+  "ruleWeights": {
+    "must": "musi",
+    "should": "powinno"
+  },
+  "ruleChecks": {
+    "sentenceWords": "Zdania najwyżej N słów",
+    "maxWords": "Najwyżej N słów",
+    "minWords": "Co najmniej N słów",
+    "forbid": "Zakazane słowa",
+    "require": "Wymagane słowa",
+    "needsDefinition": "Każde pojęcie zdefiniowane",
+    "needsExample": "Każde pojęcie z przykładem",
+    "oneNew": "Dokładnie jedna nowa rzecz"
+  },
+  "yesNo": {
+    "yes": "tak",
+    "no": "nie"
+  },
+  "levelItem": {
+    "name": {
+      "label": "Nazwa",
+      "says": "Nazwa poziomu, np. Rozdział"
+    },
+    "latex": {
+      "label": "LaTeX",
+      "says": "Jak go drukować: part, chapter, section, subsection, subsubsection, paragraph"
+    }
+  },
+  "valueItem": {
+    "key": {
+      "label": "Klucz",
+      "says": "Krótki klucz wartości (litery, cyfry, -), np. children"
+    },
+    "name": {
+      "label": "Nazwa",
+      "says": "Nazwa wartości, np. Dzieci"
+    }
+  },
+  "dimensionItem": {
+    "key": {
+      "label": "Klucz",
+      "says": "Krótki klucz wymiaru, np. audience"
+    },
+    "name": {
+      "label": "Nazwa",
+      "says": "Nazwa wymiaru, np. Odbiorcy"
+    },
+    "ordered": {
+      "label": "Uporządkowany",
+      "says": "\"yes\": wartości są stopniowaniem od prostego do wymagającego"
+    },
+    "values": {
+      "label": "Wartości",
+      "says": "Wartości, każda { \"key\", \"name\" }"
+    }
+  },
+  "choiceItem": {
+    "dimension": {
+      "label": "Wymiar",
+      "says": "Klucz wymiaru"
+    },
+    "value": {
+      "label": "Wartość",
+      "says": "Klucz jego wartości"
+    }
+  },
+  "pathItem": {
+    "key": {
+      "label": "Klucz",
+      "says": "Krótki klucz ścieżki, np. youth"
+    },
+    "name": {
+      "label": "Nazwa",
+      "says": "Nazwa wydania"
+    },
+    "choose": {
+      "label": "Wybory",
+      "says": "Jedna wartość na wymiar: [{ \"dimension\", \"value\" }]"
+    }
+  },
+  "roleItem": {
+    "value": {
+      "label": "Klucz",
+      "says": "Klucz roli"
+    },
+    "label": {
+      "label": "Nazwa",
+      "says": "Nazwa roli"
+    },
+    "brings": {
+      "label": "Przynosi",
+      "says": "\"new\" (musi przynieść coś nowego), \"nothing\" (nie przynosi niczego nowego) albo \"any\""
+    }
+  },
+  "baseItem": {
+    "base": {
+      "label": "Baza wiedzy",
+      "says": "Identyfikator bazy wiedzy"
+    }
+  },
+  "markItem": {
+    "entry": {
+      "label": "Wpis",
+      "says": "Wpis wiedzy dzieła (osoba, miejsce, pojęcie, idea …) — identyfikator albo @nazwa"
+    },
+    "role": {
+      "label": "Rola",
+      "says": "Jak tu występuje: \"intro\" (wprowadza), \"def\" (definiuje), \"ex\" (przykład), \"use\" (używa), \"recall\" (przypomina w podsumowaniu)"
+    },
+    "note": {
+      "label": "Notatka",
+      "says": "Notatka o tym wystąpieniu"
+    }
+  },
+  "skipItem": {
+    "value": {
+      "label": "Wartość",
+      "says": "Klucz wartości wymiaru, według którego dzieli się ten węzeł, świadomie niepotrzebnej"
+    },
+    "note": {
+      "label": "Dlaczego",
+      "says": "Dlaczego jest niepotrzebna"
+    }
+  },
+  "partItem": {
+    "id": {
+      "label": "Klucz",
+      "says": "Stały klucz części (punkty planu z niej mają \"tpl-KEY\")"
+    },
+    "title": {
+      "label": "Tytuł",
+      "says": "Nazwa części, np. Pismo"
+    },
+    "kind": {
+      "label": "Rodzaj",
+      "says": "Rodzaj punktu planu: thought, quote, example, question, application"
+    },
+    "words": {
+      "label": "Słowa",
+      "says": "Długość części w słowach"
+    },
+    "minutes": {
+      "label": "Minuty",
+      "says": "Długość części w minutach (mówiona)"
+    },
+    "note": {
+      "label": "Notatka",
+      "says": "Co należy do tej części"
+    }
+  },
+  "node": {
+    "label": "Węzeł struktury",
+    "plural": "Węzły struktury",
+    "says": "Część, rozdział, podrozdział … aż do najmniejszej jednostki dzieła (projektu). Istnieje przed prozą: cel, myśl przewodnia, rola, cel długości; jego proza to zwykły tekst (\"text\"). Jego identyfikator zostaje, dokądkolwiek się przeniesie.",
+    "fields": {
+      "project": {
+        "label": "Dzieło",
+        "says": "Projekt (dzieło), do którego należy"
+      },
+      "parent": {
+        "label": "Nad nim",
+        "says": "Węzeł nad nim (puste: najwyższy poziom dzieła)"
+      },
+      "order": {
+        "label": "Kolejność",
+        "says": "Miejsce wśród rodzeństwa (liczba; 1.5 stoi między 1 a 2)"
+      },
+      "title": {
+        "label": "Tytuł",
+        "says": "Tytuł"
+      },
+      "purpose": {
+        "label": "Cel",
+        "says": "Co czytelnik tu zyskuje i dlaczego to stoi właśnie tutaj"
+      },
+      "synopsis": {
+        "label": "Myśl przewodnia",
+        "says": "Jedno, dwa zdania: streszczenie albo myśl przewodnia"
+      },
+      "role": {
+        "label": "Rola",
+        "says": "Rola: {list} albo własna rola projektu"
+      },
+      "brings": {
+        "label": "Wnosi / podsumowuje",
+        "says": "Przy nowym fragmencie: co wnosi; przy podsumowaniu: co podsumowuje"
+      },
+      "targetWords": {
+        "label": "Cel w słowach",
+        "says": "Docelowa długość w słowach"
+      },
+      "targetMinutes": {
+        "label": "Cel w minutach",
+        "says": "Docelowa długość w minutach (teksty mówione; ~130 słów na minutę)"
+      },
+      "status": {
+        "label": "Stan",
+        "says": "Stan: {list}"
+      },
+      "notes": {
+        "label": "Notatki",
+        "says": "Notatki"
+      },
+      "text": {
+        "label": "Tekst",
+        "says": "Tekst z jego prozą (tekst Skryptorium)"
+      },
+      "split": {
+        "label": "Dzieli się według",
+        "says": "Klucz wymiaru, według którego dzielą się jego dzieci; dzieci mają \"variant\""
+      },
+      "variant": {
+        "label": "Wersja",
+        "says": "Pod podzielonym węzłem: wartość, dla której stoi (puste: wspólny rdzeń dla wszystkich wartości)"
+      },
+      "skip": {
+        "label": "Niepotrzebne",
+        "says": "Wartości podziału świadomie niepotrzebne, każda { \"value\", \"note\" }"
+      },
+      "template": {
+        "label": "Szablon",
+        "says": "Szablon jednostki, z którego powstał"
+      },
+      "templateSig": {
+        "label": "Kształt szablonu",
+        "says": "Kształt szablonu w chwili zastosowania (ustawia aplikacja)"
+      },
+      "marks": {
+        "label": "Pojęcia tutaj",
+        "says": "Co tu występuje i jak, każde { \"entry\": wpis wiedzy, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      }
+    }
+  },
+  "rule": {
+    "label": "Reguła",
+    "plural": "Reguły",
+    "says": "Reguła pisania — styl, głos, czas, forma zwracania się, odbiorcy, cytowanie, długość — z tym, dlaczego istnieje, gdzie obowiązuje (wszystkie podane warunki razem), wagą, przykładami i, jeśli się da, sposobem sprawdzania. Bez projektu należy do własnego zbioru reguł i obowiązuje w każdym projekcie tego Skryptorium.",
+    "fields": {
+      "project": {
+        "label": "Dzieło",
+        "says": "Projekt, którego dotyczy (puste: własny zbiór reguł, każdy projekt)"
+      },
+      "rule": {
+        "label": "Reguła",
+        "says": "Sama reguła"
+      },
+      "why": {
+        "label": "Dlaczego",
+        "says": "Dlaczego reguła istnieje"
+      },
+      "weight": {
+        "label": "Waga",
+        "says": "\"must\" (musi) albo \"should\" (powinno)"
+      },
+      "node": {
+        "label": "Tylko w",
+        "says": "Tylko w tym węźle i wszystkim pod nim"
+      },
+      "role": {
+        "label": "Tylko dla roli",
+        "says": "Tylko dla węzłów tej roli (np. summary)"
+      },
+      "template": {
+        "label": "Tylko dla szablonu",
+        "says": "Tylko dla jednostek z tego szablonu"
+      },
+      "dimension": {
+        "label": "Wymiar",
+        "says": "Tylko na ścieżkach, które wybierają wartość tego wymiaru (klucz)"
+      },
+      "value": {
+        "label": "Wartość",
+        "says": "… a mianowicie tę wartość (klucz), np. children"
+      },
+      "entity": {
+        "label": "Tylko tam, gdzie",
+        "says": "Tylko tam, gdzie występuje ten wpis wiedzy dzieła (jak mówi osoba, jak wprowadza się pojęcie)"
+      },
+      "good": {
+        "label": "Dobry przykład",
+        "says": "Dobry przykład"
+      },
+      "bad": {
+        "label": "Zły przykład",
+        "says": "Zły przykład"
+      },
+      "check": {
+        "label": "Sprawdzana sama",
+        "says": "Jak jest sprawdzana: {list}"
+      },
+      "param": {
+        "label": "Parametr",
+        "says": "Liczba (N) albo słowa oddzielone przecinkami"
+      }
+    }
+  },
+  "unitTemplate": {
+    "label": "Szablon jednostki",
+    "plural": "Szablony jednostek",
+    "says": "Wewnętrzny kształt rodzaju jednostki (kazanie 5-minutowe, lekcja): części z rodzajem i długością. Powstaje z niego cykl jednostek; gdy się zmieni, kontrola pokazuje, które jednostki już nie pasują.",
+    "fields": {
+      "name": {
+        "label": "Nazwa",
+        "says": "Nazwa, np. Kazanie 5 minut"
+      },
+      "description": {
+        "label": "Opis",
+        "says": "Czym jest ten rodzaj jednostki"
+      },
+      "role": {
+        "label": "Rola",
+        "says": "Rola jednostek z niego (domyślnie new)"
+      },
+      "targetWords": {
+        "label": "Cel w słowach",
+        "says": "Długość jednostki w słowach"
+      },
+      "targetMinutes": {
+        "label": "Cel w minutach",
+        "says": "Długość jednostki w minutach"
+      },
+      "parts": {
+        "label": "Części",
+        "says": "Części po kolei, każda { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
+      }
+    }
+  }
 }

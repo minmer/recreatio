@@ -5,9 +5,15 @@ the **Library** holds the sources ([LIBRARY.md](LIBRARY.md)), **Cogita** holds t
 and the **Scriptorium** holds the writing that uses the knowledge and cites the sources: sermons, conferences,
 articles, course texts, page texts — with their deliveries and projects.
 
-**References run in one direction.** A text cites the Library (works, quotes, persons become footnotes) and links to
-or embeds Cogita (an entry as a link, a saved view as a live block). Nothing in the Library or in Cogita points at a
-text; backlinks show it all the same.
+**References.** A text cites the Library (works, quotes, persons become footnotes) and links to or embeds Cogita (an
+entry as a link, a saved view as a live block). The Library never points at a text. Since 2026-11-15 a Cogita entry may
+point back at a text or a structure node of a work ("introduced in 2.1", a phase "valid from chapter 5") when its base
+lists this Scriptorium as a source — a reader who cannot open the Scriptorium sees nothing of it. Backlinks show every
+direction.
+
+**Works** (2026-11-15, [WORK.md](WORK.md)): a project is a tree of structure nodes of any depth with roles, purposes and
+targets, dimensions and paths (editions), a rulebook, unit templates and cycles, the knowledge of the work in Cogita
+with phases, the concept register ("introduced before used"), checks, LaTeX per path and an MCP briefing.
 
 ## The container
 
@@ -26,8 +32,11 @@ text; backlinks show it all the same.
 |---|---|---|
 | `text` | own writing: a sermon, conference, article, course or page text, a note | the core fields, the same for every text: title, subtitle, project, status, date, occasion, place, readings, summary, **plan**, **body**, **further**, audio, video, target words — plus the fields of its **text type** (`textType`) |
 | `delivery` | one time a text was preached or given (Wygłoszenie) | texts (refs), date, occasion, place, audience, readings, audio, video, duration, summary, **coverage**, **added**, transcript |
-| `project` | a book, a series, a collection | project type, title, subtitle, description, **outline** (`{heading}` and `{text: ref}` items), status, deadline, target words |
+| `project` | a book, a series, a collection | project type, title, subtitle, description, **outline** (`{heading}` and `{text: ref}` items — old projects; with structure nodes the outline is read from the tree, `projectOutline`), status, deadline, target words; since 2026-11-15 the work: lang, levels, dimensions, paths, own roles, knowledge bases, latexClass, citationStyle |
 | `texttype` | the owner's own kind of text ("Rodzaj tekstu") | name, description, **fields** |
+| `node` | a structure node of a work: part, chapter, section … unit (2026-11-15, WORK.md) | project, parent, order, title, purpose, synopsis, role, brings, targets (words / minutes), status, notes, **text**, **split** / **variant** / skip (dimensions), template, **marks** |
+| `rule` | a rule of writing, with why and where it applies; without a project: the own rulebook | project, rule, why, weight, scope (node, role, template, dimension + value, entity), good / bad examples, check + param |
+| `unittemplate` | the inner shape of a kind of unit (a 5-minute sermon, a lesson) | name, description, role, targets, **parts** |
 
 ### Text types belong to the owner
 
@@ -169,6 +178,9 @@ Service: `backend/Api/Library/` (kind `writing`, one per area, moves within the 
 
 ## Checks
 
+- `app-work-check.mjs` (2026-11-15): the six scenarios of WORK.md — book, catechesis in two dimensions, a split
+  sub-part, a cycle of 100 sermons with the MCP context of sermon 37, a scholarly article, old outlines and school
+  programs, Zapis marks and the JSON of a work.
 - `app-library-check.mjs`: section 2i (the format, text types — targets by Cogita kind name, core keys refused,
   values by entry name, places, numbers —, the text with its fields drawn, the AI description) and section 7 (plan
   reading and numbering, pasting, times and links, marks on the drawn plan, LaTeX, prompts, JSON into the form, archive

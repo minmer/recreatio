@@ -1,0 +1,31 @@
+{
+  "purpose": {
+    "title": "What this base is for",
+    "hint": "A base can be a course to learn from, or the knowledge of a work in the Scriptorium (its persons, places, terms, ideas). The knowledge of a work is not offered as a course in Learning and does not push cards; learning from it stays possible. Nothing is deleted when you switch.",
+    "learning": "Learning",
+    "work": "The knowledge of a work"
+  },
+  "banner": {
+    "knowledge": "This base is the knowledge of a work: its entries serve the structure of a book or cycle in the Scriptorium, not learning. Each entry shows where it occurs in the work.",
+    "learn": "This base is the knowledge of a work, not a course — you can still learn from it."
+  },
+  "nauka": {
+    "hint": {
+      "one": "{count} base is the knowledge of a work and is not shown as a course.",
+      "other": "{count} bases are the knowledge of works and are not shown as courses."
+    },
+    "show": {
+      "one": "Show it too",
+      "other": "Show them too ({count})"
+    },
+    "hide": "Hide the bases of works"
+  },
+  "box": {
+    "title": "In the work",
+    "untitled": "(untitled work)",
+    "elsewhere": {
+      "one": "And {count} place in a version for other readers.",
+      "other": "And {count} places in versions for other readers."
+    }
+  }
+}

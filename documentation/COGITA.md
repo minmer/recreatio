@@ -1620,6 +1620,29 @@ Replaces the parts of "Regions within regions" about how a level is laid out, ho
 | JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review. A whole book: `templates/cogita/ksiazka-AI.md` — step 1 the work with its text and bibliography at once, step 2 after reading a menu (scope; layers — the work's course and elements, facts and sources, chronology, a set of items, concepts; questions; learning order; revisions; fact checking) from which the owner picks; general, not per book: each layer is one general scheme; its appendices come from the app (`scripts/ksiazka-guide.mjs`, checked by `app-cogita-check`) | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 
+### 14.0 A base as the knowledge of a work (2026-11-15)
+
+A knowledge base can serve the **structure of a work** in the Scriptorium instead of learning (documentation/WORK.md):
+its persons, places, terms, ideas, motifs, objects, events, phases and theme notes.
+
+- **Purpose** — settings field `purpose: "work"` (Ustawienia → „Do czego służy”; `isWorkBase`, `store.ts`). Such a base
+  is not offered as a course in Nauka (a button shows it anyway — learning stays possible), its Wiedza says it is the
+  knowledge of a work and does not offer „Ucz się z tego wpisu” or the jump to Nauka. Nothing is deleted on a switch;
+  the course export carries `purpose`, and so does `get_knowledge_setup`.
+- **Ready kinds** — `templates/cogita/dzielo.json` (`scheme-dzielo`): Osoba, Miejsce, Termin, Idea, Motyw, Przedmiot,
+  Wydarzenie, Faza, Notatka do tematu, no card templates. The Scriptorium reads them by **field role**
+  (`FIELD_ROLES`, `scriptorium/work/workKnowledge.ts`): `forms`, `forbidden`, `preferred`, `definition`, `usage`,
+  `description`, `phaseOf`, `validFrom` / `validUntil` (a structure node or text of the work), `storyFrom` /
+  `storyUntil`; what must be introduced first is any field with `prerequisite: "up"`.
+- **Links both ways.** The Scriptorium points at entries (node `marks`, `[[word|@id|intro]]` in plan and body); an
+  entry points at the work through ordinary reference fields to the builtin kinds `node` and `text` (a phase „valid
+  from chapter 5”, a note „discussed at 2.1”) — possible when the base lists the Scriptorium among its sources.
+  Visibility is unchanged: a target the reader cannot open shows nothing.
+- **„W dziele”** (`WorkBox.tsx`) on an entry's page: per work (Scriptoria among the base's sources, and every readable
+  Scriptorium whose projects name this base) where the entry is introduced, defined, exemplified, used and recalled,
+  in the reading order of the first path, each a link to the node in the structure; places that lie only in versions
+  for other readers are counted.
+
 ### 14.1 Wiedza and Nauka (2026-10-24)
 
 Cogita has two parts in the workspace menu, on the same knowledge bases and the same store — a separation of what one

@@ -3781,3 +3781,23 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - Check `scripts/app-mountain-check.mjs` (37, in `app:check`). LocalDB example and drives in scratchpad `p25/`
   (production build — the dev server's landscape worker fails on `@react-refresh` since `landscapeWords` imports
   `core/i18n.tsx`; not from this change).
+
+## C47 — Works in the Scriptorium: from the whole down to the unit (2026-11-15)
+
+- Design and as-built: [WORK.md](WORK.md). No migration — new kinds `node`, `rule`, `unittemplate` and new project
+  fields (`library/libraryKinds.ts`); Zapis links with a role `[[w|@id|intro]]` (`libraryMarkup.ts` `splitMark`).
+- Core `scriptorium/work/`: `workModel.ts` (tree, outline → nodes, `projectOutline`, dimensions, paths, `linear`,
+  table, progress, move / split / merge), `workKnowledge.ts` (Cogita by field roles; roles added to `FIELD_ROLES`),
+  `workMarks.ts`, `workRules.ts`, `workChecks.ts`, `workContext.ts`, `workTemplates.ts`, `workBrief.ts`,
+  `workLatex.ts` (+ exports in `latex.ts`, author–year style, `core/i18n.tsx` `withLang`).
+- UI: `WorkView.tsx` and tabs, `useWork.ts`, `UnitContext.tsx`, `styles/work.css`; `WritingEditor.tsx`,
+  `ScriptoriumView.tsx` (tabs Reguły, Szablony). Cogita: `purpose: 'work'` (`store.ts`, `json.ts`,
+  `CogitaSettings.tsx`, `LearnView.tsx`, `CogitaHome.tsx`), `WorkBox.tsx`, builtin kind `node` (`kinds.ts`). School
+  programs read their outline through `projectOutline` (`areas/school.ts`).
+- AI: snapshot `works` (`aiSnapshot.ts`), MCP `get_work_briefing` / `get_work_context` / `get_work_checks`
+  (`AiMcp.Works.cs`, `Api.Tests/WorkMcpChecks.cs`), `WordsRef` renders roles; `guide-work` (`templates/cogita/dzielo-AI.md`)
+  and `scheme-dzielo` (`templates/cogita/dzielo.json`) in `ImportFormats.json`; import of marks by Cogita lasting name
+  (`scriptoriumJson.ts` `entryRef`, `lens.ts` `entryRefIn`).
+- Checks: `app-work-check.mjs` (108, in `app:check`); `app-library-check` and `app-cogita-check` updated.
+- LaTeX compiled with MiKTeX: `npm run app:work-tex` — 14 documents × pdflatex/lualatex, 28/28; the shared preamble now picks fontspec under lualatex (`iftex`), which also fixes Polish letters in the old text prints under lualatex.
+- Open: the API must be deployed for the MCP tools.

@@ -1,0 +1,33 @@
+{
+  "untitled": "Untitled",
+  "draft": "Draft",
+  "dimensions": "Overview of the versions",
+  "glossary": "Glossary",
+  "index": "Index",
+  "sources": "Sources",
+  "role": "Role",
+  "purpose": "Purpose",
+  "synopsis": "Key thought",
+  "brings": "Brings",
+  "unwritten": "Not written yet.",
+  "introducedOn": "introduced on p.",
+  "moreFindings": {
+    "one": "… and {count} more finding",
+    "other": "… and {count} more findings"
+  },
+  "weight": {
+    "must": "Must",
+    "should": "Should",
+    "info": "Note"
+  },
+  "shared": "Shared core",
+  "notNeeded": "not needed",
+  "gap": "gap",
+  "status": {
+    "idea": "idea",
+    "planned": "planned",
+    "drafting": "drafting",
+    "written": "written",
+    "done": "done"
+  }
+}

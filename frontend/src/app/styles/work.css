@@ -1,0 +1,123 @@
+/*
+ * DAS WERK IM SKRYPTORIUM (2026-11-15, scriptorium/work/) — Struktur, Tabelle der Dimensionen, Register der
+ * Begriffe, Regeln, Prüfung, Vorlagen, Druck, Einstellungen und der Kontext einer Einheit.
+ */
+
+.work-panel { display: grid; gap: var(--wk-space-4); }
+.work-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: var(--wk-space-3); }
+.work-toolbar .wk-field { min-width: 12rem; }
+.work-convert { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-3); }
+.work-plain { margin: 0; padding-left: 1.1rem; display: grid; gap: var(--wk-space-1); }
+.work-h4 { margin: var(--wk-space-2) 0 0; font-size: var(--wk-text-sm); font-weight: 600; }
+.work-dl { margin: 0; display: grid; gap: var(--wk-space-1); }
+.work-dl dt { font-size: var(--wk-text-xs); color: var(--wk-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.work-dl dd { margin: 0 0 var(--wk-space-1); }
+.work-dl-row { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: baseline; }
+
+/* -- Wie weit das Konzept ist ------------------------------------------------------------------- */
+.work-progress { border-collapse: collapse; font-size: var(--wk-text-sm); width: 100%; }
+.work-progress caption { text-align: left; font-weight: 600; padding-bottom: var(--wk-space-1); }
+.work-progress th, .work-progress td { padding: var(--wk-space-1) var(--wk-space-2); border-bottom: 1px solid var(--wk-line); text-align: left; font-variant-numeric: tabular-nums; }
+.work-progress td.is-open { color: var(--wk-warn); font-weight: 600; }
+
+/* -- Der Baum ------------------------------------------------------------------------------------- */
+.work-split { display: grid; gap: var(--wk-space-4); align-items: start; }
+@media (min-width: 64rem) { .work-split.has-panel { grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem); } }
+.work-tree { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--wk-line); }
+.work-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-1) var(--wk-space-3); padding: var(--wk-space-2) var(--wk-space-2); border-bottom: 1px solid var(--wk-line); }
+.work-row.is-on { background: var(--wk-accent-soft); }
+.work-row:hover { background: var(--wk-soft); }
+.work-row.is-d1 { padding-left: 1.75rem; }
+.work-row.is-d2 { padding-left: 3rem; }
+.work-row.is-d3 { padding-left: 4.25rem; }
+.work-row.is-d4 { padding-left: 5.5rem; }
+.work-row.is-d5, .work-row.is-d6, .work-row.is-d7 { padding-left: 6.75rem; }
+.work-row-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); color: var(--wk-ink); text-decoration: none; min-width: 0; }
+.work-row-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.work-row.is-d0 .work-row-title { font-weight: 600; }
+.work-num { color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.work-level, .work-variant { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.work-variant { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); padding: 0 var(--wk-space-2); }
+.work-variant.is-core { border-style: dashed; }
+.work-variant.is-split { color: var(--wk-accent); border-color: var(--wk-accent); }
+.work-row-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.work-role, .work-status, .work-weight { font-size: var(--wk-text-xs); border-radius: var(--wk-radius-pill); padding: 0 var(--wk-space-2); background: var(--wk-soft); color: var(--wk-ink); }
+.work-role.is-new { background: var(--wk-accent-soft); }
+.work-role.is-nothing { background: var(--wk-info-soft); }
+.work-status.is-done, .work-status.is-written { background: var(--wk-ok-soft); }
+.work-missing { font-size: var(--wk-text-xs); font-weight: 600; color: var(--wk-warn); text-decoration: none; cursor: help; }
+.work-count { font-size: var(--wk-text-xs); font-weight: 600; border-radius: var(--wk-radius-pill); padding: 0 var(--wk-space-2); }
+.work-count.is-must { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.work-count.is-should { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.work-count.is-info { background: var(--wk-soft); color: var(--wk-muted); }
+.work-node-actions { position: sticky; top: var(--wk-sticky-top); background: var(--wk-surface); padding: var(--wk-space-2) 0; z-index: 1; }
+
+/* -- Ein Knoten ----------------------------------------------------------------------------------- */
+.work-node { align-content: start; }
+.work-node-head { display: flex; align-items: center; gap: var(--wk-space-2); }
+.work-node-head .lib-box-h { flex: 1; }
+.work-node-head .lib-state { margin: 0; }
+.work-skip { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-2) var(--wk-space-3); display: grid; gap: var(--wk-space-2); }
+.work-skip-row { display: grid; gap: var(--wk-space-1); }
+.work-marks, .work-text { display: grid; gap: var(--wk-space-2); }
+.work-mark-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.work-mark { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: var(--wk-space-2); align-items: center; }
+.work-mark-name { font-weight: 600; overflow-wrap: anywhere; }
+.work-pick { display: grid; gap: var(--wk-space-1); }
+.work-pick-list { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.work-pick-list .wk-link-btn { width: 100%; justify-content: flex-start; text-align: left; }
+
+/* -- Kontext ------------------------------------------------------------------------------------- */
+.work-context { display: grid; gap: var(--wk-space-2); border-top: 1px solid var(--wk-line); padding-top: var(--wk-space-2); }
+.work-chain { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.work-rules-mini, .work-findings { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.work-rules-mini li, .work-findings li { border-left: 3px solid var(--wk-line); padding-left: var(--wk-space-2); }
+.work-rules-mini li.is-must, .work-findings li.is-must { border-left-color: var(--wk-danger); }
+.work-rules-mini li.is-should, .work-findings li.is-should { border-left-color: var(--wk-warn); }
+.work-findings p { margin: 0; }
+.work-finding-msg { font-weight: 600; }
+
+/* -- Tabelle und Matrix --------------------------------------------------------------------------- */
+.work-table-wrap { overflow-x: auto; max-width: 100%; }
+.work-table, .work-matrix { border-collapse: collapse; font-size: var(--wk-text-sm); }
+.work-table th, .work-table td, .work-matrix th, .work-matrix td { border: 1px solid var(--wk-line); padding: var(--wk-space-1) var(--wk-space-2); vertical-align: top; text-align: left; }
+.work-table thead th, .work-matrix thead th { background: var(--wk-soft); }
+.work-cell { min-width: 10rem; }
+.work-cell.is-gap { background: var(--wk-warn-soft); }
+.work-cell.is-skipped { background: var(--wk-soft); color: var(--wk-muted); }
+.work-cell.is-line { color: var(--wk-muted); font-style: italic; }
+.work-cell.is-shared { background: var(--wk-surface); }
+.work-cell-node { display: block; color: var(--wk-ink); text-decoration: none; }
+.work-cell-node:hover { text-decoration: underline; }
+.work-gap, .work-skipped { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.work-matrix td { text-align: center; font-family: var(--wk-mono); min-width: 1.75rem; }
+.work-matrix td.is-on { background: var(--wk-soft); }
+.work-matrix td.is-intro { background: var(--wk-accent-soft); font-weight: 600; }
+.work-matrix tbody th { white-space: nowrap; font-weight: 400; }
+
+/* -- Begriffe ------------------------------------------------------------------------------------- */
+.work-concept-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-3); }
+.work-concept { border-bottom: 1px solid var(--wk-line); padding-bottom: var(--wk-space-2); display: grid; gap: var(--wk-space-1); }
+.work-concept p { margin: 0; }
+.work-concept-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); }
+.work-occ { display: inline-block; margin-right: var(--wk-space-2); color: var(--wk-accent); }
+.work-occ.is-implicit { color: var(--wk-muted); font-style: italic; }
+
+/* -- Regeln, Prüfung, Vorlagen, Einstellungen ---------------------------------------------------- */
+.work-rule-group, .work-check-group { display: grid; gap: var(--wk-space-2); }
+.work-weight.is-must { background: var(--wk-danger-soft); color: var(--wk-danger); }
+.work-weight.is-should { background: var(--wk-warn-soft); color: var(--wk-warn); }
+.work-badges { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); margin: 0; }
+.work-path-summary { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-4); }
+.work-path-summary .is-on { font-weight: 600; }
+.work-check-code > ul { margin-top: var(--wk-space-2); }
+.work-templates, .work-settings, .work-rules, .work-checks, .work-concepts, .work-print { display: grid; gap: var(--wk-space-5); }
+.work-part-list, .work-edit-list { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--wk-space-2); }
+.work-part, .work-edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.work-part input[type="number"] { width: 6rem; }
+.work-part-id { width: 8rem; }
+.work-part-note { flex: 1 1 12rem; }
+.work-dim { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-3); display: grid; gap: var(--wk-space-2); }
+.work-path-row select { max-width: 14rem; }
+.work-base { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-3); }
+.work-text-box .work-context { border-top: 0; padding-top: 0; }

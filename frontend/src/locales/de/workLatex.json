@@ -1,0 +1,33 @@
+{
+  "untitled": "Ohne Titel",
+  "draft": "Entwurf",
+  "dimensions": "Übersicht der Fassungen",
+  "glossary": "Glossar",
+  "index": "Register",
+  "sources": "Quellen",
+  "role": "Rolle",
+  "purpose": "Zweck",
+  "synopsis": "Kernsatz",
+  "brings": "Bringt",
+  "unwritten": "Noch nicht geschrieben.",
+  "introducedOn": "eingeführt S.",
+  "moreFindings": {
+    "one": "… und {count} weiterer Befund",
+    "other": "… und {count} weitere Befunde"
+  },
+  "weight": {
+    "must": "Muss",
+    "should": "Soll",
+    "info": "Hinweis"
+  },
+  "shared": "Gemeinsamer Kern",
+  "notNeeded": "nicht nötig",
+  "gap": "Lücke",
+  "status": {
+    "idea": "Idee",
+    "planned": "geplant",
+    "drafting": "im Entwurf",
+    "written": "geschrieben",
+    "done": "fertig"
+  }
+}

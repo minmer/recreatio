@@ -73,6 +73,8 @@ import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
+import { WorkBox } from './WorkBox';
+import { isWorkBase } from './store';
 
 export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' }: { me: Me; who: Who; library: OpenLibrary; store: LibraryStore; trail: readonly string[]; part?: CogitaPart }) {
   const lib = useCogita(store, library.writes);
@@ -124,6 +126,8 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const other = part === 'knowledge'
     ? { href: viewPath('learn', lib.libraryId), label: t('cogitaViews.home.learnFromBase'), icon: 'cap' as const }
     : { href: viewPath('knowledge', lib.libraryId), label: t('cogitaViews.home.baseKnowledge'), icon: 'branch' as const };
+  /* 2026-11-15 — das Wissen eines Werks: die Wiedza drängt kein Lernen auf; die Nauka bleibt möglich, sagt aber, wozu die Baza ist. */
+  const ofWork = isWorkBase(lib.settings());
 
   return (
     <CogitaContext.Provider value={withLearner}>
@@ -138,8 +142,9 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
             items={more.map(([slug, label]) => ({ label: tabLabel(slug, label, t), checked: slug === tab, onSelect: () => go(slug) }))}
           />
         )}
-        <a className="cg-other-part" href={other.href}><Icon name={other.icon} />{other.label}</a>
+        {!(ofWork && part === 'knowledge') && <a className="cg-other-part" href={other.href}><Icon name={other.icon} />{other.label}</a>}
       </nav>
+      {ofWork && <p className="wk-note" data-work-base="">{part === 'knowledge' ? t('workCogita.banner.knowledge') : t('workCogita.banner.learn')}</p>}
       {/* -- Wiedza -- */}
       {tab === 'wpisy' && <EntitiesTab trail={trail.slice(1)} go={go} />}
       {tab === 'dodaj' && <AddTab trail={trail.slice(1)} go={go} />}
@@ -275,7 +280,9 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
           <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />
         </ForeignOnly>
         <EntityAnchors key={trail[0]} entityId={trail[0]} />
-        <LearnFrom id={trail[0]} go={go} />
+        {/* 2026-11-15 — „W dziele": wo der Eintrag in einem Werk des Skryptorium eingeführt, gebraucht, aufgenommen wird. */}
+        <WorkBox id={trail[0]} />
+        {!isWorkBase(lib.settings()) && <LearnFrom id={trail[0]} go={go} />}
       </div>
     );
   }

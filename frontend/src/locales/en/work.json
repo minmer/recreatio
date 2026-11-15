@@ -1,0 +1,143 @@
+{
+  "untitled": "(untitled)",
+  "check": {
+    "someNode": "a section",
+    "someEntry": "an entry",
+    "nowhere": "nowhere",
+    "usedBeforeIntro": {
+      "message": "„{entity}” is used in {node} before it is introduced (in {at}).",
+      "why": "The reader meets it here without knowing what it is; everything must be introduced before it is used.",
+      "fix": "Introduce it earlier, move this use after {at}, or mark this place as the introduction."
+    },
+    "notIntroducedHere": {
+      "message": "„{entity}” is used in {node}, but on this path it is never introduced (only in: {elsewhere}).",
+      "why": "Readers of this edition never get the introduction, which stands in a version for others.",
+      "fix": "Introduce it in this edition too (in the shared core or in this version), or avoid it here."
+    },
+    "neverIntroduced": {
+      "message": "„{entity}” is used in {node}, but it is introduced nowhere.",
+      "why": "Everything a reader needs must be introduced before it is used.",
+      "fix": "Mark the place where it is introduced (role „introduced”), or add a section that introduces it."
+    },
+    "introducedNotUsed": {
+      "message": "„{entity}” is introduced in {node} but never used afterwards.",
+      "why": "An introduction that leads nowhere costs the reader attention for nothing.",
+      "fix": "Use it later, or drop the introduction."
+    },
+    "introducedTwice": {
+      "message": "„{entity}” is introduced again in {node} (first in {first}).",
+      "why": "A second introduction confuses: is it something new?",
+      "fix": "Keep one introduction; mark the other place as „recalled” or „used”."
+    },
+    "prerequisiteLate": {
+      "message": "„{entity}” (in {node}) needs „{needs}”, which is introduced only in {at}.",
+      "why": "A concept can be understood only after what it builds on.",
+      "fix": "Introduce „{needs}” before {node}, or move „{entity}” later."
+    },
+    "noDefinition": {
+      "message": "„{entity}” (introduced in {node}) is never defined.",
+      "why": "A rule requires a definition: „{rule}”.",
+      "fix": "Mark the place where it is defined (role „defined”)."
+    },
+    "noExample": {
+      "message": "„{entity}” (introduced in {node}) has no example.",
+      "why": "A rule requires an example: „{rule}”.",
+      "fix": "Add an example and mark it (role „example”)."
+    },
+    "phaseInvalid": {
+      "message": "„{entity}” appears in {node}, where none of its phases is valid.",
+      "why": "The person, place or thing is described differently in different parts of the work; here no description holds.",
+      "fix": "Extend the range of a phase to this place, or check whether the right phase is meant."
+    },
+    "forbiddenForm": {
+      "message": "In {node} „{entity}” is written as „{form}”.",
+      "why": "The glossary forbids this synonym or form.",
+      "fix": "Write „{preferred}”."
+    },
+    "newBringsNothing": {
+      "message": "{node} has the role „new” but introduces nothing.",
+      "why": "Every section must bring something new or openly say that it is something else (a summary, a transition …).",
+      "fix": "Mark what it introduces, or change its role."
+    },
+    "summaryIntroduces": {
+      "message": "The summary {node} introduces „{entity}”.",
+      "why": "A summary brings nothing new — the reader expects only what they already know.",
+      "fix": "Introduce „{entity}” earlier, or change the role of {node}."
+    },
+    "summaryRecallsUnknown": {
+      "message": "The summary {node} recalls „{entity}”, which has not been introduced before.",
+      "why": "A summary can only recall what came before.",
+      "fix": "Introduce „{entity}” before {node}, or drop it from the summary."
+    },
+    "lengthOff": {
+      "message": "{node} has {words} words; the target is {target}.",
+      "why": "Units far from their length break the rhythm of the whole (and the time a sermon may take).",
+      "fix": "Shorten or extend it, or change the target."
+    },
+    "noPurpose": {
+      "message": "{node} has no purpose.",
+      "why": "Without a purpose nobody knows what the reader gains here and why it stands here.",
+      "fix": "Write in one or two sentences what this section is for."
+    },
+    "noRole": {
+      "message": "{node} has no role.",
+      "why": "The role says what the reader is reading: something new, a summary, a transition, an example …",
+      "fix": "Choose its role."
+    },
+    "dimensionGap": {
+      "message": "{node} is split by „{dimension}”, but there is nothing for „{value}”.",
+      "why": "On this path the reader finds a gap here.",
+      "fix": "Add the version for „{value}”, or mark it as deliberately not needed."
+    },
+    "templateChanged": {
+      "message": "The template „{template}” has changed since {node} was made from it.",
+      "why": "The unit may no longer have the shape the template gives.",
+      "fix": "Apply the template again (missing parts are added; nothing is lost)."
+    },
+    "templateMissingParts": {
+      "message": "{node} lacks parts of the template „{template}”: {parts}.",
+      "why": "Every unit of the cycle should have the same inner shape.",
+      "fix": "Apply the template to its plan, or write the missing parts."
+    },
+    "ruleSentence": {
+      "message": "{node}: {count} sentences longer than {max} words (e.g. „{example}”).",
+      "why": "Rule: „{rule}”.",
+      "fix": "Split the long sentences."
+    },
+    "ruleMaxWords": {
+      "message": "{node} has {words} words, at most {max} are allowed.",
+      "why": "Rule: „{rule}”.",
+      "fix": "Shorten it."
+    },
+    "ruleMinWords": {
+      "message": "{node} has {words} words, at least {min} are required.",
+      "why": "Rule: „{rule}”.",
+      "fix": "Extend it."
+    },
+    "ruleForbid": {
+      "message": "{node} contains „{phrase}”.",
+      "why": "Rule: „{rule}”.",
+      "fix": "Write it differently."
+    },
+    "ruleRequire": {
+      "message": "{node} does not contain „{phrase}”.",
+      "why": "Rule: „{rule}”.",
+      "fix": "Add it."
+    },
+    "ruleOneNew": {
+      "message": "{node} introduces {count} things; exactly one is expected.",
+      "why": "Rule: „{rule}”.",
+      "fix": "Keep one new thought here; move the others."
+    },
+    "citationMissing": {
+      "message": "{node} cites „{key}”, which does not exist (or cannot be opened).",
+      "why": "A citation that does not resolve becomes an empty footnote.",
+      "fix": "Correct the key or add the source to the Library."
+    },
+    "quoteMismatch": {
+      "message": "In {node} the quote „{quote}” does not match the full text in the Library.",
+      "why": "A quote must say exactly what the source says.",
+      "fix": "Correct the quote from the full text."
+    }
+  }
+}

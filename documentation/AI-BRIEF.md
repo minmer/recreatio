@@ -24,9 +24,11 @@ read-only link to an area's Library, Scriptorium and knowledge bases (section 13
 | **Knowledge base** (Baza wiedzy, Cogita, "Nauka") | knowledge: the owner's own schemas, their entries and links; learning | owner-written kinds and entries (places, persons as subjects, events, mysteries, comments …), questions, card templates, revisions, flows, views, add forms | `recreatio.cogita.course` / `.schema` / `.entities` / `.flow` (Appendix C) |
 | **Page** (Strona) | what visitors see | a grid of modules, slides, or a presentation of scenes | `recreatio/page` (Appendix D: excerpts) |
 
-- **References run in one direction.** The Scriptorium cites the Library and links to or embeds Cogita. Cogita
-  cites the Library. The Library points only at other Library entries (a quote → its work, a work → its authors and
-  its container). Backlinks show every direction.
+- **References.** The Scriptorium cites the Library and links to or embeds Cogita. Cogita cites the Library. The
+  Library points only at other Library entries (a quote → its work, a work → its authors and its container).
+  Since 2026-11-15 (the knowledge of a work, WORK.md) a Cogita entry may also point back at a Scriptorium text or
+  structure node ("introduced in 2.1", a phase "valid from chapter 5") — only when its base lists that Scriptorium as a
+  source, and a reader who cannot open the target sees nothing of it. Backlinks show every direction.
 - **Persons exist twice, on purpose.** A Library person is an author (a target for citations). A Cogita person is a
   described subject in an owner-written kind. A bridge is a reference field from the kind to Library persons.
 - **A knowledge base reads sources** without copying them: libraries (references and card material), Scriptoria

@@ -91,6 +91,8 @@ public static partial class AiAccess
         public JsonElement Kinds { get; init; }
         /// <summary>2026-10-30 — nur eine Baza wiedzy: was ihr Lernen steuert (Kurs ohne Einträge, Karten je Vorlage, wer liest) — <c>get_knowledge_setup</c>.</summary>
         public JsonElement Setup { get; init; }
+        /// <summary>2026-11-15 — nur ein Skryptorium: seine Werke, wie die App sie sieht (Baum, Regeln, Wissen, Register, Befunde je Weg).</summary>
+        public JsonElement Works { get; init; }
         public List<Item> Items { get; } = [];
         /// <summary>2026-10-24 — die vollständigen Texte der Werke, die in diesem Behälter liegen (AiAccess.Texts.cs).</summary>
         public List<TextDoc> Texts { get; } = [];
@@ -187,7 +189,9 @@ public static partial class AiAccess
             MadeAt = Str(root, "madeAt"),
             Notes = Str(root, "notes"),
             Kinds = root.TryGetProperty("kinds", out var kinds) && kinds.ValueKind == JsonValueKind.Array ? kinds : default,
-            Setup = part == "knowledge" && root.TryGetProperty("setup", out var setup) && setup.ValueKind == JsonValueKind.Object ? setup : default
+            Setup = part == "knowledge" && root.TryGetProperty("setup", out var setup) && setup.ValueKind == JsonValueKind.Object ? setup : default,
+            /* 2026-11-15 — nur ein Skryptorium: seine Werke (scriptorium/work/workBrief.ts) — get_work_briefing, get_work_context, get_work_checks. */
+            Works = part == "writing" && root.TryGetProperty("works", out var works) && works.ValueKind == JsonValueKind.Array ? works : default
         };
 
         if (root.TryGetProperty("entries", out var entries) && entries.ValueKind == JsonValueKind.Array)
@@ -603,7 +607,8 @@ public static partial class AiAccess
     /* -- Ein Eintrag als lesbarer Text (MCP `fetch`, `get_entry`) ------------------------------- */
 
     private static readonly Regex EmbedRef = new(@"!\[@([^\]]+)\]", RegexOptions.CultureInvariant);
-    private static readonly Regex WordsRef = new(@"\[\[([^\]|]+)\|@([^\]]+)\]\]", RegexOptions.CultureInvariant);
+    /* 2026-11-15 — auch mit Rolle im Werk: [[Anna|@anna|intro]] (intro, def, ex, use, recall — scriptorium/work/workMarks.ts). */
+    private static readonly Regex WordsRef = new(@"\[\[([^\]|]+)\|@([^\]|]+)(?:\|(intro|def|ex|use|recall))?\]\]", RegexOptions.CultureInvariant);
     private static readonly Regex CiteRef = new(@"\[@([^\]]+)\]", RegexOptions.CultureInvariant);
 
     /// <summary>
@@ -628,7 +633,7 @@ public static partial class AiAccess
                 text = CrossMarkupText(text, item.From, o);
             }
             text = EmbedRef.Replace(text, m => $"[osadzone: {Title(m.Groups[1].Value.Trim())}]");
-            text = WordsRef.Replace(text, m => $"{m.Groups[1].Value} [→ {Title(m.Groups[2].Value.Trim())}]");
+            text = WordsRef.Replace(text, m => $"{m.Groups[1].Value} [→ {Title(m.Groups[2].Value.Trim())}{(m.Groups[3].Success ? $" · {m.Groups[3].Value}" : "")}]");
             return CiteRef.Replace(text, m => "[" + string.Join("; ", m.Groups[1].Value.Split(';').Select(one =>
             {
                 var bits = one.Trim().TrimStart('@').Split(',', 2);

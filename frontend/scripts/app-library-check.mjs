@@ -510,14 +510,16 @@ try {
       for (const field of def.fields) assert.ok(told.includes(`"${field.key}" — ${field.label}`), `the Scriptorium description explains ${def.kind}.${field.key}`);
       assert.ok(told.includes(`### "${def.kind}" — ${def.label}`), `the Scriptorium description lists ${def.kind}`);
     }
-    assert.deepEqual(m.WRITING_KINDS.map((k) => k.kind), ['text', 'delivery', 'project', 'texttype']);
+    assert.deepEqual(m.WRITING_KINDS.map((k) => k.kind), ['text', 'delivery', 'project', 'texttype', 'node', 'rule', 'unittemplate']);
     const libraryPart = m.planLibraryImport({ entries: m.LIBRARY_KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) }, { get: () => undefined, byKey: () => undefined });
     const sources = libraryPart.drafts.map((d) => ({ id: d.id, kind: d.kind, key: d.key, data: d.data }));
     const examples = { format: m.SCRIPTORIUM_FORMAT, version: m.SCRIPTORIUM_VERSION, entries: m.WRITING_KINDS.map((def) => ({ kind: def.kind, key: def.example.key, data: def.example.data })) };
-    const planned = m.planScriptoriumImport(examples, look(sources), ctx);
+    /* 2026-11-15 — die Marken eines Knotens zeigen auf Nauka beim bleibenden Namen (`entryRef`). */
+    const known = { anna: { id: '22222222-2222-4222-8222-000000000001', kind: 'entity', data: { name: 'Anna' } }, przymierze: { id: '22222222-2222-4222-8222-000000000002', kind: 'entity', data: { name: 'przymierze' } } };
+    const planned = m.planScriptoriumImport(examples, look(sources), { ...ctx, entryRef: (token) => known[token.toLowerCase()] });
     assert.ok(!('error' in planned), 'all writing examples import');
     assert.deepEqual(planned.warnings, [], `the writing examples import without a warning (${planned.warnings.join(' | ')})`);
-    assert.deepEqual(planned.drafts.map((d) => d.kind), ['texttype', 'project', 'text', 'delivery'], 'text types first, then projects, texts, deliveries');
+    assert.deepEqual(planned.drafts.map((d) => d.kind), ['texttype', 'unittemplate', 'project', 'node', 'text', 'delivery', 'rule'], 'text types and templates first, then projects, nodes, texts, deliveries, rules');
     const byKind = Object.fromEntries(planned.drafts.map((d) => [d.kind, d]));
     assert.equal(byKind.text.data.textType, byKind.texttype.id, 'a text points at its text type (@key of the same document)');
     assert.equal(byKind.text.data.project, byKind.project.id);

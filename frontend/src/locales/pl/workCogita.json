@@ -1,0 +1,37 @@
+{
+  "purpose": {
+    "title": "Do czego służy ta baza",
+    "hint": "Baza może być kursem, z którego się uczy, albo wiedzą dzieła w Skryptorium (jego osobami, miejscami, pojęciami, ideami). Wiedza dzieła nie jest proponowana w Nauce jako kurs i nie narzuca kart; nauka z niej pozostaje możliwa. Przy zmianie nic nie jest usuwane.",
+    "learning": "Nauka",
+    "work": "Wiedza dzieła"
+  },
+  "banner": {
+    "knowledge": "Ta baza to wiedza dzieła: jej wpisy służą strukturze książki albo cyklu w Skryptorium, nie nauce. Każdy wpis pokazuje, gdzie występuje w dziele.",
+    "learn": "Ta baza to wiedza dzieła, nie kurs — mimo to można się z niej uczyć."
+  },
+  "nauka": {
+    "hint": {
+      "one": "{count} baza jest wiedzą dzieła i nie stoi tu jako kurs.",
+      "few": "{count} bazy są wiedzą dzieł i nie stoją tu jako kursy.",
+      "many": "{count} baz jest wiedzą dzieł i nie stoi tu jako kursy.",
+      "other": "{count} bazy są wiedzą dzieł i nie stoją tu jako kursy."
+    },
+    "show": {
+      "one": "Pokaż także ją",
+      "few": "Pokaż także je ({count})",
+      "many": "Pokaż także je ({count})",
+      "other": "Pokaż także je ({count})"
+    },
+    "hide": "Ukryj bazy dzieł"
+  },
+  "box": {
+    "title": "W dziele",
+    "untitled": "(dzieło bez tytułu)",
+    "elsewhere": {
+      "one": "Oraz {count} miejsce w wersji dla innych czytelników.",
+      "few": "Oraz {count} miejsca w wersjach dla innych czytelników.",
+      "many": "Oraz {count} miejsc w wersjach dla innych czytelników.",
+      "other": "Oraz {count} miejsca w wersjach dla innych czytelników."
+    }
+  }
+}

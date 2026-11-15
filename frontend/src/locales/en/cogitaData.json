@@ -242,7 +242,17 @@
     "work": "Source",
     "locator": "Place in the source",
     "description": "Description",
-    "body": "Content"
+    "body": "Content",
+    "forms": "Forms (recognized in the text of a work)",
+    "forbidden": "Forbidden synonyms and forms",
+    "preferred": "Preferred form",
+    "definition": "Definition",
+    "usage": "How it is used",
+    "phaseOf": "Phase of",
+    "validFrom": "Valid from (in the work)",
+    "validUntil": "Valid until (in the work)",
+    "storyFrom": "From (story time)",
+    "storyUntil": "Until (story time)"
   },
   "kindProblem": {
     "labelField": "The label pattern uses the field “{field}”, which this kind does not have.",

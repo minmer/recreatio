@@ -1,0 +1,35 @@
+{
+  "untitled": "Bez tytułu",
+  "draft": "Szkic",
+  "dimensions": "Przegląd wersji",
+  "glossary": "Słowniczek",
+  "index": "Indeks",
+  "sources": "Źródła",
+  "role": "Rola",
+  "purpose": "Cel",
+  "synopsis": "Myśl przewodnia",
+  "brings": "Wnosi",
+  "unwritten": "Jeszcze nienapisane.",
+  "introducedOn": "wprowadzone s.",
+  "moreFindings": {
+    "one": "… i jeszcze {count} uwaga",
+    "few": "… i jeszcze {count} uwagi",
+    "many": "… i jeszcze {count} uwag",
+    "other": "… i jeszcze {count} uwagi"
+  },
+  "weight": {
+    "must": "Musi",
+    "should": "Powinno",
+    "info": "Uwaga"
+  },
+  "shared": "Wspólny rdzeń",
+  "notNeeded": "niepotrzebne",
+  "gap": "luka",
+  "status": {
+    "idea": "pomysł",
+    "planned": "zaplanowane",
+    "drafting": "w szkicu",
+    "written": "napisane",
+    "done": "gotowe"
+  }
+}

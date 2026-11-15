@@ -112,7 +112,16 @@ export interface CogitaSettings {
   readonly handle?: string;
   /** 2026-11-05 (Prompt 24) — die anderen Bazy, auf die Verweise „@@name:…" hier zeigen (Name → Kennung); nie zusammengeführt. */
   readonly worlds: readonly WorldRef[];
+  /**
+   * 2026-11-15 — WOZU DIE BAZA DA IST: `work` — das Wissen eines Werks (Personen, Orte, Begriffe eines Buches im
+   * Skryptorium, `scriptorium/work/`): die Nauka bietet sie nicht als Kurs an (auf Wunsch doch), die Wiedza drängt keine
+   * Karten auf. Fehlt es: Lernen, wie bisher. Nichts wird gelöscht, wenn es wechselt.
+   */
+  readonly purpose?: 'work';
 }
+
+/** 2026-11-15 — ist diese Baza das Wissen eines Werks (und kein Kurs)? */
+export const isWorkBase = (settings: Pick<CogitaSettings, 'purpose'>): boolean => settings.purpose === 'work';
 
 /** 2026-11-05 (Prompt 24) — eine andere Baza, auf die hier verwiesen wird (`worlds.ts`). */
 export interface WorldRef {
@@ -175,7 +184,8 @@ export function readSettings(raw: unknown): CogitaSettings {
     ...(readAreaStack(d.stack) === undefined ? {} : { stack: readAreaStack(d.stack)! }),
     ...(readLevelsSetup(d.levelsSetup) === undefined ? {} : { levelsSetup: readLevelsSetup(d.levelsSetup)! }),
     ...(readHandle(d.handle) === undefined ? {} : { handle: readHandle(d.handle)! }),
-    worlds: readWorlds(d.worlds)
+    worlds: readWorlds(d.worlds),
+    ...(d.purpose === 'work' ? { purpose: 'work' as const } : {})
   };
 }
 

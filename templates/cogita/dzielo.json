@@ -1,0 +1,122 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Wiedza dzieła",
+  "kinds": [
+    {
+      "ref": "@dzielo/osoba",
+      "name": "Osoba",
+      "label": "{imie}",
+      "tells": "kim",
+      "fields": [
+        { "key": "imie", "label": "Imię i nazwisko", "type": "line", "role": "name", "says": "Jak osoba nazywa się w dziele (tak, jak ją piszemy)." },
+        { "key": "kim", "label": "Kim jest", "type": "line", "says": "Jednym zdaniem: kim jest w tym dziele (np. „matka Anny”, „nauczyciel z Lublina”)." },
+        { "key": "opis", "label": "Opis", "type": "markup", "role": "description", "says": "Wygląd, charakter, sposób mówienia — opis, który obowiązuje w całym dziele. Opis, który zmienia się w czasie (dzieciństwo, dorosłość), idzie do osobnych wpisów „Faza”." },
+        { "key": "formy", "label": "Formy w tekście", "type": "list", "role": "forms", "says": "Formy, pod którymi osoba pojawia się w tekście (odmiana, zdrobnienia: „Anny”, „Ance”, „Ania”) — po nich aplikacja rozpoznaje ją w treści bez linku." },
+        { "key": "mowi", "label": "Jak mówi", "type": "text", "says": "Sposób mówienia (słownictwo, zwroty, forma zwracania się) — do sprawdzania dialogów." },
+        { "key": "relacje", "label": "Związana z", "type": "ref", "multi": true, "to": ["@dzielo/osoba", "@dzielo/miejsce", "@dzielo/wydarzenie"], "says": "Inne osoby, miejsca, wydarzenia, z którymi jest związana." }
+      ]
+    },
+    {
+      "ref": "@dzielo/miejsce",
+      "name": "Miejsce",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "role": "name", "says": "Nazwa miejsca, tak jak ją piszemy." },
+        { "key": "opis", "label": "Opis", "type": "markup", "role": "description", "says": "Jak to miejsce wygląda i czym jest dla dzieła. Miejsce, które zmienia się (przed pożarem, po pożarze), dostaje osobne wpisy „Faza”." },
+        { "key": "formy", "label": "Formy w tekście", "type": "list", "role": "forms", "says": "Odmiana i inne formy nazwy („w Lublinie”, „Lublina”)." },
+        { "key": "lezyW", "label": "Leży w", "type": "ref", "to": ["@dzielo/miejsce"], "structure": "up", "says": "Większe miejsce, w którym to leży (dom → wieś → region)." }
+      ]
+    },
+    {
+      "ref": "@dzielo/termin",
+      "name": "Termin",
+      "label": "{termin}",
+      "fields": [
+        { "key": "termin", "label": "Termin", "type": "line", "role": "name", "says": "Termin w formie podstawowej." },
+        { "key": "definicja", "label": "Definicja", "type": "markup", "role": "definition", "says": "Definicja obowiązująca w tym dziele — jednym, dwoma zdaniami." },
+        { "key": "uzycie", "label": "Jak go używać", "type": "text", "role": "usage", "says": "Jak termin wprowadzać i używać (np. „zawsze z przymiotnikiem”, „najpierw obraz, potem nazwa”)." },
+        { "key": "zalecana", "label": "Forma zalecana", "type": "line", "role": "preferred", "says": "Forma, którą piszemy, gdy jest kilka możliwych." },
+        { "key": "zakazane", "label": "Zakazane synonimy i formy", "type": "list", "role": "forbidden", "says": "Synonimy i formy, których w tym dziele nie używamy — kontrola zgłasza każde wystąpienie i podaje formę zalecaną." },
+        { "key": "formy", "label": "Formy w tekście", "type": "list", "role": "forms", "says": "Odmiana terminu („przymierza”, „przymierzu”) — po niej aplikacja rozpoznaje termin w treści bez linku." },
+        { "key": "wymaga", "label": "Wymaga", "type": "ref", "multi": true, "to": ["@dzielo/termin", "@dzielo/idea"], "prerequisite": "up", "inverse": "Na tym budują", "says": "Terminy i idee, które czytelnik musi znać WCZEŚNIEJ, żeby zrozumieć ten — kontrola zgłasza, gdy są wprowadzone później. Tylko bezpośrednie." },
+        { "key": "czesc", "label": "Część", "type": "ref", "to": ["@dzielo/termin"], "structure": "up", "says": "Szerszy termin, którego ten jest częścią." },
+        { "key": "przeciwienstwo", "label": "Przeciwieństwo", "type": "ref", "to": ["@dzielo/termin"], "symmetric": true, "says": "Termin o przeciwnym znaczeniu." }
+      ]
+    },
+    {
+      "ref": "@dzielo/idea",
+      "name": "Idea",
+      "label": "{teza}",
+      "fields": [
+        { "key": "teza", "label": "Teza", "type": "line", "role": "name", "says": "Idea albo teza jednym zdaniem." },
+        { "key": "rozwiniecie", "label": "Rozwinięcie", "type": "markup", "role": "description", "says": "Co ta idea mówi i dlaczego jest ważna dla dzieła." },
+        { "key": "formy", "label": "Formy w tekście", "type": "list", "role": "forms", "says": "Krótkie hasła, po których idea jest rozpoznawana w tekście." },
+        { "key": "wymaga", "label": "Wymaga", "type": "ref", "multi": true, "to": ["@dzielo/termin", "@dzielo/idea"], "prerequisite": "up", "inverse": "Na tym budują", "says": "Co czytelnik musi znać wcześniej." }
+      ]
+    },
+    {
+      "ref": "@dzielo/motyw",
+      "name": "Motyw",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "role": "name", "says": "Nazwa motywu albo tematu (np. „rzeka”, „przebaczenie”)." },
+        { "key": "opis", "label": "Opis", "type": "markup", "role": "description", "says": "Co motyw znaczy w dziele i jak się rozwija." },
+        { "key": "zwiazany", "label": "Związany z", "type": "ref", "multi": true, "to": ["@dzielo/motyw", "@dzielo/idea", "@dzielo/termin"], "says": "Motywy, idee, terminy, z którymi się splata." }
+      ]
+    },
+    {
+      "ref": "@dzielo/przedmiot",
+      "name": "Przedmiot",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "role": "name", "says": "Nazwa przedmiotu." },
+        { "key": "opis", "label": "Opis", "type": "markup", "role": "description", "says": "Jak wygląda i jaką ma rolę." },
+        { "key": "formy", "label": "Formy w tekście", "type": "list", "role": "forms", "says": "Formy w tekście." },
+        { "key": "wlasciciel", "label": "Należy do", "type": "ref", "to": ["@dzielo/osoba", "@dzielo/miejsce"], "says": "Do kogo albo gdzie należy." }
+      ]
+    },
+    {
+      "ref": "@dzielo/wydarzenie",
+      "name": "Wydarzenie",
+      "label": "{nazwa}",
+      "tells": "kiedy",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "role": "name", "says": "Krótka nazwa wydarzenia." },
+        { "key": "kiedy", "label": "Kiedy (czas opowieści)", "type": "line", "says": "Kiedy dzieje się w czasie opowieści (rok, pora, „lato po wojnie”)." },
+        { "key": "gdzie", "label": "Gdzie", "type": "ref", "to": ["@dzielo/miejsce"], "says": "Miejsce wydarzenia." },
+        { "key": "kto", "label": "Kto", "type": "ref", "multi": true, "to": ["@dzielo/osoba"], "says": "Osoby, które biorą udział." },
+        { "key": "opis", "label": "Opis", "type": "markup", "role": "description", "says": "Co się dzieje i co zmienia." }
+      ]
+    },
+    {
+      "ref": "@dzielo/faza",
+      "name": "Faza",
+      "label": "{nazwa}",
+      "tells": "czego",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa fazy", "type": "line", "role": "name", "says": "Np. „Anna — dzieciństwo”, „Dom przed pożarem”." },
+        { "key": "czego", "label": "Czego dotyczy", "type": "ref", "role": "phaseOf", "says": "Osoba, miejsce albo rzecz, której opis w tej fazie obowiązuje." },
+        { "key": "od", "label": "Obowiązuje od (w dziele)", "type": "ref", "to": ["node", "text"], "role": "validFrom", "says": "Węzeł struktury dzieła (rozdział, podrozdział) albo tekst, od którego ten opis obowiązuje. Puste: od początku. Wymaga, by baza miała Skryptorium wśród źródeł." },
+        { "key": "do", "label": "Obowiązuje do (w dziele)", "type": "ref", "to": ["node", "text"], "role": "validUntil", "says": "Węzeł albo tekst, do którego (włącznie z wszystkim pod nim) ten opis obowiązuje. Puste: do końca." },
+        { "key": "czasOd", "label": "Od (czas opowieści)", "type": "line", "role": "storyFrom", "says": "Początek fazy w czasie opowieści (np. „1950”, „7 lat”)." },
+        { "key": "czasDo", "label": "Do (czas opowieści)", "type": "line", "role": "storyUntil", "says": "Koniec fazy w czasie opowieści." },
+        { "key": "opis", "label": "Opis w tej fazie", "type": "markup", "role": "description", "says": "Jak osoba, miejsce, rzecz wygląda i jaka jest w tej fazie — pokazywany przy pisaniu każdej jednostki, w której ta faza obowiązuje." }
+      ]
+    },
+    {
+      "ref": "@dzielo/notatka",
+      "name": "Notatka do tematu",
+      "label": "{tytul}",
+      "tells": "temat",
+      "fields": [
+        { "key": "tytul", "label": "Tytuł", "type": "line", "role": "name", "says": "Krótki tytuł notatki." },
+        { "key": "temat", "label": "Temat", "type": "ref", "multi": true, "to": ["@dzielo/osoba", "@dzielo/miejsce", "@dzielo/termin", "@dzielo/idea", "@dzielo/motyw", "@dzielo/przedmiot", "@dzielo/wydarzenie"], "says": "Czego dotyczy ta notatka — omawiany temat albo wpis." },
+        { "key": "notatka", "label": "Notatka", "type": "markup", "role": "description", "says": "Przemyślenia, dyskusja, warianty." },
+        { "key": "decyzja", "label": "Decyzja", "type": "text", "says": "Co postanowiono (i od kiedy obowiązuje)." },
+        { "key": "pytanie", "label": "Otwarte pytanie", "type": "text", "says": "Co jeszcze trzeba rozstrzygnąć." },
+        { "key": "gdzie", "label": "Dotyczy miejsca w dziele", "type": "ref", "multi": true, "to": ["node", "text"], "says": "Węzły albo teksty dzieła, których notatka dotyczy (np. „omówione przy 2.1”)." }
+      ]
+    }
+  ]
+}

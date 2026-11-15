@@ -31,6 +31,7 @@ import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import { createLibrary, libraryKindOf, loadLibraries, type LibraryRow } from '../library/library';
 import { ids, itemsOf, LESSON_STATES, outline, str, type EntryData, type LibEntry, type Lookup } from '../library/libraryKinds';
+import { projectOutline } from '../scriptorium/work/workModel';
 import { storeOf, type Entry, type LibraryStore } from '../library/libraryStore';
 import { areaKeys, chatKeysOf, loadChats, sendMessage } from '../chat/chat';
 import { loadMembers, type AreaRow } from './area';
@@ -60,7 +61,9 @@ export interface Lesson {
 export function lessonsOf(program: LibEntry, look: Lookup): Lesson[] {
   const out: Lesson[] = [];
   let heading: string | null = null;
-  for (const item of outline(program.data)) {
+  /* 2026-11-15 — ein Programm mit einer Struktur (Knoten, scriptorium/work/) liest seine Gliederung aus dem Baum. */
+  const items = look.readable === undefined ? outline(program.data) : projectOutline(program, { all: () => look.readable!(), get: (id) => look.get(id) });
+  for (const item of items) {
     if ('heading' in item) { heading = item.heading.trim() === '' ? null : item.heading.trim(); continue; }
     const text = look.get(item.text);
     if (text === undefined || text.kind !== 'text') continue;

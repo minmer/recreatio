@@ -38,6 +38,8 @@ export interface ScriptoriumContext {
   readonly kindRef?: (token: string) => string | null;
   /** Ein Eintrag in Nauka beim Namen, unter den Einträgen dieser Rodzaje → seine Kennung. */
   readonly entryByName?: (name: string, kinds: readonly string[]) => string | null;
+  /** 2026-11-15 — ein Eintrag von Nauka beim bleibenden Namen („@anna") oder Namen: Marken an Knoten, Regeln zu einem Eintrag. */
+  readonly entryRef?: (token: string) => LibEntry | undefined;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -52,7 +54,7 @@ const BASE_SPEC: FormatSpec = {
   format: SCRIPTORIUM_FORMAT,
   version: SCRIPTORIUM_VERSION,
   kinds: WRITING_KINDS,
-  saveOrder: ['texttype', 'project', 'text', 'delivery'],
+  saveOrder: ['texttype', 'unittemplate', 'project', 'node', 'text', 'delivery', 'rule'],
   elsewhere: (kind) => SOURCES_NAMED[kind] !== undefined
     ? t('scriptorium.json.elsewhere.sources', { what: t(SOURCES_NAMED[kind]), format: LIBRARY_FORMAT })
     : kind === 'comment' ? t('scriptorium.json.elsewhere.comment')
@@ -194,8 +196,14 @@ export function scriptoriumSpec(doc: unknown, base: ImportBase, ctx: Scriptorium
 }
 
 /** Herein: was ein Dokument für dieses Skryptorium bedeuten würde. */
-export const planScriptoriumImport = (doc: unknown, base: ImportBase, ctx: ScriptoriumContext = {}): LibraryImportPlan | { error: string } =>
-  planLibraryImport(doc, base, scriptoriumSpec(doc, base, ctx));
+export function planScriptoriumImport(doc: unknown, base: ImportBase, ctx: ScriptoriumContext = {}): LibraryImportPlan | { error: string } {
+  /* 2026-11-15 — ein Verweis eines Werks auf Nauka („@anna" an einem Knoten) geht durch die Linse, wenn das Skryptorium ihn nicht kennt. */
+  const wide: ImportBase = ctx.entryRef === undefined ? base : {
+    get: (id) => base.get(id),
+    byKey: (key) => base.byKey(key) ?? ctx.entryRef!(key)
+  };
+  return planLibraryImport(doc, wide, scriptoriumSpec(doc, wide, ctx));
+}
 
 /** Hinaus — mit `look` stehen im Zapis die Schlüssel. Nur die Arten des Skryptorium. */
 export const exportScriptorium = (name: string, entries: readonly LibEntry[], look?: Lookup): Record<string, unknown> =>

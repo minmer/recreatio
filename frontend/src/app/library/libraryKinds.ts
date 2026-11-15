@@ -681,6 +681,271 @@ export const PROJECT_STATUS = [
   { value: 'done', label: 'libraryKinds.projectStatus.done' }
 ] as const;
 
+/* -- 2026-11-15: das Werk von oben nach unten (scriptorium/work/, documentation/WORK.md) ------------------- */
+
+export const WORK_LANGS = [
+  { value: 'pl', label: 'libraryKinds.workLangs.pl' },
+  { value: 'de', label: 'libraryKinds.workLangs.de' },
+  { value: 'en', label: 'libraryKinds.workLangs.en' }
+] as const;
+
+/** Wie eine Ebene der Struktur gedruckt wird — `\part` … `\paragraph`. */
+export const LATEX_LEVELS = [
+  { value: 'part', label: 'libraryKinds.latexLevels.part' },
+  { value: 'chapter', label: 'libraryKinds.latexLevels.chapter' },
+  { value: 'section', label: 'libraryKinds.latexLevels.section' },
+  { value: 'subsection', label: 'libraryKinds.latexLevels.subsection' },
+  { value: 'subsubsection', label: 'libraryKinds.latexLevels.subsubsection' },
+  { value: 'paragraph', label: 'libraryKinds.latexLevels.paragraph' }
+] as const;
+
+export const LATEX_CLASSES = [
+  { value: 'book', label: 'libraryKinds.latexClasses.book' },
+  { value: 'article', label: 'libraryKinds.latexClasses.article' },
+  { value: 'booklet', label: 'libraryKinds.latexClasses.booklet' },
+  { value: 'handout', label: 'libraryKinds.latexClasses.handout' }
+] as const;
+
+export const CITATION_STYLES = [
+  { value: 'notes', label: 'libraryKinds.citationStyles.notes' },
+  { value: 'authorYear', label: 'libraryKinds.citationStyles.authorYear' }
+] as const;
+
+/** Die Rollen eines Knotens: was er dem Leser gibt. `brings`: new — muss Neues bringen; nothing — darf nichts Neues bringen. */
+export const NODE_ROLES = [
+  { value: 'new', label: 'libraryKinds.nodeRoles.new', brings: 'new' },
+  { value: 'summary', label: 'libraryKinds.nodeRoles.summary', brings: 'nothing' },
+  { value: 'introduction', label: 'libraryKinds.nodeRoles.introduction', brings: 'any' },
+  { value: 'transition', label: 'libraryKinds.nodeRoles.transition', brings: 'nothing' },
+  { value: 'example', label: 'libraryKinds.nodeRoles.example', brings: 'any' },
+  { value: 'exercise', label: 'libraryKinds.nodeRoles.exercise', brings: 'nothing' },
+  { value: 'conclusion', label: 'libraryKinds.nodeRoles.conclusion', brings: 'any' }
+] as const;
+
+export const ROLE_BRINGS = [
+  { value: 'new', label: 'libraryKinds.roleBrings.new' },
+  { value: 'nothing', label: 'libraryKinds.roleBrings.nothing' },
+  { value: 'any', label: 'libraryKinds.roleBrings.any' }
+] as const;
+
+export const NODE_STATUS = [
+  { value: 'idea', label: 'libraryKinds.nodeStatus.idea' },
+  { value: 'planned', label: 'libraryKinds.nodeStatus.planned' },
+  { value: 'drafting', label: 'libraryKinds.nodeStatus.drafting' },
+  { value: 'written', label: 'libraryKinds.nodeStatus.written' },
+  { value: 'done', label: 'libraryKinds.nodeStatus.done' }
+] as const;
+
+/** Wie ein Begriff, eine Person, ein Ort an einer Stelle vorkommt. */
+export const MARK_ROLES = [
+  { value: 'intro', label: 'libraryKinds.markRoles.intro' },
+  { value: 'def', label: 'libraryKinds.markRoles.def' },
+  { value: 'ex', label: 'libraryKinds.markRoles.ex' },
+  { value: 'use', label: 'libraryKinds.markRoles.use' },
+  { value: 'recall', label: 'libraryKinds.markRoles.recall' }
+] as const;
+
+export const RULE_WEIGHTS = [
+  { value: 'must', label: 'libraryKinds.ruleWeights.must' },
+  { value: 'should', label: 'libraryKinds.ruleWeights.should' }
+] as const;
+
+/** Was eine Regel von selbst prüfen kann (`work/workRules.ts`). */
+export const RULE_CHECKS = [
+  { value: 'sentenceWords', label: 'libraryKinds.ruleChecks.sentenceWords' },
+  { value: 'maxWords', label: 'libraryKinds.ruleChecks.maxWords' },
+  { value: 'minWords', label: 'libraryKinds.ruleChecks.minWords' },
+  { value: 'forbid', label: 'libraryKinds.ruleChecks.forbid' },
+  { value: 'require', label: 'libraryKinds.ruleChecks.require' },
+  { value: 'needsDefinition', label: 'libraryKinds.ruleChecks.needsDefinition' },
+  { value: 'needsExample', label: 'libraryKinds.ruleChecks.needsExample' },
+  { value: 'oneNew', label: 'libraryKinds.ruleChecks.oneNew' }
+] as const;
+
+const YES_NO = [
+  { value: 'yes', label: 'libraryKinds.yesNo.yes' },
+  { value: 'no', label: 'libraryKinds.yesNo.no' }
+] as const;
+
+const LEVEL_ITEM: readonly LibField[] = [
+  { key: 'name', label: 'libraryKinds.levelItem.name.label', type: 'line', says: 'libraryKinds.levelItem.name.says' },
+  { key: 'latex', label: 'libraryKinds.levelItem.latex.label', type: 'select', options: LATEX_LEVELS, says: 'libraryKinds.levelItem.latex.says' }
+];
+
+const VALUE_ITEM: readonly LibField[] = [
+  { key: 'key', label: 'libraryKinds.valueItem.key.label', type: 'line', says: 'libraryKinds.valueItem.key.says' },
+  { key: 'name', label: 'libraryKinds.valueItem.name.label', type: 'line', says: 'libraryKinds.valueItem.name.says' }
+];
+
+const DIMENSION_ITEM: readonly LibField[] = [
+  { key: 'key', label: 'libraryKinds.dimensionItem.key.label', type: 'line', says: 'libraryKinds.dimensionItem.key.says' },
+  { key: 'name', label: 'libraryKinds.dimensionItem.name.label', type: 'line', says: 'libraryKinds.dimensionItem.name.says' },
+  { key: 'ordered', label: 'libraryKinds.dimensionItem.ordered.label', type: 'select', options: YES_NO, says: 'libraryKinds.dimensionItem.ordered.says' },
+  { key: 'values', label: 'libraryKinds.dimensionItem.values.label', type: 'items', item: VALUE_ITEM, says: 'libraryKinds.dimensionItem.values.says' }
+];
+
+const CHOICE_ITEM: readonly LibField[] = [
+  { key: 'dimension', label: 'libraryKinds.choiceItem.dimension.label', type: 'line', says: 'libraryKinds.choiceItem.dimension.says' },
+  { key: 'value', label: 'libraryKinds.choiceItem.value.label', type: 'line', says: 'libraryKinds.choiceItem.value.says' }
+];
+
+const PATH_ITEM: readonly LibField[] = [
+  { key: 'key', label: 'libraryKinds.pathItem.key.label', type: 'line', says: 'libraryKinds.pathItem.key.says' },
+  { key: 'name', label: 'libraryKinds.pathItem.name.label', type: 'line', says: 'libraryKinds.pathItem.name.says' },
+  { key: 'choose', label: 'libraryKinds.pathItem.choose.label', type: 'items', item: CHOICE_ITEM, says: 'libraryKinds.pathItem.choose.says' }
+];
+
+const ROLE_ITEM: readonly LibField[] = [
+  { key: 'value', label: 'libraryKinds.roleItem.value.label', type: 'line', says: 'libraryKinds.roleItem.value.says' },
+  { key: 'label', label: 'libraryKinds.roleItem.label.label', type: 'line', says: 'libraryKinds.roleItem.label.says' },
+  { key: 'brings', label: 'libraryKinds.roleItem.brings.label', type: 'select', options: ROLE_BRINGS, says: 'libraryKinds.roleItem.brings.says' }
+];
+
+const BASE_ITEM: readonly LibField[] = [
+  { key: 'base', label: 'libraryKinds.baseItem.base.label', type: 'line', says: 'libraryKinds.baseItem.base.says' }
+];
+
+const MARK_ITEM: readonly LibField[] = [
+  { key: 'entry', label: 'libraryKinds.markItem.entry.label', type: 'ref', says: 'libraryKinds.markItem.entry.says' },
+  { key: 'role', label: 'libraryKinds.markItem.role.label', type: 'select', options: MARK_ROLES, says: 'libraryKinds.markItem.role.says' },
+  { key: 'note', label: 'libraryKinds.markItem.note.label', type: 'line', says: 'libraryKinds.markItem.note.says' }
+];
+
+const SKIP_ITEM: readonly LibField[] = [
+  { key: 'value', label: 'libraryKinds.skipItem.value.label', type: 'line', says: 'libraryKinds.skipItem.value.says' },
+  { key: 'note', label: 'libraryKinds.skipItem.note.label', type: 'line', says: 'libraryKinds.skipItem.note.says' }
+];
+
+const PART_ITEM: readonly LibField[] = [
+  { key: 'id', label: 'libraryKinds.partItem.id.label', type: 'line', says: 'libraryKinds.partItem.id.says' },
+  { key: 'title', label: 'libraryKinds.partItem.title.label', type: 'line', says: 'libraryKinds.partItem.title.says' },
+  { key: 'kind', label: 'libraryKinds.partItem.kind.label', type: 'select', options: POINT_KINDS, says: 'libraryKinds.partItem.kind.says' },
+  { key: 'words', label: 'libraryKinds.partItem.words.label', type: 'number', says: 'libraryKinds.partItem.words.says' },
+  { key: 'minutes', label: 'libraryKinds.partItem.minutes.label', type: 'number', says: 'libraryKinds.partItem.minutes.says' },
+  { key: 'note', label: 'libraryKinds.partItem.note.label', type: 'line', says: 'libraryKinds.partItem.note.says' }
+];
+
+/**
+ * EIN KNOTEN DER STRUKTUR eines Werks: ein Teil, Kapitel, Abschnitt … bis zur kleinsten Einheit. Er steht, bevor es
+ * Prosa gibt (Zweck, Kernsatz, Rolle, Ziel); seine Prosa ist ein gewöhnlicher Text (`text`). Ein Knoten mit `split`
+ * teilt sich nach einer Dimension: seine Kinder tragen `variant` (einen Wert, leer = gemeinsamer Kern für alle).
+ */
+const NODE: LibKind = {
+  kind: 'node',
+  label: 'libraryKinds.node.label',
+  plural: 'libraryKinds.node.plural',
+  says: 'libraryKinds.node.says',
+  keyed: true,
+  fields: [
+    { key: 'project', label: 'libraryKinds.node.fields.project.label', type: 'ref', to: ['project'], says: 'libraryKinds.node.fields.project.says' },
+    { key: 'parent', label: 'libraryKinds.node.fields.parent.label', type: 'ref', to: ['node'], says: 'libraryKinds.node.fields.parent.says' },
+    { key: 'order', label: 'libraryKinds.node.fields.order.label', type: 'number', says: 'libraryKinds.node.fields.order.says' },
+    { key: 'title', label: 'libraryKinds.node.fields.title.label', type: 'line', says: 'libraryKinds.node.fields.title.says' },
+    { key: 'purpose', label: 'libraryKinds.node.fields.purpose.label', type: 'text', says: 'libraryKinds.node.fields.purpose.says' },
+    { key: 'synopsis', label: 'libraryKinds.node.fields.synopsis.label', type: 'text', says: 'libraryKinds.node.fields.synopsis.says' },
+    { key: 'role', label: 'libraryKinds.node.fields.role.label', type: 'line', get says() { return t('libraryKinds.node.fields.role.says', { list: NODE_ROLES.map((r) => `"${r.value}" (${r.label})`).join(', ') }); } },
+    { key: 'brings', label: 'libraryKinds.node.fields.brings.label', type: 'text', says: 'libraryKinds.node.fields.brings.says' },
+    { key: 'targetWords', label: 'libraryKinds.node.fields.targetWords.label', type: 'number', says: 'libraryKinds.node.fields.targetWords.says' },
+    { key: 'targetMinutes', label: 'libraryKinds.node.fields.targetMinutes.label', type: 'number', says: 'libraryKinds.node.fields.targetMinutes.says' },
+    { key: 'status', label: 'libraryKinds.node.fields.status.label', type: 'select', options: NODE_STATUS, get says() { return t('libraryKinds.node.fields.status.says', { list: NODE_STATUS.map((s) => `"${s.value}"`).join(', ') }); } },
+    { key: 'notes', label: 'libraryKinds.node.fields.notes.label', type: 'text', says: 'libraryKinds.node.fields.notes.says' },
+    { key: 'text', label: 'libraryKinds.node.fields.text.label', type: 'ref', to: ['text'], says: 'libraryKinds.node.fields.text.says' },
+    { key: 'split', label: 'libraryKinds.node.fields.split.label', type: 'line', says: 'libraryKinds.node.fields.split.says' },
+    { key: 'variant', label: 'libraryKinds.node.fields.variant.label', type: 'line', says: 'libraryKinds.node.fields.variant.says' },
+    { key: 'skip', label: 'libraryKinds.node.fields.skip.label', type: 'items', item: SKIP_ITEM, says: 'libraryKinds.node.fields.skip.says' },
+    { key: 'template', label: 'libraryKinds.node.fields.template.label', type: 'ref', to: ['unittemplate'], says: 'libraryKinds.node.fields.template.says' },
+    { key: 'templateSig', label: 'libraryKinds.node.fields.templateSig.label', type: 'line', says: 'libraryKinds.node.fields.templateSig.says' },
+    { key: 'marks', label: 'libraryKinds.node.fields.marks.label', type: 'items', item: MARK_ITEM, says: 'libraryKinds.node.fields.marks.says' }
+  ],
+  title: (data) => str(data, 'title').trim() || t('libraryKinds.untitled'),
+  sort: (entry) => `${String(Math.round((num(entry.data, 'order') ?? 0) * 1000)).padStart(12, '0')} ${str(entry.data, 'title').toLowerCase().slice(0, 40)}`,
+  example: {
+    key: 'r1',
+    data: {
+      project: '@niedziele-2026', title: 'Dzieciństwo Anny', order: 1, role: 'new', // i18n-ignore
+      purpose: 'Czytelnik poznaje Annę i dom, z którego wyrosła.', synopsis: 'Anna dorasta nad rzeką; pierwszy raz słyszy o „przymierzu”.', // i18n-ignore
+      brings: 'Anna, dom nad rzeką, pojęcie przymierza', targetWords: 4000, status: 'planned', // i18n-ignore
+      marks: [{ entry: '@anna', role: 'intro' }, { entry: '@przymierze', role: 'intro' }]
+    }
+  }
+};
+
+/**
+ * EINE REGEL des Schreibens: die Regel, warum es sie gibt, wo sie gilt (das ganze Werk, ein Teilbaum, eine Rolle,
+ * eine Vorlage, ein Wert einer Dimension, ein Eintrag der Wiedza — alles Genannte zugleich), wie streng, Beispiele,
+ * und wenn möglich wie sie von selbst geprüft wird. Ohne Projekt gehört sie zum eigenen Regelbuch: sie gilt in jedem
+ * Projekt dieses Skryptorium.
+ */
+const RULE: LibKind = {
+  kind: 'rule',
+  label: 'libraryKinds.rule.label',
+  plural: 'libraryKinds.rule.plural',
+  says: 'libraryKinds.rule.says',
+  keyed: true,
+  fields: [
+    { key: 'project', label: 'libraryKinds.rule.fields.project.label', type: 'ref', to: ['project'], says: 'libraryKinds.rule.fields.project.says' },
+    { key: 'rule', label: 'libraryKinds.rule.fields.rule.label', type: 'text', says: 'libraryKinds.rule.fields.rule.says' },
+    { key: 'why', label: 'libraryKinds.rule.fields.why.label', type: 'text', says: 'libraryKinds.rule.fields.why.says' },
+    { key: 'weight', label: 'libraryKinds.rule.fields.weight.label', type: 'select', options: RULE_WEIGHTS, says: 'libraryKinds.rule.fields.weight.says' },
+    { key: 'node', label: 'libraryKinds.rule.fields.node.label', type: 'ref', to: ['node'], says: 'libraryKinds.rule.fields.node.says' },
+    { key: 'role', label: 'libraryKinds.rule.fields.role.label', type: 'line', says: 'libraryKinds.rule.fields.role.says' },
+    { key: 'template', label: 'libraryKinds.rule.fields.template.label', type: 'ref', to: ['unittemplate'], says: 'libraryKinds.rule.fields.template.says' },
+    { key: 'dimension', label: 'libraryKinds.rule.fields.dimension.label', type: 'line', says: 'libraryKinds.rule.fields.dimension.says' },
+    { key: 'value', label: 'libraryKinds.rule.fields.value.label', type: 'line', says: 'libraryKinds.rule.fields.value.says' },
+    { key: 'entity', label: 'libraryKinds.rule.fields.entity.label', type: 'ref', says: 'libraryKinds.rule.fields.entity.says' },
+    { key: 'good', label: 'libraryKinds.rule.fields.good.label', type: 'text', says: 'libraryKinds.rule.fields.good.says' },
+    { key: 'bad', label: 'libraryKinds.rule.fields.bad.label', type: 'text', says: 'libraryKinds.rule.fields.bad.says' },
+    { key: 'check', label: 'libraryKinds.rule.fields.check.label', type: 'select', options: RULE_CHECKS, get says() { return t('libraryKinds.rule.fields.check.says', { list: RULE_CHECKS.map((c) => `"${c.value}" (${c.label})`).join(', ') }); } },
+    { key: 'param', label: 'libraryKinds.rule.fields.param.label', type: 'line', says: 'libraryKinds.rule.fields.param.says' }
+  ],
+  title: (data) => { const s = str(data, 'rule').trim(); return s === '' ? t('libraryKinds.rule.label') : clip(s.split('\n')[0], 80); },
+  sort: (entry) => `${ids(entry.data, 'project').length === 0 ? '0' : '1'} ${str(entry.data, 'weight') === 'must' ? '0' : '1'} ${str(entry.data, 'rule').toLowerCase().slice(0, 40)}`,
+  example: {
+    key: 'dzieci-krotko',
+    data: {
+      project: '@niedziele-2026', rule: 'Dla dzieci: zdania krótkie, najwyżej 12 słów.', why: 'Dzieci gubią wątek w długich zdaniach.', // i18n-ignore
+      weight: 'must', dimension: 'audience', value: 'children', check: 'sentenceWords', param: '12',
+      good: 'Jezus przyszedł do domu Zacheusza.', bad: 'Kiedy Jezus, który właśnie przechodził przez Jerycho, zobaczył Zacheusza, który wszedł na drzewo, …' // i18n-ignore
+    }
+  }
+};
+
+/**
+ * EINE VORLAGE EINER EINHEIT: die innere Gestalt einer Art von Einheit (ein Fünf-Minuten-Kazanie: Einstieg — Schrift —
+ * ein Gedanke — Beispiel — Anwendung) mit der Länge je Teil. Aus ihr entsteht ein Zyklus von N Einheiten; ändert sie
+ * sich später, zeigen die Prüfungen, welche Einheiten nicht mehr passen (`templateSig`).
+ */
+const UNIT_TEMPLATE: LibKind = {
+  kind: 'unittemplate',
+  label: 'libraryKinds.unitTemplate.label',
+  plural: 'libraryKinds.unitTemplate.plural',
+  says: 'libraryKinds.unitTemplate.says',
+  keyed: true,
+  fields: [
+    { key: 'name', label: 'libraryKinds.unitTemplate.fields.name.label', type: 'line', says: 'libraryKinds.unitTemplate.fields.name.says' },
+    { key: 'description', label: 'libraryKinds.unitTemplate.fields.description.label', type: 'text', says: 'libraryKinds.unitTemplate.fields.description.says' },
+    { key: 'role', label: 'libraryKinds.unitTemplate.fields.role.label', type: 'line', says: 'libraryKinds.unitTemplate.fields.role.says' },
+    { key: 'targetWords', label: 'libraryKinds.unitTemplate.fields.targetWords.label', type: 'number', says: 'libraryKinds.unitTemplate.fields.targetWords.says' },
+    { key: 'targetMinutes', label: 'libraryKinds.unitTemplate.fields.targetMinutes.label', type: 'number', says: 'libraryKinds.unitTemplate.fields.targetMinutes.says' },
+    { key: 'parts', label: 'libraryKinds.unitTemplate.fields.parts.label', type: 'items', item: PART_ITEM, says: 'libraryKinds.unitTemplate.fields.parts.says' }
+  ],
+  title: (data) => str(data, 'name').trim() || t('libraryKinds.unitTemplate.label'),
+  sort: (entry) => str(entry.data, 'name').toLowerCase(),
+  example: {
+    key: 'kazanie-5',
+    data: {
+      name: 'Kazanie 5 minut', role: 'new', targetWords: 650, targetMinutes: 5, // i18n-ignore
+      parts: [
+        { id: 'wstep', title: 'Wejście', kind: 'thought', words: 80 }, // i18n-ignore
+        { id: 'pismo', title: 'Pismo', kind: 'quote', words: 120 }, // i18n-ignore
+        { id: 'mysl', title: 'Jedna myśl', kind: 'thought', words: 250 }, // i18n-ignore
+        { id: 'przyklad', title: 'Przykład', kind: 'example', words: 120 }, // i18n-ignore
+        { id: 'zastosowanie', title: 'Zastosowanie', kind: 'application', words: 80 } // i18n-ignore
+      ]
+    }
+  }
+};
+
 const PROJECT: LibKind = {
   kind: 'project',
   label: 'libraryKinds.project.label',
@@ -697,7 +962,16 @@ const PROJECT: LibKind = {
     { key: 'deadline', label: 'libraryKinds.project.fields.deadline.label', type: 'date', says: 'libraryKinds.project.fields.deadline.says' },
     { key: 'targetWords', label: 'libraryKinds.project.fields.targetWords.label', type: 'number', says: 'libraryKinds.project.fields.targetWords.says' },
     /* 0134 — ein Programm (der Projekt einer Schule) und die Klassen, die es verwirklichen. */
-    { key: 'classes', label: 'libraryKinds.project.fields.classes.label', type: 'items', item: CLASS_ITEM, says: 'libraryKinds.project.fields.classes.says' }
+    { key: 'classes', label: 'libraryKinds.project.fields.classes.label', type: 'items', item: CLASS_ITEM, says: 'libraryKinds.project.fields.classes.says' },
+    /* 2026-11-15 — DAS WERK (scriptorium/work/): Sprache, Ebenen, Dimensionen, Wege, eigene Rollen, die Wiedza des Werks, der Druck. */
+    { key: 'lang', label: 'libraryKinds.project.fields.lang.label', type: 'select', options: WORK_LANGS, says: 'libraryKinds.project.fields.lang.says' },
+    { key: 'levels', label: 'libraryKinds.project.fields.levels.label', type: 'items', item: LEVEL_ITEM, says: 'libraryKinds.project.fields.levels.says' },
+    { key: 'dimensions', label: 'libraryKinds.project.fields.dimensions.label', type: 'items', item: DIMENSION_ITEM, says: 'libraryKinds.project.fields.dimensions.says' },
+    { key: 'paths', label: 'libraryKinds.project.fields.paths.label', type: 'items', item: PATH_ITEM, says: 'libraryKinds.project.fields.paths.says' },
+    { key: 'roles', label: 'libraryKinds.project.fields.roles.label', type: 'items', item: ROLE_ITEM, says: 'libraryKinds.project.fields.roles.says' },
+    { key: 'knowledge', label: 'libraryKinds.project.fields.knowledge.label', type: 'items', item: BASE_ITEM, says: 'libraryKinds.project.fields.knowledge.says' },
+    { key: 'latexClass', label: 'libraryKinds.project.fields.latexClass.label', type: 'select', options: LATEX_CLASSES, says: 'libraryKinds.project.fields.latexClass.says' },
+    { key: 'citationStyle', label: 'libraryKinds.project.fields.citationStyle.label', type: 'select', options: CITATION_STYLES, says: 'libraryKinds.project.fields.citationStyle.says' }
   ],
   title: (data) => str(data, 'title').trim() || t('libraryKinds.project.label'),
   sort: (entry) => str(entry.data, 'title').toLowerCase(),
@@ -770,13 +1044,17 @@ function localize(node: unknown, seen = new Set<object>()): void {
     } else if (typeof value === 'object' && prop !== 'data') localize(value, seen);
   }
 }
-localize([PERSON, WORK, QUOTE, TEXT, DELIVERY, PROJECT, TEXT_TYPE, WORK_TYPES, TRACK_ROLES, BINDINGS, TEXT_STATUS, POINT_KINDS, COVERAGE_STATES, LESSON_STATES, PROJECT_TYPES, PROJECT_STATUS]);
+localize([PERSON, WORK, QUOTE, TEXT, DELIVERY, PROJECT, TEXT_TYPE, NODE, RULE, UNIT_TEMPLATE, WORK_TYPES, TRACK_ROLES, BINDINGS, TEXT_STATUS, POINT_KINDS, COVERAGE_STATES, LESSON_STATES, PROJECT_TYPES, PROJECT_STATUS,
+  WORK_LANGS, LATEX_LEVELS, LATEX_CLASSES, CITATION_STYLES, NODE_ROLES, ROLE_BRINGS, NODE_STATUS, MARK_ROLES, RULE_WEIGHTS, RULE_CHECKS, YES_NO]);
 
 /** Die Bibliothek (2026-10-23): nur Quellen — in dieser Reihenfolge stehen ihre Reiter. */
 export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
 
-/** Das Skryptorium (2026-10-23): das Schreiben — Texte, Wygłoszenia, Projekte und die eigenen Rodzaje tekstów. */
-export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE];
+/**
+ * Das Skryptorium (2026-10-23): das Schreiben — Texte, Wygłoszenia, Projekte und die eigenen Rodzaje tekstów;
+ * 2026-11-15 dazu die Struktur eines Werks (Knoten), Regeln und Vorlagen von Einheiten.
+ */
+export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE, NODE, RULE, UNIT_TEMPLATE];
 
 /** Alle Arten, die diese Fassung kennt — gelesen, zitiert und gezeigt wird über die Teile hinweg. */
 export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS, ...LITURGY_KINDS];

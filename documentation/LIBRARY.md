@@ -11,9 +11,10 @@ explains the design; the code comments carry the details.
 | **Scriptorium** (Skryptorium) | writing that uses the knowledge and cites the sources | texts, deliveries, projects, text types | [SCRIPTORIUM.md](SCRIPTORIUM.md) |
 | **Cogita** (Nauka) | knowledge: the owner's own kinds, their entries and links; learning | own kinds and entries (places, persons as subjects, events, mysteries, comments…), questions, templates, revisions, flows, views | [COGITA.md](COGITA.md) |
 
-**References run in one direction.** The Scriptorium cites the Library and links to or embeds Cogita; Cogita cites
-the Library; the Library points only at other Library entries (a quote → its work, a work → its authors and its
-container). Backlinks ("Powiązania", "Odwołują się tutaj") show every direction.
+**References.** The Scriptorium cites the Library and links to or embeds Cogita; Cogita cites the Library (and since
+2026-11-15 may point back at Scriptorium texts and structure nodes — [WORK.md](WORK.md)); the Library points only at
+other Library entries (a quote → its work, a work → its authors and its container). Backlinks ("Powiązania",
+"Odwołują się tutaj") show every direction.
 
 **Persons exist twice, on purpose.** A Library person is an author, a target for references. A Cogita person is a
 described subject of an owner-written kind. If the owner wants a bridge, the kind gets a reference field to Library

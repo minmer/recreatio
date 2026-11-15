@@ -6,14 +6,15 @@
 
 import type { EntryFormat } from '../library/LibraryEntryBoxes';
 import type { LibraryStore } from '../library/libraryStore';
-import { entryByNameIn, kindRefIn, type ScriptoriumLens } from './lens';
+import { entryByNameIn, entryRefIn, kindRefIn, type ScriptoriumLens } from './lens';
 import { exportScriptorium, planScriptoriumImport, scriptoriumDescription } from './scriptoriumJson';
 
 /** Die Liste, zu der eine Art gehört (`#/workspace/scriptorium/<id>/<reiter>`). */
-export const SCRIPTORIUM_TAB: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wyglaszenia', project: 'projekty', texttype: 'rodzaje' };
+/* 2026-11-15 — Knoten, Regeln und Vorlagen stehen im Werk ihres Projekts (`work/`); ihre Liste ist die der Projekte. */
+export const SCRIPTORIUM_TAB: Readonly<Record<string, string>> = { text: 'teksty', delivery: 'wyglaszenia', project: 'projekty', texttype: 'rodzaje', node: 'projekty', rule: 'reguly', unittemplate: 'szablony' };
 
 export const scriptoriumFormat = (store: LibraryStore, name: string, lens: ScriptoriumLens | null): EntryFormat => ({
-  plan: (doc) => planScriptoriumImport(doc, store, { kindRef: kindRefIn(lens), entryByName: entryByNameIn(lens) }),
+  plan: (doc) => planScriptoriumImport(doc, store, { kindRef: kindRefIn(lens), entryByName: entryByNameIn(lens), entryRef: entryRefIn(lens) }),
   exportDoc: (entries) => exportScriptorium(name, entries, store),
   describe: scriptoriumDescription
 });

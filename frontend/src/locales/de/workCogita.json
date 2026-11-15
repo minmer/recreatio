@@ -1,0 +1,31 @@
+{
+  "purpose": {
+    "title": "Wozu diese Basis da ist",
+    "hint": "Eine Basis kann ein Kurs sein, aus dem man lernt, oder das Wissen eines Werks im Skriptorium (seine Personen, Orte, Begriffe, Ideen). Das Wissen eines Werks wird beim Lernen nicht als Kurs angeboten und drängt keine Karten auf; aus ihm zu lernen bleibt möglich. Beim Wechseln wird nichts gelöscht.",
+    "learning": "Lernen",
+    "work": "Das Wissen eines Werks"
+  },
+  "banner": {
+    "knowledge": "Diese Basis ist das Wissen eines Werks: ihre Einträge dienen der Struktur eines Buches oder Zyklus im Skriptorium, nicht dem Lernen. Jeder Eintrag zeigt, wo er im Werk vorkommt.",
+    "learn": "Diese Basis ist das Wissen eines Werks, kein Kurs — lernen kann man trotzdem daraus."
+  },
+  "nauka": {
+    "hint": {
+      "one": "{count} Basis ist das Wissen eines Werks und steht nicht als Kurs da.",
+      "other": "{count} Basen sind das Wissen von Werken und stehen nicht als Kurse da."
+    },
+    "show": {
+      "one": "Auch sie zeigen",
+      "other": "Auch sie zeigen ({count})"
+    },
+    "hide": "Basen von Werken ausblenden"
+  },
+  "box": {
+    "title": "Im Werk",
+    "untitled": "(Werk ohne Titel)",
+    "elsewhere": {
+      "one": "Dazu {count} Stelle in einer Fassung für andere Leser.",
+      "other": "Dazu {count} Stellen in Fassungen für andere Leser."
+    }
+  }
+}

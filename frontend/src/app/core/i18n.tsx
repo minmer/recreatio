@@ -114,6 +114,17 @@ export const langChosen = (): boolean => isLang(readStore(KEY_APP));
 export const appLang = (): Lang => S.app;
 
 /**
+ * 2026-11-15 — ETWAS IN EINER ANDEREN SPRACHE RECHNEN (der Druck eines Werks in seiner Sprache): für die Dauer von
+ * `fn` gibt das blanke `t()` diese Sprache, danach wieder die der Anwendung. Nur für synchronen Code; die Sprache
+ * muss geladen sein (`loadLang`). Nichts wird gemeldet — kein Bild zeichnet sich dabei neu.
+ */
+export function withLang<R>(lang: Lang, fn: () => R): R {
+  const was = S.app;
+  S.app = lang;
+  try { return fn(); } finally { S.app = was; }
+}
+
+/**
  * Die Sprache der Anwendung setzen. Mit `persist` wird sie gemerkt und die Karte neu geladen: Texte,
  * die schon gezeichnet sind (Menüs, gemerkte Listen), sollen nicht halb in der alten Sprache stehen.
  * `null` heisst: wieder dem Browser folgen.

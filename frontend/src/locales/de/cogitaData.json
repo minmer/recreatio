@@ -242,7 +242,17 @@
     "work": "Quelle",
     "locator": "Stelle in der Quelle",
     "description": "Beschreibung",
-    "body": "Inhalt"
+    "body": "Inhalt",
+    "forms": "Formen (im Text eines Werks erkannt)",
+    "forbidden": "Verbotene Synonyme und Formen",
+    "preferred": "Bevorzugte Form",
+    "definition": "Definition",
+    "usage": "Wie es gebraucht wird",
+    "phaseOf": "Phase von",
+    "validFrom": "Gilt ab (im Werk)",
+    "validUntil": "Gilt bis (im Werk)",
+    "storyFrom": "Ab (Zeit der Erzählung)",
+    "storyUntil": "Bis (Zeit der Erzählung)"
   },
   "kindProblem": {
     "labelField": "Das Bezeichnungsmuster verwendet das Feld „{field}“, das diese Art nicht hat.",

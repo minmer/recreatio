@@ -107,7 +107,9 @@ export type RangeOf = (typeof RANGE_OF)[number];
 export const FIELD_ROLES: readonly { readonly role: string; readonly label: string }[] = [
   'title', 'subtitle', 'name', 'givenNames', 'surname', 'authors', 'editors', 'translators', 'container', 'volume', 'issue',
   'edition', 'publisher', 'place', 'year', 'series', 'pages', 'isbn', 'doi', 'url', 'siglum', 'text', 'work', 'locator',
-  'description', 'body'
+  'description', 'body',
+  /* 2026-11-15 — das Wissen eines Werks (scriptorium/work/workKnowledge.ts): Formen, verbotene Synonyme, Definition, Phasen. */
+  'forms', 'forbidden', 'preferred', 'definition', 'usage', 'phaseOf', 'validFrom', 'validUntil', 'storyFrom', 'storyUntil'
 ].map((role) => ({ role, get label() { return t(`cogitaData.fieldRole.${role}`); } }));
 
 /* -- Das Modell ---------------------------------------------------------------------- */

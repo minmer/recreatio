@@ -26,7 +26,8 @@ import { loadAreas, type AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
-import { useLibraryStore } from '../library/libraryStore';
+import { storeOf, useLibraryStore } from '../library/libraryStore';
+import { isWorkBase, readSettings } from './store';
 import { useMe, type Me } from '../core/me';
 import { rich, useT } from '../core/i18n';
 import { viewPath } from '../routes';
@@ -176,11 +177,41 @@ function KnowledgeOverview({ me, bases, areas, onCreated }: { me: Me; bases: rea
   );
 }
 
+/**
+ * 2026-11-15 — WELCHE BAZY DAS WISSEN EINES WERKS SIND (Ustawienia → „Do czego służy"): aus ihren Speichern; einer, der
+ * noch nicht offen ist, wird im Hintergrund abgeglichen. Solange es unbekannt ist, gilt die Baza als Kurs.
+ */
+function useWorkBases(me: Me, bases: readonly OpenLibrary[] | null): ReadonlySet<string> {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      for (const base of bases ?? []) {
+        const store = storeOf(me.ring, base);
+        if (store.loaded) continue;
+        await store.sync().catch(() => undefined);
+        if (alive) setTick((n) => n + 1);
+      }
+    })();
+    return () => { alive = false; };
+  }, [me.ring, bases]);
+  const out = new Set<string>();
+  for (const base of bases ?? []) {
+    const store = storeOf(me.ring, base);
+    if (store.loaded && isWorkBase(readSettings(store.all().find((e) => e.kind === 'settings')?.data))) out.add(base.libraryId);
+  }
+  return out;
+}
+
 /** NAUKA: was jetzt dran ist, Sitzungen, die Bazy zum Lernen — angelegt werden sie in der Wiedza. */
 function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[] }) {
   const [due, setDue] = useState<readonly DueRow[] | null>(null);
   const [sessions, setSessions] = useState<readonly SessionRow[]>([]);
   const t = useT();
+  /* 2026-11-15 — Bazy, die das Wissen eines Werks sind, stehen nicht als Kurs da — auf Wunsch doch (Lernen bleibt möglich). */
+  const works = useWorkBases(me, bases);
+  const [showWorks, setShowWorks] = useState(false);
+  const courses = (bases ?? []).filter((l) => showWorks || !works.has(l.libraryId));
   useEffect(() => {
     void loadDue().then((r) => setDue(r.due), () => setDue([]));
     void loadSessions().then((r) => setSessions(r.sessions.filter((s) => s.state === 'lobby' || s.state === 'running')), () => undefined);
@@ -245,9 +276,9 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
               <div className="wk-actions"><a className="wk-btn wk-btn-line" href={viewPath('knowledge')}><Icon name="branch" />{t('cogitaLearnRun.learnView.toKnowledge')}</a></div>
             </div>
           )
-          : bases.map((l) => (
+          : courses.map((l) => (
             <a key={l.libraryId} className="wk-line" href={viewPath('learn', l.libraryId)}>
-              <span className="wk-line-ic"><Icon name="book" /></span>
+              <span className="wk-line-ic"><Icon name={works.has(l.libraryId) ? 'branch' : 'book'} /></span>
               <span className="wk-line-text">
                 <span className="wk-line-title">{l.name}</span>
                 <span className="wk-line-sub">{t(l.writes ? 'cogitaLearnRun.learnView.lineWrite' : 'cogitaLearnRun.learnView.lineLearn', { count: l.entries, area: areaName(l.areaId) })}</span>
@@ -255,6 +286,12 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
           ))}
+        {works.size > 0 && (
+          <div className="wk-box-body">
+            <p className="wk-box-empty">{t('workCogita.nauka.hint', { count: works.size })}</p>
+            <button type="button" className="wk-btn wk-btn-line" onClick={() => setShowWorks(!showWorks)}>{showWorks ? t('workCogita.nauka.hide') : t('workCogita.nauka.show', { count: works.size })}</button>
+          </div>
+        )}
       </section>
 
     </div>

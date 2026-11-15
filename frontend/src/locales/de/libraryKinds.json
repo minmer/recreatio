@@ -652,6 +652,38 @@
       "classes": {
         "label": "Klassen",
         "says": "Lehrplan in der Schule: die Klassen, die ihn umsetzen — eine Liste { \"area\": Kennung des Bereichs der Klasse }"
+      },
+      "lang": {
+        "label": "Sprache des Werks",
+        "says": "Sprache des Werks und seines Drucks: \"pl\", \"de\" oder \"en\" (leer: die Sprache der App)"
+      },
+      "levels": {
+        "label": "Ebenen",
+        "says": "Namen der Ebenen der Struktur, von oben, je { \"name\": \"Kapitel\", \"latex\": \"chapter\" } (latex: part, chapter, section, subsection, subsubsection, paragraph)"
+      },
+      "dimensions": {
+        "label": "Dimensionen",
+        "says": "Dimensionen des Werks, je { \"key\": \"audience\", \"name\": \"Zielgruppe\", \"ordered\": \"yes\" | \"no\", \"values\": [{ \"key\": \"children\", \"name\": \"Kinder\" }] }; ein Knoten teilt sich nach einer mit \"split\", seine Kinder tragen \"variant\""
+      },
+      "paths": {
+        "label": "Wege (Ausgaben)",
+        "says": "Ausgaben durch die Dimensionen, je { \"key\": \"youth\", \"name\": \"Für Jugendliche\", \"choose\": [{ \"dimension\": \"audience\", \"value\": \"youth\" }] } — ein Wert je Dimension; ohne Wege: je der erste Wert"
+      },
+      "roles": {
+        "label": "Eigene Rollen",
+        "says": "Rollen von Knoten neben den eingebauten, je { \"value\": \"meditation\", \"label\": \"Betrachtung\", \"brings\": \"new\" | \"nothing\" | \"any\" }"
+      },
+      "knowledge": {
+        "label": "Wissen des Werks",
+        "says": "Wissensbasen (Cogita) mit den Personen, Orten, Begriffen und Ideen dieses Werks, je { \"base\": Kennung der Basis }"
+      },
+      "latexClass": {
+        "label": "Gedruckt als",
+        "says": "Wie das Werk gedruckt wird: \"book\", \"article\", \"booklet\" (Predigtheft) oder \"handout\" (Unterrichtsblatt)"
+      },
+      "citationStyle": {
+        "label": "Zitierweise",
+        "says": "\"notes\" (Fussnoten, a. a. O., ebd.) oder \"authorYear\" (Autor Jahr, Seite im Satz)"
       }
     }
   },
@@ -684,5 +716,383 @@
     "recording": "eine Aufführung: eine Datei oder mehrere Spuren (Stimmen und Instrumente, zusammen abgespielt)",
     "album": "eine Sammlung von Aufnahmen"
   },
-  "untitled": "Ohne Titel"
+  "untitled": "Ohne Titel",
+  "workLangs": {
+    "pl": "Polnisch",
+    "de": "Deutsch",
+    "en": "Englisch"
+  },
+  "latexLevels": {
+    "part": "Teil (\\part)",
+    "chapter": "Kapitel (\\chapter)",
+    "section": "Abschnitt (\\section)",
+    "subsection": "Unterabschnitt",
+    "subsubsection": "Unterunterabschnitt",
+    "paragraph": "Absatz (Überschrift im Satz)"
+  },
+  "latexClasses": {
+    "book": "Buch",
+    "article": "Artikel",
+    "booklet": "Predigtheft",
+    "handout": "Unterrichtsblatt"
+  },
+  "citationStyles": {
+    "notes": "Fussnoten",
+    "authorYear": "Autor und Jahr"
+  },
+  "nodeRoles": {
+    "new": "Neu",
+    "summary": "Zusammenfassung",
+    "introduction": "Einleitung",
+    "transition": "Übergang",
+    "example": "Beispiel / Anwendung",
+    "exercise": "Übung / Wiederholung",
+    "conclusion": "Schluss"
+  },
+  "roleBrings": {
+    "new": "muss Neues bringen",
+    "nothing": "bringt nichts Neues",
+    "any": "darf Neues bringen"
+  },
+  "nodeStatus": {
+    "idea": "Idee",
+    "planned": "Geplant",
+    "drafting": "Im Entwurf",
+    "written": "Geschrieben",
+    "done": "Fertig"
+  },
+  "markRoles": {
+    "intro": "eingeführt",
+    "def": "definiert",
+    "ex": "Beispiel",
+    "use": "gebraucht",
+    "recall": "aufgenommen"
+  },
+  "ruleWeights": {
+    "must": "muss",
+    "should": "soll"
+  },
+  "ruleChecks": {
+    "sentenceWords": "Sätze höchstens N Wörter",
+    "maxWords": "Höchstens N Wörter",
+    "minWords": "Mindestens N Wörter",
+    "forbid": "Verbotene Wörter",
+    "require": "Verlangte Wörter",
+    "needsDefinition": "Jeder Begriff definiert",
+    "needsExample": "Jeder Begriff mit Beispiel",
+    "oneNew": "Genau eines neu"
+  },
+  "yesNo": {
+    "yes": "ja",
+    "no": "nein"
+  },
+  "levelItem": {
+    "name": {
+      "label": "Name",
+      "says": "Name der Ebene, z. B. Kapitel"
+    },
+    "latex": {
+      "label": "LaTeX",
+      "says": "Wie sie gedruckt wird: part, chapter, section, subsection, subsubsection, paragraph"
+    }
+  },
+  "valueItem": {
+    "key": {
+      "label": "Schlüssel",
+      "says": "Kurzer Schlüssel des Werts (Buchstaben, Ziffern, -), z. B. children"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name des Werts, z. B. Kinder"
+    }
+  },
+  "dimensionItem": {
+    "key": {
+      "label": "Schlüssel",
+      "says": "Kurzer Schlüssel der Dimension, z. B. audience"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name der Dimension, z. B. Zielgruppe"
+    },
+    "ordered": {
+      "label": "Geordnet",
+      "says": "\"yes\": die Werte sind eine Abstufung vom Einfachen zum Anspruchsvollen"
+    },
+    "values": {
+      "label": "Werte",
+      "says": "Die Werte, je { \"key\", \"name\" }"
+    }
+  },
+  "choiceItem": {
+    "dimension": {
+      "label": "Dimension",
+      "says": "Schlüssel einer Dimension"
+    },
+    "value": {
+      "label": "Wert",
+      "says": "Schlüssel ihres Werts"
+    }
+  },
+  "pathItem": {
+    "key": {
+      "label": "Schlüssel",
+      "says": "Kurzer Schlüssel des Wegs, z. B. youth"
+    },
+    "name": {
+      "label": "Name",
+      "says": "Name der Ausgabe"
+    },
+    "choose": {
+      "label": "Wahl",
+      "says": "Ein Wert je Dimension: [{ \"dimension\", \"value\" }]"
+    }
+  },
+  "roleItem": {
+    "value": {
+      "label": "Schlüssel",
+      "says": "Schlüssel der Rolle"
+    },
+    "label": {
+      "label": "Name",
+      "says": "Name der Rolle"
+    },
+    "brings": {
+      "label": "Bringt",
+      "says": "\"new\" (muss Neues bringen), \"nothing\" (bringt nichts Neues) oder \"any\""
+    }
+  },
+  "baseItem": {
+    "base": {
+      "label": "Wissensbasis",
+      "says": "Kennung einer Wissensbasis"
+    }
+  },
+  "markItem": {
+    "entry": {
+      "label": "Eintrag",
+      "says": "Der Eintrag des Wissens des Werks (Person, Ort, Begriff, Idee …) — Kennung oder @Name"
+    },
+    "role": {
+      "label": "Rolle",
+      "says": "Wie er hier vorkommt: \"intro\" (eingeführt), \"def\" (definiert), \"ex\" (Beispiel), \"use\" (gebraucht), \"recall\" (in einer Zusammenfassung aufgenommen)"
+    },
+    "note": {
+      "label": "Notiz",
+      "says": "Eine Notiz zu diesem Vorkommen"
+    }
+  },
+  "skipItem": {
+    "value": {
+      "label": "Wert",
+      "says": "Schlüssel eines Werts der Dimension, nach der sich dieser Knoten teilt, der absichtlich nicht nötig ist"
+    },
+    "note": {
+      "label": "Warum",
+      "says": "Warum er nicht nötig ist"
+    }
+  },
+  "partItem": {
+    "id": {
+      "label": "Schlüssel",
+      "says": "Fester Schlüssel des Teils (Planpunkte aus ihm tragen \"tpl-KEY\")"
+    },
+    "title": {
+      "label": "Titel",
+      "says": "Name des Teils, z. B. Schrift"
+    },
+    "kind": {
+      "label": "Art",
+      "says": "Art des Planpunkts: thought, quote, example, question, application"
+    },
+    "words": {
+      "label": "Wörter",
+      "says": "Länge des Teils in Wörtern"
+    },
+    "minutes": {
+      "label": "Minuten",
+      "says": "Länge des Teils in Minuten (gesprochen)"
+    },
+    "note": {
+      "label": "Notiz",
+      "says": "Was in diesen Teil gehört"
+    }
+  },
+  "node": {
+    "label": "Strukturknoten",
+    "plural": "Strukturknoten",
+    "says": "Ein Teil, Kapitel, Abschnitt … bis zur kleinsten Einheit eines Werks (eines Projekts). Er steht vor jeder Prosa: Zweck, Kernsatz, Rolle, Ziel; seine Prosa ist ein gewöhnlicher Text (\"text\"). Seine Kennung bleibt, wohin er auch zieht.",
+    "fields": {
+      "project": {
+        "label": "Werk",
+        "says": "Das Projekt (Werk), zu dem er gehört"
+      },
+      "parent": {
+        "label": "Darüber",
+        "says": "Der Knoten darüber (leer: oberste Ebene des Werks)"
+      },
+      "order": {
+        "label": "Reihenfolge",
+        "says": "Stelle unter seinen Geschwistern (eine Zahl; 1.5 steht zwischen 1 und 2)"
+      },
+      "title": {
+        "label": "Titel",
+        "says": "Titel"
+      },
+      "purpose": {
+        "label": "Zweck",
+        "says": "Was der Leser hier gewinnt und warum es hier steht"
+      },
+      "synopsis": {
+        "label": "Kernsatz",
+        "says": "Ein, zwei Sätze: Inhalt oder Kerngedanke"
+      },
+      "role": {
+        "label": "Rolle",
+        "says": "Rolle: {list}, oder eine eigene Rolle des Projekts"
+      },
+      "brings": {
+        "label": "Bringt / fasst zusammen",
+        "says": "Bei einem neuen Abschnitt: was er bringt; bei einer Zusammenfassung: was sie zusammenfasst"
+      },
+      "targetWords": {
+        "label": "Ziel in Wörtern",
+        "says": "Ziellänge in Wörtern"
+      },
+      "targetMinutes": {
+        "label": "Ziel in Minuten",
+        "says": "Ziellänge in Minuten (gesprochene Stücke; ~130 Wörter in der Minute)"
+      },
+      "status": {
+        "label": "Stand",
+        "says": "Stand: {list}"
+      },
+      "notes": {
+        "label": "Notizen",
+        "says": "Notizen"
+      },
+      "text": {
+        "label": "Text",
+        "says": "Der Text mit seiner Prosa (ein Text des Skriptoriums)"
+      },
+      "split": {
+        "label": "Geteilt nach",
+        "says": "Schlüssel einer Dimension, nach der sich seine Kinder teilen; die Kinder tragen \"variant\""
+      },
+      "variant": {
+        "label": "Fassung",
+        "says": "Unter einem geteilten Knoten: der Wert, für den er steht (leer: der gemeinsame Kern für alle Werte)"
+      },
+      "skip": {
+        "label": "Nicht nötig",
+        "says": "Werte der Teilung, die absichtlich nicht nötig sind, je { \"value\", \"note\" }"
+      },
+      "template": {
+        "label": "Vorlage",
+        "says": "Die Vorlage der Einheit, aus der er entstand"
+      },
+      "templateSig": {
+        "label": "Gestalt der Vorlage",
+        "says": "Die Gestalt der Vorlage, als sie angewendet wurde (setzt die App)"
+      },
+      "marks": {
+        "label": "Begriffe hier",
+        "says": "Was hier vorkommt und wie, je { \"entry\": Eintrag des Wissens, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      }
+    }
+  },
+  "rule": {
+    "label": "Regel",
+    "plural": "Regeln",
+    "says": "Eine Regel des Schreibens — Stil, Stimme, Zeit, Anrede, Zielgruppe, Zitierweise, Länge — mit dem Grund, wo sie gilt (alle genannten Bedingungen zugleich), ihrem Gewicht, Beispielen und, wenn möglich, wie sie geprüft wird. Ohne Projekt gehört sie zum eigenen Regelbuch und gilt in jedem Projekt dieses Skriptoriums.",
+    "fields": {
+      "project": {
+        "label": "Werk",
+        "says": "Das Projekt, für das sie gilt (leer: eigenes Regelbuch, jedes Projekt)"
+      },
+      "rule": {
+        "label": "Regel",
+        "says": "Die Regel selbst"
+      },
+      "why": {
+        "label": "Warum",
+        "says": "Warum es die Regel gibt"
+      },
+      "weight": {
+        "label": "Gewicht",
+        "says": "\"must\" oder \"should\""
+      },
+      "node": {
+        "label": "Nur in",
+        "says": "Nur in diesem Knoten und allem darunter"
+      },
+      "role": {
+        "label": "Nur für Rolle",
+        "says": "Nur für Knoten dieser Rolle (z. B. summary)"
+      },
+      "template": {
+        "label": "Nur für Vorlage",
+        "says": "Nur für Einheiten aus dieser Vorlage"
+      },
+      "dimension": {
+        "label": "Dimension",
+        "says": "Nur auf Wegen, die einen Wert dieser Dimension wählen (Schlüssel)"
+      },
+      "value": {
+        "label": "Wert",
+        "says": "… und zwar diesen Wert (Schlüssel), z. B. children"
+      },
+      "entity": {
+        "label": "Nur wo",
+        "says": "Nur wo dieser Eintrag des Wissens des Werks vorkommt (wie eine Person spricht, wie ein Begriff eingeführt wird)"
+      },
+      "good": {
+        "label": "Gutes Beispiel",
+        "says": "Ein gutes Beispiel"
+      },
+      "bad": {
+        "label": "Schlechtes Beispiel",
+        "says": "Ein schlechtes Beispiel"
+      },
+      "check": {
+        "label": "Von selbst geprüft",
+        "says": "Wie sie geprüft wird: {list}"
+      },
+      "param": {
+        "label": "Parameter",
+        "says": "Die Zahl (N) oder die Wörter, durch Kommas getrennt"
+      }
+    }
+  },
+  "unitTemplate": {
+    "label": "Vorlage einer Einheit",
+    "plural": "Vorlagen von Einheiten",
+    "says": "Die innere Gestalt einer Art von Einheit (eine Fünf-Minuten-Predigt, eine Lektion): Teile mit Art und Länge. Aus ihr entsteht ein Zyklus von Einheiten; ändert sie sich, zeigen die Prüfungen, welche Einheiten nicht mehr passen.",
+    "fields": {
+      "name": {
+        "label": "Name",
+        "says": "Name, z. B. Predigt 5 Minuten"
+      },
+      "description": {
+        "label": "Beschreibung",
+        "says": "Was diese Art von Einheit ist"
+      },
+      "role": {
+        "label": "Rolle",
+        "says": "Rolle der Einheiten aus ihr (Vorgabe new)"
+      },
+      "targetWords": {
+        "label": "Ziel in Wörtern",
+        "says": "Länge einer Einheit in Wörtern"
+      },
+      "targetMinutes": {
+        "label": "Ziel in Minuten",
+        "says": "Länge einer Einheit in Minuten"
+      },
+      "parts": {
+        "label": "Teile",
+        "says": "Die Teile der Reihe nach, je { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
+      }
+    }
+  }
 }

@@ -15,7 +15,7 @@
 
 import { appLang, t } from '../core/i18n';
 import { blocksKeyOf, blocksOf, type Cell } from '../library/blocks';
-import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from '../library/libraryCite';
+import { bibliography, citeSegs, newCiteState, originOf, personShort, refLabel, workBehind, type CiteState, type Seg } from '../library/libraryCite';
 import { typeLines } from './textTypes';
 import { ids, isSource, markupsOf, outline, ownTitle, refTarget, str, textTypeName, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { parseInline, parseMarkup, walkBlocks, type Block, type Inline } from '../library/libraryMarkup';
@@ -46,8 +46,11 @@ const segsLatex = (segs: readonly Seg[]): string =>
     return s.href !== undefined && /^https?:/i.test(s.href) ? `\\href{${hrefEscape(s.href)}}{${styled}}` : styled;
   }).join('');
 
-interface Ctx {
+/** 2026-11-15 — exportiert für den Druck eines Werks (`work/workLatex.ts`). */
+export interface Ctx {
   readonly look: Lookup;
+  /** 2026-11-15 — Zitierweise: Fussnoten (Vorgabe) oder „(Autor Jahr, Stelle)" im Satz. */
+  readonly style?: 'notes' | 'authorYear';
   readonly state: CiteState;
   readonly works: LibEntry[];
   /** 2026-10-22 — die Komentarze, in denen wir gerade stehen (gegen Kreise). */
@@ -72,8 +75,9 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
           const target = refTarget(ctx.look, item.key);
           const work = workBehind(target, ctx.look);
           if (work !== undefined) ctx.works.push(work);
-          return segsLatex(citeSegs(target, item.locator, ctx.look, ctx.state));
+          return ctx.style === 'authorYear' ? latexEscape(authorYear(target, work, item.locator, ctx.look)) : segsLatex(citeSegs(target, item.locator, ctx.look, ctx.state));
         });
+        if (ctx.style === 'authorYear') return `${own.length === 0 ? '' : t('scriptorium.sermon.seeAlso', { list: own.join('; ') })}${parts.length === 0 ? '' : ` (${parts.join('; ')})`}`;
         return `${own.length === 0 ? '' : t('scriptorium.sermon.seeAlso', { list: own.join('; ') })}${parts.length === 0 ? '' : `\\footnote{${parts.join('; ')}.}`}`;
       }
       case 'ref': return inlines(one.c, ctx, inNote);
@@ -86,10 +90,23 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
   }).join('');
 }
 
+/**
+ * 2026-11-15 — „Ratzinger 2007, s. 23": der Nachname des ersten Autors (oder der Titel), das Jahr, die Stelle — für
+ * die Zitierweise „Autor und Jahr" eines Werks. Ein Zitat nennt seine eigene Stelle, wenn der Verweis keine sagt.
+ */
+function authorYear(target: LibEntry | undefined, work: LibEntry | undefined, locator: string, look: Lookup): string {
+  const on = work ?? target;
+  if (on === undefined) return locator;
+  const author = look.get(ids(on.data, 'authors')[0] ?? '');
+  const name = author === undefined ? (str(on.data, 'title').trim() || ownTitle(on, look)) : (str(author.data, 'surname').trim() || str(author.data, 'name').trim() || personShort(author));
+  const where = locator !== '' ? locator : target !== undefined && target.kind === 'quote' ? str(target.data, 'locator') : '';
+  return [[name, str(on.data, 'year').trim()].filter((x) => x !== '').join(' '), where].filter((x) => x !== '').join(', ');
+}
+
 /** Die Ebenen des Zapis (## / ###) — unter einem Kapitel eine Stufe tiefer. */
 const SECTION = { article: ['\\section*', '\\subsection*', '\\subsubsection*'], book: ['\\section*', '\\subsection*', '\\subsubsection*'] } as const;
 
-function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
+export function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
   const out: string[] = [];
   for (const b of list) {
     switch (b.t) {
@@ -167,12 +184,18 @@ function statementLatex(entry: LibEntry, key: string, ctx: Ctx, depth: 0 | 1): s
 /** Die Sprache des Satzes — die der Anwendung (Silbentrennung, „Spis treści“). */
 const BABEL = { en: 'english', de: 'ngerman', pl: 'polish' } as const;
 
-const PREAMBLE = (kind: 'article' | 'book') => [
+export const PREAMBLE = (kind: 'article' | 'book') => [
   `\\documentclass[11pt,a4paper${kind === 'book' ? ',openany' : ''}]{${kind}}`,
-  '\\usepackage[utf8]{inputenc}',
-  '\\usepackage[T1]{fontenc}',
+  /* 2026-11-15 — pdflatex: T1 und Latin Modern; lualatex: fontspec (sonst fehlen ą, ę, ł … in den Type-1-Schriften). */
+  '\\usepackage{iftex}',
+  '\\ifPDFTeX',
+  '  \\usepackage[utf8]{inputenc}',
+  '  \\usepackage[T1]{fontenc}',
+  '  \\usepackage{lmodern}',
+  '\\else',
+  '  \\usepackage{fontspec}',
+  '\\fi',
   `\\usepackage[${BABEL[appLang()]}]{babel}`,
-  '\\usepackage{lmodern}',
   '\\usepackage{amsmath,amssymb}',
   '\\usepackage{microtype}',
   '\\usepackage[hidelinks]{hyperref}',
@@ -183,7 +206,7 @@ const PREAMBLE = (kind: 'article' | 'book') => [
 
 
 /** Was über einem Text steht: Art, Datum, Anlass, Ort, Lesungen. */
-function metaLine(d: LibEntry['data'], look: Lookup): string {
+export function metaLine(d: LibEntry['data'], look: Lookup): string {
   const meta = [textTypeName(d, look), str(d, 'date'), str(d, 'occasion'), str(d, 'place')].filter((s) => s.trim() !== '');
   const readings = str(d, 'readings');
   /* 2026-10-23 — die eigenen Felder seines Rodzaj tekstu. */
@@ -200,7 +223,7 @@ function metaLine(d: LibEntry['data'], look: Lookup): string {
  * nummeriert, darunter, was zu ihnen gehört; Quellen als Fussnoten, ein
  * eingebettetes Zitat als `quotation` im Punkt.
  */
-function planLatex(points: readonly PlanPoint[], ctx: Ctx): string {
+export function planLatex(points: readonly PlanPoint[], ctx: Ctx): string {
   const out: string[] = [];
   let open = -1;
   const indent = (level: number) => '  '.repeat(level + 1);
@@ -216,7 +239,7 @@ function planLatex(points: readonly PlanPoint[], ctx: Ctx): string {
 }
 
 /** Ein Text im Körper — für einen eigenen Artikel oder als Kapitel eines Buches. */
-function textBody(entry: LibEntry, ctx: Ctx, depth: 0 | 1): string {
+export function textBody(entry: LibEntry, ctx: Ctx, depth: 0 | 1): string {
   const d = entry.data;
   const points = planOf(d);
   const plan = points.length === 0 ? '' : `${depth === 0 ? '\\section*' : '\\subsection*'}{${latexEscape(t('scriptorium.sermon.plan'))}}\n${planLatex(points, ctx)}\n\n`;
@@ -226,7 +249,7 @@ function textBody(entry: LibEntry, ctx: Ctx, depth: 0 | 1): string {
   return `${body}${further}`;
 }
 
-function sources(ctx: Ctx, heading: string): string {
+export function sources(ctx: Ctx, heading: string): string {
   const list = bibliography(ctx.works, ctx.look);
   if (list.length === 0) return '';
   return [
@@ -358,3 +381,9 @@ export function missingKeys(entry: LibEntry, look: Lookup): string[] {
   }
   return [...missing];
 }
+
+/** 2026-11-15 — ein neuer Zustand für einen Druck (Fussnoten zählen über das ganze Dokument). */
+export const newLatexCtx = (look: Lookup, style: 'notes' | 'authorYear' = 'notes'): Ctx => ({ look, state: newCiteState(), works: [], style });
+
+/** 2026-11-15 — ein Zapis als LaTeX (Absätze, Listen, Zitate, Fussnoten). */
+export const markupLatex = (source: string, ctx: Ctx, depth: 0 | 1 = 1): string => blocks(parseMarkup(source), ctx, depth);
