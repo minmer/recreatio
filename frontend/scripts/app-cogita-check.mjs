@@ -386,6 +386,24 @@ const changed = S.lookupOf(KINDS, ENTITIES.map((x) => (x.id === 'w1' ? { ...x, d
 const who3 = (await Cards.cardsOf(WHO, { ...ctx(byId('w1')), look: changed, entity: { ...byId('w1'), data: { ...byId('w1').data, authors: ['p2'] } } })).cards[0];
 check('when the right answer changes, the history starts again', who3.fingerprint === who1.fingerprint, false);
 
+/* 2026-11-14 — KUMULATIVE KARTEN: ohne `asks` fragt eine Karte die Felder ihrer Antwort; zwei Richtungen zum selben Feld teilen jede Antwort. */
+{
+  const PERSON = S.readKind('k-person3', { name: 'Osoba', fields: [{ key: 'imie', label: 'Imię', type: 'line' }, { key: 'rok', label: 'Rok', type: 'line' }, { key: 'miasto', label: 'Miasto', type: 'line' }] });
+  const who = { id: 'pp1', kinds: ['k-person3'], data: { imie: 'Jan', rok: '1815', miasto: 'Turyn' } };
+  const pLook = S.lookupOf([PERSON], [who]);
+  const pCtx = { look: pLook, entity: who, pool: () => [who], seed: 's' };
+  const ask = (id, from, to) => tpl(id, ['k-person3'], `${from}:${to}`, [n('q', 'field', { key: from }), n('p', 'prompt'), n('f', 'field', { key: to }), n('a', 'answer.text'), n('c', 'card')],
+    [l('1', 'q', 'values', 'p', 'parts'), l('2', 'p', 'prompt', 'c', 'prompt'), l('3', 'f', 'values', 'a', 'expected'), l('4', 'a', 'answer', 'c', 'answer')]);
+  const byName = (await Cards.cardsOf(ask('t1', 'imie', 'rok'), pCtx)).cards[0];
+  const byCity = (await Cards.cardsOf(ask('t2', 'miasto', 'rok'), pCtx)).cards[0];
+  const toCity = (await Cards.cardsOf(ask('t3', 'imie', 'miasto'), pCtx)).cards[0];
+  check('cumulative cards: a card asks the field of its answer — two directions to the same field share it, another field is its own',
+    [byName.facts, byCity.facts, toCity.facts], [['pp1#feld:rok'], ['pp1#feld:rok'], ['pp1#feld:miasto']]);
+  const ev = Cards.answerEvidence(byName, '1815', { correctness: 1 }, [byName, byCity, toCity]);
+  check('… answering one direction right counts for the other (the field is known), not for a different field',
+    [ev.some((x) => x.card.key === byCity.key && x.correctness === 1), ev.some((x) => x.card.key === toCity.key)], [true, false]);
+}
+
 /* 2026-11-14 — MARKIERTE LÜCKEN in einem Feld ([[słowo]], auch mehrere): eine Karte mit allen, eine je Lücke; je Lücke ein Fakt, den beide teilen. */
 {
   const VERSE = S.readKind('k-verse', { name: 'Werset', fields: [{ key: 'tekst', label: 'Tekst', type: 'markup' }] });

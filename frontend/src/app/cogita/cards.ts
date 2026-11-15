@@ -348,7 +348,7 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     const ans = made.draft.answer;
     const facts = template.asks.length === 0 && made.draft.gapSet !== undefined && ans.form === 'gap' && ans.gaps !== undefined
       ? ans.gaps.map((g) => gapFact(`${ctx.entity.id}:${made.draft!.gapSet}`, g.accepted[0] ?? ''))
-      : factsOf(template.asks, ctx.entity, ctx.look, run.variant);
+      : template.asks.length > 0 ? factsOf(template.asks, ctx.entity, ctx.look, run.variant) : fieldFacts(graph, cardNode.id, ctx.entity.id, run.variant);
     /* 2026-11-03 — eine Karte mit Zufall nimmt mit, was gezogen wurde (Generator, Losowa wartość), und ihren Samen. */
     const params = varies ? drawnOf(graph, result.outputs) : undefined;
     const hints = (made.hints ?? []).map((h) => h.trim()).filter((h) => h !== '');
@@ -374,6 +374,26 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     });
   }
   return { cards, problems };
+}
+
+/**
+ * 2026-11-14 (Eigentümer: „Karten sind kumulativ: sechs Kombinationen, die sich nur in zwei Feldern unterscheiden — jedes Feld zählt für sich;
+ * es genügt, jedes Feld richtig zu beantworten, nicht jede Karte") — OHNE EIGENES `asks` FRAGT EINE KARTE DIE FELDER, AUS DENEN IHRE
+ * ANTWORT KOMMT: je Feld ein Fakt `<eintrag>#feld:<schlüssel>` (in einer Schleife je Wert). Zwei Vorlagen, deren Antwort aus demselben
+ * Feld kommt (aus verschiedenen Richtungen gefragt), teilen so jede Antwort — wie mit `asks`, ohne dass der Autor es schreiben muss.
+ * Ohne Feld (eine Antwort aus Formeln, Zufall …): keine Fakten, die Karte zählt für sich.
+ */
+export function fieldFacts(graph: Graph, cardNode: string, entity: string, variant?: string): string[] {
+  const from = graph.edges.filter((e) => e.to === cardNode && e.in === 'answer').map((e) => e.from);
+  const keys = new Set<string>();
+  for (const id of from) {
+    for (const n of [id, ...ancestors(graph, id)]) {
+      const node = graph.nodes.find((x) => x.id === n);
+      if (node?.type === 'field' && typeof node.config.key === 'string' && node.config.key !== '') keys.add(node.config.key);
+    }
+  }
+  const tail = variant === undefined ? '' : `:${variant}`;
+  return [...keys].sort().map((k) => `${entity}#feld:${k}${tail}`);
 }
 
 /** Die Vorlagen, die für einen Eintrag gelten — über alle seine Arten. */

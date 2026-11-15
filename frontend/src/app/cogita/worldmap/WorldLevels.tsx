@@ -177,3 +177,49 @@ export function OwnWorldSettings({ lib, learner, onPillarLive }: { lib: CogitaLi
     </section>
   );
 }
+
+/**
+ * 2026-11-14 (Eigentümer: „ein eroberter Turm, der nicht auf der Stern-Stufe ist: ‚Zdobądź w pełni' — danach die Stufen mit Erklärung,
+ * dann Start") — DIE TAFEL VOR EINEM DURCHGANG AUF MEHR: jede Stufe mit ihrer Regel (erreicht ✓), darunter der Stern; ein Satz, was der
+ * Durchgang tut; „Rozpocznij przebieg".
+ */
+export function FullConquerSheet({ name, levels, rules, reached, perfect, t, onStart, onClose }: {
+  name: string;
+  levels: number;
+  rules: readonly LevelRule[];
+  reached: number;
+  perfect: boolean;
+  t: T;
+  onStart: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="cg-wm-sheetback" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-world-full-sheet="">
+      <section className="cg-wm-sheet cg-wm-fullsheet" role="dialog" aria-modal="true" aria-label={t('cogitaWorld.full.title', { name })}>
+        <button type="button" className="cg-wm-wayx cg-wm-sheetx" onClick={onClose} aria-label={t('cogitaWorld.panel.close')}>×</button>
+        <h3 className="cg-wm-sheethead">{t('cogitaWorld.full.title', { name })}</h3>
+        <p className="cg-wm-sheetabout">{t('cogitaWorld.full.says')}</p>
+        <ol className="cg-wm-fulllevels">
+          {Array.from({ length: levels }, (_v, i) => {
+            const r = rules[i];
+            const done = reached > i;
+            return (
+              <li key={i} className={done ? 'is-done' : ''} data-world-full-level={i + 1}>
+                <span className="cg-wm-fullmark" aria-hidden="true">{done ? '✓' : i + 1}</span>
+                <span>{t('cogitaWorld.full.level', { level: i + 1 })}{r === undefined ? '' : ` — ${r.pct} % · ${attemptsText(r.attempts, t)}`}</span>
+              </li>
+            );
+          })}
+          <li className={perfect ? 'is-done is-star' : 'is-star'} data-world-full-level="star">
+            <span className="cg-wm-fullmark" aria-hidden="true">★</span>
+            <span>{t('cogitaWorld.full.star')}</span>
+          </li>
+        </ol>
+        <p className="cg-wm-meta">{t('cogitaWorld.full.how')}</p>
+        <div className="cg-wm-sheetbtns">
+          <button type="button" className="wk-btn cg-wm-go" autoFocus onClick={onStart} data-world-full-start="">{t('cogitaWorld.run.start')} ▶</button>
+        </div>
+      </section>
+    </div>
+  );
+}

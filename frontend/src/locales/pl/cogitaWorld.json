@@ -89,7 +89,13 @@
     "reachedMany": "Poziomy {from}–{level} osiągnięte za jednym razem",
     "restart": "Zacznij od nowa",
     "restartSays": "Pomyłka? Możesz zacząć przebieg od nowa — aby zdobyć go bez żadnego błędu.",
-    "tryAgain": "Przejdź jeszcze raz"
+    "tryAgain": "Przejdź jeszcze raz",
+    "lostTitle": "Ten przebieg nie da już wyższego poziomu",
+    "lostLevel": "Poziom {level} wymaga {pct} % ({attempts}). W tym przebiegu źle wypadło już {failed} kart, a dopuszczalne było {allowed}.",
+    "lostStar": "Gwiazdka („Mistrzowsko”) wymaga, żeby każda karta była dobrze za pierwszym razem — w tym przebiegu była już pomyłka.",
+    "lostSays": "Możesz zacząć nową rundę i spróbować jeszcze raz albo dokończyć tę — jej odpowiedzi i tak liczą się dla twojej wiedzy.",
+    "newRound": "Nowa runda",
+    "goOn": "Dokończ mimo to"
   },
   "map": {
     "start": "Start",
@@ -350,7 +356,8 @@
     "statNew": "nowe",
     "statDue": "do powtórki",
     "askButton": "? {name}",
-    "roadButton": "→ {name}"
+    "roadButton": "→ {name}",
+    "conquerFully": "Zdobądź w pełni"
   },
   "nav": {
     "target": "Cel: {name}",
@@ -673,7 +680,7 @@
     },
     "level": {
       "title": "Zdobywanie",
-      "text": "Poznać karty to nie to samo, co opanować temat. Dlatego wieżę zdobywa się w przebiegu: każda karta raz, w losowej kolejności, bez wyjaśnień z opowieści. Dopiero wtedy widać, czy temat siedzi w całości, a nie tylko kawałkami. Każdy z {levels} poziomów stawia wyższe wymagania (na przykład więcej odpowiedzi dobrze za pierwszym razem) i zapala kolejny łuk na górze wieży."
+      "text": "Poznać karty to nie to samo, co opanować temat. Dlatego wieżę zdobywa się w przebiegu: każda karta raz, w losowej kolejności, bez wyjaśnień z opowieści. Każdy z {levels} poziomów stawia wyższe wymagania i zapala kolejny łuk na górze wieży. Nie trzeba zdobywać najwyższego poziomu, żeby iść dalej: drogi z wieży otwierają się od poziomu, który ustawił autor kursu, a wyższe poziomy pokazują tylko, jak pewnie temat siedzi. Gwiazdka (wszystko dobrze za pierwszym razem) też nie jest warunkiem — to wyróżnienie, które pokazuje, co jeszcze można osiągnąć."
     },
     "conquered": {
       "title": "Zdobyta",
@@ -682,7 +689,7 @@
     },
     "due": {
       "title": "Do powtórki",
-      "text": "Pamięć słabnie z czasem — to normalne, nie błąd. Powtórka daje najwięcej wtedy, gdy wiedza zaczyna się zacierać: kropka robi się wtedy pomarańczowa, a nad wieżą pojawia się „Powtórz”. Każda dobra powtórka wydłuża czas do następnej, więc z czasem powtarza się coraz rzadziej. Powtarzane są tylko zdobyte wieże: tematy w trakcie nauki nie zalewają powtórek, bo ich karty i tak wracają w opowieściach i przebiegach."
+      "text": "Pamięć słabnie z czasem — to normalne, nie błąd. Powtórka daje najwięcej wtedy, gdy wiedza zaczyna się zacierać: kropka robi się wtedy pomarańczowa, a nad wieżą pojawia się „Powtórz”. Każda dobra powtórka wydłuża czas do następnej. Powtarzane są tylko zdobyte wieże, żeby powtórki nie zalewały tematów jeszcze w nauce. I jeszcze jedno: gdy wybierasz dłuższą drogę, a po drodze są karty, które według systemu mogły się już zatrzeć, droga zaczyna się od ich krótkiej powtórki — zanim zbudujesz na nich coś nowego, sprawdzasz, czy je jeszcze pamiętasz."
     },
     "onward": {
       "title": "Dalsze drogi",
@@ -711,6 +718,27 @@
     "views": {
       "title": "Widoki",
       "text": "U góry widoki zawężają mapę: Co umiem, Do odkrycia (co można zacząć teraz), Do powtórki, Luki. „Sprawdź, co wiesz” zadaje najważniejsze pytania każdego tematu i pokazuje luki — dobry początek, jeśli coś już umiesz. Przewodnik otworzysz znowu, klikając dom."
+    },
+    "steps": {
+      "title": "Kroki drogi",
+      "do": "Kliknij jeden z kroków na pasku na dole.",
+      "text": "Każda droga jest rozpisana na kroki: opowieść (czytanie slajdów), utrwalenie (karty, których żadna opowieść nie wprowadza), powtórka i zdobycie wieży. Nad bieżącym krokiem stoi „Przejdź do kroku”. Kliknięty krok pokazuje na mapie, gdzie leży, i daje wybór: „Przejdź tutaj” zaczyna go od razu, nawet przed wcześniejszymi, a „Pomiń” go wyszarza — zostaje na swoim miejscu i można go przywrócić tym samym kliknięciem („Przywróć”). Spróbuj na pasku: pomiń krok i przywróć go. „≡” pokazuje całą drogę z jej rozwidleniami, a „Zakończ” zatrzymuje drogę bez utraty postępu."
+    },
+    "placement": {
+      "title": "Sprawdzanie tego, co już umiesz",
+      "do": "Kliknij wieżę z przerywanym pierścieniem.",
+      "text": "Nie każdy zaczyna od zera. Sprawdzanie („Sprawdź, ile już umiesz”, na początku kursu albo opowieści) zadaje prawdziwe pytania z wież, które da się teraz zaliczyć — na mapie są kolorowe, reszta szara. Wieża zaliczona w ten sposób ma przerywany pierścień: liczy się jako przejezdna, otwiera wszystko, co na niej buduje, a jej karty, o które nie zapytano, przychodzą później w powtórkach. Są dwa sposoby. Adaptacyjnie: kilka pytań na wieżę — kilka dobrych odpowiedzi z rzędu zalicza ją, kilka błędów kończy; szybko i dużo wież naraz, ale to oszacowanie. Do poziomu: każda wieża pytana jak prawdziwe zdobycie wybranego poziomu — wolniej, ale wieża jest naprawdę zdobyta i nic nie trzeba powtarzać."
+    },
+    "arcs": {
+      "title": "Łuki w powietrzu",
+      "text": "Szare łuki nad mapą to nie drogi, tylko zależności: pokazują, skąd pochodzi wiedza potrzebna tej wieży albo potrzebna, żeby wejść na jakąś ścieżkę. Łuk biegnie od wieży, którą trzeba znać, do wieży (albo bramy na ścieżce), która jej wymaga; strzałka na końcu pokazuje kierunek. Przerywany łuk znaczy, że tej wiedzy jeszcze brakuje; ciągły — że wymaganie jest spełnione. Łuki są w powietrzu celowo: po ziemi się chodzi (ścieżki), a w powietrzu widać tylko to, co trzeba umieć wcześniej. Pojawiają się, gdy klikniesz wieżę, rozwidlenie albo wybierzesz cel."
     }
+  },
+  "full": {
+    "title": "Zdobądź w pełni: {name}",
+    "says": "Ta wieża jest już zdobyta i otwiera dalsze drogi — wyższe poziomy i gwiazdka nie są do tego potrzebne. Pokazują tylko, jak pewnie temat siedzi. Każdy przebieg pyta każdą kartę raz, w losowej kolejności.",
+    "level": "Poziom {level}",
+    "star": "Mistrzowsko — wszystkie karty dobrze za pierwszym razem (wszystkie poziomy naraz)",
+    "how": "Przebieg podnosi o każdy poziom, którego regułę spełni. Jedna pomyłka nie przekreśla nauki: każda odpowiedź liczy się dla twojej wiedzy."
   }
 }

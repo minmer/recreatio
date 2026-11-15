@@ -55,6 +55,8 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   const [saving, setSaving] = useState(false);
   /* 2026-11-10 (Eigentümer) — nach einer falschen Antwort darf man den Durchgang von vorn beginnen (für „Mistrzowsko"). */
   const [lastWrong, setLastWrong] = useState(false);
+  /* 2026-11-14 — die Tafel „dieser Durchgang bringt keine Stufe mehr" wurde für diesen Durchgang schon gezeigt (weiter trotzdem). */
+  const [lostSeen, setLostSeen] = useState<string | null>(null);
   const fresh = () => startRun(newId(), place, cards.map((c) => c.key), Date.now(), facts);
   const restart = () => { last.current = null; setLastWrong(false); setSession(fresh()); };
   /*
@@ -104,6 +106,32 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   };
   if (saving || card === undefined) return <p className="cg-muted" data-world-run="saving">{t('cogitaWorld.run.saving')}</p>;
   const n = session.order.length - session.queue.length + 1;
+  /*
+    2026-11-14 (Eigentümer: „bringt der Durchgang wegen einer falschen Antwort keine bessere Stufe mehr, eine Tafel mit dem Vorschlag einer
+    neuen Runde und der Erklärung, warum es nicht reicht") — ZU VIELE FEHLER FÜR DAS ZIEL: zählt eine Stufe „beim ersten Mal", jeder Fehler
+    beim ersten Versuch; „mit einer Korrektur", was auch beim zweiten nicht sass; „beliebig" geht nie verloren. Ist schon die letzte Stufe
+    erreicht, ist das Ziel der Stern: ein einziger Fehler beim ersten Versuch genügt.
+  */
+  const total = session.order.length;
+  const aimStar = before.level >= eff.levels;
+  const firstWrong = Object.values(session.first).filter((c) => c < 0.999).length;
+  const secondWrong = Object.keys(session.second).filter((k) => (session.second[k] ?? 1) < 0.999).length;
+  const failed = rule === undefined ? 0 : rule.attempts === 'first' ? firstWrong : rule.attempts === 'one' ? secondWrong : 0;
+  const maxFail = rule === undefined ? total : total - Math.ceil((total * rule.pct) / 100 - 1e-9);
+  const lost = aimStar ? firstWrong > 0 : failed > maxFail;
+  if (lost && lostSeen !== session.id && last.current === null && !saving) {
+    return (
+      <div className="cg-world-run cg-wm-lost" data-world-run-lost={aimStar ? 'star' : level}>
+        <h3>{t('cogitaWorld.run.lostTitle')}</h3>
+        <p>{aimStar ? t('cogitaWorld.run.lostStar') : t('cogitaWorld.run.lostLevel', { level, pct: rule?.pct ?? 0, attempts: rule === undefined ? '' : attemptsText(rule.attempts, t), failed, allowed: maxFail })}</p>
+        <p className="cg-muted">{t('cogitaWorld.run.lostSays')}</p>
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" autoFocus onClick={restart} data-world-run-lost-restart="">{t('cogitaWorld.run.newRound')}</button>
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => setLostSeen(session.id)} data-world-run-lost-go="">{t('cogitaWorld.run.goOn')}</button>
+        </div>
+      </div>
+    );
+  }
   const mistaken = lastWrong || session.retrying || Object.values(session.first).some((c) => c < 0.999);
   return (
     <div className="cg-world-run" data-world-run="ask" data-world-run-card={card.key} data-world-run-again={session.retrying ? '1' : '0'}

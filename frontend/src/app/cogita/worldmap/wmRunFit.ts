@@ -71,7 +71,8 @@ export function useRunFit(ref: RefObject<HTMLElement | null>, on: boolean): void
         gemessen OHNE die Bildlaufleiste: erscheint sie nach einer Antwort (Urteil, Erklärung), änderte sich sonst die Breite, und der
         ganze Teil skalierte neu (die Antwort sprang, „Dalej" rutschte nach unten). Die Leiste hat ihren Platz ohnehin (scrollbar-gutter).
       */
-      const w = el.offsetWidth, h = el.offsetHeight;
+      /* Mit dem freigehaltenen Platz der Leiste (scrollbar-gutter: stable) ist die Innenbreite fest — und nie breiter als der Teil (sonst rollte er seitwärts). */
+      const w = el.clientWidth, h = el.clientHeight;
       if (w === 0 || h === 0) return;
       const base = runFit(w, h);
       if (base.wide) el.setAttribute('data-run-wide', ''); else el.removeAttribute('data-run-wide');

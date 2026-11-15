@@ -83,7 +83,13 @@
     "reachedMany": "Levels {from}–{level} reached at once",
     "restart": "Start over",
     "restartSays": "Made a mistake? You can start the run over — to conquer it without a single slip.",
-    "tryAgain": "Run again"
+    "tryAgain": "Run again",
+    "lostTitle": "This run can no longer reach a higher level",
+    "lostLevel": "Level {level} needs {pct} % ({attempts}). In this run {failed} cards have already gone wrong, and {allowed} were allowed.",
+    "lostStar": "The star (\"Masterly\") needs every card right the first time — this run already had a mistake.",
+    "lostSays": "You can start a new round and try again, or finish this one — its answers count for your knowledge anyway.",
+    "newRound": "New round",
+    "goOn": "Finish anyway"
   },
   "map": {
     "start": "Start",
@@ -298,7 +304,8 @@
     "statNew": "new",
     "statDue": "due for review",
     "askButton": "? {name}",
-    "roadButton": "→ {name}"
+    "roadButton": "→ {name}",
+    "conquerFully": "Conquer fully"
   },
   "nav": {
     "target": "Target: {name}",
@@ -587,7 +594,7 @@
     },
     "level": {
       "title": "Conquering",
-      "text": "Having seen the cards is not the same as mastering the topic. That is why a tower is conquered in a run: each card once, in random order, without the story's explanations. Only then does it show whether the topic sits as a whole and not just in pieces. Each of the {levels} levels asks more (for example more answers right the first time) and lights another arc on top of the tower."
+      "text": "Having seen the cards is not the same as mastering the topic. That is why a tower is conquered in a run: each card once, in random order, without the story's explanations. Each of the {levels} levels asks more and lights another arc on top of the tower. You do not need the highest level to go on: the ways out of a tower open from the level the course author set, and higher levels only show how firmly the topic sits. The star (everything right the first time) is not a requirement either — it is a distinction that shows what else can be achieved."
     },
     "conquered": {
       "title": "Conquered",
@@ -596,7 +603,7 @@
     },
     "due": {
       "title": "Due for review",
-      "text": "Memory fades over time — that is normal, not a failure. A review helps most just when knowledge starts to blur: then the dot turns orange and \"Review\" appears above the tower. Each good review lengthens the time to the next one, so over time you review less and less often. Only conquered towers are reviewed: topics still being learned do not flood your reviews, since their cards come back in stories and runs anyway."
+      "text": "Memory fades over time — that is normal, not a failure. A review helps most just when knowledge starts to blur: then the dot turns orange and \"Review\" appears above the tower. Each good review lengthens the time to the next. Only conquered towers are reviewed, so reviews do not flood topics still being learned. One more thing: when you choose a longer way and there are cards along it that the system thinks may have faded, the way starts with a short review of them — before building something new on them, you check whether you still remember them."
     },
     "onward": {
       "title": "Ways on",
@@ -625,6 +632,27 @@
     "views": {
       "title": "Views",
       "text": "At the top, views narrow the map: what I know, to discover (what you can start now), to review, gaps. \"Check what you know\" asks the key questions of every topic and shows the gaps — a good start if you already know something. Open this guide again by clicking the house."
+    },
+    "steps": {
+      "title": "Steps of a way",
+      "do": "Click one of the steps in the bar at the bottom.",
+      "text": "Every way is laid out in steps: a story (reading the slides), learning (cards no story brings), a review, and conquering a tower. \"Go to step\" stands above the current step. A clicked step shows on the map where it lies and gives a choice: \"Go here\" starts it at once, even before earlier ones, and \"Skip\" greys it out — it stays in its place and can be restored with the same click (\"Restore\"). Try it in the bar: skip a step and restore it. \"≡\" shows the whole way with its forks, and \"End\" stops the way without losing progress."
+    },
+    "placement": {
+      "title": "Checking what you already know",
+      "do": "Click the tower with the dashed ring.",
+      "text": "Not everyone starts from zero. The check (\"Check how much you already know\", at the start of a course or a story) asks real questions from the towers that can be passed right now — on the map they are in colour, the rest grey. A tower passed this way has a dashed ring: it counts as passable, opens everything built on it, and its cards that were not asked come later in reviews. There are two ways. Adaptive: a few questions per tower — a few right answers in a row pass it, a few mistakes end it; quick and many towers at once, but an estimate. Up to a level: each tower is asked like a real conquest of the chosen level — slower, but the tower is truly conquered and nothing needs redoing."
+    },
+    "arcs": {
+      "title": "Arcs in the air",
+      "text": "The grey arcs above the map are not ways but dependencies: they show where the knowledge comes from that this tower needs, or that is needed to enter a path. An arc runs from the tower you must know to the tower (or the gate on a path) that requires it; the arrow at its end shows the direction. A dashed arc means this knowledge is still missing; a solid one that the requirement is met. The arcs are in the air on purpose: you walk on the ground (the paths), and in the air you only see what you must know beforehand. They appear when you click a tower or a fork, or choose a goal."
     }
+  },
+  "full": {
+    "title": "Conquer fully: {name}",
+    "says": "This tower is already conquered and opens the ways on — higher levels and the star are not needed for that. They only show how firmly the topic sits. Each run asks every card once, in random order.",
+    "level": "Level {level}",
+    "star": "Masterly — every card right the first time (all levels at once)",
+    "how": "A run raises you by every level whose rule it meets. One mistake does not undo your learning: every answer counts for your knowledge."
   }
 }

@@ -28,10 +28,12 @@ export interface TourSim {
   readonly travelled?: ReadonlySet<string>;
   /** Pfade, deren erste Hälfte gesehen ist. */
   readonly halfway?: ReadonlySet<string>;
+  /** Türme, die eine Einstufung gutgeschrieben hat (gestrichelter Ring). */
+  readonly placed?: ReadonlySet<string>;
 }
 
 export interface TourStep {
-  readonly key: 'welcome' | 'home' | 'tower' | 'path' | 'started' | 'level' | 'conquered' | 'due' | 'onward' | 'locked' | 'fork' | 'sign' | 'way' | 'views';
+  readonly key: 'welcome' | 'home' | 'tower' | 'path' | 'started' | 'level' | 'conquered' | 'due' | 'onward' | 'locked' | 'fork' | 'sign' | 'way' | 'steps' | 'placement' | 'views' | 'arcs';
   /** Wohin die Kamera gleitet (all: die ganze Welt). */
   readonly focus: { readonly kind: 'all' | 'place' | 'section'; readonly id: string };
   readonly sim: TourSim;
@@ -46,7 +48,13 @@ export interface TourStep {
    * 2026-11-14 (Eigentümer: „interaktiv: der Lernende klickt das Gezeigte, dann kommt der weitere Text") — was zu klicken ist; erst
    * danach steht die Erklärung da. Ohne: gleich die Erklärung.
    */
-  readonly action?: { readonly kind: 'home' | 'place' | 'section' | 'junction' | 'sign'; readonly id: string };
+  readonly action?: { readonly kind: 'home' | 'place' | 'section' | 'junction' | 'sign' | 'step'; readonly id: string };
+  /** 2026-11-14 — eine Leiste des Weges zu diesem Turm zum Ausprobieren (Schritte anklicken, überspringen, zurückholen; ohne Wirkung). */
+  readonly demo?: string;
+  /** 2026-11-14 — die Abhängigkeiten dieses Turms als Bögen in der Luft (wie beim Anklicken eines Knotens). */
+  readonly node?: string;
+  /** Diese Türme farbig, alle anderen grau (was eine Einstufung prüfen kann). */
+  readonly lit?: readonly string[];
 }
 
 /** Kenntnis in den Bändern: frisch gekonnt, gekonnt (bald fällig), fällig, nie gesehen. */
@@ -88,7 +96,7 @@ export function tourInput(world: World, lines: Lines, sim: TourSim, now: number)
     level: (place) => sim.levels?.get(place) ?? 0,
     perfect: (place) => sim.perfect?.has(place) === true,
     suspended: () => false,
-    placed: () => 0
+    placed: (place) => (sim.placed?.has(place) === true ? now : 0)
   };
 }
 
@@ -124,9 +132,22 @@ export function tourSteps(state: WorldState, lines: Lines, world: World, levels:
   if (levels > 0) out.push({ key: 'due', focus: { kind: 'place', id: a }, sim: { ...conquered, cards: all(a, DUE), perfect: new Set() }, chosen: a });
   if (onward.length > 0) out.push({ key: 'onward', focus: { kind: 'place', id: a }, sim: { ...conquered, cards: all(a, SOON) }, chosen: a, route: onward.flatMap((r) => r.sections), action: { kind: 'place', id: a } });
   if (c !== undefined) out.push({ key: 'locked', focus: { kind: 'place', id: c }, sim: {}, chosen: c, zoom: 1.4, action: { kind: 'place', id: c } });
+  /* Die Bögen in der Luft: woher das nötige Wissen kommt (gestrichelt, solange es fehlt). */
+  if (c !== undefined) out.push({ key: 'arcs', focus: { kind: 'all', id: '' }, sim: conquered, chosen: c, node: c });
   if (fork !== undefined && fork.out[0] !== undefined) out.push({ key: 'fork', focus: { kind: 'section', id: fork.out[0] }, sim: conquered, route: fork.out, action: { kind: 'junction', id: fork.id } });
   if (signKey !== null) out.push({ key: 'sign', focus: signKey.startsWith('p:') ? { kind: 'place', id: signKey.slice(2) } : lane === undefined ? { kind: 'all', id: '' } : { kind: 'section', id: lane }, sim: {}, sign: signKey, action: { kind: 'sign', id: signKey } });
   out.push({ key: 'way', focus: { kind: 'place', id: c ?? a }, sim: conquered, chosen: c ?? a });
+  /* Die Schritte eines Weges: die Leiste unten zum Ausprobieren. */
+  if (c !== undefined) out.push({ key: 'steps', focus: { kind: 'place', id: c }, sim: {}, chosen: c, demo: c, action: { kind: 'step', id: '' } });
+  /*
+    Die Einstufung: der erste Turm erobert, der nächste gutgeschrieben (gestrichelter Ring); farbig, was eine Einstufung jetzt prüfen
+    könnte (die Türme, deren Voraussetzungen passierbar sind) — Klick auf den gutgeschriebenen.
+  */
+  const next = onward[0]?.to;
+  if (next !== undefined) {
+    const front = world.order.filter((id) => id !== a && id !== next && (world.places.get(id)?.needs ?? []).every((n) => n === a || n === next)).slice(0, 12);
+    out.push({ key: 'placement', focus: { kind: 'place', id: next }, sim: { ...conquered, placed: new Set([next]) }, chosen: next, lit: [a, next, ...front], action: { kind: 'place', id: next } });
+  }
   out.push({ key: 'views', focus: { kind: 'all', id: '' }, sim: {} });
   return out;
 }
@@ -159,7 +180,7 @@ export function TourCard({ steps, at, levels, t, onAt, onClose, done, onDone }: 
   /* Erst klicken: der Auftrag, ein Hinweis, dass es pulsiert, und „Pomiń kliknięcie". */
   if (step.action !== undefined && !done) {
     return (
-      <section key={`${step.key}:do`} className="cg-wm-tour is-do" role="dialog" aria-label={t('cogitaWorld.tour.start')} data-world-tour={step.key} data-world-tour-at={at} data-world-tour-do={step.action.kind}>
+      <section key={`${step.key}:do`} className={`cg-wm-tour is-do${step.demo !== undefined ? ' is-top' : ''}`} role="dialog" aria-label={t('cogitaWorld.tour.start')} data-world-tour={step.key} data-world-tour-at={at} data-world-tour-do={step.action.kind}>
         <p className="cg-wm-tourn">{t('cogitaWorld.tour.of', { n: at + 1, all: steps.length })}</p>
         <h3 className="cg-wm-tourh">{t(`cogitaWorld.tour.${step.key}.title`)}</h3>
         <p className="cg-wm-tourt cg-wm-tourdo"><span aria-hidden="true">👆</span> {t(`cogitaWorld.tour.${step.key}.do`)}</p>
@@ -172,7 +193,7 @@ export function TourCard({ steps, at, levels, t, onAt, onClose, done, onDone }: 
     );
   }
   return (
-    <section key={step.key} className="cg-wm-tour" role="dialog" aria-label={t('cogitaWorld.tour.start')} data-world-tour={step.key} data-world-tour-at={at}>
+    <section key={step.key} className={`cg-wm-tour${step.demo !== undefined ? ' is-top' : ''}`} role="dialog" aria-label={t('cogitaWorld.tour.start')} data-world-tour={step.key} data-world-tour-at={at}>
       <p className="cg-wm-tourn">{t('cogitaWorld.tour.of', { n: at + 1, all: steps.length })}</p>
       <h3 className="cg-wm-tourh">{t(`cogitaWorld.tour.${step.key}.title`)}</h3>
       <p className="cg-wm-tourt">{t(levels === 0 && step.key === 'conquered' ? 'cogitaWorld.tour.conquered.text0' : `cogitaWorld.tour.${step.key}.text`, { levels })}</p>

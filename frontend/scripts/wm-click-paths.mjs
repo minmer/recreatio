@@ -809,6 +809,9 @@ try {
     const after = await ev(rectOf);
     check(P, 'after the answer nothing moved (question and answers in the same place) and the view does not scroll', after.x === before.x && after.y === before.y && after.py === before.py && after.scroll <= 2, { before, after });
     await shot('p12-run-answered');
+    /* 2026-11-14 (Eigentümer: „noch immer verrutscht es“) — der Teil ist nie breiter als sein Fenster (kein seitliches Rollen, kein Sprung beim Fokus auf „Dalej“). */
+    const side = await ev(`(() => { const v = document.querySelector('[data-full-view="run"]'); return { over: v.scrollWidth - v.clientWidth, left: v.scrollLeft, top: v.scrollTop }; })()`);
+    check(P, 'the run never scrolls sideways and does not jump when "Dalej" gets the focus', side.over <= 1 && side.left === 0 && side.top === 0, side);
     /* 2026-11-14 (Eigentümer: „das Neuskalieren kommt davon, dass sich beim Antworten die Grösse ändert“) — erscheint eine Bildlaufleiste, bleibt alles, wie es ist. */
     await ev(`(() => { const d = document.createElement('div'); d.className = 'cg-test-tall'; d.style.height = '2400px'; document.querySelector('[data-full-view="run"]').appendChild(d); return true; })()`);
     await sleep(600);
@@ -856,6 +859,51 @@ try {
     drogą" (seit 2026-11-12 „Odkryj") beginnt den ersten offenen Schritt; mit erledigten Schritten der Abschluss, danach ist der Weg erledigt (Haken)
   */
   /* -- 14 · 2026-11-14: der Rundgang über die echte Karte (erfundener Fortschritt), beim ersten Mal von selbst, vom Haus aus neu ---- */
+  /* -- 15 · (2026-11-14) „Zdobądź w pełni“ und die Tafel, wenn ein Durchgang keine Stufe mehr bringt ------------------------------ */
+  if (runs('15')) {
+    const P = '15 conquer fully';
+    await open();
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
+    await click('[data-world-my-settings]');
+    await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
+    await click('[data-levels-n="1"]');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force', 15000);
+    await click('[data-world-run-for="1"]');
+    /* Die erste Karte falsch (Stufe 1 zählt „beliebig“: das bringt keine Tafel), dann alles richtig → erobert, aber nicht „Mistrzowsko“. */
+    await waitFor(`document.querySelector('[data-world-run="ask"]')`, 'the first card');
+    await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Nie' && !x.disabled); if (b) b.click(); return !!b; })()`);
+    await waitFor(`document.querySelector('[data-card-next]') !== null`, 'next after the mistake');
+    await click('[data-card-next]');
+    await sleep(200);
+    check(P, 'a level counted "any way" is never lost: no slide after a mistake', await ev(`document.querySelector('[data-world-run-lost]') === null`));
+    await answerAll('[data-world-finish]');
+    await waitFor(`document.querySelector('[data-world-finish]')`, 'the statistics slide', 15000);
+    const kind = await ev(`document.querySelector('[data-world-finish]').dataset.worldFinish`);
+    check(P, 'conquered with a mistake: not masterly', kind === 'conquer', kind);
+    await click('[data-world-finish-close]');
+    await waitFor(`document.querySelector('[data-world-tower-actions] [data-world-conquer-full]')`, 'the button "Zdobądź w pełni" above the tower', 15000);
+    check(P, 'a conquered tower below the star offers "Zdobądź w pełni"', true);
+    await click('[data-world-tower-actions] [data-world-conquer-full]');
+    await waitFor(`document.querySelector('[data-world-full-sheet]')`, 'the levels sheet');
+    const sheet = await ev(`(() => { const s = document.querySelector('[data-world-full-sheet]'); return { levels: [...s.querySelectorAll('[data-world-full-level]')].map((x) => x.dataset.worldFullLevel + (x.classList.contains('is-done') ? '✓' : '')), start: s.querySelector('[data-world-full-start]') !== null }; })()`);
+    check(P, 'the sheet lists level 1 (reached) and the star (not yet), then the start button', sheet.levels.join() === '1✓,star' && sheet.start, sheet);
+    await sleep(700);
+    await shot('p15-full-sheet');
+    await click('[data-world-full-start]');
+    await waitFor(`document.querySelector('[data-world-run="ask"]')`, 'the run for the star');
+    await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === 'Nie' && !x.disabled); if (b) b.click(); return !!b; })()`);
+    await waitFor(`document.querySelector('[data-card-next]') !== null`, 'next after the mistake');
+    await click('[data-card-next]');
+    await waitFor(`document.querySelector('[data-world-run-lost="star"]')`, 'the slide "this run can no longer reach the star"');
+    check(P, 'one mistake on the way to the star: the slide proposes a new round and says why', await ev(`document.querySelector('[data-world-run-lost-restart]') !== null && document.querySelector('[data-world-run-lost-go]') !== null`));
+    await sleep(700);
+    await shot('p15-lost');
+    await click('[data-world-run-lost-restart]');
+    await waitFor(`document.querySelector('[data-world-run="ask"]')?.dataset.worldRunFirst === '0' && document.querySelector('[data-world-run-lost]') === null`, 'a fresh round');
+    check(P, '"Nowa runda" starts a fresh run', true);
+  }
+
   if (runs('14')) {
     const P = '14 tour';
     keepTour = true;
@@ -868,6 +916,9 @@ try {
     check(P, 'the tour starts by itself the first time (or from the house)', true, { first });
     const keys = [];
     const acts = [];
+    let realButtons = 0;
+    let arcCount = 0;
+    let demoSkip = 0;
     const frames = [];
     for (let i = 0; i < 20; i += 1) {
       const k = await ev(`document.querySelector('[data-world-tour]')?.dataset.worldTour ?? null`);
@@ -878,17 +929,23 @@ try {
       const doing = await ev(`document.querySelector('[data-world-tour-do]')?.dataset.worldTourDo ?? null`);
       if (doing !== null) {
         acts.push(doing);
-        if (doing === 'home') await clickMap('home', '~home'); else await click('[data-world-tour-tap]');
+        if (doing === 'home') await clickMap('home', '~home'); else if (doing === 'step') await click('[data-world-tour-demo] [data-world-way-show]'); else await click('[data-world-tour-tap]');
         await waitFor(`document.querySelector('[data-world-tour-do]') === null && document.querySelector('[data-world-tour-next], [data-world-tour-done]') !== null`, 'the explanation after the click', 8000);
         await sleep(300);
+        if (k === 'tower') realButtons = await ev(`document.querySelectorAll('[data-world-tower-actions] [data-world-lead], [data-world-tower-actions] [data-world-run-for]').length`);
+        if (k === 'steps') { await click('[data-world-tour-demo] [data-world-picked-skip]').catch(() => undefined); await sleep(300); demoSkip = await ev(`document.querySelectorAll('[data-world-tour-demo] [data-world-way-state="skipped"]').length`); }
       }
       frames.push(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmFrame ?? ''`));
+      if (k === 'arcs') arcCount = Number(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmArcs ?? 0`));
       await shot(`p14-${String(i).padStart(2, '0')}-${k}`);
       if (await ev(`document.querySelector('[data-world-tour-next]') === null`)) break;
       await click('[data-world-tour-next]');
       await sleep(200);
     }
     check(P, `every part is explained on this map (${keys.length} steps)`, ['welcome', 'home', 'tower', 'conquered', 'locked', 'way', 'views'].every((k) => keys.includes(k)), keys);
+    check(P, 'after clicking a tower its real buttons stand above it (Odkryj, Zdobądź od razu)', realButtons >= 2, realButtons);
+    check(P, 'the steps of a way can be tried in the tour: a skipped step stays greyed in its place', demoSkip >= 1, demoSkip);
+    check(P, 'the check of existing knowledge and the arcs in the air are explained', keys.includes('placement') && keys.includes('steps') && keys.includes('arcs') && arcCount > 0, { keys, arcCount });
     check(P, `it is interactive: the learner clicks what is shown, then the explanation follows (${acts.join(', ')})`, acts.includes('home') && acts.includes('place') && acts.length >= 4, acts);
     await click('[data-world-tour-done]');
     await waitFor(`document.querySelector('[data-world-tour]') === null`, 'the tour to close');

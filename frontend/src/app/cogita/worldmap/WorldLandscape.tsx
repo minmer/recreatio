@@ -41,7 +41,7 @@ import { useWorlds, WorldsSection } from '../WorldLinks';
 import { FlagIcon } from '../WorldMap';
 import { holdStore } from '../worldPlay';
 import { crossRefsIn, resolveCross } from '../worlds';
-import { OwnWorldSettings, PillarSlider } from './WorldLevels';
+import { OwnWorldSettings, PillarSlider, FullConquerSheet } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
 import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
@@ -69,7 +69,7 @@ import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
-import { reviewable, stateOf, type LearnerInput } from './wmState';
+import { reviewable, type WorldState, stateOf, type LearnerInput } from './wmState';
 import { useServerRuns } from './useServerRuns';
 import { layoutPass } from './wmStore';
 import { HOME } from './wmTypes';
@@ -291,19 +291,22 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const signKeyRef = useRef<string | null>(null);
   const tourList = useMemo(() => (tour === null ? [] : tourSteps(state, lines, world, eff.levels, signKeyRef.current)), [tour === null, world, lines]); // eslint-disable-line react-hooks/exhaustive-deps
   const tourStep = tour === null ? undefined : tourList[tour];
-  const tourScene = useMemo(() => {
-    if (tourStep === undefined || geometry === null) return null;
-    const fake = stateOf(world, lines, tourInput(world, lines, tourStep.sim, clock), { levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt });
-    return sceneOf(world, lines, fake, geometry, { placeColour, lineColour: colours, fallback: oklch(0.5, 0.05, 250) });
-  }, [tourStep, geometry, world, lines, clock, eff.levels, eff.knownShare, eff.openAt, placeColour, colours]);
+  const tourState = useMemo(() => (tourStep === undefined ? null : stateOf(world, lines, tourInput(world, lines, tourStep.sim, clock), { levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt })),
+    [tourStep, world, lines, clock, eff.levels, eff.knownShare, eff.openAt]);
+  const tourScene = useMemo(() => (tourState === null || geometry === null ? null : sceneOf(world, lines, tourState, geometry, { placeColour, lineColour: colours, fallback: oklch(0.5, 0.05, 250) })),
+    [tourState, geometry, world, lines, placeColour, colours]);
   const tourOn = tourStep !== undefined;
   /* 2026-11-14 — der Rundgang wartet auf den Klick auf das Gezeigte (je Schritt neu). */
   const [tourDone, setTourDone] = useState(false);
   useEffect(() => { setTourDone(false); }, [tour]);
-  const tourHit = (kind: 'home' | 'place' | 'section' | 'junction' | 'sign', id: string): boolean => {
+  /* Die Leiste zum Ausprobieren: übersprungene (nur im Rundgang). */
+  const [demoSkipped, setDemoSkipped] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => { setDemoSkipped(new Set()); }, [tour]);
+  const demoPlan = useMemo(() => (tourStep?.demo === undefined ? null : planRoute(state, tourStep.demo)), [tourStep, state]);
+  const tourHit = (kind: 'home' | 'place' | 'section' | 'junction' | 'sign' | 'step', id: string): boolean => {
     const want = tourStep?.action;
     if (want === undefined || tourDone) return false;
-    const ok = want.kind === kind && (want.id === id || (kind === 'section' && (tourStep?.route ?? []).includes(id)));
+    const ok = want.kind === kind && (want.id === id || kind === 'step' || (kind === 'section' && (tourStep?.route ?? []).includes(id)));
     if (ok) setTourDone(true);
     return ok;
   };
@@ -651,13 +654,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Feld") — AM HAUS: die Fragen, die hier beginnen, die Wege, die von hier etwas Neues bringen, und „Powtórz (N)" mit der Schwelle
     (ein Klick auf „< 100 %" wechselt sie: 90 · 100 · 115 · 130 %).
   */
+  /* 2026-11-14 — die Knöpfe zeigen den Stand, den die Karte zeigt (im Rundgang den erfundenen). */
+  const bs: WorldState = tourState ?? state;
   const homeButtons = (): TowerButton[] => {
     const out: TowerButton[] = [];
     for (const qp of pathsAt('home')) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
-    for (const r of freshRoads(state, lines, HOME)) {
+    for (const r of freshRoads(bs, lines, HOME)) {
       const last = r.sections[r.sections.length - 1]!;
       out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }),
-        onClick: () => (state.places.get(r.to)?.conquered !== true ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
+        onClick: () => (bs.places.get(r.to)?.conquered !== true ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
         data: { 'world-onward-to': r.to, 'world-onward-road': r.sections.join(' '), 'world-onward-done': '0' } });
     }
     const list = homeRepeatBelow(state, homePool, repeatAt);
@@ -674,22 +679,22 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const moreButton = (id: string): TowerButton => ({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } });
   /* Ein Pfad: ein Knopf — offen „Odkryj" (gegangen: umrandet), sonst „Prowadź mnie tutaj" zu seinem Turm. */
   const laneButtons = (id: string): TowerButton[] => {
-    const sec = lines.sections.get(id), st = state.sections.get(id);
+    const sec = lines.sections.get(id), st = bs.sections.get(id);
     if (sec === undefined || st === undefined) return [moreButton(id)];
     const out: TowerButton[] = [];
     if (st.ticket.met && st.open) out.push({ key: 'go', label: st.travelled ? t('cogitaWorld.panel.travelAgain') : t('cogitaWorld.panel.travel'), line: st.travelled, onClick: () => travel(id), data: { 'world-travel': id } });
-    else if (state.places.get(sec.to)?.conquered !== true) out.push({ key: 'lead', label: t('cogitaWorld.panel.leadMe'), onClick: () => act.lead(sec.to, id), data: { 'world-lead': sec.to } });
+    else if (bs.places.get(sec.to)?.conquered !== true) out.push({ key: 'lead', label: t('cogitaWorld.panel.leadMe'), onClick: () => act.lead(sec.to, id), data: { 'world-lead': sec.to } });
     return [...out, moreButton(id)];
   };
   /* Eine Gabelung: jeder Weg ein Knopf (offen voll, gegangen umrandet; was noch nicht geht, führt hin). */
   const forkButtons = (id: string): TowerButton[] => {
     const out: TowerButton[] = [];
     for (const sid of lines.junctions.get(id)?.out ?? []) {
-      const sec = lines.sections.get(sid), st = state.sections.get(sid);
+      const sec = lines.sections.get(sid), st = bs.sections.get(sid);
       if (sec === undefined || st === undefined) continue;
       const go = st.ticket.met && st.open;
       out.push({ key: sid, label: t('cogitaWorld.panel.roadButton', { name: nameOf(sec.to) }), line: st.travelled || !go,
-        onClick: () => (go ? travel(sid) : state.places.get(sec.to)?.conquered === false ? act.lead(sec.to, sid) : act.show('section', sid)), peek: (on) => setPeekRoad(on ? [sid] : null),
+        onClick: () => (go ? travel(sid) : bs.places.get(sec.to)?.conquered === false ? act.lead(sec.to, sid) : act.show('section', sid)), peek: (on) => setPeekRoad(on ? [sid] : null),
         data: go ? { 'world-choose': sid } : { 'world-lead': sec.to } });
     }
     return [...out, moreButton(id)];
@@ -701,30 +706,32 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   ];
   const towerButtons = (id: string): TowerButton[] => {
     if (id === HOME) return homeButtons();
-    const ps = state.places.get(id);
+    const ps = bs.places.get(id);
     const more: TowerButton = { key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } };
     if (ps === undefined) return [more];
     if (!ps.conquered) {
-      const unseen = ps.cards.filter((k) => state.band(k) === 'unseen').length;
+      const unseen = ps.cards.filter((k) => bs.band(k) === 'unseen').length;
       return [
         { key: 'explore', label: t('cogitaWorld.panel.explore'), onClick: () => act.lead(id), data: { 'world-lead': id } },
         { key: 'conquer', label: t('cogitaWorld.panel.conquerDirect'), line: true,
           title: unseen > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length }),
-          onClick: () => (eff.levels > 0 ? act.run(id) : act.learn(ps.cards.filter((k) => state.band(k) !== 'known'), nameOf(id))),
+          onClick: () => (eff.levels > 0 ? act.run(id) : act.learn(ps.cards.filter((k) => bs.band(k) !== 'known'), nameOf(id))),
           data: { 'world-run-for': String(eff.levels > 0 ? Math.min(eff.levels, ps.level + 1) : 0), 'world-run-unseen': String(unseen) } },
         more
       ];
     }
     const out: TowerButton[] = [];
     for (const qp of pathsAt(`p:${id}`)) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
-    for (const r of freshRoads(state, lines, id)) {
+    for (const r of freshRoads(bs, lines, id)) {
       const last = r.sections[r.sections.length - 1]!;
-      const toConquer = state.places.get(r.to)?.conquered !== true;
+      const toConquer = bs.places.get(r.to)?.conquered !== true;
       out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }), line: r.travelled,
         onClick: () => (toConquer ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
         data: { 'world-onward-to': r.to, 'world-onward-road': r.sections.join(' '), 'world-onward-done': r.travelled ? '1' : '0' } });
     }
-    const due = dueOf(state, id);
+    /* 2026-11-14 (Eigentümer) — erobert, aber nicht „Mistrzowsko": „Zdobądź w pełni" (erst die Stufen mit Erklärung, dann Start). */
+    if (eff.levels > 0 && levels.get(id)?.perfect !== true) out.push({ key: 'full', label: t('cogitaWorld.panel.conquerFully'), line: true, onClick: () => setFullOf(id), data: { 'world-conquer-full': id } });
+    const due = dueOf(bs, id);
     if (due.length > 0) out.push({ key: 'review', label: t('cogitaWorld.panel.reviewN', { count: due.length }), tone: ps.dot ?? 'orange', onClick: () => act.review(due, nameOf(id)), data: { 'world-review': String(due.length) } });
     return [...out, more];
   };
@@ -999,6 +1006,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Weiteren (Więcej o tym miejscu, Pytania tutaj, eigene Einstellungen).
   */
   const [placeMore, setPlaceMore] = useState(false);
+  const [fullOf, setFullOf] = useState<string | null>(null);
   useEffect(() => { setPlaceMore(false); }, [chosen]);
   /* 2026-11-14 (Eigentümer: „auch alle anderen anklickbaren Teile: kurze Knöpfe darüber") — Turm, Haus, Gabelung, Pfad, Wegweiser. */
   const floatKind = chosen === null ? null : chosen.kind === 'place' || chosen.kind === 'home' || chosen.kind === 'junction' ? 'place' as const : chosen.kind === 'section' ? 'section' as const : chosen.kind === 'sign' ? 'sign' as const : null;
@@ -1238,9 +1246,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             : <WorldPillars ref={pillars} scene={tourOn && tourScene !== null ? tourScene : scene} pillarWidth={pillarWidth} heightScale={heightScale} t={t} compact={compact}
               memoryKey={scope}
               route={tourStep !== undefined ? tourStep.route ?? null : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn ? null : peek !== null && lines.sections.has(peek) ? route : faint}
-              chosen={tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={tourOn ? null : focus}
+              chosen={tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={tourStep !== undefined ? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node)) : focus}
               marks={tourOn || marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
-              lit={tourOn ? null : lit} portals={portals} goal={tourOn || (goal !== null && isPathTarget(goal)) ? null : goal} playback={tourOn ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && playHeld} playAfter={PLAY_AFTER_MS}
+              lit={tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || (goal !== null && isPathTarget(goal)) ? null : goal} playback={tourOn ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && playHeld} playAfter={PLAY_AFTER_MS}
               signs={signs} chosenSign={tourStep !== undefined ? tourStep.sign ?? null : chosen?.kind === 'sign' ? chosen.id : chosen?.kind === 'qpath' ? signs.find((x) => x.paths.includes(chosen.id))?.key ?? null : null} onPickSign={(key) => { if (tourOn) tourHit('sign', key); else pickSign(key); }}
               onHover={(id, at) => setHover(tourOn || id === null || at === null ? null : { id, x: at.x, y: at.y })}
               onHoverLane={(id, at) => setHoverLane((was) => (tourOn || id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
@@ -1249,9 +1257,23 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickHome={() => { if (tourOn) { tourHit('home', HOME); return; } setChosen({ kind: 'home', id: HOME }); }}
               onPickJunction={(id) => { if (tourOn) { tourHit('junction', id); return; } setChosen({ kind: 'junction', id }); }}
               onLead={(id) => { if (tourOn) return; setGoal(id); lead(id); }} onPlain={() => { if (tourOn) return; setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
-              full={full !== null} squeeze={hasSide} under={tourOn ? null : wayCard}
-              towerActions={tourStep?.action !== undefined && !tourDone
-                ? { place: tourStep.action.id, kind: tourStep.action.kind === 'section' ? 'section' : tourStep.action.kind === 'sign' ? 'sign' : 'place', buttons: [{ key: 'tap', label: t('cogitaWorld.tour.tapHere'), pulse: true, onClick: () => setTourDone(true), data: { 'world-tour-tap': tourStep.action.id } }] }
+              full={full !== null} squeeze={hasSide} under={tourOn ? (demoPlan === null || tourStep?.demo === undefined ? null : (
+                <div className="cg-wm-waycard" data-world-tour-demo="">
+                  <NextView tt={{ target: tourStep.demo, done: [], upcoming: demoPlan.steps.filter((x) => !demoSkipped.has(stepKey(x))), cards: demoPlan.cards, route: demoPlan.route }}
+                    order={demoPlan.steps} skipped={demoSkipped} ctx={panel} rules={rules} just={new Set()} card
+                    onShow={(x) => { showStep(x); tourHit('step', stepKey(x)); }} onGo={() => undefined} onMap={() => undefined} onEnd={() => undefined}
+                    onSkip={(x) => setDemoSkipped((was) => new Set([...was, stepKey(x)]))} onRestore={(x) => setDemoSkipped((was) => { const n = new Set(was); n.delete(stepKey(x)); return n; })} />
+                </div>
+              )) : wayCard}
+              towerActions={tourStep?.action !== undefined && tourStep.action.kind !== 'step'
+                ? (() => {
+                  const ac = tourStep.action;
+                  const kind = ac.kind === 'section' ? 'section' as const : ac.kind === 'sign' ? 'sign' as const : 'place' as const;
+                  /* Vor dem Klick ein Pfeil auf das, was zu klicken ist; danach die Knöpfe, die dort wirklich stehen (im Rundgang ohne Wirkung). */
+                  if (!tourDone) return { place: ac.id, kind, buttons: [{ key: 'tap', label: '▼', arrow: true, title: t('cogitaWorld.tour.tapHere'), onClick: () => setTourDone(true), data: { 'world-tour-tap': ac.id } }] };
+                  const real = ac.kind === 'section' ? laneButtons(ac.id) : ac.kind === 'sign' ? signButtons(ac.id) : ac.kind === 'junction' ? forkButtons(ac.id) : towerButtons(ac.id);
+                  return { place: ac.id, kind, buttons: real.filter((b) => b.key !== 'tour').map((b) => ({ ...b, onClick: () => undefined })) };
+                })()
                 : !tourOn && floatKind !== null && chosen !== null && learner !== null ? { place: chosen.id, kind: floatKind, buttons: chosen.kind === 'section' ? laneButtons(chosen.id) : chosen.kind === 'sign' ? signButtons(chosen.id) : chosen.kind === 'junction' ? forkButtons(chosen.id) : towerButtons(chosen.id) } : null}
               startAction={!tourOn && floatKind === null && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
                 /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
@@ -1264,6 +1286,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           )}
           {bubble}
           {laneBubble}
+          {fullOf !== null && (
+            <FullConquerSheet name={nameOf(fullOf)} levels={eff.levels} rules={rules} reached={levels.get(fullOf)?.level ?? 0} perfect={levels.get(fullOf)?.perfect === true} t={t}
+              onClose={() => setFullOf(null)} onStart={() => { const id = fullOf; setFullOf(null); act.run(id); }} />
+          )}
           {tourStep !== undefined && tour !== null && (
             <TourCard steps={tourList} at={tour} levels={eff.levels} t={t} onAt={setTour} onClose={() => { keepTourSeen(scope); setTour(null); }} done={tourDone} onDone={() => setTourDone(true)} />
           )}

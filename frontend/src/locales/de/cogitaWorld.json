@@ -83,7 +83,13 @@
     "reachedMany": "Stufen {from}–{level} auf einmal erreicht",
     "restart": "Von vorn beginnen",
     "restartSays": "Fehler gemacht? Du kannst den Durchgang von vorn beginnen — um ihn ganz ohne Fehler zu schaffen.",
-    "tryAgain": "Noch einmal durchgehen"
+    "tryAgain": "Noch einmal durchgehen",
+    "lostTitle": "Dieser Durchgang erreicht keine höhere Stufe mehr",
+    "lostLevel": "Stufe {level} verlangt {pct} % ({attempts}). In diesem Durchgang sind schon {failed} Karten falsch gewesen, erlaubt waren {allowed}.",
+    "lostStar": "Der Stern („Meisterhaft\") verlangt jede Karte beim ersten Mal richtig — in diesem Durchgang gab es schon einen Fehler.",
+    "lostSays": "Du kannst eine neue Runde beginnen und es noch einmal versuchen oder diese beenden — ihre Antworten zählen ohnehin für dein Wissen.",
+    "newRound": "Neue Runde",
+    "goOn": "Trotzdem beenden"
   },
   "map": {
     "start": "Start",
@@ -298,7 +304,8 @@
     "statNew": "neu",
     "statDue": "zu wiederholen",
     "askButton": "? {name}",
-    "roadButton": "→ {name}"
+    "roadButton": "→ {name}",
+    "conquerFully": "Ganz erobern"
   },
   "nav": {
     "target": "Ziel: {name}",
@@ -587,7 +594,7 @@
     },
     "level": {
       "title": "Erobern",
-      "text": "Karten gesehen zu haben heisst nicht, das Thema zu beherrschen. Deshalb wird ein Turm in einem Durchgang erobert: jede Karte einmal, in zufälliger Folge, ohne die Erklärungen der Erzählung. Erst dann zeigt sich, ob das Thema als Ganzes sitzt und nicht nur in Stücken. Jede der {levels} Stufen verlangt mehr (zum Beispiel mehr Antworten beim ersten Mal richtig) und lässt einen weiteren Bogen oben am Turm leuchten."
+      "text": "Karten gesehen zu haben heisst nicht, das Thema zu beherrschen. Deshalb wird ein Turm in einem Durchgang erobert: jede Karte einmal, in zufälliger Folge, ohne die Erklärungen der Erzählung. Jede der {levels} Stufen verlangt mehr und lässt einen weiteren Bogen oben am Turm leuchten. Du brauchst nicht die höchste Stufe, um weiterzugehen: die Wege aus einem Turm öffnen sich ab der Stufe, die der Autor des Kurses festgelegt hat; höhere Stufen zeigen nur, wie sicher das Thema sitzt. Auch der Stern (alles beim ersten Mal richtig) ist keine Bedingung — er ist eine Auszeichnung, die zeigt, was noch möglich ist."
     },
     "conquered": {
       "title": "Erobert",
@@ -596,7 +603,7 @@
     },
     "due": {
       "title": "Zu wiederholen",
-      "text": "Das Gedächtnis lässt mit der Zeit nach — das ist normal, kein Fehler. Eine Wiederholung bringt am meisten, wenn das Wissen gerade zu verblassen beginnt: dann wird der Punkt orange, und über dem Turm erscheint „Wiederholen\". Jede gute Wiederholung verlängert die Zeit bis zur nächsten, so wird mit der Zeit immer seltener wiederholt. Wiederholt werden nur eroberte Türme: Themen im Lernen überschwemmen die Wiederholungen nicht, ihre Karten kommen ohnehin in Erzählungen und Durchgängen wieder."
+      "text": "Das Gedächtnis lässt mit der Zeit nach — das ist normal, kein Fehler. Eine Wiederholung bringt am meisten, wenn das Wissen gerade zu verblassen beginnt: dann wird der Punkt orange, und über dem Turm erscheint „Wiederholen\". Jede gute Wiederholung verlängert die Zeit bis zur nächsten. Wiederholt werden nur eroberte Türme, damit Wiederholungen die Themen im Lernen nicht überschwemmen. Und noch etwas: wählst du einen längeren Weg und liegen darauf Karten, die nach Einschätzung des Systems verblasst sein könnten, beginnt der Weg mit einer kurzen Wiederholung — bevor du auf ihnen Neues aufbaust, prüfst du, ob du sie noch weisst."
     },
     "onward": {
       "title": "Weitere Wege",
@@ -625,6 +632,27 @@
     "views": {
       "title": "Ansichten",
       "text": "Oben engen Ansichten die Karte ein: was ich kann, zu entdecken (was du jetzt beginnen kannst), zu wiederholen, Lücken. „Prüfe, was du weisst\" stellt die wichtigsten Fragen jedes Themas und zeigt die Lücken — ein guter Anfang, wenn du schon etwas kannst. Die Führung öffnest du wieder mit einem Klick auf das Haus."
+    },
+    "steps": {
+      "title": "Schritte eines Weges",
+      "do": "Klick auf einen der Schritte in der Leiste unten.",
+      "text": "Jeder Weg ist in Schritte gegliedert: eine Erzählung (Folien lesen), Festigen (Karten, die keine Erzählung bringt), eine Wiederholung und das Erobern eines Turms. Über dem aktuellen Schritt steht „Zum Schritt\". Ein angeklickter Schritt zeigt auf der Karte, wo er liegt, und lässt die Wahl: „Hierhin\" beginnt ihn sofort, auch vor früheren, und „Überspringen\" graut ihn aus — er bleibt an seinem Platz und lässt sich mit demselben Klick zurückholen („Zurückholen\"). Probier es in der Leiste: überspringe einen Schritt und hol ihn zurück. „≡\" zeigt den ganzen Weg mit seinen Gabelungen, „Beenden\" hält den Weg an, ohne Fortschritt zu verlieren."
+    },
+    "placement": {
+      "title": "Prüfen, was du schon kannst",
+      "do": "Klick auf den Turm mit dem gestrichelten Ring.",
+      "text": "Nicht jeder fängt bei null an. Die Prüfung („Prüfe, wie viel du schon kannst\", am Anfang eines Kurses oder einer Erzählung) stellt echte Fragen aus den Türmen, die sich jetzt bestehen lassen — auf der Karte farbig, der Rest grau. Ein so bestandener Turm hat einen gestrichelten Ring: er gilt als passierbar, öffnet alles, was auf ihm aufbaut, und seine nicht gefragten Karten kommen später in den Wiederholungen. Es gibt zwei Arten. Adaptiv: wenige Fragen je Turm — einige richtige Antworten hintereinander rechnen ihn an, einige Fehler beenden ihn; schnell und viele Türme auf einmal, aber eine Schätzung. Bis zu einer Stufe: jeder Turm wird gefragt wie eine echte Eroberung der gewählten Stufe — langsamer, aber der Turm ist wirklich erobert, nichts ist nachzuholen."
+    },
+    "arcs": {
+      "title": "Bögen in der Luft",
+      "text": "Die grauen Bögen über der Karte sind keine Wege, sondern Abhängigkeiten: sie zeigen, woher das Wissen kommt, das dieser Turm braucht oder das nötig ist, um einen Pfad zu betreten. Ein Bogen läuft vom Turm, den man können muss, zum Turm (oder zum Tor auf einem Pfad), der ihn verlangt; der Pfeil am Ende zeigt die Richtung. Gestrichelt heisst: dieses Wissen fehlt noch; durchgezogen: die Bedingung ist erfüllt. Die Bögen liegen absichtlich in der Luft: am Boden geht man (die Pfade), in der Luft sieht man nur, was man vorher können muss. Sie erscheinen, wenn du einen Turm oder eine Gabelung anklickst oder ein Ziel wählst."
     }
+  },
+  "full": {
+    "title": "Ganz erobern: {name}",
+    "says": "Dieser Turm ist schon erobert und öffnet die weiteren Wege — höhere Stufen und der Stern sind dafür nicht nötig. Sie zeigen nur, wie sicher das Thema sitzt. Jeder Durchgang fragt jede Karte einmal, in zufälliger Folge.",
+    "level": "Stufe {level}",
+    "star": "Meisterhaft — jede Karte beim ersten Mal richtig (alle Stufen auf einmal)",
+    "how": "Ein Durchgang hebt dich um jede Stufe, deren Regel er erfüllt. Ein Fehler macht das Lernen nicht zunichte: jede Antwort zählt für dein Wissen."
   }
 }

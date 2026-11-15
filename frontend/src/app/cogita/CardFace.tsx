@@ -4,7 +4,7 @@
  * und dem Wissen, das sie erklärt [D14].
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { rich, t, tFor, useT } from '../core/i18n';
 
 import { checkCard } from './cards';
@@ -275,9 +275,11 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   const submit = (given: unknown) => { if (!shut) onSubmit(given); };
   const tap = (side: 'l' | 'r', at: number) => setPairing((was) => tapPair(was, side, at));
   /* Nach der Prüfung: „Dalej” an der Stelle von „Sprawdź” (oder dort, wo es stünde), gleich im Fokus. */
+  /* 2026-11-14 (Eigentümer: „noch immer verrutscht es“) — „Dalej“ bekommt den Fokus, OHNE dass die Seite dorthin rollt (es steht ohnehin im Bild, unten angeheftet). */
+  const focusNext = useCallback((el: HTMLButtonElement | null) => { el?.focus({ preventScroll: true }); }, []);
   const next = reveal !== undefined && onNext !== undefined
     /* Ein eigener Schlüssel: React baut den Knopf neu, statt „Sprawdź” umzubeschriften — nur so greift `autoFocus`. */
-    ? <button key="next" type="button" className="wk-btn cg-next" autoFocus data-card-next="" onClick={onNext}>{nextLabel ?? t('common.next')}</button>
+    ? <button key="next" type="button" className="wk-btn cg-next" ref={focusNext} data-card-next="" onClick={onNext}>{nextLabel ?? t('common.next')}</button>
     : null;
   const nextRow = next === null ? null : <div className="cg-answer-actions">{next}</div>;
 
