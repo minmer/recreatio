@@ -210,6 +210,12 @@ internal static class AiAccessChecks
             check(Fails(() => AiMcpTools.GetImportFormat("nie-ma")) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 0)) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 2)) == "not_found",
                 "MCP get_import_format: an unknown format or part says not_found");
             check(AiMcp.Instructions.Contains("list_import_formats") && AiMcp.Instructions.Contains("get_import_format"), "MCP instructions: read the format before preparing an import");
+            /* 2026-11-15 — die Seiten der freigegebenen Bereiche: die Worte eines Bausteins, ohne Kennungen, Tags und Bildverweise. */
+            check(AiMcp.Instructions.Contains("list_pages") && AiMcp.Instructions.Contains("get_page"), "MCP instructions: pages are read with list_pages and get_page");
+            check(AiMcpTools.ReadableOf(System.Text.Json.Nodes.JsonNode.Parse("""
+                {"id":"01a16af6-5a94-718f-b8b5-abdb3ab69201","title":"Witamy","text":"<p>Msze &amp; nabożeństwa</p>","image":"page-image:x","color":"#fff","items":[{"label":"Kontakt","href":"https://x.pl"},{"label":"Kontakt"}],"n":3}
+                """)!) == "Witamy\nMsze & nabożeństwa\nKontakt",
+                "MCP get_page: a module's readable text keeps its words, drops ids, tags, links, images, colours and repeats");
             /* 2026-11-09 — die Weltkarte: ihr Leitfaden über MCP (spec §9, §13 Teil 6). */
             var worldGuide = AiMcpTools.GetImportFormat("guide-world-map");
             check(formatList.Formats.Any(f => f.Id == "guide-world-map" && f.Group == "Przewodniki dla AI") && worldGuide.Parts == 1 && worldGuide.Text.Contains("\"style\": \"world\"") && worldGuide.Text.Contains("\"part\": \"up\"") && worldGuide.Text.Contains("levelsSetup")

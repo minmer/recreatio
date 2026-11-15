@@ -1,6 +1,6 @@
 {
   "title": "AI access",
-  "lede": "Assistants such as ChatGPT or Claude that you connected to Recreatio (MCP) read the areas of their connection — only read, and only the Library, Scriptorium and knowledge bases. Add, renew or remove areas here.",
+  "lede": "Assistants such as ChatGPT or Claude that you connected to Recreatio (MCP) read the areas of their connection — only read: the Library, Scriptorium and knowledge bases, and the area's pages (access-only pages bound to the area and public pages the area is responsible for; sealed pages only by their address). Add, renew or remove areas here.",
   "onlyYou": "Only you",
   "manage": "Manage AI connections",
   "manageHint": "Already connected an assistant? Add this area to its connection without signing in again:",

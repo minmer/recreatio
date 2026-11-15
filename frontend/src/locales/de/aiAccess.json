@@ -1,6 +1,6 @@
 {
   "title": "KI-Zugang",
-  "lede": "Assistenten wie ChatGPT oder Claude, die du mit Recreatio verbunden hast (MCP), lesen die Bereiche ihrer Verbindung — nur lesen, und nur Bibliothek, Skriptorium und Wissensbasen. Hier fügst du Bereiche hinzu, verlängerst oder entfernst sie.",
+  "lede": "Assistenten wie ChatGPT oder Claude, die du mit Recreatio verbunden hast (MCP), lesen die Bereiche ihrer Verbindung — nur lesen: Bibliothek, Skriptorium und Wissensbasen sowie die Seiten des Bereichs (Seiten mit Zugang, die an den Bereich gebunden sind, und öffentliche Seiten, für die der Bereich verantwortlich ist; versiegelte Seiten nur mit ihrer Adresse). Hier fügst du Bereiche hinzu, verlängerst oder entfernst sie.",
   "onlyYou": "Nur du",
   "manage": "KI-Verbindungen verwalten",
   "manageHint": "Schon einen Assistenten verbunden? Füge diesen Bereich seiner Verbindung hinzu, ohne dich neu anzumelden:",

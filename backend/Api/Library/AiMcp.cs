@@ -46,6 +46,7 @@ public static class AiMcp
         "A story that counts in Cogita is a presentation page plus a flow {\"look\": \"scenes\", \"presentation\": \"<page>\", \"unit\": \"@lesson\"}; how to build one: get_import_format guide-stories, a complete example: example-story and example-story-page. " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "In textbooks, formulas are LaTeX between $…$ (inline) and $$…$$ (displayed, numbered with \\tag{…}); definitions, theorems, lemmas, proofs and examples are blocks of type \"statement\" (their head in bold, their content quoted with \"> \"); read_text also takes such a label as printed (\"Twierdzenie 2.3\", \"(2.4)\", \"Rys. 1.2\"). " +
+        "Web pages (recreatio.pl/<path>) of the authorized areas — access-only pages bound to an authorized area and public pages an authorized area is responsible for — are read with list_pages and get_page: title, lead, mode, look, logic, menu and every module with its layout, stored config and a readable text; a sealed page shows only its address. " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
         "Liturgia is a parallel Library collection (part liturgy), connected to Cogita as a source. Its import format is get_import_format liturgy (a whole example: example-liturgy); read the current data exactly with get_liturgy_library, following nextOffset with the returned snapshotId until null — never rebuild a collection from search snippets or one page. To change an entity send its id with only the fields to change (null clears one); {\"id\", \"remove\": true} deletes it. " +
         "To prepare data the user will import into any part (Library entries, a work with its full text, a knowledge base with questions, a page, a calendar, masses and intentions, tasks, contacts…), first read the format: list_import_formats, then get_import_format part by part — the specification is generated from the app itself. Nothing is written from here: the user imports the JSON in the app and reviews the changes.";
@@ -630,7 +631,7 @@ public sealed partial class AiMcpTools
     /* -- Die Standardwerkzeuge für Recherche und Firmenwissen in ChatGPT ------------------------------- */
 
     [McpServerTool(Name = "search", Title = "Szukaj (standard)", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Standard search over all authorized Recreatio collections: returns up to 20 entries (id, title, url) for a query. Use fetch to read one.")]
+    [Description("Standard search over all authorized Recreatio collections and the pages of the authorized areas: entries, passages of full texts and pages (id, title, url) for a query. Use fetch to read one.")]
     public static async Task<DocHits> Search(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Search words.")] string query,
@@ -642,16 +643,19 @@ public sealed partial class AiMcpTools
         /* 2026-10-24 — und Stellen der vollständigen Texte (fetch liest die ganze Einheit). */
         foreach (var f in AiAccess.SearchTexts(o.Texts, query).Take(Math.Max(5, 20 - hits.Count)))
             hits.Add(new DocHit(TextHitId(f.Text, f.Part, f.Block), $"{o.WorkTitle(f.Text)}{(f.Block.At is null ? "" : ", " + f.Block.At)} (pełny tekst)", ReaderUrl(config, f.Text, f.Block.At)));
+        /* 2026-11-15 — und die Seiten der freigegebenen Bereiche (fetch liest sie als Text: „page:<Pfad>"). */
+        hits.AddRange(await PageHitsAsync(http, db, config, query, Math.Max(5, 25 - hits.Count), cancellationToken));
         return new DocHits(hits);
     }
 
     [McpServerTool(Name = "fetch", Title = "Pobierz wpis (standard)", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Standard fetch: the full readable text of one entry by id (from search), with its references and the entries referring to it.")]
+    [Description("Standard fetch: the full readable text of one entry by id (from search), with its references and the entries referring to it; for a page (id \"page:<path>\") its title, lead and the words of each module.")]
     public static async Task<Document> Fetch(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Entry id from search.")] string id,
         CancellationToken cancellationToken = default)
     {
+        if (id.StartsWith("page:", StringComparison.Ordinal)) return await FetchPageAsync(http, db, config, id, cancellationToken);
         using var o = await OpenAsync(http, db, config, cancellationToken);
         if (id.StartsWith("text:", StringComparison.Ordinal)) return FetchPassage(o, config, id);
         var item = Find(o, id);

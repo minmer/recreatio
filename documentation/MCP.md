@@ -49,6 +49,18 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
 | `get_knowledge_setup` | `collection?` (knowledge base id or name), `section?`, `offset` | (2026-10-30) what steers learning in a knowledge base, as its export `recreatio.cogita.course` **without entities** and with the same lasting names (`@…`): templates (kinds, direction, graph, `tests`), revisions (whole graph), views, flows, collections, anchors, forms, kinds, looks, rules, values, settings (sources, dependencies). Plus `cards` (per template: cards, entries, first problems; question cards apart — counted with the sources inside the link) and `readers` (as „Kto czyta”). Over 60 000 characters: an overview, then per `section` with `nextOffset`. No progress, no answers. Built by the browser into the knowledge base's snapshot (`setup`, `aiSnapshot.ts` → `json.ts` `exportSetup`); a snapshot from before says `not_ready`. Entries carry `ref` (their lasting name) and `get_entry` accepts `@name`. Never learner data: settings keep only their structure, and progress-like keys are dropped in the browser and again in the service (`AiMcpTools.Scrub`) |
 | `list_import_formats` | — | (2026-10-28) the JSON formats the user can import: id, group, title, what it is for, where in the app it is imported, size and number of parts; plus the formats that exist only in place (a form's list, one work's text, a text's plan) |
 | `get_import_format` | `format` (id), `part` (from 1) | one format exactly as the app describes it next to its import, or a ready scheme / AI guide; long ones in parts of ≤ 24 000 characters — part 1 carries the contents (each heading, e.g. every module kind of a page, with its part), then `nextPart` |
+| `list_pages` | `query?`, `area?`, `limit` 1–200, `offset` | (2026-11-15) the pages of the authorized areas (see **Pages** below): path, title, lead, mode, access (`public` / `area`), `sealed`, number and kinds of modules, area, public url and editor url |
+| `get_page` | `path` (path, `/` for the root, or the page's url) | one page in full: title, lead, mode, `look` (stored page look: theme, cover, show, deck, style, lang), `logic`, `subject`, menu, and every module in its order — kind, name, `layout` per screen size, `config` as stored, `text` (a readable digest of its words) — plus its subpages, the responsible area and the areas it is bound to. `search` also finds pages, and `fetch` reads `page:<path>` as text |
+
+- **Pages** (2026-11-15, `AiMcp.Pages.cs`): no choice of their own — an area's pages are those the app already ties
+  to it: an access-only page bound to the area (`app.slug_area`; the link is like a person of the area who may open
+  it) and a public page the area is responsible for (`controller_area_id` on it or the nearest page above,
+  `Controllers.OfPageAsync`). An access-only page bound to another area never appears, even if this area answers for
+  it; blocked pages (0130) and "po wydarzeniu" pages before the end neither. Modules for the people of an area (0133)
+  appear only when that area is authorized. Content is read live from the register (what `GET /page/…` shows), not
+  from a snapshot; a sealed page (0121) is listed by its address only — the service cannot open it. Never part of
+  it: form answers, people, calendar entries. The account page "Dostęp dla AI" says so. Test: LocalDB drive
+  `mcp-pages.mjs` (19 checks, session scratchpad).
 
 - **Import formats** (2026-10-28): an assistant that reads Recreatio often writes what is imported next — Library
   entries, a work with its full text, a knowledge base with questions, Scriptorium texts, a page, an area, calendar

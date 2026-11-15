@@ -1,6 +1,6 @@
 {
   "title": "Dostęp dla AI",
-  "lede": "Asystenci, tacy jak ChatGPT czy Claude, połączeni z Recreatio (MCP), czytają obszary swojego połączenia — tylko czytają, i tylko Bibliotekę, Skryptorium i bazy wiedzy. Tutaj dodajesz, przedłużasz i usuwasz obszary.",
+  "lede": "Asystenci, tacy jak ChatGPT czy Claude, połączeni z Recreatio (MCP), czytają obszary swojego połączenia — tylko czytają: Bibliotekę, Skryptorium i bazy wiedzy, a także strony obszaru (strony z dostępem przypisane do obszaru i strony publiczne, za które obszar odpowiada; strony zaszyfrowane tylko z adresem). Tutaj dodajesz, przedłużasz i usuwasz obszary.",
   "onlyYou": "Tylko Ty",
   "manage": "Zarządzaj połączeniami AI",
   "manageHint": "Asystent jest już połączony? Dodaj ten obszar do jego połączenia bez ponownego logowania:",
