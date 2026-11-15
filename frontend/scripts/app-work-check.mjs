@@ -13,6 +13,8 @@
  *   4. Zyklus: 100 Fünf-Minuten-Kazania aus einer Vorlage, Regeln der Serie; jedes zehnte eine Zusammenfassung;
  *      der Kontext von Kazanie 37 aus der Abschrift (wie `get_work_context` ihn liest).
  *   5. Artikel: Definition vor Gebrauch, Zitate der Bibliothek, Bibliografie, ein Zitat ohne Ziel.
+ *   7. Der Gang eines Buches über die Liturgie: Kapitel → Unterkapitel → Paragraph → Akapit; was je Stelle eingeführt
+ *      und gebraucht wird, zu früh auch im selben Paragraphen und ohne Link, der Wortschatz in Reihenfolge.
  *   6. Was es schon gab: Schulprogramme (Gliederung → Lekcje, auch aus dem Baum), Zapis-Links mit und ohne Rolle,
  *      eine alte Gliederung als Baum und umgewandelt, das JSON des Skryptorium mit Knoten, Regeln, Vorlagen.
  */
@@ -38,6 +40,10 @@ export * as T from '${app}scriptorium/work/workTemplates';
 export * as B from '${app}scriptorium/work/workBrief';
 export * as L from '${app}scriptorium/work/workLatex';
 export * as RU from '${app}scriptorium/work/workRules';
+export * as W from '${app}scriptorium/work/workCourse';
+export { CourseView } from '${app}scriptorium/work/CourseView';
+export { renderToStaticMarkup } from 'react-dom/server';
+export { createElement } from 'react';
 export { parseInline, mapRefTokens } from '${app}library/libraryMarkup';
 export { lessonsOf } from '${app}areas/school';
 export { textToLatex, planToLatex } from '${app}scriptorium/latex';
@@ -54,7 +60,7 @@ await build({
   loader: { '.css': 'empty' }, logLevel: 'error'
 });
 globalThis.BroadcastChannel = undefined;
-const { M, K, R, C, X, T, B, L, RU, textToLatex, planToLatex, parseInline, mapRefTokens, lessonsOf, planScriptoriumImport, scriptoriumDescription, WRITING_KINDS, baseKind } = await import(pathToFileURL(join(workspace, 'entry.mjs')).href);
+const { M, K, R, C, X, T, B, L, RU, W, CourseView, renderToStaticMarkup, createElement, textToLatex, planToLatex, parseInline, mapRefTokens, lessonsOf, planScriptoriumImport, scriptoriumDescription, WRITING_KINDS, baseKind } = await import(pathToFileURL(join(workspace, 'entry.mjs')).href);
 
 let checks = 0;
 const ok = (cond, what) => { assert.ok(cond, what); checks += 1; };
@@ -387,6 +393,88 @@ const words = (n, word = 'słowo') => Array.from({ length: n }, () => word).join
   q.data.text = 'Prośba o wino sięga dalej';
   const [r3] = C.checkWork({ model: M.readWork(project, look), look, knowledge, sourcePlain: () => 'Tu stoi: prośba o chleb sięga dalej niż pokarm.' });
   ok(r3.findings.some((f) => f.code === 'quoteMismatch'), 'Artikel: abweichendes Zitat gemeldet');
+}
+
+/* == 7. Der Gang eines Buches über die Liturgie: Kapitel → Unterkapitel → Paragraph → Akapit ============= */
+{
+  const { add, look } = world();
+  const project = add('project', { projectType: 'book', title: 'Liturgia Kościoła', lang: 'pl',
+    levels: [{ name: 'Rozdział', latex: 'chapter' }, { name: 'Podrozdział', latex: 'section' }, { name: 'Paragraf', latex: 'subsection' }] });
+  const CH = ['Mistagogia', 'Historia', 'Jak celebrować Mszę', 'Jak służyć podczas Mszy'];
+  const par = {};
+  CH.forEach((title, c) => {
+    const ch = add('node', { project: project.id, title, order: c + 1, role: 'new', synopsis: `Rozdział ${c + 1}.` });
+    for (let s = 1; s <= 2; s += 1) {
+      const sub = add('node', { project: project.id, parent: ch.id, title: `${title} — część ${s}`, order: s, role: 'new' });
+      for (let p = 1; p <= 2; p += 1) {
+        const text = add('text', { title: `§ ${c + 1}.${s}.${p}`, project: project.id, body: 'Pierwszy akapit.\n\nDrugi akapit.\n\nTrzeci akapit.' });
+        par[`${c + 1}.${s}.${p}`] = add('node', { project: project.id, parent: sub.id, title: `§ ${c + 1}.${s}.${p}`, order: p, role: 'new', text: text.id });
+      }
+    }
+  });
+  const body = (key, text) => { look.get(par[key].data.text).data.body = text; };
+  /* „anamneza" wprowadzona w 3.1.1 ¶2 — w ¶1 tego samego paragrafu za wcześnie, w 1.2.1 ¶1 bez linku za wcześnie. */
+  body('3.1.1', 'Msza jest [[anamnezą|@anamneza]] — tu za wcześnie.\n\n[[Anamneza|@anamneza|intro]] to [[pamiątka|@anamneza|def]], która uobecnia; anamneza w tym samym akapicie jest w porządku.\n\nDalej o [[ołtarzu|@oltarz|intro]].');
+  body('1.2.1', 'Już tu pada słowo anamneza, choć jeszcze nie wiadomo, czym jest.\n\n[[Mistagogia|@mistagogia|intro]] to wprowadzanie w tajemnicę.\n\nMistagogia prowadzi dalej.');
+  body('4.1.1', 'Ministrant podchodzi do [[ołtarza|@oltarz]].\n\nPamięta, że Msza to [[anamneza|@anamneza|recall]].\n\n[[Kadzidło|@kadzidlo]] niesie turyferariusz.');
+  const knowledge = K.knowledgeOf([
+    ent('anamneza', 'anamneza', 'Termin', { forms: ['anamneza', 'anamnezą', 'anamnezy'], definition: 'Pamiątka, która uobecnia.' }),
+    ent('mistagogia', 'mistagogia', 'Termin', { forms: ['mistagogia', 'mistagogii'] }),
+    ent('oltarz', 'ołtarz', 'Przedmiot'),
+    ent('kadzidlo', 'kadzidło', 'Przedmiot')
+  ]);
+  const model = M.readWork(project, look);
+  const [report] = C.checkWork({ model, look, knowledge });
+  const course = W.courseOf(model, report.register, look, knowledge);
+  eq(course.totals.perLevel.map((l) => [l.name, l.count]), [['Rozdział', 4], ['Podrozdział', 8], ['Paragraf', 16]], 'Gang: Kapitel, Unterkapitel, Paragraphen gezählt');
+  eq(course.totals.units, 48, 'Gang: 48 Akapity');
+  const r311 = course.byNode.get(par['3.1.1'].id);
+  eq(r311.units.map((u) => u.excerpt.slice(0, 12)), ['Msza jest an', 'Anamneza to ', 'Dalej o ołta'], 'Gang: die Akapity eines Paragraphen mit ihrem Anfang');
+  ok(r311.units[0].mentions.find((m) => m.entity === 'anamneza').early, 'Gang: ¶1 vor der Einführung in ¶2 desselben Paragraphen — zu früh');
+  eq(r311.units[1].mentions.map((m) => [m.entity, m.role, m.early]), [['anamneza', 'intro', false]], 'Gang: ¶2 führt ein (die Definition im selben Akapit zählt dazu, nicht doppelt)');
+  ok(r311.units[1].mentions.every((m) => !m.early), 'Gang: im Akapit der Einführung ist nichts zu früh');
+  const r121 = course.byNode.get(par['1.2.1'].id);
+  const implicit = r121.units[0].mentions.find((m) => m.entity === 'anamneza');
+  ok(implicit.implicit && implicit.early && implicit.introAt.number === '3.1.1' && implicit.introAt.para === 1, 'Gang: ohne Link erkannt, zu früh, mit dem Ort der Einführung (3.1.1 ¶2)');
+  eq(r121.units[2].mentions.map((m) => [m.entity, m.implicit, m.early]), [['mistagogia', true, false]], 'Gang: „Mistagogia" nach ihrer Einführung ohne Link — in Ordnung');
+  /* Zugeklappt sagt ein Kapitel, was der ganze Teil einführt und braucht. */
+  const ch3 = course.rows.find((r) => r.node.title === 'Jak celebrować Mszę');
+  eq(ch3.below.introduces, ['anamneza', 'oltarz'], 'Gang: Kapitel 3 führt anamneza und ołtarz ein');
+  eq(ch3.below.problems, 1, 'Gang: Kapitel 3 hat ein Problem darunter');
+  eq(course.rows.find((r) => r.node.title === 'Mistagogia').below.problems, 1, 'Gang: Kapitel 1 hat ein Problem darunter');
+  eq(course.problems.map((p) => [p.number, p.para, p.entity]), [['1.2.1', 0, 'anamneza'], ['3.1.1', 0, 'anamneza'], ['4.1.1', 2, 'kadzidlo']], 'Gang: die Probleme in Lesereihenfolge (Kadzidło nie eingeführt)');
+  /* Der Wortschatz in der Reihenfolge der Einführung — und was nie eingeführt wird. */
+  eq(course.vocabulary.map((v) => [v.label, v.intro.number, v.intro.para]), [['mistagogia', '1.2.1', 1], ['anamneza', '3.1.1', 1], ['ołtarz', '3.1.1', 2]], 'Gang: Wortschatz in der Reihenfolge der Einführung, mit Akapit');
+  eq(course.unintroduced.map((v) => v.label), ['kadzidło'], 'Gang: kadzidło nie eingeführt');
+  ok(course.vocabulary.find((v) => v.entity === 'anamneza').early === 2 && course.vocabulary.find((v) => v.entity === 'anamneza').defined.number === '3.1.1', 'Gang: anamneza zweimal zu früh, definiert in 3.1.1');
+  /* Dieselbe Regel in der Prüfung: zu früh im selben Paragraphen, mit dem Akapit im Befund. */
+  const early = report.findings.filter((f) => f.code === 'usedBeforeIntro' && f.entity === 'anamneza');
+  eq(early.map((f) => [f.node, f.weight]), [[par['3.1.1'].id, 'must'], [par['1.2.1'].id, 'should']], 'Gang: Prüfung findet beide (mit Link „must", ohne Link „should")');
+  ok(early[0].message.includes('3.1.1') && early[0].message.includes('¶2'), 'Gang: der Befund nennt das Akapit der Einführung');
+  ok(!report.findings.some((f) => f.code === 'usedBeforeIntro' && f.entity === 'oltarz'), 'Gang: ołtarz in Kapitel 4 nach seiner Einführung — kein Befund');
+  /* Die Ansicht selbst, gezeichnet (ohne Browser): Kapitel und Unterkapitel, die Probleme oben, der Wortschatz daneben. */
+  {
+    const work = { model, knowledge, report: () => report, reports: [report], paths: M.pathsOf(model), occurrences: [], rules: [], templates: new Map() };
+    const ctx = { store: look, project, work, path: '', setPath: () => undefined, href: (...x) => '#/' + x.join('/'), readOnly: false };
+    const html = renderToStaticMarkup(createElement(CourseView, { ctx }));
+    ok(CH.every((title) => html.includes(title)), 'Ansicht: alle Kapitel');
+    ok(html.includes('Mistagogia — część 1') && !html.includes('§ 1.1.1'), 'Ansicht: bis zu den Unterkapiteln aufgeklappt, Paragraphen zu');
+    ok(html.includes('3 miejsca używają słowa, zanim zostało wprowadzone.'), 'Ansicht: die Zahl der Probleme oben');
+    ok(html.includes('Następny problem'), 'Ansicht: zum nächsten Problem');
+    ok(html.includes('Wprowadza 2:') && html.includes('course-word is-intro'), 'Ansicht: zugeklappt, was ein Teil einführt');
+    ok(html.includes('Używane, nigdy niewprowadzone (1)') && html.includes('kadzidło'), 'Ansicht: nie eingeführt — kadzidło');
+    ok(html.includes('Słownictwo po kolei') && html.indexOf('>mistagogia<') < html.indexOf('>anamneza<'), 'Ansicht: der Wortschatz in der Reihenfolge der Einführung');
+  }
+  /* Ein Plan ohne Treść ist schon gegliedert: seine Punkte sind die Akapity. */
+  const planned = add('text', { title: 'Plan', project: project.id, plan: [{ id: 'a', text: 'Wejście' }, { id: 'b', text: 'O [[kadzidle|@kadzidlo|intro]]' }] });
+  add('node', { project: project.id, parent: par['4.1.1'].data.parent, title: '§ 4.1.3', order: 3, text: planned.id });
+  const m2 = M.readWork(project, look);
+  const [r2] = C.checkWork({ model: m2, look, knowledge });
+  const c2 = W.courseOf(m2, r2.register, look, knowledge);
+  const planRow = c2.rows.find((r) => r.node.title === '§ 4.1.3');
+  eq(planRow.units.map((u) => [u.kind, u.excerpt]), [['point', 'Wejście'], ['point', 'O kadzidle']], 'Gang: Punkte des Plans als Akapity');
+  ok(c2.vocabulary.some((v) => v.entity === 'kadzidlo' && v.intro.number === '4.1.3'), 'Gang: Einführung im Plan zählt');
+  ok(c2.problems.some((p) => p.entity === 'kadzidlo' && p.number === '4.1.1'), 'Gang: kadzidło in 4.1.1 jetzt vor seiner Einführung in 4.1.3');
 }
 
 /* == 6. Was es schon gab ============================================================================= */

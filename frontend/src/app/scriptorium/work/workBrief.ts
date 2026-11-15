@@ -94,7 +94,7 @@ export function workBrief(project: LibEntry, look: MarkLook, knowledge: WorkKnow
     put(out, 'skip', n.skip);
     put(out, 'template', n.template);
     put(out, 'notes', n.notes);
-    put(out, 'marks', occurrences.filter((o) => o.node === n.id && o.where !== 'implicit').map((o) => ({ entity: o.entity, role: o.role, where: o.where, ...(o.point === undefined ? {} : { point: o.point }) })));
+    put(out, 'marks', occurrences.filter((o) => o.node === n.id && o.where !== 'implicit').map((o) => ({ entity: o.entity, role: o.role, where: o.where, ...(o.point === undefined ? {} : { point: o.point }), ...(o.para === undefined ? {} : { para: o.para }) })));
     put(out, 'usesUnmarked', [...new Set(occurrences.filter((o) => o.node === n.id && o.where === 'implicit').map((o) => o.entity))]);
     return out;
   });

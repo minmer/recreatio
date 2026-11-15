@@ -22,8 +22,8 @@ import { ids, isSource, markupsOf, refTarget, str, wordCount, type LibEntry, typ
 import { parseMarkup, walkBlocks } from '../../library/libraryMarkup';
 import { EMPTY_KNOWLEDGE, type WorkKnowledge } from './workKnowledge';
 import {
-  entitiesOf, introducedElsewhere, occurrencesOf, plainOfNode, registerOf, textOf,
-  type MarkLook, type Occurrence, type Register
+  beforeIntro, entitiesOf, introducedElsewhere, occurrencesOf, plainOfNode, registerOf, textOf,
+  type MarkLook, type Occurrence, type Placement, type Register
 } from './workMarks';
 import { hasPhrase, numberParam, phrasesOf, rulesAt, rulesOf, sentencesOf, type WorkRule } from './workRules';
 import { missingParts, readTemplate, templateSig, type UnitTemplate } from './workTemplates';
@@ -135,6 +135,9 @@ export function checkPath(input: CheckInput, path: WorkPath): CheckReport {
   /* Nur Einträge, die irgendwo ausdrücklich markiert sind, zählen für „eingeführt vor gebraucht". */
   const registered = new Set(occurrences.filter((o) => o.where !== 'implicit').map((o) => o.entity));
   const posNode = (pos: number) => placed[pos]?.node;
+  /* Wo eingeführt wird — im selben Knoten mit dem Akapit. */
+  const atName = (first: Placement, o: Placement): string =>
+    first.pos === o.pos && first.para !== undefined ? `${nameOf(posNode(first.pos)!.id)} ¶${first.para + 1}` : nameOf(posNode(first.pos)!.id); // i18n-ignore — Nummer und Akapit
 
   /* -- Eingeführt, bevor es gebraucht wird ----------------------------------------------------------- */
   for (const [entity, reg] of register.byEntity) {
@@ -144,19 +147,19 @@ export function checkPath(input: CheckInput, path: WorkPath): CheckReport {
     const reported = new Set<string>();
     for (const o of reg.occ) {
       if (o.role === 'intro' || reported.has(o.node)) continue;
-      if (first !== null && o.pos >= first) continue;
+      if (first !== null && !beforeIntro(o, reg.first)) continue;
       /* Eine Wiederaufnahme ohne Einführung meldet die Zusammenfassung selbst (summaryRecallsUnknown). */
       if (o.role === 'recall' && roleOf(model, model.nodes.get(o.node)?.role ?? '')?.brings === 'nothing') continue;
       reported.add(o.node);
       const weight: Weight = o.where === 'implicit' ? 'should' : 'must';
-      if (first !== null) add('usedBeforeIntro', weight, { node: o.node, entity }, { at: nameOf(posNode(first)!.id) });
+      if (first !== null) add('usedBeforeIntro', weight, { node: o.node, entity }, { at: atName(reg.first!, o) });
       else {
         const elsewhere = introducedElsewhere(occurrences, entity, register);
         if (elsewhere.length > 0) add('notIntroducedHere', weight, { node: o.node, entity }, { elsewhere: elsewhere.map((id) => nodeName(model, [], id)).join(', ') });
         else add('neverIntroduced', weight, { node: o.node, entity });
       }
     }
-    if (intros.length > 0 && !reg.occ.some((o) => o.role !== 'intro' && o.pos > intros[0].pos)) {
+    if (intros.length > 0 && !reg.occ.some((o) => o.role !== 'intro' && beforeIntro(intros[0], o))) {
       add('introducedNotUsed', 'should', { node: intros[0].node, entity });
     }
     const introNodes = [...new Set(intros.map((o) => o.node))];

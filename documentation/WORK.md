@@ -79,7 +79,31 @@ Occurrences have a role: `intro`, `def`, `ex`, `use`, `recall`. They come from
 - unmarked mentions: a word of the text that is a form of an entry (label, preferred form, `forms`) counts as *used* —
   only for entries marked explicitly somewhere in the work.
 
-The register (`registerOf`) orders them per path; the matrix entities × nodes shows them in reading order.
+The register (`registerOf`) orders them per path — node by node and, inside a node, **akapit by akapit**: every block of
+the body (paragraph, heading, quote, list) is an akapit (`unitsOf`); a text that has only a plan counts its points.
+An occurrence carries its akapit (`para`); a mark on the node, or a plan point beside a body, holds for the whole node.
+A use before its introduction (`beforeIntro`) is a use in an earlier node, or in an earlier akapit of the same node;
+inside the akapit that introduces a word the word may be used freely. The matrix entities × nodes shows them in
+reading order.
+
+## The course of the work (Przebieg)
+
+The first tab of a work (`CourseView.tsx`, data `workCourse.ts`): the whole book from the chapters down to every akapit,
+for the author of a very large book who must see the explanation step by step.
+
+- **Rows** in reading order with the level's name, role, words and akapity, and under the title its key thought (or
+  purpose). "Show down to": chapters, sub-chapters, paragraphs … or akapity; every row opens and closes on its own,
+  and an open row can show its own akapity.
+- **Words** at every place: introduced (green), defined, example, used, recalled; italic when recognised without a
+  link; **red when used before it is introduced**, with where it is introduced. A closed row sums up its whole part
+  ("Introduces 5: …", "Uses 12: …").
+- **The summary on top**: counts per level, akapity, words, introduced words, places used too early — and "Next
+  problem" walks through them one by one, opening the tree and scrolling to the akapit. "Only places with problems"
+  filters.
+- **The vocabulary beside** in the order the reader acquires it (where introduced, defined or not, uses, uses too
+  early), the words used but never introduced on top. Clicking a word (anywhere) follows it through the work: a bar
+  with its introduction, definition, uses and the uses too early; the tree shows only the parts where it occurs.
+- Per path (edition), like everything else; the same rule as the checks, so the view and the report never disagree.
 
 ## Checks — a report, never a block
 
@@ -153,7 +177,7 @@ setting "What this base is for", the banner of a work's knowledge, Nauka hiding 
 - Unmarked mentions count only for entries marked somewhere; before the introduction they are *should*, not *must*.
 - Old outlines are converted on request, not automatically.
 
-## Verification (`app-work-check.mjs`)
+## Verification (`app-work-check.mjs`, 137)
 
 1. **Book** — 3 parts, 12 chapters, 60 sections; Anna as a child (ch. 1–4) and an adult (ch. 5–12) as two phases;
    a term introduced and defined in 2.1, used in 3.2, used too early in 1.3 (found, only that one); the summary at the
@@ -178,3 +202,8 @@ setting "What this base is for", the banner of a work's knowledge, Nauka hiding 
    tree; Zapis links without a role are unchanged; the JSON of a work (nodes by @key, marks on Cogita entries by their
    lasting name, rules, templates) plans without a warning; `app-cogita-check`, `app-duty-check` (school),
    `app-library-check`, `app-tex-check`, `app-platform-check` stay green.
+7. **Course of a liturgy book** — Mistagogy, History, Celebrating the Mass, Serving at Mass; chapters → sub-chapters →
+   paragraphs → akapity: a term introduced in 3.1.1 ¶2 is reported in ¶1 of the same paragraph and, without a link, in
+   1.2.1 ¶1 (with "introduced in 3.1.1 ¶2"); use and definition inside the introducing akapit are fine; chapters sum up
+   what they introduce; the vocabulary in order of introduction; a word never introduced; plan points as akapity; the
+   view rendered (chapters and sub-chapters shown, the problem count, the vocabulary).

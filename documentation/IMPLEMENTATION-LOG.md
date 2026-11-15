@@ -3798,6 +3798,8 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   (`AiMcp.Works.cs`, `Api.Tests/WorkMcpChecks.cs`), `WordsRef` renders roles; `guide-work` (`templates/cogita/dzielo-AI.md`)
   and `scheme-dzielo` (`templates/cogita/dzielo.json`) in `ImportFormats.json`; import of marks by Cogita lasting name
   (`scriptoriumJson.ts` `entryRef`, `lens.ts` `entryRefIn`).
-- Checks: `app-work-check.mjs` (108, in `app:check`); `app-library-check` and `app-cogita-check` updated.
+- Course view (Przebieg, first tab): `workCourse.ts`, `CourseView.tsx`, akapity in `workMarks.ts` (`unitsOf`, `para`,
+  `beforeIntro`, used by the checks too); `core/prefs.ts` hooks got a server snapshot (static render in the check).
+- Checks: `app-work-check.mjs` (137, in `app:check`); `app-library-check` and `app-cogita-check` updated.
 - LaTeX compiled with MiKTeX: `npm run app:work-tex` — 14 documents × pdflatex/lualatex, 28/28; the shared preamble now picks fontspec under lualatex (`iftex`), which also fixes Polish letters in the old text prints under lualatex.
 - Open: the API must be deployed for the MCP tools.

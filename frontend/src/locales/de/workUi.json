@@ -9,7 +9,8 @@
     "szablony": "Vorlagen",
     "druk": "Druck",
     "ustawienia": "Einstellungen",
-    "dane": "Projektdaten"
+    "dane": "Projektdaten",
+    "przebieg": "Gang"
   },
   "path": {
     "label": "Weg (Ausgabe)",
@@ -283,5 +284,106 @@
     "linkBackNoWrite": "(du kannst dort nicht schreiben, um es zu verknüpfen)",
     "linkedBack": "zeigt zurück auf dieses Skriptorium",
     "linked": "„{base}” hat jetzt dieses Skriptorium als Quelle."
+  },
+  "course": {
+    "summary": "Der Gang des Werks auf einen Blick",
+    "lede": "Wie die Erklärung Schritt für Schritt gebaut ist — von den Kapiteln bis zu jedem Absatz: was jeder Teil bringt, welche Wörter er einführt und welche er gebraucht. Rot steht ein Wort, das gebraucht wird, bevor es eingeführt ist.",
+    "level": "Ebene {n}",
+    "units": "Absätze",
+    "words": "Wörter",
+    "vocabulary": "Eingeführte Wörter",
+    "problems": "Zu früh gebraucht",
+    "problemsLead": {
+      "one": "{count} Stelle gebraucht ein Wort, bevor es eingeführt ist.",
+      "other": "{count} Stellen gebrauchen ein Wort, bevor es eingeführt ist."
+    },
+    "problemNow": "{n} von {total}: „{word}” in {here} — eingeführt erst in {at}.",
+    "prevProblem": "Vorheriges",
+    "nextProblem": "Nächstes Problem",
+    "allGood": "Jedes Wort wird eingeführt, bevor es gebraucht wird.",
+    "depth": "Zeigen bis",
+    "thought": "Unter jedem Titel",
+    "thoughtSynopsis": "der Kernsatz",
+    "thoughtPurpose": "der Zweck",
+    "thoughtNone": "nichts",
+    "onlyProblems": "Nur Stellen mit Problemen",
+    "empty": "Dieses Werk hat noch keine Struktur. Baue sie im Reiter Struktur.",
+    "noWords": "Noch ist kein Wort markiert. Markiere, wo ein Wort eingeführt wird — am Knoten („Begriffe hier”) oder im Text als [[Wort|@Eintrag|intro]] —, dann wird jeder spätere Gebrauch verfolgt, auch ohne Link.",
+    "collapse": "{title} zuklappen",
+    "expand": "{title} aufklappen",
+    "wordsCount": {
+      "one": "{count} Wort",
+      "other": "{count} Wörter"
+    },
+    "unitsCount": {
+      "one": "{count} Absatz",
+      "other": "{count} Absätze"
+    },
+    "problemsHere": {
+      "one": "{count} Gebrauch zu früh in diesem Teil",
+      "other": "{count} Gebräuche zu früh in diesem Teil"
+    },
+    "problemsBadge": {
+      "one": "{count} zu früh",
+      "other": "{count} zu früh"
+    },
+    "showUnits": {
+      "one": "Seinen Absatz zeigen",
+      "other": "Seine {count} Absätze zeigen"
+    },
+    "hideUnits": "Absätze verbergen",
+    "paraTitle": "Absatz {n}, {words} Wörter",
+    "para": "¶ {n}",
+    "point": "• {n}",
+    "noText": "(kein Text)",
+    "nowhere": "nirgends auf diesem Weg",
+    "at": "{number} {title}, ¶ {n}",
+    "earlyTitle": "„{word}” wird hier gebraucht, bevor es eingeführt ist — eingeführt: {at}. Klicken, um es zu verfolgen.",
+    "wordTitle": "„{word}” ({kind}) — {role}; eingeführt: {at}. Klicken, um es durch das Werk zu verfolgen.",
+    "introduces": {
+      "one": "Führt {count} ein:",
+      "other": "Führt {count} ein:"
+    },
+    "uses": {
+      "one": "Gebraucht {count}:",
+      "other": "Gebraucht {count}:"
+    },
+    "more": "+{count}",
+    "legend": "Was die Farben bedeuten",
+    "legendImplicit": "ohne Link erkannt",
+    "legendEarly": "zu früh gebraucht",
+    "following": "„{word}” wird verfolgt",
+    "followIntro": "eingeführt: {at}",
+    "followNever": "auf diesem Weg nie eingeführt",
+    "followDefined": "definiert: {at}",
+    "followUses": {
+      "one": "einmal gebraucht",
+      "other": "{count}-mal gebraucht"
+    },
+    "followEarly": {
+      "one": "{count} Gebrauch zu früh — zeigen",
+      "other": "{count} Gebräuche zu früh — den ersten zeigen"
+    },
+    "followStop": "Nicht mehr verfolgen",
+    "vocabTitle": "Wortschatz der Reihe nach",
+    "vocabLede": "Die Wörter in der Reihenfolge, in der der Leser sie lernt. Eines anklicken, um es zu verfolgen.",
+    "vocabSearch": "Wort suchen",
+    "vocabUndefined": "nicht definiert",
+    "vocabUses": {
+      "one": "{count} Gebrauch",
+      "other": "{count} Gebräuche"
+    },
+    "vocabEarly": {
+      "one": "{count} zu früh",
+      "other": "{count} zu früh"
+    },
+    "unintroduced": {
+      "one": "Gebraucht, nie eingeführt ({count})",
+      "other": "Gebraucht, nie eingeführt ({count})"
+    },
+    "inOrder": {
+      "one": "Eingeführt ({count})",
+      "other": "Eingeführt ({count})"
+    }
   }
 }

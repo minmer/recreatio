@@ -9,7 +9,8 @@
     "szablony": "Szablony",
     "druk": "Druk",
     "ustawienia": "Ustawienia",
-    "dane": "Dane projektu"
+    "dane": "Dane projektu",
+    "przebieg": "Przebieg"
   },
   "path": {
     "label": "Ścieżka (wydanie)",
@@ -299,5 +300,134 @@
     "linkBackNoWrite": "(nie możesz tam pisać, by to połączyć)",
     "linkedBack": "wskazuje z powrotem na to Skryptorium",
     "linked": "„{base}” ma teraz to Skryptorium jako źródło."
+  },
+  "course": {
+    "summary": "Przebieg dzieła w jednym spojrzeniu",
+    "lede": "Jak krok po kroku zbudowany jest wykład — od rozdziałów aż po każdy akapit: co wnosi każda część, jakie słowa wprowadza, a jakich używa. Na czerwono — słowo użyte, zanim zostało wprowadzone.",
+    "level": "Poziom {n}",
+    "units": "Akapity",
+    "words": "Słowa",
+    "vocabulary": "Wprowadzone słowa",
+    "problems": "Użyte za wcześnie",
+    "problemsLead": {
+      "one": "{count} miejsce używa słowa, zanim zostało wprowadzone.",
+      "few": "{count} miejsca używają słowa, zanim zostało wprowadzone.",
+      "many": "{count} miejsc używa słowa, zanim zostało wprowadzone.",
+      "other": "{count} miejsca używają słowa, zanim zostało wprowadzone."
+    },
+    "problemNow": "{n} z {total}: „{word}” w {here} — wprowadzone dopiero w {at}.",
+    "prevProblem": "Poprzedni",
+    "nextProblem": "Następny problem",
+    "allGood": "Każde słowo jest wprowadzone, zanim zostanie użyte.",
+    "depth": "Pokaż do",
+    "thought": "Pod każdym tytułem",
+    "thoughtSynopsis": "myśl przewodnia",
+    "thoughtPurpose": "cel",
+    "thoughtNone": "nic",
+    "onlyProblems": "Tylko miejsca z problemami",
+    "empty": "To dzieło nie ma jeszcze struktury. Zbuduj ją w zakładce Struktura.",
+    "noWords": "Żadne słowo nie jest jeszcze oznaczone. Oznacz, gdzie słowo zostaje wprowadzone — przy węźle („Pojęcia tutaj”) albo w tekście jako [[słowo|@wpis|intro]] — a każde późniejsze użycie będzie śledzone, także bez linku.",
+    "collapse": "Zwiń {title}",
+    "expand": "Rozwiń {title}",
+    "wordsCount": {
+      "one": "{count} słowo",
+      "few": "{count} słowa",
+      "many": "{count} słów",
+      "other": "{count} słowa"
+    },
+    "unitsCount": {
+      "one": "{count} akapit",
+      "few": "{count} akapity",
+      "many": "{count} akapitów",
+      "other": "{count} akapitu"
+    },
+    "problemsHere": {
+      "one": "{count} użycie za wcześnie w tej części",
+      "few": "{count} użycia za wcześnie w tej części",
+      "many": "{count} użyć za wcześnie w tej części",
+      "other": "{count} użycia za wcześnie w tej części"
+    },
+    "problemsBadge": {
+      "one": "{count} za wcześnie",
+      "few": "{count} za wcześnie",
+      "many": "{count} za wcześnie",
+      "other": "{count} za wcześnie"
+    },
+    "showUnits": {
+      "one": "Pokaż jego akapit",
+      "few": "Pokaż jego {count} akapity",
+      "many": "Pokaż jego {count} akapitów",
+      "other": "Pokaż jego {count} akapitu"
+    },
+    "hideUnits": "Ukryj akapity",
+    "paraTitle": "Akapit {n}, słów: {words}",
+    "para": "¶ {n}",
+    "point": "• {n}",
+    "noText": "(bez tekstu)",
+    "nowhere": "nigdzie na tej ścieżce",
+    "at": "{number} {title}, ¶ {n}",
+    "earlyTitle": "„{word}” jest tu użyte, zanim zostało wprowadzone — wprowadzone: {at}. Kliknij, żeby je śledzić.",
+    "wordTitle": "„{word}” ({kind}) — {role}; wprowadzone: {at}. Kliknij, żeby śledzić je w całym dziele.",
+    "introduces": {
+      "one": "Wprowadza {count}:",
+      "few": "Wprowadza {count}:",
+      "many": "Wprowadza {count}:",
+      "other": "Wprowadza {count}:"
+    },
+    "uses": {
+      "one": "Używa {count}:",
+      "few": "Używa {count}:",
+      "many": "Używa {count}:",
+      "other": "Używa {count}:"
+    },
+    "more": "+{count}",
+    "legend": "Co znaczą kolory",
+    "legendImplicit": "rozpoznane bez linku",
+    "legendEarly": "użyte za wcześnie",
+    "following": "Śledzisz „{word}”",
+    "followIntro": "wprowadzone: {at}",
+    "followNever": "na tej ścieżce nigdy niewprowadzone",
+    "followDefined": "zdefiniowane: {at}",
+    "followUses": {
+      "one": "użyte raz",
+      "few": "użyte {count} razy",
+      "many": "użyte {count} razy",
+      "other": "użyte {count} razy"
+    },
+    "followEarly": {
+      "one": "{count} użycie za wcześnie — pokaż",
+      "few": "{count} użycia za wcześnie — pokaż pierwsze",
+      "many": "{count} użyć za wcześnie — pokaż pierwsze",
+      "other": "{count} użycia za wcześnie — pokaż pierwsze"
+    },
+    "followStop": "Przestań śledzić",
+    "vocabTitle": "Słownictwo po kolei",
+    "vocabLede": "Słowa w kolejności, w jakiej poznaje je czytelnik. Kliknij słowo, żeby je śledzić.",
+    "vocabSearch": "Znajdź słowo",
+    "vocabUndefined": "bez definicji",
+    "vocabUses": {
+      "one": "{count} użycie",
+      "few": "{count} użycia",
+      "many": "{count} użyć",
+      "other": "{count} użycia"
+    },
+    "vocabEarly": {
+      "one": "{count} za wcześnie",
+      "few": "{count} za wcześnie",
+      "many": "{count} za wcześnie",
+      "other": "{count} za wcześnie"
+    },
+    "unintroduced": {
+      "one": "Używane, nigdy niewprowadzone ({count})",
+      "few": "Używane, nigdy niewprowadzone ({count})",
+      "many": "Używane, nigdy niewprowadzone ({count})",
+      "other": "Używane, nigdy niewprowadzone ({count})"
+    },
+    "inOrder": {
+      "one": "Wprowadzone ({count})",
+      "few": "Wprowadzone ({count})",
+      "many": "Wprowadzone ({count})",
+      "other": "Wprowadzone ({count})"
+    }
   }
 }

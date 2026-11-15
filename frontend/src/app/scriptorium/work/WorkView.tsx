@@ -3,7 +3,7 @@
  *
  * <code>
  *   #/workspace/scriptorium/&lt;id&gt;/&lt;projekt&gt;[/&lt;reiter&gt;[/&lt;knoten&gt;]]
- *   struktura · tabela · pojecia · reguly · kontrola · szablony · druk · ustawienia · dane
+ *   przebieg · struktura · tabela · pojecia · reguly · kontrola · szablony · druk · ustawienia · dane
  * </code>
  *
  * Struktura (der Baum mit Zweck, Rolle, Ziel) · Tabela (die Dimensionen) · Pojęcia (das Register der Vorkommen) ·
@@ -31,8 +31,9 @@ import { WorkSettings } from './WorkSettings';
 import { WorkTable } from './WorkTable';
 import { TemplatesPanel } from './TemplatesPanel';
 import { WorkTree } from './WorkTree';
+import { CourseView } from './CourseView';
 
-export const WORK_TABS = ['struktura', 'tabela', 'pojecia', 'reguly', 'kontrola', 'szablony', 'druk', 'ustawienia', 'dane'] as const;
+export const WORK_TABS = ['przebieg', 'struktura', 'tabela', 'pojecia', 'reguly', 'kontrola', 'szablony', 'druk', 'ustawienia', 'dane'] as const;
 export type WorkTab = (typeof WORK_TABS)[number];
 
 /** Was jeder Reiter des Werks bekommt. */
@@ -70,7 +71,9 @@ export function WorkView({ me, store, library, project, lens, readOnly, setProje
 }) {
   const t = useT();
   const work = useWork(store, project, lens);
-  const tab: WorkTab = (WORK_TABS as readonly string[]).includes(trail[0] ?? '') ? trail[0] as WorkTab : 'struktura';
+  const tab: WorkTab = (WORK_TABS as readonly string[]).includes(trail[0] ?? '') ? trail[0] as WorkTab
+    /* 2026-11-15 — der Gang des Werks zuerst: wie die Erklärung gebaut ist, was eingeführt und was gebraucht wird. */
+    : 'przebieg';
   const [path, setPath] = useRemembered(`scriptorium.work.path.${project.id}`, ALL_PATHS);
   const shownPath = path === ALL_PATHS || work.paths.some((p) => p.key === path) ? path : ALL_PATHS;
   const href = (...rest: string[]) => viewPath('scriptorium', library.libraryId, project.id, ...rest);
@@ -89,7 +92,8 @@ export function WorkView({ me, store, library, project, lens, readOnly, setProje
         ))}
       </nav>
       <div className="wk-panel work-panel">
-        {tab === 'struktura' ? <WorkTree ctx={ctx} selected={trail[1] ?? null} />
+        {tab === 'przebieg' ? <CourseView ctx={ctx} />
+          : tab === 'struktura' ? <WorkTree ctx={ctx} selected={trail[1] ?? null} />
           : tab === 'tabela' ? <WorkTable ctx={ctx} />
           : tab === 'pojecia' ? <WorkConcepts ctx={ctx} />
           : tab === 'reguly' ? <RulesPanel ctx={ctx} />

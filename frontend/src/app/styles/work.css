@@ -121,3 +121,94 @@
 .work-path-row select { max-width: 14rem; }
 .work-base { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-3); }
 .work-text-box .work-context { border-top: 0; padding-top: 0; }
+
+/* -- Der Gang des Werks (CourseView.tsx): vom Kapitel bis zum Akapit, eingeführt und gebraucht ----------------- */
+.course { display: grid; gap: var(--wk-space-4); }
+.course-summary { display: grid; gap: var(--wk-space-3); padding: var(--wk-space-3) var(--wk-space-4); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-sunk); }
+.course-lede { margin: 0; color: var(--wk-ink-2); max-width: 70ch; }
+.course-totals { margin: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-5); }
+.course-totals div { display: grid; }
+.course-totals dt { font-size: var(--wk-text-xs); color: var(--wk-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.course-totals dd { margin: 0; font-size: var(--wk-text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.course-totals .is-bad dd { color: var(--wk-danger); }
+.course-problem-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.course-problem-now { flex: 1 1 20rem; color: var(--wk-danger); font-weight: 600; }
+.course-ok { margin: 0; font-weight: 600; }
+.course-toolbar .wk-seg { flex-wrap: wrap; }
+
+.course-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-2); font-size: var(--wk-text-xs); }
+
+.course-follow { position: sticky; top: var(--wk-sticky-top); z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-accent-soft); font-size: var(--wk-text-sm); }
+.course-follow-word { font-weight: 600; }
+
+.course-split { display: grid; gap: var(--wk-space-4); align-items: start; }
+@media (min-width: 64rem) { .course-split { grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); } }
+.course-main { min-width: 0; }
+.course-hint { margin-top: var(--wk-space-3); }
+
+/* Der Baum: eine Linie links je Ebene, damit man auch tief unten sieht, wo man steht. */
+.course-tree { list-style: none; margin: 0; padding: 0; }
+.course-tree .course-tree { margin-left: var(--wk-space-3); padding-left: var(--wk-space-3); border-left: 1px solid var(--wk-line); }
+.course-row { padding: var(--wk-space-1) 0; }
+.course-row.is-d0 { border-top: 1px solid var(--wk-line-strong); padding-top: var(--wk-space-3); margin-top: var(--wk-space-2); }
+.course-row.is-d0:first-child { border-top: 0; margin-top: 0; }
+.course-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius-sm); scroll-margin-top: calc(var(--wk-sticky-top) + 3rem); }
+.course-row.is-d0 > .course-head .course-title { font-size: var(--wk-text-lg); font-weight: 600; }
+.course-row.is-d1 > .course-head .course-title { font-weight: 600; }
+.course-title { color: var(--wk-ink); text-decoration: none; }
+.course-title:hover { text-decoration: underline; }
+.course-twist { align-self: center; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-muted); cursor: pointer; }
+.course-twist:hover:not(:disabled) { background: var(--wk-soft); color: var(--wk-ink); }
+.course-twist:disabled { visibility: hidden; }
+.course-stats { font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.course-units-btn { font-size: var(--wk-text-xs); }
+.course-thought { margin: 0 0 var(--wk-space-1) 2rem; color: var(--wk-ink-2); font-size: var(--wk-text-sm); max-width: 75ch; }
+.course-sums { margin-left: 2rem; display: grid; gap: var(--wk-space-1); }
+.course-sum { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); }
+.course-sum-head { font-size: var(--wk-text-xs); color: var(--wk-muted); margin-right: var(--wk-space-1); }
+.course-more { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.course-row > .course-words { margin-left: 2rem; }
+
+/* Die Akapity: Nummer, Anfang des Textes, die Wörter darin. */
+.course-units { list-style: none; margin: var(--wk-space-1) 0 var(--wk-space-2) 2rem; padding: 0; display: grid; gap: var(--wk-space-1); }
+.course-unit { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0 var(--wk-space-2); padding: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius-sm); background: var(--wk-surface); border: 1px solid transparent; scroll-margin-top: calc(var(--wk-sticky-top) + 3rem); }
+.course-unit:hover { border-color: var(--wk-line); }
+.course-unit.has-problems { border-color: var(--wk-danger); background: var(--wk-danger-soft); }
+.course-unit > .course-words { grid-column: 2; }
+.course-para { color: var(--wk-muted); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; padding-top: 0.1rem; }
+.course-excerpt { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.course-unit.is-h .course-excerpt { font-weight: 600; color: var(--wk-ink); }
+.course-unit.is-quote .course-excerpt { font-style: italic; }
+.course-unit.is-point .course-excerpt { color: var(--wk-muted); }
+
+/* Die Wörter: grün eingeführt, blau definiert, … rot zu früh. */
+.course-words { list-style: none; margin: var(--wk-space-1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.course-word { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0 var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-xs); line-height: 1.6; cursor: pointer; }
+button.course-word:hover { border-color: var(--wk-line-strong); }
+.course-word.is-intro { background: var(--wk-ok-soft); border-color: var(--wk-ok-soft); font-weight: 600; }
+.course-word.is-def { background: var(--wk-info-soft); border-color: var(--wk-info-soft); }
+.course-word.is-ex { background: var(--wk-accent-soft); border-color: var(--wk-accent-soft); }
+.course-word.is-recall { border-style: dashed; }
+.course-word.is-use { color: var(--wk-ink-2); }
+.course-word.is-implicit { font-style: italic; }
+.course-word.is-early { background: var(--wk-danger-soft); border-color: var(--wk-danger); color: var(--wk-danger); font-weight: 600; }
+.course-word.is-followed { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.course-word-role { color: var(--wk-muted); font-weight: 400; }
+.course-word.is-early .course-word-role { color: inherit; }
+
+.course-head.is-flash, .course-unit.is-flash { animation: course-flash 1.6s ease-out; }
+@keyframes course-flash { from { background: var(--wk-accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .course-head.is-flash, .course-unit.is-flash { animation: none; outline: 2px solid var(--wk-accent); } }
+
+/* Der Wortschatz daneben. */
+.course-vocab { position: sticky; top: var(--wk-sticky-top); display: grid; gap: var(--wk-space-2); max-height: calc(100vh - var(--wk-sticky-top) - var(--wk-space-4)); overflow: auto; padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.course-vocab .lib-box-h, .course-vocab .wk-note { margin: 0; }
+.course-vocab-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.course-vocab-item { width: 100%; display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: 0 var(--wk-space-2); align-items: baseline; padding: var(--wk-space-1) var(--wk-space-2); border: 0; border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.course-vocab-item:hover { background: var(--wk-soft); }
+.course-vocab-item.is-on { background: var(--wk-accent-soft); }
+.course-vocab-item.has-problems .course-vocab-word { color: var(--wk-danger); }
+.course-vocab-n { color: var(--wk-muted); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; }
+.course-vocab-word { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.course-vocab-where { color: var(--wk-muted); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; }
+.course-vocab-meta { grid-column: 2 / 4; color: var(--wk-muted); font-size: var(--wk-text-xs); }

@@ -9,7 +9,8 @@
     "szablony": "Templates",
     "druk": "Print",
     "ustawienia": "Settings",
-    "dane": "Project data"
+    "dane": "Project data",
+    "przebieg": "Course"
   },
   "path": {
     "label": "Path (edition)",
@@ -283,5 +284,106 @@
     "linkBackNoWrite": "(you cannot write there to link it back)",
     "linkedBack": "points back at this Scriptorium",
     "linked": "„{base}” now has this Scriptorium as a source."
+  },
+  "course": {
+    "summary": "The course of the work at a glance",
+    "lede": "How the explanation is built, step by step — from the chapters down to every paragraph: what each part brings, which words it introduces and which it uses. Red marks a word used before it is introduced.",
+    "level": "Level {n}",
+    "units": "Paragraphs",
+    "words": "Words",
+    "vocabulary": "Words introduced",
+    "problems": "Used too early",
+    "problemsLead": {
+      "one": "{count} place uses a word before it is introduced.",
+      "other": "{count} places use a word before it is introduced."
+    },
+    "problemNow": "{n} of {total}: „{word}” in {here} — introduced only in {at}.",
+    "prevProblem": "Previous",
+    "nextProblem": "Next problem",
+    "allGood": "Every word is introduced before it is used.",
+    "depth": "Show down to",
+    "thought": "Under each title",
+    "thoughtSynopsis": "the key thought",
+    "thoughtPurpose": "the purpose",
+    "thoughtNone": "nothing",
+    "onlyProblems": "Only places with problems",
+    "empty": "This work has no structure yet. Build it in the tab Structure.",
+    "noWords": "No word is marked yet. Mark where a word is introduced — at a node („Concepts here”) or in the text as [[word|@entry|intro]] — and every later use is followed, also without a link.",
+    "collapse": "Collapse {title}",
+    "expand": "Expand {title}",
+    "wordsCount": {
+      "one": "{count} word",
+      "other": "{count} words"
+    },
+    "unitsCount": {
+      "one": "{count} paragraph",
+      "other": "{count} paragraphs"
+    },
+    "problemsHere": {
+      "one": "{count} use too early in this part",
+      "other": "{count} uses too early in this part"
+    },
+    "problemsBadge": {
+      "one": "{count} too early",
+      "other": "{count} too early"
+    },
+    "showUnits": {
+      "one": "Show its paragraph",
+      "other": "Show its {count} paragraphs"
+    },
+    "hideUnits": "Hide its paragraphs",
+    "paraTitle": "Paragraph {n}, {words} words",
+    "para": "¶ {n}",
+    "point": "• {n}",
+    "noText": "(no text)",
+    "nowhere": "nowhere on this path",
+    "at": "{number} {title}, ¶ {n}",
+    "earlyTitle": "„{word}” is used here before it is introduced — introduced: {at}. Click to follow it.",
+    "wordTitle": "„{word}” ({kind}) — {role}; introduced: {at}. Click to follow it through the work.",
+    "introduces": {
+      "one": "Introduces {count}:",
+      "other": "Introduces {count}:"
+    },
+    "uses": {
+      "one": "Uses {count}:",
+      "other": "Uses {count}:"
+    },
+    "more": "+{count}",
+    "legend": "What the colours mean",
+    "legendImplicit": "recognised without a link",
+    "legendEarly": "used too early",
+    "following": "Following „{word}”",
+    "followIntro": "introduced: {at}",
+    "followNever": "never introduced on this path",
+    "followDefined": "defined: {at}",
+    "followUses": {
+      "one": "used once",
+      "other": "used {count} times"
+    },
+    "followEarly": {
+      "one": "{count} use too early — show",
+      "other": "{count} uses too early — show the first"
+    },
+    "followStop": "Stop following",
+    "vocabTitle": "Vocabulary in order",
+    "vocabLede": "The words in the order the reader learns them. Click one to follow it.",
+    "vocabSearch": "Find a word",
+    "vocabUndefined": "not defined",
+    "vocabUses": {
+      "one": "{count} use",
+      "other": "{count} uses"
+    },
+    "vocabEarly": {
+      "one": "{count} too early",
+      "other": "{count} too early"
+    },
+    "unintroduced": {
+      "one": "Used but never introduced ({count})",
+      "other": "Used but never introduced ({count})"
+    },
+    "inOrder": {
+      "one": "Introduced ({count})",
+      "other": "Introduced ({count})"
+    }
   }
 }

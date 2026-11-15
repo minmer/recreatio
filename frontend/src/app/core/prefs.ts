@@ -188,7 +188,7 @@ export function useRecent(scope: string): {
   last: <T>(items: readonly T[], idOf: (item: T) => string) => T | null;
   touch: (id: string) => void;
 } {
-  const snapshot = useSyncExternalStore(subscribe, () => state);
+  const snapshot = useSyncExternalStore(subscribe, () => state, () => state);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -223,7 +223,7 @@ export async function remembered(scope: string, fallback: string): Promise<strin
 
 /** Ein gemerkter Wert eines Teils — eine Ansicht, ein Filter. */
 export function useRemembered(scope: string, fallback: string): [string, (value: string) => void, boolean] {
-  const snapshot = useSyncExternalStore(subscribe, () => state);
+  const snapshot = useSyncExternalStore(subscribe, () => state, () => state);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
