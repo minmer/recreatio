@@ -90,6 +90,19 @@ export async function writePortions(opts: {
   let current = target.ownTexts(work.id)[0];
   let read = current === undefined ? undefined : readManifest(current.data);
   const textId = current?.id ?? newId();
+  const FLUSH_PARTS = 400;
+  const FLUSH_BYTES = 6 * 1024 * 1024;
+  let pending: { id: string; kind: string; data: Record<string, unknown> }[] = [];
+  let pendingBytes = 0;
+  let manifest: Record<string, unknown> | null = null;
+  /* Die gesammelten Teile und das Verzeichnis, wie es nach ihnen steht, in EINEM Zapis. */
+  const flush = async () => {
+    if (pending.length === 0 || manifest === null) return;
+    const saved = await target.saveAll([...pending, { id: textId, kind: TEXT_KIND, data: manifest }]);
+    current = saved.find((e) => e.id === textId) ?? current;
+    pending = [];
+    pendingBytes = 0;
+  };
   for (const [i, raw] of docs.entries()) {
     const plan = planSourceImport(raw, { work, ...(read === undefined ? {} : { manifest: read }), ...(tex === undefined ? {} : { tex }) });
     if ('error' in plan) { warnings.push(`${t('librarySource.preview.partPrefix', { n: i + 1 })}${plan.error}`); continue; }
@@ -100,9 +113,13 @@ export async function writePortions(opts: {
     }
     stage(t('librarySource.write.saving', { n: i + 1, total: docs.length }));
     const partId = had?.id ?? newId();
-    await target.save({ id: partId, kind: PART_KIND, data: partData(textId, work.id, plan) });
-    current = await target.save({ id: textId, kind: TEXT_KIND, data: nextManifest(read, work.id, plan, partId) });
-    read = readManifest(current.data);
+    /* 2026-11-16 — die Teile sammeln und in wenigen Zapisy speichern (mit dem Verzeichnis, wie es danach steht), nicht zwei Anfragen je Teil. */
+    const partInput = { id: partId, kind: PART_KIND, data: partData(textId, work.id, plan) };
+    pending.push(partInput);
+    pendingBytes += JSON.stringify(partInput.data).length;
+    manifest = nextManifest(read, work.id, plan, partId);
+    read = readManifest(manifest);
+    if (pending.length >= FLUSH_PARTS || pendingBytes >= FLUSH_BYTES) await flush();
     lines.push(t(had === undefined ? 'librarySource.write.added' : 'librarySource.write.replaced', { label: plan.portion.label }));
     warnings.push(...plan.warnings);
     if (plan.setScheme !== undefined && typeof work.data.scheme !== 'string' && workStore?.own(work.id) !== undefined) {
@@ -111,6 +128,7 @@ export async function writePortions(opts: {
       });
     }
   }
+  await flush();
   return { lines: lines.length === 0 ? [t('librarySource.write.nothing')] : lines, warnings };
 }
 

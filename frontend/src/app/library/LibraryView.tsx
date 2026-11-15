@@ -571,7 +571,13 @@ function LibraryJson({ store, library, only, filter, label }: {
           if ('error' in planned) throw new WorkspaceError(planned.error);
           const warnings = [...planned.warnings];
           let done = 0;
-          for (const draft of planned.drafts) {
+          /* 2026-11-16 — in EINEM Zapis; nur wenn das scheitert, einzeln (mit einer Warnung je Eintrag). */
+          const inputs = planned.drafts.map((draft) => ({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data }));
+          try {
+            await store.saveAll(inputs, (n, total) => stage(t('library.json.saving', { n, total })));
+            done = inputs.length;
+          } catch { /* einzeln weiter */ }
+          for (const draft of done === inputs.length ? [] : planned.drafts) {
             stage(t('library.json.saving', { n: done + 1, total: planned.drafts.length }));
             try {
               await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
