@@ -155,6 +155,8 @@ export interface TowerButton {
 export interface PillarsHandle {
   /** Die ganze Welt ins Bild. */
   fit(): void;
+  /** 2026-11-14 — nah an einen Turm (der Rundgang: Scheiben sichtbar). */
+  lookAt(place: string, zoom: number): void;
   /** Zu einem Ort fliegen. */
   focus(place: string): void;
   /** Für Messungen: die Kamera drehen (Grad) und neu zeichnen. */
@@ -1855,6 +1857,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     rotate: (deg: number) => { const c = camRef.current; if (c !== null) { setCam({ ...c, rot: c.rot + deg }); draw(); } },
     replay: () => { if (lastPb.current !== null) start(lastPb.current); },
     glide: (kind, id) => { if (kind === 'place') glidePlace(id); else glideSection(id); },
+    lookAt: (place, zoom) => { const q = scene.byId.get(place); const c = camRef.current; if (q !== undefined && c !== null) setCam({ ...c, cx: q.x, cy: q.y, s: zoom }); },
     spot: (kind, id) => {
       const canvas = canvasRef.current;
       const c = camRef.current;

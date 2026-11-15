@@ -114,7 +114,10 @@ try {
     if (r.error !== null) throw new Error(r.error);
     await waitFor(ready, 'the world map', 60000);
     await sleep(300);
+    /* 2026-11-14 — beim ersten Mal beginnt der Rundgang von selbst: die Pfade (ausser 14) schliessen ihn. */
+    if (!keepTour) { await sleep(400); await ev(`(() => { document.querySelector('[data-world-tour-close], [data-world-tour-done]')?.click(); return true; })()`); await sleep(200); }
   };
+  let keepTour = false;
   /** 2026-11-10 — nach einem Teil: die Folie mit seinen Zahlen schliessen (wenn sie kommt), dann steht der Weg unten auf der Karte. */
   const afterPart = async () => {
     await waitFor(`document.querySelector('[data-world-running]') === null`, 'the part to end', 15000);
@@ -842,6 +845,39 @@ try {
     Bericht): Wegweiser am Haus, an einem Ort und an einer Gabelung; das Haus listet alle Fragen; das Feld eines Weges; „Idź tą
     drogą" (seit 2026-11-12 „Odkryj") beginnt den ersten offenen Schritt; mit erledigten Schritten der Abschluss, danach ist der Weg erledigt (Haken)
   */
+  /* -- 14 · 2026-11-14: der Rundgang über die echte Karte (erfundener Fortschritt), beim ersten Mal von selbst, vom Haus aus neu ---- */
+  if (runs('14')) {
+    const P = '14 tour';
+    keepTour = true;
+    await page.navigate('about:blank');
+    await open('none', false, '&tour=1');
+    await sleep(800);
+    const first = await ev(`document.querySelector('[data-world-tour]')?.dataset.worldTour ?? null`);
+    if (first === null) { await clickMap('home', '~home'); await waitFor(`document.querySelector('[data-world-tour-start]')`, 'the tour button above the house'); await click('[data-world-tour-start]'); }
+    await waitFor(`document.querySelector('[data-world-tour="welcome"]')`, 'the first step of the tour');
+    check(P, 'the tour starts by itself the first time (or from the house)', true, { first });
+    const keys = [];
+    const frames = [];
+    for (let i = 0; i < 20; i += 1) {
+      const k = await ev(`document.querySelector('[data-world-tour]')?.dataset.worldTour ?? null`);
+      if (k === null) break;
+      keys.push(k);
+      await sleep(700);
+      frames.push(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmFrame ?? ''`));
+      await shot(`p14-${String(i).padStart(2, '0')}-${k}`);
+      if (await ev(`document.querySelector('[data-world-tour-next]') === null`)) break;
+      await click('[data-world-tour-next]');
+      await sleep(200);
+    }
+    check(P, `every part is explained on this map (${keys.length} steps)`, ['welcome', 'home', 'tower', 'conquered', 'locked', 'way', 'views'].every((k) => keys.includes(k)), keys);
+    await click('[data-world-tour-done]');
+    await waitFor(`document.querySelector('[data-world-tour]') === null`, 'the tour to close');
+    check(P, 'the own progress is untouched (no tower conquered by the tour)', await ev(`document.querySelector('[data-world-won]') === null && document.querySelector('[data-world-goal-done]') === null`));
+    /* Die Vorschau legt bei jedem Laden eine neue Baza an — gemerkt wird je Baza und Widok: der Schlüssel steht. */
+    check(P, 'seen once: remembered on this device (it does not start again by itself)', await ev(`Object.keys(localStorage).some((k) => k.startsWith('cg-wm-tour:') && localStorage.getItem(k) === '1')`));
+    keepTour = false;
+  }
+
   if (runs('13')) {
     const P = '13 question paths';
     const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);

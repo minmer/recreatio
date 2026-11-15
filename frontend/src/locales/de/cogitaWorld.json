@@ -551,5 +551,71 @@
     "notPassed": "Noch nicht alles richtig — du kannst es noch einmal versuchen.",
     "done": "Erledigt — du kannst diese Frage beantworten.",
     "deeper": "Tiefer: {name}"
+  },
+  "tour": {
+    "start": "Kartenführung",
+    "of": "{n} von {all}",
+    "next": "Weiter",
+    "back": "Zurück",
+    "close": "Führung schliessen",
+    "done": "Fertig",
+    "sample": "Der Fortschritt in dieser Führung ist erfunden — dein eigener bleibt, wie er ist.",
+    "welcome": {
+      "title": "Die Wissenskarte",
+      "text": "Jeder Turm ist ein Thema, jeder Pfad eine Erzählung, die es erklärt. Diese Führung zeigt alles auf genau dieser Karte."
+    },
+    "home": {
+      "title": "Start",
+      "text": "Hier beginnst du — Pfade vom Start verlangen nichts. Klick auf das Haus: wohin es geht, was zu wiederholen ist, und diese Führung."
+    },
+    "tower": {
+      "title": "Turm = Thema",
+      "text": "Die Farbe ist das Thema. Die Höhe: wie viele Karten dich vom Erobern trennen, mit allem, was der Turm verlangt. Ein blasser Turm: davon noch nichts gesehen."
+    },
+    "path": {
+      "title": "Pfad = Erzählung",
+      "text": "Folien und Fragen, die die Karten des Turms einführen; der Pfeil zeigt die Richtung. Durchgezogen: du kannst gehen. Gestrichelt mit Schloss: erst etwas können. Auf einem gewählten Pfad: ● Folie, ◆ Frage."
+    },
+    "started": {
+      "title": "Unterwegs",
+      "text": "Eine begonnene Erzählung ist bis zur letzten Folie gefärbt. Der Turm bekommt Farbe und wird mit jeder gelernten Karte kleiner."
+    },
+    "level": {
+      "title": "Erobern",
+      "text": "Sind alle Karten des Turms schon gekommen, eroberst du ihn in einem Durchgang: jede Karte einmal. Jede der {levels} Stufen lässt einen Bogen oben am Turm leuchten."
+    },
+    "conquered": {
+      "title": "Erobert",
+      "text": "Ein eroberter Turm ist flach, mit Fahne; ein Stern: alles beim ersten Mal richtig. Der Punkt in der Mitte: grün — Wissen frisch, gelb — bald wiederholen.",
+      "text0": "Kannst du alle Karten, ist der Turm erobert und flach. Der Punkt in der Mitte: grün — Wissen frisch, gelb — bald wiederholen, orange — Zeit zu wiederholen (dann steht „Wiederholen\" über dem Turm)."
+    },
+    "due": {
+      "title": "Zu wiederholen",
+      "text": "Mit der Zeit verblasst Wissen: der Punkt wird orange, über dem Turm steht „Wiederholen\". Wiederholt werden nur eroberte Türme."
+    },
+    "onward": {
+      "title": "Weiter",
+      "text": "Ein eroberter Turm öffnet weitere Wege. Klick ihn an: über ihm stehen die Wege, die Neues bringen, und „Wiederholen\", wenn nötig."
+    },
+    "locked": {
+      "title": "Ein Turm, der wartet",
+      "text": "Dieser Turm verlangt andere Themen. Die Scheiben unter ihm sind die fehlenden Türme — die unterste zuerst. „Erkunden\" führt Schritt für Schritt hin, „Direkt erobern\" lässt es ohne Weg versuchen."
+    },
+    "fork": {
+      "title": "Gabelung",
+      "text": "Hier teilt sich die Erzählung. Du wählst einen Weg; zu den anderen kannst du später zurück."
+    },
+    "sign": {
+      "title": "Wegweiser",
+      "text": "Eine Frage, die mehrere Schritte der Karte beantworten. Er steht, wo dieser Weg beginnt — klick ihn an, um Schritt für Schritt zu gehen."
+    },
+    "way": {
+      "title": "Führung",
+      "text": "„Erkunden\" oder ein Doppelklick auf einen Turm: unten erscheint der Weg. Über dem Schritt stehen Knöpfe — gehen, überspringen, zurückholen. Ein Doppelklick ins Leere beendet die Führung."
+    },
+    "views": {
+      "title": "Ansichten",
+      "text": "Oben: was ich kann, zu entdecken, zu wiederholen, Lücken — die Karte zeigt dann nur das. „Prüfe, was du weisst\" fragt die wichtigsten Fragen und zeigt die Lücken. Die Führung öffnest du wieder mit einem Klick auf das Haus."
+    }
   }
 }

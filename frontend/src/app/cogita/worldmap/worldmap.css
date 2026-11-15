@@ -577,3 +577,15 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-steppop .wk-btn { box-shadow: var(--wk-shadow-pop); }
 .cg-wm-wpart.is-skipped { opacity: 0.55; }
 .cg-wm-wpart.is-skipped .cg-wm-wdot { background: var(--wk-sunk); }
+
+/* 2026-11-14 (Eigentümer) — der Rundgang: ein kurzes Feld über der Karte (oben links), die Karte zeigt, wovon es spricht. */
+.cg-wm-tour { position: absolute; top: 3.2rem; left: var(--wk-space-3); z-index: 7; display: grid; gap: var(--wk-space-2); width: min(24rem, calc(100% - 2 * var(--wk-space-3))); box-sizing: border-box; padding: var(--wk-space-3) var(--wk-space-4); border: 1px solid var(--wk-line); border-left: 4px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); animation: cg-wm-ann 420ms cubic-bezier(.2, 1.1, .35, 1) both; }
+.cg-wm-tourn { margin: 0; color: var(--wk-accent); font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.cg-wm-tourh { margin: 0; font-size: var(--wk-text-lg); }
+.cg-wm-tourt { margin: 0; line-height: 1.5; }
+.cg-wm-tourbtns { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+:root[data-motion='off'] .cg-wm-tour { animation: none; }
+/* Unten links: die Mitte der Karte (wohin die Kamera den Teil bringt) und die Türme darüber bleiben frei. */
+.cg-wm-tour { top: auto; bottom: var(--wk-space-3); width: min(22rem, calc(100% - 2 * var(--wk-space-3))); }
+/* 2026-11-14 (Eigentümer) — ist etwas gewählt (Knöpfe darüber), steht die Blase unter dem Zeiger: sie verdeckt die Knöpfe nicht. */
+.cg-wm-bubble.is-below { transform: translate(-50%, 22px); }

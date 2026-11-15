@@ -551,5 +551,71 @@
     "notPassed": "Not everything was right yet — you can try again.",
     "done": "Done — you can answer this question.",
     "deeper": "Deeper: {name}"
+  },
+  "tour": {
+    "start": "Map guide",
+    "of": "{n} of {all}",
+    "next": "Next",
+    "back": "Back",
+    "close": "Close the guide",
+    "done": "Done",
+    "sample": "The progress in this guide is made up — your own stays as it is.",
+    "welcome": {
+      "title": "The knowledge map",
+      "text": "Each tower is one topic, each path a story that explains it. This guide shows everything on this very map."
+    },
+    "home": {
+      "title": "Start",
+      "text": "This is where you begin — paths from the start need nothing. Click the house to see where to go, what to review, and to open this guide."
+    },
+    "tower": {
+      "title": "Tower = topic",
+      "text": "The colour is the topic. The height is how many cards stand between you and conquering the tower, including what it requires. A pale tower: nothing of it seen yet."
+    },
+    "path": {
+      "title": "Path = story",
+      "text": "Slides and questions that introduce the tower's cards; the arrow shows the direction. Solid line: you can go. Dashed with a lock: you need to know something first. On a chosen path: ● slide, ◆ question."
+    },
+    "started": {
+      "title": "On the way",
+      "text": "A story you have begun is coloured up to its last slide. The tower gains colour and shrinks with every card you learn."
+    },
+    "level": {
+      "title": "Conquering",
+      "text": "Once every card of the tower has come up, you conquer it in a run: each card once. Each of the {levels} levels lights an arc on top of the tower."
+    },
+    "conquered": {
+      "title": "Conquered",
+      "text": "A conquered tower is flat, with a flag; a star means everything right the first time. The dot in the middle: green — knowledge fresh, yellow — review soon.",
+      "text0": "When you know all its cards, the tower is conquered and flat. The dot in the middle: green — knowledge fresh, yellow — review soon, orange — time to review (then \"Review\" stands above the tower)."
+    },
+    "due": {
+      "title": "Due for review",
+      "text": "Over time knowledge fades: the dot turns orange and \"Review\" appears above the tower. Only conquered towers are reviewed."
+    },
+    "onward": {
+      "title": "Ways on",
+      "text": "A conquered tower opens further ways. Click it: above it stand the ways that bring something new, and \"Review\" when needed."
+    },
+    "locked": {
+      "title": "A tower that waits",
+      "text": "This tower requires other topics. The discs under it are the missing towers — the bottom one comes first. \"Explore\" leads you there step by step, \"Conquer directly\" lets you try without the way."
+    },
+    "fork": {
+      "title": "Fork",
+      "text": "Here the story splits. You choose one way; you can come back to the others later."
+    },
+    "sign": {
+      "title": "Signpost",
+      "text": "A question answered by several steps of the map. It stands where that way begins — click it to go step by step."
+    },
+    "way": {
+      "title": "Guidance",
+      "text": "\"Explore\" or a double click on a tower: the way appears at the bottom. Buttons stand above the step — go, skip or restore. A double click on empty ground ends the guidance."
+    },
+    "views": {
+      "title": "Views",
+      "text": "At the top: what I know, to discover, to review, gaps — the map then shows only that. \"Check what you know\" asks the key questions and shows the gaps. Open this guide again by clicking the house."
+    }
   }
 }
