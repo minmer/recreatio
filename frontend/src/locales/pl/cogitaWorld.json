@@ -459,15 +459,8 @@
     "go": "Dalej",
     "partOf": "Krok {n} z {all}",
     "stepDone": "Krok zrobiony: {text}",
-    "intro": {
-      "one": "{count} krok do celu: {name}",
-      "few": "{count} kroki do celu: {name}",
-      "many": "{count} kroków do celu: {name}",
-      "other": "{count} kroków do celu: {name}"
-    },
     "skip": "Pomiń",
     "skipSays": "Pomiń ten krok i idź dalej — zostaje otwarty, można do niego wrócić",
-    "stepSkipped": "Pominięto: {text}",
     "endSkipped": {
       "one": "{count} pominięty krok jest jeszcze otwarty",
       "few": "{count} pominięte kroki są jeszcze otwarte",
@@ -486,7 +479,8 @@
     "stepButton": "Krok {n}: {kind}",
     "arrivedHead": "Cel osiągnięty — droga ukończona",
     "continueWay": "Kontynuuj drogę do: {name}",
-    "continueStory": "Kontynuuj: {name}"
+    "continueStory": "Kontynuuj: {name}",
+    "exit": "Zakończ"
   },
   "finish": {
     "arrive": "Cel osiągnięty!",

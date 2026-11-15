@@ -248,12 +248,15 @@ try {
     */
     await click('[data-world-tower-actions] [data-world-lead]');
     await waitFor(`document.querySelector('[data-world-next-page] [data-world-announce="1"]')`, 'the announcement of the first step');
-    const intro = await ev(`({ intro: Number(document.querySelector('[data-world-way-intro]')?.dataset.worldWayIntro ?? 0), running: document.querySelector('[data-world-running]') !== null, go: document.querySelector('[data-world-next-go]') !== null, skip: document.querySelector('[data-world-next-skip]')?.dataset.worldNextSkip ?? null, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
+    const intro = await ev(`({ intro: Number(document.querySelector('[data-world-way-intro]')?.dataset.worldWayIntro ?? 0), running: document.querySelector('[data-world-running]') !== null, go: document.querySelector('[data-world-next-go]') !== null, skip: document.querySelector('[data-world-next-page] [data-world-next-view]')?.dataset.worldNextView ?? null, goal: document.querySelector('[data-world-goal]')?.dataset.worldGoal ?? null })`);
     check(P, `"take me there" says how many steps lead to the target (${intro.intro}) and announces step 1 — nothing starts by itself`, intro.intro >= 3 && !intro.running && intro.go && intro.skip !== null, intro);
     check(P, 'the target becomes the goal', intro.goal !== null && intro.goal !== '', intro);
     await shot('p3-announce');
     /* Überspringen (auch gegen die Regeln): der Schritt ist vorbei (↷ in der Kette), die Ansage geht zu Schritt 2. */
-    await click('[data-world-next-skip]');
+    /* 2026-11-14 — überspringen in der Tafel des Schrittes (die Leiste hat nur „Weiter“ und „Beenden“). */
+    await click('[data-world-next-go]');
+    await waitFor(`document.querySelector('[data-world-sheet-skip]')`, 'the step sheet');
+    await click('[data-world-sheet-skip]');
     await waitFor(`document.querySelector('[data-world-step-skipped="${intro.skip}"]') && document.querySelector('[data-world-announce="2"]')`, 'the skipped step and the announcement of step 2');
     check(P, 'skipping marks the step ↷ in the chain and announces the next one', await ev(`document.querySelector('[data-world-way-part="${intro.skip}"]')?.dataset.worldWayState === 'skipped'`));
     await shot('p3-skipped');

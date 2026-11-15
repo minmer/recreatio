@@ -344,7 +344,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   };
   const findFlow = (id: string): Flow | undefined => { const d = lib.docs('flow').find((one) => one.id === id); return d === undefined ? undefined : readFlow(d.id, d.data); };
   /* Einen Abschnitt fahren: die Erzählung an seinem Anfang — an einer Wahl gleich im Zweig (`jumpTo.exit`). */
+  /* 2026-11-14 — welcher Abschnitt eben gefahren wurde (nach seiner Erzählung zeigt die Karte, wie es von dort weitergeht). */
+  const lastTravel = useRef<string | null>(null);
   const travel = (sectionId: string) => {
+    lastTravel.current = sectionId;
     const s = lines.sections.get(sectionId);
     if (s === undefined) return;
     const given = flowById.get(s.line) ?? findFlow(s.line);
@@ -358,6 +361,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   };
   /* 2026-11-14 — eine begonnene Erzählung weiter: beim ersten Schritt ihres Abschnitts, der noch nicht gesehen ist. */
   const continueSection = (sectionId: string) => {
+    lastTravel.current = sectionId;
     const s = lines.sections.get(sectionId);
     const st = state.sections.get(sectionId);
     if (s === undefined) return;
@@ -544,6 +548,17 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       setNote(t(passed ? 'cogitaWorld.paths.passed' : 'cogitaWorld.paths.notPassed'));
       setChosen({ kind: 'qpath', id: ck.path });
       if (nav !== null && nav.target === `${PATH_TARGET}${ck.path}` && passed) setNav(null);
+    }
+    /*
+      2026-11-14 (Eigentümer: „statt der Seite ‚Koniec — Co dalej‘ soll die Karte zeigen, wie der Weg weitergeht") — eine Erzählung
+      endet immer auf der Karte; ohne geführten Weg ist danach der Turm gewählt, zu dem sie führte: über ihm stehen seine Wege weiter
+      (oder Odkryj / Zdobądź od razu), die Kamera gleitet hin.
+    */
+    const went = lastTravel.current;
+    lastTravel.current = null;
+    if (went !== null && ck === null && tt === null) {
+      const to = lines.sections.get(went)?.to;
+      if (to !== undefined && world.places.has(to)) { setChosen({ kind: 'place', id: to }); pillars.current?.glide('place', to); }
     }
     /* 2026-11-10 (Eigentümer: „eine vorbereitete Welt") — nach einem Teil im Vollbild die Karte (sie zeigt, was sich änderte), darüber die Seite des Weges. */
     setFullTab((x) => (x === 'run' ? 'map' : x));
@@ -1049,7 +1064,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
       <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
-        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose={tt !== null} />
+        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose />
       </div>
     ) : running.kind === 'run' && learner !== null ? (
       <div className="cg-ls-run" data-world-running="run">
@@ -1088,8 +1103,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const wayOpen = overview || askNext;
   const wayCard: ReactNode = tt === null || running !== null || finished !== null || plain ? null : wayOpen ? (
     <div className="cg-wm-waycard" data-world-next-page="">
-      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep}
-        onSkip={(s) => skipStep(stepKey(s))} skipped={skippedSet} onUnskip={unskip}
+      <NextView tt={tt} ctx={panel} rules={rules} just={askNext ? just : new Set()} card onShow={showStep} skipped={skippedSet} onUnskip={unskip}
         onGo={(s) => setSheet(s)} onPrepare={(s) => { closeWay(); prepareStep(s); }}
         onMap={closeWay} onEnd={() => { pauseNav(); closeWay(); }} auto={askNext && lastDone !== null && just.size > 0}
         arrived={(() => {
@@ -1100,7 +1114,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         })()}
         more={(
           <details className="cg-wm-allparts" data-world-all-parts="">
-            <summary>{t('cogitaWorld.map.fullPath')}</summary>
+            <summary title={t('cogitaWorld.map.fullPath')} aria-label={t('cogitaWorld.map.fullPath')}>≡</summary>
             <NavPanel tt={tt} ctx={panel} rules={rules} onGo={(s) => { closeWay(); go(s); }} onPrepare={(s) => { closeWay(); prepareStep(s); }} onEnd={() => { pauseNav(); closeWay(); }}
               onChoose={(place, section) => setNav((n) => (n === null ? n : { ...n, choices: new Map([...n.choices, [place, section]]) }))} />
           </details>

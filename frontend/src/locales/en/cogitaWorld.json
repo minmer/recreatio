@@ -391,13 +391,8 @@
     "go": "Go on",
     "partOf": "Step {n} of {all}",
     "stepDone": "Step done: {text}",
-    "intro": {
-      "one": "{count} step leads to {name}",
-      "other": "{count} steps lead to {name}"
-    },
     "skip": "Skip",
     "skipSays": "Skip this step and go on — it stays open, you can come back to it",
-    "stepSkipped": "Skipped: {text}",
     "endSkipped": {
       "one": "{count} skipped step is still open",
       "other": "{count} skipped steps are still open"
@@ -414,7 +409,8 @@
     "stepButton": "Step {n}: {kind}",
     "arrivedHead": "Goal reached — the way is complete",
     "continueWay": "Continue the way to {name}",
-    "continueStory": "Continue: {name}"
+    "continueStory": "Continue: {name}",
+    "exit": "End"
   },
   "finish": {
     "arrive": "Goal reached!",
