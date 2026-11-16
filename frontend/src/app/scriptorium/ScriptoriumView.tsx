@@ -39,6 +39,7 @@ import { storeOf, useLibraryStore, type Entry, type LibraryStore } from '../libr
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { SettleBox } from '../library/LibraryView';
 import { scriptoriumFormat } from './format';
+import { saveImport } from '../library/importSave';
 import { useLens } from './lens';
 import { deliveriesOf } from './sermon';
 import { WritingEditor } from './WritingEditor';
@@ -361,21 +362,14 @@ function ScriptoriumJson({ me, store, library }: { me: Me; store: LibraryStore; 
           const planned = format.plan(doc);
           if ('error' in planned) throw new WorkspaceError(planned.error);
           const warnings = [...planned.warnings];
-          let done = 0;
-          /* 2026-11-16 — in EINEM Zapis (eine Anfrage, ein Neuzeichnen): ein Werk hat schnell tausend Knoten. Nur wenn das scheitert, einzeln. */
+          /* 2026-11-16 — in EINEM Zapis (`importSave.ts`): ein Werk hat schnell tausend Knoten. */
           const inputs = planned.drafts.map((draft) => ({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data }));
-          try {
-            await store.saveAll(inputs, (n, total) => stage(t('scriptorium.view.json.saving', { n, total })));
-            done = inputs.length;
-          } catch { /* einzeln weiter, mit einer Warnung je Eintrag */ }
-          for (const draft of done === inputs.length ? [] : planned.drafts) {
-            stage(t('scriptorium.view.json.saving', { n: done + 1, total: planned.drafts.length }));
-            try {
-              await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
-              done += 1;
-            } catch (e) {
-              warnings.push(t('scriptorium.view.json.saveWarning', { kind: kindOf(draft.kind)?.label ?? '', name: String(draft.data.title ?? draft.data.name ?? draft.key ?? ''), reason: e instanceof WorkspaceError ? e.message : t('scriptorium.view.json.saveFailed') }));
-            }
+          const result = await saveImport(store, inputs, stage, (n, total) => t('scriptorium.view.json.saving', { n, total }));
+          const done = result.done;
+          warnings.push(...result.warnings);
+          for (const miss of result.failed) {
+            const draft = planned.drafts.find((d) => d.id === miss.id);
+            warnings.push(t('scriptorium.view.json.saveWarning', { kind: kindOf(draft?.kind ?? '')?.label ?? '', name: String(draft?.data.title ?? draft?.data.name ?? draft?.key ?? ''), reason: miss.error }));
           }
           return { lines: [t('scriptorium.view.json.saved', { n: done, total: planned.drafts.length }), ...planned.lines], warnings };
         }}

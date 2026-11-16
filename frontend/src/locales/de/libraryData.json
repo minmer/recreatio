@@ -282,6 +282,7 @@
     "notConfirmed": "Der Dienst hat das Speichern von {id} nicht bestätigt.",
     "fileUnopenable": "Die Datei „{name}“ lässt sich nicht öffnen — der Eintrag bleibt hier.",
     "otherLibrary": "Dieser Eintrag gehört zu einer anderen Bibliothek.",
-    "loadFailed": "Die Bibliothek konnte nicht geladen werden."
+    "loadFailed": "Die Bibliothek konnte nicht geladen werden.",
+    "batchFallback": "Alles auf einmal zu speichern ging nicht ({reason}) — die Einträge wurden stattdessen zu mehreren gespeichert."
   }
 }

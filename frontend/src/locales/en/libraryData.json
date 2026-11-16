@@ -282,6 +282,7 @@
     "notConfirmed": "The service did not confirm saving {id}.",
     "fileUnopenable": "The file “{name}” cannot be opened — the entry stays here.",
     "otherLibrary": "This entry belongs to another library.",
-    "loadFailed": "Could not load the library."
+    "loadFailed": "Could not load the library.",
+    "batchFallback": "Saving everything in one go did not work ({reason}) — the entries were saved several at a time instead."
   }
 }

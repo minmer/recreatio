@@ -121,7 +121,14 @@ export function JsonPanel({
   const anchor = useId();
 
   const parsed = useMemo(() => readJsonText(text), [text]);
-  const plan = parsed !== null && 'value' in parsed ? preview(parsed.value) : null;
+  /*
+   * 2026-11-16 — WÄHREND EINES IMPORTS NICHT NEU PLANEN. Jeder Fortschritt (`stage`) und jede Änderung des Speichers
+   * zeichnen das Feld neu; früher plante jedes Neuzeichnen das ganze Dokument noch einmal (ein Werk mit tausend Knoten,
+   * je Schritt — Stunden). Während des Imports gilt der Plan von vorher.
+   */
+  const lastPlan = useRef<ReturnType<typeof preview> | null>(null);
+  const plan = stage !== null ? lastPlan.current : parsed !== null && 'value' in parsed ? preview(parsed.value) : null;
+  lastPlan.current = plan;
   const repaired = parsed !== null && 'value' in parsed && parsed.repaired > 0
     ? t('ui.json.repaired', { count: parsed.repaired })
     : null;

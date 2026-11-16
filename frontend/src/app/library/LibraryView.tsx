@@ -43,6 +43,7 @@ import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJ
 import { ids, isLibraryKind, isMusic, kindOf, LIBRARY_KINDS, MUSIC_GROUP, quoteOrder, str, WORK_TYPES, type LibEntry } from './libraryKinds';
 import { filesOf, musicPeople, tracksOf } from './music';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
+import { saveImport } from './importSave';
 import { TEXT_KINDS } from './sourceText';
 import { WorkWithTextButton, type SourceTargets } from './SourceBox';
 import { audienceWords } from './LibraryAreaBox';
@@ -570,21 +571,14 @@ function LibraryJson({ store, library, only, filter, label }: {
           const planned = planLibraryImport(doc, store);
           if ('error' in planned) throw new WorkspaceError(planned.error);
           const warnings = [...planned.warnings];
-          let done = 0;
-          /* 2026-11-16 — in EINEM Zapis; nur wenn das scheitert, einzeln (mit einer Warnung je Eintrag). */
+          /* 2026-11-16 — in EINEM Zapis (`importSave.ts`). */
           const inputs = planned.drafts.map((draft) => ({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data }));
-          try {
-            await store.saveAll(inputs, (n, total) => stage(t('library.json.saving', { n, total })));
-            done = inputs.length;
-          } catch { /* einzeln weiter */ }
-          for (const draft of done === inputs.length ? [] : planned.drafts) {
-            stage(t('library.json.saving', { n: done + 1, total: planned.drafts.length }));
-            try {
-              await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
-              done += 1;
-            } catch (e) {
-              warnings.push(t('library.json.saveFailed', { kind: kindOf(draft.kind)?.label ?? draft.kind, title: String(draft.data.title ?? draft.data.name ?? draft.key ?? ''), error: e instanceof WorkspaceError ? e.message : t('library.json.notSaved') }));
-            }
+          const result = await saveImport(store, inputs, stage, (n, total) => t('library.json.saving', { n, total }));
+          const done = result.done;
+          warnings.push(...result.warnings);
+          for (const miss of result.failed) {
+            const draft = planned.drafts.find((d) => d.id === miss.id);
+            warnings.push(t('library.json.saveFailed', { kind: kindOf(draft?.kind ?? '')?.label ?? draft?.kind ?? '', title: String(draft?.data.title ?? draft?.data.name ?? draft?.key ?? ''), error: miss.error }));
           }
           return { lines: [t('library.json.saved', { n: done, total: planned.drafts.length }), ...planned.lines], warnings };
         }}

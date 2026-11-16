@@ -290,6 +290,7 @@
     "notConfirmed": "Usługa nie potwierdziła zapisu {id}.",
     "fileUnopenable": "Pliku „{name}” nie da się otworzyć — wpis zostaje tutaj.",
     "otherLibrary": "Ten wpis należy do innej biblioteki.",
-    "loadFailed": "Nie udało się wczytać biblioteki."
+    "loadFailed": "Nie udało się wczytać biblioteki.",
+    "batchFallback": "Zapis wszystkiego naraz się nie udał ({reason}) — wpisy zapisano zamiast tego po kilka."
   }
 }
