@@ -200,6 +200,8 @@ public sealed partial class AiMcpTools
             if (S(n, "synopsis") is string syn) x["synopsis"] = syn;
             if (S(n, "purpose") is string pur) x["purpose"] = pur;
             if (S(n, "role") is string role) x["role"] = role;
+            /* 2026-11-16 — das Urteil des Autors auch an den Nachbarn und Vorfahren (ein Kapitel „zu überarbeiten"). */
+            if (S(n, "review") is string review) x["review"] = review;
             return x;
         }
         var knowledge = Arr(brief, "knowledge").OfType<JsonObject>().Where(k => S(k, "id") is not null).GroupBy(k => S(k, "id")!).ToDictionary(g => g.Key, g => g.First());

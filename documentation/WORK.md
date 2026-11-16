@@ -117,6 +117,21 @@ wording (sentence length, max / min words, forbidden / required words, exactly o
 citation · a quote that does not match the full text in the Library (where it is open). Explicit uses before the
 introduction are *must*, unmarked ones *should*.
 
+## Reviewing a structure (with the AI)
+
+A structure often comes from an AI. The author reads it in **Przebieg** part by part — "Under each title" can show the
+key thought, the purpose and what the part brings together — and gives every node a verdict (`review`): **accepted**,
+**to revise**, **to remove** (or none yet). Each node has a **conversation** (`thread`): notes for the AI on the whole
+node or on one akapit (`para`, 1-based; a speech-bubble beside each akapit starts one), replies, "settled", deletion of
+one's own notes (`ReviewBox.tsx`). On top: how much is reviewed, the counts, "Next to review"; a filter shows only the
+unreviewed, the parts to revise or remove, or those with open notes (with the way down to them).
+
+The AI reads it over MCP: `get_work_review` (all verdicts and notes in reading order, filtered), `get_work_context`
+(the node's `review` and `thread`, the verdict of the parts above in `chain`), the brief's `review` summary. It answers
+in the `scriptorium` import: thread items with `"by": "ai"` and `"reply"` — **an import adds notes to the
+conversation, it never replaces it** (`planScriptoriumImport`), and it leaves the verdict to the author. Guide:
+`guide-work` §2a.
+
 ## Templates and cycles
 
 A unit template gives the plan of a new text (`tpl-<part>` point ids) and its rules (rules with `template`). A

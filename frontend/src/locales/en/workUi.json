@@ -384,6 +384,76 @@
     "inOrder": {
       "one": "Introduced ({count})",
       "other": "Introduced ({count})"
+    },
+    "thoughtAll": "key thought, purpose and what it brings",
+    "essential": {
+      "synopsis": "Key thought",
+      "purpose": "Purpose",
+      "brings": "Brings"
     }
+  },
+  "review": {
+    "none": "not reviewed",
+    "open": "Review",
+    "notesCount": {
+      "one": "{count} note",
+      "other": "{count} notes"
+    },
+    "stateLabel": "Your verdict on this part",
+    "hint": {
+      "none": "Read it and decide: accept it, have it revised, or remove it. Notes go to the AI.",
+      "accepted": "Accepted — the AI keeps it as it is.",
+      "revise": "To be revised — the AI follows your notes.",
+      "remove": "To be removed — the AI does not write it."
+    },
+    "saveFailed": "Could not save the review.",
+    "removeAsk": "Delete this note (and the replies to it)?",
+    "wholeNode": "the whole part",
+    "para": "¶ {n}",
+    "byAi": "AI",
+    "byAuthor": "You",
+    "done": "settled",
+    "reply": "Reply",
+    "markDone": "Settled",
+    "reopen": "Reopen",
+    "hideDone": "Hide settled notes",
+    "showDone": {
+      "one": "Show {count} settled note",
+      "other": "Show {count} settled notes"
+    },
+    "replying": "Replying to a note.",
+    "newNote": "Note for the AI",
+    "yourReply": "Your reply",
+    "placeholder": "What should change, what is missing, what to keep … (Ctrl+Enter sends)",
+    "about": "About",
+    "add": "Add note",
+    "sendReply": "Reply",
+    "noteOnPara": "Note on paragraph {n}",
+    "progress": "Reviewed {done} of {total}",
+    "progressLabel": "How much of the structure is reviewed",
+    "countAccepted": {
+      "one": "{count} accepted",
+      "other": "{count} accepted"
+    },
+    "countRevise": {
+      "one": "{count} to revise",
+      "other": "{count} to revise"
+    },
+    "countRemove": {
+      "one": "{count} to remove",
+      "other": "{count} to remove"
+    },
+    "countNotes": {
+      "one": "{count} open note",
+      "other": "{count} open notes"
+    },
+    "next": "Next to review",
+    "filter": "Review",
+    "filterAll": "everything",
+    "filterNone": "not reviewed yet",
+    "filterRevise": "to revise",
+    "filterRemove": "to remove",
+    "filterAccepted": "accepted",
+    "filterNotes": "with open notes"
   }
 }

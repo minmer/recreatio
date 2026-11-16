@@ -443,3 +443,10 @@ audio.lib-music-view { inline-size: 100%; }
 .lib-note-acts > summary::-webkit-details-marker { display: none; }
 .lib-note-acts > summary:hover, .lib-note-acts > summary:focus-visible { background: var(--wk-sunk); }
 .lib-note-acts[open] > summary { color: var(--wk-muted); }
+
+/* 2026-11-16 — Code (ein Zaun ohne Grafik) und Tabellen im Zapis. */
+.lib-code { margin: var(--wk-space-2) 0; padding: var(--wk-space-2) var(--wk-space-3); overflow-x: auto; border-radius: var(--wk-radius-sm); background: var(--wk-soft); font-size: var(--wk-text-sm); }
+.lib-table .is-center { text-align: center; } .lib-table .is-right { text-align: right; }
+.lib-visual-wait { min-height: 14rem; margin: var(--wk-space-3) 0; border-radius: var(--wk-radius-sm); background: var(--wk-soft); }
+.lib-visual-insert { justify-self: start; max-width: 16rem; font-size: var(--wk-text-sm); }
+.lib-code code { padding: 0; border: 0; background: none; font-size: inherit; }

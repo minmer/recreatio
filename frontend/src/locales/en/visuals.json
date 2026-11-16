@@ -1,0 +1,81 @@
+{
+  "data": "Data",
+  "sourceWord": "Source:",
+  "cannotDraw": "This graphic cannot be drawn yet — what it says:",
+  "warnings": {
+    "one": "{count} note on this graphic",
+    "other": "{count} notes on this graphic"
+  },
+  "chartName": {
+    "bar": "Column chart",
+    "hbar": "Bar chart",
+    "line": "Line chart",
+    "stacked": "Stacked columns",
+    "share": "Shares of a whole",
+    "scatter": "Scatter plot"
+  },
+  "plain": {
+    "chart": "Chart",
+    "plot": "Function graph",
+    "diagram": "Diagram",
+    "tree": "Tree",
+    "timeline": "Timeline"
+  },
+  "warn": {
+    "chartType": "Unknown chart type “{type}” — drawn as columns (bar, hbar, line, stacked, share, scatter).",
+    "noData": "No data: a header row (first column the labels, then one column per series) and at least one row of values.",
+    "noSeries": "The header row needs at least one series after the first column.",
+    "tooManySeries": "Only the first {count} series are drawn — more cannot be told apart by colour (split into two charts).",
+    "tooManyRows": "Only the first {count} rows are drawn.",
+    "notNumber": "Row {row}: “{text}” is not a number (left empty).",
+    "scatterX": "A scatter plot needs a number in the first column of every row.",
+    "negativeParts": "Stacked parts and shares cannot be negative — negative values are left out.",
+    "badRange": "Range “{text}” not understood (example: -3..3).",
+    "badPoint": "Point “{text}” not understood (example: point: 2, 1 label).",
+    "tooManyFunctions": "Only the first {count} functions are drawn.",
+    "badLine": "Line not understood: “{text}”.",
+    "noFunction": "Nothing to draw: write a function (y = x^2) or a point (point: 1, 2).",
+    "tooManyNodes": "Only the first {count} boxes are drawn.",
+    "noNodes": "Nothing to draw: write connections (A -> B) or one box per line.",
+    "direction": "Direction “{text}” not understood (down or right) — drawn downwards.",
+    "tooManyItems": "Only the first {count} dates are shown.",
+    "noItems": "Nothing to show: one date per line (1815: what happened).",
+    "unknownKind": "Unknown graphic “{kind}”.",
+    "badExpr": "{f}: {error}"
+  },
+  "template": {
+    "chartTitle": "Title of the chart",
+    "year": "Year",
+    "seriesA": "Series A",
+    "seriesB": "Series B",
+    "plotTitle": "Two functions",
+    "point": "a marked point",
+    "diagramTitle": "How it is connected",
+    "cause": "Cause",
+    "effect": "Effect",
+    "leadsTo": "leads to",
+    "result": "Result",
+    "treeTitle": "Division",
+    "root": "Whole",
+    "branch": "Part",
+    "leaf": "Detail",
+    "timelineTitle": "The most important dates",
+    "eventA": "first event",
+    "eventB": "second event",
+    "eventC": "a longer period",
+    "colA": "Term",
+    "colB": "Meaning",
+    "cellA": "word",
+    "cellB": "what it means"
+  },
+  "insert": {
+    "button": "Insert graphic",
+    "chart": "Chart from a table",
+    "plot": "Function graph",
+    "diagram": "Diagram (boxes and arrows)",
+    "tree": "Tree (indented lines)",
+    "timeline": "Timeline",
+    "table": "Table",
+    "help": "A graphic is a block between ``` lines: ```chart, ```plot, ```diagram, ```tree, ```timeline. The preview below shows it as learners will see it."
+  }
+}

@@ -998,6 +998,14 @@
       "marks": {
         "label": "Begriffe hier",
         "says": "Was hier vorkommt und wie, je { \"entry\": Eintrag des Wissens, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      },
+      "review": {
+        "label": "Durchsicht",
+        "says": "Das Urteil des Autors: {list}; leer: noch nicht durchgesehen. Eine KI lässt angenommene Knoten, überarbeitet zu überarbeitende nach ihren Notizen und schreibt zu streichende nicht"
+      },
+      "thread": {
+        "label": "Notizen",
+        "says": "Das Gespräch über diesen Knoten zwischen Autor und KI, je { \"id\", \"by\": \"author\" | \"ai\", \"text\", \"at\", \"reply\", \"para\", \"done\": \"yes\" }; ein Import FÜGT Notizen HINZU (dieselbe id ersetzt eine) — eine KI schickt nur ihre eigenen Antworten mit \"by\": \"ai\""
       }
     }
   },
@@ -1093,6 +1101,45 @@
         "label": "Teile",
         "says": "Die Teile der Reihe nach, je { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
       }
+    }
+  },
+  "reviewStates": {
+    "accepted": "angenommen",
+    "revise": "zu überarbeiten",
+    "remove": "zu streichen"
+  },
+  "noteAuthors": {
+    "author": "Autor",
+    "ai": "KI"
+  },
+  "noteItem": {
+    "id": {
+      "label": "Schlüssel",
+      "says": "Fester Schlüssel der Notiz (Antworten nennen ihn in \"reply\")"
+    },
+    "by": {
+      "label": "Von",
+      "says": "\"author\" (der Autor) oder \"ai\" (die Antwort des Assistenten)"
+    },
+    "text": {
+      "label": "Text",
+      "says": "Die Notiz"
+    },
+    "at": {
+      "label": "Wann",
+      "says": "Wann sie geschrieben wurde (ISO Datum und Zeit)"
+    },
+    "reply": {
+      "label": "Antwort auf",
+      "says": "Schlüssel der Notiz, auf die diese antwortet"
+    },
+    "para": {
+      "label": "Absatz",
+      "says": "Der Absatz des Textes des Knotens, um den es geht (1, 2, 3 …; leer: der ganze Knoten)"
+    },
+    "done": {
+      "label": "Erledigt",
+      "says": "\"yes\", wenn sie erledigt ist"
     }
   }
 }

@@ -3803,3 +3803,7 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - Checks: `app-work-check.mjs` (137, in `app:check`); `app-library-check` and `app-cogita-check` updated.
 - LaTeX compiled with MiKTeX: `npm run app:work-tex` — 14 documents × pdflatex/lualatex, 28/28; the shared preamble now picks fontspec under lualatex (`iftex`), which also fixes Polish letters in the old text prints under lualatex.
 - Open: the API must be deployed for the MCP tools.
+- 2026-11-16 — review of a structure: node fields `review` (accepted / revise / remove) and `thread` (notes author ↔ ai, per akapit,
+  replies, settled); `ReviewBox.tsx` in Przebieg (verdict buttons, conversation, filter, "Next to review", progress); the import adds
+  notes instead of replacing them; brief `review` summary; MCP `get_work_review` (`AiMcp.Review.cs`), `review` in the context's
+  chain; guide-work §2a; checks app-work-check (145), Api.Tests WorkMcpChecks.

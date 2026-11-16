@@ -5,7 +5,7 @@
  * seine Karten, seine Fassungen, und das Zusammenführen mit einem Doppelgänger.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { areaKeys, newestKey } from '../chat/chat';
 import { answerText } from './CardFace';
@@ -33,6 +33,7 @@ import { Loading } from '../ui/Loading';
 import { BlocksEditor } from '../library/BlocksEditor';
 import { blockData, blocksIn, isQuestion, THESIS_LIMIT, thesisOf, thesisProblem } from '../library/blocks';
 import { StatementMarks } from '../library/markupView';
+import { VisualInsert } from '../library/VisualInsert';
 import { TextJump } from '../library/SourceJump';
 import { workLook } from '../library/sourceFind';
 import { blocksField } from './statements';
@@ -484,9 +485,12 @@ function MarkupInput({ value, writes, onChange, onOpen }: { value: string; write
   const t = useT();
   const { lib } = useCtx();
   const [linking, setLinking] = useState(false);
+  const area = useRef<HTMLTextAreaElement>(null);
   return (
     <span className="cg">
-      <textarea rows={4} value={value} disabled={!writes} onChange={(e) => onChange(e.target.value)} />
+      <textarea ref={area} rows={4} value={value} disabled={!writes} onChange={(e) => onChange(e.target.value)} />
+      {/* 2026-11-16 — eine Grafik (Diagramm, Funktion, Schema, Baum, Zeitleiste, Tabelle) als Beispiel an der Schreibmarke. */}
+      {writes && <VisualInsert value={value} onChange={onChange} area={area} />}
       {writes && (linking
         ? <EntityPicker lib={lib} refs value={null} placeholder={t('cogitaEdit.entity.linkTo')} onPick={(id) => {
             setLinking(false);

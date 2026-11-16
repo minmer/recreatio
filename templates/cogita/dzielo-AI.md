@@ -89,6 +89,32 @@ celem, rolą i myślą przewodnią. Dopiero potem proza.
 
 ---
 
+## 2a. Przegląd autora: zaakceptowane, do poprawy, do usunięcia — i notatki dla ciebie
+
+Autor czyta strukturę (często przygotowaną przez ciebie) w zakładce „Przebieg” część po części i przy każdym węźle
+zostawia ocenę (`review`) i notatki (`thread`). **Zanim napiszesz albo poprawisz tekst, przeczytaj je:**
+`get_work_review` (wszystkie węzły po kolei; `status: "notes"` — tylko z otwartymi notatkami, `"revise"`, `"remove"`,
+`"none"`), a przy jednym węźle `get_work_context` (pola `review` i `thread` węzła, ocena rozdziału nad nim w `chain`).
+
+- `"accepted"` — zostaw, jak jest (nie przebudowuj struktury tego węzła).
+- `"revise"` — popraw według otwartych notatek autora (`by: "author"`, `done` puste).
+- `"remove"` — nie pisz tego węzła; nie przenoś jego treści gdzie indziej bez notatki, która o to prosi.
+- puste — autor jeszcze nie przejrzał; pisz według celu i myśli przewodniej.
+- Notatka z `"para": 3` dotyczy trzeciego akapitu tekstu tego węzła.
+
+**Odpowiadasz w imporcie „scriptorium”**: przy węźle w `"thread"` tylko twoje nowe notatki — `"by": "ai"`, `"reply"`: id
+notatki autora, na którą odpowiadasz, `"text"`: co zrobiłeś albo o co pytasz. Import **dokłada** notatki do rozmowy
+(ten sam `id` zastępuje jedną) — nie musisz przepisywać notatek autora i nie możesz ich usunąć. Nie zmieniaj `review`:
+to decyzja autora.
+
+```json
+{ "format": "recreatio/scriptorium", "version": 1, "entries": [
+  { "kind": "node", "key": "r1-2-1", "data": { "thread": [
+    { "id": "ai-r1-2-1-1", "by": "ai", "reply": "n3f9a2c1", "text": "Dopisałem w akapicie 3 wyjaśnienie anamnezy; definicja jest teraz przed pierwszym użyciem." }
+  ] } }
+] }
+```
+
 ## 3. Mały kompletny przykład
 
 Baza wiedzy (format `knowledge-base`, po zaimportowaniu `scheme-dzielo`):

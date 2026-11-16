@@ -428,6 +428,88 @@
       "few": "Wprowadzone ({count})",
       "many": "Wprowadzone ({count})",
       "other": "Wprowadzone ({count})"
+    },
+    "thoughtAll": "myśl przewodnia, cel i co wnosi",
+    "essential": {
+      "synopsis": "Myśl przewodnia",
+      "purpose": "Cel",
+      "brings": "Wnosi"
     }
+  },
+  "review": {
+    "none": "nieprzejrzane",
+    "open": "Przejrzyj",
+    "notesCount": {
+      "one": "{count} notatka",
+      "few": "{count} notatki",
+      "many": "{count} notatek",
+      "other": "{count} notatki"
+    },
+    "stateLabel": "Twoja ocena tej części",
+    "hint": {
+      "none": "Przeczytaj i zdecyduj: akceptujesz, do poprawy albo do usunięcia. Notatki trafiają do AI.",
+      "accepted": "Zaakceptowane — AI zostawia to tak, jak jest.",
+      "revise": "Do poprawy — AI idzie za Twoimi notatkami.",
+      "remove": "Do usunięcia — AI tego nie pisze."
+    },
+    "saveFailed": "Nie udało się zapisać oceny.",
+    "removeAsk": "Usunąć tę notatkę (i odpowiedzi na nią)?",
+    "wholeNode": "cała część",
+    "para": "¶ {n}",
+    "byAi": "AI",
+    "byAuthor": "Ty",
+    "done": "załatwione",
+    "reply": "Odpowiedz",
+    "markDone": "Załatwione",
+    "reopen": "Otwórz ponownie",
+    "hideDone": "Ukryj załatwione notatki",
+    "showDone": {
+      "one": "Pokaż {count} załatwioną notatkę",
+      "few": "Pokaż {count} załatwione notatki",
+      "many": "Pokaż {count} załatwionych notatek",
+      "other": "Pokaż {count} załatwionej notatki"
+    },
+    "replying": "Odpowiedź na notatkę.",
+    "newNote": "Notatka dla AI",
+    "yourReply": "Twoja odpowiedź",
+    "placeholder": "Co zmienić, czego brakuje, co zostawić … (Ctrl+Enter wysyła)",
+    "about": "Dotyczy",
+    "add": "Dodaj notatkę",
+    "sendReply": "Odpowiedz",
+    "noteOnPara": "Notatka do akapitu {n}",
+    "progress": "Przejrzane {done} z {total}",
+    "progressLabel": "Ile struktury jest przejrzane",
+    "countAccepted": {
+      "one": "{count} zaakceptowane",
+      "few": "{count} zaakceptowane",
+      "many": "{count} zaakceptowanych",
+      "other": "{count} zaakceptowanego"
+    },
+    "countRevise": {
+      "one": "{count} do poprawy",
+      "few": "{count} do poprawy",
+      "many": "{count} do poprawy",
+      "other": "{count} do poprawy"
+    },
+    "countRemove": {
+      "one": "{count} do usunięcia",
+      "few": "{count} do usunięcia",
+      "many": "{count} do usunięcia",
+      "other": "{count} do usunięcia"
+    },
+    "countNotes": {
+      "one": "{count} otwarta notatka",
+      "few": "{count} otwarte notatki",
+      "many": "{count} otwartych notatek",
+      "other": "{count} otwartej notatki"
+    },
+    "next": "Następne do przejrzenia",
+    "filter": "Przegląd",
+    "filterAll": "wszystko",
+    "filterNone": "jeszcze nieprzejrzane",
+    "filterRevise": "do poprawy",
+    "filterRemove": "do usunięcia",
+    "filterAccepted": "zaakceptowane",
+    "filterNotes": "z otwartymi notatkami"
   }
 }

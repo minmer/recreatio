@@ -212,3 +212,48 @@ button.course-word:hover { border-color: var(--wk-line-strong); }
 .course-vocab-word { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .course-vocab-where { color: var(--wk-muted); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; }
 .course-vocab-meta { grid-column: 2 / 4; color: var(--wk-muted); font-size: var(--wk-text-xs); }
+
+/* -- Die Durchsicht (ReviewBox.tsx): angenommen, überarbeiten, streichen, Notizen für die KI ------------------- */
+.review-chip { display: inline-block; font-size: var(--wk-text-xs); border-radius: var(--wk-radius-pill); padding: 0 var(--wk-space-2); border: 1px solid var(--wk-line); color: var(--wk-muted); background: var(--wk-surface); }
+.review-chip.is-accepted { background: var(--wk-ok-soft); border-color: var(--wk-ok-soft); color: var(--wk-ink); }
+.review-chip.is-revise { background: var(--wk-warn-soft); border-color: var(--wk-warn-soft); color: var(--wk-warn); font-weight: 600; }
+.review-chip.is-remove { background: var(--wk-danger-soft); border-color: var(--wk-danger-soft); color: var(--wk-danger); font-weight: 600; }
+.review-chip.is-none { border-style: dashed; }
+.course-review-btn { font-size: var(--wk-text-xs); display: inline-flex; align-items: center; gap: 0.25rem; }
+.course-review-btn.is-on { color: var(--wk-accent); font-weight: 600; }
+.course-review-sum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.course-review-sum progress { width: 10rem; }
+.course-review-progress { font-weight: 600; }
+
+.review-panel { margin: var(--wk-space-1) 0 var(--wk-space-2) 2rem; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); display: grid; gap: var(--wk-space-2); max-width: 60rem; }
+.review-states { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.review-state { display: inline-flex; align-items: center; gap: 0.3rem; padding: var(--wk-space-1) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.review-state:hover:not(:disabled) { border-color: var(--wk-line-strong); }
+.review-state.is-accepted.is-on { background: var(--wk-ok-soft); border-color: var(--wk-ink-2); font-weight: 600; }
+.review-state.is-revise.is-on { background: var(--wk-warn-soft); border-color: var(--wk-warn); color: var(--wk-warn); font-weight: 600; }
+.review-state.is-remove.is-on { background: var(--wk-danger-soft); border-color: var(--wk-danger); color: var(--wk-danger); font-weight: 600; }
+.review-hint { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.review-thread { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.review-thread .review-thread { margin-left: var(--wk-space-4); padding-left: var(--wk-space-3); border-left: 2px solid var(--wk-line); }
+.review-note { padding: var(--wk-space-2); border-radius: var(--wk-radius-sm); background: var(--wk-surface); border: 1px solid var(--wk-line); }
+.review-note.is-ai { border-color: var(--wk-info-soft); background: var(--wk-info-soft); }
+.review-note.is-done { opacity: 0.7; }
+.review-note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.review-note-by { font-weight: 600; color: var(--wk-ink); }
+.review-note-text { margin: var(--wk-space-1) 0 0; white-space: pre-wrap; }
+.review-note-actions { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); font-size: var(--wk-text-xs); margin-top: var(--wk-space-1); }
+.review-compose { display: grid; gap: var(--wk-space-2); }
+.review-compose textarea { width: 100%; }
+.review-compose-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--wk-space-2); }
+.review-about { min-width: 12rem; }
+.review-replying { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.review-done-toggle { justify-self: start; font-size: var(--wk-text-xs); }
+.course-para-note { margin-left: var(--wk-space-1); vertical-align: middle; opacity: 0.55; }
+.course-unit:hover .course-para-note, .course-para-note:focus-visible { opacity: 1; }
+.review-para-notes { grid-column: 2; list-style: none; margin: var(--wk-space-1) 0 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.review-para-notes li { padding: 0 var(--wk-space-2); border-left: 3px solid var(--wk-warn); color: var(--wk-ink-2); }
+.review-para-notes li.is-ai { border-left-color: var(--wk-info); }
+.course-essentials { margin: 0 0 var(--wk-space-1) 2rem; display: grid; gap: 0.15rem; font-size: var(--wk-text-sm); max-width: 75ch; }
+.course-essentials div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--wk-space-2); }
+.course-essentials dt { color: var(--wk-muted); font-size: var(--wk-text-xs); text-transform: uppercase; letter-spacing: 0.04em; padding-top: 0.15rem; }
+.course-essentials dd { margin: 0; color: var(--wk-ink-2); }

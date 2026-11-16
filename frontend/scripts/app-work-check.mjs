@@ -15,6 +15,7 @@
  *   5. Artikel: Definition vor Gebrauch, Zitate der Bibliothek, Bibliografie, ein Zitat ohne Ziel.
  *   7. Der Gang eines Buches über die Liturgie: Kapitel → Unterkapitel → Paragraph → Akapit; was je Stelle eingeführt
  *      und gebraucht wird, zu früh auch im selben Paragraphen und ohne Link, der Wortschatz in Reihenfolge.
+ *   8. Durchsicht: angenommen / überarbeiten / streichen, Notizen für die KI, die Antwort der KI über den Import ergänzt.
  *   6. Was es schon gab: Schulprogramme (Gliederung → Lekcje, auch aus dem Baum), Zapis-Links mit und ohne Rolle,
  *      eine alte Gliederung als Baum und umgewandelt, das JSON des Skryptorium mit Knoten, Regeln, Vorlagen.
  */
@@ -42,6 +43,7 @@ export * as L from '${app}scriptorium/work/workLatex';
 export * as RU from '${app}scriptorium/work/workRules';
 export * as W from '${app}scriptorium/work/workCourse';
 export { CourseView } from '${app}scriptorium/work/CourseView';
+export { ReviewPanel } from '${app}scriptorium/work/ReviewBox';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 export { parseInline, mapRefTokens } from '${app}library/libraryMarkup';
@@ -60,7 +62,7 @@ await build({
   loader: { '.css': 'empty' }, logLevel: 'error'
 });
 globalThis.BroadcastChannel = undefined;
-const { M, K, R, C, X, T, B, L, RU, W, CourseView, renderToStaticMarkup, createElement, textToLatex, planToLatex, parseInline, mapRefTokens, lessonsOf, planScriptoriumImport, scriptoriumDescription, WRITING_KINDS, baseKind } = await import(pathToFileURL(join(workspace, 'entry.mjs')).href);
+const { M, K, R, C, X, T, B, L, RU, W, CourseView, ReviewPanel, renderToStaticMarkup, createElement, textToLatex, planToLatex, parseInline, mapRefTokens, lessonsOf, planScriptoriumImport, scriptoriumDescription, WRITING_KINDS, baseKind } = await import(pathToFileURL(join(workspace, 'entry.mjs')).href);
 
 let checks = 0;
 const ok = (cond, what) => { assert.ok(cond, what); checks += 1; };
@@ -475,6 +477,35 @@ const words = (n, word = 'słowo') => Array.from({ length: n }, () => word).join
   eq(planRow.units.map((u) => [u.kind, u.excerpt]), [['point', 'Wejście'], ['point', 'O kadzidle']], 'Gang: Punkte des Plans als Akapity');
   ok(c2.vocabulary.some((v) => v.entity === 'kadzidlo' && v.intro.number === '4.1.3'), 'Gang: Einführung im Plan zählt');
   ok(c2.problems.some((p) => p.entity === 'kadzidlo' && p.number === '4.1.1'), 'Gang: kadzidło in 4.1.1 jetzt vor seiner Einführung in 4.1.3');
+}
+
+/* == 8. Durchsicht: angenommen, überarbeiten, streichen, Notizen für die KI ============================== */
+{
+  const { add, look } = world();
+  const project = add('project', { title: 'Wewnątrz liturgii', lang: 'pl' });
+  const ch = add('node', { project: project.id, title: 'Mistagogia', order: 1, review: 'accepted' });
+  const text = add('text', { title: '§1', project: project.id, body: 'Pierwszy.\n\nDrugi.' });
+  const par = add('node', { project: project.id, parent: ch.id, title: '§ 1.1', order: 1, text: text.id, review: 'revise',
+    thread: [{ id: 'a1', by: 'author', text: 'Więcej o anamnezie.', at: '2026-11-16T10:00:00Z', para: 2 }, { id: 'a2', by: 'author', text: 'Dobrze.', at: '2026-11-16T10:05:00Z', done: 'yes' }] }, 'p11');
+  add('node', { project: project.id, parent: ch.id, title: '§ 1.2', order: 2, review: 'remove' });
+  const model = M.readWork(project, look);
+  const node = model.nodes.get(par.id);
+  eq([node.review, node.thread.map((n) => [n.id, n.by, n.para, n.done])], ['revise', [['a1', 'author', 1, false], ['a2', 'author', undefined, true]]], 'Durchsicht: Urteil und Notizen gelesen (Akapit 2 → Index 1)');
+  eq(M.openNotes(node).map((n) => n.id), ['a1'], 'Durchsicht: offene Notizen');
+  const brief = B.workBrief(project, look);
+  eq(brief.review, { nodes: 3, accepted: 1, revise: 1, remove: 1, unreviewed: 0, openNotes: 1 }, 'Durchsicht: in Zahlen für die KI');
+  const bn = brief.nodes.find((n) => n.id === par.id);
+  ok(bn.review === 'revise' && bn.thread[0].para === 2 && bn.thread[0].text === 'Więcej o anamnezie.', 'Durchsicht: Knoten der Abschrift mit Urteil und Gespräch (Akapit wie gedruckt)');
+  /* Die KI antwortet über den Import — das Gespräch wird ergänzt, nicht ersetzt. */
+  const plan = planScriptoriumImport({ format: 'recreatio/scriptorium', version: 1, entries: [
+    { kind: 'node', key: 'p11', data: { thread: [{ id: 'b1', by: 'ai', text: 'Dopisałem akapit o anamnezie.', reply: 'a1', at: '2026-11-16T12:00:00Z' }] } }
+  ] }, look);
+  const merged = plan.drafts[0].data.thread;
+  eq(merged.map((n) => [n.id, n.by]), [['a1', 'author'], ['a2', 'author'], ['b1', 'ai']], 'Durchsicht: Antwort der KI ergänzt das Gespräch');
+  eq(plan.drafts[0].data.review, 'revise', 'Durchsicht: das Urteil bleibt');
+  const html = renderToStaticMarkup(createElement(ReviewPanel, { ctx: { store: look, readOnly: false }, node, paras: 2 }));
+  ok(html.includes('Do poprawy — AI idzie za Twoimi notatkami.') && html.includes('aria-pressed="true"') && html.includes('Więcej o anamnezie.') && !html.includes('>Dobrze.<'), 'Durchsicht: das Feld zeigt das Urteil und die offenen Notizen (Erledigtes eingeklappt)');
+  ok(html.includes('Pokaż 1 załatwioną notatkę') && html.includes('Notatka dla AI') && html.includes('¶ 2'), 'Durchsicht: Erledigtes auf Wunsch, neue Notiz, wählbares Akapit');
 }
 
 /* == 6. Was es schon gab ============================================================================= */

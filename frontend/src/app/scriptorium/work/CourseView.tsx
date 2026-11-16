@@ -19,7 +19,8 @@ import { useRemembered } from '../../core/prefs';
 import { MARK_ROLES } from '../../library/libraryKinds';
 import { Icon } from '../../ui/icons';
 import { courseOf, type Anchor, type Course, type CourseRow, type CourseUnit, type Mention, type VocabEntry } from './workCourse';
-import { roleOf, type MarkRole } from './workModel';
+import { openNotes, roleOf, type MarkRole } from './workModel';
+import { ParaNotes, ReviewChip, ReviewPanel } from './ReviewBox';
 import { PathPick, pathKeyOf, type WorkCtx } from './WorkView';
 
 /** Die Tiefe „bis zu den Akapity". */
@@ -46,6 +47,9 @@ export function CourseView({ ctx }: { ctx: WorkCtx }) {
   const [follow, setFollow] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
   const [problemAt, setProblemAt] = useState(-1);
+  /* 2026-11-16 — die Durchsicht: welche Knoten ihr Feld offen haben (mit dem Akapit, zu dem eine Notiz gehen soll), welcher Filter. */
+  const [reviewOpen, setReviewOpen] = useState<ReadonlyMap<string, number | undefined>>(new Map());
+  const [reviewFilter, setReviewFilter] = useState('');
 
   /* Ein Sprung: erst aufklappen, dann (nach dem Zeichnen) hinscrollen. */
   useEffect(() => {
@@ -103,10 +107,45 @@ export function CourseView({ ctx }: { ctx: WorkCtx }) {
     reveal(course.problems[next]);
   };
 
+  const openReview = (id: string, para?: number) => setReviewOpen((was) => {
+    const next = new Map(was);
+    if (next.has(id) && para === undefined) next.delete(id); else next.set(id, para);
+    return next;
+  });
+  /* Durchsicht: was der Filter zeigt — der Knoten selbst passt, oder etwas darunter (dann steht er als Weg da). */
+  const matches = (row: CourseRow): boolean => reviewFilter === '' ? true
+    : reviewFilter === 'notes' ? openNotes(row.node).length > 0
+    : reviewFilter === 'none' ? row.node.review === '' : row.node.review === reviewFilter;
+  const reviewShown = new Set<string>();
+  if (reviewFilter !== '') {
+    course.rows.forEach((row, i) => {
+      if (!matches(row)) return;
+      reviewShown.add(row.node.id);
+      let depth = row.depth;
+      for (let j = i - 1; j >= 0 && depth > 0; j -= 1) if (course.rows[j].depth < depth) { reviewShown.add(course.rows[j].node.id); depth = course.rows[j].depth; }
+    });
+  }
+  const counts = {
+    accepted: course.rows.filter((r) => r.node.review === 'accepted').length,
+    revise: course.rows.filter((r) => r.node.review === 'revise').length,
+    remove: course.rows.filter((r) => r.node.review === 'remove').length,
+    none: course.rows.filter((r) => r.node.review === '').length,
+    notes: course.rows.reduce((n, r) => n + openNotes(r.node).length, 0)
+  };
+  /* Zum nächsten noch nicht Durchgesehenen, in Lesereihenfolge — und sein Feld gleich auf. */
+  const nextUnreviewed = () => {
+    const from = focus === null ? -1 : course.rows.findIndex((r) => focus === anchorId({ node: r.node.id }));
+    const next = course.rows.find((r, i) => i > from && r.node.review === '') ?? course.rows.find((r) => r.node.review === '');
+    if (next === undefined) return;
+    setReviewOpen((was) => new Map(was).set(next.node.id, undefined));
+    reveal({ node: next.node.id });
+  };
+
   const followed = follow === null ? null : course.vocabulary.find((v) => v.entity === follow) ?? course.unintroduced.find((v) => v.entity === follow) ?? null;
-  const visible = (row: CourseRow): boolean => (!onlyProblems || row.below.problems > 0) && (follow === null || row.below.introduces.includes(follow) || row.below.uses.includes(follow));
+  const visible = (row: CourseRow): boolean => (!onlyProblems || row.below.problems > 0) && (follow === null || row.below.introduces.includes(follow) || row.below.uses.includes(follow))
+    && (reviewFilter === '' || reviewShown.has(row.node.id));
   const levels = course.totals.perLevel;
-  const ctxRow: RowCtx = { ctx, t, course, isOpen, showUnits, toggle, toggleUnits, limitIsUnits: limit === UNITS, visible, follow, setFollow, thought, onlyProblems, reveal };
+  const ctxRow: RowCtx = { ctx, t, course, isOpen, showUnits, toggle, toggleUnits, limitIsUnits: limit === UNITS, visible, follow, setFollow, thought, onlyProblems, reveal, reviewOpen, openReview };
   const roots = course.rows.filter((r) => r.depth === 0 || !course.rows.some((p) => p.children.includes(r.node.id)));
 
   return (
@@ -130,6 +169,15 @@ export function CourseView({ ctx }: { ctx: WorkCtx }) {
             <button type="button" className="wk-btn" onClick={() => jumpProblem(1)}>{t('workUi.course.nextProblem')} <Icon name="next" /></button>
           </div>
         ) : course.vocabulary.length > 0 ? <p className="course-ok">{t('workUi.course.allGood')}</p> : null}
+        <div className="course-review-sum">
+          <span className="course-review-progress">{t('workUi.review.progress', { done: course.rows.length - counts.none, total: course.rows.length })}</span>
+          <progress max={Math.max(1, course.rows.length)} value={course.rows.length - counts.none} aria-label={t('workUi.review.progressLabel')} />
+          <span className="review-chip is-accepted">{t('workUi.review.countAccepted', { count: counts.accepted })}</span>
+          <span className="review-chip is-revise">{t('workUi.review.countRevise', { count: counts.revise })}</span>
+          <span className="review-chip is-remove">{t('workUi.review.countRemove', { count: counts.remove })}</span>
+          <span className="review-chip is-none">{t('workUi.review.countNotes', { count: counts.notes })}</span>
+          {counts.none > 0 && <button type="button" className="wk-btn" onClick={nextUnreviewed}>{t('workUi.review.next')} <Icon name="next" /></button>}
+        </div>
       </section>
 
       <div className="work-toolbar course-toolbar">
@@ -150,7 +198,19 @@ export function CourseView({ ctx }: { ctx: WorkCtx }) {
           <select value={thought} onChange={(e) => setThought(e.target.value)}>
             <option value="synopsis">{t('workUi.course.thoughtSynopsis')}</option>
             <option value="purpose">{t('workUi.course.thoughtPurpose')}</option>
+            <option value="all">{t('workUi.course.thoughtAll')}</option>
             <option value="none">{t('workUi.course.thoughtNone')}</option>
+          </select>
+        </label>
+        <label className="wk-field">
+          <span>{t('workUi.review.filter')}</span>
+          <select value={reviewFilter} onChange={(e) => setReviewFilter(e.target.value)}>
+            <option value="">{t('workUi.review.filterAll')}</option>
+            <option value="none">{t('workUi.review.filterNone')}</option>
+            <option value="revise">{t('workUi.review.filterRevise')}</option>
+            <option value="remove">{t('workUi.review.filterRemove')}</option>
+            <option value="accepted">{t('workUi.review.filterAccepted')}</option>
+            <option value="notes">{t('workUi.review.filterNotes')}</option>
           </select>
         </label>
         <label className="pe-check"><input type="checkbox" checked={onlyProblems} onChange={(e) => setOnlyProblems(e.target.checked)} /><span>{t('workUi.course.onlyProblems')}</span></label>
@@ -188,6 +248,8 @@ interface RowCtx {
   readonly thought: string;
   readonly onlyProblems: boolean;
   readonly reveal: (a: Pick<Anchor, 'node' | 'para'>) => void;
+  readonly reviewOpen: ReadonlyMap<string, number | undefined>;
+  readonly openReview: (id: string, para?: number) => void;
 }
 
 function Row({ row, c }: { row: CourseRow; c: RowCtx }) {
@@ -198,6 +260,8 @@ function Row({ row, c }: { row: CourseRow; c: RowCtx }) {
   const children = row.children.map((id) => c.course.byNode.get(id)!).filter(c.visible);
   const hasMore = row.children.length > 0 || row.units.length > 0;
   const note = c.thought === 'purpose' ? row.node.purpose : c.thought === 'synopsis' ? row.node.synopsis || row.node.purpose : '';
+  const reviewing = c.reviewOpen.has(row.node.id);
+  const notes = openNotes(row.node).length;
   /* Zugeklappt: die Wörter des ganzen Teils; offen: nur, was am Knoten selbst steht (der Rest steht darunter). */
   const tally = open ? row.own : row.below;
   const own = open ? row.head : null;
@@ -217,13 +281,18 @@ function Row({ row, c }: { row: CourseRow; c: RowCtx }) {
           {(open ? row.own.units : row.below.units) > 0 && ` · ${t('workUi.course.unitsCount', { count: open ? row.own.units : row.below.units })}`}
         </span>
         {row.below.problems > 0 && <span className="work-count is-must" title={t('workUi.course.problemsHere', { count: row.below.problems })}>{t('workUi.course.problemsBadge', { count: row.below.problems })}</span>}
+        <ReviewChip review={row.node.review} t={t} />
+        <button type="button" className={reviewing ? 'wk-link-btn course-review-btn is-on' : 'wk-link-btn course-review-btn'} aria-expanded={reviewing} onClick={() => c.openReview(row.node.id)}>
+          <Icon name="chat" />{notes > 0 ? t('workUi.review.notesCount', { count: notes }) : t('workUi.review.open')}
+        </button>
         {open && !c.limitIsUnits && row.units.length > 0 && row.children.length > 0 && (
           <button type="button" className="wk-link-btn course-units-btn" aria-pressed={units} onClick={() => c.toggleUnits(row.node.id)}>
             {units ? t('workUi.course.hideUnits') : t('workUi.course.showUnits', { count: row.units.length })}
           </button>
         )}
       </div>
-      {note !== '' && <p className="course-thought">{note}</p>}
+      {c.thought === 'all' ? <Essentials row={row} t={t} /> : note !== '' && <p className="course-thought">{note}</p>}
+      {reviewing && <ReviewPanel ctx={ctx} node={row.node} paras={row.units.length} {...(c.reviewOpen.get(row.node.id) === undefined ? {} : { para: c.reviewOpen.get(row.node.id) })} />}
       {own === null
         ? <Words c={c} introduces={tally.introduces} uses={tally.uses} />
         : own.length > 0 && <Chips c={c} mentions={own} />}
@@ -244,7 +313,10 @@ function Unit({ row, unit, c }: { row: CourseRow; unit: CourseUnit; c: RowCtx })
   return (
     <li className={`course-unit is-${unit.kind}${early ? ' has-problems' : ''}`} id={anchorId({ node: row.node.id, para: unit.index })}>
       <span className="course-para" title={t('workUi.course.paraTitle', { n: unit.index + 1, words: unit.words })}>{unit.kind === 'point' ? t('workUi.course.point', { n: unit.index + 1 }) : t('workUi.course.para', { n: unit.index + 1 })}</span>
-      <span className="course-excerpt">{unit.excerpt === '' ? t('workUi.course.noText') : unit.excerpt}</span>
+      <span className="course-excerpt">{unit.excerpt === '' ? t('workUi.course.noText') : unit.excerpt}
+        <button type="button" className="wk-link-btn course-para-note" title={t('workUi.review.noteOnPara', { n: unit.index + 1 })} aria-label={t('workUi.review.noteOnPara', { n: unit.index + 1 })} onClick={() => c.openReview(row.node.id, unit.index)}><Icon name="chat" /></button>
+      </span>
+      <ParaNotes node={row.node} para={unit.index} t={t} />
       {unit.mentions.length > 0 && <Chips c={c} mentions={unit.mentions} />}
     </li>
   );
@@ -359,4 +431,18 @@ function Vocabulary({ t, course, follow, onFollow }: { t: T; course: Course; fol
 
 function problemLine(t: T, p: Course['problems'][number], i: number, total: number): string {
   return t('workUi.course.problemNow', { n: i + 1, total, word: p.label, here: where(t, p), at: where(t, p.introAt) });
+}
+
+/** 2026-11-16 — das Wichtigste über einen Teil auf einen Blick: Kernsatz, Zweck, was er bringt. */
+function Essentials({ row, t }: { row: CourseRow; t: T }) {
+  const n = row.node;
+  const lines = [
+    ['synopsis', n.synopsis], ['purpose', n.purpose], ['brings', n.brings]
+  ].filter(([, v]) => v !== '');
+  if (lines.length === 0) return null;
+  return (
+    <dl className="course-essentials">
+      {lines.map(([k, v]) => <div key={k}><dt>{t(`workUi.course.essential.${k}`)}</dt><dd>{v}</dd></div>)}
+    </dl>
+  );
 }

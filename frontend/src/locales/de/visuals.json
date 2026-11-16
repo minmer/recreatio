@@ -1,0 +1,81 @@
+{
+  "data": "Daten",
+  "sourceWord": "Quelle:",
+  "cannotDraw": "Diese Grafik lässt sich noch nicht zeichnen — was sie sagt:",
+  "warnings": {
+    "one": "{count} Hinweis zu dieser Grafik",
+    "other": "{count} Hinweise zu dieser Grafik"
+  },
+  "chartName": {
+    "bar": "Säulendiagramm",
+    "hbar": "Balkendiagramm",
+    "line": "Liniendiagramm",
+    "stacked": "Gestapelte Säulen",
+    "share": "Anteile an einem Ganzen",
+    "scatter": "Streudiagramm"
+  },
+  "plain": {
+    "chart": "Diagramm",
+    "plot": "Funktionsgraph",
+    "diagram": "Schema",
+    "tree": "Baum",
+    "timeline": "Zeitleiste"
+  },
+  "warn": {
+    "chartType": "Unbekannte Diagrammart „{type}“ — als Säulen gezeichnet (bar, hbar, line, stacked, share, scatter).",
+    "noData": "Keine Daten: eine Kopfzeile (erste Spalte die Beschriftungen, dann eine Spalte je Reihe) und mindestens eine Zeile mit Werten.",
+    "noSeries": "Die Kopfzeile braucht nach der ersten Spalte mindestens eine Reihe.",
+    "tooManySeries": "Nur die ersten {count} Reihen werden gezeichnet — mehr lassen sich an der Farbe nicht unterscheiden (in zwei Diagramme teilen).",
+    "tooManyRows": "Nur die ersten {count} Zeilen werden gezeichnet.",
+    "notNumber": "Zeile {row}: „{text}“ ist keine Zahl (leer gelassen).",
+    "scatterX": "Ein Streudiagramm braucht in jeder Zeile eine Zahl in der ersten Spalte.",
+    "negativeParts": "Gestapelte Teile und Anteile können nicht negativ sein — negative Werte bleiben weg.",
+    "badRange": "Bereich „{text}“ nicht verstanden (Beispiel: -3..3).",
+    "badPoint": "Punkt „{text}“ nicht verstanden (Beispiel: point: 2, 1 Beschriftung).",
+    "tooManyFunctions": "Nur die ersten {count} Funktionen werden gezeichnet.",
+    "badLine": "Zeile nicht verstanden: „{text}“.",
+    "noFunction": "Nichts zu zeichnen: eine Funktion (y = x^2) oder einen Punkt (point: 1, 2) schreiben.",
+    "tooManyNodes": "Nur die ersten {count} Kästen werden gezeichnet.",
+    "noNodes": "Nichts zu zeichnen: Verbindungen (A -> B) oder einen Kasten je Zeile schreiben.",
+    "direction": "Richtung „{text}“ nicht verstanden (down oder right) — nach unten gezeichnet.",
+    "tooManyItems": "Nur die ersten {count} Daten werden gezeigt.",
+    "noItems": "Nichts zu zeigen: ein Datum je Zeile (1815: was geschah).",
+    "unknownKind": "Unbekannte Grafik „{kind}“.",
+    "badExpr": "{f}: {error}"
+  },
+  "template": {
+    "chartTitle": "Titel des Diagramms",
+    "year": "Jahr",
+    "seriesA": "Reihe A",
+    "seriesB": "Reihe B",
+    "plotTitle": "Zwei Funktionen",
+    "point": "ein markierter Punkt",
+    "diagramTitle": "Wie es zusammenhängt",
+    "cause": "Ursache",
+    "effect": "Wirkung",
+    "leadsTo": "führt zu",
+    "result": "Ergebnis",
+    "treeTitle": "Gliederung",
+    "root": "Ganzes",
+    "branch": "Teil",
+    "leaf": "Einzelheit",
+    "timelineTitle": "Die wichtigsten Daten",
+    "eventA": "erstes Ereignis",
+    "eventB": "zweites Ereignis",
+    "eventC": "ein längerer Zeitraum",
+    "colA": "Begriff",
+    "colB": "Bedeutung",
+    "cellA": "Wort",
+    "cellB": "was es bedeutet"
+  },
+  "insert": {
+    "button": "Grafik einfügen",
+    "chart": "Diagramm aus einer Tabelle",
+    "plot": "Funktionsgraph",
+    "diagram": "Schema (Kästen und Pfeile)",
+    "tree": "Baum (eingerückte Zeilen)",
+    "timeline": "Zeitleiste",
+    "table": "Tabelle",
+    "help": "Eine Grafik ist ein Block zwischen ```-Zeilen: ```chart, ```plot, ```diagram, ```tree, ```timeline. Die Vorschau darunter zeigt sie so, wie Lernende sie sehen."
+  }
+}

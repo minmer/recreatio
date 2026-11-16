@@ -26,6 +26,20 @@ import type { SaveInput } from '../../library/libraryStore';
 
 /* -- Das Modell ------------------------------------------------------------------------------------ */
 
+/** 2026-11-16 — der Blick des Autors: leer = noch nicht durchgesehen. */
+export type ReviewState = '' | 'accepted' | 'revise' | 'remove';
+
+/** Eine Notiz im Gespräch über einen Knoten: vom Autor an die KI oder die Antwort der KI; `para`: zu diesem Akapit. */
+export interface ThreadNote {
+  readonly id: string;
+  readonly by: 'author' | 'ai';
+  readonly text: string;
+  readonly at: string;
+  readonly reply?: string;
+  readonly para?: number;
+  readonly done: boolean;
+}
+
 export interface NodeMark {
   readonly entry: string;
   readonly role: MarkRole;
@@ -57,6 +71,8 @@ export interface WorkNode {
   readonly template: string | null;
   readonly templateSig: string;
   readonly marks: readonly NodeMark[];
+  readonly review: ReviewState;
+  readonly thread: readonly ThreadNote[];
   readonly depth: number;
   readonly children: readonly WorkNode[];
   /** Aus der alten Gliederung gedacht, noch nicht gespeichert. */
@@ -105,6 +121,31 @@ function readMarks(data: EntryData): NodeMark[] {
   }
   return out;
 }
+
+export function readReview(data: EntryData): ReviewState {
+  const v = str(data, 'review');
+  return v === 'accepted' || v === 'revise' || v === 'remove' ? v : '';
+}
+
+export function readThread(data: EntryData): ThreadNote[] {
+  const out: ThreadNote[] = [];
+  for (const item of itemsOf(data, 'thread')) {
+    const id = str(item, 'id').trim();
+    const text = str(item, 'text').trim();
+    if (id === '' || text === '' || out.some((n) => n.id === id)) continue;
+    const para = num(item, 'para');
+    out.push({
+      id, by: str(item, 'by') === 'ai' ? 'ai' : 'author', text, at: str(item, 'at'),
+      ...(str(item, 'reply').trim() === '' ? {} : { reply: str(item, 'reply').trim() }),
+      ...(para === null ? {} : { para: Math.max(0, Math.round(para) - 1) }),
+      done: str(item, 'done') === 'yes'
+    });
+  }
+  return out;
+}
+
+/** Offene Notizen: noch nicht erledigt. */
+export const openNotes = (node: WorkNode): ThreadNote[] => node.thread.filter((n) => !n.done);
 
 export function readDimensions(data: EntryData): Dimension[] {
   const out: Dimension[] = [];
@@ -193,6 +234,8 @@ export function readNode(entry: LibEntry, depth = 0, children: readonly WorkNode
     template: ids(d, 'template')[0] ?? null,
     templateSig: str(d, 'templateSig'),
     marks: readMarks(d),
+    review: readReview(d),
+    thread: readThread(d),
     depth,
     children,
     virtual: false

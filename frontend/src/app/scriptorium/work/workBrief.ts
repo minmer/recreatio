@@ -16,7 +16,7 @@ import { EMPTY_KNOWLEDGE, type WorkKnowledge } from './workKnowledge';
 import { occurrencesOf, type MarkLook } from './workMarks';
 import { rulesAt, rulesOf } from './workRules';
 import { templateSig } from './workTemplates';
-import { allNodes, levelOf, readWork, roleOf, wordsOf, type WorkModel } from './workModel';
+import { allNodes, levelOf, openNotes, readWork, roleOf, wordsOf, type WorkModel } from './workModel';
 
 export const WORK_BRIEF_VERSION = 1;
 
@@ -49,6 +49,8 @@ export interface WorkBrief {
   readonly roles: readonly { readonly value: string; readonly label: string; readonly brings: string }[];
   readonly bases: readonly string[];
   readonly fromOutline: boolean;
+  /** 2026-11-16 — wie weit der Autor die Struktur durchgesehen hat. */
+  readonly review: { readonly nodes: number; readonly accepted: number; readonly revise: number; readonly remove: number; readonly unreviewed: number; readonly openNotes: number };
   readonly rules: readonly Record<string, unknown>[];
   readonly templates: readonly Record<string, unknown>[];
   readonly nodes: readonly Record<string, unknown>[];
@@ -94,6 +96,9 @@ export function workBrief(project: LibEntry, look: MarkLook, knowledge: WorkKnow
     put(out, 'skip', n.skip);
     put(out, 'template', n.template);
     put(out, 'notes', n.notes);
+    /* 2026-11-16 — was der Autor zu diesem Knoten sagt: angenommen / überarbeiten / streichen, und das Gespräch. */
+    put(out, 'review', n.review);
+    put(out, 'thread', n.thread.map((x) => ({ ...x, ...(x.para === undefined ? {} : { para: x.para + 1 }) })));
     put(out, 'marks', occurrences.filter((o) => o.node === n.id && o.where !== 'implicit').map((o) => ({ entity: o.entity, role: o.role, where: o.where, ...(o.point === undefined ? {} : { point: o.point }), ...(o.para === undefined ? {} : { para: o.para }) })));
     put(out, 'usesUnmarked', [...new Set(occurrences.filter((o) => o.node === n.id && o.where === 'implicit').map((o) => o.entity))]);
     return out;
@@ -162,6 +167,7 @@ export function workBrief(project: LibEntry, look: MarkLook, knowledge: WorkKnow
     roles: model.roles.map((r) => ({ value: r.value, label: r.label, brings: r.brings })),
     bases: model.bases,
     fromOutline: model.fromOutline,
+    review: reviewSummary(model),
     rules: rules.map((r) => {
       const out: Record<string, unknown> = { id: r.id, scope: r.project === null ? 'rulebook' : 'project', rule: r.rule, weight: r.weight };
       for (const k of ['key', 'why', 'node', 'role', 'template', 'dimension', 'value', 'entity', 'good', 'bad', 'check', 'param'] as const) put(out, k, r[k]);
@@ -185,4 +191,17 @@ export function workBriefs(projects: readonly LibEntry[], look: MarkLook, knowle
     const named = [...new Set(occurrencesOf(model, look).map((o) => o.entity))];
     return workBrief(p, look, knowledgeFor(model.bases, named));
   }).filter((b): b is WorkBrief => b !== null);
+}
+
+/** 2026-11-16 — die Durchsicht in Zahlen. */
+export function reviewSummary(model: WorkModel): WorkBrief['review'] {
+  const all = allNodes(model);
+  return {
+    nodes: all.length,
+    accepted: all.filter((n) => n.review === 'accepted').length,
+    revise: all.filter((n) => n.review === 'revise').length,
+    remove: all.filter((n) => n.review === 'remove').length,
+    unreviewed: all.filter((n) => n.review === '').length,
+    openNotes: all.reduce((k, n) => k + openNotes(n).length, 0)
+  };
 }

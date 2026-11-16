@@ -18,6 +18,7 @@ import { later } from '../ui/later';
 import { Glue, glue, Tex } from '../ui/tex/Tex';
 import { texPieces } from '../core/tex';
 import { TextJump } from './SourceJump';
+import { FenceBlock } from './VisualBlock';
 import { useT } from '../core/i18n';
 import { viewPath } from '../routes';
 
@@ -418,6 +419,20 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
               <Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} path={path} />
             </details>
           );
+          /* 2026-11-16 — eine Tabelle im Zapis; ihre Zellen sind Zapis (Wzory, Verweise, Fussnoten). */
+          case 'table': {
+            const cls = (j: number) => { const a = b.align[j]; return a === 'center' ? 'is-center' : a === 'right' ? 'is-right' : undefined; };
+            return (
+              <div key={i} className="lib-table-wrap" data-markup-table="">
+                <table className="lib-table">
+                  {b.head !== null && <thead><tr>{b.head.map((c, j) => <th key={j} className={cls(j)}><Inlines list={c} notes={notes} prefix={prefix} look={look} /></th>)}</tr></thead>}
+                  <tbody>{b.rows.map((row, r) => <tr key={r}>{row.map((c, j) => <td key={j} className={cls(j)}><Inlines list={c} notes={notes} prefix={prefix} look={look} /></td>)}</tr>)}</tbody>
+                </table>
+              </div>
+            );
+          }
+          /* 2026-11-16 — ein Zaun: eine Grafik (`visual.ts`) oder Code. Beschriftungen sind Zapis — ohne Fussnoten (die zählt der Text). */
+          case 'fence': return <FenceBlock key={i} lang={b.lang} info={b.info} body={b.body} label={(text) => <Inlines list={parseInline(text)} notes={null} prefix={prefix} look={look} />} />;
           case 'embed': {
             const quote = refTarget(look, b.key);
             if (quote === undefined) return <p key={i} className="lib-missing">{unreadable()}</p>;

@@ -998,6 +998,14 @@
       "marks": {
         "label": "Concepts here",
         "says": "What occurs here and how, each { \"entry\": entry of the knowledge, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      },
+      "review": {
+        "label": "Review",
+        "says": "The author's verdict: {list}; empty: not reviewed yet. An AI keeps accepted nodes, revises nodes to revise by their notes and does not write nodes to remove"
+      },
+      "thread": {
+        "label": "Notes",
+        "says": "The conversation about this node between the author and the AI, each { \"id\", \"by\": \"author\" | \"ai\", \"text\", \"at\", \"reply\", \"para\", \"done\": \"yes\" }; an import ADDS notes (the same id replaces one) — an AI sends only its own answers with \"by\": \"ai\""
       }
     }
   },
@@ -1093,6 +1101,45 @@
         "label": "Parts",
         "says": "The parts in order, each { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
       }
+    }
+  },
+  "reviewStates": {
+    "accepted": "accepted",
+    "revise": "to revise",
+    "remove": "to remove"
+  },
+  "noteAuthors": {
+    "author": "author",
+    "ai": "AI"
+  },
+  "noteItem": {
+    "id": {
+      "label": "Key",
+      "says": "Stable key of the note (replies name it in \"reply\")"
+    },
+    "by": {
+      "label": "By",
+      "says": "\"author\" (the writer) or \"ai\" (the assistant's answer)"
+    },
+    "text": {
+      "label": "Text",
+      "says": "The note"
+    },
+    "at": {
+      "label": "When",
+      "says": "When it was written (ISO date and time)"
+    },
+    "reply": {
+      "label": "Reply to",
+      "says": "Key of the note this one answers"
+    },
+    "para": {
+      "label": "Paragraph",
+      "says": "The paragraph of the node's text it is about (1, 2, 3 …; empty: the whole node)"
+    },
+    "done": {
+      "label": "Settled",
+      "says": "\"yes\" when it is settled"
     }
   }
 }

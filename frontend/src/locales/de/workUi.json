@@ -384,6 +384,76 @@
     "inOrder": {
       "one": "Eingeführt ({count})",
       "other": "Eingeführt ({count})"
+    },
+    "thoughtAll": "Kernsatz, Zweck und was er bringt",
+    "essential": {
+      "synopsis": "Kernsatz",
+      "purpose": "Zweck",
+      "brings": "Bringt"
     }
+  },
+  "review": {
+    "none": "nicht durchgesehen",
+    "open": "Durchsehen",
+    "notesCount": {
+      "one": "{count} Notiz",
+      "other": "{count} Notizen"
+    },
+    "stateLabel": "Dein Urteil über diesen Teil",
+    "hint": {
+      "none": "Lies ihn und entscheide: annehmen, überarbeiten lassen oder streichen. Notizen gehen an die KI.",
+      "accepted": "Angenommen — die KI lässt ihn, wie er ist.",
+      "revise": "Zu überarbeiten — die KI folgt deinen Notizen.",
+      "remove": "Zu streichen — die KI schreibt ihn nicht."
+    },
+    "saveFailed": "Die Durchsicht konnte nicht gespeichert werden.",
+    "removeAsk": "Diese Notiz (und die Antworten darauf) löschen?",
+    "wholeNode": "der ganze Teil",
+    "para": "¶ {n}",
+    "byAi": "KI",
+    "byAuthor": "Du",
+    "done": "erledigt",
+    "reply": "Antworten",
+    "markDone": "Erledigt",
+    "reopen": "Wieder öffnen",
+    "hideDone": "Erledigte Notizen verbergen",
+    "showDone": {
+      "one": "{count} erledigte Notiz zeigen",
+      "other": "{count} erledigte Notizen zeigen"
+    },
+    "replying": "Antwort auf eine Notiz.",
+    "newNote": "Notiz für die KI",
+    "yourReply": "Deine Antwort",
+    "placeholder": "Was sich ändern soll, was fehlt, was bleiben soll … (Strg+Enter sendet)",
+    "about": "Betrifft",
+    "add": "Notiz hinzufügen",
+    "sendReply": "Antworten",
+    "noteOnPara": "Notiz zu Absatz {n}",
+    "progress": "{done} von {total} durchgesehen",
+    "progressLabel": "Wie viel der Struktur durchgesehen ist",
+    "countAccepted": {
+      "one": "{count} angenommen",
+      "other": "{count} angenommen"
+    },
+    "countRevise": {
+      "one": "{count} zu überarbeiten",
+      "other": "{count} zu überarbeiten"
+    },
+    "countRemove": {
+      "one": "{count} zu streichen",
+      "other": "{count} zu streichen"
+    },
+    "countNotes": {
+      "one": "{count} offene Notiz",
+      "other": "{count} offene Notizen"
+    },
+    "next": "Nächstes zum Durchsehen",
+    "filter": "Durchsicht",
+    "filterAll": "alles",
+    "filterNone": "noch nicht durchgesehen",
+    "filterRevise": "zu überarbeiten",
+    "filterRemove": "zu streichen",
+    "filterAccepted": "angenommen",
+    "filterNotes": "mit offenen Notizen"
   }
 }

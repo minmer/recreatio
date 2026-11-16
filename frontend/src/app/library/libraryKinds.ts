@@ -811,6 +811,29 @@ const MARK_ITEM: readonly LibField[] = [
   { key: 'note', label: 'libraryKinds.markItem.note.label', type: 'line', says: 'libraryKinds.markItem.note.says' }
 ];
 
+/** 2026-11-16 — DER BLICK DES AUTORS auf einen Knoten (meist aus einer KI): angenommen, zu überarbeiten, zu streichen. */
+export const REVIEW_STATES = [
+  { value: 'accepted', label: 'libraryKinds.reviewStates.accepted' },
+  { value: 'revise', label: 'libraryKinds.reviewStates.revise' },
+  { value: 'remove', label: 'libraryKinds.reviewStates.remove' }
+] as const;
+
+export const NOTE_AUTHORS = [
+  { value: 'author', label: 'libraryKinds.noteAuthors.author' },
+  { value: 'ai', label: 'libraryKinds.noteAuthors.ai' }
+] as const;
+
+/** Eine Notiz im Gespräch über einen Knoten — des Autors an die KI oder die Antwort der KI. */
+const NOTE_ITEM: readonly LibField[] = [
+  { key: 'id', label: 'libraryKinds.noteItem.id.label', type: 'line', says: 'libraryKinds.noteItem.id.says' },
+  { key: 'by', label: 'libraryKinds.noteItem.by.label', type: 'select', options: NOTE_AUTHORS, says: 'libraryKinds.noteItem.by.says' },
+  { key: 'text', label: 'libraryKinds.noteItem.text.label', type: 'text', says: 'libraryKinds.noteItem.text.says' },
+  { key: 'at', label: 'libraryKinds.noteItem.at.label', type: 'line', says: 'libraryKinds.noteItem.at.says' },
+  { key: 'reply', label: 'libraryKinds.noteItem.reply.label', type: 'line', says: 'libraryKinds.noteItem.reply.says' },
+  { key: 'para', label: 'libraryKinds.noteItem.para.label', type: 'number', says: 'libraryKinds.noteItem.para.says' },
+  { key: 'done', label: 'libraryKinds.noteItem.done.label', type: 'select', options: YES_NO, says: 'libraryKinds.noteItem.done.says' }
+];
+
 const SKIP_ITEM: readonly LibField[] = [
   { key: 'value', label: 'libraryKinds.skipItem.value.label', type: 'line', says: 'libraryKinds.skipItem.value.says' },
   { key: 'note', label: 'libraryKinds.skipItem.note.label', type: 'line', says: 'libraryKinds.skipItem.note.says' }
@@ -855,7 +878,10 @@ const NODE: LibKind = {
     { key: 'skip', label: 'libraryKinds.node.fields.skip.label', type: 'items', item: SKIP_ITEM, says: 'libraryKinds.node.fields.skip.says' },
     { key: 'template', label: 'libraryKinds.node.fields.template.label', type: 'ref', to: ['unittemplate'], says: 'libraryKinds.node.fields.template.says' },
     { key: 'templateSig', label: 'libraryKinds.node.fields.templateSig.label', type: 'line', says: 'libraryKinds.node.fields.templateSig.says' },
-    { key: 'marks', label: 'libraryKinds.node.fields.marks.label', type: 'items', item: MARK_ITEM, says: 'libraryKinds.node.fields.marks.says' }
+    { key: 'marks', label: 'libraryKinds.node.fields.marks.label', type: 'items', item: MARK_ITEM, says: 'libraryKinds.node.fields.marks.says' },
+    /* 2026-11-16 — der Blick des Autors und das Gespräch mit der KI über diesen Knoten (die KI liest beides über MCP). */
+    { key: 'review', label: 'libraryKinds.node.fields.review.label', type: 'select', options: REVIEW_STATES, get says() { return t('libraryKinds.node.fields.review.says', { list: REVIEW_STATES.map((r) => `"${r.value}" (${r.label})`).join(', ') }); } },
+    { key: 'thread', label: 'libraryKinds.node.fields.thread.label', type: 'items', item: NOTE_ITEM, says: 'libraryKinds.node.fields.thread.says' }
   ],
   title: (data) => str(data, 'title').trim() || t('libraryKinds.untitled'),
   sort: (entry) => `${String(Math.round((num(entry.data, 'order') ?? 0) * 1000)).padStart(12, '0')} ${str(entry.data, 'title').toLowerCase().slice(0, 40)}`,
@@ -1045,7 +1071,7 @@ function localize(node: unknown, seen = new Set<object>()): void {
   }
 }
 localize([PERSON, WORK, QUOTE, TEXT, DELIVERY, PROJECT, TEXT_TYPE, NODE, RULE, UNIT_TEMPLATE, WORK_TYPES, TRACK_ROLES, BINDINGS, TEXT_STATUS, POINT_KINDS, COVERAGE_STATES, LESSON_STATES, PROJECT_TYPES, PROJECT_STATUS,
-  WORK_LANGS, LATEX_LEVELS, LATEX_CLASSES, CITATION_STYLES, NODE_ROLES, ROLE_BRINGS, NODE_STATUS, MARK_ROLES, RULE_WEIGHTS, RULE_CHECKS, YES_NO]);
+  WORK_LANGS, LATEX_LEVELS, LATEX_CLASSES, CITATION_STYLES, NODE_ROLES, ROLE_BRINGS, NODE_STATUS, MARK_ROLES, RULE_WEIGHTS, RULE_CHECKS, YES_NO, REVIEW_STATES, NOTE_AUTHORS]);
 
 /** Die Bibliothek (2026-10-23): nur Quellen — in dieser Reihenfolge stehen ihre Reiter. */
 export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];

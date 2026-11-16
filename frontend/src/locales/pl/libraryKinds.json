@@ -998,6 +998,14 @@
       "marks": {
         "label": "Pojęcia tutaj",
         "says": "Co tu występuje i jak, każde { \"entry\": wpis wiedzy, \"role\": \"intro\" | \"def\" | \"ex\" | \"use\" | \"recall\", \"note\" }"
+      },
+      "review": {
+        "label": "Przegląd",
+        "says": "Ocena autora: {list}; puste: jeszcze nieprzejrzane. AI zostawia zaakceptowane węzły, poprawia węzły do poprawy według notatek i nie pisze węzłów do usunięcia"
+      },
+      "thread": {
+        "label": "Notatki",
+        "says": "Rozmowa o tym węźle między autorem a AI, każda { \"id\", \"by\": \"author\" | \"ai\", \"text\", \"at\", \"reply\", \"para\", \"done\": \"yes\" }; import DOKŁADA notatki (ten sam id zastępuje jedną) — AI wysyła tylko swoje odpowiedzi z \"by\": \"ai\""
       }
     }
   },
@@ -1093,6 +1101,45 @@
         "label": "Części",
         "says": "Części po kolei, każda { \"id\", \"title\", \"kind\", \"words\", \"minutes\", \"note\" }"
       }
+    }
+  },
+  "reviewStates": {
+    "accepted": "zaakceptowane",
+    "revise": "do poprawy",
+    "remove": "do usunięcia"
+  },
+  "noteAuthors": {
+    "author": "autor",
+    "ai": "AI"
+  },
+  "noteItem": {
+    "id": {
+      "label": "Klucz",
+      "says": "Stały klucz notatki (odpowiedzi podają go w \"reply\")"
+    },
+    "by": {
+      "label": "Od",
+      "says": "\"author\" (autor) albo \"ai\" (odpowiedź asystenta)"
+    },
+    "text": {
+      "label": "Treść",
+      "says": "Notatka"
+    },
+    "at": {
+      "label": "Kiedy",
+      "says": "Kiedy została napisana (data i godzina ISO)"
+    },
+    "reply": {
+      "label": "Odpowiedź na",
+      "says": "Klucz notatki, na którą ta odpowiada"
+    },
+    "para": {
+      "label": "Akapit",
+      "says": "Akapit tekstu węzła, którego dotyczy (1, 2, 3 …; puste: cały węzeł)"
+    },
+    "done": {
+      "label": "Załatwione",
+      "says": "\"yes\", gdy jest załatwiona"
     }
   }
 }

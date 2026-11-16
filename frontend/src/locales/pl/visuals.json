@@ -1,0 +1,83 @@
+{
+  "data": "Dane",
+  "sourceWord": "Źródło:",
+  "cannotDraw": "Tej grafiki nie da się jeszcze narysować — co w niej jest:",
+  "warnings": {
+    "one": "{count} uwaga do tej grafiki",
+    "few": "{count} uwagi do tej grafiki",
+    "many": "{count} uwag do tej grafiki",
+    "other": "{count} uwagi do tej grafiki"
+  },
+  "chartName": {
+    "bar": "Wykres kolumnowy",
+    "hbar": "Wykres słupkowy",
+    "line": "Wykres liniowy",
+    "stacked": "Kolumny skumulowane",
+    "share": "Udziały w całości",
+    "scatter": "Wykres punktowy"
+  },
+  "plain": {
+    "chart": "Wykres",
+    "plot": "Wykres funkcji",
+    "diagram": "Schemat",
+    "tree": "Drzewo",
+    "timeline": "Oś czasu"
+  },
+  "warn": {
+    "chartType": "Nieznany rodzaj wykresu „{type}” — narysowany jako kolumny (bar, hbar, line, stacked, share, scatter).",
+    "noData": "Brak danych: wiersz nagłówka (pierwsza kolumna to etykiety, potem po kolumnie na serię) i co najmniej jeden wiersz wartości.",
+    "noSeries": "Wiersz nagłówka potrzebuje po pierwszej kolumnie co najmniej jednej serii.",
+    "tooManySeries": "Rysuję tylko pierwsze {count} serii — więcej nie da się odróżnić kolorem (podziel na dwa wykresy).",
+    "tooManyRows": "Rysuję tylko pierwsze {count} wierszy.",
+    "notNumber": "Wiersz {row}: „{text}” to nie liczba (zostaje puste).",
+    "scatterX": "Wykres punktowy potrzebuje liczby w pierwszej kolumnie każdego wiersza.",
+    "negativeParts": "Części skumulowane i udziały nie mogą być ujemne — wartości ujemne są pominięte.",
+    "badRange": "Nie rozumiem zakresu „{text}” (przykład: -3..3).",
+    "badPoint": "Nie rozumiem punktu „{text}” (przykład: point: 2, 1 opis).",
+    "tooManyFunctions": "Rysuję tylko pierwsze {count} funkcji.",
+    "badLine": "Nie rozumiem wiersza: „{text}”.",
+    "noFunction": "Nic do narysowania: wpisz funkcję (y = x^2) albo punkt (point: 1, 2).",
+    "tooManyNodes": "Rysuję tylko pierwsze {count} pól.",
+    "noNodes": "Nic do narysowania: wpisz połączenia (A -> B) albo jedno pole w wierszu.",
+    "direction": "Nie rozumiem kierunku „{text}” (down albo right) — rysuję w dół.",
+    "tooManyItems": "Pokazuję tylko pierwsze {count} dat.",
+    "noItems": "Nic do pokazania: jedna data w wierszu (1815: co się stało).",
+    "unknownKind": "Nieznana grafika „{kind}”.",
+    "badExpr": "{f}: {error}"
+  },
+  "template": {
+    "chartTitle": "Tytuł wykresu",
+    "year": "Rok",
+    "seriesA": "Seria A",
+    "seriesB": "Seria B",
+    "plotTitle": "Dwie funkcje",
+    "point": "zaznaczony punkt",
+    "diagramTitle": "Jak to się łączy",
+    "cause": "Przyczyna",
+    "effect": "Skutek",
+    "leadsTo": "prowadzi do",
+    "result": "Wynik",
+    "treeTitle": "Podział",
+    "root": "Całość",
+    "branch": "Część",
+    "leaf": "Szczegół",
+    "timelineTitle": "Najważniejsze daty",
+    "eventA": "pierwsze wydarzenie",
+    "eventB": "drugie wydarzenie",
+    "eventC": "dłuższy okres",
+    "colA": "Pojęcie",
+    "colB": "Znaczenie",
+    "cellA": "słowo",
+    "cellB": "co znaczy"
+  },
+  "insert": {
+    "button": "Wstaw grafikę",
+    "chart": "Wykres z tabeli",
+    "plot": "Wykres funkcji",
+    "diagram": "Schemat (pola i strzałki)",
+    "tree": "Drzewo (wcięte wiersze)",
+    "timeline": "Oś czasu",
+    "table": "Tabela",
+    "help": "Grafika to blok między wierszami ```: ```chart, ```plot, ```diagram, ```tree, ```timeline. Podgląd poniżej pokazuje ją tak, jak zobaczą ją uczący się."
+  }
+}

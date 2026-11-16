@@ -14,13 +14,15 @@ internal static class WorkMcpChecks
               "works": [ {
                 "v": 1, "project": "p-1", "key": "ksiazka", "title": "Rzeka", "projectType": "book", "description": "", "lang": "pl",
                 "levels": [], "dimensions": [ { "key": "audience", "name": "Odbiorcy", "ordered": false, "values": [ { "key": "adults", "name": "Dorośli" }, { "key": "youth", "name": "Młodzież" } ] } ],
-                "roles": [], "bases": [], "fromOutline": false,
+                "roles": [], "bases": [], "fromOutline": false, "review": { "nodes": 5, "accepted": 1, "revise": 1, "remove": 0, "unreviewed": 3, "openNotes": 2 },
                 "rules": [ { "id": "r-all", "scope": "rulebook", "rule": "Piszemy w czasie przeszłym.", "why": "Opowieść.", "weight": "must" },
                            { "id": "r-youth", "scope": "project", "rule": "Krótkie zdania.", "why": "Młodzież.", "weight": "should", "dimension": "audience", "value": "youth" } ],
                 "templates": [],
                 "nodes": [
-                  { "id": "n1", "order": 1, "depth": 0, "title": "Dzieciństwo", "synopsis": "Anna nad rzeką.", "role": "new", "words": 0, "marks": [ { "entity": "e-anna", "role": "intro", "where": "node" }, { "entity": "e-term", "role": "intro", "where": "node" } ] },
-                  { "id": "n2", "order": 2, "depth": 0, "title": "Przymierze", "split": "audience", "role": "new", "words": 0, "marks": [ { "entity": "e-term", "role": "def", "where": "node" } ] },
+                  { "id": "n1", "order": 1, "depth": 0, "title": "Dzieciństwo", "review": "accepted", "synopsis": "Anna nad rzeką.", "role": "new", "words": 0, "marks": [ { "entity": "e-anna", "role": "intro", "where": "node" }, { "entity": "e-term", "role": "intro", "where": "node" } ] },
+                  { "id": "n2", "order": 2, "depth": 0, "title": "Przymierze", "split": "audience", "role": "new", "words": 0, "review": "revise",
+                    "thread": [ { "id": "a1", "by": "author", "text": "Za mało o Noem.", "at": "2026-11-16T10:00:00Z", "para": 2, "done": false },
+                                { "id": "b1", "by": "ai", "text": "Dopiszę akapit o Noem.", "at": "2026-11-16T11:00:00Z", "reply": "a1", "done": false } ], "marks": [ { "entity": "e-term", "role": "def", "where": "node" } ] },
                   { "id": "n2a", "parent": "n2", "order": 1, "depth": 1, "title": "Dla dorosłych", "variant": "adults", "words": 0, "marks": [] },
                   { "id": "n2y", "parent": "n2", "order": 2, "depth": 1, "title": "Dla młodzieży", "variant": "youth", "synopsis": "Prościej.", "words": 0, "marks": [ { "entity": "e-term", "role": "use", "where": "node" } ] },
                   { "id": "n3", "order": 3, "depth": 0, "title": "Dorosłość", "words": 0, "marks": [] }
@@ -67,6 +69,16 @@ internal static class WorkMcpChecks
         check(checks.Paths.Count == 1 && checks.Paths[0].Should == 1 && checks.Paths[0].Info == 1
             && atNode.Paths[0].Findings.Count == 1 && atNode.Paths[0].Findings[0]?["id"]?.GetValue<string>() == "f2",
             "work MCP: the findings exactly as stored, counted and filtered by node");
+        /* 2026-11-16 — die Durchsicht des Autors: Urteile und Notizen in Lesereihenfolge, gefiltert. */
+        var review = AiMcpTools.ReviewOf(work, null, "youth");
+        check(review.Nodes.Select(n => n.Id).SequenceEqual(["n1", "n2", "n2y", "n3", "n2a"]) && review.Nodes[1].Review == "revise" && review.Nodes[1].OpenNotes == 2
+            && review.Nodes[1].Notes.Count == 2 && review.Summary["revise"]?.GetValue<int>() == 1,
+            "work MCP: the review in reading order (other versions after), with verdicts and the conversation");
+        check(AiMcpTools.ReviewOf(work, "notes", null).Nodes.Select(n => n.Id).SequenceEqual(["n2"]) && AiMcpTools.ReviewOf(work, "none", null).Total == 3,
+            "work MCP: the review filtered by open notes and by not reviewed");
+        check(ctx.Chain[0]?["review"]?.GetValue<string>() == "revise" && AiMcpTools.ContextOf(work, "n2", "youth", null).Node["thread"] is System.Text.Json.Nodes.JsonArray { Count: 2 },
+            "work MCP: the context shows the verdict of the chapter above and the node's notes");
+        check(AiMcp.Instructions.Contains("get_work_review"), "work MCP: the instructions name the review");
         check(AiMcp.Instructions.Contains("get_work_context") && AiMcp.Instructions.Contains("guide-work"), "work MCP: the instructions name the work tools and the guide");
     }
 }

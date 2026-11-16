@@ -14,6 +14,9 @@
  *   - Punkt   ·   1. Punkt
  *   ---                        Trennlinie
  *   $x^2$   $$\int_0^1 f$$     2026-11-01: ein Wzór (LaTeX) im Satz, für sich
+ *   | a | b |                  2026-11-16: eine Tabelle (Zeilen mit „|"; eine zweite Zeile „|---|" macht die erste zum Kopf)
+ *   ```chart … ```             2026-11-16: eine Grafik (chart, plot, diagram, tree, timeline — `visual.ts`); ein anderer
+ *                              Zaun (```python) ist Code
  * </code>
  *
  * Die Verweise sind die von Pandoc (`[@schlüssel, Stelle]`) — wer seinen
@@ -25,6 +28,7 @@
  */
 
 import { mathAt, texPlain } from '../core/tex';
+import { visualKindOf, visualPlain } from './visual';
 import { t } from '../core/i18n';
 
 export interface CiteItem {
@@ -53,7 +57,14 @@ export type Block =
   | { readonly t: 'embed'; readonly key: string; readonly locator: string }
   | { readonly t: 'hr' }
   /** 2026-11-05 (Prompt 23, D10) — zum Aufklappen (ein langer Beweis): `::: details Beweisidee` … `:::`. */
-  | { readonly t: 'details'; readonly summary: readonly Inline[]; readonly c: readonly Block[] };
+  | { readonly t: 'details'; readonly summary: readonly Inline[]; readonly c: readonly Block[] }
+  /**
+   * 2026-11-16 — ein umzäunter Block: `lang` nach den Backticks, `info` der Rest der Zeile, `body` unverändert. Eine Grafik
+   * (`visual.ts`: chart, plot, diagram, tree, timeline, auch ihre polnischen Namen) oder Code.
+   */
+  | { readonly t: 'fence'; readonly lang: string; readonly info: string; readonly body: string }
+  /** 2026-11-16 — eine Tabelle: Kopf (wenn die zweite Zeile „|---|" ist), Zeilen, Ausrichtung je Spalte. */
+  | { readonly t: 'table'; readonly head: readonly (readonly Inline[])[] | null; readonly rows: readonly (readonly (readonly Inline[])[])[]; readonly align: readonly ('left' | 'center' | 'right' | null)[] };
 
 const KEY = '[A-Za-z0-9][A-Za-z0-9_.:-]*';
 const EMBED = new RegExp(`^!\\[@(${KEY})(?:\\s*,\\s*([^\\]]*))?\\]\\s*$`);
@@ -212,6 +223,41 @@ export function parseInline(text: string): Inline[] {
 /* -- Blöcke ------------------------------------------------------------------------------- */
 
 const LIST_ITEM = /^(\s*)([-*•]|\d+[.)])\s+(.*)$/;
+const FENCE = /^(`{3,}|~{3,})\s*([^\s`~]*)\s*(.*)$/;
+/** `|---|:-:|--:|` — auch kurz (`:-:`); `| - |` allein ist keine Trennzeile. */
+const TABLE_RULE = { test: (line: string): boolean => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line) && /--|:-|-:/.test(line) };
+/**
+ * Die Zellen einer Zeile. Kein Trenner ist ein Strich in `[[Wort|@…]]`, in einem Wzór (`$|x|$`) und nach `\` (`\|`).
+ */
+function tableCells(line: string): string[] {
+  const s = line.trim().replace(/^\|/, '');
+  const cells: string[] = [];
+  let cell = '';
+  let link = 0;
+  let math = false;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (c === '\\' && s[i + 1] === '|') { cell += '|'; i += 1; continue; }
+    if (c === '\\' && i + 1 < s.length) { cell += c + s[i + 1]; i += 1; continue; }
+    if (c === '[' && s[i + 1] === '[') { link += 1; cell += '[['; i += 1; continue; }
+    if (c === ']' && s[i + 1] === ']' && link > 0) { link -= 1; cell += ']]'; i += 1; continue; }
+    if (c === '$') math = !math;
+    if (c === '|' && link === 0 && !math) { cells.push(cell.trim()); cell = ''; continue; }
+    cell += c;
+  }
+  if (cell.trim() !== '' || cells.length === 0) cells.push(cell.trim());
+  return cells;
+}
+
+/** 2026-11-16 — Zeilen mit „|" als Tabelle (mindestens zwei; eine zweite Zeile „|---|" macht die erste zum Kopf). */
+function tableOf(lines: readonly string[]): Block {
+  const ruled = lines.length >= 2 && TABLE_RULE.test(lines[1]);
+  const align = ruled
+    ? tableCells(lines[1]).map((c) => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : null))
+    : [];
+  const body = (ruled ? lines.slice(2) : lines).filter((l) => !TABLE_RULE.test(l));
+  return { t: 'table', head: ruled ? tableCells(lines[0]).map(parseInline) : null, rows: body.map((l) => tableCells(l).map(parseInline)), align };
+}
 
 export function parseMarkup(source: string): Block[] {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
@@ -221,6 +267,10 @@ export function parseMarkup(source: string): Block[] {
   let quote: string[] | null = null;
   /* 2026-11-05 (Prompt 23, D10) — ein Block zum Aufklappen, bis zu seinem `:::` (auch ineinander). */
   let fold: { summary: string; lines: string[]; depth: number } | null = null;
+  /* 2026-11-16 — ein Zaun (Grafik oder Code) bis zu seinem schliessenden Zaun; dazwischen wird nichts gelesen. */
+  let fence: { mark: string; lang: string; info: string; lines: string[] } | null = null;
+  /* 2026-11-16 — die Zeilen einer Tabelle. */
+  let table: string[] | null = null;
 
   const endParagraph = () => {
     if (paragraph.length > 0) blocks.push({ t: 'p', c: parseInline(paragraph.join('\n').trim()) });
@@ -234,10 +284,37 @@ export function parseMarkup(source: string): Block[] {
     if (quote !== null) blocks.push({ t: 'quote', c: parseMarkup(quote.join('\n')) });
     quote = null;
   };
-  const endAll = () => { endParagraph(); endList(); endQuote(); };
+  const endTable = () => {
+    if (table !== null) { if (table.length >= 2) blocks.push(tableOf(table)); else paragraph.push(...table); }
+    table = null;
+  };
+  const endAll = () => { endTable(); endParagraph(); endList(); endQuote(); };
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, '');
+
+    if (fence !== null) {
+      const close = line.trim();
+      if (close.length >= fence.mark.length && close[0] === fence.mark[0] && close === close[0].repeat(close.length)) {
+        blocks.push({ t: 'fence', lang: fence.lang, info: fence.info, body: fence.lines.join('\n') });
+        fence = null;
+      } else fence.lines.push(line);
+      continue;
+    }
+    if (fold === null && quote === null) {
+      const opens = FENCE.exec(line);
+      if (opens !== null) {
+        endAll();
+        fence = { mark: opens[1], lang: opens[2].toLowerCase(), info: opens[3].trim(), lines: [] };
+        continue;
+      }
+      if (line.trimStart().startsWith('|') && (table !== null || paragraph.length === 0)) {
+        if (table === null) { endList(); table = []; }
+        table.push(line.trim());
+        continue;
+      }
+      if (table !== null) endTable();
+    }
 
     if (fold !== null) {
       if (/^:::\s*details\b/.test(line.trim())) fold.depth += 1;
@@ -296,6 +373,8 @@ export function parseMarkup(source: string): Block[] {
   }
 
   endAll();
+  /* Ein Zaun ohne Ende reicht bis zum Schluss des Textes (so sieht es aus, während man tippt). */
+  if (fence !== null) { const f: { lang: string; info: string; lines: string[] } = fence; blocks.push({ t: 'fence', lang: f.lang, info: f.info, body: f.lines.join('\n') }); }
   if (fold !== null) { const f: { summary: string; lines: string[] } = fold; blocks.push({ t: 'details', summary: parseInline(f.summary), c: parseMarkup(f.lines.join('\n')) }); }
   return blocks;
 }
@@ -316,6 +395,7 @@ export function walkBlocks(blocks: readonly Block[], onBlock: (b: Block) => void
     else if (block.t === 'list') block.items.forEach((item) => walkInline(item, onInline));
     else if (block.t === 'quote') walkBlocks(block.c, onBlock, onInline);
     else if (block.t === 'details') { walkInline(block.summary, onInline); walkBlocks(block.c, onBlock, onInline); }
+    else if (block.t === 'table') for (const row of [...(block.head === null ? [] : [block.head]), ...block.rows]) for (const cell of row) walkInline(cell, onInline);
   }
 }
 
@@ -435,6 +515,9 @@ export function plainText(source: string, headings = true, tex: TexMode = 'plain
       else if (b.t === 'list') parts.push(...b.items.map(inline));
       else if (b.t === 'quote') blocks(b.c);
       else if (b.t === 'details') { parts.push(inline(b.summary)); blocks(b.c); }
+      /* 2026-11-16 — eine Tabelle Zeile für Zeile; eine Grafik als ihr Inhalt in Worten; Code, wie er ist. */
+      else if (b.t === 'table') { for (const row of [...(b.head === null ? [] : [b.head]), ...b.rows]) parts.push(row.map(inline).join(' | ')); }
+      else if (b.t === 'fence') parts.push(visualKindOf(b.lang) !== null ? visualPlain(b.lang, b.info, b.body) : b.body);
     }
   };
   blocks(parseMarkup(source));

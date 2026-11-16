@@ -26,7 +26,7 @@
 import { readAmount, planLibraryImport, exportLibrary, kindsDoc, LIBRARY_FORMAT, markupDoc, bibleDoc, SCRIPTORIUM_FORMAT, type ExtraField, type FormatSpec, type ImportBase, type LibraryImportPlan } from '../library/libraryJson';
 import { t } from '../core/i18n';
 import { isUuid } from '../library/library';
-import { slug, WRITING_KINDS, type LibEntry, type Lookup } from '../library/libraryKinds';
+import { itemsOf, slug, WRITING_KINDS, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { CORE_KEYS, TEXT_TYPE_FIELD_TYPES, typeFieldsOf, type TypeField } from './textTypes';
 
 export { SCRIPTORIUM_FORMAT };
@@ -202,7 +202,22 @@ export function planScriptoriumImport(doc: unknown, base: ImportBase, ctx: Scrip
     get: (id) => base.get(id),
     byKey: (key) => base.byKey(key) ?? ctx.entryRef!(key)
   };
-  return planLibraryImport(doc, wide, scriptoriumSpec(doc, wide, ctx));
+  const planned = planLibraryImport(doc, wide, scriptoriumSpec(doc, wide, ctx));
+  if ('error' in planned) return planned;
+  /*
+   * 2026-11-16 — DAS GESPRÄCH ÜBER EINEN KNOTEN WIRD ERGÄNZT, NICHT ERSETZT: eine KI schickt ihre Antworten (und darf
+   * die Notizen des Autors weglassen); was schon dasteht, bleibt — dieselbe Kennung ersetzt die Notiz.
+   */
+  for (const draft of planned.drafts) {
+    if (draft.kind !== 'node' || !draft.existing) continue;
+    const before = itemsOf(base.get(draft.id)?.data ?? {}, 'thread');
+    const incoming = itemsOf(draft.data, 'thread');
+    if (before.length === 0) continue;
+    const ids = new Set(incoming.map((n) => n.id));
+    const merged = [...before.filter((n) => !ids.has(n.id)), ...incoming];
+    if (merged.length > 0) (draft.data as Record<string, unknown>).thread = merged;
+  }
+  return planned;
 }
 
 /** Hinaus — mit `look` stehen im Zapis die Schlüssel. Nur die Arten des Skryptorium. */
