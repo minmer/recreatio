@@ -1,0 +1,24 @@
+{
+  "button": "Uwaga dla autora kursu (AI)",
+  "title": "Uwaga",
+  "forAi": "Przeczyta ją AI, która buduje ten kurs (MCP), i poprawi go przy następnej aktualizacji.",
+  "kindLabel": "Rodzaj uwagi",
+  "textLabel": "Twój komentarz",
+  "placeholder": "Co zmienić i dlaczego? (np. właściwa odpowiedź, lepsze sformułowanie)",
+  "placeholderGood": "Opcjonalnie: co w niej dobre",
+  "send": "Wyślij",
+  "sent": "Zapisane — AI zobaczy to przy następnym przeglądzie.",
+  "markDone": "Załatwione",
+  "reopen": "Otwórz znowu",
+  "kind": {
+    "good": "Dobra, bez zmian",
+    "wrong": "Błąd w treści",
+    "answer": "Źle sprawdzona odpowiedź",
+    "language": "Język",
+    "unclear": "Niejasne",
+    "hard": "Za trudne",
+    "easy": "Za łatwe",
+    "display": "Wyświetlanie",
+    "other": "Inne"
+  }
+}

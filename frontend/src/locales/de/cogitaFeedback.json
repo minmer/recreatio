@@ -1,0 +1,24 @@
+{
+  "button": "Rückmeldung für den Autor des Kurses (KI)",
+  "title": "Rückmeldung",
+  "forAi": "Die KI, die diesen Kurs baut, liest es (MCP) und verbessert ihn beim nächsten Update.",
+  "kindLabel": "Art der Rückmeldung",
+  "textLabel": "Dein Kommentar",
+  "placeholder": "Was soll sich ändern, und warum? (z. B. die richtige Antwort, eine bessere Formulierung)",
+  "placeholderGood": "Freiwillig: was daran gut ist",
+  "send": "Senden",
+  "sent": "Gespeichert — die KI sieht es beim nächsten Blick.",
+  "markDone": "Erledigt",
+  "reopen": "Wieder öffnen",
+  "kind": {
+    "good": "Gut so",
+    "wrong": "Inhalt falsch",
+    "answer": "Antwort falsch geprüft",
+    "language": "Sprache",
+    "unclear": "Unklar",
+    "hard": "Zu schwer",
+    "easy": "Zu leicht",
+    "display": "Darstellung",
+    "other": "Anderes"
+  }
+}

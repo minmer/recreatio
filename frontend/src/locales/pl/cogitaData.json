@@ -442,7 +442,8 @@
     "contribution": "Propozycja",
     "reward": "Nagrody",
     "worldmap": "Położenie mapy świata",
-    "qpath": "Droga do pytania"
+    "qpath": "Droga do pytania",
+    "feedback": "Uwaga"
   },
   "questionGroup": {
     "write": "Piszesz odpowiedź",

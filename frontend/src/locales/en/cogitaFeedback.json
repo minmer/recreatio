@@ -1,0 +1,24 @@
+{
+  "button": "Feedback on this for the course author (AI)",
+  "title": "Feedback",
+  "forAi": "Read by the AI that builds this course (MCP), to improve it in the next update.",
+  "kindLabel": "What kind of feedback",
+  "textLabel": "Your comment",
+  "placeholder": "What should change, and why? (e.g. the right answer, a better wording)",
+  "placeholderGood": "Optional: what makes it good",
+  "send": "Send",
+  "sent": "Saved — the AI will see it at its next look.",
+  "markDone": "Done",
+  "reopen": "Open again",
+  "kind": {
+    "good": "Good as it is",
+    "wrong": "Content is wrong",
+    "answer": "Answer checked wrongly",
+    "language": "Language",
+    "unclear": "Unclear",
+    "hard": "Too hard",
+    "easy": "Too easy",
+    "display": "Display",
+    "other": "Other"
+  }
+}

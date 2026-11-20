@@ -43,7 +43,8 @@ import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
 import { docEntity as liturgicalDoc } from '../library/liturgy/liturgyJson';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { worldLayouts, type WorldLayoutDoc } from '../cogita/worldmap/wmExport';
-import { exportSetup, type KnowledgeSetup } from '../cogita/json';
+import { exportSetup, nameIn, type KnowledgeSetup } from '../cogita/json';
+import { feedbackForAi } from '../cogita/feedback';
 import { CogitaLibrary } from '../cogita/store';
 import { fieldData, textTypeKind } from '../cogita/kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, labelOf, tellOf, VALUE_STATE_LABEL, VALUE_STATES, type KindDef } from '../cogita/schema';
@@ -87,6 +88,8 @@ export interface SnapshotSetup extends KnowledgeSetup {
    * Widok `style: "world"` als Weltkarte ([x, y] je Ort, Linien, Umsteigeorte; Entscheidung 13).
    */
   readonly landscapes?: readonly (LandscapeLayoutDoc | WorldLayoutDoc)[];
+  /** 2026-11-20 — Rückmeldungen zu Karten, Fragen und Folien für die KI (`cogita/feedback.ts`, MCP `get_feedback`). */
+  readonly feedback?: readonly Record<string, unknown>[];
 }
 
 /** Ein Text eines Werks: sein Verzeichnis und seine Teile (die schweren Einträge, vorher geholt — `aiAccess.ts`). */
@@ -522,7 +525,8 @@ export async function snapshotSetup(parts: readonly ScopePart[], libraryId: stri
     const cards = (await lib.cards()).cards;
     landscapes = [...landscapeLayouts(lib, cards), ...(await worldLayouts(lib, cards).catch(() => []))];
   } catch { /* ohne Karte: der Rest kommt */ }
-  return { ...setup, ...(landscapes.length === 0 ? {} : { landscapes }), ...(part.readers === undefined ? {} : { readers: part.readers }) };
+  const feedback = feedbackForAi(lib, nameIn(lib));
+  return { ...setup, ...(landscapes.length === 0 ? {} : { landscapes }), ...(feedback.length === 0 ? {} : { feedback }), ...(part.readers === undefined ? {} : { readers: part.readers }) };
 }
 
 /** gzip (CompressionStream, im Browser wie in Node) — der Dienst entpackt mit einer Obergrenze. */

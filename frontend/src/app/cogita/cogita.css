@@ -1105,3 +1105,40 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 /* 2026-11-14 (Eigentümer: „das Skalieren") — die Nummer eines Paars hat ihren Platz immer (leer unsichtbar), „Sprawdź" bleibt unten im Bild. */
 .cg-match-n.is-empty { visibility: hidden; }
 .cg-answer > .cg-check { position: sticky; bottom: var(--wk-space-2); z-index: 1; box-shadow: 0 0 0 var(--wk-space-2) var(--wk-surface); }
+
+/*
+ * 2026-11-20 (Eigentümer) — RÜCKMELDUNG für die KI (FeedbackButton.tsx): ein kleines Zeichen; an einer Karte links neben der
+ * Statistik, an einer Folie oben rechts. Ein Klick: die Arten als Knöpfe, dann der Text, darunter, was schon gesagt ist.
+ */
+.cg-fb { position: relative; display: inline-flex; }
+.cg-face > .cg-fb { position: absolute; top: var(--wk-space-2); right: calc(var(--wk-space-2) + 2.3rem); z-index: 2; }
+.cg-face:not(:has(> .cg-face-stats)) > .cg-fb { right: var(--wk-space-2); }
+.cg-face:has(> .cg-fb) > .cg-face-main > .cg-prompt { padding-inline: 2.4rem; }
+.cg-slide-body > .cg-fb, .cg > .cg-fb, .cg-fb.is-float { float: right; margin: 0 0 var(--wk-space-1) var(--wk-space-2); }
+.cg-fb-btn { position: relative; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-muted); cursor: pointer; }
+.cg-fb-btn svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.cg-fb-btn:hover, .cg-fb-btn:focus-visible, .cg-fb.is-open > .cg-fb-btn { color: var(--wk-ink); border-color: var(--wk-ink); }
+.cg-fb-btn.has-notes { color: var(--wk-accent); border-color: var(--wk-accent); }
+.cg-fb-n { position: absolute; top: -0.35rem; right: -0.35rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; border-radius: var(--wk-radius-pill); background: var(--wk-accent); color: var(--wk-on-accent, #fff); font-size: var(--wk-text-xs); line-height: 1rem; text-align: center; }
+.cg-fb-box {
+  position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 5; display: grid; gap: var(--wk-space-2);
+  width: min(24rem, calc(100vw - 2rem)); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius);
+  background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); text-align: left; color: var(--wk-ink); font-size: var(--wk-text-sm);
+}
+.cg-fb-head { margin: 0; display: grid; gap: 0.1rem; }
+.cg-fb-head .cg-muted { font-size: var(--wk-text-xs); }
+.cg-fb-kinds { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.cg-fb-kind { padding: 0.2rem 0.6rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.cg-fb-kind:hover, .cg-fb-kind:focus-visible { border-color: var(--wk-ink); }
+.cg-fb-kind.is-on { border-color: var(--wk-accent); background: var(--wk-accent-soft); font-weight: 600; }
+.cg-fb-kind.is-good.is-on { border-color: var(--wk-ok); background: color-mix(in oklab, var(--wk-ok) 16%, var(--wk-surface)); }
+.cg-fb-box textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.cg-fb-actions { display: flex; align-items: center; gap: var(--wk-space-2); }
+.cg-fb-sent { margin: 0; color: var(--wk-ok); font-weight: 600; }
+.cg-fb-list { margin: 0; padding: var(--wk-space-2) 0 0; list-style: none; display: grid; gap: var(--wk-space-1); border-top: 1px solid var(--wk-line); max-height: 12rem; overflow-y: auto; }
+.cg-fb-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.1rem var(--wk-space-2); align-items: baseline; }
+.cg-fb-list li.is-done { opacity: 0.6; }
+.cg-fb-tag { font-weight: 600; }
+.cg-fb-text { grid-column: 1 / -1; grid-row: 2; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wk-ink-2); }
+.cg-fb-at { font-size: var(--wk-text-xs); }
+.cg-fb-item-acts { display: inline-flex; gap: var(--wk-space-1); }

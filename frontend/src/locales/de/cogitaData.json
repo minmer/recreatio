@@ -422,7 +422,8 @@
     "contribution": "Vorschlag",
     "reward": "Belohnungen",
     "worldmap": "Lage der Weltkarte",
-    "qpath": "Weg zu einer Frage"
+    "qpath": "Weg zu einer Frage",
+    "feedback": "Rückmeldung"
   },
   "questionGroup": {
     "write": "Du schreibst die Antwort",
