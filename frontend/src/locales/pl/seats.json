@@ -60,7 +60,11 @@
     "make": "Załóż i otwórz",
     "pageAfter": "Strona po wysłaniu",
     "serviceChooses": "— niech usługa wybierze —",
-    "notFitting": "recreatio.pl/{path} (nie pasuje)"
+    "notFitting": "recreatio.pl/{path} (nie pasuje)",
+    "placeLabel": "Która część strony",
+    "placeStart": "Początek strony",
+    "placeOwn": "Własny dopisek: {at}",
+    "placeSlide": "Slajd {n}: {label}"
   },
   "bar": {
     "keyless": "W tym linku brakuje klucza — widać stronę, ale nie Twoje dane. Otwórz pełny link, który dostałeś.",

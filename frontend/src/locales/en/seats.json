@@ -60,7 +60,11 @@
     "make": "Create and open",
     "pageAfter": "Page after sending",
     "serviceChooses": "— let the service choose —",
-    "notFitting": "recreatio.pl/{path} (doesn't fit)"
+    "notFitting": "recreatio.pl/{path} (doesn't fit)",
+    "placeLabel": "Which part of the page",
+    "placeStart": "The start of the page",
+    "placeOwn": "Own suffix: {at}",
+    "placeSlide": "Slide {n}: {label}"
   },
   "bar": {
     "keyless": "This link is missing the key — you see the page, but not your details. Open the full link you received.",

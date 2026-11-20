@@ -59,7 +59,11 @@
     "subjectAfterPick": "Die Person erscheint hier, sobald sie oben auf der Seite gewählt ist.",
     "subjectPick": "Wähle oben auf der Seite eine Person.",
     "subjectNoKey": "Dieses Unterformular kannst du mit diesem Schlüssel nicht öffnen.",
-    "personFills": "füllt die Person aus"
+    "personFills": "füllt die Person aus",
+    "filledHint": "Dieses Formular ist <b>schon ausgefüllt</b>. Unten kannst du deine Antworten berichtigen.",
+    "addAnother": "Weitere Person hinzufügen",
+    "anotherHint": "<b>Eine weitere Person</b> — sie bekommt eine eigene Anmeldung und einen eigenen Link.",
+    "backToFilled": "Zurück zum ausgefüllten Formular"
   },
   "ext": {
     "sealedName": "— versiegelt —",
@@ -209,7 +213,10 @@
     "placeDate": "Ort und Datum",
     "signature": "leserliche Unterschrift",
     "fillFirst": "Fülle zuerst das Formular aus — die fehlenden Felder stehen neben „Senden“.",
-    "print": "Zum Unterschreiben drucken"
+    "print": "Zum Unterschreiben drucken",
+    "minorConsent": "Als Elternteil / gesetzlicher Vertreter stimme ich der Teilnahme meines minderjährigen Kindes {name} zu an: {form}.",
+    "minorChild": "(oben genannt)",
+    "parentSignature": "Unterschrift des Elternteils / gesetzlichen Vertreters"
   },
   "kind": {
     "yes": "ja",
@@ -386,6 +393,8 @@
     "intakeCreating": "Annahmeschlüssel wird erstellt — einige Sekunden…",
     "intakeCreate": "Annahmeschlüssel erstellen",
     "heading": "Überschrift auf der Seite",
-    "headingPlaceholder": "z. B. Anmeldung"
+    "headingPlaceholder": "z. B. Anmeldung",
+    "paperDefaultMinor": "wenn der Teilnehmer minderjährig ist (Standard)",
+    "paperNever": "nie"
   }
 }

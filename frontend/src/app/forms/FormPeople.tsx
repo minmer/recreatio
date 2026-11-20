@@ -22,6 +22,7 @@ import { type ValueCheck, armCheck } from './valueCheck';
 import { type SeatLinks, SendPanel, WriteToSeat, base, checkOf, holesOf, useSeatLinks } from './FormLinks';
 import type { ReadForm } from './formRead';
 import { SmsPanel } from './FormSms';
+import { readConfigText } from './formGroups';
 import { repeatOf, roundLabel, roundOf } from './rounds';
 import { SignSheetButton } from './SignSheet';
 import { LINK, VERIFY, renderSms, smsHref, templatesOf, usesHole } from './sms';
@@ -550,7 +551,9 @@ export function EntryDeskPanel({ desk, row, ring, sections }: {
   ring: Ring;
   sections: readonly PanelSection[];
 }) {
-  const links = useSeatLinks(seatAreasOf(desk), ring);
+  /* 2026-11-20 — der Link öffnet die im Formular gewählte Seite, wie in der Liste. */
+  const conf = readConfigText(desk.module?.config ?? null);
+  const links = useSeatLinks(seatAreasOf(desk), ring, { under: (conf.portalUnder ?? '').trim(), at: (conf.portalAt ?? '').trim() });
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const t = useT();

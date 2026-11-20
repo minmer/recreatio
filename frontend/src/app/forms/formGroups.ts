@@ -405,7 +405,7 @@ function goesRight(form: FormLike): boolean {
   return memberRolesOf(form).length > 0 || (form.audience === 'public' && (readConfigText(form.config).portalUnder ?? '').trim() !== '');
 }
 
-function readConfigText(text: string | null): Record<string, string> {
+export function readConfigText(text: string | null): Record<string, string> {
   try {
     const parsed = JSON.parse(text ?? '{}') as unknown;
     return parsed !== null && typeof parsed === 'object' ? parsed as Record<string, string> : {};

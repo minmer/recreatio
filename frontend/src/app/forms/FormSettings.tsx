@@ -19,7 +19,7 @@ import { NEEDS, choiceOf, needOf, sameChoice, type FormNeed, type NeedChoice, ty
 import { choiceOfOn, readNeeds, type NeedOn } from './needPlan';
 import { createIntake } from './intake';
 import { REPEATS, REPEAT_LABEL, type Repeat, repeatOf } from './rounds';
-import { PAPER_MINOR, PAPER_SIGN, ageFields, parentalConsentOf } from './SignSheet';
+import { PAPER_MINOR, PAPER_NONE, PAPER_SIGN, ageFields, parentalConsentOf } from './SignSheet';
 
 /**
  * NACH DEM ABSENDEN — eine eigene Überschrift, ein eigener Text, und ob das
@@ -62,7 +62,9 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
    * „Niepełnoletni…": die Zustimmung als Erklärung, gedruckt am Ende.
    */
   const consentTick = parentalConsentOf(ticks);
-  const parental = consentTick !== null && (paper === '' || consentTick.isRequired) ? consentTick : null;
+  /* 2026-11-20 — ohne Einstellung druckt ein Minderjähriger (wenn das Formular das Alter kennt). */
+  const noPaper = paper === PAPER_NONE || (paper === '' && !knowsAge);
+  const parental = consentTick !== null && (noPaper || consentTick.isRequired) ? consentTick : null;
   const dirty = title !== (config.sentTitle ?? '') || text !== (config.sentText ?? '')
     || paper !== (config.paper ?? '') || signer !== (config.paperSigner ?? '');
 
@@ -97,7 +99,8 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
       <label className="wk-field">
         <span>{t('forms.settings.paper')}</span>
         <select value={paper} disabled={busy || saving} onChange={(e) => setPaper(e.target.value)}>
-          <option value="">{t('forms.settings.paperNone')}</option>
+          <option value="">{knowsAge ? t('forms.settings.paperDefaultMinor') : t('forms.settings.paperNone')}</option>
+          <option value={PAPER_NONE}>{t('forms.settings.paperNever')}</option>
           <option value="always">{t('forms.settings.paperAlways')}</option>
           <option value={PAPER_SIGN}>{t('forms.settings.paperSign')}</option>
           <option value={PAPER_MINOR} disabled={!knowsAge && paper !== PAPER_MINOR}>
@@ -106,7 +109,7 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
           {ticks.map((f) => (
             <option key={f.fieldId} value={f.fieldId}>{t('forms.settings.paperTick', { label: f.label ?? t('forms.sheet.question') })}</option>
           ))}
-          {paper !== '' && paper !== 'always' && paper !== PAPER_MINOR && paper !== PAPER_SIGN && !ticks.some((f) => f.fieldId === paper) && (
+          {paper !== '' && paper !== PAPER_NONE && paper !== 'always' && paper !== PAPER_MINOR && paper !== PAPER_SIGN && !ticks.some((f) => f.fieldId === paper) && (
             <option value={paper}>{t('forms.settings.paperGone')}</option>
           )}
         </select>
@@ -121,8 +124,8 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
         <div className="wk-paper-note" role="note">
           <p>
             {rich(t(parental.isRequired
-              ? (paper === '' ? 'forms.settings.parentalRequiredNoPaper' : 'forms.settings.parentalRequired')
-              : (paper === '' ? 'forms.settings.parentalNoPaper' : 'forms.settings.parental'), { label: parental.label ?? t('forms.sheet.question') }), b)}
+              ? (noPaper ? 'forms.settings.parentalRequiredNoPaper' : 'forms.settings.parentalRequired')
+              : (noPaper ? 'forms.settings.parentalNoPaper' : 'forms.settings.parental'), { label: parental.label ?? t('forms.sheet.question') }), b)}
           </p>
           <p>
             {rich(t('forms.settings.parentalBetter', { need: needOf('minor')?.label ?? '' }), b)}
@@ -142,7 +145,7 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
           </div>
         </div>
       )}
-      {paper !== '' && (
+      {paper !== PAPER_NONE && (paper !== '' || knowsAge) && (
         <label className="wk-field">
           <span>{t('forms.settings.signer')}</span>
           <input value={signer} disabled={busy || saving} placeholder={t('forms.sheet.signature')} onChange={(e) => setSigner(e.target.value)} />

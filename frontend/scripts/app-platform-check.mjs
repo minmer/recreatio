@@ -84,7 +84,7 @@ export { readSubject, writeSubject, subjectKindOf, implicitSubject } from '${app
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}forms/pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}forms/form';
 export { evaluate } from '${app}forms/formDesign';
-export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR, PAPER_SIGN, printedByDefault, signsShown, signsIn } from '${app}forms/SignSheet';
+export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR, PAPER_NONE, PAPER_SIGN, printedByDefault, signsShown, signsIn } from '${app}forms/SignSheet';
 export { NEEDS, needOf, choiceOf, sameChoice, WAY_OPTION } from '${app}forms/needs';
 export { readNeeds, needsJson, lockedOf, layoutWithout, layoutReplacing, logicWithout, planNeed, choiceOfOn, keysOfOn, holdingOf, paperAfter, adoptedOf, itemIds } from '${app}forms/needPlan';
 export { readNeedWishes, needOut, needsOut, needWishLines, needsKeys, NEEDS_EXAMPLE } from '${app}forms/needsJson';
@@ -912,6 +912,11 @@ try {
       assert.equal(m.paperNeeded(minor, ans({ p: '10250112347' }), { fields: people, on: '2026-10-07' }), true, 'a PESEL of 1 May 2010: paper');
       assert.equal(m.paperNeeded(minor, ans({}), { fields: people, on: '2026-10-07' }), false, 'no birth date given: it cannot say');
       assert.equal(m.paperNeeded(minor, ans({ b: '2010-05-01' }), {}), false, 'a form that does not ask for the age: no paper');
+      /* 2026-11-20 — ohne Einstellung: Papier für einen Minderjährigen; „none": nie. */
+      const unset = { title: null, text: null, paper: null, signer: null };
+      assert.equal(m.paperNeeded(unset, ans({ b: '2010-05-01' }), { fields: people, on: '2026-10-07' }), true, 'no rule, a minor: paper');
+      assert.equal(m.paperNeeded(unset, ans({ b: '1990-05-01' }), { fields: people, on: '2026-10-07' }), false, 'no rule, an adult: no paper');
+      assert.equal(m.paperNeeded({ ...unset, paper: m.PAPER_NONE }, ans({ b: '2010-05-01' }), { fields: people, on: '2026-10-07' }), false, '"none": never');
       assert.deepEqual(m.ageFields(people).map((x) => x.fieldId), ['b', 'p'], 'birth date and PESEL tell the age');
       const ticks = [
         { fieldId: 'safe', kind: 'checkbox', label: 'Zobowiązuję się przestrzegać zasad bezpieczeństwa', help: null },
@@ -945,7 +950,11 @@ try {
     assert.deepEqual(sheet.notes, ['Klauzula.']);
     const adult = m.sheetOf(open, new Map([['given', 'Jan'], ['born', '1990-01-01'], ['guardian', 'x']]));
     assert.ok(!adult.blocks.some((b) => b.rows.some((r) => r.label === 'Rodzic')), 'what the logic hid is not printed');
-    assert.deepEqual(sheet.signed, [], 'nothing to sign without a statement');
+    /* 2026-11-20 — ein Kind, und das Formular hat keine eigene Erklärung: die Zustimmung der Eltern zur Teilnahme. */
+    assert.equal(sheet.signed.length, 1, 'a minor without a statement: the parents sign the participation');
+    assert.ok(sheet.signed[0].includes('Ola') && sheet.signed[0].includes('Zgoda'), 'with the name and the form');
+    assert.equal(sheet.minor, true);
+    assert.deepEqual(adult.signed, [], 'an adult: nothing to sign without a statement');
     ok('sign sheet: the form’s order, visible answers only, dates in Polish, consents with their own wording');
 
     /* 0087 — wie „Zapisy Rocket 2026": aufs Blatt nur der Name, die Eltern, ihre Telefone und das Formale. */

@@ -36,7 +36,8 @@ import { loadDesk, type PageCard } from '../workspace/desk';
 import { setPartConfig } from '../forms/form';
 import { newId } from '../core/ids';
 import { COLUMNS, type Breakpoint, type Frame, type Layout } from '../pages/layout';
-import { saveParts, type DraftPart } from '../pages/page';
+import { loadPage, saveParts, type DraftPart } from '../pages/page';
+import { placesOf, type PagePlace } from '../pages/slides/pagePlaces';
 import { pageSteps, PATH_SHAPE, viewPath } from '../routes';
 import { pageLink } from './seatKeep';
 import { WorkspaceError } from '../core/session';
@@ -390,6 +391,21 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
         onPick={(where) => void point(where)}
       />
 
+      {has && (
+        <PlacePick
+          under={portalUnder}
+          at={portalAt}
+          busy={busy}
+          onPick={(at) => void (async () => {
+            setBusy(true);
+            setFailed(null);
+            try { await setPartConfig(moduleId, { portalAt: at }); onSet(portalUnder, at); }
+            catch (e) { said(e, t('seats.portal.saveFailed')); }
+            finally { setBusy(false); }
+          })()}
+        />
+      )}
+
       {/*
         0086 — EIGENE ADRESSE: dieselbe Seite, dazu ein Anker oder Parameter —
         der Link öffnet den Slajd „Twoje zgłoszenie" statt des ersten.
@@ -479,6 +495,42 @@ export function Portal({ moduleId, standsOn, portalUnder, portalAt = '', ownerRo
  * darüber ist manchmal genau die richtige Seite — und manchmal soll das Portal
  * seine eigene sein.
  */
+/**
+ * 2026-11-20 — WELCHER TEIL DER SEITE: ihre Slajdy mit Nummer, im Raster ihre
+ * Bausteine. Gewählt wird hier, gespeichert als Zusatz (`portalAt`) — derselbe,
+ * den man unter „Własny adres" auch abtippen kann.
+ */
+function PlacePick({ under, at, busy, onPick }: {
+  under: string;
+  at: string;
+  busy: boolean;
+  onPick: (at: string) => void;
+}) {
+  const t = useT();
+  const [places, setPlaces] = useState<readonly PagePlace[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setPlaces(null);
+    loadPage(under).then((page) => { if (alive) setPlaces(placesOf(page)); }).catch(() => { if (alive) setPlaces([]); });
+    return () => { alive = false; };
+  }, [under]);
+
+  if (places === null || places.length === 0) return null;
+  const known = at === '' || places.some((one) => one.at === at);
+
+  return (
+    <label className="wk-field">
+      <span>{t('seats.portal.placeLabel')}</span>
+      <select value={at} disabled={busy} onChange={(e) => onPick(e.target.value)}>
+        {!places.some((one) => one.at === '') && <option value="">{t('seats.portal.placeStart')}</option>}
+        {!known && <option value={at}>{t('seats.portal.placeOwn', { at })}</option>}
+        {places.map((one) => <option key={one.at || 'start'} value={one.at}>{one.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
 function Choose({ now, choices, busy, onPick }: {
   now: string;
   choices: readonly PageCard[];

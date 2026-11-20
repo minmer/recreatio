@@ -60,7 +60,11 @@
     "make": "Anlegen und öffnen",
     "pageAfter": "Seite nach dem Senden",
     "serviceChooses": "— der Dienst wählt —",
-    "notFitting": "recreatio.pl/{path} (passt nicht)"
+    "notFitting": "recreatio.pl/{path} (passt nicht)",
+    "placeLabel": "Welcher Teil der Seite",
+    "placeStart": "Der Anfang der Seite",
+    "placeOwn": "Eigener Zusatz: {at}",
+    "placeSlide": "Folie {n}: {label}"
   },
   "bar": {
     "keyless": "In diesem Link fehlt der Schlüssel — du siehst die Seite, aber nicht deine Angaben. Öffne den vollständigen Link, den du bekommen hast.",

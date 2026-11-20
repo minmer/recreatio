@@ -59,7 +59,11 @@
     "subjectAfterPick": "Osoba pojawi się tu po wyborze u góry strony.",
     "subjectPick": "Wybierz osobę u góry strony.",
     "subjectNoKey": "Tego podformularza nie otworzysz tym kluczem.",
-    "personFills": "uzupełnia osoba"
+    "personFills": "uzupełnia osoba",
+    "filledHint": "Ten formularz jest <b>już wypełniony</b>. Poniżej możesz poprawić swoje odpowiedzi.",
+    "addAnother": "Dodaj kolejną osobę",
+    "anotherHint": "<b>Kolejna osoba</b> — dostanie własne zgłoszenie i własny link.",
+    "backToFilled": "Wróć do wypełnionego formularza"
   },
   "ext": {
     "sealedName": "— zapieczętowane —",
@@ -209,7 +213,10 @@
     "placeDate": "miejscowość i data",
     "signature": "czytelny podpis",
     "fillFirst": "Najpierw wypełnij formularz — brakujące pola są wymienione przy „Wyślij”.",
-    "print": "Drukuj do podpisu"
+    "print": "Drukuj do podpisu",
+    "minorConsent": "Jako rodzic / opiekun prawny wyrażam zgodę na udział mojego niepełnoletniego dziecka {name} w: {form}.",
+    "minorChild": "(wymienionego wyżej)",
+    "parentSignature": "podpis rodzica / opiekuna prawnego"
   },
   "kind": {
     "yes": "tak",
@@ -390,6 +397,8 @@
     "intakeCreating": "Tworzenie klucza przyjmowania — kilka sekund…",
     "intakeCreate": "Utwórz klucz przyjmowania",
     "heading": "Nagłówek na stronie",
-    "headingPlaceholder": "np. Zgłoszenie"
+    "headingPlaceholder": "np. Zgłoszenie",
+    "paperDefaultMinor": "gdy uczestnik jest niepełnoletni (domyślnie)",
+    "paperNever": "nigdy"
   }
 }

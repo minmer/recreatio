@@ -259,6 +259,18 @@ public static partial class Form
             return;
         }
 
+        /*
+         * 2026-11-20 — DER LINK OEFFNET DIE GEWAEHLTE SEITE, auch fuer die, die
+         * sich VORHER angemeldet haben. Ihr Platz hing an der Seite von damals;
+         * eine Seite nur mit Zugang oeffnete sich ihm nicht, und die SMS fuehrte
+         * ins „brak dostępu". Geprueft ist die Seite eben (`MayAnchorAsync`).
+         */
+        Guid? newPortal = null;
+        if (set.TryGetValue("portalUnder", out var chosenPortal) && !string.IsNullOrWhiteSpace(chosenPortal) && sheet.Paths.Count > 0)
+        {
+            newPortal = await SlugIdAsync(connection, Slug.Normalise(chosenPortal), ctx.RequestAborted);
+        }
+
         /* 0086 — der Zusatz zur Adresse (`?s=3`, `#zapisy`): lesbar, oder gar nicht. */
         if (set.TryGetValue("portalAt", out var at) && at.Trim() != "")
         {
@@ -332,6 +344,23 @@ public static partial class Form
             save.Parameters.AddWithValue("@id", id);
 
             await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        if (newPortal is not null)
+        {
+            await using var bind = new SqlCommand(
+                """
+                INSERT INTO app.access_slug (access_id, slug_id)
+                SELECT DISTINCT r.access_id, @slug
+                FROM app.registration r
+                WHERE r.access_id IS NOT NULL
+                  AND (r.part_id = @id OR r.part_id IN (SELECT p.id FROM app.slug_part p WHERE p.module_id = @id))
+                  AND NOT EXISTS (SELECT 1 FROM app.access_slug g WHERE g.access_id = r.access_id AND g.slug_id = @slug);
+                """, connection);
+
+            bind.Parameters.AddWithValue("@slug", newPortal.Value);
+            bind.Parameters.AddWithValue("@id", id);
+            await bind.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
         await ctx.Response.WriteAsJsonAsync(new { partId = Ids.ToText(id), config });

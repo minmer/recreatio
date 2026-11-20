@@ -56,6 +56,9 @@ export function FormCard(props: FormCardProps) {
   const t = useT();
   const b = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
+  /* 2026-11-20 — „Dodaj kolejną osobę": unter dem schon ausgefüllten Formular ein leeres, für einen neuen Platz. */
+  const [another, setAnother] = useState(false);
+
   if (form === undefined) return <Loading label={t('common.loading')} />;
 
   if (form === null) {
@@ -180,6 +183,48 @@ export function FormCard(props: FormCardProps) {
     ? (pageRole === null ? null : { roleId: pageRole.id, name: pageRole.name, isMine: pageRole.isMine })
     : subjects.find((one) => one.roleId === chosen) ?? null;
 
+  /*
+   * 2026-11-20 — SCHON AUSGEFÜLLT: wer mit seinem Link (oder einem in diesem
+   * Browser behaltenen Platz) auf die Seite kommt, sieht sein Ausgefülltes zum
+   * Berichtigen — nicht ein leeres Formular, das eine zweite Einsendung machte.
+   * Darunter „Dodaj kolejną osobę": ein leeres, und der Neue bekommt einen eigenen Link.
+   */
+  const filledSeats = extension ? [] : (pageDecides ? (pageSeat === null ? [] : [pageSeat]) : openSeats)
+    .filter((one) => one.seatKey !== null && one.submitted.some((v) => v.formId === partId));
+  /* Für einen neuen Menschen hängt nichts am Platz aus dem Link. */
+  const toSeat = another ? null : pageSeat;
+
+  const startAnother = () => {
+    setAnswers({});
+    setSent(false);
+    setLink(null);
+    setClaim(null);
+    setLanded(null);
+    setAttached(null);
+    setFailed(null);
+    setAnother(true);
+  };
+
+  if (!sent && !another && filledSeats.length > 0) {
+    return (
+      <>
+        {title !== '' && <h2 className="wk-card-title">{title}</h2>}
+        <p className="wk-card-text">{rich(t('forms.card.filledHint'), b)}</p>
+        {filledSeats.map((one) => (
+          <section key={one.token} className={filledSeats.length > 1 ? 'wk-seat-one' : undefined}>
+            {filledSeats.length > 1 && <h3 className="wk-seat-who">{one.recipientName ?? t('forms.card.yourEntry')}</h3>}
+            <OwnSubmissions seat={one} formId={partId} show={null} />
+          </section>
+        ))}
+        {!form.closed && (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-line" onClick={startAnother}>{t('forms.card.addAnother')}</button>
+          </div>
+        )}
+      </>
+    );
+  }
+
   if (sent) {
     return (
       <>
@@ -245,6 +290,13 @@ export function FormCard(props: FormCardProps) {
             {claim !== null && <textarea readOnly rows={2} value={claim} className="wk-mono" />}
           </>
         )}
+
+        {/* 2026-11-20 — gleich die nächste Person (Geschwister, ein zweites Kind): ein leeres Formular, ein eigener Link. */}
+        {!extension && !form.closed && (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-line" onClick={startAnother}>{t('forms.card.addAnother')}</button>
+          </div>
+        )}
       </>
     );
   }
@@ -303,16 +355,16 @@ export function FormCard(props: FormCardProps) {
        * versiegelt die Werte ein zweites Mal — so liest er sie später dort,
        * wo er seine erste Einsendung liest.
        */
-      if (pageSeat !== null && pageSeat.seatKey !== null) {
+      if (toSeat !== null && toSeat.seatKey !== null) {
         await submitForm(partId, given, {
           areas: form.areas, fields: form.fields,
-          seat: { token: pageSeat.token, key: pageSeat.seatKey }
+          seat: { token: toSeat.token, key: toSeat.seatKey }
         });
 
         setAttached(person?.chosen?.name ?? t('forms.card.chosenPerson'));
         setSentAt(new Date().toISOString());
         setSent(true);
-        pageSeat.reload();
+        toSeat.reload();
         return;
       }
 
@@ -436,7 +488,16 @@ export function FormCard(props: FormCardProps) {
         sich nicht, solange es genau eine Wahl gibt (die eigene Person), und
         „Zmienisz to u góry strony" zeigte dann ins Leere.
       */}
-      {!extension && pageDecides && person !== null && (person.chosen !== null || person.options.length > 0) && !nameless && !form.closed && !blind && (
+      {another && (
+        <p className="wk-card-text wk-form-whom">
+          {rich(t('forms.card.anotherHint'), b)}{' '}
+          {filledSeats.length > 0 && (
+            <button type="button" className="wk-link-btn" onClick={() => { setAnother(false); setAnswers({}); }}>{t('forms.card.backToFilled')}</button>
+          )}
+        </p>
+      )}
+
+      {!another && !extension && pageDecides && person !== null && (person.chosen !== null || person.options.length > 0) && !nameless && !form.closed && !blind && (
         <p className="wk-hint wk-form-whom">
           {person.chosen === null ? (
             <>

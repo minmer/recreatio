@@ -207,11 +207,17 @@ export function useSeatLinks(
   const [rows, setRows] = useState<ReadonlyMap<string, SeatRow>>(new Map());
   const t = useT();
 
-  /* Der Zusatz gilt nur an der Seite, für die er gewählt ist — ein Platz von früher hängt vielleicht anderswo. */
+  /*
+   * 2026-11-20 — DER LINK ÖFFNET DIE SEITE, DIE IM FORMULAR GEWÄHLT IST, mit ihrem
+   * Zusatz (`?s=3`) — auch für einen Platz von früher, der an einer anderen Seite
+   * hing (der Dienst gibt ihm beim Wählen den Zugang dazu, `Form.ConfigAsync`).
+   * Ohne Wahl bleibt es die Seite des Platzes.
+   */
   const portalRef = useRef(portal);
   portalRef.current = portal;
   const urlOf = (link: Link, under: string | null): string => {
     const p = portalRef.current;
+    if (p !== null && p.under !== '') return linkUrl(link, p.under, p.at === '' ? null : p.at);
     return linkUrl(link, under, p !== null && p.at !== '' && under !== null && under.toLowerCase() === p.under.toLowerCase() ? p.at : null);
   };
 

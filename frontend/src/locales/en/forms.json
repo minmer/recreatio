@@ -59,7 +59,11 @@
     "subjectAfterPick": "The person will appear here once chosen at the top of the page.",
     "subjectPick": "Choose a person at the top of the page.",
     "subjectNoKey": "You cannot open this sub-form with this key.",
-    "personFills": "filled in by the person"
+    "personFills": "filled in by the person",
+    "filledHint": "This form is <b>already filled in</b>. You can correct your answers below.",
+    "addAnother": "Add another person",
+    "anotherHint": "<b>Another person</b> — they get their own entry and their own link.",
+    "backToFilled": "Back to the filled form"
   },
   "ext": {
     "sealedName": "— sealed —",
@@ -209,7 +213,10 @@
     "placeDate": "place and date",
     "signature": "legible signature",
     "fillFirst": "Fill in the form first — the missing fields are listed next to “Send”.",
-    "print": "Print for signing"
+    "print": "Print for signing",
+    "minorConsent": "As the parent / legal guardian, I agree to the participation of my minor child {name} in: {form}.",
+    "minorChild": "named above",
+    "parentSignature": "signature of the parent / legal guardian"
   },
   "kind": {
     "yes": "yes",
@@ -386,6 +393,8 @@
     "intakeCreating": "Creating the intake key — a few seconds…",
     "intakeCreate": "Create intake key",
     "heading": "Heading on the page",
-    "headingPlaceholder": "e.g. Sign-up"
+    "headingPlaceholder": "e.g. Sign-up",
+    "paperDefaultMinor": "when the participant is a minor (default)",
+    "paperNever": "never"
   }
 }

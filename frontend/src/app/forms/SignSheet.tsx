@@ -108,6 +108,12 @@ export function keepOpenedForm(partId: string, form: OpenForm): void {
 export const PAPER_MINOR = 'minor';
 
 /**
+ * 2026-11-20 — „nigdy". Ohne Einstellung (`''`) druckt ein Minderjähriger die
+ * Zustimmung seiner Eltern; wer das ausdrücklich nicht will, sagt es so.
+ */
+export const PAPER_NONE = 'none';
+
+/**
  * 2026-10-24 — DIE REGEL „DO PODPISU, WENN ES ETWAS ZU UNTERSCHREIBEN GIBT":
  * Papier, sobald das Formular eine Erklärung zum Unterschreiben (`sign`)
  * zeigt. Die Logik entscheidet, wem — bei den Minderjährigen nur dem, der
@@ -159,16 +165,21 @@ export function paperNeeded(
   person: { readonly fields?: readonly AgeField[]; readonly on?: string | null; readonly signs?: boolean } = {}
 ): boolean {
   const rule = after?.paper?.trim() ?? '';
-  if (rule === '') return false;
+  if (rule === PAPER_NONE) return false;
+  /* 2026-11-20 — ohne Einstellung: ein Minderjähriger bringt die Unterschrift eines Elternteils mit. */
+  if (rule === '') return minorIn(person.fields ?? [], valueOf, person.on ?? null);
   if (rule === 'always') return true;
   if (rule === PAPER_SIGN) return person.signs === true;
-  if (rule === PAPER_MINOR) {
-    const birth = birthFrom(person.fields ?? [], valueOf);
-    const age = birth === null ? null : ageOn(birth, person.on ?? null);
-    return age !== null && age < 18;
-  }
+  if (rule === PAPER_MINOR) return minorIn(person.fields ?? [], valueOf, person.on ?? null);
   const value = valueOf(rule);
   return consentGiven(value) || isYes(value);
+}
+
+/** Unter 18 am Tag `on` (sonst heute) — aus Geburtsdatum oder PESEL; ohne eines davon nicht. */
+export function minorIn(fields: readonly AgeField[], valueOf: (fieldId: string) => string | undefined, on: string | null): boolean {
+  const birth = birthFrom(fields, valueOf);
+  const age = birth === null ? null : ageOn(birth, on);
+  return age !== null && age < 18;
 }
 
 /**
@@ -246,6 +257,8 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on:
   blocks: Block[]; statements: Statement[]; notes: string[];
   /** 0087 — Erklärungen, die hier unterschrieben werden (Texte `sign`, die sichtbar waren). */
   signed: string[];
+  /** 2026-11-20 — der Teilnehmer ist minderjährig: es unterschreibt ein Elternteil. */
+  minor: boolean;
 } {
   const byId = new Map(open.fields.map((f) => [f.fieldId, f]));
   const sorted = [...open.fields].sort((a, b) => a.position - b.position);
@@ -301,16 +314,29 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on:
   };
   walk(layout);
 
+  /*
+   * 2026-11-20 — EIN MINDERJÄHRIGER, und das Formular hat keine eigene Erklärung
+   * zum Unterschreiben: dann die Zustimmung der Eltern zur Teilnahme — dafür ist
+   * das Blatt da.
+   */
+  const minor = minorIn(open.fields, (id) => values.get(id), on);
+  if (minor && signed.length === 0) {
+    signed.push(t('forms.sheet.minorConsent', {
+      name: name.join(' ') || t('forms.sheet.minorChild'),
+      form: open.form.title ?? open.name ?? t('forms.sheet.form')
+    }));
+  }
+
   const blocks: Block[] = [
     { title: t('forms.sheet.participant'), rows: [...(name.length > 0 ? [{ label: t('forms.sheet.fullName'), value: name.join(' ') }] : []), ...person] },
     { title: t('forms.sheet.parent'), rows: parent }
   ];
 
-  return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes, signed };
+  return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes, signed, minor };
 }
 
 function Sheet({ open, values, submittedAt }: { open: OpenForm; values: ReadonlyMap<string, string>; submittedAt: string | null }) {
-  const { blocks, statements, notes, signed } = useMemo(() => sheetOf(open, values, dayOf(submittedAt)), [open, values, submittedAt]);
+  const { blocks, statements, notes, signed, minor } = useMemo(() => sheetOf(open, values, dayOf(submittedAt)), [open, values, submittedAt]);
   const c = open.form.controller;
   const t = useT();
 
@@ -366,7 +392,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
         </p>
         <div className="wk-print-sign">
           <span>{t('forms.sheet.placeDate')}</span>
-          <span>{open.form.after?.signer ?? t('forms.sheet.signature')}</span>
+          <span>{open.form.after?.signer ?? (minor ? t('forms.sheet.parentSignature') : t('forms.sheet.signature'))}</span>
         </div>
       </footer>
     </div>
@@ -414,7 +440,9 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
   if (open === null) return null;
   const after = open.form.after ?? null;
   const on = dayOf(submittedAt);
-  const show = when === 'ruled' ? (after?.paper ?? '') !== ''
+  const rule = (after?.paper ?? '').trim();
+  /* Ohne Einstellung gilt auch für die Kanzlei: nur bei einem Minderjährigen. */
+  const show = when === 'ruled' && rule !== '' ? rule !== PAPER_NONE
     : paperNeeded(after, (id) => values.get(id), { fields: open.fields, on, signs: (after?.paper ?? '').trim() === PAPER_SIGN && signsIn(open, values, on) });
   if (!show) return null;
 
