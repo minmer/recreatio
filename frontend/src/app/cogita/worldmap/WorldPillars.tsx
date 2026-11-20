@@ -326,26 +326,6 @@ function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
   ctx.restore();
 }
 
-/** 2026-11-20 — die kleine Schleife der Nachhilfe: ein offener Bogen mit Pfeil zurück zum Turm. */
-function drawRemedial(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, pal: Palette): void {
-  ctx.save();
-  ctx.setLineDash([2.5, 2]);
-  ctx.lineWidth = Math.max(1.2, r * 0.22);
-  ctx.strokeStyle = rgbCss(pal.ink);
-  ctx.beginPath();
-  ctx.arc(x, y, r, Math.PI * 0.25, Math.PI * 1.75);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  const ex = x + Math.cos(Math.PI * 1.75) * r;
-  const ey = y + Math.sin(Math.PI * 1.75) * r;
-  ctx.beginPath();
-  ctx.moveTo(ex + r * 0.45, ey + r * 0.05);
-  ctx.lineTo(ex, ey);
-  ctx.lineTo(ex + r * 0.05, ey - r * 0.45);
-  ctx.stroke();
-  ctx.restore();
-}
-
 /** Ein laufendes Abspielen. */
 interface Playing {
   readonly pb: WorldPlayback;
@@ -873,7 +853,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     let stripeCount = 0;
     let discNames = 0;
     let dueFlags = 0;
-    let remedialLoops = 0;
     let placedRings = 0;
     for (const { p, d: dp } of list) {
       treesUpTo(dp);
@@ -1003,11 +982,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       if (p.due) { drawDue(ctx, X + Math.max(3, rx * 0.55), Yt - Math.max(1, ry * 0.3), pal, DUE_COLOUR[dueLevel(p.dueShare)]); dueFlags += 1; }
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
-      /*
-        2026-11-20 (adaptive Abläufe) — NACHHILFE AN DIESEM TURM: eine kleine gestrichelte Schleife links an der Oberseite (sie führt
-        zum selben Turm zurück) — keine Linie, keine Gabel, kein Zähler.
-      */
-      if ((p.remedial ?? 0) > 0 && rx > 6) { drawRemedial(ctx, X - rx * 0.92, Yt, Math.max(4, rx * 0.32), pal); remedialLoops += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
       drawnDepth.push(dp);
       if (named) {
@@ -1122,7 +1096,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmDiscStripes = String(stripeCount);
     canvas.dataset.wmDiscNames = String(discNames);
     canvas.dataset.wmDue = String(dueFlags);
-    canvas.dataset.wmRemedial = String(remedialLoops);
     canvas.dataset.wmPlaced = String(placedRings);
     /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
     const grid = pickGrid(drawn);

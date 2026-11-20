@@ -888,6 +888,40 @@ try {
     await shot('p16-feedback');
   }
 
+  /* -- 17 · (2026-11-21) Rundgang auf der ganzen Seite und dem ganzen Bildschirm: seine Knöpfe liegen über den Knöpfen der Karte -------- */
+  if (runs('17')) {
+    const P = '17 tour full';
+    keepTour = true;
+    for (const mode of ['page', 'screen']) {
+      await page.navigate('about:blank');
+      await open('none', false, '&tour=1');
+      await sleep(800);
+      if (await ev(`document.querySelector('[data-world-tour]') === null`)) { await clickMap('home', '~home'); await waitFor(`document.querySelector('[data-world-tour-start]')`, 'the tour button'); await click('[data-world-tour-start]'); }
+      await waitFor(`document.querySelector('[data-world-tour]')`, 'the tour');
+      await click(`[data-world-full="${mode}"]`);
+      await sleep(1000);
+      const bad = [];
+      for (let k = 0; k < 20; k += 1) {
+        const free = await ev(`(() => {
+        const tour = document.querySelector('[data-world-tour]');
+        if (tour === null) return { tour: false };
+        const hidden = [...tour.querySelectorAll('button')].filter((b) => { const r = b.getBoundingClientRect(); if (r.width === 0) return false; const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return at === null || !tour.contains(at); }).map((b) => b.textContent.trim());
+        const tr = tour.getBoundingClientRect();
+        const over = [...document.querySelectorAll('.cg-wm-tools, .cg-wm-waybar, .cg-wm-fullbtns, .cg-wm-trail, .cg-wm-fitbtn, [data-world-fullbar]')].filter((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.left < tr.right && r.right > tr.left && r.top < tr.bottom && r.bottom > tr.top; }).map((x) => x.className.split(' ')[0]);
+        return { tour: true, hidden, over };
+      })()`);
+        if (!free.tour) break;
+        if (free.hidden.length > 0 || free.over.length > 0) { bad.push({ step: await ev(`document.querySelector('[data-world-tour]').dataset.worldTour`), ...free }); await shot(`p17-${mode}-${k}`); }
+        const nxt = await ev(`(() => { const b = document.querySelector('[data-world-tour-next], [data-world-tour-skipdo]'); if (b === null) return false; b.click(); return true; })()`);
+        if (!nxt) break;
+        await sleep(900);
+      }
+      check(P, `whole ${mode}: on every step of the tour its buttons are on top and no map control lies under it`, bad.length === 0, bad);
+      await ev(`(() => { document.querySelector('[data-world-fulltab="exit"]')?.click(); return true; })()`);
+      await sleep(500);
+    }
+  }
+
   /* -- 15 · (2026-11-14) „Zdobądź w pełni“ und die Tafel, wenn ein Durchgang keine Stufe mehr bringt ------------------------------ */
   if (runs('15')) {
     const P = '15 conquer fully';

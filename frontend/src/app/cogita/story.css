@@ -116,3 +116,8 @@
 
 /* 2026-11-14 (Eigentümer: „‚Dalej' ist wegen des Rollens oft verdeckt, besonders quer") — die Leiste Wstecz / Dalej bleibt unten stehen. */
 .cg-flow-controls { position: sticky; bottom: 0; z-index: 2; padding-bottom: var(--wk-space-2); background: var(--wk-surface); }
+
+/* 2026-11-21 (Eigentümer: „das Zeichen auf den Folien nach rechts oben") — die Rückmeldung zu einer Folie steht oben rechts im Schritt; der Titel lässt ihr Platz. Eine Karte behält ihre eigene Stelle. */
+.cg-flow-step { position: relative; }
+.cg-flow-step .cg-fb:not(.cg-face .cg-fb) { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 2; float: none; margin: 0; }
+.cg-flow-step:has(.cg-fb:not(.cg-face .cg-fb)) > .cg-flow-step-title { padding-right: 2.6rem; }
