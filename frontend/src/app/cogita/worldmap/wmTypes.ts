@@ -273,4 +273,6 @@ export interface Lines {
   /** 2026-11-10 — Abstecher als Schleifen an ihrer Stelle. */
   readonly loops: readonly DetourLoop[];
   readonly issues: readonly WmIssue[];
+  /** 2026-11-20 (adaptive Abläufe) — je Turm, wie viele Schritte der Nachhilfe an seinen Fragen hängen (`wmLines.ts`). */
+  readonly remedial?: ReadonlyMap<string, number>;
 }

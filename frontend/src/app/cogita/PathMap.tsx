@@ -460,7 +460,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const words = (v: number): string => {
     const nd = model.nodes[v];
     const f = marks.forks.get(v);
-    return [nd.label, v === marks.current ? T.now : '', nd.kind === undefined ? '' : T.part(nd, marks.ask?.[v]), nd.auto === true ? T.autoKind : '', optional(v) ? T.optionalKind : stateWords[marks.state[v]], marks.due[v] ? T.dueMark : '', f === undefined ? '' : T.fork(f)].filter(Boolean).join(' · ');
+    return [nd.label, v === marks.current ? T.now : '', nd.kind === undefined ? '' : T.part(nd, marks.ask?.[v]), nd.auto === true ? T.autoKind : '', (nd.remedial ?? 0) > 0 ? T.remedialSteps(nd.remedial!) : '', optional(v) ? T.optionalKind : stateWords[marks.state[v]], marks.due[v] ? T.dueMark : '', f === undefined ? '' : T.fork(f)].filter(Boolean).join(' · ');
   };
   const nowAt = currentNode === undefined ? null : at[marks.current];
   /* Die Zeile von einem Knoten zur Spalte der Namen (unter den Knoten gezeichnet). */
@@ -555,6 +555,9 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       ))}
       {model.nodes.some((nd) => nd.auto === true) && (
         <li data-path-legend-kind="auto"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><circle className="cg-pm-auto" r={9} /><path className="cg-pm-auto-icon" d={kindIcon('auto', 9)} /></svg>{T.autoKind}</li>
+      )}
+      {model.nodes.some((nd) => (nd.remedial ?? 0) > 0) && (
+        <li data-path-legend-kind="remedial"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><path className="cg-pm-loop cg-pm-remedial" d="M4,-6 C-11,-9 -11,9 4,6" markerEnd={`url(#${uid}-arrow)`} /></svg>{T.remedialKind}</li>
       )}
       {(model.loops ?? []).length > 0 && (
         <li data-path-legend-kind="loop"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><path className="cg-pm-loop" d="M6,-9 C-12,-9 -12,9 6,9" markerEnd={`url(#${uid}-arrow)`} /></svg>{T.loopKind}</li>
@@ -707,6 +710,13 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                               <circle className="cg-pm-auto" r={Math.max(5.5, rr * 0.4)} />
                               <path className="cg-pm-auto-icon" d={kindIcon('auto', Math.max(5.5, rr * 0.4))} />
                             </g>
+                          )}
+                          {/* 2026-11-20 — Nachhilfe an diesem Teil: eine kleine Schleife links am Teil (kein eigener Knoten, nie im Fortschritt). */}
+                          {(nd.remedial ?? 0) > 0 && (
+                            <path className="cg-pm-loop cg-pm-remedial" data-path-remedial={nd.remedial} markerEnd={`url(#${uid}-arrow)`}
+                              d={`M${(-rr * 0.7).toFixed(1)},${(-rr * 0.75).toFixed(1)} C${(-rr * 2.3).toFixed(1)},${(-rr * 1.2).toFixed(1)} ${(-rr * 2.3).toFixed(1)},${(rr * 1.2).toFixed(1)} ${(-rr * 0.75).toFixed(1)},${(rr * 0.72).toFixed(1)}`}>
+                              <title>{T.remedialSteps(nd.remedial!)}</title>
+                            </path>
                           )}
                           {marks.due[v] && <circle className="cg-pm-due" cx={rr * 0.66} cy={-rr * 0.66} r={Math.max(3, rr * 0.22)} />}
                         </g>

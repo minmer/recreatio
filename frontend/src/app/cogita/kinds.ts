@@ -195,6 +195,8 @@ export const QUESTION: KindDef = {
     q('options', 'list'),
     q('correct', 'list'),
     q('feedback', 'list'),
+    /* 2026-11-20 — Fehler-Tags (`adaptive.ts`): je Möglichkeit, Paar, Lücke oder Stelle einer; ein Ablauf verzweigt danach (`wrong:<tag>`). */
+    q('tags', 'list'),
     q('value', 'bool'),
     q('left', 'list'),
     q('right', 'list'),

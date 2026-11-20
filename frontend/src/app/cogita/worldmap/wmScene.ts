@@ -40,6 +40,8 @@ export interface ScenePlace {
   readonly knowledge: { readonly known: number; readonly learning: number; readonly faded: number };
   /** 2026-11-20 — wie gut der Ort sitzt, 0–1 (`PlaceState.share`): die Farbe seines Rings. */
   readonly share: number;
+  /** 2026-11-20 — Schritte der Nachhilfe an den Fragen dieses Ortes: eine kleine Schleife am Turm (nie im Fortschritt). */
+  readonly remedial?: number;
   /** 2026-11-10 — was dem Turm SELBST noch fehlt (Karten): die Höhe des Turms über seinen Scheiben. */
   readonly own: number;
   /**
@@ -231,6 +233,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       station: lines.stations.has(id), perfect: st?.perfect === true,
       knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length },
       share: st?.share ?? 0,
+      remedial: lines.remedial?.get(id) ?? 0,
       own: st?.missing ?? p.cards.length,
       discs: st === undefined || st.conquered ? [] : state.conquestOrder(id).filter((x) => x !== id),
       due: st?.dot === 'orange',

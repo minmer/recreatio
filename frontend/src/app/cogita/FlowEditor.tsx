@@ -22,6 +22,8 @@ import { FLOW_PALETTE, LOOK_LABEL, LOOK_TYPES, proposedDependencies, readFlow, r
 import { GameRulesEditor } from './GamePanel';
 import { readGame, type GameRules } from './game';
 import { graphJson, type Graph } from './graph';
+import { adaptiveProblems, checkContext, declareExits, expandAdaptive } from './adaptive';
+import { AdaptiveEditor } from './AdaptiveEditor';
 import { GraphEditor } from './GraphEditor';
 import { FLOW_PRESETS } from './presets';
 import { pageUrl, publishModule } from './publish';
@@ -84,17 +86,20 @@ function FlowForm({ id }: { id: string }) {
   const t = useT();
   const { lib, writes, me } = useCtx();
   const entry = lib.docs('flow').find((e) => e.id === id)!;
-  const [flow, setFlow] = useState<Flow>(() => readFlow(entry.id, entry.data));
+  /* 2026-11-20 — der Editor zeigt den Graphen, wie der Autor ihn schrieb (die Kurzformen der Nachhilfe bleiben Kurzformen). */
+  const [flow, setFlow] = useState<Flow>(() => readFlow(entry.id, entry.data, { authored: true }));
   const [game, setGame] = useState<GameRules>(() => readGame(entry.data.game));
   const [dirty, setDirty] = useState(false);
   const [playing, setPlaying] = useState(false);
   const { busy, failed, run } = useBusy();
   const [said, setSaid] = useState<string | null>(null);
-  useEffect(() => { if (!dirty) { setFlow(readFlow(entry.id, entry.data)); setGame(readGame(entry.data.game)); } }, [entry.version, dirty, entry.id, entry.data]);
+  useEffect(() => { if (!dirty) { setFlow(readFlow(entry.id, entry.data, { authored: true })); setGame(readGame(entry.data.game)); } }, [entry.version, dirty, entry.id, entry.data]);
   const set = (patch: Partial<Flow>) => { setFlow((f) => ({ ...f, ...patch })); setDirty(true); };
   const cards = useAsync(() => lib.cards('flow').then((r) => r.cards), [lib.revision]);
   const find = (x: string) => { const e = lib.docs('flow').find((one) => one.id === x); return e === undefined ? undefined : readFlow(e.id, e.data); };
-  const resolved = useMemo(() => resolveFlow(flow, find), [flow, lib.revision]);
+  /* Ausprobieren und Prüfen: aufgeklappt, wie der Spieler ihn sieht. */
+  const expanded = useMemo<Flow>(() => ({ ...flow, graph: expandAdaptive(flow.graph) }), [flow]);
+  const resolved = useMemo(() => resolveFlow(expanded, find), [expanded, lib.revision]);
 
   const save = () => run(async () => {
     const doc: Record<string, unknown> = {
@@ -156,11 +161,13 @@ function FlowForm({ id }: { id: string }) {
       </details>
 
       {/* 2026-11-04 — ist die Ścieżka folgerichtig? Ein Anfang, ein Ende, keine Sackgassen — jeder Fehler beim Namen. */}
-      {flow.template === undefined && <FlowProblems flow={flow} label={(x) => { const e = lib.entity(x); return e === undefined ? x : lib.label(e); }} others={lib.docs('flow').map((d) => readFlow(d.id, d.data))} resolve={(r) => { const x = r.trim(); if (x.startsWith('@')) return lib.byImportRef(x.slice(1), 'flow')?.id ?? null; return lib.docs('flow').some((d) => d.id === x) ? x : null; }} />}
+      {flow.template === undefined && <FlowProblems flow={expanded} authored={flow.graph} label={(x) => { const e = lib.entity(x); return e === undefined ? x : lib.label(e); }} others={lib.docs('flow').map((d) => readFlow(d.id, d.data))} resolve={(r) => { const x = r.trim(); if (x.startsWith('@')) return lib.byImportRef(x.slice(1), 'flow')?.id ?? null; return lib.docs('flow').some((d) => d.id === x) ? x : null; }} />}
       {flow.template === undefined && (
         <GraphEditor graph={flow.graph} palette={FLOW_PALETTE} cycles readOnly={!writes} start={flow.start}
           onStart={(s) => set({ start: s })} onChange={(g: Graph) => set({ graph: g, start: flow.start ?? g.nodes[0]?.id ?? null })} />
       )}
+      {/* 2026-11-20 — „Dodaj pomoc po złej odpowiedzi" an jedem Schritt „question" (adaptive Abläufe). */}
+      {flow.template === undefined && <AdaptiveEditor graph={flow.graph} lib={lib} writes={writes} onChange={(g) => set({ graph: declareExits(g) })} />}
       </>)}
 
       <details open={flow.narrators.length > 0}>
@@ -386,7 +393,7 @@ function PageWithFlow({ id, name, onSaid }: { id: string; name: string; onSaid: 
 }
 
 /** 2026-11-04 — was an der Ścieżka eines Ablaufs nicht stimmt (`flowCheck.ts`): Fehler zuerst, jeder Schritt beim Namen. */
-function FlowProblems({ flow, label, others, resolve }: { flow: Flow; label: (id: string) => string; others: readonly Flow[]; resolve: (ref: string) => string | null }) {
+function FlowProblems({ flow, authored, label, others, resolve }: { flow: Flow; authored?: Graph; label: (id: string) => string; others: readonly Flow[]; resolve: (ref: string) => string | null }) {
   const t = useT();
   /* 2026-11-04 (Prompt 13) — dazu die Abstecher: eine Erzählung, die es nicht gibt; ein Kreis A → B → A (beide beim Namen); zu tief. */
   const { lib } = useCtx();
@@ -399,7 +406,11 @@ function FlowProblems({ flow, label, others, resolve }: { flow: Flow; label: (id
     question: (id) => { const e = lib.entity(id); if (e === undefined || !e.kinds.includes('question')) return null; const d = lib.entry(id)?.data ?? {}; return { about: refsOf(d.about), explain: refsOf(d.explain) }; },
     label
   };
-  const list = [...flowProblems(flow, label), ...detourProblems(flow, others, resolve), ...mountainProblems(flow, mountain)];
+  /* 2026-11-20 — die Nachhilfe: Tags ohne Weg, Wege zu Tags, die es nicht gibt, kein Rückweg, mehr als zwei Versuche, Folien neben dem Thema. */
+  const stepName = (id: string) => { const n = flow.graph.nodes.find((x) => x.id === id); const of = typeof n?.config.of === 'string' ? n.config.of : ''; return typeof n?.config.title === 'string' && n.config.title !== '' ? n.config.title : of !== '' ? label(of) : id; };
+  const adaptive = adaptiveProblems(authored ?? flow.graph, flow.graph, checkContext((id) => lib.entity(id)?.data ?? null, (id) => lib.entity(id)?.kinds.includes('question') === true))
+    .map((p) => ({ level: 'warning' as const, text: t(`cogitaData.adaptive.${p.key}`, { ...p.params, step: stepName(p.step), ...(p.params.slide === undefined ? {} : { slide: label(String(p.params.slide)) }) }) }));
+  const list = [...flowProblems(flow, label), ...detourProblems(flow, others, resolve), ...mountainProblems(flow, mountain), ...adaptive];
   if (list.length === 0) return <p className="cg-muted" data-flow-problems="0">{t('cogitaEditFlow.editor.pathOk')}</p>;
   const errors = list.filter((p) => p.level === 'error');
   return (

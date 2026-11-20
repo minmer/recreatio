@@ -125,6 +125,8 @@
 .cg-pm-loop { fill: none; stroke: var(--cg-pm-loop); stroke-width: 2; stroke-dasharray: 5 4; stroke-linecap: round; }
 .cg-pm-loop-head { fill: var(--cg-pm-loop); }
 .cg-pm-loop.is-optional { opacity: 0.45; }
+/* 2026-11-20 — die Nachhilfe an einem Teil: eine kleine, dünnere Schleife (kein Weg nach vorn). */
+.cg-pm-remedial { stroke-width: 1.5; stroke-dasharray: 3 3; }
 .cg-pm-node.is-optional { opacity: 0.5; }
 .cg-pm-node.is-optional .cg-pm-hex { fill: transparent; stroke: var(--cg-pm-lock-edge); stroke-dasharray: 2 3; }
 .cg-pm-node.is-optional .cg-pm-icon { stroke: var(--wk-muted); }

@@ -52,7 +52,8 @@
 
 import { paletteOf, readGraph, type Graph, type GraphNode, type NodeKind, type Port } from './graph';
 import { t, texts } from '../core/i18n';
-import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type ValueLimit } from './logic';
+import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type SessionAnswer, type SessionFacts, type ValueLimit } from './logic';
+import { adaptiveOf, declareExits, decideAnswer, expandAdaptive, type AnswerDecision, type AnswerInput } from './adaptive';
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
@@ -102,7 +103,22 @@ const port = (id: string, label: string, many = false): Port => ({ id, label, ty
 /** Die Ausgänge eines Schrittes — sie hängen an seiner Einstellung (eine Wahl mit drei Möglichkeiten hat drei). */
 export function exitsOf(type: string, config: Readonly<Record<string, unknown>>): Port[] {
   switch (type) {
-    case 'question': return [port('right', t('cogitaEditFlow.exit.right')), port('wrong', t('cogitaEditFlow.exit.wrong'))];
+    /*
+      2026-11-20 (adaptive Abläufe, `adaptive.ts`) — dazu, was der Schritt erklärt: „teilweise" ("partialAt"), „richtig im zweiten
+      Versuch" ("retry", "onWrong.then": "retry"), je Fehler-Tag "wrong:<tag>" ("tags"), je Möglichkeit "pick:<i>" ("picks").
+      Ohne Weg fallen sie auf „dobrze"/„źle" zurück.
+    */
+    case 'question': {
+      const a = adaptiveOf(config);
+      const retry = a.retry !== null || a.onWrong?.then === 'retry';
+      return [
+        port('right', t('cogitaEditFlow.exit.right')), port('wrong', t('cogitaEditFlow.exit.wrong')),
+        ...(a.partialAt === null ? [] : [port('partial', t('cogitaEditFlow.exit.partial'))]),
+        ...(retry ? [port('rightOnRetry', t('cogitaEditFlow.exit.rightOnRetry'))] : []),
+        ...a.tags.map((tag) => port(`wrong:${tag}`, t('cogitaEditFlow.exit.wrongTag', { tag }))),
+        ...Array.from({ length: a.picks }, (_x, i) => port(`pick:${i}`, t('cogitaEditFlow.exit.pick', { n: i + 1 })))
+      ];
+    }
     case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || t('cogitaEditFlow.exit.option', { n: i + 1 })));
     case 'condition': return [port('yes', t('cogitaEditFlow.exit.yes')), port('no', t('cogitaEditFlow.exit.no'))];
     /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: zdany oder noch nicht. */
@@ -257,9 +273,14 @@ function entryOf(graph: Graph): string | null {
   return free.length === 1 ? free[0].id : null;
 }
 
-export function readFlow(id: string, raw: unknown): Flow {
+/**
+ * `authored`: der Graph, wie der Autor ihn schrieb (für den Editor) — sonst mit den Kurzformen der Nachhilfe als Schritte
+ * (`expandAdaptive`; der Spieler, die Ścieżka, die Karte und die Prüfung sehen so dieselben Wege).
+ */
+export function readFlow(id: string, raw: unknown, options: { readonly authored?: boolean } = {}): Flow {
   const d = isObject(raw) ? raw : {};
-  const graph = exploreDone(migratePrerequisites(readGraph(d.graph, true)));
+  const written = declareExits(exploreDone(migratePrerequisites(readGraph(d.graph, true))));
+  const graph = options.authored === true ? written : expandAdaptive(written);
   const start = str(d.start);
   const fill: Record<string, string> = {};
   if (isObject(d.fill)) for (const [k, v] of Object.entries(d.fill)) if (typeof v === 'string' && v !== '') fill[k] = v;
@@ -350,6 +371,24 @@ export interface FlowState {
   readonly ended: boolean;
   /** Was die Gestalten schon gesagt haben (für „einmal"). */
   readonly said: readonly string[];
+  /**
+   * 2026-11-20 (adaptive Abläufe) — DIE ANTWORTEN DIESES LAUFS (für „session", „lastAnswer", „streak"), wo jeder Schritt und jede
+   * Erzählung ("^<ablauf>") zuletzt betreten wurde (eine Stelle im Log), die Versuche je Frage ("retry") und was nach einer
+   * richtigen Antwort übersprungen wird ("onRight.skip"). Nur im Lauf — nie gemerkt.
+   */
+  readonly log?: readonly SessionAnswer[];
+  readonly at?: Readonly<Record<string, number>>;
+  readonly tries?: Readonly<Record<string, number>>;
+  readonly skipped?: readonly string[];
+}
+
+/** 2026-11-20 — was die Bedingungen des Laufs über einen Stand wissen. */
+export function sessionOf(state: Pick<FlowState, 'log' | 'at' | 'flow'>): SessionFacts {
+  const log = state.log ?? [];
+  return {
+    log,
+    from: (since) => (since === 'unit' ? 0 : since === 'flowStart' ? state.at?.[`^${state.flow}`] ?? 0 : state.at?.[since] ?? log.length)
+  };
 }
 
 export interface PlayContext {
@@ -366,8 +405,11 @@ export interface PlayContext {
 
 export function startFlow(flow: Flow, values: Readonly<Record<string, number>> = {}, at?: string | null): FlowState {
   const step = at !== undefined && at !== null && flow.graph.nodes.some((n) => n.id === at) ? at : flow.start;
-  return { flow: flow.id, step, visited: step === null ? [] : [step], values, chapters: {}, chapter: null, stack: [], ended: step === null, said: [] };
+  return { flow: flow.id, step, visited: step === null ? [] : [step], values, chapters: {}, chapter: null, stack: [], ended: step === null, said: [], at: { [`^${flow.id}`]: 0, ...(step === null ? {} : { [step]: 0 }) } };
 }
+
+/** 2026-11-20 — eine Erzählung beginnt (für „flowStart"): ab hier zählt sie die Antworten. */
+const begun = (state: FlowState, flow: string): FlowState => ({ ...state, at: { ...state.at, [`^${flow}`]: state.log?.length ?? 0 } });
 
 const nodeOf = (flow: Flow, id: string | null): GraphNode | undefined => (id === null ? undefined : flow.graph.nodes.find((n) => n.id === id));
 
@@ -385,11 +427,17 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   const node = nodeOf(flow, to);
   if (node === undefined) return leave(flow, state, ctx, guard);
   const visited = state.visited.includes(to) ? state.visited : [...state.visited, to];
-  const here: FlowState = { ...state, step: to, visited };
+  const here: FlowState = { ...state, step: to, visited, at: { ...state.at, [to]: state.log?.length ?? 0 } };
   const facts = ctx.facts(here);
   const c = node.config;
 
-  if (node.type === 'question' && ctx.skip?.(node, here) === true) return enter(flow, here, follow(flow, to, 'right'), ctx, guard + 1);
+  /* 2026-11-20 — nach einer richtigen Antwort übersprungen ("onRight.skip": der Schritt oder der Eintrag, den er zeigt). */
+  if ((here.skipped?.length ?? 0) > 0 && (here.skipped!.includes(to) || (typeof c.of === 'string' && here.skipped!.includes(c.of)))) {
+    if (SKIPPABLE.has(node.type)) return enter(flow, here, follow(flow, to, 'next'), ctx, guard + 1);
+    if (node.type === 'question') return enter(flow, here, follow(flow, to, 'right'), ctx, guard + 1);
+  }
+  /* Ein zweiter Versuch (retry) wird nie still übersprungen. */
+  if (node.type === 'question' && (here.tries?.[to] ?? 0) === 0 && ctx.skip?.(node, here) === true) return enter(flow, here, follow(flow, to, 'right'), ctx, guard + 1);
   /*
     2026-11-10 (Eigentümer: „kein leerer Entscheidungsfolie") — EIN SCHRITT, DER SICH ERÜBRIGT:
       skipWhen  eine Bedingung an einem Schritt mit nur einem Ausgang „dalej" (show, opening, line, scene ohne Frage): gilt sie, geht
@@ -499,15 +547,15 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
   if (node.type === 'subflow' || node.type === 'handoff' || node.type === 'each') {
     const inner = ctx.flows(str(c.flow));
     if (inner === undefined) return enter(flow, state, follow(flow, node.id, 'next'), ctx);
-    if (node.type === 'handoff') return enter(inner, { ...state, flow: inner.id, stack: [], chapter: null }, inner.start, ctx);
+    if (node.type === 'handoff') return enter(inner, begun({ ...state, flow: inner.id, stack: [], chapter: null }, inner.id), inner.start, ctx);
     const items = node.type === 'each' ? ctx.members(str(c.collection) || str(c.kind)) : [];
     if (node.type === 'each' && items.length === 0) return enter(flow, state, follow(flow, node.id, 'next'), ctx);
     const [item, ...queue] = items;
-    return enter(inner, {
+    return enter(inner, begun({
       ...state, flow: inner.id, chapter: null,
       stack: [...state.stack, { flow: flow.id, step: node.id, ...(state.item === undefined ? {} : { item: state.item }) }],
       ...(node.type === 'each' ? { item, queue } : {})
-    }, inner.start, ctx);
+    }, inner.id), inner.start, ctx);
   }
 
   /*
@@ -518,10 +566,10 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
   if (node.type === 'detour' && (exit === undefined || exit === 'enter')) {
     const inner = ctx.flows(str(c.flow));
     if (inner === undefined || detourRefused(state, inner.id, ctx.flows) !== null) return state;
-    return enter(inner, {
+    return enter(inner, begun({
       ...state, flow: inner.id, chapter: null, item: undefined, queue: undefined,
       stack: [...state.stack, { flow: flow.id, step: node.id, ...(state.item === undefined ? {} : { item: state.item }) }]
-    }, inner.start, ctx);
+    }, inner.id), inner.start, ctx);
   }
 
   /* 2026-11-05 (Prompt 23, D4) — ein Przegląd: das Ergebnis (1 zdany, 0 nie) in seiner Wartość, dann weiter über „passed"/„notyet". */
@@ -542,6 +590,36 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
     return enter(flow, { ...state, values: done.values }, done.go ?? to, ctx);
   }
   return enter(flow, state, to, ctx);
+}
+
+/** 2026-11-20 — wohin eine Antwort auf den laufenden Schritt „question" führen würde (ohne etwas zu ändern). */
+export function previewAnswer(flow: Flow, state: FlowState, input: AnswerInput): AnswerDecision | null {
+  const node = state.step === null ? undefined : nodeOf(flow, state.step);
+  if (node === undefined || node.type !== 'question') return null;
+  return decideAnswer(node, input, state.tries?.[node.id] ?? 0, (exit) => follow(flow, node.id, exit) !== null);
+}
+
+/**
+ * 2026-11-20 (adaptive Abläufe) — EINE ANTWORT AUF DEN SCHRITT „question": ins Log des Laufs, dann über den Ausgang, den sie
+ * wählt (`decideAnswer`: pick · right/rightOnRetry · partial · wrong:<tag> · wrong) — oder, solange Versuche übrig sind
+ * ("retry"), zu den Folien vor dem nächsten Versuch (ohne Folien: dieselbe Frage gleich noch einmal). Ohne adaptive
+ * Einstellungen genau wie `advance(…, 'right' | 'wrong')`.
+ */
+export function answerStep(flow: Flow, state: FlowState, input: AnswerInput, ctx: PlayContext): FlowState {
+  const node = state.step === null || state.ended ? undefined : nodeOf(flow, state.step);
+  const d = previewAnswer(flow, state, input);
+  if (node === undefined || d === null) return advance(flow, state, (input.correct ?? input.score >= 0.999) ? 'right' : 'wrong', ctx);
+  const entry: SessionAnswer = {
+    flow: flow.id, step: node.id, score: Math.max(0, Math.min(1, input.score)), correct: d.correct, partial: d.partial,
+    tags: [...(input.tags ?? [])], hints: input.hints ?? 0, ms: input.ms ?? 0, attempt: d.attempt
+  };
+  const logged: FlowState = { ...state, log: [...(state.log ?? []), entry].slice(-500) };
+  if (d.exit === null) return enter(flow, { ...logged, tries: { ...state.tries, [node.id]: d.attempt + 1 } }, d.retryTo, ctx);
+  const tries = { ...state.tries };
+  delete tries[node.id];
+  const skip = d.correct ? adaptiveOf(node.config).onRight?.skip ?? [] : [];
+  const next: FlowState = { ...logged, tries, ...(skip.length === 0 ? {} : { skipped: [...new Set([...(state.skipped ?? []), ...skip])] }) };
+  return enter(flow, next, follow(flow, node.id, d.exit), ctx);
 }
 
 /** Gilt `skipWhen`? Eine unlesbare Bedingung gilt nie (eine fehlende gälte immer — und überspränge jeden Schritt). */

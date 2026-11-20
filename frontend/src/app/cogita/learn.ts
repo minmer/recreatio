@@ -67,6 +67,12 @@ export interface AnswerRecord {
    * Einträge rechnet sie mit (`answeredCards`).
    */
   readonly about?: readonly string[];
+  /**
+   * 2026-11-20 (adaptive Abläufe) — DER WEG, DEN DIESE ANTWORT IN EINEM ABLAUF NAHM (`<ablauf>|<schritt>|<ausgang>`, "retry": ein
+   * weiterer Versuch) und die Fehler-Tags der falschen Teile. Autoren sehen beides nur zusammengezählt (`adaptive.ts` branchInsight).
+   */
+  readonly branch?: string;
+  readonly tags?: readonly string[];
 }
 
 /**
@@ -193,7 +199,9 @@ function readAnswer(raw: unknown): AnswerRecord | null {
     ...(readSeed(raw.seed) === undefined ? {} : { seed: readSeed(raw.seed)! }),
     ...(typeof raw.lead === 'string' && raw.lead !== '' ? { lead: raw.lead } : {}),
     /* 2026-11-03 (G) — wofür eine Antwort auf einer Seite ausserdem zählt. */
-    ...(Array.isArray(raw.about) && raw.about.some((x) => typeof x === 'string' && x !== '') ? { about: raw.about.filter((x): x is string => typeof x === 'string' && x !== '').slice(0, 24) } : {})
+    ...(Array.isArray(raw.about) && raw.about.some((x) => typeof x === 'string' && x !== '') ? { about: raw.about.filter((x): x is string => typeof x === 'string' && x !== '').slice(0, 24) } : {}),
+    ...(typeof raw.branch === 'string' && raw.branch !== '' ? { branch: clip(raw.branch, 300) } : {}),
+    ...(Array.isArray(raw.tags) && raw.tags.some((x) => typeof x === 'string' && x !== '') ? { tags: raw.tags.filter((x): x is string => typeof x === 'string' && x !== '').map((x) => clip(x, 80)).slice(0, 12) } : {})
   };
 }
 
@@ -1049,7 +1057,7 @@ export class Learner {
   }
 
   /** Eine Antwort festhalten — sofort im Fortschritt, hinaus mit dem nächsten Stapel. */
-  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, ParamValue>>; lead?: string; seed?: string; about?: readonly string[] } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, ParamValue>>; lead?: string; seed?: string; about?: readonly string[]; branch?: string; tags?: readonly string[] } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
     const params = readParams(extras.params);
     const answer: AnswerRecord = {
       id: newId(), key: card.key, question: card.question, direction: card.direction, fingerprint: card.fingerprint,
@@ -1061,7 +1069,9 @@ export class Learner {
       ...(params === undefined ? {} : { params }),
       ...(extras.lead === undefined || extras.lead === '' ? {} : { lead: extras.lead }),
       ...(readSeed(extras.seed) === undefined ? {} : { seed: readSeed(extras.seed)! }),
-      ...(extras.about === undefined || extras.about.length === 0 ? {} : { about: [...new Set(extras.about)].slice(0, 24) })
+      ...(extras.about === undefined || extras.about.length === 0 ? {} : { about: [...new Set(extras.about)].slice(0, 24) }),
+      ...(extras.branch === undefined || extras.branch === '' ? {} : { branch: clip(extras.branch, 300) }),
+      ...(extras.tags === undefined || extras.tags.length === 0 ? {} : { tags: [...new Set(extras.tags)].map((x) => clip(x, 80)).slice(0, 12) })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
     const snapshot = snapshotOf(card.question, card.direction, marks, at, this.spacing);

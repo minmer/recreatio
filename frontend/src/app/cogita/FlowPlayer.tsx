@@ -35,7 +35,7 @@ import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import { appLang, LangScope, rich, useT } from '../core/i18n';
 import {
-  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, reviewOf, STEP_LABEL,
+  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, previewAnswer, readFlow, resolveFlow, reviewOf, sessionOf, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
 import { detourOf, detoursIn, detourState, openDetours, requiredOpen, type DetourConfig } from './detour';
@@ -53,6 +53,7 @@ import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, 
 import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
 import { conditionText, holds, readCondition, type Facts, type FlowFacts } from './logic';
+import { adaptiveOf, answerSignals, isAdaptive, isRemedialNode, type AnswerInput as StepAnswer } from './adaptive';
 import { publicEntity, type PublicEntity } from './publish';
 import { slideText } from './slideText';
 import { PlacementStep } from './worldmap/PlacementStep';
@@ -105,6 +106,8 @@ export interface FlowContent {
   readonly flowRef?: (ref: string) => string | null;
   /** 2026-11-04 (Prompt 11) — ist dieser Eintrag eine Frage (ihr Text ist nie ein Name auf der Ścieżka)? */
   readonly isQuestion?: (id: string) => boolean;
+  /** 2026-11-20 — die Felder einer Frage (ihre Fehler-Tags, `adaptive.ts`). */
+  readonly questionData?: (id: string) => Readonly<Record<string, unknown>> | null;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -130,7 +133,8 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     rename: renamer(lib.merges()),
     lang: baseLang(lib),
     flowRef: (ref) => { const r = ref.trim(); if (r.startsWith('@')) return lib.byImportRef(r.slice(1), 'flow')?.id ?? null; return lib.docs('flow').some((d) => d.id === r) ? r : null; },
-    isQuestion: (id) => lib.entity(id)?.kinds.includes('question') === true
+    isQuestion: (id) => lib.entity(id)?.kinds.includes('question') === true,
+    questionData: (id) => { const e = lib.entity(id); return e === undefined || !e.kinds.includes('question') ? null : e.data; }
   };
 }
 
@@ -283,7 +287,9 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     },
     visited: new Set(s.visited),
     now: new Date(),
-    flow: flowFacts
+    flow: flowFacts,
+    /* 2026-11-20 — die Antworten dieses Laufs (session, lastAnswer, streak). */
+    session: sessionOf(s)
   });
   /* Die Regel des Spielers: was der Lernende kann, wird nicht gefragt (still, über „dobrze"). */
   const ctx: PlayContext = { facts, flows: flowOf, members: content.members, skip: (node) => skipStep(node, content.card, marksOf) };
@@ -319,6 +325,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   const [past, setPast] = useState<readonly PastStep[]>([]);
   const [backBy, setBackBy] = useState(0);
   const lastAnswer = useRef<PastStep['answer'] | null>(null);
+  /* 2026-11-20 — die letzte Antwort auf den laufenden Schritt „question", wie der Ablauf sie liest (`answerStep`). */
+  const stepAnswer = useRef<StepAnswer | null>(null);
   const remember = (exit?: string) => {
     const r = runRef.current;
     const node = r.state.step === null ? undefined : flowOf(r.state.flow)?.graph.nodes.find((n) => n.id === r.state.step);
@@ -487,14 +495,14 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     return () => { if (keepTimer.current !== null) window.clearTimeout(keepTimer.current); };
   }, [learner, running.id, state.step, state.visited, state.values, state.ended, state.chapters, goalsKey, insideKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const go = (exit?: string) => {
+  const go = (exit?: string, answer?: StepAnswer) => {
     moved.current = true;
     remember(exit);
     setBackBy(0);
     setAnsweredOn(null);
     setVisit((v) => v + 1);
     const was = runRef.current.state.flow;
-    const step = stepRun(runRef.current, flowOf, exit, ctx);
+    const step = stepRun(runRef.current, flowOf, exit, ctx, answer);
     const after = flowOf(step.run.state.flow) ?? flow;
     const said = markSaid(step.run.state, linesNow(after, step.run.state, facts(step.run.state)));
     /* Zurück aus einer gerufenen Erzählung: ein Satz, wohin es weitergeht. */
@@ -865,6 +873,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     const drawingText = node.type === 'show' || node.type === 'choice' ? slideDrawingText(k.drawing, shownEntity) : null;
     return (
       <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken}>
+        {/* 2026-11-20 — eine Folie der Nachhilfe sagt, wofür sie da ist (sie zählt nicht im Fortschritt). */}
+        {isRemedialNode(node) && <p className="cg-muted cg-flow-remedial" data-flow-remedial="">{t('cogitaLearnPath.flow.remedial')}</p>}
         {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? t('cogitaLearnPath.flow.guess') : t('cogitaLearnPath.flow.recall')}</p>}
         {media !== null && <MediaView media={media} />}
         {id !== '' && <EntityView entity={shownEntity} />}
@@ -1121,25 +1131,47 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         /* Dieselbe Frage wie eben, nach einer falschen Antwort: erst ein Przerywnik (eine gekonnte), dann sie wieder. */
         /* Nur beim Wiederkommen — nicht, solange die Rückmeldung zur eben falschen Antwort steht. */
         const back = answeredOn === null || answeredOn.step === `spacer:${current.id}`;
-        const spacer = back && marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
+        /* 2026-11-20 — ein zweiter Versuch nach der Nachhilfe ("retry") kommt ohne Przerywnik: genau diese Frage noch einmal. */
+        const retrying = (state.tries?.[current.id] ?? 0) > 0;
+        const spacer = back && !retrying && marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
           ? pickSpacer(card, cardsInFlow(running, content.card), content.cards ?? [], marksOf) : null;
         const shown = spacer ?? card;
         const afterAnswer = () => {
           if (spacer !== null) { setSpacerDone(card.key); setAnsweredOn(null); return; }
           setSpacerDone(null);
+          /* 2026-11-20 — der Ausgang folgt aus der ganzen Antwort (Anteil, Fehler-Tags, Wahl, Versuch — `answerStep`). */
+          const given = stepAnswer.current;
+          stepAnswer.current = null;
+          if (given !== null) { go(undefined, given); return; }
           go(answeredOn?.correct === false ? 'wrong' : 'right');
         };
         /* Beantwortet: „Dalej" der Karte selbst; die Tastatur (→) tut dasselbe. */
         if (answeredOn !== null) keyNext = afterAnswer;
         return (
           <>
+            {retrying && <p className="cg-muted cg-flow-remedial" data-flow-retry={state.tries?.[current.id] ?? 0}>{t('cogitaLearnPath.flow.retry')}</p>}
+            {!retrying && isRemedialNode(current) && <p className="cg-muted cg-flow-remedial" data-flow-remedial="check">{t('cogitaLearnPath.flow.remedialCheck')}</p>}
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
             <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang} {...(cg === null ? {} : { lib: cg.lib })} stats={statsOf(shown)}
-              onAnswered={(outcome, given) => {
+              onAnswered={(outcome, given, ms) => {
                 /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
                 if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: running.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }
+                /*
+                  2026-11-20 (adaptive Abläufe) — WAS DIE ANTWORT SAGT: Anteil, Urteil, Fehler-Tags der falschen Teile, die gewählten
+                  Möglichkeiten, Podpowiedzi, Zeit; mit ihr wählt der Schritt seinen Ausgang. Die Antwort trägt den Weg ("branch") und
+                  ihre Tags — zusammengezählt sehen Autoren, welche Erklärung wirkt (nie je Lernendem).
+                */
+                const signals = answerSignals(card, content.questionData?.(card.question) ?? null, given, outcome);
+                const input: StepAnswer = { score: outcome.correctness, correct: outcome.correct, hints: outcome.hints ?? 0, ms, tags: signals.tags, picks: signals.picks };
+                stepAnswer.current = input;
+                const decision = previewAnswer(running, state, input);
+                const adaptive = isAdaptive(adaptiveOf(current.config)) || isRemedialNode(current) || running.graph.edges.some((e) => e.from === current.id && e.out !== 'right' && e.out !== 'wrong');
+                const branch = adaptive && decision !== null ? `${running.id}|${current.id}|${decision.exit ?? 'retry'}` : undefined;
                 /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
-                learner?.record(card, outcome.correctness, { via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
+                learner?.record(card, outcome.correctness, {
+                  via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }),
+                  ms, ...(branch === undefined ? {} : { branch }), ...(signals.tags.length === 0 ? {} : { tags: signals.tags })
+                });
                 onAnswer?.(current.id, card, outcome.correctness, given);
                 /* 2026-11-05 (Prompt 18) — für „Wstecz": diese Antwort, wie sie war (gezeigt, nie wieder gefragt). */
                 lastAnswer.current = { card, outcome, given };

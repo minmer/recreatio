@@ -182,6 +182,9 @@ export function words(lang: Lang) {
     autoOneOf: (a: string, b: string): string => (a !== '' && b !== '' ? t('cogitaLearn.words.autoOneOf', { a, b })
       : t('cogitaLearn.words.autoOrNothing', { x: a || b })),
     loopKind: t('cogitaLearn.words.loopKind'),
+    /* 2026-11-20 — die Nachhilfe an einem Teil (adaptive Abläufe): eine kleine Schleife, nie im Fortschritt. */
+    remedialKind: t('cogitaLearn.words.remedialKind'),
+    remedialSteps: (count: number): string => t('cogitaLearn.words.remedialSteps', { count }),
     loopWhy: t('cogitaLearn.words.loopWhy'),
     optionalKind: t('cogitaLearn.words.optionalKind'),
     optionalWhy: t('cogitaLearn.words.optionalWhy'),

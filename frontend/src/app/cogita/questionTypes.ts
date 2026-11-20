@@ -54,13 +54,13 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
   qt('text', 'write', ['answers']),
   qt('number', 'write', ['answers', 'unit', 'quantity', 'tolerance', 'relative']),
   qt('date', 'write', ['answers', 'precision', 'tolerance']),
-  qt('gap', 'write', ['answers', 'choices']),
-  qt('one', 'choose', ['options', 'correct', 'feedback']),
-  qt('many', 'choose', ['options', 'correct', 'feedback', 'show']),
+  qt('gap', 'write', ['answers', 'choices', 'tags']),
+  qt('one', 'choose', ['options', 'correct', 'feedback', 'tags']),
+  qt('many', 'choose', ['options', 'correct', 'feedback', 'show', 'tags']),
   qt('truefalse', 'choose', ['value']),
-  qt('match', 'connect', ['left', 'right', 'leftLabel', 'rightLabel', 'show']),
-  qt('order', 'connect', ['items', 'extra', 'preview', 'join']),
-  qt('build', 'connect', ['items', 'extra', 'alternatives', 'preview', 'join']),
+  qt('match', 'connect', ['left', 'right', 'leftLabel', 'rightLabel', 'show', 'tags']),
+  qt('order', 'connect', ['items', 'extra', 'preview', 'join', 'tags']),
+  qt('build', 'connect', ['items', 'extra', 'alternatives', 'preview', 'join', 'tags']),
   qt('flash', 'other', ['back']),
   qt('point', 'other', ['place', 'radius']),
   qt('code', 'other', ['task', 'starter', 'tests', 'createInput', 'reference', 'cases']),
@@ -101,23 +101,27 @@ export const filledList = (v: unknown): string[] => rawList(v).map((x) => x.trim
  * DIE MÖGLICHKEITEN einer Wahl, mit den richtigen — leere fallen weg und die Nummern der
  * richtigen rücken mit (eine leere Zeile mitten in der Liste verschiebt sonst, was richtig ist).
  */
-export function choicesOf(d: Readonly<Record<string, unknown>>): { options: string[]; correct: number[]; feedback: string[] } {
+export function choicesOf(d: Readonly<Record<string, unknown>>): { options: string[]; correct: number[]; feedback: string[]; tags: string[] } {
   const raw = rawList(d.options);
   /* 2026-11-01 — ein Satz je Möglichkeit, an derselben Stelle wie sie: er rückt mit, wenn eine leere wegfällt. */
   const said = rawList(d.feedback);
+  /* 2026-11-20 — ebenso ein Fehler-Tag je Möglichkeit (`adaptive.ts`). */
+  const tagged = rawList(d.tags);
   /* Leer ist keine Null: `Number('')` wäre 0 — und die erste Möglichkeit plötzlich richtig. */
   const marked = new Set((Array.isArray(d.correct) ? d.correct : [d.correct]).map((c) => (typeof c === 'number' ? c : str(c).trim() === '' ? Number.NaN : Number(str(c)))).filter((n) => Number.isInteger(n) && n >= 0));
   const options: string[] = [];
   const correct: number[] = [];
   const feedback: string[] = [];
+  const tags: string[] = [];
   raw.forEach((text, i) => {
     const t = text.trim();
     if (t === '') return;
     if (marked.has(i)) correct.push(options.length);
     options.push(t);
     feedback.push((said[i] ?? '').trim());
+    tags.push((tagged[i] ?? '').trim());
   });
-  return { options, correct, feedback };
+  return { options, correct, feedback, tags };
 }
 
 /** DIE PAARE (match): Stelle für Stelle aus beiden Seiten; ein Paar, dem eine Seite fehlt, fällt weg. */
@@ -244,11 +248,13 @@ export function tidyQuestion(data: Readonly<Record<string, unknown>>): Record<st
   /* Ohne gewählten Rodzaj pytania ist es eines „słowami" — so steht es dann auch da. */
   if (typeof out.form !== 'string' || out.form === '') out.form = 'text';
   if (Array.isArray(data.options)) {
-    const { options, correct, feedback } = choicesOf(data);
+    const { options, correct, feedback, tags } = choicesOf(data);
     set('options', options);
     set('correct', correct);
     /* 2026-11-01 — die Sätze bleiben bei ihren Möglichkeiten (leere Stellen als ''); keiner — das Feld fällt weg. */
     if (Array.isArray(data.feedback)) set('feedback', feedback.some((x) => x !== '') ? feedback : []);
+    /* 2026-11-20 — die Fehler-Tags ebenso. */
+    if (Array.isArray(data.tags)) set('tags', tags.some((x) => x !== '') ? tags : []);
   }
   for (const key of ['answers', 'items', 'back', 'hints', 'extra']) if (Array.isArray(data[key])) set(key, filledList(data[key]));
   if (Array.isArray(data.left) || Array.isArray(data.right)) {

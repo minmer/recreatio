@@ -16,7 +16,7 @@ import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '..
 import { TexText } from '../ui/tex/Tex';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
-import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, FLOW_CHECK_LABEL, FLOW_CHECKS, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type FlowCheck, type KnownessBand } from './logic';
+import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, FLOW_CHECK_LABEL, FLOW_CHECKS, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, LAST_MEASURES, readCondition, RELATION_LABEL, RELATIONS, SESSION_MEASURES, type Action, type CompareOp, type Condition, type ConditionType, type FlowCheck, type KnownessBand, type LastMeasure, type SessionMeasure } from './logic';
 import type { Learner } from './learn';
 import type { LearnerLoading } from './holders';
 import { runPython } from './python';
@@ -472,6 +472,53 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
               </select>
             )}
             {c.type === 'answered' && <input type="number" min={1} max={3650} className="cg-days" value={c.within ?? ''} placeholder={t('cogitaViews.ui.cond.withinDays')} aria-label={t('cogitaViews.ui.cond.withinDays')} onChange={(e) => set({ within: e.target.value === '' ? undefined : Number(e.target.value) })} />}
+          </>
+        )}
+        {/* 2026-11-20 (adaptive Abläufe) — die Antworten dieses Laufs: wie viele seit wann, die letzte, die Serie am Ende. */}
+        {c.type === 'session' && (
+          <>
+            <select value={c.measure ?? 'wrong'} aria-label={t('cogitaViews.ui.cond.measure')} data-cond-measure="" onChange={(e) => set({ measure: e.target.value as SessionMeasure })}>
+              {SESSION_MEASURES.map((m) => <option key={m} value={m}>{t(`cogitaData.logic.measure.${m}`)}</option>)}
+            </select>
+            <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
+              {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
+            </select>
+            <input type="number" min={0} value={c.than ?? ''} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            <select value={c.since === undefined || c.since === 'unit' || c.since === 'flowStart' ? (c.since ?? 'unit') : 'step'} aria-label={t('cogitaViews.ui.cond.since')} onChange={(e) => set({ since: e.target.value })}>
+              <option value="unit">{t('cogitaData.logic.since.unit')}</option>
+              <option value="flowStart">{t('cogitaData.logic.since.flowStart')}</option>
+              <option value="step">{t('cogitaViews.ui.cond.sinceStep')}</option>
+            </select>
+            {c.since !== undefined && c.since !== 'unit' && c.since !== 'flowStart' && <input value={c.since} placeholder={t('cogitaViews.ui.cond.step')} onChange={(e) => set({ since: e.target.value })} />}
+          </>
+        )}
+        {c.type === 'streak' && (
+          <>
+            <select value={c.measure === 'wrong' ? 'wrong' : 'right'} aria-label={t('cogitaViews.ui.cond.measure')} onChange={(e) => set({ measure: e.target.value as SessionMeasure })}>
+              <option value="right">{t('cogitaViews.ui.cond.right')}</option>
+              <option value="wrong">{t('cogitaViews.ui.cond.wrong')}</option>
+            </select>
+            <input type="number" min={1} value={c.than ?? ''} aria-label={t('cogitaViews.ui.cond.streakCount')} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          </>
+        )}
+        {c.type === 'lastAnswer' && (
+          <>
+            <select value={c.correct === undefined ? (c.partial === true ? 'partial' : '') : c.correct ? 'yes' : 'no'} onChange={(e) => set({ correct: e.target.value === 'yes' ? true : e.target.value === 'no' ? false : undefined, partial: e.target.value === 'partial' ? true : undefined })}>
+              <option value="">{t('cogitaViews.ui.cond.anyhow')}</option><option value="yes">{t('cogitaViews.ui.cond.right')}</option><option value="no">{t('cogitaViews.ui.cond.wrong')}</option><option value="partial">{t('cogitaViews.ui.cond.partial')}</option>
+            </select>
+            <input value={c.tag ?? ''} placeholder={t('cogitaViews.ui.cond.tag')} aria-label={t('cogitaViews.ui.cond.tag')} onChange={(e) => set({ tag: e.target.value || undefined })} />
+            <select value={c.measure ?? ''} aria-label={t('cogitaViews.ui.cond.measure')} onChange={(e) => set(e.target.value === '' ? { measure: undefined, op: undefined, than: undefined } : { measure: e.target.value as LastMeasure, op: c.op ?? 'ge', than: c.than ?? 1 })}>
+              <option value="">—</option>
+              {LAST_MEASURES.map((m) => <option key={m} value={m}>{t(`cogitaData.logic.measure.${m}`)}</option>)}
+            </select>
+            {c.measure !== undefined && (
+              <>
+                <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
+                  {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
+                </select>
+                <input type="number" min={0} value={c.than ?? ''} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
+              </>
+            )}
           </>
         )}
         {c.type === 'time' && (

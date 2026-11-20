@@ -407,6 +407,10 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
           <span>{t('cogitaWorld.panel.knowledgeShare', { pct: Math.round(ps.share * 100), state: t(`cogitaWorld.panel.dot.${ps.dot}`) })}</span>
         </p>
       )}
+      {/* 2026-11-20 (adaptive Abläufe) — die Nachhilfe an diesem Turm: nur gezählt, nie im Fortschritt. */}
+      {(state.lines.remedial?.get(id) ?? 0) > 0 && (
+        <p className="cg-wm-row cg-muted" data-world-remedial={state.lines.remedial!.get(id)}>{t('cogitaWorld.panel.remedial', { count: state.lines.remedial!.get(id)! })}</p>
+      )}
 
       {/* Alles Weitere eingeklappt: die Reihenfolge, woher die Karten kommen, die Linien, die Richtungen, Ziel und Einstellungen. */}
       <details className="cg-wm-more" data-world-more="">

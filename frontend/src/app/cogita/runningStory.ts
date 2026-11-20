@@ -17,7 +17,8 @@
  * Rein (ohne React); `FlowPlayer` benutzt es, `scripts/app-story-check.mjs` und `app-detour-check.mjs` prüfen es.
  */
 
-import { advance, detourRefused, exitAfter, follow, startFlow, type Flow, type FlowState, type PlayContext } from './flow';
+import { advance, answerStep, detourRefused, exitAfter, follow, startFlow, type Flow, type FlowState, type PlayContext } from './flow';
+import type { AnswerInput } from './adaptive';
 import type { GraphNode } from './graph';
 import { holds, readCondition, type Condition, type Facts } from './logic';
 
@@ -115,7 +116,8 @@ function settle(run: StoryRun, flows: (id: string) => Flow | undefined, ctx: Pla
  * EIN SCHRITT WEITER (wie `advance`, über einen Ausgang) — an den Grenzen der Erzählungen mit ihren eigenen besuchten
  * Schritten: in einen Unterablauf hinein beginnt er leer (die rufende wartet), aus ihm heraus gilt wieder der rufende.
  */
-export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, exit: string | undefined, ctx: PlayContext): RunStep {
+/** 2026-11-20 — `answer`: die Antwort auf einen Schritt „question" (der Ausgang folgt aus ihr, `answerStep`). */
+export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, exit: string | undefined, ctx: PlayContext, answer?: AnswerInput): RunStep {
   const s = run.state;
   const flow = flows(s.flow);
   if (flow === undefined || s.ended || s.step === null) return { run, finished: [] };
@@ -130,7 +132,7 @@ export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, 
     else if (node.type === 'handoff') { finished.push({ flow: s.flow, step: s.step, visited: s.visited }); next = { root: moved.flow, outer: [], state: moved }; }
     else next = { ...run, outer: [...run.outer, s.visited], state: moved };
   } else {
-    const moved = advance(flow, s, exit, ctx);
+    const moved = answer !== undefined && node?.type === 'question' ? answerStep(flow, s, answer, ctx) : advance(flow, s, exit, ctx);
     next = { ...run, state: moved };
     /* Ein „Powrót": zurück in die rufende Erzählung — was danach besucht wurde, gehört ihr. */
     if (moved.stack.length < s.stack.length && run.outer.length > 0) {

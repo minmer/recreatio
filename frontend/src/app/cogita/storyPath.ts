@@ -22,6 +22,7 @@
 
 import { t } from '../core/i18n';
 import { exitsOf, follow, STEP_LABEL, type Flow } from './flow';
+import { isAnswerExit, isRemedialExit, remedialSteps } from './adaptive';
 import type { GraphNode } from './graph';
 import { countsAsStep, pathModel, type PartKind, type PathFork, type PathMarks, type PathModel, type PathState } from './pathLayout';
 
@@ -73,6 +74,11 @@ export interface StoryPart {
   readonly needsAll?: boolean;
   /** 2026-11-04 (Prompt 11) — ein automatischer Teil (die App wählt einen der beiden Wege selbst). */
   readonly auto?: AutoPart;
+  /**
+   * 2026-11-20 (adaptive Abläufe) — WIE VIELE SCHRITTE DER NACHHILFE an den Fragen dieses Teils hängen (Folien und Prüffragen nach
+   * einer falschen Antwort, `adaptive.ts`): sie zählen nie im Fortschritt, die Karte zeigt sie als kleine Schleife am Teil.
+   */
+  readonly remedial?: number;
 }
 
 export interface StoryPath {
@@ -127,13 +133,16 @@ const STOPS = new Set(['end', 'return', 'handoff']);
 const FORKS = new Set(['choice', 'chapters']);
 const INNER = new Set(['subflow', 'each', 'detour']);
 /** Ausgänge, die die Antwort wählt, nicht der Lernende. */
-const ANSWER = new Set(['right', 'wrong']);
+/* 2026-11-20 — auch partial, rightOnRetry, wrong:<tag>, pick:<i> (`adaptive.ts`): die Antwort wählt sie, sie sind keine Gabel. */
+const ANSWER = { has: isAnswerExit };
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /** Ein Ausgang, der fehlen darf: „dalej" einer Szene, die anders weitergeht (eine Frage auf ihr, ihre Knöpfe). */
 /* 2026-11-05 (Prompt 23, D4) — „notyet" eines Przegląd ohne Weg: die Erzählung endet mit noch nicht bestandenem Przegląd („Powtórz przegląd" am Ende). */
-export const optionalExit = (type: string, exit: string, others: number): boolean => (type === 'scene' && exit === 'next' && others > 0) || (type === 'review' && exit === 'notyet');
+/* 2026-11-20 — die adaptiven Ausgänge einer Frage fallen ohne Weg auf „dobrze"/„źle" zurück. */
+export const optionalExit = (type: string, exit: string, others: number): boolean => (type === 'scene' && exit === 'next' && others > 0) || (type === 'review' && exit === 'notyet')
+  || (type === 'question' && exit !== 'right' && exit !== 'wrong' && isAnswerExit(exit));
 
 /**
  * Die Arbeit eines Schrittes eines gewöhnlichen Ablaufs: Pokaż und Verwandtes ein Bild, eine Frage eine Frage (ihre
@@ -223,6 +232,9 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     }
   }
   const viaEnds = new Set(hubOf.values());
+  /* 2026-11-20 — die Nachhilfe (`adaptive.ts`) ist kein Weg nach vorn: weder Teil noch Gabel noch Zähler — nur „N Schritte zur Nachhilfe". */
+  const remedial = remedialSteps(flow.graph, start);
+  const mainEdge = (e: { readonly out: string; readonly to: string }) => !remedial.has(e.to) && !isRemedialExit(e.out);
   /** Wohin ein Schritt weiterführt: je Ausgang das Ziel (`null`: kein Weg — dort endet der Ablauf). */
   const rawForward = (id: string): Way[] => {
     const n = nodes.get(id);
@@ -230,8 +242,8 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     if (n.type === 'chapterEnd') { const hub = hubOf.get(id); return [{ exit: 'next', to: hub === undefined ? follow(flow, id, 'next') : follow(flow, hub, 'done') }]; }
     /* Die Wege, wie sie im Graphen stehen, und jeder erklärte Ausgang ohne Weg (dort endet der Ablauf). */
     const skip = (out: string) => n.type === 'chapters' && out === 'done' && viaEnds.has(id);
-    const list: Way[] = flow.graph.edges.filter((e) => e.from === id && !skip(e.out)).map((e) => ({ exit: e.out, to: nodes.has(e.to) ? e.to : null }));
-    for (const p of exitsOf(n.type, n.config)) if (!skip(p.id) && !list.some((x) => x.exit === p.id) && !optionalExit(n.type, p.id, list.length)) list.push({ exit: p.id, to: null });
+    const list: Way[] = flow.graph.edges.filter((e) => e.from === id && !skip(e.out) && mainEdge(e)).map((e) => ({ exit: e.out, to: nodes.has(e.to) ? e.to : null }));
+    for (const p of exitsOf(n.type, n.config)) if (!skip(p.id) && !list.some((x) => x.exit === p.id) && !flow.graph.edges.some((e) => e.from === id && e.out === p.id) && !optionalExit(n.type, p.id, list.length)) list.push({ exit: p.id, to: null });
     return list;
   };
 
@@ -503,17 +515,30 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     if (to === undefined) continue;
     for (const f of outOf(u)) if (f !== to && f !== 0 && !loops.some(([a, b]) => a === f && b === to)) loops.push([f, to]);
   }
-  const finished: StoryPart[] = parts.map((d) => ({
+  /* 2026-11-20 — die Nachhilfe je Teil: was von einem Schritt des Teils in die Nachhilfe führt (gezählt: Folien und Fragen). */
+  const remedialOf = new Map<number, Set<string>>();
+  for (const e of flow.graph.edges) {
+    if (mainEdge(e) || remedial.has(e.from)) continue;
+    const at = partOf.get(e.from);
+    if (at === undefined) continue;
+    const seen = remedialOf.get(at) ?? new Set<string>();
+    const todo = [e.to];
+    while (todo.length > 0) { const id = todo.pop()!; if (!remedial.has(id) || seen.has(id) || !nodes.has(id)) continue; seen.add(id); for (const x of flow.graph.edges) if (x.from === id) todo.push(x.to); }
+    remedialOf.set(at, seen);
+  }
+  const remedialCount = (i: number): number => [...(remedialOf.get(i) ?? [])].filter((id) => { const w = workOf(id); return w.slides + w.questions > 0; }).length;
+  const finished: StoryPart[] = parts.map((d, i) => ({
     kind: d.kind, label: d.label, steps: d.steps, first: d.steps[0] ?? (d.kind === 'start' ? start : null), slides: d.slides, questions: d.questions, shown: d.shown, asked: d.asked, questionSteps: d.qsteps ?? [],
     ...(d.qweights === undefined ? {} : { questionWeights: d.qweights }),
     ...(d.fork === undefined ? {} : { fork: { mode: d.fork.mode, step: d.fork.step, branches: d.fork.exits.map((x) => ({ exit: x.exit, label: x.label, to: firstPartAt(x.to), ...(x.to === null ? {} : { step: x.to }) })) } }),
     ...(d.needsAll === true ? { needsAll: true } : {}),
-    ...(d.auto === undefined ? {} : { auto: d.auto })
+    ...(d.auto === undefined ? {} : { auto: d.auto }),
+    ...(remedialCount(i) > 0 ? { remedial: remedialCount(i) } : {})
   }));
   const items = finished.map((p, i) => ({ id: `p${i}`, label: p.label }));
   const model = pathModel(items, needs.map((s) => [...s]), {
     source: 'story', reduced: true, loops,
-    info: finished.map((p) => ({ kind: p.kind, slides: p.slides, questions: p.questions, ...(p.auto === undefined ? {} : { auto: true }) }))
+    info: finished.map((p) => ({ kind: p.kind, slides: p.slides, questions: p.questions, ...(p.auto === undefined ? {} : { auto: true }), ...(p.remedial === undefined ? {} : { remedial: p.remedial }) }))
   });
   return { parts: finished, model, partOfStep: partOf, loops: model.loops ?? [] };
 }

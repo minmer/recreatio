@@ -136,7 +136,40 @@ export interface Facts {
    * ist die Menge leer.
    */
   readonly related?: (rel: string) => readonly string[];
+  /**
+   * 2026-11-20 (adaptive Abläufe) — DIE ANTWORTEN DIESES LAUFS (`adaptive.ts`): wie viele falsch/richtig/teilweise seit einem
+   * Schritt, dem Anfang der Erzählung oder dem Anfang des Laufs, die letzte Antwort, die Serie am Ende. Fehlt es (ausserhalb des
+   * Spielers): keine Antworten.
+   */
+  readonly session?: SessionFacts;
 }
+
+/** 2026-11-20 — eine Antwort in einem Lauf eines Ablaufs (nur im Spieler, nie gespeichert). */
+export interface SessionAnswer {
+  readonly flow: string;
+  readonly step: string;
+  /** 0–1, Podpowiedzi und Teilrichtigkeit eingerechnet. */
+  readonly score: number;
+  readonly correct: boolean;
+  readonly partial: boolean;
+  readonly tags: readonly string[];
+  readonly hints: number;
+  readonly ms: number;
+  /** Der wievielte Versuch derselben Frage (0: der erste). */
+  readonly attempt: number;
+}
+
+export interface SessionFacts {
+  readonly log: readonly SessionAnswer[];
+  /** Ab welcher Stelle des Logs gezählt wird: "flowStart" (die laufende Erzählung) oder ein Schritt ("unit": 0). */
+  readonly from: (since: string) => number;
+}
+
+/** 2026-11-20 — was „session" zählt und „lastAnswer" vergleicht. */
+export const SESSION_MEASURES = ['wrong', 'right', 'partial', 'hintsUsed'] as const;
+export type SessionMeasure = (typeof SESSION_MEASURES)[number];
+export const LAST_MEASURES = ['hintsUsed', 'timeMs'] as const;
+export type LastMeasure = (typeof LAST_MEASURES)[number];
 
 /**
  * 2026-10-30 — DIE BEZIEHUNGEN einer Bedingung „Znajomość" in Widoki und Powtórki (`rel`): der Eintrag selbst, seine
@@ -205,12 +238,13 @@ export const NO_FACTS: Facts = {
   values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0)
 };
 
-export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
+export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'session', 'lastAnswer', 'streak', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
 export type ConditionType = (typeof CONDITION_TYPES)[number];
 
 export const CONDITION_LABEL: Readonly<Record<ConditionType, string>> = texts({
   value: 'cogitaData.logic.condition.value', knowness: 'cogitaData.logic.condition.knowness', answered: 'cogitaData.logic.condition.answered',
-  visited: 'cogitaData.logic.condition.visited', flow: 'cogitaData.logic.condition.flow', time: 'cogitaData.logic.condition.time',
+  visited: 'cogitaData.logic.condition.visited', flow: 'cogitaData.logic.condition.flow',
+  session: 'cogitaData.logic.condition.session', lastAnswer: 'cogitaData.logic.condition.lastAnswer', streak: 'cogitaData.logic.condition.streak', time: 'cogitaData.logic.condition.time',
   place: 'cogitaData.logic.condition.place', zone: 'cogitaData.logic.condition.zone', and: 'cogitaData.logic.condition.and',
   or: 'cogitaData.logic.condition.or', not: 'cogitaData.logic.condition.not', xor: 'cogitaData.logic.condition.xor'
 });
@@ -245,6 +279,9 @@ export const FLOW_CHECK_LABEL: Readonly<Record<FlowCheck, string>> = texts({ sta
  *   { "type": "time", "after": "2026-12-24", "before": "2026-12-27", "from": "18:00", "to": "23:00" }
  *   { "type": "place", "lat": 50.06, "lon": 19.94, "radius": 100 }
  *   { "type": "zone", "of": "<strefa>" }
+ *   { "type": "session", "since": "q1" | "flowStart" | "unit", "wrong": { "op": "ge", "than": 3 } }   (2026-11-20) right · partial · hintsUsed
+ *   { "type": "lastAnswer", "correct": false } · "partial": true · "tag": "<tag>" · "hintsUsed"/"timeMs": { "op", "than" }
+ *   { "type": "streak", "right": 3 } · { "wrong": 2 }                  die letzten N Antworten des Laufs alle richtig / alle falsch
  *   { "type": "and", "items": [ … ] }   or · xor · not (ein Element)
  * </code>
  */
@@ -275,6 +312,12 @@ export interface Condition {
   readonly flow?: string;
   readonly state?: FlowCheck;
   readonly goal?: string;
+  /** 2026-11-20 — „session": ab wo gezählt wird (Vorgabe "unit"); „session"/„lastAnswer"/„streak": was gezählt oder verglichen wird. */
+  readonly since?: string;
+  readonly measure?: SessionMeasure | LastMeasure;
+  /** 2026-11-20 — „lastAnswer": teilweise richtig; ein Fehler-Tag der letzten Antwort. */
+  readonly partial?: boolean;
+  readonly tag?: string;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -297,6 +340,8 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     return { type, ...(flow === undefined ? {} : { flow }), state, ...(state === 'goal' && str(raw.goal) !== undefined ? { goal: str(raw.goal) } : {}) };
   }
   const op = (COMPARE_OPS as readonly string[]).includes(String(raw.op)) ? (raw.op as CompareOp) : undefined;
+  /* 2026-11-20 — die Bedingungen des Laufs: „wrong": {"op","than"} (oder eine Zahl: ≥) — gelesen auch in der Form des Editors ("measure"). */
+  if (type === 'session' || type === 'lastAnswer' || type === 'streak') return readSessionCondition(type, raw, op);
   /*
    * 2026-11-01 — „TO, CO WCZEŚNIEJ / TO, POD CZYM LEŻY ≥ 1" (so legten es die Vorlagen der Powtórki und Widoki an) heisst
    * jetzt „poznane": was vorher kommt, muss gewusst sein — nicht gerade nicht fällig. Sonst verschwand alles Spätere,
@@ -324,6 +369,66 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     ...(type === 'knowness' && (raw.each === 'any' || raw.each === 'all') ? { each: raw.each } : {}),
     ...(type === 'knowness' && (KNOWNESS_BANDS as readonly string[]).includes(String(raw.band)) ? { band: raw.band as KnownessBand } : {})
   };
+}
+
+function readSessionCondition(type: 'session' | 'lastAnswer' | 'streak', raw: Record<string, unknown>, op: CompareOp | undefined): Condition {
+  const keys: readonly string[] = type === 'session' ? SESSION_MEASURES : type === 'streak' ? ['right', 'wrong'] : LAST_MEASURES;
+  let measure = keys.includes(String(raw.measure)) ? String(raw.measure) : undefined;
+  let cmp = op;
+  let than = num(raw.than);
+  for (const k of keys) {
+    if (measure !== undefined && measure !== k) continue;
+    const v = raw[k];
+    if (isObject(v)) { measure = k; cmp = (COMPARE_OPS as readonly string[]).includes(String(v.op)) ? (v.op as CompareOp) : cmp; than = num(v.than) ?? than; break; }
+    if (num(v) !== undefined) { measure = k; than = num(v); break; }
+  }
+  if (type === 'lastAnswer') {
+    return {
+      type,
+      ...(typeof raw.correct === 'boolean' ? { correct: raw.correct } : {}),
+      ...(typeof raw.partial === 'boolean' ? { partial: raw.partial } : {}),
+      ...(str(raw.tag) === undefined ? {} : { tag: str(raw.tag)!.slice(0, 80) }),
+      ...(measure === undefined ? {} : { measure: measure as LastMeasure, op: cmp ?? 'ge', than: than ?? 1 })
+    };
+  }
+  const since = type === 'session' ? str(raw.since) : undefined;
+  return {
+    type, measure: (measure ?? (type === 'streak' ? 'right' : 'wrong')) as SessionMeasure,
+    ...(type === 'session' ? { op: cmp ?? 'ge' } : {}), than: Math.max(0, than ?? 1),
+    ...(since === undefined ? {} : { since: since.slice(0, 120) })
+  };
+}
+
+/** 2026-11-20 — schaut die Bedingung (irgendwo in ihr) auf die Antworten des Laufs? Dann entscheidet sie sich erst unterwegs. */
+export function usesSession(c: Condition | null): boolean {
+  if (c === null) return false;
+  if (c.type === 'session' || c.type === 'lastAnswer' || c.type === 'streak') return true;
+  return (c.items ?? []).some(usesSession);
+}
+
+/** 2026-11-20 — was eine Bedingung des Laufs über die Antworten sagt (`facts.session`). */
+function holdsSession(c: Condition, facts: Facts): boolean {
+  const s = facts.session;
+  const log = s?.log ?? [];
+  if (c.type === 'session') {
+    const from = s === undefined || c.since === undefined || c.since === 'unit' ? 0 : s.from(c.since);
+    const part = log.slice(Math.max(0, from));
+    const m = c.measure ?? 'wrong';
+    const n = m === 'hintsUsed' ? part.reduce((sum, a) => sum + a.hints, 0) : part.filter((a) => (m === 'right' ? a.correct : m === 'partial' ? a.partial : !a.correct)).length;
+    return compare(c.op ?? 'ge', String(n), String(c.than ?? 1));
+  }
+  if (c.type === 'streak') {
+    const want = c.measure !== 'wrong';
+    const n = Math.max(1, Math.round(c.than ?? 1));
+    return log.length >= n && log.slice(-n).every((a) => a.correct === want);
+  }
+  const last = log[log.length - 1];
+  if (last === undefined) return false;
+  if (c.correct !== undefined && last.correct !== c.correct) return false;
+  if (c.partial !== undefined && last.partial !== c.partial) return false;
+  if (c.tag !== undefined && !last.tags.includes(c.tag)) return false;
+  if (c.measure !== undefined) return compare(c.op ?? 'ge', String(c.measure === 'timeMs' ? last.ms : last.hints), String(c.than ?? 1));
+  return true;
 }
 
 function metres(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
@@ -361,6 +466,18 @@ export function conditionText(c: Condition, name: (id: string) => string = (id) 
     case 'time': return [t('cogitaData.logic.text.time'), c.after === undefined ? '' : t('cogitaData.logic.text.timeAfter', { at: c.after }), c.before === undefined ? '' : t('cogitaData.logic.text.timeBefore', { at: c.before }), c.from === undefined ? '' : t('cogitaData.logic.text.timeHours', { from: c.from, to: c.to ?? '24:00' })].filter(Boolean).join(' ');
     case 'place': return t('cogitaData.logic.text.place', { radius: c.radius ?? 50, lat: c.lat ?? '?', lon: c.lon ?? '?' });
     case 'zone': return t('cogitaData.logic.text.zone', { name: name(c.of ?? '') });
+    case 'session': return t('cogitaData.logic.text.session', {
+      measure: t(`cogitaData.logic.measure.${c.measure ?? 'wrong'}`), op, than: c.than ?? 1,
+      since: c.since === undefined || c.since === 'unit' ? t('cogitaData.logic.since.unit') : c.since === 'flowStart' ? t('cogitaData.logic.since.flowStart') : t('cogitaData.logic.since.step', { name: name(c.since) })
+    });
+    case 'streak': return t(c.measure === 'wrong' ? 'cogitaData.logic.text.streakWrong' : 'cogitaData.logic.text.streakRight', { n: c.than ?? 1 });
+    case 'lastAnswer': return [
+      t('cogitaData.logic.text.lastAnswer'),
+      c.correct === undefined ? '' : t(c.correct ? 'cogitaData.logic.text.lastRight' : 'cogitaData.logic.text.lastWrong'),
+      c.partial === true ? t('cogitaData.logic.text.lastPartial') : '',
+      c.tag === undefined ? '' : t('cogitaData.logic.text.lastTag', { tag: c.tag }),
+      c.measure === undefined ? '' : t('cogitaData.logic.text.lastMeasure', { measure: t(`cogitaData.logic.measure.${c.measure}`), op, than: c.than ?? 1 })
+    ].filter(Boolean).join(' ');
     case 'not': return t('cogitaData.logic.text.not', { inner: c.items?.[0] === undefined ? '…' : conditionText(c.items[0], name, field) });
     default: return (c.items ?? []).map((i) => `(${conditionText(i, name, field)})`).join(` ${CONDITION_LABEL[c.type]} `) || CONDITION_LABEL[c.type];
   }
@@ -419,6 +536,9 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
       return metres(facts.place, { lat: c.lat, lon: c.lon }) <= (c.radius ?? 50);
     }
     case 'zone': return facts.zones?.has(c.of ?? '') === true;
+    case 'session':
+    case 'lastAnswer':
+    case 'streak': return holdsSession(c, facts);
     case 'and': return gate('and', (c.items ?? []).map((i) => holds(i, facts)));
     case 'or': return gate('or', (c.items ?? []).map((i) => holds(i, facts)));
     case 'xor': return gate('xor', (c.items ?? []).map((i) => holds(i, facts)));

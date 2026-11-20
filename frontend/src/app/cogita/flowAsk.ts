@@ -75,7 +75,8 @@ export function questionsLeft(flow: Flow, from: string | null, cardOf: (id: stri
     seen.add(id);
     const n = nodes.get(id);
     if (n === undefined) continue;
-    const card = askedCardOf(n, cardOf);
+    /* 2026-11-20 — eine Frage der Nachhilfe zählt nicht (sie kommt nur nach einer falschen Antwort). */
+    const card = n.config.remedial === true ? null : askedCardOf(n, cardOf);
     if (card !== null && (marks === null || !isKnown(card, marks, now))) keys.add(card.key);
     for (const e of flow.graph.edges) if (e.from === id) stack.push(e.to);
   }

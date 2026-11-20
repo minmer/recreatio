@@ -35,6 +35,8 @@ export interface PathNode {
   readonly kind?: PartKind;
   readonly slides?: number;
   readonly questions?: number;
+  /** 2026-11-20 — Schritte der Nachhilfe an diesem Teil (`storyPath.ts`). */
+  readonly remedial?: number;
   /** 2026-11-04 (Prompt 11) — ein automatischer Teil: die App wählt selbst einen von zwei Wegen (nach dem, was der Lernende kann). */
   readonly auto?: boolean;
   /**
@@ -288,6 +290,8 @@ export interface PathNodeInfo {
   readonly slides?: number;
   readonly questions?: number;
   readonly auto?: boolean;
+  /** 2026-11-20 — Schritte der Nachhilfe an diesem Teil (eine kleine Schleife, nie im Fortschritt). */
+  readonly remedial?: number;
 }
 
 /**

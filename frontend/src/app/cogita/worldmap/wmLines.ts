@@ -19,6 +19,8 @@
  */
 
 import { exitsOf, type Flow } from '../flow';
+import { isRemedialExit, remedialSteps } from '../adaptive';
+import { readCondition, usesSession } from '../logic';
 import { readTicketCondition, unknownTypes } from './wmConditions';
 import { byCode, shownEntries } from './wmGraph';
 import { HOME, isJunction, type DetourLoop, type GateLink, type Junction, type Line, type LineBranch, type Lines, type Section, type SectionKind, type Station, type TicketPart, type WmCondition, type WmIssue, type World } from './wmTypes';
@@ -59,8 +61,13 @@ function expand(flow: Flow, resolve: Resolve): XGraph {
   const out = new Map<string, { out: string; to: string }[]>();
   const link = (from: string, exit: string, to: string) => { const l = out.get(from) ?? []; l.push({ out: exit, to }); out.set(from, l); };
   const put = (f: Flow, prefix: string, orig: string | null, depth: number, chain: ReadonlySet<string>, after: string | null): string | null => {
-    const ids = new Set(f.graph.nodes.map((n) => n.id));
-    for (const n of f.graph.nodes) nodes.set(prefix + n.id, { id: prefix + n.id, orig: orig ?? n.id, flow: f.id, own: n.id, type: n.type, config: n.config });
+    /*
+      2026-11-20 (adaptive Abläufe) — DIE NACHHILFE ist keine Linie: ihre Schritte (`remedial`, und was nur über wrong:<tag>, partial,
+      rightOnRetry erreichbar ist) und diese Ausgänge fallen weg; der Turm der Frage zeigt sie als kleine Schleife (`remedial`).
+    */
+    const rem = remedialSteps(f.graph, f.start);
+    const ids = new Set(f.graph.nodes.filter((n) => !rem.has(n.id)).map((n) => n.id));
+    for (const n of f.graph.nodes) if (!rem.has(n.id)) nodes.set(prefix + n.id, { id: prefix + n.id, orig: orig ?? n.id, flow: f.id, own: n.id, type: n.type, config: n.config });
     const callFor = new Map<string, string | null>();
     for (const n of f.graph.nodes) {
       if ((n.type !== 'subflow' && n.type !== 'each') || depth >= MAX_INLINE) continue;
@@ -71,7 +78,7 @@ function expand(flow: Flow, resolve: Resolve): XGraph {
       callFor.set(n.id, entry);
     }
     for (const e of f.graph.edges) {
-      if (!ids.has(e.from) || !ids.has(e.to)) continue;
+      if (!ids.has(e.from) || !ids.has(e.to) || isRemedialExit(e.out)) continue;
       /* Der rufende Schritt geht in seinen Abschnitt; dessen Ende führt dorthin weiter, wohin er ging. */
       if (callFor.has(e.from) && e.out === 'next') continue;
       link(prefix + e.from, e.out, prefix + e.to);
@@ -80,10 +87,11 @@ function expand(flow: Flow, resolve: Resolve): XGraph {
     /* Ein Abschnitt endet mit „Powrót" oder einem Ausgang ins Leere: zurück zum Rufer. Ein „Koniec" beendet alles. */
     if (after !== null) {
       for (const n of f.graph.nodes) {
-        if (n.type === 'end' || n.type === 'handoff' || n.type === 'restart' || (callFor.get(n.id) ?? null) !== null) continue;
+        if (rem.has(n.id) || n.type === 'end' || n.type === 'handoff' || n.type === 'restart' || (callFor.get(n.id) ?? null) !== null) continue;
         if (n.type === 'return') { link(prefix + n.id, 'next', after); continue; }
-        const have = new Set((out.get(prefix + n.id) ?? []).map((x) => x.out));
-        for (const p of exitsOf(n.type, n.config)) if (!have.has(p.id)) link(prefix + n.id, p.id, after);
+        /* Ein Ausgang, dessen Weg in die Nachhilfe führt, ist kein offener Ausgang; die adaptiven fallen ohnehin zurück. */
+        const have = new Set([...(out.get(prefix + n.id) ?? []).map((x) => x.out), ...f.graph.edges.filter((e) => e.from === n.id).map((e) => e.out)]);
+        for (const p of exitsOf(n.type, n.config)) if (!have.has(p.id) && !isRemedialExit(p.id) && !p.id.startsWith('pick:')) link(prefix + n.id, p.id, after);
       }
     }
     return f.start === null ? null : prefix + f.start;
@@ -351,6 +359,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   }
   const gateOf = (n: XNode): WmCondition | null => {
     if (n.type !== 'condition') return null;
+    /* 2026-11-20 — eine Bedingung des Laufs ist nie ein Tor auf der Karte (sie bleibt unsichtbar wie „set"). */
+    if (usesSession(readCondition(n.config.condition))) return null;
     const leaves = (exit: string): boolean => {
       const e = (g.out.get(n.id) ?? []).find((o) => o.out === exit);
       if (e === undefined || !g.nodes.has(e.to)) return true;
@@ -601,7 +611,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
           branches.set(id, { id, parent, fork: { step: n.orig, exit: f.exit, label: f.label, ...(hint === '' ? {} : { hint }) } });
           /* (b) — die Bedingung der Möglichkeit, mit der der Zweig beginnt. */
           const option = n.type === 'choice' ? (Array.isArray(n.config.options) ? n.config.options : [])[Number(f.exit.slice(1))] : undefined;
-          const ticket: TicketPart[] = isObject(option) && option.condition !== undefined && option.condition !== null ? [{ source: 'option', step: n.orig, condition: readTicketCondition(option.condition) }] : [];
+          /* 2026-11-20 — eine Bedingung des Laufs (session, lastAnswer, streak) entscheidet sich erst unterwegs: keine Fahrkarte. */
+          const ticket: TicketPart[] = isObject(option) && option.condition !== undefined && option.condition !== null && !usesSession(readCondition(option.condition)) ? [{ source: 'option', step: n.orig, condition: readTicketCondition(option.condition) }] : [];
           /*
             Step 3 · 5 — ein Tor vor der Gabel kommt vor allem Inhalt des Zweiges: sein erster Abschnitt nimmt es (auch einer am Ort).
             An einer Gabelung hat es schon der Weg zu ihr genommen; vor einer Verpackung bleibt das Wartende bei jeder Möglichkeit.
@@ -1007,7 +1018,44 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
   /* Dieselbe Meldung nur einmal (ein Tor nach einem Treffpunkt steht an jedem ankommenden Abschnitt). */
   const once = new Map<string, WmIssue>();
   for (const i of issues) { const k = `${i.code}|${i.ids.join('|')}|${JSON.stringify(i.data ?? {})}`; if (!once.has(k)) once.set(k, i); }
-  return { lines, sections, stations, introducedBy, issues: [...once.values()], stepFlow, junctions: junctionMap, links, loops };
+  /*
+    2026-11-20 (adaptive Abläufe) — DIE NACHHILFE JE TURM: Folien und Prüffragen nach einer falschen Antwort zählen beim Turm der Frage,
+    an der sie hängen (eine kleine Schleife dort, nie eine Linie, nie im Fortschritt).
+  */
+  const remedial = new Map<string, number>();
+  for (const id of isLine) {
+    const f = byId.get(id);
+    if (f === undefined) continue;
+    const rem = remedialSteps(f.graph, f.start);
+    if (rem.size === 0) continue;
+    const nodesOf = new Map(f.graph.nodes.map((n) => [n.id, n] as const));
+    const ownerOf = (start: string): string | null => {
+      const seen = new Set<string>();
+      const todo = [start];
+      while (todo.length > 0) {
+        const at = todo.shift()!;
+        if (seen.has(at)) continue;
+        seen.add(at);
+        const n = nodesOf.get(at);
+        const own = n === undefined ? '' : str(n.config.for);
+        if (own !== '' && nodesOf.has(own)) return own;
+        for (const e of f.graph.edges) if (e.to === at) { if (!rem.has(e.from)) return e.from; todo.push(e.from); }
+      }
+      return null;
+    };
+    for (const r of rem) {
+      const n = nodesOf.get(r);
+      if (n === undefined || (n.type !== 'show' && n.type !== 'question' && n.type !== 'scene')) continue;
+      const q = ownerOf(r);
+      const qn = q === null ? undefined : nodesOf.get(q);
+      if (qn === undefined) continue;
+      const of = str(qn.config.card) || str(qn.config.of);
+      const card = world.cards.has(of) ? of : world.questionCards.get(of)?.[0];
+      const place = (card === undefined ? undefined : world.cardPlaces.get(card)?.[0]) ?? placeOfShown(of);
+      if (place !== null && place !== undefined) remedial.set(place, (remedial.get(place) ?? 0) + 1);
+    }
+  }
+  return { lines, sections, stations, introducedBy, issues: [...once.values()], stepFlow, junctions: junctionMap, links, loops, remedial };
 }
 
 /** Wo der Spieler einen Schritt der Linie öffnet: ein eingebetteter (`<subflow>>…`) am Unterablauf-Schritt der Linie selbst. */
