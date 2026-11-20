@@ -1105,6 +1105,14 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 /* 2026-11-14 (Eigentümer: „das Skalieren") — die Nummer eines Paars hat ihren Platz immer (leer unsichtbar), „Sprawdź" bleibt unten im Bild. */
 .cg-match-n.is-empty { visibility: hidden; }
 .cg-answer > .cg-check { position: sticky; bottom: var(--wk-space-2); z-index: 1; box-shadow: 0 0 0 var(--wk-space-2) var(--wk-surface); }
+/* 2026-11-20 (Eigentümer: „die Möglichkeiten sind unter dem halb durchsichtigen Knopf zu sehen") — gesperrt bleibt der stehende Knopf
+   undurchsichtig: dieselbe blasse Farbe, aber fest gemischt statt durch `opacity`, damit nichts darunter durchscheint. */
+.cg-answer > .cg-check:disabled {
+  opacity: 1;
+  background: color-mix(in oklab, var(--wk-accent) 45%, var(--wk-surface));
+  border-color: color-mix(in oklab, var(--wk-accent) 45%, var(--wk-surface));
+  color: color-mix(in oklab, var(--wk-on-accent) 45%, var(--wk-surface));
+}
 
 /*
  * 2026-11-20 (Eigentümer) — RÜCKMELDUNG für die KI (FeedbackButton.tsx): ein kleines Zeichen; an einer Karte links neben der
