@@ -5,14 +5,18 @@
  * von der KI über MCP (`get_feedback`, `feedback.ts`).
  */
 
-import { useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 
 import { useT } from '../core/i18n';
 import { FEEDBACK_KINDS, FEEDBACK_LABEL, FEEDBACK_TEXT_MAX, feedbackData, feedbackOf, sameTarget, type FeedbackKind, type FeedbackTarget } from './feedback';
 import type { CogitaLibrary } from './store';
+import { CogitaContext } from './ui';
 
-export function FeedbackButton({ lib, target }: { lib: CogitaLibrary | null | undefined; target: FeedbackTarget }) {
+export function FeedbackButton({ lib: given, target }: { lib: CogitaLibrary | null | undefined; target: FeedbackTarget }) {
   const t = useT();
+  /* Die Baza, in die man schreiben darf: die gegebene, sonst die des Rahmens (ein Lauf liest oft aus einer Kopie nur zum Lesen). */
+  const ctx = useContext(CogitaContext);
+  const lib = given?.writes === true ? given : ctx?.lib.writes === true ? ctx.lib : null;
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<FeedbackKind | null>(null);
   const [text, setText] = useState('');

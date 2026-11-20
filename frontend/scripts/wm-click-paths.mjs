@@ -860,6 +860,34 @@ try {
     drogą" (seit 2026-11-12 „Odkryj") beginnt den ersten offenen Schritt; mit erledigten Schritten der Abschluss, danach ist der Weg erledigt (Haken)
   */
   /* -- 14 · 2026-11-14: der Rundgang über die echte Karte (erfundener Fortschritt), beim ersten Mal von selbst, vom Haus aus neu ---- */
+  /* -- 16 · (2026-11-20) Rückmeldung an einer Karte: das Zeichen, die Art, der Text — gespeichert, gezählt ------------------------- */
+  if (runs('16')) {
+    const P = '16 feedback';
+    await open('none', true);
+    await clickMap('label', N.becchi);
+    await waitFor(`document.querySelector('[data-world-panel="place"]')`, 'the place panel');
+    await click('[data-world-my-settings]');
+    await waitFor(`document.querySelector('[data-levels-n="1"]')`, 'my settings');
+    await click('[data-levels-n="1"]');
+    await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldGate === 'ready'`, 'one level in force', 15000);
+    await click('[data-world-run-for="1"]');
+    await waitFor(`document.querySelector('[data-world-run="ask"] [data-feedback-open]')`, 'the feedback sign on the card');
+    check(P, 'a card shows the small feedback sign (for someone who writes in the base)', true);
+    await click('[data-feedback-open]');
+    await waitFor(`document.querySelector('[data-feedback-box]')`, 'the feedback box');
+    const kinds = await ev(`[...document.querySelectorAll('[data-feedback-kind]')].map((b) => b.dataset.feedbackKind).join()`);
+    check(P, 'the box offers the kinds first', kinds === 'good,wrong,answer,language,unclear,hard,easy,display,other', kinds);
+    await click('[data-feedback-kind="language"]');
+    await waitFor(`document.querySelector('[data-feedback-text]')`, 'the text field');
+    await ev(`(() => { const el = document.querySelector('[data-feedback-text]'); const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(el, 'Literówka w pytaniu: „Bechi”.'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await click('[data-feedback-send]');
+    await waitFor(`document.querySelector('[data-feedback-sent]')`, 'saved');
+    await waitFor(`document.querySelector('[data-feedback-list="1"] [data-feedback-item="open"]') !== null`, 'the note listed under the box', 8000).catch(() => undefined);
+    const after = await ev(`({ listed: document.querySelector('[data-feedback-list]')?.dataset.feedbackList ?? '0', badge: document.querySelector('.cg-fb-n')?.textContent ?? '' })`);
+    check(P, 'after sending: saved, listed for this card, the sign counts one open note', after.listed === '1' && after.badge === '1', after);
+    await shot('p16-feedback');
+  }
+
   /* -- 15 · (2026-11-14) „Zdobądź w pełni“ und die Tafel, wenn ein Durchgang keine Stufe mehr bringt ------------------------------ */
   if (runs('15')) {
     const P = '15 conquer fully';

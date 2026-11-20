@@ -197,7 +197,8 @@ async function summaryOf(base: MemoryBase, doc: unknown): Promise<KnowledgeSumma
 function KnowledgeFrame({ base, viewId, learner, title, sub, writes = false }: { base: MemoryBase; viewId: string; learner: Learner; title: string; sub: string; writes?: boolean }) {
   const [opened, setOpened] = useState<string | null>(null);
   const ctx = useMemo<CogitaCtx>(() => ({
-    lib: base.lib, name: base.name, writes,
+    /* 2026-11-20 — als Autor mit der Baza zum Schreiben (Rückmeldungen an Karten; alles bleibt im Speicher der Vorschau). */
+    lib: writes ? base.writer : base.lib, name: base.name, writes,
     keyOf: () => Promise.resolve(undefined), keyIn: () => Promise.resolve(undefined),
     me: null, who: null, learner, href: () => '#'
   }), [base, learner, writes]);

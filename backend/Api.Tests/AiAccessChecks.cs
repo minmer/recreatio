@@ -274,6 +274,21 @@ internal static class AiAccessChecks
             check(Fails(() => AiMcpTools.SetupOf(AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", oldBase.RootElement)!, null, 0)) == "not_ready"
                 && AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "books", setupDoc.RootElement)!.Setup.ValueKind == JsonValueKind.Undefined,
                 "MCP get_knowledge_setup: a snapshot from before says not_ready; only a knowledge base carries a setup");
+            /* 2026-11-20 — get_feedback: die Rückmeldungen aus der Abschrift, offen zuerst, gefiltert nach Stand und Art. */
+            using var fbDoc = JsonDocument.Parse("""
+                { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Bosko", "entries": [],
+                  "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Bosko" },
+                    "feedback": [
+                      { "id": "f1", "state": "open", "category": "language", "means": "language problem", "target": { "kind": "question", "entity": "@bosko/q1", "card": "k1", "shownAs": "Kiedy?" }, "text": "Literówka: „Turin”", "at": "2026-11-20T10:00:00Z", "knowness": 0.5 },
+                      { "id": "f2", "state": "done", "category": "good", "means": "works well", "target": { "kind": "slide", "entity": "@bosko/s1", "shownAs": "Becchi" }, "text": "", "at": "2026-11-19T10:00:00Z" } ] } }
+                """);
+            var fbSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", fbDoc.RootElement)!;
+            var fbOpen = AiMcpTools.FeedbackOf([fbSnap]);
+            var fbAll = AiMcpTools.FeedbackOf([fbSnap], "all");
+            var fbGood = AiMcpTools.FeedbackOf([fbSnap], "all", "good");
+            check(fbOpen.Total == 1 && fbOpen.Collections[0].Open == 1 && fbOpen.Collections[0].Done == 1 && fbOpen.Collections[0].Items[0]!["target"]!["entity"]!.GetValue<string>() == "@bosko/q1"
+                && fbOpen.Collections[0].Items[0]!["knowness"] is null && fbAll.Total == 2 && fbGood.Total == 1 && fbGood.Collections[0].Items[0]!["id"]!.GetValue<string>() == "f2",
+                "MCP get_feedback: open feedback by default with its target's lasting names; all or one category on request; learner data scrubbed");
             var big = new System.Text.StringBuilder("""{ "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Duża", "entries": [], "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Duża", "settings": [ {} ], "views": [""");
             for (var i = 0; i < 40; i++) big.Append(i == 0 ? "" : ",").Append($$"""{ "ref": "@w{{i}}", "name": "{{new string('x', 3000)}}" }""");
             big.Append("] } } }");
