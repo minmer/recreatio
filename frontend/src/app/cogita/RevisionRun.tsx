@@ -90,7 +90,7 @@ export function RevisionRun(props: RunProps) {
   return <LangScope lang={props.lib === null ? null : baseLang(props.lib)}><RevisionRunIn {...props} /></LangScope>;
 }
 
-function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap, onTopic, onSlide }: {
+function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, doneNow = false, closing, backToMap, onTopic, onSlide }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -122,6 +122,8 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
    * der Krajobraz: erst die Wiederholung der Kette, dann direkt das Neue.
    */
   onDone?: () => void;
+  /** 2026-11-20 (Eigentümer: „statt der Folie „Koniec" gleich zur Karte") — von selbst zu Ende: sofort `onDone`, ohne die kurze Tafel. */
+  doneNow?: boolean;
   /**
    * 2026-11-04 (Prompt 9) — DAS ENDE EINER POWTÓRKA: was der Gastgeber nach ihr anbietet (der Krajobraz: das Thema, das sie
    * verlangt hat, der nächste Schritt zum Ziel, die Karte). Ohne: was diese Powtórka freigeschaltet hat, zum Üben hier.
@@ -363,10 +365,11 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
     doneFor.current = state;
     void learner?.flush().catch(() => undefined);
     /* 2026-11-04 — kurz sagen, dass sie zu Ende ist, dann gleich weiter zum Thema, das sie verlangt hat (nicht zur Karte). */
-    setHanding(true);
     window.clearTimeout(doneTimer.current);
+    if (doneNow) { onDoneRef.current?.(); return; }
+    setHanding(true);
     doneTimer.current = window.setTimeout(() => onDoneRef.current?.(), 1300);
-  }, [state, ownEnd, hasDone, learner]);
+  }, [state, ownEnd, hasDone, learner, doneNow]);
   useEffect(() => {
     if (!finished || learner === null || state === null) return;
     void (async () => {

@@ -460,7 +460,8 @@ try {
       if (await ev(`document.querySelector('[data-card-next]') !== null`)) await click('[data-card-next]');
       await sleep(60);
     }
-    await click('[data-world-back]');
+    /* 2026-11-20 — zu Ende geht es gleich zur Karte (keine Tafel „Koniec“); nur ein abgebrochener Lauf hat noch „Zur Karte“. */
+    if (await ev(`document.querySelector('[data-world-back]') !== null`)) await click('[data-world-back]');
     await afterPart();
     await waitFor(ready, 'the map after the self-check');
     await waitFor(`document.querySelector('[data-world-note="gaps"]')`, 'the gaps note');

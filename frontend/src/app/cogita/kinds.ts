@@ -62,7 +62,7 @@ export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
 /* 2026-11-09 — `worldmap`: die gespeicherte Lage der Weltkarte (nur Schreibende legen sie ab; nie im JSON des Kurses). */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath', 'feedback'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
@@ -85,7 +85,9 @@ export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
   merge: 'cogitaData.docKind.merge',
   contribution: 'cogitaData.docKind.contribution',
   /* 2026-11-02 — punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
-  reward: 'cogitaData.docKind.reward'
+  reward: 'cogitaData.docKind.reward',
+  /* 2026-11-20 — eine Rückmeldung zu einer Karte, Frage oder Folie für die KI, die die Baza baut (`feedback.ts`). */
+  feedback: 'cogitaData.docKind.feedback'
 });
 
 export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readonly string[]).includes(kind);

@@ -62,7 +62,7 @@ import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
-import { followPlan, keepNav, keptNav, navMarks, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
+import { followPlan, keepNav, keepRefreshed, keptNav, keptRefreshed, navMarks, refreshedNow, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
 import { freshRoads, nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
@@ -325,19 +325,30 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const scope = `${lib.libraryId}:${viewKey}`;
   const [nav, setNav] = useState<NavSession | null>(() => keptNav(scope));
   useEffect(() => { keepNav(scope, nav); }, [scope, nav]);
+  /* 2026-11-20 (Eigentümer: „Wiederholung, Karte, wieder Wiederholung …") — was eine zu Ende gebrachte Wiederholung des Weges schon fragte. */
+  const [refreshedAt, setRefreshedAt] = useState<ReadonlyMap<string, number>>(() => keptRefreshed(scope));
+  const refreshed = useMemo(() => refreshedNow(refreshedAt), [refreshedAt]);
+  const pendingRefresh = useRef<readonly string[] | null>(null);
+  const markRefreshed = () => {
+    const keys = pendingRefresh.current;
+    pendingRefresh.current = null;
+    if (keys === null || keys.length === 0) return;
+    const now = Date.now();
+    setRefreshedAt((was) => { const next = new Map(was); for (const k of keys) next.set(k, now); keepRefreshed(scope, next); return next; });
+  };
   const navPlan = useMemo(() => {
     if (nav === null || nav.paused === true) return null;
     /* 2026-11-12 (Prompt 25) — „Idź tą drogą": die Pläne der offenen Schritte des Weges aneinander (`pathPlan`). */
     /* 2026-11-14 — ohne die übersprungenen Schritte (`NavSession.skipped`). */
-    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : withoutSkipped(pathPlan(pctx, p, nav.choices), nav.skipped); }
-    return world.places.has(nav.target) ? withoutSkipped(planRoute(state, nav.target, { choices: nav.choices }), nav.skipped) : null;
-  }, [nav, state, world, pathById, pctx]);
+    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : withoutSkipped(pathPlan(pctx, p, nav.choices, refreshed), nav.skipped); }
+    return world.places.has(nav.target) ? withoutSkipped(planRoute(state, nav.target, { choices: nav.choices, refreshed }), nav.skipped) : null;
+  }, [nav, state, world, pathById, pctx, refreshed]);
   /* 2026-11-14 (Eigentümer: „übersprungene Schritte bleiben an ihrem Platz, nur grau") — die Folge des Weges MIT den übersprungenen. */
   const navOrder = useMemo(() => {
     if (nav === null || nav.paused === true || (nav.skipped ?? []).length === 0) return null;
-    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : pathPlan(pctx, p, nav.choices).steps; }
-    return world.places.has(nav.target) ? planRoute(state, nav.target, { choices: nav.choices }).steps : null;
-  }, [nav, state, world, pathById, pctx]);
+    if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : pathPlan(pctx, p, nav.choices, refreshed).steps; }
+    return world.places.has(nav.target) ? planRoute(state, nav.target, { choices: nav.choices, refreshed }).steps : null;
+  }, [nav, state, world, pathById, pctx, refreshed]);
   /* 2026-11-10 — angehalten, nicht vergessen; am Ziel ist der Weg zu Ende. */
   const pauseNav = () => setNav((n) => (n === null || (navPlan !== null && navPlan.steps.length === 0) ? null : { ...n, paused: true }));
   /*
@@ -492,10 +503,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       const st = state.sections.get(step.section);
       const s = lines.sections.get(step.section);
       /* 2026-11-14 — wurde die Wiederholung vor dieser Fahrt übersprungen, fährt man trotzdem (auch gegen die Regeln). */
-      if (st !== undefined && !st.ticket.met && !skippedSet.has(`review:${step.section}`)) { startCards([...st.ticket.missing.new, ...st.ticket.missing.review], s === undefined ? '' : nameOf(s.to), false); return; }
+      /* 2026-11-20 — ebenso, wenn sie in dieser Sitzung schon wiederholt wurde (nichts Neues fehlt): keine Schleife aus Wiederholungen. */
+      const reviewedAll = st !== undefined && st.ticket.missing.new.length === 0 && st.ticket.missing.review.every((k) => refreshed.has(k));
+      if (st !== undefined && !st.ticket.met && !reviewedAll && !skippedSet.has(`review:${step.section}`)) {
+        if (st.ticket.missing.new.length === 0) pendingRefresh.current = st.ticket.missing.review; startCards([...st.ticket.missing.new, ...st.ticket.missing.review], s === undefined ? '' : nameOf(s.to), false); return; }
       travel(step.section);
       return;
     }
+    if (step.kind === 'review') pendingRefresh.current = step.cards;
     if (step.kind === 'learn' || step.kind === 'know' || step.kind === 'review') { startCards(step.cards, nameOf(step.place), false); return; }
     if (step.kind === 'run') act.run(step.place);
   };
@@ -732,7 +747,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     /* 2026-11-14 (Eigentümer) — erobert, aber nicht „Mistrzowsko": „Zdobądź w pełni" (erst die Stufen mit Erklärung, dann Start). */
     if (eff.levels > 0 && levels.get(id)?.perfect !== true) out.push({ key: 'full', label: t('cogitaWorld.panel.conquerFully'), line: true, onClick: () => setFullOf(id), data: { 'world-conquer-full': id } });
     const due = dueOf(bs, id);
-    if (due.length > 0) out.push({ key: 'review', label: t('cogitaWorld.panel.reviewN', { count: due.length }), tone: ps.dot ?? 'orange', onClick: () => act.review(due, nameOf(id)), data: { 'world-review': String(due.length) } });
+    if (due.length > 0) out.push({ key: 'review', label: t('cogitaWorld.panel.reviewN', { count: due.length }), score: ps.share, onClick: () => act.review(due, nameOf(id)), data: { 'world-review': String(due.length) } });
     return [...out, more];
   };
 
@@ -1145,7 +1160,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       <div className="cg-ls-run" data-world-running={running.key.split(':')[0]}>
         <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={backToMap} data-world-back="">‹ {t('cogitaWorld.panel.backToMap')}</button></p>
         {/* 2026-11-10 — zu Ende: gleich zurück zur Karte (keine Seite „fertig"). */}
-        <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={backToMap} backToMap={backToMap} onDone={backToMap} />
+        <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} onClose={() => { pendingRefresh.current = null; backToMap(); }} backToMap={backToMap} onDone={() => { markRefreshed(); backToMap(); }} doneNow />
       </div>
     ) : null;
   /*

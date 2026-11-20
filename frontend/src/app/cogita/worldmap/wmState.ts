@@ -88,6 +88,11 @@ export interface PlaceState {
   readonly saturation: 'never' | 'partly' | 'full';
   /** Der Punkt auf der Säule — nur auf eroberten Orten (§4.2): orange heisst „wiederholen". */
   readonly dot: 'green' | 'yellow' | 'orange' | null;
+  /**
+   * 2026-11-20 (Eigentümer: „Grün, Gelb und Rot als Verlauf — 87 % fast grün, 25 % dunkles Orangerot") — WIE GUT DER ORT SITZT,
+   * 0–1: der Mittelwert der Kenntnis seiner Karten (jede höchstens 1, nie gefragt 0). Seine Farbe ist `scoreColour(share)`.
+   */
+  readonly share: number;
 }
 
 export interface TicketState {
@@ -185,7 +190,9 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     let learning = 0;
     let known = 0;
     let weakest = Infinity;
+    let sum = 0;
     for (const k of cards) {
+      sum += Math.max(0, Math.min(1, knowness(k)));
       const b = band(k);
       if (b === 'unseen') unseen += 1; else if (b === 'learning') learning += 1; else known += 1;
       weakest = Math.min(weakest, knowness(k));
@@ -204,7 +211,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     const missing = conquered ? 0 : levels > 0 ? total : unseen + learning;
     const saturation = (empty || (levels > 0 ? level >= 1 : conquered)) ? 'full' : unseen < total ? 'partly' : 'never';
     const dot = !conquered || empty ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
-    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, passable, placed: credited ? placedAt : 0, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
+    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, passable, placed: credited ? placedAt : 0, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot, share: total === 0 ? 1 : sum / total });
   }
   /* Die Höhe über der Bitmenge der Grundlage (5 000 Orte: keine Mengen je Ort). */
   const miss = new Float64Array(world.bitOrder.length);

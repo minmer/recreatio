@@ -64,6 +64,12 @@ export interface Plan {
 export interface PlanOptions {
   /** Gewählte Abzweigungen dieser Sitzung: Ort → Abschnitt. */
   readonly choices?: ReadonlyMap<string, string>;
+  /**
+   * 2026-11-20 (Eigentümer: „eine Wiederholung vor dem nächsten Schritt, zurück zur Karte — und schon wieder eine, und noch eine")
+   * — KARTEN, DIE IN DIESER SITZUNG SCHON WIEDERHOLT WURDEN (eine Wiederholung des Weges, zu Ende gebracht): sie kommen in keine
+   * weitere Wiederholung des Weges, auch wenn eine Antwort darin falsch war und die Karte noch nicht „sitzt".
+   */
+  readonly refreshed?: ReadonlySet<string>;
 }
 
 /** Was es kostet, eine Spur zu gehen: gefahren, neu (je Schritt etwas mehr), zurück. */
@@ -220,7 +226,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     const from: string[] = [];
     for (const p of all) {
       if (soon.has(p) || !(conquered(p) || passable(p))) continue;
-      const weak = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known' && !reviewed.has(k) && !taught.has(k) && !cards.includes(k));
+      const weak = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known' && !reviewed.has(k) && !taught.has(k) && !cards.includes(k) && opts.refreshed?.has(k) !== true);
       if (weak.length === 0) continue;
       cards.push(...weak);
       from.push(p);
@@ -246,7 +252,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       /* Wer den Weg geht (oder schon ging), bekommt seine Karten erklärt. */
       if (had || e.s.steps.length === 0) { for (const k of e.s.introduces) introduced.add(k); continue; }
       const st = state.sections.get(e.s.id)!;
-      const again = st.ticket.missing.review.filter((k) => !introduced.has(k) && !reviewed.has(k));
+      const again = st.ticket.missing.review.filter((k) => !introduced.has(k) && !reviewed.has(k) && opts.refreshed?.has(k) !== true);
       /* Die Grundlage des Pfades: die Türme seiner Tore (erfüllt oder nicht) und die des Turms, zu dem er führt. */
       const gates = st.ticket.parts.flatMap((p) => placesOf(p.part.condition));
       reviewBefore(place, e.s.id, again, [...gates, ...(world.places.has(e.s.to) ? world.base(e.s.to) : [])]);

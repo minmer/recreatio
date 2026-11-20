@@ -646,3 +646,8 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-lost { display: grid; gap: var(--wk-space-2); }
 .cg-wm-lost > h3, .cg-wm-lost > p { margin: 0; }
 .cg-wm-sheetback:has(.cg-wm-fullsheet) { z-index: 9; }
+
+/* 2026-11-20 (Eigentümer) — Wie gut es sitzt, als Verlauf (scoreHue: 0 % rot … 35 % orange … 65 % gelb … 85 % gelbgrün … 100 % grün). */
+.wk-btn.cg-wm-need.is-score, .wk-btn.cg-wm-need.is-score:hover:not(:disabled) { background: oklch(0.8 0.14 var(--score-h, 150)); border-color: oklch(0.66 0.15 var(--score-h, 150)); color: #1b1712; }
+:root[data-mode='dark'] .wk-btn.cg-wm-need.is-score { background: oklch(0.7 0.14 var(--score-h, 150)); }
+.cg-wm-dot.is-score { background: oklch(0.7 0.17 var(--score-h, 150)); }

@@ -157,6 +157,31 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   const askedM = [];
   for (let i = 0; i < 40 && !R.runDone(m); i += 1) { const k = R.runCard(m); askedM.push(k); m = R.runAnswer(m, k, 1); }
   check('combinations: 15 cards of 4 out of 6 pairs — asked only until every pair was in a right card, not all 15', [askedM.length < 15 && askedM.every((k, i) => comboFacts[k].some((f) => !askedM.slice(0, i).flatMap((x) => comboFacts[x]).includes(f))), new Set(askedM.flatMap((k) => comboFacts[k])).size, R.finishRun(m, T0 + 1, ['me']).firstTry], [true, 6, 15]);
+  /*
+    2026-11-20 (Eigentümer: „acht Paare — eine Karte fragt vier, die nächste die anderen vier; beide richtig: nichts mehr") — eine
+    Karte je Paar (ihr Fakt: ihr Paar), gezeigt mit drei anderen: jedes richtig gegebene GEZEIGTE Paar sitzt (factsRight).
+  */
+  const eight = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const pairFacts = Object.fromEntries(eight.map((x) => [`p-${x}`, [`list#${x}`]]));
+  let pr = R.startRun('pairs8', 'P', Object.keys(pairFacts), T0, pairFacts);
+  const shown = new Set();
+  const askedP = [];
+  for (let i = 0; i < 20 && !R.runDone(pr); i += 1) {
+    const k = R.runCard(pr);
+    askedP.push(k);
+    /* Die Karte zeigt ihr Paar und drei noch nicht gezeigte (wie eine Liste mit „Ile par naraz: 4"). */
+    const own = k.slice(2);
+    const others = eight.filter((x) => x !== own && !shown.has(x)).slice(0, 3);
+    for (const x of [own, ...others]) shown.add(x);
+    pr = R.runAnswer(pr, k, 1, [own, ...others].map((x) => `list#${x}`));
+  }
+  check('eight pairs shown four at a time: two right cards and the run is over (each shown pair counted once)', [askedP.length, R.finishRun(pr, T0 + 1, ['me']).firstTry, pr.covered.length], [2, 8, 6]);
+  /* Eine Karte, die nicht ganz richtig war: was sie richtig gab, zählt trotzdem; sie selbst kommt wieder. */
+  let pp = R.startRun('pairs-part', 'P', ['p-a', 'p-b', 'p-c'], T0, { 'p-a': ['list#a'], 'p-b': ['list#b'], 'p-c': ['list#c'] });
+  const firstP = R.runCard(pp);
+  const rest = ['p-a', 'p-b', 'p-c'].filter((k) => k !== firstP);
+  pp = R.runAnswer(pp, firstP, 0.5, [`list#${rest[0].slice(2)}`]);
+  check('a half-right card: the pair it got right covers that card; the card itself comes again', [pp.covered, pp.queue.includes(firstP), pp.queue.includes(rest[0])], [[rest[0]], true, false]);
   let w = R.startRun('grp', 'P', Object.keys(facts), T0, facts);
   const asked2 = [];
   for (let i = 0; i < 30 && !R.runDone(w); i += 1) { const k = R.runCard(w); asked2.push(k); w = R.runAnswer(w, k, asked2.filter((x) => x === k).length === 1 && k.startsWith('p') ? 0 : 1); }

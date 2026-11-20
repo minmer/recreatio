@@ -144,7 +144,7 @@ const keyOf = (s: PlanStep): string =>
  * früherer schon enthält, kommt nicht zweimal. Eine Erzählung: der Weg zu ihrem Anfang, dann ihre noch nicht befahrenen Abschnitte.
  * Die zweite Runde an einem Ort (höhere Stufe) ist ein Durchgang an ihm. Das Ziel heisst `~path:<id>`.
  */
-export function pathPlan(ctx: PathCtx, path: QPath, choices?: ReadonlyMap<string, string>): Plan {
+export function pathPlan(ctx: PathCtx, path: QPath, choices?: ReadonlyMap<string, string>, refreshed?: ReadonlySet<string>): Plan {
   const { state, lines } = ctx;
   const steps: PlanStep[] = [];
   const places: string[] = [];
@@ -157,7 +157,7 @@ export function pathPlan(ctx: PathCtx, path: QPath, choices?: ReadonlyMap<string
     for (const r of p.route) if (!route.includes(r)) route.push(r);
     cards += p.cards;
   };
-  const opts = choices === undefined ? {} : { choices };
+  const opts = { ...(choices === undefined ? {} : { choices }), ...(refreshed === undefined ? {} : { refreshed }) };
   for (const step of path.steps) {
     if (stepState(ctx, step) === 'done') continue;
     if (step.kind === 'place') {

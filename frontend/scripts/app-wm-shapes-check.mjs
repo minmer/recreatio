@@ -436,6 +436,9 @@ const dotsMatch = (w) => w.scene.lanes.every((l) => {
   check('foundation: when A sits, only the gate card is reviewed', P.plan(wA.state, 'B').steps.filter((s) => s.kind === 'review').map((s) => s.cards), [['q/K/0']]);
   const wAll = open(made, F.fakeLearner({ levels: { A: 1, K: 1 }, progress: { 'f/k': { visited: seen('f/k') }, 'f/a': { visited: [...homeA.steps] } }, knowness: { 'q/K/0': 1.2, ...sits } }));
   check('foundation: when everything B builds on sits, no review step', P.plan(wAll.state, 'B').steps.map((s) => s.kind), ['travel', 'travel', 'run']);
+  /* 2026-11-20 (Eigentümer: „Wiederholung, Karte, wieder Wiederholung“) — was in dieser Sitzung schon wiederholt wurde, kommt nicht wieder. */
+  check('foundation: cards already reviewed in this session are not reviewed again (no loop of reviews)', P.plan(w.state, 'B', { refreshed: new Set(['q/K/0', 'q/A/0', 'q/A/1', 'q/A/2']) }).steps.map((s) => s.kind), ['travel', 'travel', 'run']);
+  check('foundation: … only those — another weak card still comes', P.plan(w.state, 'B', { refreshed: new Set(['q/A/0', 'q/A/1', 'q/A/2']) }).steps.filter((s) => s.kind === 'review').map((s) => s.cards), [['q/K/0']]);
   /* Ein Turm, den der Plan selbst erst erobert, wird nicht „wiederholt" — sein Durchgang fragt ihn. */
   const wNew = open(made, F.fakeLearner({ levels: { K: 1 }, progress: { 'f/k': { visited: seen('f/k') } }, knowness: { 'q/K/0': 1.2 } }));
   check('foundation: a tower the plan conquers first is not reviewed (its run asks it)', P.plan(wNew.state, 'B').steps.filter((s) => s.kind === 'review').flatMap((s) => s.towers ?? []), []);

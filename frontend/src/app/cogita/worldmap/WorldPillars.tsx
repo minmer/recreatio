@@ -27,6 +27,7 @@ import { BEACH, islandOf } from './wmIsland';
 import { greyPlace, type RouteFocus } from './wmFocus';
 import { dueLevel, laneOn, laneStroke, nameOnTop, type LaneStroke, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
+import { scoreColour, scoreHue } from '../scoreColour';
 import { hourOf, keepLight, keptLight, mapPalette, MAP_LIGHTS, type MapLight, type MapPalette } from './wmDaylight';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
@@ -147,6 +148,8 @@ export interface TowerButton {
   readonly line?: boolean;
   readonly small?: boolean;
   readonly tone?: string;
+  /** 2026-11-20 — die Farbe als Verlauf: wie gut es sitzt, 0–1 (`scoreHue`), statt der drei Töne. */
+  readonly score?: number;
   readonly title?: string;
   readonly peek?: (on: boolean) => void;
   /** 2026-11-14 — pulsiert (der Rundgang: „hier klicken"). */
@@ -413,7 +416,6 @@ interface GroundLayer {
   readonly deep: boolean;
 }
 
-const DOT: Readonly<Record<'green' | 'yellow' | 'orange', string>> = { green: '#2f9e57', yellow: '#d9ad12', orange: '#e2701b' };
 const HOME_MARK = '~home';
 
 /** Eine Fahne (das Ziel) oder ein Wimpel (der jetzige Schritt) auf einer Säule — Schirmpunkte, deckend. */
@@ -940,13 +942,13 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const k = p.knowledge;
         const all = k.known + k.learning + k.faded;
         if (a.conquered && all > 0) {
-          let at = -Math.PI / 2;
-          for (const [n, colour] of [[k.known, DOT.green], [k.learning, DOT.yellow], [k.faded, DOT.orange]] as const) {
-            if (n <= 0) continue;
-            const span = (n / all) * Math.PI * 2;
-            band(at, at + span, colour);
-            at += span;
-          }
+          /*
+            2026-11-20 (Eigentümer: „Grün, Gelb und Rot als Verlauf: 87 % fast grün, 25 % dunkles Orangerot") — EIN BOGEN, so lang wie
+            der Ort sitzt (`share`), in der Farbe dieses Anteils (`scoreColour`, dieselbe Skala wie überall); der Rest leise.
+          */
+          const share = Math.max(0, Math.min(1, p.share));
+          band(-Math.PI / 2, Math.PI * 1.5, rgbCss(mix(top, pal.ink, 0.16)));
+          if (share > 0.004) band(-Math.PI / 2, -Math.PI / 2 + share * Math.PI * 2, scoreColour(share));
         } else if (p.levels > 0) {
           const gap = Math.min(0.08, Math.PI / (p.levels * 8));
           for (let i = 0; i < p.levels; i += 1) {
@@ -1934,7 +1936,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         {towerActions !== null && (
           <div ref={towerBox} className="cg-wm-towerbtns" hidden data-world-tower-actions={towerActions.place}>
             {towerActions.buttons.map((b) => (
-              <button key={b.key} type="button" className={b.arrow === true ? 'cg-wm-tourarrow' : `wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.pulse === true ? ' cg-wm-pulse' : ''}${b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
+              <button key={b.key} type="button" className={b.arrow === true ? 'cg-wm-tourarrow' : `wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.pulse === true ? ' cg-wm-pulse' : ''}${b.score !== undefined ? ' cg-wm-need is-score' : b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
+                ref={b.score === undefined ? undefined : (el) => { el?.style.setProperty('--score-h', scoreHue(b.score!).toFixed(1)); }}
                 onClick={() => { b.peek?.(false); b.onClick(); }} onPointerEnter={() => b.peek?.(true)} onPointerLeave={() => b.peek?.(false)} onFocus={() => b.peek?.(true)} onBlur={() => b.peek?.(false)} {...Object.fromEntries(Object.entries(b.data ?? {}).map(([k, v]) => [`data-${k}`, v]))}>{b.label}</button>
             ))}
           </div>

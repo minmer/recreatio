@@ -38,6 +38,8 @@ export interface ScenePlace {
   readonly perfect: boolean;
   /** Wie die Karten des Ortes sitzen (gekonnt, im Lernen, verblasst/neu) — der Ring eines eroberten Ortes. */
   readonly knowledge: { readonly known: number; readonly learning: number; readonly faded: number };
+  /** 2026-11-20 — wie gut der Ort sitzt, 0–1 (`PlaceState.share`): die Farbe seines Rings. */
+  readonly share: number;
   /** 2026-11-10 — was dem Turm SELBST noch fehlt (Karten): die Höhe des Turms über seinen Scheiben. */
   readonly own: number;
   /**
@@ -228,6 +230,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       conquered: st?.conquered === true, levels: state.settings.levels, level: st?.level ?? 0, dot: st?.dot ?? null,
       station: lines.stations.has(id), perfect: st?.perfect === true,
       knowledge: { known: st?.known ?? 0, learning: st?.learning ?? 0, faded: st?.unseen ?? p.cards.length },
+      share: st?.share ?? 0,
       own: st?.missing ?? p.cards.length,
       discs: st === undefined || st.conquered ? [] : state.conquestOrder(id).filter((x) => x !== id),
       due: st?.dot === 'orange',

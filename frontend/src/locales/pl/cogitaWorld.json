@@ -357,7 +357,8 @@
     "statDue": "do powtórki",
     "askButton": "? {name}",
     "roadButton": "→ {name}",
-    "conquerFully": "Zdobądź w pełni"
+    "conquerFully": "Zdobądź w pełni",
+    "knowledgeShare": "Wiedza: {pct}% ({state})"
   },
   "nav": {
     "target": "Cel: {name}",

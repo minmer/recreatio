@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { tFor } from '../../core/i18n';
 import { newId } from '../../core/ids';
 import type { Card } from '../cardBasics';
+import { answerEvidence, answerFacts } from '../cards';
 import { CardFace, storedGiven } from '../CardFace';
 import { baseLang } from '../lang';
 import { learnFeatures, renamer, type Learner } from '../learn';
@@ -52,6 +53,8 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   }, [learner]);
   const [session, setSession] = useState<RunSession | null>(null);
   const last = useRef<number | null>(null);
+  /* 2026-11-20 — die Fakten, die die letzte Antwort richtig gab (für `runAnswer`). */
+  const lastFacts = useRef<string[]>([]);
   const [saving, setSaving] = useState(false);
   /* 2026-11-10 (Eigentümer) — nach einer falschen Antwort darf man den Durchgang von vorn beginnen (für „Mistrzowsko"). */
   const [lastWrong, setLastWrong] = useState(false);
@@ -99,8 +102,9 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   };
   const next = () => {
     if (key === null || last.current === null) return;
-    const s = runAnswer(session, key, last.current);
+    const s = runAnswer(session, key, last.current, lastFacts.current);
     last.current = null;
+    lastFacts.current = [];
     if (runDone(s)) { setSession(s); finish(s); return; }
     setSession(s);
   };
@@ -148,7 +152,16 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
           if (last.current !== null) return;
           last.current = o.correctness;
           setLastWrong(o.correctness < 0.999);
-          learner.record(card, o.correctness, { via: `run:${session.id}`, ms, given: storedGiven(card, given) });
+          /*
+            2026-11-20 (Eigentümer) — WAS SICH WIEDERHOLT, ZÄHLT EINMAL: jeder Fakt, den die Antwort richtig gab (die anderen gezeigten
+            Paare, Sätze, Lücken), deckt im Durchgang jede Karte, die nur ihn fragt; und wie in jeder Powtórka zählt die Antwort für
+            die anderen Karten dieses Turms, die dasselbe fragen (`answerEvidence`).
+          */
+          lastFacts.current = [...answerFacts(card, given, o)].filter(([, x]) => x.correctness >= 0.999).map(([f]) => f);
+          const via = `run:${session.id}`;
+          const main = learner.record(card, o.correctness, { via, ms, given: storedGiven(card, given) });
+          for (const p of answerEvidence(card, given, o, cards).slice(1))
+            learner.record(p.card, p.correctness, { via, ...(p.given === '' ? {} : { given: p.given }), ...(main === undefined ? {} : { lead: main.answer.id }) });
         }}
         onNext={next} />
       {mistaken ? (

@@ -347,8 +347,14 @@ export function startRun(id: string, place: string, cards: readonly string[], no
 
 export const runCard = (s: RunSession): string | null => s.queue[0] ?? null;
 
-/** Eine Antwort: falsch → am Ende noch einmal, bis sie sitzt (höchstens MAX_ASKS Mal; Entscheidung 7). */
-export function runAnswer(s: RunSession, card: string, correctness: number): RunSession {
+/**
+ * Eine Antwort: falsch → am Ende noch einmal, bis sie sitzt (höchstens MAX_ASKS Mal; Entscheidung 7).
+ * 2026-11-20 (Eigentümer: „zehn Fassungen derselben Karte muss man einzeln erobern — was sich wiederholt, zählt einmal; bei acht
+ * Paaren fragt eine Karte vier, die nächste die anderen vier, beide richtig: nichts mehr") — `factsRight`: JEDER Fakt, den diese
+ * Antwort richtig gab (auch die anderen gezeigten Paare, Sätze, Lücken — `answerFacts`), sitzt jetzt; jede noch nicht gefragte
+ * Karte, deren Fakten alle sitzen, fällt weg — auch wenn die Karte selbst nicht ganz richtig war.
+ */
+export function runAnswer(s: RunSession, card: string, correctness: number, factsRight: readonly string[] = []): RunSession {
   if (s.queue[0] !== card) return s;
   const right = correctness >= 0.999;
   let rest = s.queue.slice(1);
@@ -359,12 +365,15 @@ export function runAnswer(s: RunSession, card: string, correctness: number): Run
   let known = s.known;
   let second = s.second;
   let later = s.later;
-  if (n === 1) {
-    first = { ...first, [card]: correctness };
-    /* Was diese Karte fragt, sitzt: jede Karte, deren Fakten nun alle sassen (auch aus anderen Kombinationen), fällt weg. */
-    const mine = s.facts[card];
-    if (right && mine !== undefined && mine.length > 0) {
-      const have = new Set([...known, ...mine]);
+  if (n === 1) first = { ...first, [card]: correctness };
+  else if (n === 2) second = { ...second, [card]: correctness };
+  else later = { ...later, [card]: correctness };
+  {
+    /* Was sitzt: die Fakten dieser Karte, wenn sie ganz richtig war, und jeder Fakt, den die Antwort richtig gab. */
+    const mine = right ? s.facts[card] ?? [] : [];
+    const fresh = [...mine, ...factsRight].filter((f) => !known.includes(f));
+    if (fresh.length > 0) {
+      const have = new Set([...known, ...fresh]);
       known = [...have];
       const done = rest.filter((k) => k !== card && first[k] === undefined && (s.facts[k]?.length ?? 0) > 0 && s.facts[k]!.every((f) => have.has(f)));
       if (done.length > 0) {
@@ -373,8 +382,7 @@ export function runAnswer(s: RunSession, card: string, correctness: number): Run
         covered = [...covered, ...done];
       }
     }
-  } else if (n === 2) second = { ...second, [card]: correctness };
-  else later = { ...later, [card]: correctness };
+  }
   const queue = right || n >= MAX_ASKS ? rest : [...rest, card];
   /* Die erste Runde ist vorbei, sobald keine Karte der gemischten Reihenfolge mehr vorn wartet. */
   const retrying = queue.length > 0 && queue.every((k) => first[k] !== undefined);

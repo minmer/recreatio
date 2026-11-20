@@ -4,7 +4,7 @@
  * und dem Wissen, das sie erklärt [D14].
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { rich, t, tFor, useT } from '../core/i18n';
 
 import { checkCard } from './cards';
@@ -22,7 +22,9 @@ import { InteractiveAnswer, InteractiveReplay } from './InteractiveAnswer';
 import { givenValuesText, solutionText } from './interactive';
 import { datePartText, dateText, fieldText, fieldsOf, labelOf, readDate, type Entity } from './schema';
 import type { CogitaLibrary } from './store';
-import { Markup, MediaView, percent } from './ui';
+import { CogitaContext, Markup, MediaView, percent } from './ui';
+import { FeedbackButton } from './FeedbackButton';
+import { cardTarget } from './feedback';
 import { StatementCard } from '../library/markupView';
 import { blocksField } from './statements';
 import { TexText } from '../ui/tex/Tex';
@@ -642,6 +644,7 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
 }) {
   const [done, setDone] = useState<{ outcome: Outcome; given: unknown } | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const fbCtx = useContext(CogitaContext);
   /* 2026-11-01 — wie viele Podpowiedzi schon aufgedeckt sind (eine nach der anderen, nur vor der Antwort). */
   const [hinted, setHinted] = useState(0);
   const started = useMemo(() => Date.now(), [card.key, card.fingerprint]);
@@ -676,6 +679,8 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel, head,
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5" /></svg>
         </button>
       )}
+      {/* 2026-11-20 (Eigentümer) — eine Rückmeldung zu dieser Karte für die KI, die die Baza baut (nur wer schreibt). */}
+      <FeedbackButton lib={lib ?? fbCtx?.lib} target={cardTarget(card)} />
       {stats != null && statsOpen && <div className="cg-card-history cg-face-statsbox" data-card-stats-open=""><CardHistory marks={stats.marks()} {...(stats.spacing === undefined ? {} : { spacing: stats.spacing })} /></div>}
       {/* 2026-11-12 — zwei Teile (sonst display: contents, wie bisher): im Vollbild der Weltkarte zwei feste Spalten, die Frage bleibt stehen (wmRunFit.ts). */}
       <div className="cg-face-main">

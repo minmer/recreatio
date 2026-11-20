@@ -61,6 +61,7 @@ import { exploreOnBranch, hasOpen, scopeKey, scopeTowers } from './worldmap/wmPl
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
+import { FeedbackButton } from './FeedbackButton';
 import { CrossCrumbs, CrossDetourStep, CrossRun, WorldsSection } from './WorldLinks';
 import { crossOf } from './worlds';
 import { readPlan } from './revision';
@@ -1578,9 +1579,12 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
     Titel (er steht darüber) und ohne Verweisfelder (`slideText.ts`).
   */
   const text = slideText(entity, cg?.lib ?? null);
+  /* 2026-11-20 (Eigentümer) — eine Rückmeldung zu dieser Folie (oder diesem Eintrag) für die KI. */
+  const fb = <FeedbackButton lib={cg?.lib} target={{ kind: text !== null ? 'slide' : 'entry', entity: entity.id, label: entity.label.slice(0, 300) }} />;
   if (text !== null) {
     return (
       <>
+        {fb}
         {!text.blocks && entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} />)}
         <Markup text={text.text} />
         {worlds}
@@ -1589,6 +1593,7 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
   }
   return (
     <div className="cg">
+      {fb}
       <h3><TexText text={entity.label} /></h3>
       {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} />)}
       {entity.fields.filter((f) => f.text !== '').slice(0, 12).map((f) => (

@@ -16,6 +16,7 @@ import type { PlanStep } from './wmPlan';
 import { runGate, type LevelProgress, type LevelRule } from './wmRuns';
 import { reviewable, type SectionState, type WorldState } from './wmState';
 import { dueOf } from './wmViews';
+import { scoreRef } from '../scoreColour';
 import { HOME, type Section, type WmIssue } from './wmTypes';
 import './worldmap.css';
 
@@ -400,9 +401,10 @@ export function PlacePanel({ id, ctx, levels, onClose, settings, onSettings, goa
         {ps.conquered && <div><dt>{t('cogitaWorld.panel.statDue')}</dt><dd data-world-stat="due">{due.length}</dd></div>}
       </dl>
       {ps.dot !== null && (
-        <p className="cg-wm-row" data-world-dot={ps.dot}>
-          <span className={`cg-wm-dot is-${ps.dot}`} aria-hidden="true" />
-          <span>{t('cogitaWorld.panel.knowledge')}: {t(`cogitaWorld.panel.dot.${ps.dot}`)}</span>
+        <p className="cg-wm-row" data-world-dot={ps.dot} data-world-share={Math.round(ps.share * 100)}>
+          {/* 2026-11-20 — die Farbe als Verlauf (wie gut der Ort sitzt), die Zahl daneben. */}
+          <span className="cg-wm-dot is-score" ref={scoreRef(ps.share)} aria-hidden="true" />
+          <span>{t('cogitaWorld.panel.knowledgeShare', { pct: Math.round(ps.share * 100), state: t(`cogitaWorld.panel.dot.${ps.dot}`) })}</span>
         </p>
       )}
 

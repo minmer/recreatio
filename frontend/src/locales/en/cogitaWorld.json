@@ -305,7 +305,8 @@
     "statDue": "due for review",
     "askButton": "? {name}",
     "roadButton": "→ {name}",
-    "conquerFully": "Conquer fully"
+    "conquerFully": "Conquer fully",
+    "knowledgeShare": "Knowledge: {pct} % ({state})"
   },
   "nav": {
     "target": "Target: {name}",

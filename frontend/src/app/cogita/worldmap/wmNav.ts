@@ -118,6 +118,27 @@ export function keptNav(scope: string): NavSession | null {
   } catch { return null; }
 }
 
+/*
+  2026-11-20 — WAS IN DIESER SITZUNG SCHON WIEDERHOLT WURDE (`PlanOptions.refreshed`): Karte → wann; sechs Stunden lang (danach darf
+  der Weg wieder fragen). Im Speicher der Sitzung, je Ansicht.
+*/
+const REFRESH_MS = 6 * 60 * 60 * 1000;
+const refreshKey = (scope: string) => `cg-wm-refreshed:${scope}`;
+export function keptRefreshed(scope: string, now = Date.now()): Map<string, number> {
+  try {
+    const raw = window.sessionStorage.getItem(refreshKey(scope));
+    const v = raw === null ? null : JSON.parse(raw) as unknown;
+    const out = new Map<string, number>();
+    if (Array.isArray(v)) for (const p of v) if (Array.isArray(p) && typeof p[0] === 'string' && typeof p[1] === 'number' && now - p[1] < REFRESH_MS) out.set(p[0], p[1]);
+    return out;
+  } catch { return new Map(); }
+}
+export function keepRefreshed(scope: string, all: ReadonlyMap<string, number>): void {
+  try { window.sessionStorage.setItem(refreshKey(scope), JSON.stringify([...all])); } catch { /* ohne Speicher: nur bis zum Neuladen */ }
+}
+/** Die Karten, die gerade als wiederholt gelten. */
+export const refreshedNow = (all: ReadonlyMap<string, number>, now = Date.now()): Set<string> => new Set([...all].filter(([, at]) => now - at < REFRESH_MS).map(([k]) => k));
+
 export function keepNav(scope: string, nav: NavSession | null): void {
   try {
     if (nav === null) window.sessionStorage.removeItem(navKey(scope));

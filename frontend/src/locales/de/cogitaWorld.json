@@ -305,7 +305,8 @@
     "statDue": "zu wiederholen",
     "askButton": "? {name}",
     "roadButton": "→ {name}",
-    "conquerFully": "Ganz erobern"
+    "conquerFully": "Ganz erobern",
+    "knowledgeShare": "Wissen: {pct} % ({state})"
   },
   "nav": {
     "target": "Ziel: {name}",
