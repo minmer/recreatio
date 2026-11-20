@@ -71,7 +71,11 @@
     "chapter": "Kapitel {n}",
     "allDone": "alle durchgearbeitet",
     "next": "weiter",
-    "explored": "nach der Einstufung"
+    "explored": "nach der Einstufung",
+    "partial": "teilweise",
+    "rightOnRetry": "richtig im zweiten Versuch",
+    "wrongTag": "falsch: {tag}",
+    "pick": "gewählt {n}"
   },
   "reviewPassed": "Rückblick bestanden",
   "chapterN": "Kapitel {n}",
@@ -156,5 +160,51 @@
     "pathError": "Dieser Ablauf hat einen Fehler (kein Anfang oder Ende, Vertiefungen im Kreis) — so wird er beim Import nicht gespeichert, und der Lernende bleibt hängen:",
     "pathWarn": "Der Pfad hat Stellen, an denen der Lernende hängen bleibt oder die er nie sieht:",
     "more": "… und {n} weitere"
+  },
+  "adaptive": {
+    "title": "Nach der Antwort (adaptiv)",
+    "count": {
+      "one": "· {count} Frage verzweigt",
+      "other": "· {count} Fragen verzweigen"
+    },
+    "hint": "Was jede Frage nach der Antwort tut: Hilfe nach einer falschen Antwort (Folien, eine leichtere Prüffrage, dann weiter oder noch einmal), teilweise richtige Antworten, Wege für die Fehler-Tags der Frage. Hilfsschritte zählen nie im Fortschritt.",
+    "slides": "Hilfsfolien, der Reihe nach:",
+    "addSlide": "Hilfsfolie hinzufügen…",
+    "check": "Eine leichtere Prüffrage (freiwillig)",
+    "then": "Danach",
+    "thenContinue": "weiter in der Erzählung",
+    "thenRetry": "dieselbe Frage noch einmal",
+    "max": "Höchstens so viele Versuche",
+    "remove": "Hilfe entfernen",
+    "add": "Hilfe nach falscher Antwort hinzufügen",
+    "partialAt": "Teilweise richtig ab (%)",
+    "tags": "Nach diesen Fehler-Tags verzweigen (je einer ein Ausgang im Graphen):",
+    "sumTags": "verzweigt nach {list}",
+    "sumPartial": "teilweise richtig ab {pct} %",
+    "sumRetry": {
+      "one": "bis zu {max}× noch einmal nach {slides} Folie",
+      "other": "bis zu {max}× noch einmal nach {slides} Folien"
+    },
+    "sumRemedy": {
+      "one": "Hilfe: {count} Folie{extra}, dann weiter",
+      "other": "Hilfe: {count} Folien{extra}, dann weiter"
+    },
+    "sumRemedyRetry": {
+      "one": "Hilfe: {count} Folie{extra}, dann noch einmal",
+      "other": "Hilfe: {count} Folien{extra}, dann noch einmal"
+    },
+    "sumPicks": {
+      "one": "{count} Ausgang je Möglichkeit",
+      "other": "{count} Ausgänge je Möglichkeit"
+    },
+    "sumSkips": {
+      "one": "überspringt bei richtig {count} Schritt",
+      "other": "überspringt bei richtig {count} Schritte"
+    },
+    "sumCheck": ", eine leichtere Prüffrage",
+    "sumByTag": {
+      "one": ", eigene Hilfe für {count} Tag",
+      "other": ", eigene Hilfe für {count} Tags"
+    }
   }
 }

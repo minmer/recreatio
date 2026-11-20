@@ -358,7 +358,13 @@
     "askButton": "? {name}",
     "roadButton": "→ {name}",
     "conquerFully": "Zdobądź w pełni",
-    "knowledgeShare": "Wiedza: {pct}% ({state})"
+    "knowledgeShare": "Wiedza: {pct}% ({state})",
+    "remedial": {
+      "one": "{count} krok pomocy po złych odpowiedziach (nie liczy się)",
+      "few": "{count} kroki pomocy po złych odpowiedziach (nie liczą się)",
+      "many": "{count} kroków pomocy po złych odpowiedziach (nie liczą się)",
+      "other": "{count} kroku pomocy po złych odpowiedziach (nie liczą się)"
+    }
   },
   "nav": {
     "target": "Cel: {name}",

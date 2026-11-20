@@ -71,7 +71,11 @@
     "chapter": "chapter {n}",
     "allDone": "all finished",
     "next": "next",
-    "explored": "after the placement"
+    "explored": "after the placement",
+    "partial": "partly",
+    "rightOnRetry": "right on retry",
+    "wrongTag": "wrong: {tag}",
+    "pick": "picked {n}"
   },
   "reviewPassed": "Review passed",
   "chapterN": "Chapter {n}",
@@ -156,5 +160,51 @@
     "pathError": "This flow has an error (no start or end, detours in a loop) — it won't be saved like this from an import and the learner will get stuck:",
     "pathWarn": "The path has places where the learner will get stuck or that they will never see:",
     "more": "… and {n} more"
+  },
+  "adaptive": {
+    "title": "After the answer (adaptive)",
+    "count": {
+      "one": "· {count} question branches",
+      "other": "· {count} questions branch"
+    },
+    "hint": "What each question does after the answer: help after a wrong answer (slides, an easier check, then continue or try again), partly right answers, branches for the mistake tags of the question. Help steps never count toward progress.",
+    "slides": "Help slides, in order:",
+    "addSlide": "Add a help slide…",
+    "check": "An easier check question (optional)",
+    "then": "Then",
+    "thenContinue": "continue the story",
+    "thenRetry": "ask the same question again",
+    "max": "Retries at most",
+    "remove": "Remove the help",
+    "add": "Add remediation for wrong answer",
+    "partialAt": "Partly right from (%)",
+    "tags": "Branch on these mistake tags (one exit each in the graph):",
+    "sumTags": "branches on {list}",
+    "sumPartial": "partly right from {pct} %",
+    "sumRetry": {
+      "one": "try again up to {max}× after {slides} slide",
+      "other": "try again up to {max}× after {slides} slides"
+    },
+    "sumRemedy": {
+      "one": "help: {count} slide{extra}, then continue",
+      "other": "help: {count} slides{extra}, then continue"
+    },
+    "sumRemedyRetry": {
+      "one": "help: {count} slide{extra}, then try again",
+      "other": "help: {count} slides{extra}, then try again"
+    },
+    "sumPicks": {
+      "one": "{count} exit per option",
+      "other": "{count} exits per option"
+    },
+    "sumSkips": {
+      "one": "skips {count} step when right",
+      "other": "skips {count} steps when right"
+    },
+    "sumCheck": ", an easier check",
+    "sumByTag": {
+      "one": ", own help for {count} tag",
+      "other": ", own help for {count} tags"
+    }
   }
 }

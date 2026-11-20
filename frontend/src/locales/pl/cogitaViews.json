@@ -54,7 +54,13 @@
       "lon": "dł.",
       "remove": "usuń",
       "addPart": "+ część",
-      "withinDays": "w ciągu … dni (puste: kiedykolwiek)"
+      "withinDays": "w ciągu … dni (puste: kiedykolwiek)",
+      "measure": "Co liczyć",
+      "since": "Od kiedy",
+      "sinceStep": "od kroku…",
+      "streakCount": "Ile z rzędu",
+      "partial": "częściowo dobrze",
+      "tag": "znacznik błędu"
     },
     "act": {
       "add": "dodaj do wartości",

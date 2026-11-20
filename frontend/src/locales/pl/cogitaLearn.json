@@ -274,7 +274,14 @@
     "branchQuestions": "{questions} · {known} umiesz",
     "storyMap": "Plan opowieści",
     "routeShown": "Pokaż moją drogę",
-    "chooseAgain": "Możesz wybrać ponownie — inną drogę albo tę samą jeszcze raz."
+    "chooseAgain": "Możesz wybrać ponownie — inną drogę albo tę samą jeszcze raz.",
+    "remedialKind": "Pomoc po złej odpowiedzi (nie liczy się)",
+    "remedialSteps": {
+      "one": "{count} krok pomocy",
+      "few": "{count} kroki pomocy",
+      "many": "{count} kroków pomocy",
+      "other": "{count} kroku pomocy"
+    }
   },
   "spacing": {
     "title": "Odstępy powtórek",

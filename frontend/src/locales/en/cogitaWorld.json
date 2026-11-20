@@ -306,7 +306,11 @@
     "askButton": "? {name}",
     "roadButton": "→ {name}",
     "conquerFully": "Conquer fully",
-    "knowledgeShare": "Knowledge: {pct} % ({state})"
+    "knowledgeShare": "Knowledge: {pct} % ({state})",
+    "remedial": {
+      "one": "{count} help step after wrong answers (not counted)",
+      "other": "{count} help steps after wrong answers (not counted)"
+    }
   },
   "nav": {
     "target": "Target: {name}",

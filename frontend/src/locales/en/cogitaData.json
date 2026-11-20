@@ -140,7 +140,8 @@
     "qpathCheck": "closing check: there is no {ref}.",
     "qpathCheckMany": "the closing check has {count} questions — the first {max} count.",
     "qpathDeeper": "\"deeper\": there is no path {ref}.",
-    "qpathLoop": "\"deeper\" leads back to this path (a loop)."
+    "qpathLoop": "\"deeper\" leads back to this path (a loop).",
+    "branchLine": "Flow “{flow}”, question “{step}”: {what}"
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",
@@ -332,7 +333,8 @@
       "core": "Key question",
       "about": "About",
       "needs": "Must know first",
-      "form": "Question type"
+      "form": "Question type",
+      "tags": "Mistake tags"
     },
     "says": {
       "prompt": "The question text; for “True or false” — the statement, for a flashcard — its front, for a gap — the text with the gap [[word]] (several gaps: each on its own). Formulas: $…$ inline, $$…$$ on their own",
@@ -382,7 +384,8 @@
       "core": "Key for the topics in “About”: “Check what you know” asks about it once, and how well it is known tells whether the topic is a “gap” (condition with rel \"core\")",
       "about": "Entries this question checks: its result counts towards how well they are known, and the question itself waits until you master what must be known before them",
       "needs": "Entries or questions that must be mastered before this question comes (e.g. “What is an atom?” before “What is an orbital?”)",
-      "form": "How it is asked and answered — this decides which fields below are filled in: {list}"
+      "form": "How it is asked and answered — this decides which fields below are filled in: {list}",
+      "tags": "One mistake tag for each option (one, many), pair (match), gap (gap) or position (order, build), in the same order (empty: no tag) — a flow can branch on it with the exit “wrong:<tag>”"
     },
     "inverse": {
       "about": "questions",
@@ -862,7 +865,10 @@
       "and": "AND",
       "or": "OR",
       "not": "NOT",
-      "xor": "EITHER"
+      "xor": "EITHER",
+      "session": "Answers in this run",
+      "lastAnswer": "Last answer",
+      "streak": "Streak"
     },
     "flowCheck": {
       "started": "started",
@@ -888,7 +894,28 @@
       "place": "within {radius} m of {lat}, {lon}",
       "zone": "in the zone “{name}”",
       "not": "NOT ({inner})",
-      "within": "{text}, within the last {days} days"
+      "within": "{text}, within the last {days} days",
+      "session": "{measure} {since} {op} {than}",
+      "streakRight": "the last {n} answers were right",
+      "streakWrong": "the last {n} answers were wrong",
+      "lastAnswer": "the last answer:",
+      "lastRight": "right",
+      "lastWrong": "wrong",
+      "lastPartial": "partly right",
+      "lastTag": "with the mistake “{tag}”",
+      "lastMeasure": "{measure} {op} {than}"
+    },
+    "measure": {
+      "wrong": "wrong answers",
+      "right": "right answers",
+      "partial": "partly right answers",
+      "hintsUsed": "hints used",
+      "timeMs": "time (ms)"
+    },
+    "since": {
+      "unit": "since the start of this run",
+      "flowStart": "since the start of this flow",
+      "step": "since the step “{name}”"
     }
   },
   "rules": {
@@ -1143,5 +1170,12 @@
     "tabHint": "An entry point says: this work from the library (whole or its parts — beginning, middle, end, also several at once) explains this entry, shown in this view. In the Library a button “In Knowledge” appears next to the work — only for those who can read this base.",
     "empty": "No entry points yet. Add them here or under an entry (e.g. under the leading question).",
     "new": "+ New entry point"
+  },
+  "adaptive": {
+    "tagNoEdge": "the question “{step}” has the mistake tag “{tag}”, but no branch for it (it falls back to “wrong”)",
+    "edgeNoTag": "the step “{step}” branches on the mistake tag “{tag}”, which its question does not have",
+    "noExit": "the help step “{step}” never leads back to the main path",
+    "retryMax": "the question “{step}” allows {max} retries — more than 2 rarely helps",
+    "offTopic": "the help slide “{slide}” for “{step}” is not linked to the topic of the question"
   }
 }

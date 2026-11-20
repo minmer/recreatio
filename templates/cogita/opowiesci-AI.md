@@ -173,6 +173,33 @@ W dużym świecie uczący się nie musi przechodzić przez wieże, które już u
 
 Opowieść (albo jej część od kroku "from") może być krokiem **drogi do pytania** ("paths", guide-world-map §10): `{"flow": "@opowieść", "from": "<id kroku>", "why": "…"}`. Krok jest zrobiony, gdy odcinki opowieści na mapie są przejechane. Kotwica `{"flow": "@opowieść", "step": "<id>"}` stawia drogowskaz przy rozwidleniu (krok "choice") albo przy kroku na torze. Opowieść niczego tu nie zmienia — droga tylko ją proponuje; dlatego trwałe identyfikatory kroków ("id") są ważne: "from" i "step" wskazują na nie.
 
+## 8g. Przebieg adaptacyjny: odpowiedź decyduje, co dalej (2026-11-20)
+
+Pytanie ma dziś nie tylko „dobrze” i „źle”. Każde nowe wyjście bez krawędzi wraca do starego — przebieg bez nich działa jak dotąd. Nie buduj liczników ani kroków "set" po każdym pytaniu: wystarczy kilka linii przy samym kroku.
+
+- **Znaczniki błędów w pytaniu** (`"tags"`): jeden na możliwość (one, many), parę (match), lukę (gap) albo pozycję (order, build), w tej samej kolejności; pusty = bez znacznika. Przykład: `"options": ["Autor", "Chłopiec, który mówi „ja”", "Matka"], "correct": [1], "tags": ["myli-narratora-z-autorem", "", "myli-narratora-z-postacia"]`. Nazwy krótkie, małymi literami, z łącznikami — opisują BŁĄD MYŚLENIA, nie możliwość.
+- **Wyjścia kroku "question"**: `"right"`, `"wrong"`, `"wrong:<znacznik>"` (zła odpowiedź z tym znacznikiem), `"partial"` (wynik ≥ `"partialAt"`, np. `{"partialAt": 0.5}` — ma sens przy many, match, gap, order, build), `"rightOnRetry"` (dobrze w drugiej próbie), `"pick:<i>"` (wybrano możliwość i — pytania diagnostyczne i o opinię). Podpowiedzi już obniżają wynik.
+- **Jeszcze raz**: `{"retry": {"after": ["@slajd"], "max": 1}}` — po złej odpowiedzi slajdy, potem to samo pytanie (bez przerywnika). Obie próby trafiają do historii karty. `"max"` 1, najwyżej 2.
+- **Skrót pomocy** — zwykle wystarczy:
+
+```json
+{"id": "sonda", "type": "question", "config": {"of": "@kurs/q/kto",
+  "onWrong": {"show": ["@kurs/s/prosciej"], "byTag": {"myli-narratora-z-autorem": ["@kurs/s/autor"]},
+              "check": "@kurs/q/latwe", "then": "retry", "max": 1},
+  "onRight": {"skip": ["@kurs/s/podstawy"]}}}
+```
+
+  Po złej odpowiedzi: slajdy (dla znacznika — jego własne zamiast ogólnych), potem łatwiejsze pytanie sprawdzające, potem `"then"`: `"continue"` (dalej: stara krawędź "wrong", inaczej tam, dokąd prowadzi "right") albo `"retry"` (to samo pytanie jeszcze raz; wyjścia "right", "rightOnRetry", "wrong"). `"onRight.skip"`: po dobrej odpowiedzi te slajdy są pomijane. Aplikacja sama rozwija skrót w kroki; eksport oddaje skrót.
+- **Warunki na odpowiedzi tego przejścia** — w kroku "condition", w "condition" możliwości wyboru i w "skipWhen":
+  - `{"type": "session", "since": "unit" | "flowStart" | "<id kroku>", "wrong": {"op": "ge", "than": 3}}` (także "right", "partial", "hintsUsed"),
+  - `{"type": "lastAnswer", "correct": false}` · `{"type": "lastAnswer", "tag": "zbyt-doslownie"}` · `{"type": "lastAnswer", "hintsUsed": {"op": "ge", "than": 1}}`,
+  - `{"type": "streak", "right": 3}` — ostatnie 3 odpowiedzi dobre (skrót dla pewnych siebie).
+  Typowo: na końcu `condition` z `"session"` ≥ 3 błędów → slajd podsumowania.
+- **Pomoc się nie liczy**: kroki pomocy (wygenerowane, z `"remedial": true` albo osiągalne tylko przez "wrong:<znacznik>", "partial", "rightOnRetry") nie wchodzą do postępu, liczników przy wyborach ani linii na mapie — ścieżka i mapa pokazują je jako małą pętlę przy tej samej części/wieży („3 kroki pomocy”). Własny slajd pomocy za "wrong:<znacznik>" oznacz `"remedial": true`.
+- **Slajdy pomocy przy temacie**: niech wskazują ten sam temat co pytanie ("about" pytania ↔ pole-odwołanie slajdu, np. "o_czym") — inaczej import ostrzega.
+- **Podgląd importu** wymienia przy każdym pytaniu jego drogi i ostrzega: znacznik bez krawędzi, krawędź do znacznika, którego pytanie nie ma, pomoc bez powrotu, "max" > 2, slajd pomocy poza tematem. Autorzy widzą później (zsumowane, nigdy dla jednej osoby), jak często wybrano każdą drogę, ile następnych sprawdzeń było dobrych i które znaczniki są najczęstsze — tam warto poprawić wyjaśnienie.
+- Pełny przykład: „example-adaptive” (templates/cogita/przyklad-adaptacyjny.json).
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.

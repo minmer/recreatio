@@ -67,7 +67,10 @@
     "mergedNext": "Ukończono {merged} — wybierz następną (wszystkie, w dowolnej kolejności):",
     "chapter": "Rozdział {n}",
     "scene": "Scena prezentacji",
-    "character": "Postać"
+    "character": "Postać",
+    "remedial": "Mała pomoc do tego",
+    "remedialCheck": "Krótkie sprawdzenie",
+    "retry": "Spróbuj jeszcze raz"
   },
   "explore": {
     "legend": "Jasne — umiesz; bladnie — zaciera się; przerywana obwódka — granica, którą możesz przekroczyć; mgła — jeszcze nieodkryte.",

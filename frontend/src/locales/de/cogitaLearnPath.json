@@ -59,7 +59,10 @@
     "mergedNext": "Erledigt: {merged} — wähle den nächsten (alle, in beliebiger Reihenfolge):",
     "chapter": "Kapitel {n}",
     "scene": "Szene einer Präsentation",
-    "character": "Figur"
+    "character": "Figur",
+    "remedial": "Eine kleine Hilfe dazu",
+    "remedialCheck": "Eine kurze Prüfung",
+    "retry": "Versuch es noch einmal"
   },
   "explore": {
     "legend": "Hell — kannst du; blass — verblasst; gestrichelter Rand — eine Grenze, die du überschreiten kannst; Nebel — noch unentdeckt.",

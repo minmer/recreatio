@@ -59,7 +59,10 @@
     "mergedNext": "Done: {merged} — choose the next one (all of them, in any order):",
     "chapter": "Chapter {n}",
     "scene": "Presentation scene",
-    "character": "Character"
+    "character": "Character",
+    "remedial": "A little help with this",
+    "remedialCheck": "A quick check",
+    "retry": "Try it once more"
   },
   "explore": {
     "legend": "Bright — you know it; pale — fading; dashed outline — a border you can cross; fog — not discovered yet.",

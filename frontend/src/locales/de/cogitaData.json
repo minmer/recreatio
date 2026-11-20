@@ -140,7 +140,8 @@
     "qpathCheck": "Abschluss: es gibt kein {ref}.",
     "qpathCheckMany": "der Abschluss hat {count} Fragen — es zählen die ersten {max}.",
     "qpathDeeper": "\"deeper\": es gibt keinen Weg {ref}.",
-    "qpathLoop": "\"deeper\" führt zu diesem Weg zurück (eine Schleife)."
+    "qpathLoop": "\"deeper\" führt zu diesem Weg zurück (eine Schleife).",
+    "branchLine": "Ablauf „{flow}“, Frage „{step}“: {what}"
   },
   "progress": {
     "tallyOne": "Antwort {n}: {text}",
@@ -332,7 +333,8 @@
       "core": "Kernfrage",
       "about": "Worum es geht",
       "needs": "Zuerst wissen",
-      "form": "Fragetyp"
+      "form": "Fragetyp",
+      "tags": "Fehler-Tags"
     },
     "says": {
       "prompt": "Text der Frage; bei „Wahr oder falsch“ — die Aussage, bei einer Karteikarte — ihre Vorderseite, bei einer Lücke — der Text mit der Lücke [[Wort]] (mehrere Lücken: jede einzeln). Formeln: $…$ im Satz, $$…$$ abgesetzt",
@@ -382,7 +384,8 @@
       "core": "Kernfrage der Themen unter „Worum es geht“: „Prüfe, was du weißt“ fragt sie einmal ab, und ihre Kenntnis sagt, ob das Thema eine „Lücke“ ist (Bedingung mit rel \"core\")",
       "about": "Einträge, die diese Frage prüft: ihr Ergebnis zählt zu deren Kenntnis, und die Frage selbst wartet, bis du beherrschst, was vor ihnen zu wissen ist",
       "needs": "Einträge oder Fragen, die beherrscht sein müssen, bevor diese Frage kommt (z. B. „Was ist ein Atom?“ vor „Was ist ein Orbital?“)",
-      "form": "Wie gefragt und geantwortet wird — davon hängt ab, welche Felder unten ausgefüllt werden: {list}"
+      "form": "Wie gefragt und geantwortet wird — davon hängt ab, welche Felder unten ausgefüllt werden: {list}",
+      "tags": "Ein Fehler-Tag je Möglichkeit (one, many), Paar (match), Lücke (gap) oder Stelle (order, build), in derselben Reihenfolge (leer: kein Tag) — ein Ablauf kann mit dem Ausgang „wrong:<tag>“ danach verzweigen"
     },
     "inverse": {
       "about": "Fragen",
@@ -862,7 +865,10 @@
       "and": "UND",
       "or": "ODER",
       "not": "NICHT",
-      "xor": "ENTWEDER"
+      "xor": "ENTWEDER",
+      "session": "Antworten in diesem Lauf",
+      "lastAnswer": "Letzte Antwort",
+      "streak": "Serie"
     },
     "flowCheck": {
       "started": "begonnen",
@@ -888,7 +894,28 @@
       "place": "im Umkreis von {radius} m um {lat}, {lon}",
       "zone": "in der Zone „{name}“",
       "not": "NICHT ({inner})",
-      "within": "{text}, in den letzten {days} Tagen"
+      "within": "{text}, in den letzten {days} Tagen",
+      "session": "{measure} {since} {op} {than}",
+      "streakRight": "die letzten {n} Antworten waren richtig",
+      "streakWrong": "die letzten {n} Antworten waren falsch",
+      "lastAnswer": "die letzte Antwort:",
+      "lastRight": "richtig",
+      "lastWrong": "falsch",
+      "lastPartial": "teilweise richtig",
+      "lastTag": "mit dem Fehler „{tag}“",
+      "lastMeasure": "{measure} {op} {than}"
+    },
+    "measure": {
+      "wrong": "falsche Antworten",
+      "right": "richtige Antworten",
+      "partial": "teilweise richtige Antworten",
+      "hintsUsed": "genutzte Hinweise",
+      "timeMs": "Zeit (ms)"
+    },
+    "since": {
+      "unit": "seit Beginn dieses Laufs",
+      "flowStart": "seit Beginn dieses Ablaufs",
+      "step": "seit dem Schritt „{name}“"
     }
   },
   "rules": {
@@ -1143,5 +1170,12 @@
     "tabHint": "Ein Einstieg sagt: dieses Werk aus der Bibliothek (ganz oder in Teilen — Anfang, Mitte, Ende, auch mehrere zugleich) erklärt diesen Eintrag, gezeigt in dieser Ansicht. In der Bibliothek erscheint beim Werk ein Knopf „Im Wissen“ — nur für die, die diese Basis lesen dürfen.",
     "empty": "Noch keine Einstiege. Füge sie hier oder unter einem Eintrag hinzu (z. B. unter der Leitfrage).",
     "new": "+ Neuer Einstieg"
+  },
+  "adaptive": {
+    "tagNoEdge": "die Frage „{step}“ hat den Fehler-Tag „{tag}“, aber keinen Weg dafür (er fällt auf „falsch“ zurück)",
+    "edgeNoTag": "der Schritt „{step}“ verzweigt nach dem Fehler-Tag „{tag}“, den seine Frage nicht hat",
+    "noExit": "der Hilfsschritt „{step}“ führt nie zurück auf den Hauptweg",
+    "retryMax": "die Frage „{step}“ erlaubt {max} weitere Versuche — mehr als 2 helfen selten",
+    "offTopic": "die Hilfsfolie „{slide}“ zu „{step}“ ist nicht mit dem Thema der Frage verbunden"
   }
 }

@@ -26,6 +26,8 @@ import { fmtDate, useT, type Lang } from '../core/i18n';
 import { hasTex } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
 import { scoreRef } from './scoreColour';
+import { branchInsight } from './adaptive';
+import { readFlow } from './flow';
 
 /* -- Bausteine ---------------------------------------------------------------------------------------------- */
 
@@ -579,7 +581,54 @@ export function ClassKnowledge({ lib, cards, learners }: {
           </Figure>
         </div>
       )}
+      <BranchInsightView lib={lib} cards={cards} learners={learners} />
     </section>
+  );
+}
+
+/**
+ * 2026-11-20 (adaptive Abläufe) — WAS DIE WEGE DER ABLÄUFE TATEN, nur zusammengezählt (nie je Lernendem): je Weg, wie oft er
+ * genommen wurde und wie oft die nächste Prüfung danach richtig war; je Fehler-Tag, wie oft er vorkam. So sieht der Autor,
+ * welche Erklärung wirkt und welche Fehlvorstellung häufig ist.
+ */
+function BranchInsightView({ lib, cards, learners }: { lib: CogitaLibrary; cards: readonly Card[]; learners: readonly { readonly answers: (card: Card) => readonly AnswerRecord[] }[] }) {
+  const t = useT();
+  const insight = useMemo(() => branchInsight(learners.map((l) => { const seen = new Set<string>(); return cards.flatMap((c) => l.answers(c)).filter((a) => { if (seen.has(a.id)) return false; seen.add(a.id); return true; }); })), [cards, learners]);
+  if (insight.branches.length === 0 && insight.tags.length === 0) return null;
+  const flowName = (id: string) => String(lib.docs('flow').find((d) => d.id === id)?.data.name ?? id);
+  const stepName = (flow: string, step: string) => {
+    const d = lib.docs('flow').find((x) => x.id === flow);
+    const n = d === undefined ? undefined : readFlow(d.id, d.data).graph.nodes.find((x) => x.id === step);
+    const of = typeof n?.config.of === 'string' ? n.config.of : '';
+    return typeof n?.config.title === 'string' && n.config.title !== '' ? n.config.title : of !== '' ? entityName(lib, of) : step;
+  };
+  const exitName = (exit: string) => (exit === 'retry' ? t('cogitaViewsStats.branch.retry') : exit.startsWith('wrong:') ? t('cogitaEditFlow.exit.wrongTag', { tag: exit.slice(6) }) : exit.startsWith('pick:') ? t('cogitaEditFlow.exit.pick', { n: Number(exit.slice(5)) + 1 }) : t(`cogitaEditFlow.exit.${exit}`));
+  return (
+    <div className="cg-stats-grid" data-branch-insight={insight.branches.length}>
+      {insight.branches.length > 0 && (
+        <Figure id="class-branches" title={t('cogitaViewsStats.branch.title')} says={t('cogitaViewsStats.branch.says')}>
+          <table className="cg-table">
+            <thead><tr><th>{t('cogitaViewsStats.branch.step')}</th><th>{t('cogitaViewsStats.branch.exit')}</th><th>{t('cogitaViewsStats.branch.taken')}</th><th>{t('cogitaViewsStats.branch.next')}</th></tr></thead>
+            <tbody>{insight.branches.slice(0, 40).map((b) => (
+              <tr key={`${b.flow}|${b.step}|${b.exit}`} data-branch={`${b.step}|${b.exit}`}>
+                <td>{flowName(b.flow)} › <TexText text={stepName(b.flow, b.step)} /></td>
+                <td>{exitName(b.exit)}</td>
+                <td>{b.taken}</td>
+                <td>{b.checked === 0 ? '—' : `${percent(b.right / b.checked)} (${b.right}/${b.checked})`}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </Figure>
+      )}
+      {insight.tags.length > 0 && (
+        <Figure id="class-tags" title={t('cogitaViewsStats.branch.tags')} says={t('cogitaViewsStats.branch.tagsSays')}>
+          <table className="cg-table">
+            <thead><tr><th>{t('cogitaViewsStats.branch.tag')}</th><th>{t('cogitaViewsStats.branch.count')}</th></tr></thead>
+            <tbody>{insight.tags.slice(0, 40).map((x) => <tr key={x.tag} data-branch-tag={x.tag}><td>{x.tag}</td><td>{x.count}</td></tr>)}</tbody>
+          </table>
+        </Figure>
+      )}
+    </div>
   );
 }
 

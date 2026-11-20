@@ -25,6 +25,7 @@ import { appLang, t } from '../core/i18n';
 import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, VALUE_SEPARATORS } from './addForm';
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
+import { adaptiveProblems, branchSummaries, branchWords, checkContext } from './adaptive';
 import { flowProblems } from './flowCheck';
 import { pathProblems, readPath, type PathCheckCtx } from './worldmap/wmPaths';
 import { effectiveWorldFor } from './worldmap/wmReview';
@@ -975,7 +976,13 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
       const n = docs.filter((d) => d.kind === k);
       return n.length === 0 ? '' : t('cogitaData.import.summaryDocs', { doc: DOC_LABEL[k], fresh: n.filter((d) => d.isNew).length, changed: n.filter((d) => !d.isNew).length });
     }),
-    removals.length === 0 ? '' : t('cogitaData.import.summaryRemove', { count: removals.length })
+    removals.length === 0 ? '' : t('cogitaData.import.summaryRemove', { count: removals.length }),
+    /* 2026-11-20 (adaptive Abläufe) — je Frage eines Ablaufs, was sie verzweigt: Tags, teilweise, zweiter Versuch, Nachhilfe. */
+    ...docs.filter((d) => d.kind === 'flow').flatMap((d) => {
+      const authored = readFlow(d.id, d.data, { authored: true });
+      const named = (id: string) => { const n = authored.graph.nodes.find((x) => x.id === id); const of = str(n?.config.of); const e = entities.find((x) => x.id === of); return str(n?.config.title) || (e === undefined ? (lib.entity(of) === undefined ? id : lib.label(lib.entity(of)!)) : str(e.data.prompt).slice(0, 60) || id); };
+      return branchSummaries(authored.graph).map((s) => t('cogitaData.import.branchLine', { flow: authored.name, step: named(s.step), what: branchWords(s) }));
+    })
   ].filter(Boolean);
   if (lines.length === 0) return { error: t('cogitaData.import.nothingToImport') };
   return { kinds, entities, docs, lines, warnings, ...(removals.length === 0 ? {} : { removals }) };
@@ -1248,7 +1255,13 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
       if (scope.length === 0 || scope.every((r) => typeof r !== 'string' || entityOf(r) === null)) out.push({ level: 'warning', text: t('cogitaData.import.exploreEmpty') });
       return out;
     });
-    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
+    /* 2026-11-20 (adaptive Abläufe) — die Nachhilfe: Tags ohne Weg, Wege zu fehlenden Tags, kein Rückweg, mehr als zwei Versuche, Folien neben dem Thema. */
+    const dataOf = (id: string): Readonly<Record<string, unknown>> | null => entities.find((e) => e.id === id)?.data ?? lib.entry(id)?.data ?? null;
+    const isQuestion = (id: string): boolean => (entities.find((e) => e.id === id)?.kinds ?? lib.entity(id)?.kinds ?? []).includes('question');
+    const authored = readFlow(d.id, d.data, { authored: true });
+    const stepLabel = (id: string) => { const n = flow.graph.nodes.find((x) => x.id === id); const of = str(n?.config.of); return str(n?.config.title) || (of === '' ? id : label(of)); };
+    const adaptive = adaptiveProblems(authored.graph, flow.graph, checkContext(dataOf, isQuestion)).map((p) => ({ level: 'warning' as const, text: t(`cogitaData.adaptive.${p.key}`, { ...p.params, step: stepLabel(p.step), ...(p.params.slide === undefined ? {} : { slide: label(String(p.params.slide)) }) }) }));
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores, ...adaptive].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
   });
 }
 /**
@@ -1584,7 +1597,7 @@ const kindsOfBase = (lib?: CogitaLibrary): string =>
 
 /** Ein Beispielwert je Feld einer Frage — für die Beschreibung (die Art bestimmt, welche gelten). */
 const QUESTION_EXAMPLE: Readonly<Record<string, string>> = {
-  'number.answers': '["12"]', 'date.answers': '["1410-07-15"]', 'date.tolerance': '0', correct: '[1]', value: 'true',
+  'number.answers': '["12"]', tags: '["", "too-literal", ""]', 'date.answers': '["1410-07-15"]', 'date.tolerance': '0', correct: '[1]', value: 'true',
   left: '["1410", "1569", "1791"]', show: '4',
   items: '["1s", "2s", "2p", "3s"]', tolerance: '0.5', relative: 'false', unit: '"N·m"', quantity: '"Torque"', precision: '"year"',
   task: '"…"', starter: '"def transform(x): …"', createInput: '"def create_input(seed): …"', reference: '"def reference(x): …"', cases: '5',
@@ -1756,6 +1769,7 @@ ${t('cogitaDataFormat.course.main.s27Flows')}
 ${t('cogitaDataFormat.course.main.s28Graph')}
 ${t('cogitaDataFormat.course.main.s29End')}
 ${t('cogitaDataFormat.course.main.s30Type')}
+${t('cogitaDataFormat.course.main.s30Adaptive')}
 ${t('cogitaDataFormat.course.main.s31Goals')}
 ${t('cogitaDataFormat.course.main.s32Id')}
 ${t('cogitaDataFormat.course.main.s33DeszczPrzeglad')}

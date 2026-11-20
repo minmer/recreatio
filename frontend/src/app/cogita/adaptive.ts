@@ -28,6 +28,7 @@
 import type { Card } from './cardBasics';
 import type { Graph, GraphEdge, GraphNode } from './graph';
 import { choicesOf, rawList } from './questionTypes';
+import { t as tr } from '../core/i18n';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -37,9 +38,9 @@ const share = (v: unknown, fallback: number | null): number | null => { const n 
 
 /** Die Ausgänge, die die Antwort wählt. */
 export const isAnswerExit = (exit: string): boolean =>
-  exit === 'right' || exit === 'wrong' || exit === 'partial' || exit === 'rightOnRetry' || exit.startsWith('wrong:') || exit.startsWith('pick:');
+  exit === 'right' || exit === 'wrong' || exit === 'partial' || exit === 'rightOnRetry' || exit === 'retry' || exit.startsWith('wrong:') || exit.startsWith('pick:') || exit.startsWith('retry:');
 /** Ausgänge, die nur die Nachhilfe nimmt (nie der Hauptweg). */
-export const isRemedialExit = (exit: string): boolean => exit === 'partial' || exit === 'rightOnRetry' || exit.startsWith('wrong:');
+export const isRemedialExit = (exit: string): boolean => exit === 'partial' || exit === 'rightOnRetry' || exit === 'retry' || exit.startsWith('wrong:') || exit.startsWith('retry:');
 
 export interface Remediation {
   readonly show: readonly string[];
@@ -200,7 +201,12 @@ export function expandAdaptive(graph: Graph): Graph {
     } else if (retry !== null && wrongTo === null && rightTo !== null) {
       edge(q.id, 'wrong', rightTo);
     }
-    if (retry !== null) own._retry = retry;
+    if (retry !== null) {
+      own._retry = retry;
+      /* Der Weg in die Folien vor dem nächsten Versuch steht auch im Graphen ("retry", "retry:<tag>") — Prüfung, Ścieżka und Karte sehen ihn. */
+      if (retry.to !== q.id) edge(q.id, 'retry', retry.to);
+      for (const [tag, to] of Object.entries(retry.byTag)) if (to !== q.id) edge(q.id, `retry:${tag}`, to);
+    }
     const at = nodes.findIndex((n) => n.id === q.id);
     nodes[at] = { ...q, config: own };
   }
@@ -497,3 +503,16 @@ export function checkContext(data: (id: string) => Readonly<Record<string, unkno
     linksOf: (e) => linksIn(data(e))
   };
 }
+
+/** Was eine Frage verzweigt, in einer Zeile (auch für die Vorschau des Imports). */
+export function branchWords(s: BranchSummary, t: (key: string, params?: Record<string, string | number>) => string = tr): string {
+  return [
+    s.tags.length === 0 ? '' : t('cogitaEditFlow.adaptive.sumTags', { list: s.tags.join(', ') }),
+    s.partial === null ? '' : t('cogitaEditFlow.adaptive.sumPartial', { pct: Math.round(s.partial * 100) }),
+    s.retry === null ? '' : t('cogitaEditFlow.adaptive.sumRetry', { count: s.retry.slides, max: s.retry.max, slides: s.retry.slides }),
+    s.remediation === null ? '' : t(s.remediation.then === 'retry' ? 'cogitaEditFlow.adaptive.sumRemedyRetry' : 'cogitaEditFlow.adaptive.sumRemedy', { count: s.remediation.slides, extra: [s.remediation.check ? t('cogitaEditFlow.adaptive.sumCheck') : '', s.remediation.byTag > 0 ? t('cogitaEditFlow.adaptive.sumByTag', { count: s.remediation.byTag }) : ''].join('') }),
+    s.picks === 0 ? '' : t('cogitaEditFlow.adaptive.sumPicks', { count: s.picks }),
+    s.skips === 0 ? '' : t('cogitaEditFlow.adaptive.sumSkips', { count: s.skips })
+  ].filter(Boolean).join(' · ');
+}
+

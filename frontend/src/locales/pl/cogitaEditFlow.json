@@ -71,7 +71,11 @@
     "chapter": "rozdział {n}",
     "allDone": "wszystkie przerobione",
     "next": "dalej",
-    "explored": "po sprawdzeniu"
+    "explored": "po sprawdzeniu",
+    "partial": "częściowo",
+    "rightOnRetry": "dobrze za drugim razem",
+    "wrongTag": "źle: {tag}",
+    "pick": "wybrano {n}"
   },
   "reviewPassed": "Przegląd zdany",
   "chapterN": "Rozdział {n}",
@@ -158,5 +162,65 @@
     "pathError": "Ten przebieg ma błąd (brak początku albo końca, zagłębienia w koło) — tak się nie zapisze z importu i uczący się utknie:",
     "pathWarn": "Ścieżka ma miejsca, w których uczący się utknie albo których nie zobaczy:",
     "more": "… i {n} innych"
+  },
+  "adaptive": {
+    "title": "Po odpowiedzi (adaptacyjnie)",
+    "count": {
+      "one": "· {count} pytanie się rozgałęzia",
+      "few": "· {count} pytania się rozgałęziają",
+      "many": "· {count} pytań się rozgałęzia",
+      "other": "· {count} pytania się rozgałęzia"
+    },
+    "hint": "Co robi każde pytanie po odpowiedzi: pomoc po złej odpowiedzi (slajdy, łatwiejsze pytanie sprawdzające, potem dalej albo jeszcze raz), odpowiedzi częściowo dobre, drogi dla znaczników błędów pytania. Kroki pomocy nigdy nie liczą się do postępu.",
+    "slides": "Slajdy pomocy, po kolei:",
+    "addSlide": "Dodaj slajd pomocy…",
+    "check": "Łatwiejsze pytanie sprawdzające (opcjonalnie)",
+    "then": "Potem",
+    "thenContinue": "dalej w opowieści",
+    "thenRetry": "to samo pytanie jeszcze raz",
+    "max": "Najwyżej tyle prób",
+    "remove": "Usuń pomoc",
+    "add": "Dodaj pomoc po złej odpowiedzi",
+    "partialAt": "Częściowo dobrze od (%)",
+    "tags": "Rozgałęź według tych znaczników błędów (każdy to wyjście w grafie):",
+    "sumTags": "rozgałęzia się według {list}",
+    "sumPartial": "częściowo dobrze od {pct}%",
+    "sumRetry": {
+      "one": "jeszcze raz do {max}× po {slides} slajdzie",
+      "few": "jeszcze raz do {max}× po {slides} slajdach",
+      "many": "jeszcze raz do {max}× po {slides} slajdach",
+      "other": "jeszcze raz do {max}× po {slides} slajdach"
+    },
+    "sumRemedy": {
+      "one": "pomoc: {count} slajd{extra}, potem dalej",
+      "few": "pomoc: {count} slajdy{extra}, potem dalej",
+      "many": "pomoc: {count} slajdów{extra}, potem dalej",
+      "other": "pomoc: {count} slajdu{extra}, potem dalej"
+    },
+    "sumRemedyRetry": {
+      "one": "pomoc: {count} slajd{extra}, potem jeszcze raz",
+      "few": "pomoc: {count} slajdy{extra}, potem jeszcze raz",
+      "many": "pomoc: {count} slajdów{extra}, potem jeszcze raz",
+      "other": "pomoc: {count} slajdu{extra}, potem jeszcze raz"
+    },
+    "sumPicks": {
+      "one": "{count} wyjście na możliwość",
+      "few": "{count} wyjścia na możliwości",
+      "many": "{count} wyjść na możliwości",
+      "other": "{count} wyjścia na możliwości"
+    },
+    "sumSkips": {
+      "one": "przy dobrej pomija {count} krok",
+      "few": "przy dobrej pomija {count} kroki",
+      "many": "przy dobrej pomija {count} kroków",
+      "other": "przy dobrej pomija {count} kroku"
+    },
+    "sumCheck": ", łatwiejsze pytanie sprawdzające",
+    "sumByTag": {
+      "one": ", własna pomoc dla {count} znacznika",
+      "few": ", własna pomoc dla {count} znaczników",
+      "many": ", własna pomoc dla {count} znaczników",
+      "other": ", własna pomoc dla {count} znacznika"
+    }
   }
 }

@@ -81,6 +81,10 @@ Bilet odcinka powstaje tylko z trzech źródeł:
 - Panel biletu pokazuje przy każdej brakującej karcie jej **źródło**: odcinek, który ją wprowadza (otwarty teraz albo czego sam wymaga), albo „bez slajdu”.
 - **Nieznany typ warunku** bilet traktuje jako niespełniony („nieznany typ”) i zgłasza autorom; sam przebieg działa dalej jak dotąd.
 
+## 5a. Pomoc po złej odpowiedzi to nie linia (2026-11-20)
+
+Przebieg adaptacyjny (guide-stories §8g: "onWrong", "retry", "wrong:<znacznik>", "partial", "rightOnRetry", kroki z `"remedial": true`) nie rysuje nowych torów ani rozwidleń: pomoc to **mała przerywana pętla przy wieży pytania**, a panel wieży mówi „N kroków pomocy po złych odpowiedziach (nie liczą się)”. Kroki pomocy nie robią przystanków, nie wprowadzają kart i nie liczą się do postępu ani do liczników dróg. Kroki "condition" z warunkami na odpowiedzi przejścia (`"session"`, `"lastAnswer"`, `"streak"`) — tak jak "set" — są niewidoczne: nie są bramkami ani biletami (rozstrzygają się dopiero w drodze). Slajdy pomocy łącz z tematem pytania, żeby pętla stała przy właściwej wieży.
+
 ## 6. Karty bez slajdu
 
 Karta jest wprowadzona, gdy w opowieści **pada po slajdzie, który ją wyjaśnia** — jako krok "question" albo przez swoje `"explain"` wskazujące slajd, który jest pokazany. Karta, której nie wprowadza żadna opowieść, jest uczona **bezpośrednio** („Ucz się bezpośrednio”) — ale tylko taka: gdzie opowieść istnieje, droga prowadzi przez nią. Miejsce bez żadnej linii stoi wolno.

@@ -349,5 +349,18 @@
     "loadingBase": "Wird geladen…",
     "cannotRead": "Diese Wissensbasis kannst du nicht lesen — ein Ablauf ohne Konto funktioniert in einer Basis aus einem öffentlichen Bereich (oder mit einem Link dorthin).",
     "noFlow": "Dieser Ablauf ist nicht in der Wissensbasis."
+  },
+  "branch": {
+    "title": "Wege in Abläufen",
+    "says": "Alle Lernenden zusammen: wie oft jeder Weg genommen wurde und wie oft die nächste Prüfung danach richtig war.",
+    "step": "Frage",
+    "exit": "Weg",
+    "taken": "Genommen",
+    "next": "Nächste Prüfung richtig",
+    "retry": "noch ein Versuch",
+    "tags": "Fehler-Tags",
+    "tagsSays": "Alle Lernenden zusammen: wie oft jeder Fehler vorkam — die Erklärungen hinter den häufigen brauchen Arbeit.",
+    "tag": "Tag",
+    "count": "Mal"
   }
 }

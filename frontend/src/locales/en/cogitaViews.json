@@ -54,7 +54,13 @@
       "lon": "long.",
       "remove": "remove",
       "addPart": "+ part",
-      "withinDays": "within … days (empty: ever)"
+      "withinDays": "within … days (empty: ever)",
+      "measure": "What is counted",
+      "since": "Since when",
+      "sinceStep": "since a step…",
+      "streakCount": "How many in a row",
+      "partial": "partly right",
+      "tag": "mistake tag"
     },
     "act": {
       "add": "add to value",

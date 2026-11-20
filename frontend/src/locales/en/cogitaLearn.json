@@ -260,7 +260,12 @@
     "branchQuestions": "{questions} · {known} known",
     "storyMap": "Story map",
     "routeShown": "Show my way",
-    "chooseAgain": "You can choose again — take another path or walk this one once more."
+    "chooseAgain": "You can choose again — take another path or walk this one once more.",
+    "remedialKind": "Help after a wrong answer (does not count)",
+    "remedialSteps": {
+      "one": "{count} help step",
+      "other": "{count} help steps"
+    }
   },
   "spacing": {
     "title": "Review spacing",

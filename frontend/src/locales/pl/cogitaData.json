@@ -150,7 +150,8 @@
     "qpathCheck": "zakończenie: nie ma {ref}.",
     "qpathCheckMany": "zakończenie ma {count} pytań — liczą się pierwsze {max}.",
     "qpathDeeper": "\"deeper\": nie ma drogi {ref}.",
-    "qpathLoop": "\"deeper\" prowadzi z powrotem do tej drogi (pętla)."
+    "qpathLoop": "\"deeper\" prowadzi z powrotem do tej drogi (pętla).",
+    "branchLine": "Przebieg „{flow}”, pytanie „{step}”: {what}"
   },
   "progress": {
     "tallyOne": "Odpowiedź {n}: {text}",
@@ -352,7 +353,8 @@
       "core": "Pytanie kluczowe",
       "about": "O czym",
       "needs": "Najpierw trzeba znać",
-      "form": "Rodzaj pytania"
+      "form": "Rodzaj pytania",
+      "tags": "Znaczniki błędów"
     },
     "says": {
       "prompt": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]] (kilka luk: każda osobno). Wzory: $…$ w zdaniu, $$…$$ osobno",
@@ -402,7 +404,8 @@
       "core": "Kluczowe dla tematów z „O czym”: „Sprawdź, co wiesz” pyta o nie raz, a ich znajomość mówi, czy temat to „luka” (warunek z rel \"core\")",
       "about": "Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi",
       "needs": "Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)",
-      "form": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: {list}"
+      "form": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: {list}",
+      "tags": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”"
     },
     "inverse": {
       "about": "pytania",
@@ -910,7 +913,10 @@
       "and": "I",
       "or": "LUB",
       "not": "NIE",
-      "xor": "ALBO"
+      "xor": "ALBO",
+      "session": "Odpowiedzi w tym przejściu",
+      "lastAnswer": "Ostatnia odpowiedź",
+      "streak": "Seria"
     },
     "flowCheck": {
       "started": "rozpoczęty",
@@ -936,7 +942,28 @@
       "place": "w promieniu {radius} m od {lat}, {lon}",
       "zone": "w strefie „{name}\"",
       "not": "NIE ({inner})",
-      "within": "{text}, w ciągu ostatnich {days} dni"
+      "within": "{text}, w ciągu ostatnich {days} dni",
+      "session": "{measure} {since} {op} {than}",
+      "streakRight": "ostatnie {n} odpowiedzi były dobre",
+      "streakWrong": "ostatnie {n} odpowiedzi były złe",
+      "lastAnswer": "ostatnia odpowiedź:",
+      "lastRight": "dobra",
+      "lastWrong": "zła",
+      "lastPartial": "częściowo dobra",
+      "lastTag": "z błędem „{tag}”",
+      "lastMeasure": "{measure} {op} {than}"
+    },
+    "measure": {
+      "wrong": "złe odpowiedzi",
+      "right": "dobre odpowiedzi",
+      "partial": "częściowo dobre odpowiedzi",
+      "hintsUsed": "użyte podpowiedzi",
+      "timeMs": "czas (ms)"
+    },
+    "since": {
+      "unit": "od początku tego przejścia",
+      "flowStart": "od początku tego przebiegu",
+      "step": "od kroku „{name}”"
     }
   },
   "rules": {
@@ -1191,5 +1218,12 @@
     "tabHint": "Wejście mówi: to dzieło z biblioteki (całe albo jego części — początek, środek, koniec, także kilka naraz) wyjaśnia ten wpis, pokazany tym sposobem wyświetlania. W Bibliotece przy dziele pojawia się przycisk „W Wiedzy” — tylko dla tych, którzy mogą czytać tę bazę.",
     "empty": "Nie ma jeszcze wejść. Dodasz je tutaj albo pod wpisem (np. pod pytaniem wiodącym).",
     "new": "+ Nowe wejście"
+  },
+  "adaptive": {
+    "tagNoEdge": "pytanie „{step}” ma znacznik błędu „{tag}”, ale nie ma dla niego drogi (wraca do „źle”)",
+    "edgeNoTag": "krok „{step}” rozgałęzia się według znacznika „{tag}”, którego jego pytanie nie ma",
+    "noExit": "krok pomocy „{step}” nigdy nie wraca na główną drogę",
+    "retryMax": "pytanie „{step}” pozwala na {max} kolejnych prób — więcej niż 2 rzadko pomaga",
+    "offTopic": "slajd pomocy „{slide}” do „{step}” nie jest powiązany z tematem pytania"
   }
 }

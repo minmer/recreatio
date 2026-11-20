@@ -148,6 +148,23 @@
           "says": "Po jednym zdaniu do każdej możliwości, w tej samej kolejności co „Do wyboru” (puste: bez zdania) — po odpowiedzi stoi pod wybraną i pod dobrymi (one, many)"
         },
         {
+          "key": "tags",
+          "label": "Znaczniki błędów",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "gap",
+              "one",
+              "many",
+              "match",
+              "order",
+              "build"
+            ]
+          },
+          "says": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”"
+        },
+        {
           "key": "value",
           "label": "Prawda?",
           "type": "bool",

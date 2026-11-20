@@ -1,0 +1,117 @@
+{
+  "format": "recreatio.cogita.course",
+  "version": 1,
+  "name": "Przykład: przebieg adaptacyjny — kto opowiada?",
+  "description": "Mały, kompletny przebieg adaptacyjny: pytanie-sonda ze znacznikami błędów, pomoc zależna od błędu, łatwiejsze pytanie sprawdzające i druga próba; po dobrej odpowiedzi slajd z podstawami jest pomijany; drugie pytanie rozgałęzia się wyjściem \"wrong:<tag>\"; na końcu warunek „session”: przy 3 lub więcej błędach w tym przejściu pojawia się podsumowanie.",
+  "kinds": [
+    {
+      "ref": "@adapt/temat",
+      "name": "Temat",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line" },
+        { "key": "czym", "label": "Czym jest", "type": "markup" }
+      ]
+    },
+    {
+      "ref": "@adapt/slajd",
+      "name": "Slajd",
+      "label": "{tytul}",
+      "fields": [
+        { "key": "tytul", "label": "Tytuł", "type": "line" },
+        { "key": "tekst", "label": "Tekst", "type": "markup" },
+        { "key": "o_czym", "label": "O czym", "type": "ref", "to": ["@adapt/temat"], "multi": true }
+      ]
+    }
+  ],
+  "entities": [
+    { "ref": "@adapt/t/narrator", "kinds": ["@adapt/temat"], "data": { "nazwa": "Narrator", "czym": "Głos, który opowiada historię. Nie musi być autorem ani żadną z postaci." } },
+    { "ref": "@adapt/s/wstep", "kinds": ["@adapt/slajd"], "data": { "tytul": "Kto opowiada?", "tekst": "W każdym opowiadaniu ktoś mówi do czytelnika. Zanim zapytamy, kim jest, przeczytaj krótki fragment:\n\n> Wróciłem do domu późno. Matka czekała w kuchni i nic nie powiedziała.", "o_czym": ["@adapt/t/narrator"] } },
+    { "ref": "@adapt/s/podstawy", "kinds": ["@adapt/slajd"], "data": { "tytul": "Narrator — podstawy", "tekst": "Narrator to głos opowieści. Gdy mówi „ja”, jest narratorem pierwszoosobowym; gdy mówi o wszystkich „on”, „ona” — trzecioosobowym.", "o_czym": ["@adapt/t/narrator"] } },
+    { "ref": "@adapt/s/prosciej", "kinds": ["@adapt/slajd"], "data": { "tytul": "Jeszcze raz, prościej", "tekst": "Zapytaj: kto tu mówi „ja”? Ten, kto mówi w tekście, to narrator — nawet jeśli nie ma imienia.", "o_czym": ["@adapt/t/narrator"] } },
+    { "ref": "@adapt/s/autor", "kinds": ["@adapt/slajd"], "data": { "tytul": "Autor to nie narrator", "tekst": "Autor napisał tekst; narrator jest głosem w tekście. Pisarka może opowiadać głosem chłopca — wtedy narratorem jest chłopiec, nie ona.", "o_czym": ["@adapt/t/narrator"] } },
+    { "ref": "@adapt/s/doslownie", "kinds": ["@adapt/slajd"], "data": { "tytul": "Nie tylko słowa", "tekst": "„Nic nie powiedziała” nie znaczy, że matka nic nie czuła. Narrator pokazuje jej milczenie — resztę dopowiada czytelnik.", "o_czym": ["@adapt/t/narrator"] } },
+    { "ref": "@adapt/s/podsumowanie", "kinds": ["@adapt/slajd"], "data": { "tytul": "Podsumowanie", "tekst": "Narrator to głos w tekście (nie autor). Mówi „ja” albo opowiada z zewnątrz. Milczenie postaci też coś mówi.", "o_czym": ["@adapt/t/narrator"] } },
+    {
+      "ref": "@adapt/q/kto", "kinds": ["question"],
+      "data": {
+        "form": "one",
+        "prompt": "Kto jest narratorem fragmentu „Wróciłem do domu późno…”?",
+        "options": ["Autor opowiadania", "Chłopiec, który mówi „ja”", "Matka", "Nikt — to tylko opis"],
+        "correct": [1],
+        "tags": ["myli-narratora-z-autorem", "", "myli-narratora-z-postacia", "zbyt-doslownie"],
+        "about": ["@adapt/t/narrator"]
+      }
+    },
+    {
+      "ref": "@adapt/q/latwe", "kinds": ["question"],
+      "data": { "form": "truefalse", "prompt": "Narrator to ten, kto mówi w tekście.", "value": true, "about": ["@adapt/t/narrator"] }
+    },
+    {
+      "ref": "@adapt/q/milczenie", "kinds": ["question"],
+      "data": {
+        "form": "many",
+        "prompt": "Co pokazuje narrator we fragmencie? Zaznacz wszystko, co się zgadza.",
+        "options": ["Że wrócił późno", "Że matka nic nie czuła", "Milczenie matki"],
+        "correct": [0, 2],
+        "tags": ["", "zbyt-doslownie", ""],
+        "about": ["@adapt/t/narrator"]
+      }
+    },
+    {
+      "ref": "@adapt/q/osoba", "kinds": ["question"],
+      "data": { "form": "one", "prompt": "Narrator mówi „ja”. To narrator…", "options": ["pierwszoosobowy", "trzecioosobowy"], "correct": [0], "about": ["@adapt/t/narrator"] }
+    }
+  ],
+  "flows": [
+    {
+      "ref": "@adapt/przebieg",
+      "name": "Kto opowiada?",
+      "look": "reading",
+      "start": "wstep",
+      "graph": {
+        "nodes": [
+          { "id": "wstep", "type": "show", "x": 0, "y": 0, "config": { "of": "@adapt/s/wstep" } },
+          {
+            "id": "sonda", "type": "question", "x": 0, "y": 120,
+            "config": {
+              "of": "@adapt/q/kto",
+              "onWrong": {
+                "show": ["@adapt/s/prosciej"],
+                "byTag": { "myli-narratora-z-autorem": ["@adapt/s/autor"], "myli-narratora-z-postacia": ["@adapt/s/prosciej"], "zbyt-doslownie": ["@adapt/s/doslownie"] },
+                "check": "@adapt/q/latwe",
+                "then": "retry",
+                "max": 1
+              },
+              "onRight": { "skip": ["@adapt/s/podstawy"] }
+            }
+          },
+          { "id": "podstawy", "type": "show", "x": 0, "y": 240, "config": { "of": "@adapt/s/podstawy" } },
+          { "id": "milczenie", "type": "question", "x": 0, "y": 360, "config": { "of": "@adapt/q/milczenie", "partialAt": 0.5 } },
+          { "id": "pomoc-doslownie", "type": "show", "x": 200, "y": 420, "config": { "of": "@adapt/s/doslownie", "remedial": true } },
+          { "id": "osoba", "type": "question", "x": 0, "y": 480, "config": { "of": "@adapt/q/osoba" } },
+          { "id": "ile-bledow", "type": "condition", "x": 0, "y": 600, "config": { "condition": { "type": "session", "since": "unit", "wrong": { "op": "ge", "than": 3 } } } },
+          { "id": "podsumowanie", "type": "show", "x": 200, "y": 660, "config": { "of": "@adapt/s/podsumowanie" } },
+          { "id": "koniec", "type": "end", "x": 0, "y": 760, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "wstep", "out": "next", "to": "sonda", "in": "in" },
+          { "id": "e2", "from": "sonda", "out": "right", "to": "podstawy", "in": "in" },
+          { "id": "e3", "from": "sonda", "out": "rightOnRetry", "to": "podstawy", "in": "in" },
+          { "id": "e4", "from": "sonda", "out": "wrong", "to": "podstawy", "in": "in" },
+          { "id": "e5", "from": "podstawy", "out": "next", "to": "milczenie", "in": "in" },
+          { "id": "e6", "from": "milczenie", "out": "right", "to": "osoba", "in": "in" },
+          { "id": "e7", "from": "milczenie", "out": "wrong:zbyt-doslownie", "to": "pomoc-doslownie", "in": "in" },
+          { "id": "e8", "from": "milczenie", "out": "wrong", "to": "osoba", "in": "in" },
+          { "id": "e9", "from": "milczenie", "out": "partial", "to": "pomoc-doslownie", "in": "in" },
+          { "id": "e10", "from": "pomoc-doslownie", "out": "next", "to": "osoba", "in": "in" },
+          { "id": "e11", "from": "osoba", "out": "right", "to": "ile-bledow", "in": "in" },
+          { "id": "e12", "from": "osoba", "out": "wrong", "to": "ile-bledow", "in": "in" },
+          { "id": "e13", "from": "ile-bledow", "out": "yes", "to": "podsumowanie", "in": "in" },
+          { "id": "e14", "from": "ile-bledow", "out": "no", "to": "koniec", "in": "in" },
+          { "id": "e15", "from": "podsumowanie", "out": "next", "to": "koniec", "in": "in" }
+        ]
+      }
+    }
+  ]
+}

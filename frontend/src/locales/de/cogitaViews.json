@@ -54,7 +54,13 @@
       "lon": "Länge",
       "remove": "entfernen",
       "addPart": "+ Teil",
-      "withinDays": "in den letzten … Tagen (leer: je)"
+      "withinDays": "in den letzten … Tagen (leer: je)",
+      "measure": "Was gezählt wird",
+      "since": "Seit wann",
+      "sinceStep": "seit einem Schritt…",
+      "streakCount": "Wie viele hintereinander",
+      "partial": "teilweise richtig",
+      "tag": "Fehler-Tag"
     },
     "act": {
       "add": "zum Wert addieren",

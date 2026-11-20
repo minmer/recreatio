@@ -7,7 +7,7 @@
 
 import type { ReactNode } from 'react';
 
-import { adaptiveOf, branchSummaries, type BranchSummary } from './adaptive';
+import { adaptiveOf, branchSummaries, branchWords } from './adaptive';
 import type { Graph, GraphNode } from './graph';
 import { rawList } from './questionTypes';
 import type { CogitaLibrary } from './store';
@@ -15,18 +15,6 @@ import { EntityPicker } from './ui';
 import { useT } from '../core/i18n';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-/** Was eine Frage verzweigt, in einer Zeile (auch für die Vorschau des Imports). */
-export function branchWords(s: BranchSummary, t: (key: string, params?: Record<string, string | number>) => string): string {
-  return [
-    s.tags.length === 0 ? '' : t('cogitaEditFlow.adaptive.sumTags', { list: s.tags.join(', ') }),
-    s.partial === null ? '' : t('cogitaEditFlow.adaptive.sumPartial', { pct: Math.round(s.partial * 100) }),
-    s.retry === null ? '' : t('cogitaEditFlow.adaptive.sumRetry', { max: s.retry.max, slides: s.retry.slides }),
-    s.remediation === null ? '' : t(s.remediation.then === 'retry' ? 'cogitaEditFlow.adaptive.sumRemedyRetry' : 'cogitaEditFlow.adaptive.sumRemedy', { slides: s.remediation.slides, check: s.remediation.check ? 1 : 0, byTag: s.remediation.byTag }),
-    s.picks === 0 ? '' : t('cogitaEditFlow.adaptive.sumPicks', { count: s.picks }),
-    s.skips === 0 ? '' : t('cogitaEditFlow.adaptive.sumSkips', { count: s.skips })
-  ].filter(Boolean).join(' · ');
-}
 
 export function AdaptiveEditor({ graph, lib, writes, onChange }: { graph: Graph; lib: CogitaLibrary; writes: boolean; onChange: (g: Graph) => void }) {
   const t = useT();
@@ -39,7 +27,7 @@ export function AdaptiveEditor({ graph, lib, writes, onChange }: { graph: Graph;
   return (
     <details className="cg-adaptive" data-adaptive-editor={questions.length}>
       <summary>{t('cogitaEditFlow.adaptive.title')} {sums.size > 0 ? t('cogitaEditFlow.adaptive.count', { count: sums.size }) : ''}</summary>
-      <p className="wk-hint">{t('cogitaEditFlow.adaptive.hint')}</p>
+      <p className="cg-muted">{t('cogitaEditFlow.adaptive.hint')}</p>
       <ul className="cg-adaptive-list">
         {questions.map((q) => {
           const of = typeof q.config.of === 'string' ? q.config.of : '';
@@ -54,7 +42,7 @@ export function AdaptiveEditor({ graph, lib, writes, onChange }: { graph: Graph;
           if (w !== null) {
             body = (
               <div className="cg-adaptive-remedy" data-adaptive-remedy={q.id}>
-                <span className="wk-hint">{t('cogitaEditFlow.adaptive.slides')}</span>
+                <span className="cg-muted">{t('cogitaEditFlow.adaptive.slides')}</span>
                 {show.map((s, i) => (
                   <div key={`${s}:${i}`} className="cg-row">
                     <span>{nameOf(s)}</span>

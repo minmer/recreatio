@@ -349,5 +349,18 @@
     "loadingBase": "Loading…",
     "cannotRead": "You cannot read this knowledge base — a path without an account works in a base from a public area (or with a link to it).",
     "noFlow": "This path is not in the knowledge base."
+  },
+  "branch": {
+    "title": "Branches in flows",
+    "says": "All learners together: how often each branch was taken, and how often the next check after it was right.",
+    "step": "Question",
+    "exit": "Branch",
+    "taken": "Taken",
+    "next": "Next check right",
+    "retry": "another try",
+    "tags": "Mistake tags",
+    "tagsSays": "All learners together: how often each mistake occurred — the explanations behind the frequent ones need work.",
+    "tag": "Tag",
+    "count": "Times"
   }
 }

@@ -361,5 +361,18 @@
     "loadingBase": "Wczytywanie…",
     "cannotRead": "Tej bazy wiedzy nie możesz czytać — przebieg bez konta działa w bazie z obszaru publicznego (albo z linkiem do niego).",
     "noFlow": "Tego przebiegu nie ma w bazie wiedzy."
+  },
+  "branch": {
+    "title": "Drogi w przebiegach",
+    "says": "Wszyscy uczący się razem: jak często wybrano każdą drogę i jak często następne sprawdzenie po niej było dobre.",
+    "step": "Pytanie",
+    "exit": "Droga",
+    "taken": "Wybrana",
+    "next": "Następne sprawdzenie dobre",
+    "retry": "kolejna próba",
+    "tags": "Znaczniki błędów",
+    "tagsSays": "Wszyscy uczący się razem: jak często wystąpił każdy błąd — wyjaśnienia za częstymi wymagają pracy.",
+    "tag": "Znacznik",
+    "count": "Razy"
   }
 }
