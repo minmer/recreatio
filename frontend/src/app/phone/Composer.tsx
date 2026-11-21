@@ -35,7 +35,7 @@ import { Phone, type PhoneStatus } from './native';
 import { smsParts } from './numbers';
 import { openPhone } from './phoneContext';
 import { daysLabel, shareFile } from './share';
-import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { SHARE_DAYS, SHARE_BIG_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog } from './smsChat';
 import { keepDraft, startText } from './smsDrafts';
 import { aheadWhen } from './smsShared';
@@ -145,7 +145,7 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const attach = (files: readonly File[]) => {
     const fresh: Attachment[] = [];
     for (const file of files) {
-      if (file.size > SHARE_MAX) { toast(t('phoneSms.compose.tooBigName', { name: file.name })); continue; }
+      if (file.size > SHARE_BIG_MAX) { toast(t('phoneSms.compose.tooBigName', { name: file.name })); continue; }
       const type = file.type || 'application/octet-stream';
       if (!mmsAble(type) && !linkable) { toast(t('phoneSms.compose.linkOnly')); continue; }
       fresh.push({ file, type, name: file.name, size: file.size, preview: type.startsWith('image/') ? URL.createObjectURL(file) : null });

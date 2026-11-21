@@ -20,7 +20,7 @@ const AUTO_BYTES = 6 * 1024 * 1024;
 export const kindOf = (a: Attachment): 'image' | 'audio' | 'video' | 'file' =>
   /^image\/(png|jpeg|gif|webp|avif)$/.test(a.type) ? 'image'
   : a.type.startsWith('audio/') ? 'audio'
-  : a.type.startsWith('video/') ? 'video'
+  : a.type.startsWith('video/') || (a.type === '' && /\.(mp4|m4v|mov|webm|3gp)$/i.test(a.name)) ? 'video'
   : 'file';
 
 const isVoice = (a: Attachment) => a.name.startsWith('voice-');
@@ -31,6 +31,8 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 2026-11-21 — wie weit das Holen ist (0 … 1): ein grosser Film braucht seine Zeit. */
+  const [progress, setProgress] = useState<number | null>(null);
   const spot = useRef<HTMLElement | null>(null);
   const alive = useRef(true);
   const made = useRef<{ url: string; blob: Blob } | null>(null);
@@ -47,10 +49,17 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
     if (made.current !== null) return made.current.blob;
     setBusy(true);
     setFailed(null);
+    setProgress(null);
     try {
-      const blob = await downloadAttachment(endpoint, a);
+      let shown = -1;
+      const blob = await downloadAttachment(endpoint, a, (part) => {
+        const percent = Math.floor(part * 100);
+        if (alive.current && percent !== shown) { shown = percent; setProgress(part); }
+      });
       if (!alive.current) return null;
-      const made1 = { url: URL.createObjectURL(blob), blob };
+      /* Ein Film vom iPhone (.mov, meist H.264) spielt in Firefox und Chrome als MP4 — zum Speichern bleibt er, wie er war. */
+      const shownBlob = a.type === 'video/quicktime' || (a.type === '' && kindOf(a) === 'video') ? new Blob([blob], { type: 'video/mp4' }) : blob;
+      const made1 = { url: URL.createObjectURL(shownBlob), blob };
       made.current = made1;
       setUrl(made1.url);
       return blob;
@@ -58,7 +67,7 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
       if (alive.current) setFailed(failure(e, t('chat.file.downloadFailed')));
       return null;
     } finally {
-      if (alive.current) setBusy(false);
+      if (alive.current) { setBusy(false); setProgress(null); }
     }
   }, [endpoint, a, t]);
 
@@ -77,7 +86,29 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
     if (blob !== null) await saveBlob(blob, a.name).catch(() => setFailed(t('chat.file.saveFailed')));
   };
 
-  return { url, busy, failed, load, save, spot };
+  /** Was beim Holen dasteht: „Pobieranie 34%”, dann „Odszyfrowywanie…”. */
+  const status = progress !== null && progress < 1 ? t('chat.file.downloading', { percent: Math.floor(progress * 100) }) : t('chat.file.decrypting');
+
+  return { url, busy, failed, load, save, spot, status };
+}
+
+/**
+ * 2026-11-21 — EIN FILM: spielen, und speichern (vorher gab es für Filme keinen Weg
+ * zum Speichern). Spielt ihn der Browser nicht, steht das da — mit demselben Knopf.
+ */
+function ChatVideo({ a, url, save, busy, failed }: { a: Attachment; url: string; save: () => Promise<void>; busy: boolean; failed: string | null }) {
+  const t = useT();
+  const [broken, setBroken] = useState(false);
+  return (
+    <div className="ch-video-box">
+      {!broken && <video className="ch-video" controls playsInline preload="metadata" src={url} aria-label={a.name} onError={() => setBroken(true)} />}
+      {broken && <p className="wk-warn">{t('chat.file.videoUnplayable')}</p>}
+      <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void save()}>
+        <Icon name="download" /> {t('chat.file.saveVideo', { size: sizeOf(a.size) })}
+      </button>
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </div>
+  );
 }
 
 export function Attachments({ endpoint, list }: { endpoint: string; list: readonly Attachment[] }) {
@@ -108,12 +139,12 @@ function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
       <button type="button" className="ch-media-slot" ref={(el) => { file.spot.current = el; }} disabled={file.busy}
         onClick={() => void file.load()} aria-label={t(image ? 'chat.file.showPhoto' : 'chat.file.playVideo', { name: a.name, size: sizeOf(a.size) })}>
         <Icon name={image ? 'image' : 'play'} />
-        <span>{file.busy ? t('chat.file.decrypting') : file.failed ?? t(image ? 'chat.file.photoSize' : 'chat.file.videoSize', { size: sizeOf(a.size) })}</span>
+        <span>{file.busy ? file.status : file.failed ?? t(image ? 'chat.file.photoSize' : 'chat.file.videoSize', { size: sizeOf(a.size) })}</span>
       </button>
     );
   }
 
-  if (!image) return <video className="ch-video" controls src={file.url} aria-label={a.name} />;
+  if (!image) return <ChatVideo a={a} url={file.url} save={file.save} busy={file.busy} failed={file.failed} />;
 
   return (
     <>
@@ -169,7 +200,7 @@ function Sound({ endpoint, a }: { endpoint: string; a: Attachment }) {
           value={mine !== null && mine.duration ? Math.round((mine.time / mine.duration) * 1000) : 0}
           onChange={(e) => seekSound(Number(e.target.value) / 1000)} />
         <span className="ch-sound-time">
-          {file.busy ? t('chat.file.decrypting') : mine !== null ? `${playClock(mine.time)} / ${playClock(mine.duration)}` : ''}
+          {file.busy ? file.status : mine !== null ? `${playClock(mine.time)} / ${playClock(mine.duration)}` : ''}
         </span>
       </span>
       {file.failed !== null && <span className="wk-error">{file.failed}</span>}
@@ -185,7 +216,7 @@ function FileRow({ endpoint, a }: { endpoint: string; a: Attachment }) {
       <span className="ch-file-ic"><Icon name={file.busy ? 'clock' : 'download'} /></span>
       <span className="ch-file-text">
         <span className="ch-file-name">{a.name}</span>
-        <small>{file.failed ?? (file.busy ? t('chat.file.decrypting') : t('chat.file.sizeDownload', { size: sizeOf(a.size) }))}</small>
+        <small>{file.failed ?? (file.busy ? file.status : t('chat.file.sizeDownload', { size: sizeOf(a.size) }))}</small>
       </span>
     </button>
   );

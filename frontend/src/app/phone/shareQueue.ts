@@ -18,7 +18,7 @@ import { WorkspaceError } from '../core/session';
 import { toast } from '../ui/dialogs';
 import type { PhoneCtx } from './phoneContext';
 import { shareFile, ShareStopped } from './share';
-import { SHARE_MAX } from './shareSeal';
+import { SHARE_BIG_MAX } from './shareSeal';
 
 /** Eine Datei auf dem Weg — so, wie die Seite sie zeigt. */
 export interface Sending {
@@ -154,7 +154,7 @@ export function addFiles(ctx: PhoneCtx, files: readonly File[], days: number): v
   if (files.length === 0) return;
   items = [...items, ...files.map((file): Item => ({
     key: nextKey++, file, ctx, name: file.name === '' ? t('phoneShare.queue.file') : file.name, size: file.size, days, done: null,
-    ...(file.size > SHARE_MAX
+    ...(file.size > SHARE_BIG_MAX
       ? { state: 'failed' as const, error: t('phoneShare.err.tooBig') }
       : { state: 'waiting' as const, error: null })
   }))];
@@ -173,7 +173,7 @@ export function dropSending(key: number): void {
 /** Eine gescheiterte noch einmal. */
 export function retrySending(key: number): void {
   const one = items.find((i) => i.key === key);
-  if (one === undefined || one.state !== 'failed' || one.size > SHARE_MAX) return;
+  if (one === undefined || one.state !== 'failed' || one.size > SHARE_BIG_MAX) return;
   patch(key, { state: 'waiting', error: null, done: null });
   changed();
   void pump();

@@ -50,6 +50,7 @@ public static partial class Phone
     {
         app.MapPut("/workspace/phone/{areaId:guid}/share/{id:guid}", ShareAsync)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxShareSealed));
+        MapShareParts(app);
         app.MapGet("/workspace/phone/{areaId:guid}/shares", SharesAsync);
         app.MapDelete("/workspace/phone/{areaId:guid}/share/{id:guid}", UnshareAsync);
 
@@ -73,6 +74,7 @@ public static partial class Phone
         try { File.Delete(SharePath(config, areaId, id)); }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+        DropShareParts(config, areaId, id, null);
     }
 
     /// <summary>
@@ -132,7 +134,8 @@ public static partial class Phone
     /// (0125); sein Etikett liegt dann unter dessen Schlüssel, nicht unter dem des Bereichs.
     /// </summary>
     private static async Task StoreShareAsync(
-        HttpContext ctx, IConfiguration config, SqlConnection connection, Guid areaId, int e, Guid? deviceId, Guid id, ShareRequest request)
+        HttpContext ctx, IConfiguration config, SqlConnection connection, Guid areaId, int e, Guid? deviceId, Guid id, ShareRequest request,
+        Func<string, CancellationToken, Task>? write = null)
     {
         var (size, keep, label) = request;
         var expires = DateTimeOffset.UtcNow.AddDays(keep);
@@ -179,7 +182,9 @@ public static partial class Phone
             var path = SharePath(config, areaId, id);
             try
             {
-                await using (var file = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+                /* 2026-11-21 — aus Stücken (`Phone.ShareParts.cs`): sie werden hier zusammengesetzt. */
+                if (write is not null) await write(path, ctx.RequestAborted);
+                else await using (var file = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                 {
                     var buffer = new byte[81920];
                     long total = 0;
@@ -325,19 +330,24 @@ public static partial class Phone
             return;
         }
 
-        await using (var count = new SqlCommand("""
-            UPDATE app.phone_share SET downloads = downloads + 1, last_download_at = SYSDATETIMEOFFSET() WHERE id = @id;
-            """, connection))
+        /*
+         * 2026-11-21 — IN STÜCKEN HOLBAR (Range): bricht das Netz mitten in einem Film ab,
+         * holt der Browser nur den Rest. Gezählt wird ein Herunterladen einmal — beim
+         * Anfang der Datei, nicht je Stück.
+         */
+        var range = ctx.Request.Headers.Range.ToString();
+        if (range == "" || range.StartsWith("bytes=0-", StringComparison.Ordinal))
         {
+            await using var count = new SqlCommand("""
+                UPDATE app.phone_share SET downloads = downloads + 1, last_download_at = SYSDATETIMEOFFSET() WHERE id = @id;
+                """, connection);
             count.Parameters.AddWithValue("@id", id);
             await count.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
         ctx.Response.Headers.CacheControl = "no-store";
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
-        ctx.Response.ContentType = "application/octet-stream";
-        ctx.Response.ContentLength = row.Value.Size;
-        await ctx.Response.SendFileAsync(path, ctx.RequestAborted);
+        await TypedResults.PhysicalFile(Path.GetFullPath(path), "application/octet-stream", enableRangeProcessing: true).ExecuteAsync(ctx);
     }
 
     private static async Task<(Guid Area, long Size, DateTimeOffset Created, DateTimeOffset Expires, bool Deleted)?> ShareRowAsync(

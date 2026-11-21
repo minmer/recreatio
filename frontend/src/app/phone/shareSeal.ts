@@ -29,8 +29,14 @@
 import { aad, derive, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url } from '../core/crypto';
 import { PRIMARY_HOST } from '../routes';
 
-/** So gross darf eine Datei sein (der Dienst nimmt die Hülle mit 64 KB Kopf dazu). */
+/** So gross darf eine Datei in EINER Hülle sein (der Dienst nimmt die Hülle mit 64 KB Kopf dazu) — Thunderbird bleibt dabei. */
 export const SHARE_MAX = 25 * 1024 * 1024;
+
+/** 2026-11-21 — so gross darf eine Datei in Stücken sein (Fassung 2, unten). */
+export const SHARE_BIG_MAX = 250 * 1024 * 1024;
+
+/** Ein Stück der Fassung 2 — klein genug, dass ein abgebrochenes schnell noch einmal geht. */
+export const SHARE_PIECE = 4 * 1024 * 1024;
 
 /** Wie lange ein Link gilt — zur Wahl. */
 export const SHARE_DAYS = [7, 30, 365] as const;
@@ -135,6 +141,90 @@ export async function openShare(secret: Uint8Array, sealed: Uint8Array): Promise
   const { id, key } = await shareKeys(secret);
   return unpackShare(await open(key, fileAad(id), sealed));
 }
+
+/* -- Fassung 2: in Stücken (2026-11-21) ----------------------------------------------------------
+ *
+ * Ein Film über 50 MB in EINER Hülle hiesse: ganz im Speicher versiegeln, in einem Zug
+ * hinauf, und bricht das Netz ab, alles von vorn. In Stücken wird jedes für sich
+ * versiegelt, geschickt und — beim Empfänger — geholt und geöffnet:
+ *
+ *   "RCP2"  4 Bytes Länge (big-endian)  Kopf (versiegelt: {v:2,name,type,size,piece,pieces})
+ *   Stück 0  Stück 1  …  Stück n−1      je versiegelt; jedes ausser dem letzten gleich lang
+ *
+ * Jedes Stück trägt in seinem Etikett seine Nummer, das letzte ist eigens markiert: kein
+ * Stück lässt sich verschieben, keines abschneiden, ohne dass das Öffnen scheitert. Eine
+ * Hülle der Fassung 1 beginnt mit "RC" und der Fassungsnummer 1 — die beiden verwechselt
+ * niemand.
+ */
+
+const PIECED = [0x52, 0x43, 0x50, 0x32];
+
+/** Was eine Hülle zu ihrem Inhalt dazutut: Kopf (20), Nonce (12), Tag (16). */
+export const SEAL_OVERHEAD = 48;
+
+const headAad = (id: string) => aad('share', 'head', id, Field.ShareFile, 2);
+const pieceAad = (id: string, i: number, last: boolean) => aad('share', last ? 'piece-last' : 'piece', `${id}.${i}`, Field.ShareFile, 2);
+
+/** Wie eine Datei der Fassung 2 aufgeteilt ist. */
+export interface ShareLayout {
+  readonly head: ShareHead;
+  readonly piece: number;
+  readonly pieces: number;
+  /** Wo das erste Stück beginnt. */
+  readonly start: number;
+}
+
+export const piecesFor = (size: number, piece = SHARE_PIECE): number => Math.max(1, Math.ceil(size / piece));
+
+/** Beginnt hier eine Datei in Stücken? */
+export const isPieced = (first: Uint8Array): boolean => first.length >= 8 && PIECED.every((b, i) => first[i] === b);
+
+/** Wie lang der Anfang ist (Kennzeichen, Länge, versiegelter Kopf) — aus den ersten 8 Bytes. */
+export const piecedHeadEnd = (first: Uint8Array): number =>
+  8 + new DataView(first.buffer, first.byteOffset, first.byteLength).getUint32(4);
+
+/** Der Anfang: Kennzeichen, Länge, der versiegelte Kopf. */
+export async function sealPiecedHead(keys: { id: string; key: Uint8Array }, head: ShareHead, piece = SHARE_PIECE): Promise<Uint8Array> {
+  const json = new TextEncoder().encode(JSON.stringify({ v: 2, name: head.name, type: head.type, size: head.size, piece, pieces: piecesFor(head.size, piece) }));
+  const sealed = await seal(keys.key, headAad(keys.id), json);
+  const out = new Uint8Array(8 + sealed.length);
+  out.set(PIECED, 0);
+  new DataView(out.buffer).setUint32(4, sealed.length);
+  out.set(sealed, 8);
+  return out;
+}
+
+export async function openPiecedHead(keys: { id: string; key: Uint8Array }, start: Uint8Array): Promise<ShareLayout> {
+  if (!isPieced(start)) throw new Error('Plik jest uszkodzony.');
+  const end = piecedHeadEnd(start);
+  if (end > 65536 || end > start.length) throw new Error('Plik jest uszkodzony.');
+  const o = JSON.parse(new TextDecoder().decode(await open(keys.key, headAad(keys.id), start.subarray(8, end)))) as Record<string, unknown>;
+  const size = typeof o.size === 'number' && Number.isSafeInteger(o.size) && o.size >= 0 ? o.size : -1;
+  const piece = typeof o.piece === 'number' && Number.isSafeInteger(o.piece) && o.piece >= 65536 && o.piece <= 16 * 1024 * 1024 ? o.piece : -1;
+  if (o.v !== 2 || size < 0 || piece < 0 || o.pieces !== piecesFor(size, piece)) throw new Error('Plik jest uszkodzony.');
+  return {
+    head: {
+      name: cleanName(typeof o.name === 'string' ? o.name : 'plik'),
+      type: typeof o.type === 'string' && o.type !== '' ? o.type : 'application/octet-stream',
+      size
+    },
+    piece,
+    pieces: piecesFor(size, piece),
+    start: end
+  };
+}
+
+/** Wo Stück `i` in der Datei liegt (versiegelt). */
+export function pieceSpan(layout: ShareLayout, i: number): { from: number; length: number } {
+  const plain = i < layout.pieces - 1 ? layout.piece : layout.head.size - layout.piece * (layout.pieces - 1);
+  return { from: layout.start + i * (layout.piece + SEAL_OVERHEAD), length: plain + SEAL_OVERHEAD };
+}
+
+export const sealPiece = (keys: { id: string; key: Uint8Array }, i: number, pieces: number, plain: Uint8Array): Promise<Uint8Array> =>
+  seal(keys.key, pieceAad(keys.id, i, i === pieces - 1), plain);
+
+export const openPiece = (keys: { id: string; key: Uint8Array }, i: number, pieces: number, sealed: Uint8Array): Promise<Uint8Array> =>
+  open(keys.key, pieceAad(keys.id, i, i === pieces - 1), sealed);
 
 /* -- Das Etikett ------------------------------------------------------------------------------- */
 

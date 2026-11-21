@@ -1,0 +1,44 @@
+import{t as p,appLang as C}from"./i18n-iugVyZbH.js";import{e1 as l,ec as T,kv as z,gv as k,kz as M,kw as F,eA as $,gY as Y,gN as A,fl as K,gM as L,i1 as S,ee as P,gL as R,kC as D,h$ as I,hZ as X,ez as _,hX as G,iS as Z,ef as b}from"./mount-BrnjuVqm.js";import{t as H}from"./TextArticle-IEBq6_8B.js";function c(s){return s.replace(/\\/g,"\0").replace(/([{}$&#%_])/g,"\\$1").replace(/\^/g,"\\textasciicircum{}").replace(/~/g,"\\textasciitilde{}").replace(/\u0000/g,"\\textbackslash{}").replace(/…/g,"\\dots{}").replace(/\u00a0/g,"~").replace(/ – /g," -- ").replace(/ — /g," --- ").replace(/(\d)–(\d)/g,"$1--$2")}const B=s=>s.replace(/\\/g,"/").replace(/([#%])/g,"\\$1"),E=s=>s.map(e=>{const n=c(e.text),t=e.italic===!0?`\\emph{${n}}`:n;return e.href!==void 0&&/^https?:/i.test(e.href)?`\\href{${B(e.href)}}{${t}}`:t}).join("");function m(s,e,n=!1){return s.map(t=>{switch(t.t){case"text":return c(t.v);case"br":return n?" ":`\\\\
+`;case"math":return t.display&&!n?`\\[${t.tex}\\]`:`$${t.tex}$`;case"b":return`\\textbf{${m(t.c,e,n)}}`;case"i":return`\\emph{${m(t.c,e,n)}}`;case"color":return m(t.c,e,n);case"link":return`\\href{${B(t.href)}}{${m(t.c,e,n)}}`;case"cite":{const r=t.items.filter(o=>!L($(e.look,o.key))).map(o=>{const i=$(e.look,o.key);return`\\emph{${c(S(i,e.look))}}${o.locator===""?"":`, ${c(o.locator)}`}`}),a=t.items.filter(o=>L($(e.look,o.key))).map(o=>{const i=$(e.look,o.key),u=A(i,e.look);return u!==void 0&&e.works.push(u),e.style==="authorYear"?c(J(i,u,o.locator,e.look)):E(P(i,o.locator,e.look,e.state))});return e.style==="authorYear"?`${r.length===0?"":p("scriptorium.sermon.seeAlso",{list:r.join("; ")})}${a.length===0?"":` (${a.join("; ")})`}`:`${r.length===0?"":p("scriptorium.sermon.seeAlso",{list:r.join("; ")})}${a.length===0?"":`\\footnote{${a.join("; ")}.}`}`}case"ref":return m(t.c,e,n);case"note":return e.state.last=null,`\\footnote{${m(t.c,e,!0)}}`;default:return""}}).join("")}function J(s,e,n,t){const r=e??s;if(r===void 0)return n;const a=t.get(T(r.data,"authors")[0]??""),o=a===void 0?l(r.data,"title").trim()||S(r,t):l(a.data,"surname").trim()||l(a.data,"name").trim()||D(a),i=n!==""?n:s!==void 0&&s.kind==="quote"?l(s.data,"locator"):"";return[[o,l(r.data,"year").trim()].filter(u=>u!=="").join(" "),i].filter(u=>u!=="").join(", ")}const Q={article:["\\section*","\\subsection*","\\subsubsection*"]};function g(s,e,n){var r;const t=[];for(const a of s)switch(a.t){case"p":t.push(m(a.c,e));break;case"h":{const o=Math.min(2,(a.level===2?0:1)+n);t.push(`${Q.article[o]}{${m(a.c,e,!0)}}`);break}case"quote":t.push(`\\begin{quotation}
+${g(a.c,e,n)}
+\\end{quotation}`);break;case"details":t.push(`\\paragraph{${m(a.summary,e,!0)}}
+${g(a.c,e,n)}`);break;case"list":{const o=a.ordered?"enumerate":"itemize";t.push(`\\begin{${o}}
+${a.items.map(i=>`  \\item ${m(i,e)}`).join(`
+`)}
+\\end{${o}}`);break}case"hr":t.push("\\begin{center}*\\quad*\\quad*\\end{center}");break;case"embed":{const o=$(e.look,a.key),i=o===void 0?null:Y(o,e.look);if(o!==void 0&&i!==null){if(((r=e.path)==null?void 0:r.has(o.id))===!0)break;t.push(U(o,i,{...e,path:new Set([...e.path??[],o.id])},n));break}if(o===void 0||o.kind!=="quote"){t.push(`% ${p("scriptorium.latex.missingRef")}`);break}const u=A(o,e.look);u!==void 0&&e.works.push(u);const f=l(o.data,"text").split(/\n\s*\n/).map(h=>c(h).replace(/\n/g,`\\\\
+`)).join(`
+
+`),d=l(o.data,"translation"),v=[K(o,e.look),a.locator].filter(h=>h.trim()!=="").join(", ");t.push(["\\begin{quotation}",f,d===""?"":`
+\\emph{${c(d)}}`,`
+\\hfill--- ${c(v)}`,"\\end{quotation}"].filter(h=>h!=="").join(`
+`));break}}return t.join(`
+
+`)}function q(s,e){return s.map(n=>"ref"in n?c(I(n.ref,n.locator??"",e.look)):m(X(n.text),e)).join("")}function U(s,e,n,t){const r=[];for(const a of R(s.data,e)){if(a.type==="paragraph"){r.push(g(k(a.text),n,t));continue}if(a.type==="table"){const i=Math.max(1,a.columns.length,...a.rows.map(d=>d.length)),u=`p{${(.9/i).toFixed(3)}\\linewidth}`,f=a.columns.some(d=>d!=="")?[`${a.columns.map(d=>`\\textbf{${c(d)}}`).join(" & ")} \\\\`,"\\hline"]:[];r.push([`\\begin{tabular}{|${Array.from({length:i},()=>u).join("|")}|}`,"\\hline",...f,...a.rows.map(d=>`${Array.from({length:i},(v,h)=>q(d[h]??[],n)).join(" & ")} \\\\ \\hline`),"\\end{tabular}"].join(`
+`));continue}const o=a.type==="ordered"?"enumerate":"itemize";r.push(`\\begin{${o}}
+${a.items.map(i=>`  \\item ${q(i,n)}`).join(`
+`)}
+\\end{${o}}`)}return`\\begin{quote}
+${r.join(`
+
+`)}
+\\end{quote}`}const V={en:"english",de:"ngerman",pl:"polish"},y=s=>[`\\documentclass[11pt,a4paper${s==="book"?",openany":""}]{${s}}`,"\\usepackage{iftex}","\\ifPDFTeX","  \\usepackage[utf8]{inputenc}","  \\usepackage[T1]{fontenc}","  \\usepackage{lmodern}","\\else","  \\usepackage{fontspec}","\\fi",`\\usepackage[${V[C()]}]{babel}`,"\\usepackage{amsmath,amssymb}","\\usepackage{microtype}","\\usepackage[hidelinks]{hyperref}","\\usepackage{enumitem}","\\setlist{itemsep=0.2em}","\\frenchspacing"].join(`
+`);function j(s,e){const n=[M(s,e),l(s,"date"),l(s,"occasion"),l(s,"place")].filter(a=>a.trim()!==""),t=l(s,"readings"),r=H(s,e).map(a=>`\\par\\noindent ${c(a.label)}: ${c(a.value)}`);return[n.length>0?`\\noindent\\textsc{${c(n.join(" · "))}}`:"",t!==""?`\\par\\noindent ${c(p("scriptorium.article.readings"))} ${c(t)}`:"",...r].filter(Boolean).join(`
+`)}function O(s,e){const n=[];let t=-1;const r=a=>"  ".repeat(a+1);for(const a of s){for(;t<a.depth;)t+=1,n.push(`${r(t-1)}\\begin{enumerate}${t===0?"":"[label*=.\\arabic*]"}`);for(;t>a.depth;)n.push(`${r(t-1)}\\end{enumerate}`),t-=1;const o=k(a.text),i=o.length===1&&o[0].t==="p"?m(o[0].c,e):g(o,e,1);n.push(`${r(t)}\\item ${i}`)}for(;t>=0;)n.push(`${r(t-1)}\\end{enumerate}`),t-=1;return n.join(`
+`)}function x(s,e,n){const t=s.data,r=z(t),o=(r.length===0?"":`\\section*{${c(p("scriptorium.sermon.plan"))}}
+${O(r,e)}
+
+`)+g(k(l(t,"body")),e,n),i=l(t,"further").trim()===""?"":`
+
+\\section*{${c(p("scriptorium.article.further"))}}
+${g(k(l(t,"further")),e,n)}`;return`${o}${i}`}function w(s,e){const n=F(s.works,s.look);return n.length===0?"":[e,"\\begin{itemize}[label={},leftmargin=1.5em,itemindent=-1.5em]",...n.map(({segs:t})=>`  \\item ${E(t)}.`),"\\end{itemize}"].join(`
+`)}function te(s,e,n={}){const t=s.data,r={look:e,state:b(),works:[]},a=e.get(T(t,"project")[0]??""),o=x(s,r,0);return[y("article"),"",`\\title{${c(l(t,"title")||p("common.untitled"))}${l(t,"subtitle")===""?"":`\\\\\\large ${c(l(t,"subtitle"))}`}}`,`\\author{${c(n.author??"")}}`,`\\date{${c(l(t,"date"))}}`,"","\\begin{document}","\\maketitle",a!==void 0?`\\begin{center}\\emph{${c(l(a.data,"title"))}}\\end{center}`:"",j(t,e),"",o,"",w(r,`\\section*{${c(p("scriptorium.article.sources"))}}`),"\\end{document}",""].filter((i,u,f)=>!(i===""&&f[u-1]==="")).join(`
+`)}function ne(s,e,n={}){const t=s.data,r={look:e,state:b(),works:[]},a=[];for(const o of Z(t)){if("heading"in o){a.push(`\\part*{${c(o.heading)}}
+\\addcontentsline{toc}{part}{${c(o.heading)}}`);continue}const i=e.get(o.text)??e.byKey(o.text.replace(/^@/,""));if(i===void 0||i.kind!=="text"||n.only!==void 0&&!n.only(i))continue;const u=l(i.data,"title")||p("common.untitled");a.push([`\\chapter*{${c(u)}}`,`\\addcontentsline{toc}{chapter}{${c(u)}}`,l(i.data,"subtitle")===""?"":`\\noindent\\emph{${c(l(i.data,"subtitle"))}}\\par\\medskip`,j(i.data,e),"",x(i,r,0)].filter(f=>f!=="").join(`
+`))}return[y("book"),"",`\\title{${c(l(t,"title")||p("scriptorium.archive.project"))}${l(t,"subtitle")===""?"":`\\\\\\large ${c(l(t,"subtitle"))}`}}`,`\\author{${c(n.author??"")}}`,"\\date{}","","\\begin{document}","\\maketitle",l(t,"description")===""?"":`\\begin{abstract}
+${c(l(t,"description"))}
+\\end{abstract}`,"\\tableofcontents","",a.join(`
+
+`),"",w(r,`\\chapter*{${c(p("scriptorium.article.sources"))}}
+\\addcontentsline{toc}{chapter}{${c(p("scriptorium.article.sources"))}}`),"\\end{document}",""].filter((o,i,u)=>!(o===""&&u[i-1]==="")).join(`
+`)}function ae(s,e){const n=s.data,t={look:e,state:b(),works:[]},r=z(n);return[y("article").replace("[11pt,a4paper","[14pt,a4paper").replace("{article}","{extarticle}"),"\\usepackage[margin=2cm]{geometry}","\\pagestyle{empty}","","\\begin{document}",`\\noindent{\\LARGE\\bfseries ${c(l(n,"title")||p("common.untitled"))}}\\par\\medskip`,j(n,e),"",O(r,t),"",w(t,`\\vfill\\small\\section*{${c(p("scriptorium.article.sources"))}}`),"\\end{document}",""].filter((a,o,i)=>!(a===""&&i[o-1]==="")).join(`
+`)}function oe(s,e=""){return`${(l(s.data,"title")||s.kind).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/ł/g,"l").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60)||"tekst"}${e}.tex`}function se(s,e){const n=new Set;for(const t of _(s))G(k(t),r=>{r.t==="embed"&&$(e,r.key)===void 0&&n.add(r.key)},r=>{if(r.t==="cite")for(const a of r.items)$(e,a.key)===void 0&&n.add(a.key)});return[...n]}const re=(s,e="notes")=>({look:s,state:b(),works:[],style:e});export{y as P,ne as a,c as b,g as c,O as d,oe as l,se as m,re as n,ae as p,w as s,te as t};

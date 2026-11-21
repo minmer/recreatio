@@ -59,7 +59,7 @@ public static partial class Chat
         var path = AttachmentPath(config, attachmentId);
         if (size is null || !File.Exists(path)) { ctx.Response.StatusCode = 404; return; }
         ctx.Response.Headers.CacheControl = "no-store"; ctx.Response.Headers.XContentTypeOptions = "nosniff";
-        ctx.Response.ContentType = "application/octet-stream"; ctx.Response.ContentLength = (long)size;
-        await ctx.Response.SendFileAsync(path, ctx.RequestAborted);
+        /* 2026-11-21 — in Stücken holbar (Range): ein Film über ein schwankendes Netz bricht nicht mehr als Ganzes ab. */
+        await TypedResults.PhysicalFile(Path.GetFullPath(path), "application/octet-stream", enableRangeProcessing: true).ExecuteAsync(ctx);
     }
 }

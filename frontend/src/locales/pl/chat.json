@@ -48,7 +48,11 @@
     "tooBigServer": "Plik jest za duży dla serwera.",
     "uploadFailed": "Nie udało się wysłać pliku.",
     "over50": "Plik jest większy niż 50 MB.",
-    "fetchFailed": "Nie udało się pobrać pliku."
+    "fetchFailed": "Nie udało się pobrać pliku.",
+    "downloading": "Pobieranie {percent}%",
+    "fetchOffline": "Brak połączenia — nie udało się pobrać filmu. Spróbuj ponownie, gdy będziesz online.",
+    "videoUnplayable": "Ta przeglądarka nie odtworzy tego filmu — zapisz go i otwórz na urządzeniu.",
+    "saveVideo": "Zapisz film ({size})"
   },
   "player": {
     "pause": "Wstrzymaj",

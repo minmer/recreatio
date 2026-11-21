@@ -9,7 +9,7 @@
   },
   "compose": {
     "readFailed": "Die Datei ließ sich nicht lesen.",
-    "tooBig": "Eine Datei darf höchstens 25 MB groß sein.",
+    "tooBig": "Eine Datei darf höchstens 250 MB groß sein.",
     "linkOnly": "So eine Datei kann nur als Link gesendet werden.",
     "noLink": "Ein Link lässt sich nicht senden.",
     "sendFailed": "Senden fehlgeschlagen.",
@@ -51,7 +51,7 @@
       "one": "{count} weitergeleitete Nachricht — einzeln",
       "other": "{count} weitergeleitete Nachrichten — jede einzeln"
     },
-    "tooBigName": "„{name}“ ist zu groß — eine Datei darf höchstens 25 MB haben.",
+    "tooBigName": "„{name}“ ist zu groß — eine Datei darf höchstens 250 MB haben.",
     "mmsEach": {
       "one": "{count} MMS",
       "other": "{count} MMS — eine je Datei, der Text mit der ersten"

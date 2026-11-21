@@ -9,7 +9,7 @@
   },
   "compose": {
     "readFailed": "Could not read the file.",
-    "tooBig": "A file can be at most 25 MB.",
+    "tooBig": "A file can be at most 250 MB.",
     "linkOnly": "Such a file can only be sent as a link.",
     "noLink": "Cannot send a link.",
     "sendFailed": "Could not send.",
@@ -51,7 +51,7 @@
       "one": "{count} forwarded message — separately",
       "other": "{count} forwarded messages — each separately"
     },
-    "tooBigName": "“{name}” is too big — a file can be at most 25 MB.",
+    "tooBigName": "“{name}” is too big — a file can be at most 250 MB.",
     "mmsEach": {
       "one": "{count} MMS",
       "other": "{count} MMS — one per file, the text with the first"

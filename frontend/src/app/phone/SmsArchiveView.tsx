@@ -51,7 +51,7 @@ import {
 } from './smsArchive';
 import { DropVeil, usePageDrop } from './fileDrop';
 import { daysLabel, shareFile } from './share';
-import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { SHARE_DAYS, SHARE_BIG_MAX, shareLink, sizeText } from './shareSeal';
 import { ForwardButton, PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
 import { draftOf, keepDraft } from './smsDrafts';
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, timeOf, type SearchMode } from './smsShared';
@@ -795,7 +795,7 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
     if (more.length === 0) return;
     if (busy) { toast(t('phoneArchive.reply.wait')); return; }
     const fit = more.filter((f) => {
-      if (f.size <= SHARE_MAX) return true;
+      if (f.size <= SHARE_BIG_MAX) return true;
       toast(t('phoneSms.compose.tooBigName', { name: f.name }));
       return false;
     });

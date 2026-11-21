@@ -400,7 +400,12 @@ export async function saveBlob(blob: Blob, name: string): Promise<'saved' | 'can
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    /*
+     * 2026-11-21 — NICHT SOFORT freigeben: Firefox liest einen grossen Blob erst nach
+     * dem Klick, und eine gleich danach freigegebene Adresse brach das Speichern eines
+     * Films ab. Eine Minute später ist er längst übernommen.
+     */
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
     return 'saved';
   }
 

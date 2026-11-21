@@ -15,8 +15,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { fmtDate, useT } from '../core/i18n';
 import { Icon } from '../ui/icons';
-import { fetchShare, ShareGone, shareInfo } from './share';
-import { openShare, secretOf, shareKeys, shownAs, sizeText, type ShareHead } from './shareSeal';
+import { loadShare, ShareBroken, ShareGone, shareInfo } from './share';
+import { secretOf, shareKeys, shownAs, sizeText, type ShareHead } from './shareSeal';
 import './phone.css';
 
 type State =
@@ -57,38 +57,40 @@ export function SharedFile({ secret: text }: { secret: string }) {
     }
     let alive = true;
     void (async () => {
-      let sealed: Uint8Array;
       let size = 0;
       let expiresAt = '';
+      let opened: Awaited<ReturnType<typeof loadShare>>;
       try {
         const { id } = await shareKeys(secret);
         ({ size, expiresAt } = await shareInfo(id));
         if (!alive) return;
         setState({ step: 'loading', size, done: 0, expiresAt });
-        /* Je Prozent einmal neu zeichnen, nicht je Stück. */
-        let percentShown = 0;
-        sealed = await fetchShare(id, (done) => {
+        /*
+         * 2026-11-21 — in Stücken geholt (und eine Datei in Stücken auch so geöffnet):
+         * ein Aussetzer kostet nur sein Stück. Je Prozent einmal neu zeichnen.
+         */
+        let percentShown = -1;
+        opened = await loadShare(secret, size, (done) => {
           const percent = size > 0 ? Math.floor((100 * done) / size) : 0;
-          if (alive && percent !== percentShown) { percentShown = percent; setState({ step: 'loading', size, done, expiresAt }); }
+          if (!alive || percent === percentShown) return;
+          percentShown = percent;
+          setState(percent >= 100 ? { step: 'opening', size, expiresAt } : { step: 'loading', size, done, expiresAt });
         });
       } catch (e) {
-        if (alive) setState({ step: 'failed', message: e instanceof ShareGone ? e.message : t('phoneShare.file.downloadFailed') });
+        if (alive) {
+          setState({
+            step: 'failed',
+            message: e instanceof ShareGone ? e.message : e instanceof ShareBroken ? t('phoneShare.file.broken') : t('phoneShare.file.downloadFailed')
+          });
+        }
         return;
       }
       if (!alive) return;
-
       setState({ step: 'opening', size, expiresAt });
       await painted();
-      let opened: Awaited<ReturnType<typeof openShare>>;
-      try {
-        opened = await openShare(secret, sealed);
-      } catch {
-        if (alive) setState({ step: 'failed', message: t('phoneShare.file.broken') });
-        return;
-      }
       if (!alive) return;
       const shown = shownAs(opened.head.type);
-      const url = URL.createObjectURL(new Blob([opened.bytes as BlobPart], { type: shown === null ? 'application/octet-stream' : opened.head.type }));
+      const url = URL.createObjectURL(shown === null ? new Blob([opened.blob], { type: 'application/octet-stream' }) : opened.blob);
       if (made.current !== null) URL.revokeObjectURL(made.current);
       made.current = url;
       setState({ step: 'ready', head: opened.head, url, expiresAt });

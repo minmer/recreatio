@@ -35,7 +35,7 @@ import { openPhone, type PhoneCtx } from './phoneContext';
 import { daysLabel, loadShares, unshare, type ShareEntry } from './share';
 import { ShareConnections } from './ShareConnections';
 import { addFiles, copyText, dropSending, linesOf, retrySending, useShareQueue, watchShares, type Made, type Sending } from './shareQueue';
-import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
+import { SHARE_DAYS, SHARE_BIG_MAX, shareLink, sizeText } from './shareSeal';
 import './phone.css';
 
 const day = (at: string) => fmtDate(new Date(at), { day: 'numeric', month: 'short', year: 'numeric' });
@@ -242,7 +242,7 @@ function SendingRow({ item: q }: { item: Sending }) {
       )}
       {q.error !== null && <p className="wk-error">{q.error}</p>}
       <span className="ph-share-tools">
-        {q.state === 'failed' && q.size <= SHARE_MAX && (
+        {q.state === 'failed' && q.size <= SHARE_BIG_MAX && (
           <button type="button" className="wk-link-btn" onClick={() => retrySending(q.key)}><Icon name="refresh" />{t('common.retry')}</button>
         )}
         <button type="button" className="wk-link-btn" onClick={() => dropSending(q.key)}>

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { aad, Field, fromBase64Url, open, seal, toBase64Url } from '../core/crypto';
 import { API, call, WorkspaceError } from '../core/session';
+import { fetchRanged, RangeOffline } from '../core/rangeFetch';
 import type { Attachment } from './chat';
 import { fmtDate, t } from '../core/i18n';
 
@@ -138,10 +139,22 @@ export async function photoForChat(file: File): Promise<File> {
   if (done.blob === file) return file;
   return new File([done.blob], done.fileName, { type: done.blob.type, lastModified: file.lastModified });
 }
-export async function downloadAttachment(endpoint: string, attachment: Attachment): Promise<Blob> {
-  const response = await fetch(`${API}${endpoint}/attachments/${encodeURIComponent(attachment.id)}`, { credentials: 'include' });
-  if (!response.ok) throw new WorkspaceError(t('chat.file.fetchFailed'));
-  const plaintext = await open(fromBase64Url(attachment.key), attachmentAad(), new Uint8Array(await response.arrayBuffer()));
+/**
+ * 2026-11-21 — IN STÜCKEN GEHOLT (`rangeFetch.ts`): ein Film von 50 MB riss über ein
+ * schwankendes Netz vorher als Ganzes ab. `onProgress`: wie weit, 0 … 1.
+ */
+export async function downloadAttachment(endpoint: string, attachment: Attachment, onProgress?: (part: number) => void): Promise<Blob> {
+  const total = attachment.size + 48;
+  let sealed: Uint8Array;
+  try {
+    sealed = await fetchRanged(`${API}${endpoint}/attachments/${encodeURIComponent(attachment.id)}`, {
+      credentials: 'include',
+      onProgress: (done) => onProgress?.(Math.min(1, done / total))
+    });
+  } catch (e) {
+    throw new WorkspaceError(e instanceof RangeOffline ? t('chat.file.fetchOffline') : t('chat.file.fetchFailed'));
+  }
+  const plaintext = await open(fromBase64Url(attachment.key), attachmentAad(), sealed);
   return new Blob([plaintext as BlobPart], { type: attachment.type || 'application/octet-stream' });
 }
 

@@ -48,7 +48,11 @@
     "tooBigServer": "Die Datei ist zu groß für den Server.",
     "uploadFailed": "Die Datei konnte nicht gesendet werden.",
     "over50": "Die Datei ist größer als 50 MB.",
-    "fetchFailed": "Die Datei konnte nicht heruntergeladen werden."
+    "fetchFailed": "Die Datei konnte nicht heruntergeladen werden.",
+    "downloading": "Wird geladen: {percent} %",
+    "fetchOffline": "Keine Verbindung — der Film ließ sich nicht laden. Versuche es noch einmal, wenn du online bist.",
+    "videoUnplayable": "Dieser Browser kann den Film nicht abspielen — speichere ihn und öffne ihn auf deinem Gerät.",
+    "saveVideo": "Film speichern ({size})"
   },
   "player": {
     "pause": "Pause",

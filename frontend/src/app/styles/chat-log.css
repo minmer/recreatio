@@ -263,6 +263,8 @@
 }
 .ch-media-slot .ch-i { width: 28px; height: 28px; }
 .ch-video { display: block; width: 100%; max-height: 22rem; background: #000; }
+/* 2026-11-21 — der Film und darunter „Zapisz film". */
+.ch-video-box { display: grid; gap: 0.375rem; justify-items: start; min-width: 0; }
 .ch-zoom { display: block; max-width: 100%; max-height: 72vh; margin: 0 auto; object-fit: contain; }
 
 .ch-sound { display: grid; gap: 0.25rem; min-width: min(16rem, 60vw); }
