@@ -8,7 +8,8 @@
     "unreadable": "Nie udało się odczytać pliku — czy to na pewno plik, a nie folder?",
     "expired": "Ten link wygasł.",
     "missing": "Tego pliku nie ma — został usunięty albo link jest niepełny.",
-    "unreachable": "Brak połączenia z recreatio.pl — spróbuj ponownie."
+    "unreachable": "Brak połączenia z recreatio.pl — spróbuj ponownie.",
+    "tooBigHere": "Ten serwer nie przyjmuje jeszcze plików powyżej 25 MB — spróbuj po aktualizacji."
   },
   "days": {
     "one": "{count} dzień",

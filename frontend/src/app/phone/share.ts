@@ -20,7 +20,7 @@ import { fetchRange, RangeOffline, RangeRefused } from '../core/rangeFetch';
 import type { PhoneCtx } from './phoneContext';
 import {
   cleanName, deviceName, isPieced, newDeviceKey, newSecret, openDevice, openLabel, openPiece, openPiecedHead, openShare, pairingCode, piecedHeadEnd,
-  piecesFor, pieceSpan, sealDevice, sealLabel, sealPiece, sealPiecedHead, sealShare, SHARE_BIG_MAX, SHARE_PIECE, shareHeadOf, shareKeys,
+  piecesFor, pieceSpan, sealDevice, sealLabel, sealPiece, sealPiecedHead, sealShare, SHARE_BIG_MAX, SHARE_MAX, SHARE_PIECE, shareHeadOf, shareKeys,
   shareLink, withoutPlace, type DeviceDoc, type ShareHead, type ShareLabel
 } from './shareSeal';
 
@@ -79,6 +79,8 @@ function put(
       try { said = JSON.parse(xhr.responseText); } catch { said = null; }
       if (xhr.status >= 200 && xhr.status < 300) { resolve(said); return; }
       const error = said !== null && typeof said === 'object' && 'error' in said ? String((said as { error: unknown }).error) : null;
+      /* 2026-11-21 — 404 ohne Grund: diesen Weg kennt der Dienst nicht (ein Dienst vor den Stücken). */
+      if (xhr.status === 404 && error === null) { reject(new NoPieces()); return; }
       reject(new WorkspaceError(error ?? (xhr.status >= 500 ? t('phoneShare.err.service') : t('phoneShare.err.sendFailed'))));
     };
     xhr.onerror = () => reject(new WorkspaceError(t('phoneShare.err.offline')));
@@ -99,7 +101,26 @@ export async function shareFile(
   }
 ): Promise<{ id: string; link: string; expiresAt: string }> {
   if (file.size > SHARE_BIG_MAX) throw new WorkspaceError(t('phoneShare.err.tooBig'));
-  if (file.size > ONE_PIECE_UP_TO) return sharePieced(ctx, file, options);
+  if (file.size > ONE_PIECE_UP_TO) {
+    try {
+      return await sharePieced(ctx, file, options);
+    } catch (e) {
+      if (!(e instanceof NoPieces)) throw e;
+      /* Der Dienst kennt die Stücke noch nicht: bis 25 MB geht es in einem, darüber nicht. */
+      if (file.size > SHARE_MAX) throw new WorkspaceError(t('phoneShare.err.tooBigHere'));
+    }
+  }
+  return shareWhole(ctx, file, options);
+}
+
+/** Ein Dienst ohne `…/part/{n}` (vor 2026-11-21). */
+class NoPieces extends Error {}
+
+/** In EINER Hülle (Fassung 1) — bis 8 MB immer, bis 25 MB, wo der Dienst keine Stücke kennt. */
+async function shareWhole(
+  ctx: PhoneCtx, file: File,
+  options: { readonly days: number; readonly to?: readonly string[]; readonly onProgress?: (done: number, total: number) => void; readonly signal?: AbortSignal }
+): Promise<{ id: string; link: string; expiresAt: string }> {
   const halt = () => { if (options.signal?.aborted === true) throw new ShareStopped(); };
   let raw: Uint8Array;
   try {

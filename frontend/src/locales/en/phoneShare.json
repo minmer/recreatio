@@ -8,7 +8,8 @@
     "unreadable": "Could not read the file — is it really a file and not a folder?",
     "expired": "This link has expired.",
     "missing": "This file does not exist — it was deleted or the link is incomplete.",
-    "unreachable": "No connection to recreatio.pl — try again."
+    "unreachable": "No connection to recreatio.pl — try again.",
+    "tooBigHere": "This server does not take files over 25 MB yet — try again after the update."
   },
   "days": {
     "one": "{count} day",

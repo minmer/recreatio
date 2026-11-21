@@ -8,7 +8,8 @@
     "unreadable": "Die Datei ließ sich nicht lesen — ist es wirklich eine Datei und kein Ordner?",
     "expired": "Dieser Link ist abgelaufen.",
     "missing": "Diese Datei gibt es nicht — sie wurde gelöscht oder der Link ist unvollständig.",
-    "unreachable": "Keine Verbindung zu recreatio.pl — versuche es erneut."
+    "unreachable": "Keine Verbindung zu recreatio.pl — versuche es erneut.",
+    "tooBigHere": "Dieser Server nimmt Dateien über 25 MB noch nicht an — versuche es nach dem Update noch einmal."
   },
   "days": {
     "one": "{count} Tag",
