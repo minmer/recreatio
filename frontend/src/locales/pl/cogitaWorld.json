@@ -722,7 +722,8 @@
     },
     "way": {
       "title": "Prowadzenie",
-      "text": "„Odkryj” albo podwójne kliknięcie wieży włącza prowadzenie: na dole pojawia się droga, krok po kroku. Każdy krok zapowiada, co się stanie, i daje wybór — przejść, pominąć albo przywrócić pominięty. Pomijanie jest dozwolone celowo: czasem chcesz od razu do konkretnego miejsca, a resztę uzupełnisz później. Podwójne kliknięcie w puste miejsce kończy prowadzenie; postęp zostaje."
+      "do": "Kliknij jeszcze raz wysoką wieżę, a potem „Odkryj” nad nią.",
+      "text": "„Odkryj” (albo podwójne kliknięcie wieży) wybiera wieżę jako cel i włącza prowadzenie. Teraz widzisz całą drogę do niej: jasne ścieżki to to, co jeszcze przed tobą, łuki w powietrzu pokazują, jakich tematów ona wymaga, a kamera pokazuje całą mapę, żeby nic z drogi nie było zakryte. Na dole ta sama droga pojawia się jako pasek kroków; każdy krok zapowiada, co się stanie, i daje wybór — przejść, pominąć albo przywrócić pominięty. Pomijanie jest dozwolone celowo: czasem chcesz od razu do konkretnego miejsca, a resztę uzupełnisz później. Podwójne kliknięcie w puste miejsce kończy prowadzenie; postęp zostaje."
     },
     "views": {
       "title": "Widoki",

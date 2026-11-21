@@ -47,7 +47,7 @@ import { PathList, PathPanel } from './WorldPaths';
 import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
-import { keepTourSeen, TourCard, tourInput, tourSeen, tourSteps, tourWanted } from './WorldTour';
+import { keepTourSeen, TourCard, tourInput, tourSeen, tourSteps, tourWanted, type TourAction } from './WorldTour';
 import { useRunFit } from './wmRunFit';
 import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx, homeRepeatBelow, homeRepeatPool, keepRepeatAt, keptRepeatAt, REPEAT_AT } from './WorldPanels';
 import { WorldPillars, type TowerButton, type PillarsHandle, type PlayEvent } from './WorldPillars';
@@ -298,14 +298,23 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const tourOn = tourStep !== undefined;
   /* 2026-11-14 — der Rundgang wartet auf den Klick auf das Gezeigte (je Schritt neu). */
   const [tourDone, setTourDone] = useState(false);
-  useEffect(() => { setTourDone(false); }, [tour]);
+  /* 2026-11-21 — „Odkryj" im Rundgang: erst den Turm anklicken (seine Knöpfe erscheinen), dann „Odkryj". */
+  const [tourPicked, setTourPicked] = useState(false);
+  useEffect(() => { setTourDone(false); setTourPicked(false); }, [tour]);
   /* Die Leiste zum Ausprobieren: übersprungene (nur im Rundgang). */
   const [demoSkipped, setDemoSkipped] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => { setDemoSkipped(new Set()); }, [tour]);
-  const demoPlan = useMemo(() => (tourStep?.demo === undefined ? null : planRoute(state, tourStep.demo)), [tourStep, state]);
-  const tourHit = (kind: 'home' | 'place' | 'section' | 'junction' | 'sign' | 'step', id: string): boolean => {
+  /* Der Weg zum gewählten Turm (Rundgang): erst nach „Odkryj" (oder in einem Schritt ohne diese Aufgabe) gezeichnet, mit seiner Leiste. */
+  const tourWay = tourStep?.explore !== undefined && (tourStep.action?.kind !== 'explore' || tourDone);
+  const demoPlan = useMemo(() => (tourStep?.demo === undefined || (tourStep.explore !== undefined && !tourWay) ? null : planRoute(tourState ?? state, tourStep.demo)), [tourStep, tourWay, tourState, state]);
+  const tourFocus = useMemo(() => (tourWay && demoPlan !== null && tourState !== null ? routeFocus(demoPlan, tourState, lines) : null), [tourWay, demoPlan, tourState, lines]);
+  const tourHit = (kind: TourAction, id: string): boolean => {
     const want = tourStep?.action;
     if (want === undefined || tourDone) return false;
+    if (want.kind === 'explore') {
+      if (kind === 'place' && id === want.id) { setTourPicked(true); return true; }
+      if (kind !== 'explore' || !tourPicked) return false;
+    }
     const ok = want.kind === kind && (want.id === id || kind === 'step' || (kind === 'section' && (tourStep?.route ?? []).includes(id)));
     if (ok) setTourDone(true);
     return ok;
@@ -813,6 +822,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     const f = tourStep.focus;
     if (f.kind === 'all') pillars.current?.fit(); else if (f.kind === 'place' && tourStep.zoom !== undefined) pillars.current?.lookAt(f.id, tourStep.zoom); else pillars.current?.glide(f.kind, f.id);
   }, [tourStep]);
+  /* Nach „Odkryj" im Rundgang: die ganze Karte mit dem ganzen Weg. */
+  useEffect(() => { if (tourWay && tourStep?.action?.kind === 'explore') pillars.current?.fit(); }, [tourWay]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tour !== null || learner === null || scene === null || invite || running !== null || !tourWanted() || tourSeen(scope)) return;
     keepTourSeen(scope);
@@ -1286,8 +1297,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             ? <p className="cg-ls-busy" role="status" data-world-computing="">{t('cogitaWorld.map.computing')}</p>
             : <WorldPillars ref={pillars} scene={tourOn && tourScene !== null ? tourScene : scene} pillarWidth={pillarWidth} heightScale={heightScale} t={t} compact={compact}
               memoryKey={scope}
-              route={tourStep !== undefined ? tourStep.route ?? null : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn ? null : peek !== null && lines.sections.has(peek) ? route : faint}
-              chosen={tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={tourStep !== undefined ? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node)) : focus}
+              route={tourStep !== undefined ? tourStep.route ?? (tourFocus === null ? null : [...tourFocus.remaining]) : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn ? null : peek !== null && lines.sections.has(peek) ? route : faint}
+              chosen={tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={tourStep !== undefined ? (tourFocus ?? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node))) : focus}
               marks={tourOn || marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
               lit={tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || (goal !== null && isPathTarget(goal)) ? null : goal} playback={tourOn ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && playHeld} playAfter={PLAY_AFTER_MS}
               signs={signs} chosenSign={tourStep !== undefined ? tourStep.sign ?? null : chosen?.kind === 'sign' ? chosen.id : chosen?.kind === 'qpath' ? signs.find((x) => x.paths.includes(chosen.id))?.key ?? null : null} onPickSign={(key) => { if (tourOn) tourHit('sign', key); else pickSign(key); }}
@@ -1297,7 +1308,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onPickLane={(id) => { if (tourOn) { tourHit('section', id); return; } setChosen({ kind: 'section', id }); }}
               onPickHome={() => { if (tourOn) { tourHit('home', HOME); return; } setChosen({ kind: 'home', id: HOME }); }}
               onPickJunction={(id) => { if (tourOn) { tourHit('junction', id); return; } setChosen({ kind: 'junction', id }); }}
-              onLead={(id) => { if (tourOn) return; setGoal(id); lead(id); }} onPlain={() => { if (tourOn) return; setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
+              onLead={(id) => { if (tourOn) { if (tourStep?.action?.kind === 'explore' && tourStep.action.id === id && !tourDone) setTourDone(true); return; } setGoal(id); lead(id); }} onPlain={() => { if (tourOn) return; setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
               full={full !== null} squeeze={hasSide} under={tourOn ? (demoPlan === null || tourStep?.demo === undefined ? null : (
                 <div className="cg-wm-waycard" data-world-tour-demo="">
                   <NextView tt={{ target: tourStep.demo, done: [], upcoming: demoPlan.steps.filter((x) => !demoSkipped.has(stepKey(x))), cards: demoPlan.cards, route: demoPlan.route }}
@@ -1310,6 +1321,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
                 ? (() => {
                   const ac = tourStep.action;
                   const kind = ac.kind === 'section' ? 'section' as const : ac.kind === 'sign' ? 'sign' as const : 'place' as const;
+                  if (ac.kind === 'explore') {
+                    /* Der Weg ist gezeichnet: keine Knöpfe über ihm. Sonst: ein Pfeil auf den Turm, dann seine Knöpfe — „Odkryj" pulsiert und wirkt. */
+                    if (tourDone) return null;
+                    if (!tourPicked) return { place: ac.id, kind, buttons: [{ key: 'tap', label: '▼', arrow: true, title: t('cogitaWorld.tour.tapHere'), onClick: () => setTourPicked(true), data: { 'world-tour-tap': ac.id } }] };
+                    const go = { pulse: true, onClick: () => { tourHit('explore', ac.id); }, data: { 'world-tour-explore': ac.id } };
+                    const real = towerButtons(ac.id).filter((b) => b.key !== 'tour');
+                    const has = real.some((b) => b.key === 'explore');
+                    return { place: ac.id, kind, buttons: [...(has ? [] : [{ key: 'explore', label: t('cogitaWorld.panel.explore'), ...go }]), ...real.map((b) => (b.key === 'explore' ? { ...b, ...go } : { ...b, onClick: () => undefined }))] };
+                  }
                   /* Vor dem Klick ein Pfeil auf das, was zu klicken ist; danach die Knöpfe, die dort wirklich stehen (im Rundgang ohne Wirkung). */
                   if (!tourDone) return { place: ac.id, kind, buttons: [{ key: 'tap', label: '▼', arrow: true, title: t('cogitaWorld.tour.tapHere'), onClick: () => setTourDone(true), data: { 'world-tour-tap': ac.id } }] };
                   const real = ac.kind === 'section' ? laneButtons(ac.id) : ac.kind === 'sign' ? signButtons(ac.id) : ac.kind === 'junction' ? forkButtons(ac.id) : towerButtons(ac.id);

@@ -634,7 +634,8 @@
     },
     "way": {
       "title": "Guidance",
-      "text": "\"Explore\" or a double click on a tower turns on guidance: the way appears at the bottom, step by step. Each step says what will happen and gives a choice — go, skip, or restore a skipped one. Skipping is allowed on purpose: sometimes you want to get to a particular place straight away and fill in the rest later. A double click on empty ground ends the guidance; the progress stays."
+      "do": "Click the tall tower again, then “Explore” above it.",
+      "text": "“Explore” (or a double click on a tower) chooses the tower as your goal and turns on guidance. Now you see the whole way to it: the bright paths are what is still ahead, the arcs in the air show which topics it needs, and the camera shows the whole map so nothing of the way is hidden. At the bottom the same way appears as a bar of steps; each step says what will happen and gives a choice — go, skip, or restore a skipped one. Skipping is allowed on purpose: sometimes you want to get to a particular place straight away and fill in the rest later. A double click on empty ground ends the guidance; the progress stays."
     },
     "views": {
       "title": "Views",

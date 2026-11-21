@@ -73,7 +73,7 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-host.is-full .cg-wm-main { display: block; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main > :not(.cg-wm-mapwrap) { display: none; }
 .cg-wm-host.is-full .cg-wm-mapwrap, .cg-wm-host.is-full .cg-wm { height: 100%; }
-.cg-wm-host.is-full .cg-wm-stage { height: calc(100vh - var(--cg-wm-bar)); min-height: 0; border: 0; border-radius: 0; }
+.cg-wm-host.is-full .cg-wm-stage { height: calc(100vh - var(--cg-wm-bar)); height: calc(100dvh - var(--cg-wm-bar)); min-height: 0; border: 0; border-radius: 0; }
 .cg-wm-host.is-full .cg-wm-tools { position: absolute; left: var(--wk-space-3); bottom: var(--wk-space-3); z-index: 4; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-host.is-full .cg-wm-body.has-side > .cg-wm-side { position: absolute; top: 3.4rem; right: var(--wk-space-3); bottom: auto; width: min(24rem, calc(100% - 2rem)); max-height: calc(100% - 4.4rem); margin: 0; overflow-y: auto; z-index: 5; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 /* Die Karte mit allem, was auf ihr liegt (Blase, Hinweise, „Pokaż zmiany") — gemessen an der Leinwand. */
@@ -319,7 +319,7 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 
 /* 2026-11-10 — der Weg Schritt für Schritt unten auf der Karte (nicht in einem eigenen Reiter): offen als Karte, sonst als schmale Leiste. */
 .cg-wm-waycard { margin-top: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); animation: cg-wm-slide-in 260ms ease-out both; }
-.cg-wm-host.is-full .cg-wm-mapwrap { display: flex; flex-direction: column; height: calc(100vh - var(--cg-wm-bar)); }
+.cg-wm-host.is-full .cg-wm-mapwrap { display: flex; flex-direction: column; height: calc(100vh - var(--cg-wm-bar)); height: calc(100dvh - var(--cg-wm-bar)); }
 .cg-wm-host.is-full .cg-wm-mapwrap > .cg-wm { flex: 1 1 auto; min-height: 0; height: auto; display: flex; flex-direction: column; }
 .cg-wm-host.is-full .cg-wm-mapwrap .cg-wm-stage { flex: 1 1 auto; height: auto; }
 .cg-wm-host.is-full .cg-wm-waycard { flex: 0 0 auto; margin: 0; border-width: 1px 0 0; border-radius: 0; max-height: 40vh; overflow-y: auto; }

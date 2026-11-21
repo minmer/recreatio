@@ -634,7 +634,8 @@
     },
     "way": {
       "title": "Führung",
-      "text": "„Erkunden\" oder ein Doppelklick auf einen Turm schaltet die Führung ein: unten erscheint der Weg, Schritt für Schritt. Jeder Schritt sagt, was geschieht, und lässt die Wahl — gehen, überspringen oder einen übersprungenen zurückholen. Überspringen ist absichtlich erlaubt: manchmal willst du gleich an eine bestimmte Stelle und holst den Rest später nach. Ein Doppelklick ins Leere beendet die Führung; der Fortschritt bleibt."
+      "do": "Klick noch einmal auf den hohen Turm, dann darüber auf „Erkunden“.",
+      "text": "„Erkunden“ (oder ein Doppelklick auf einen Turm) wählt den Turm als Ziel und schaltet die Führung ein. Jetzt siehst du den ganzen Weg dorthin: die hellen Pfade liegen noch vor dir, die Bögen in der Luft zeigen, welche Themen er braucht, und die Kamera zeigt die ganze Karte, damit nichts vom Weg verdeckt ist. Unten erscheint derselbe Weg als Leiste von Schritten; jeder Schritt sagt, was geschieht, und lässt die Wahl — gehen, überspringen oder einen übersprungenen zurückholen. Überspringen ist absichtlich erlaubt: manchmal willst du gleich an eine bestimmte Stelle und holst den Rest später nach. Ein Doppelklick ins Leere beendet die Führung; der Fortschritt bleibt."
     },
     "views": {
       "title": "Ansichten",

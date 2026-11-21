@@ -984,6 +984,7 @@ try {
     let realButtons = 0;
     let arcCount = 0;
     let demoSkip = 0;
+    let wayShown = null;
     const frames = [];
     for (let i = 0; i < 20; i += 1) {
       const k = await ev(`document.querySelector('[data-world-tour]')?.dataset.worldTour ?? null`);
@@ -994,10 +995,17 @@ try {
       const doing = await ev(`document.querySelector('[data-world-tour-do]')?.dataset.worldTourDo ?? null`);
       if (doing !== null) {
         acts.push(doing);
-        if (doing === 'home') await clickMap('home', '~home'); else if (doing === 'step') await click('[data-world-tour-demo] [data-world-way-show]'); else await click('[data-world-tour-tap]');
+        if (doing === 'home') await clickMap('home', '~home'); else if (doing === 'step') await click('[data-world-tour-demo] [data-world-way-show]');
+        else if (doing === 'explore') {
+          /* 2026-11-21 — der hohe Turm: erst anklicken, dann „Odkryj" (pulsiert); danach der ganze Weg mit seiner Leiste. */
+          await click('[data-world-tour-tap]');
+          await waitFor(`document.querySelector('[data-world-tour-explore].cg-wm-pulse') !== null`, 'Odkryj above the tall tower', 5000);
+          await click('[data-world-tour-explore]');
+        } else await click('[data-world-tour-tap]');
         await waitFor(`document.querySelector('[data-world-tour-do]') === null && document.querySelector('[data-world-tour-next], [data-world-tour-done]') !== null`, 'the explanation after the click', 8000);
         await sleep(300);
         if (k === 'tower') realButtons = await ev(`document.querySelectorAll('[data-world-tower-actions] [data-world-lead], [data-world-tower-actions] [data-world-run-for]').length`);
+        if (k === 'way') { await sleep(500); wayShown = await ev(`({ bar: document.querySelectorAll('[data-world-tour-demo] [data-world-way-show]').length, arcs: Number(document.querySelector('[data-world-canvas]')?.dataset.wmArcs ?? 0), buttons: document.querySelectorAll('[data-world-tower-actions] button').length })`); }
         if (k === 'steps') { await click('[data-world-tour-demo] [data-world-picked-skip]').catch(() => undefined); await sleep(300); demoSkip = await ev(`document.querySelectorAll('[data-world-tour-demo] [data-world-way-state="skipped"]').length`); }
       }
       frames.push(await ev(`document.querySelector('[data-world-canvas]')?.dataset.wmFrame ?? ''`));
@@ -1009,6 +1017,7 @@ try {
     }
     check(P, `every part is explained on this map (${keys.length} steps)`, ['welcome', 'home', 'tower', 'conquered', 'locked', 'way', 'views'].every((k) => keys.includes(k)), keys);
     check(P, 'after clicking a tower its real buttons stand above it (Odkryj, Zdobądź od razu)', realButtons >= 2, realButtons);
+    check(P, 'the tall tower is explored in the tour: the whole way drawn (arcs), its bar of steps below, no buttons over the map', wayShown !== null && wayShown.bar >= 1 && wayShown.arcs >= 1 && wayShown.buttons === 0, wayShown);
     check(P, 'the steps of a way can be tried in the tour: a skipped step stays greyed in its place', demoSkip >= 1, demoSkip);
     check(P, 'the check of existing knowledge and the arcs in the air are explained', keys.includes('placement') && keys.includes('steps') && keys.includes('arcs') && arcCount > 0, { keys, arcCount });
     check(P, `it is interactive: the learner clicks what is shown, then the explanation follows (${acts.join(', ')})`, acts.includes('home') && acts.includes('place') && acts.length >= 4, acts);

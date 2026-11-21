@@ -48,7 +48,12 @@ export interface TourStep {
    * 2026-11-14 (Eigentümer: „interaktiv: der Lernende klickt das Gezeigte, dann kommt der weitere Text") — was zu klicken ist; erst
    * danach steht die Erklärung da. Ohne: gleich die Erklärung.
    */
-  readonly action?: { readonly kind: 'home' | 'place' | 'section' | 'junction' | 'sign' | 'step'; readonly id: string };
+  readonly action?: { readonly kind: TourAction; readonly id: string };
+  /**
+   * 2026-11-21 (Eigentümer: „der hohe Turm wird zum Erkunden gewählt, der ganze Weg gezeichnet, dann diese Ansicht erklärt") — der Weg
+   * zu diesem Turm wie nach „Odkryj": alle Pfade leuchten, die Kamera zeigt die ganze Karte (bei der Aktion `explore` erst nach dem Klick).
+   */
+  readonly explore?: string;
   /** 2026-11-14 — eine Leiste des Weges zu diesem Turm zum Ausprobieren (Schritte anklicken, überspringen, zurückholen; ohne Wirkung). */
   readonly demo?: string;
   /** 2026-11-14 — die Abhängigkeiten dieses Turms als Bögen in der Luft (wie beim Anklicken eines Knotens). */
@@ -56,6 +61,8 @@ export interface TourStep {
   /** Diese Türme farbig, alle anderen grau (was eine Einstufung prüfen kann). */
   readonly lit?: readonly string[];
 }
+
+export type TourAction = 'home' | 'place' | 'section' | 'junction' | 'sign' | 'step' | 'explore';
 
 /** Kenntnis in den Bändern: frisch gekonnt, gekonnt (bald fällig), fällig, nie gesehen. */
 const FRESH = 3, SOON = 1.2, DUE = 0.6;
@@ -134,11 +141,14 @@ export function tourSteps(state: WorldState, lines: Lines, world: World, levels:
   if (c !== undefined) out.push({ key: 'locked', focus: { kind: 'place', id: c }, sim: {}, chosen: c, zoom: 1.4, action: { kind: 'place', id: c } });
   /* Die Bögen in der Luft: woher das nötige Wissen kommt (gestrichelt, solange es fehlt). */
   if (c !== undefined) out.push({ key: 'arcs', focus: { kind: 'all', id: '' }, sim: conquered, chosen: c, node: c });
+  /* Der hohe Turm zum Erkunden gewählt: der ganze Weg gezeichnet, unten seine Schritte — dann wird diese Ansicht erklärt. */
+  if (c !== undefined) {
+    out.push({ key: 'way', focus: { kind: 'place', id: c }, sim: {}, chosen: c, zoom: 1.4, explore: c, demo: c, action: { kind: 'explore', id: c } });
+    out.push({ key: 'steps', focus: { kind: 'all', id: '' }, sim: {}, chosen: c, explore: c, demo: c, action: { kind: 'step', id: '' } });
+  }
   if (fork !== undefined && fork.out[0] !== undefined) out.push({ key: 'fork', focus: { kind: 'section', id: fork.out[0] }, sim: conquered, route: fork.out, action: { kind: 'junction', id: fork.id } });
   if (signKey !== null) out.push({ key: 'sign', focus: signKey.startsWith('p:') ? { kind: 'place', id: signKey.slice(2) } : lane === undefined ? { kind: 'all', id: '' } : { kind: 'section', id: lane }, sim: {}, sign: signKey, action: { kind: 'sign', id: signKey } });
-  out.push({ key: 'way', focus: { kind: 'place', id: c ?? a }, sim: conquered, chosen: c ?? a });
-  /* Die Schritte eines Weges: die Leiste unten zum Ausprobieren. */
-  if (c !== undefined) out.push({ key: 'steps', focus: { kind: 'place', id: c }, sim: {}, chosen: c, demo: c, action: { kind: 'step', id: '' } });
+  if (c === undefined) out.push({ key: 'way', focus: { kind: 'place', id: a }, sim: conquered, chosen: a });
   /*
     Die Einstufung: der erste Turm erobert, der nächste gutgeschrieben (gestrichelter Ring); farbig, was eine Einstufung jetzt prüfen
     könnte (die Türme, deren Voraussetzungen passierbar sind) — Klick auf den gutgeschriebenen.
