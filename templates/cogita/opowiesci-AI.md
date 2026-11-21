@@ -225,6 +225,10 @@ Jeden dokument może też zmieniać i usuwać to, co już jest — wszystko w je
 - Usunięcie: `{"ref": "<id>", "remove": true}`; podgląd wymienia każde z nazwą (można odznaczyć). Odwołania w polach innych wpisów ("about" pytań, "wymaga") znikają w tym samym zapisie; jeśli na wpis wskazuje przebieg ("unit", krok), zapis nie przejdzie — usuń albo popraw przebieg w tym samym dokumencie.
 - Odpowiedzi uczących się zostają; karty usuniętego pytania przestają się liczyć (postępy, przegląd, krajobraz).
 
+### Kolor w tekście slajdu (2026-11-21)
+
+Słowa na slajdzie można pokolorować: `[te słowa]{.red}` (kolory `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, `gray`, a `mark` — zakreślacz). Stała paleta, czytelna w jasnym i ciemnym wyglądzie; nieznany kolor — tekst bez koloru i ostrzeżenie w imporcie. Szczegóły: „guide-visuals” §6a.
+
 ## 10. Typowe błędy
 
 - Pytania z jednostką w "about" — jednostka dostaje karty, opada bez opowieści, a jej przycisk ćwiczy karty.

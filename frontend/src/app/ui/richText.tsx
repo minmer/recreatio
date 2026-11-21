@@ -27,7 +27,7 @@
 
 import { Fragment, type ReactNode } from 'react';
 
-import { parseInline, safeHref, unreadable, type Inline } from '../library/libraryMarkup';
+import { isTextColor, parseInline, safeHref, unreadable, type Inline } from '../library/libraryMarkup';
 import { Glue, glue, Tex } from './tex/Tex';
 
 const LINK = /\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\)/g;
@@ -53,6 +53,7 @@ function inlines(list: readonly Inline[]): ReactNode[] {
       case 'math': return <Glue key={i} punct={punct}><Tex tex={one.tex} display={one.display} /></Glue>;
       case 'b': return <strong key={i}>{inlines(one.c)}</strong>;
       case 'i': return <em key={i}>{inlines(one.c)}</em>;
+      case 'color': return isTextColor(one.color) ? <span key={i} className={'lib-c lib-c-' + one.color} data-text-color={one.color}>{inlines(one.c)}</span> : <Fragment key={i}>{inlines(one.c)}</Fragment>;
       case 'link': return <Link key={i} href={one.href}>{inlines(one.c)}</Link>;
       case 'ref': return <Fragment key={i}>{inlines(one.c)}</Fragment>;
       case 'note': return <small key={i} className="wk-card-aside"> ({inlines(one.c)})</small>;

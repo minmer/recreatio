@@ -47,7 +47,19 @@ export type Inline =
   | { readonly t: 'ref'; readonly key: string; readonly c: readonly Inline[]; readonly mark?: string }
   /** 2026-11-01 — ein Wzór: `$x^2$` im Satz, `$$…$$` für sich (LaTeX, Pandocs Regel — `core/tex.ts`). */
   | { readonly t: 'math'; readonly tex: string; readonly display: boolean }
+  /** 2026-11-21 — `[Wort]{.red}`: ein farbiger Text aus der festen Palette (`TEXT_COLORS`; eine unbekannte Farbe zeigt den Text ohne Farbe). */
+  | { readonly t: 'color'; readonly color: string; readonly c: readonly Inline[] }
   | { readonly t: 'br' };
+
+/**
+ * 2026-11-21 — DIE FARBEN EINES TEXTES (`[Wort]{.red}`, wie Pandocs „bracketed span"): eine feste Palette, kein Hex-Wert — jede Farbe hat
+ * einen Ton für hell und für dunkel, der auf der Fläche lesbar bleibt (`.lib-c-*` in `library.css`). `mark` ist ein Leuchtstift (gelber
+ * Hintergrund). Mehrere Klassen: die erste bekannte zählt. Eine unbekannte: der Text ohne Farbe (der Import warnt, `colorWarnings`).
+ */
+export const TEXT_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'gray', 'mark'] as const;
+export type TextColor = (typeof TEXT_COLORS)[number];
+export const isTextColor = (c: string): c is TextColor => (TEXT_COLORS as readonly string[]).includes(c);
+const SPAN_ATTR = /^\{((?:\s*\.[A-Za-z][A-Za-z0-9_-]*)+)\s*\}/;
 
 export type Block =
   | { readonly t: 'p'; readonly c: readonly Inline[] }
@@ -190,6 +202,17 @@ export function parseInline(text: string): Inline[] {
         if (inside.startsWith('@')) {
           const items = citeItems(inside);
           if (items !== null) { attach(); out.push({ t: 'cite', items }); i = end; continue; }
+        }
+        /* 2026-11-21 — eine Farbe: [Text]{.red} (auch mehrere Klassen: die erste bekannte zählt). */
+        if (text[end + 1] === '{') {
+          const m = SPAN_ATTR.exec(text.slice(end + 1));
+          if (m !== null) {
+            const names = m[1].split('.').map((x) => x.trim().toLowerCase()).filter((x) => x !== '');
+            flush();
+            out.push({ t: 'color', color: names.find(isTextColor) ?? names[0], c: parseInline(inside) });
+            i = end + m[0].length;
+            continue;
+          }
         }
         /* Link: [Text](adresse) */
         if (text[end + 1] === '(') {
@@ -384,8 +407,16 @@ export function parseMarkup(source: string): Block[] {
 export function walkInline(inlines: readonly Inline[], visit: (one: Inline) => void): void {
   for (const one of inlines) {
     visit(one);
-    if (one.t === 'b' || one.t === 'i' || one.t === 'note' || one.t === 'link' || one.t === 'ref') walkInline(one.c, visit);
+    if (one.t === 'b' || one.t === 'i' || one.t === 'note' || one.t === 'link' || one.t === 'ref' || one.t === 'color') walkInline(one.c, visit);
   }
+}
+
+/** 2026-11-21 — die Farben eines Textes (`[Wort]{.x}`), die es nicht gibt (für die Warnung im Import). */
+export function unknownColors(source: string): string[] {
+  if (!source.includes(']{.')) return [];
+  const out = new Set<string>();
+  walkBlocks(parseMarkup(source), () => undefined, (i) => { if (i.t === 'color' && !isTextColor(i.color)) out.add(i.color); });
+  return [...out];
 }
 
 export function walkBlocks(blocks: readonly Block[], onBlock: (b: Block) => void, onInline: (i: Inline) => void): void {

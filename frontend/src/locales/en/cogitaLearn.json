@@ -691,7 +691,8 @@
       "due": "to review",
       "ring": "you can start",
       "later": "the slides before first"
-    }
+    },
+    "lintColor": "The entry {who} uses a colour that does not exist ({list}) — that text stays without colour. Colours: {known}."
   },
   "world": {
     "section": "In other worlds",

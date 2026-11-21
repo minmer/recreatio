@@ -62,7 +62,7 @@ import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
-import { followPlan, keepNav, keepRefreshed, keptNav, keptRefreshed, navMarks, refreshedNow, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
+import { followPlan, keepNav, keepQuiet, keepRefreshed, keptNav, keptQuiet, keptRefreshed, navMarks, refreshedNow, REVIEW_QUIET, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
 import { freshRoads, nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
@@ -327,7 +327,21 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   useEffect(() => { keepNav(scope, nav); }, [scope, nav]);
   /* 2026-11-20 (Eigentümer: „Wiederholung, Karte, wieder Wiederholung …") — was eine zu Ende gebrachte Wiederholung des Weges schon fragte. */
   const [refreshedAt, setRefreshedAt] = useState<ReadonlyMap<string, number>>(() => keptRefreshed(scope));
-  const refreshed = useMemo(() => refreshedNow(refreshedAt), [refreshedAt]);
+  /*
+    2026-11-21 (Eigentümer: „beende ich eine Wiederholung, ist sie wirklich zu Ende — danach habe ich drei Minuten bis zum nächsten Schritt
+    ohne neue Wiederholung") — NACH EINER ZU ENDE GEBRACHTEN WIEDERHOLUNG eine ruhige Zeit (`REVIEW_QUIET`): der Weg verlangt in ihr
+    keine Wiederholung (alle Karten gelten als wiederholt). Die Wiederholung selbst fragte schon, was in dieser Zeit fällig wird (`horizon`).
+  */
+  const [quietUntil, setQuietUntil] = useState<number>(() => keptQuiet(scope));
+  const [quietTick, setQuietTick] = useState(0);
+  useEffect(() => {
+    const left = quietUntil - Date.now();
+    if (left <= 0) return undefined;
+    const id = window.setTimeout(() => setQuietTick((n) => n + 1), left + 50);
+    return () => window.clearTimeout(id);
+  }, [quietUntil]);
+  const allKeys = useMemo(() => new Set(cards.map((c) => c.key)), [cards]);
+  const refreshed = useMemo(() => (Date.now() < quietUntil ? allKeys : refreshedNow(refreshedAt)), [refreshedAt, quietUntil, quietTick, allKeys]); // eslint-disable-line react-hooks/exhaustive-deps
   const pendingRefresh = useRef<readonly string[] | null>(null);
   const markRefreshed = () => {
     const keys = pendingRefresh.current;
@@ -335,6 +349,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (keys === null || keys.length === 0) return;
     const now = Date.now();
     setRefreshedAt((was) => { const next = new Map(was); for (const k of keys) next.set(k, now); keepRefreshed(scope, next); return next; });
+    setQuietUntil(now + REVIEW_QUIET);
+    keepQuiet(scope, now + REVIEW_QUIET);
   };
   const navPlan = useMemo(() => {
     if (nav === null || nav.paused === true) return null;
@@ -379,13 +395,18 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const pillars = useRef<PillarsHandle | null>(null);
   const cardByKey = useMemo(() => new Map(cards.map((c) => [c.key, c] as const)), [cards]);
   const cardsOf = (keysOf: readonly string[]): Card[] => keysOf.map((k) => cardByKey.get(k)).filter((c): c is Card => c !== undefined && !(progress?.suspended.has(c.key) ?? false));
-  const startCards = (keysOf: readonly string[], title: string, review: boolean) => {
+  /**
+   * `scope` (2026-11-21): weitere Karten, die der Lauf fragt, sobald sie fällig sind oder in `REVIEW_QUIET` fällig würden — die Karten
+   * der Türme einer Wiederholung des Weges: was während des Laufs dazukommt, wird mitgefragt.
+   */
+  const startCards = (keysOf: readonly string[], title: string, review: boolean, scopeOf: readonly string[] = []) => {
     /* Eine Wiederholung nur mit Karten, die wiederholt werden dürfen (Korrektur 5); Lernen ist keine Wiederholung. */
-    const list = review ? cardsOf(keysOf).filter((c) => reviewable(c.key, state)) : cardsOf(keysOf);
+    const keysAll = [...new Set([...keysOf, ...scopeOf.filter((k) => reviewable(k, state))])];
+    const list = review ? cardsOf(keysAll).filter((c) => reviewable(c.key, state)) : cardsOf(keysAll);
     if (list.length === 0) { setNote(t('cogitaWorld.panel.nothing')); return; }
     setNote(null);
     /* 2026-11-10 (Eigentümer) — die nächste Karte zufällig aus dem Stapel (gewogen: Schwaches öfter), nicht immer gleich die eben falsche. */
-    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'weighted', stackSize: stackFor(lib, learner), endWhenDone: true });
+    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'weighted', stackSize: stackFor(lib, learner), endWhenDone: true, horizon: REVIEW_QUIET });
     setRunning({ kind: 'cards', key: `${review ? 'review' : 'learn'}:${Date.now()}`, source: { plan, cards, title, ...(review ? { review: true } : {}) } });
   };
   const findFlow = (id: string): Flow | undefined => { const d = lib.docs('flow').find((one) => one.id === id); return d === undefined ? undefined : readFlow(d.id, d.data); };
@@ -510,8 +531,13 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       travel(step.section);
       return;
     }
-    if (step.kind === 'review') pendingRefresh.current = step.cards;
-    if (step.kind === 'learn' || step.kind === 'know' || step.kind === 'review') { startCards(step.cards, nameOf(step.place), false); return; }
+    if (step.kind === 'review') {
+      const scopeOf = (step.towers ?? []).flatMap((p) => state.places.get(p)?.cards ?? []);
+      pendingRefresh.current = [...new Set([...step.cards, ...scopeOf])];
+      startCards(step.cards, nameOf(step.place), false, scopeOf);
+      return;
+    }
+    if (step.kind === 'learn' || step.kind === 'know') { startCards(step.cards, nameOf(step.place), false); return; }
     if (step.kind === 'run') act.run(step.place);
   };
 

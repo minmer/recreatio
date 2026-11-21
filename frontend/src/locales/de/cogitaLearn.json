@@ -691,7 +691,8 @@
       "due": "zu wiederholen",
       "ring": "kannst du beginnen",
       "later": "erst die Folien davor"
-    }
+    },
+    "lintColor": "Der Eintrag {who} nutzt eine Farbe, die es nicht gibt ({list}) — dieser Text bleibt ohne Farbe. Farben: {known}."
   },
   "world": {
     "section": "In anderen Welten",

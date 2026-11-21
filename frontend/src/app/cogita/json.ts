@@ -1735,6 +1735,7 @@ ${t('cogitaDataFormat.course.entities.s02Segments')}
 
 ${t('cogitaDataFormat.course.entities.s03Entities')}
 ${t('cogitaDataFormat.course.entities.s04Blocks')}
+${t('cogitaDataFormat.course.entities.s04Colors')}
 ${questionSection()}
 ${t('cogitaDataFormat.course.main.s01Interactive')}
 

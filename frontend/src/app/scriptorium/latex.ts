@@ -66,6 +66,8 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
       case 'math': return one.display && !inNote ? `\\[${one.tex}\\]` : `$${one.tex}$`;
       case 'b': return `\\textbf{${inlines(one.c, ctx, inNote)}}`;
       case 'i': return `\\emph{${inlines(one.c, ctx, inNote)}}`;
+      /* 2026-11-21 — eine Farbe: gedruckt ohne Farbe (der Wortlaut bleibt). */
+      case 'color': return inlines(one.c, ctx, inNote);
       case 'link': return `\\href{${hrefEscape(one.href)}}{${inlines(one.c, ctx, inNote)}}`;
       case 'cite': {
         /* 2026-10-22 — Quellen werden Fussnoten; ein eigener Eintrag steht mit seinem Namen im Text (gedruckt gibt es keinen Link). */

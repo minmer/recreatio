@@ -5,6 +5,7 @@
  */
 
 import { wordsT, type Lang } from './lang';
+import { TEXT_COLORS } from '../library/libraryMarkup';
 
 
 export function slideWords(lang: Lang) {
@@ -44,6 +45,7 @@ export function slideWords(lang: Lang) {
     /* A6 — der Lint im Import */
     lintQuoteLabel: (who: string) => t('cogitaLearn.slide.lintQuoteLabel', { who }),
     lintNotes: (who: string) => t('cogitaLearn.slide.lintNotes', { who }),
+    lintColor: (who: string, list: string, known: string = TEXT_COLORS.join(', ')) => t('cogitaLearn.slide.lintColor', { who, list, known }),
     lintClick: (who: string) => t('cogitaLearn.slide.lintClick', { who }),
     lintQuoteBy: (who: string) => t('cogitaLearn.slide.lintQuoteBy', { who }),
     lintCitePrompt: (who: string) => t('cogitaLearn.slide.lintCitePrompt', { who })

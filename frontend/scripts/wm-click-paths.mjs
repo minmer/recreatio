@@ -892,7 +892,8 @@ try {
   if (runs('17')) {
     const P = '17 tour full';
     keepTour = true;
-    for (const mode of ['page', 'screen']) {
+    for (const [mode, w, h] of [['page', 1440, 1000], ['screen', 1440, 1000], ['page', 1280, 640], ['screen', 1280, 640], ['page', 390, 760], ['screen', 390, 760], ['screen', 1024, 700], ['page', 1920, 950]]) {
+      await page.setViewport({ width: w, height: h });
       await page.navigate('about:blank');
       await open('none', false, '&tour=1');
       await sleep(800);
@@ -911,15 +912,16 @@ try {
         return { tour: true, hidden, over };
       })()`);
         if (!free.tour) break;
-        if (free.hidden.length > 0 || free.over.length > 0) { bad.push({ step: await ev(`document.querySelector('[data-world-tour]').dataset.worldTour`), ...free }); await shot(`p17-${mode}-${k}`); }
+        if (free.hidden.length > 0 || free.over.length > 0) { bad.push({ step: await ev(`document.querySelector('[data-world-tour]').dataset.worldTour`), ...free }); await shot(`p17-${mode}-${w}-${k}`); }
         const nxt = await ev(`(() => { const b = document.querySelector('[data-world-tour-next], [data-world-tour-skipdo]'); if (b === null) return false; b.click(); return true; })()`);
         if (!nxt) break;
         await sleep(900);
       }
-      check(P, `whole ${mode}: on every step of the tour its buttons are on top and no map control lies under it`, bad.length === 0, bad);
+      check(P, `whole ${mode} ${w}×${h}: on every step of the tour its buttons are on top and no map control lies under it`, bad.length === 0, bad);
       await ev(`(() => { document.querySelector('[data-world-fulltab="exit"]')?.click(); return true; })()`);
       await sleep(500);
     }
+    await page.setViewport({ width: 1440, height: 1000 });
   }
 
   /* -- 15 · (2026-11-14) „Zdobądź w pełni“ und die Tafel, wenn ein Durchgang keine Stufe mehr bringt ------------------------------ */

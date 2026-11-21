@@ -136,6 +136,18 @@ export function keptRefreshed(scope: string, now = Date.now()): Map<string, numb
 export function keepRefreshed(scope: string, all: ReadonlyMap<string, number>): void {
   try { window.sessionStorage.setItem(refreshKey(scope), JSON.stringify([...all])); } catch { /* ohne Speicher: nur bis zum Neuladen */ }
 }
+/**
+ * 2026-11-21 — DIE RUHIGE ZEIT NACH EINER WIEDERHOLUNG (3 Minuten): der Weg verlangt in ihr keine weitere; die Wiederholung fragte schon,
+ * was in dieser Zeit fällig wird (`horizon` im Plan der Powtórka). Je Baza und Widok in dieser Sitzung des Browsers.
+ */
+export const REVIEW_QUIET = 3 * 60 * 1000;
+const quietKey = (scope: string) => `cg-wm-quiet:${scope}`;
+export function keptQuiet(scope: string, now = Date.now()): number {
+  try { const v = Number(window.sessionStorage.getItem(quietKey(scope)) ?? 0); return Number.isFinite(v) && v > now && v - now <= REVIEW_QUIET ? v : 0; } catch { return 0; }
+}
+export function keepQuiet(scope: string, until: number): void {
+  try { window.sessionStorage.setItem(quietKey(scope), String(until)); } catch { /* ohne Speicher: nur bis zum Neuladen */ }
+}
 /** Die Karten, die gerade als wiederholt gelten. */
 export const refreshedNow = (all: ReadonlyMap<string, number>, now = Date.now()): Set<string> => new Set([...all].filter(([, at]) => now - at < REFRESH_MS).map(([k]) => k));
 

@@ -450,3 +450,29 @@ audio.lib-music-view { inline-size: 100%; }
 .lib-visual-wait { min-height: 14rem; margin: var(--wk-space-3) 0; border-radius: var(--wk-radius-sm); background: var(--wk-soft); }
 .lib-visual-insert { justify-self: start; max-width: 16rem; font-size: var(--wk-text-sm); }
 .lib-code code { padding: 0; border: 0; background: none; font-size: inherit; }
+
+/*
+  2026-11-21 — FARBIGER TEXT (`[Wort]{.red}`, `libraryMarkup.ts` TEXT_COLORS): eine feste Palette, je Ton für hell und dunkel, jede Farbe
+  mit mindestens 4,5:1 auf der Fläche (#ffffff / #1f1c16 geprüft). `mark` ist ein Leuchtstift: Hintergrund, der Text in der Tinte.
+*/
+.lib-c-red { color: #b42318; }
+.lib-c-orange { color: #b54708; }
+.lib-c-yellow { color: #8a6100; }
+.lib-c-green { color: #1e7a34; }
+.lib-c-teal { color: #0e7470; }
+.lib-c-blue { color: #1f5fbf; }
+.lib-c-purple { color: #6d3fc0; }
+.lib-c-pink { color: #b4236b; }
+.lib-c-gray { color: #5f5a52; }
+.lib-c-mark { background: #ffe066; color: #1b1712; padding: 0 0.15em; border-radius: 0.2em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+:root[data-mode="dark"] .lib-c-red { color: #ff8a80; }
+:root[data-mode="dark"] .lib-c-orange { color: #ffb366; }
+:root[data-mode="dark"] .lib-c-yellow { color: #f0cf5a; }
+:root[data-mode="dark"] .lib-c-green { color: #6fd38a; }
+:root[data-mode="dark"] .lib-c-teal { color: #5fd4cc; }
+:root[data-mode="dark"] .lib-c-blue { color: #8ab4ff; }
+:root[data-mode="dark"] .lib-c-purple { color: #c3a3ff; }
+:root[data-mode="dark"] .lib-c-pink { color: #ff8cc6; }
+:root[data-mode="dark"] .lib-c-gray { color: #b5ad9f; }
+:root[data-mode="dark"] .lib-c-mark { background: #6b5a00; color: #f5efe3; }
+@media (forced-colors: active) { .lib-c-mark { background: Mark; color: MarkText; } }

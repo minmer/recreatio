@@ -105,6 +105,23 @@ Części mowy
 
 - Jedna linia = jedna data i to, co się stało, rozdzielone `:` albo ` — `. Data może być dowolnym tekstem (`XIV w.`, `ok. 1200`, `1939–1945`). Kolejność taka, jak napiszesz.
 
+## 6a. Kolor tekstu — `[słowa]{.red}` (2026-11-21)
+
+W każdym tekście z zapisem (akapity slajdu w `"blocks"`, pola `"markup"`, wyjaśnienia i podpowiedzi pytań, teksty kroków, moduły tekstowe stron, teksty Biblioteki i Skryptorium) słowa można pokolorować: **słowa w nawiasie kwadratowym, zaraz za nim kolor jako klasa w klamrach** — tak jak „bracketed span” w Pandocu.
+
+```
+Woda paruje [na słońcu]{.orange}, a skrapla się [w chłodzie]{.blue}.
+Najważniejsze: [**ciepło zmienia stan, nie skład**]{.mark}.
+```
+
+- **Kolory** (stała paleta): `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, `gray` — kolor liter; `mark` — żółty zakreślacz pod tekstem.
+- **Jak działa**: zapis zamienia `[…]{.kolor}` na fragment w tym kolorze. Każdy kolor ma własny odcień dla jasnego i ciemnego wyglądu aplikacji, sprawdzony na kontrast (co najmniej 4,5:1 z tłem), więc tekst zawsze da się czytać. **Nie ma wartości hex** (`{.#ff0000}`, `{color=…}` nie działają).
+- Wewnątrz koloru wolno używać innego zapisu (`[**ważne**]{.red}`, `[$E = mc^2$]{.blue}`, `[[słowo|@wpis]]`), a kolor może stać w pogrubieniu (`**[czerwone]{.red}**`).
+- Kilka klas (`{.big .red}`): liczy się pierwsza znana. **Nieznany kolor**: tekst bez koloru, a podgląd importu ostrzega („używa koloru, którego nie ma”) z listą dozwolonych.
+- W druku (eksport do LaTeX) kolor znika — zostają słowa.
+- **Z sensem i oszczędnie**: jeden–dwa kolory na slajd, ten sam kolor dla tej samej roli na wszystkich slajdach (np. `blue` — pojęcie, `red` — typowy błąd, `mark` — najważniejsze zdanie). Kolor nigdy nie jest jedynym nośnikiem znaczenia: słowa muszą mówić to samo (czytelnik bez rozróżniania barw, wydruk).
+- Sprawdzenie: `preview_knowledge` / `preview_page` (serwer podglądu) rysuje tekst tak jak aplikacja; w HTML pokolorowany fragment ma `data-text-color="red"`.
+
 ## 7. Gdzie to działa i co z tego wynika
 
 - Wszędzie, gdzie stoi zapis: pola `"markup"`, akapity `"blocks"`, `"explanation"` i treść pytania, slajdy, kroki przebiegu, teksty Biblioteki i Skryptorium. Podgląd w edytorze pokazuje grafikę od razu; przycisk „Wstaw grafikę” wstawia przykład.

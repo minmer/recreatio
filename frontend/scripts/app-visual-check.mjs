@@ -27,7 +27,8 @@ export * as V from '${app}library/visual';
 export { insertBlock } from '${app}library/VisualInsert';
 export { layers, niceTicks } from '${app}library/visuals/Visuals';
 export { default as Visual } from '${app}library/visuals/Visuals';
-export { parseMarkup, plainText, citedKeys } from '${app}library/libraryMarkup';
+export { parseMarkup, plainText, citedKeys, unknownColors, TEXT_COLORS } from '${app}library/libraryMarkup';
+export { slideLintOf } from '${app}cogita/slideLint';
 export { Blocks } from '${app}library/markupView';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
@@ -209,6 +210,26 @@ try {
     assert.equal(put.text, 'Pierwszy akapit.\n\nXX\n\nDrugi');
     assert.equal(m.insertBlock('', 'XX').text, 'XX\n');
     ok('inserted as its own paragraph at the caret (empty lines around it)');
+  }
+  {
+    /* 2026-11-21 — farbiger Text: [Wörter]{.red}. */
+    const [p] = m.parseMarkup('Woda [na **słońcu**]{.orange} i [x]{.big .blue} oraz [y]{.rot}, a [link](https://a.pl) zostaje.');
+    const colors = p.c.filter((i) => i.t === 'color').map((i) => [i.color, i.c.map((x) => x.t).join('+')]);
+    assert.deepEqual(colors, [['orange', 'text+b'], ['blue', 'text'], ['rot', 'text']]);
+    assert.ok(p.c.some((i) => i.t === 'link'));
+    ok('colours: [words]{.red} with markup inside, several classes (the first known), an unknown name kept for the warning; a link stays a link');
+    const html = m.renderToStaticMarkup(m.createElement(m.Blocks, { blocks: m.parseMarkup('**[A]{.red}** [B]{.mark} [C]{.rot}'), notes: null }));
+    assert.match(html, /<strong><span class="lib-c lib-c-red" data-text-color="red">A<\/span><\/strong>/);
+    assert.match(html, /<span class="lib-c lib-c-mark" data-text-color="mark">B<\/span>/);
+    assert.ok(!html.includes('rot') && html.includes('C'));
+    ok('drawn as a span of the palette (also inside bold, "mark" as highlighter); an unknown colour — the words without colour');
+    assert.equal(m.plainText('[Ważne]{.red} zdanie'), 'Ważne zdanie');
+    assert.deepEqual([m.unknownColors('[a]{.red} [b]{.rot} [c]{.Blau}'), m.unknownColors('bez koloru')], [['rot', 'blau'], []]);
+    const warn = m.slideLintOf({ kinds: [], entities: [{ id: 'e1', kinds: ['k'], data: { tytul: 'Slajd', blocks: [{ type: 'paragraph', text: '[x]{.rot}' }] } }, { id: 'e2', kinds: ['k'], data: { tytul: 'Dobry', blocks: [{ text: '[x]{.green}' }] } }] }, () => [], 'pl');
+    assert.equal(warn.length, 1);
+    assert.ok(warn[0].includes('.rot') && warn[0].includes('„Slajd”') && warn[0].includes('mark'), warn[0]);
+    assert.equal(m.TEXT_COLORS.length, 10);
+    ok('plain text drops the colour; the import warns once per entry about a colour that does not exist (with the allowed ones)');
   }
   console.log(`\n${passed} passed, 0 failed`);
 } catch (e) {

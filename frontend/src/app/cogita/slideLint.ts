@@ -8,6 +8,7 @@
 import type { KindDef } from './schema';
 import { baseLang, type Lang } from './lang';
 import { slideWords } from './slideWords';
+import { TEXT_COLORS, unknownColors } from '../library/libraryMarkup';
 import type { CogitaLibrary } from './store';
 
 interface PlanPart {
@@ -63,6 +64,12 @@ export function slideLintOf(plan: PlanPart, blocksOf: (kinds: readonly string[])
     return `„${s.length > 60 ? `${s.slice(0, 59)}…` : s}”`;
   };
   for (const e of plan.entities) {
+    /* 2026-11-21 — eine Farbe, die es nicht gibt ([Wort]{.rot}): der Text steht ohne Farbe da. */
+    const strings: string[] = [];
+    const walk = (v: unknown, depth: number) => { if (depth > 6) return; if (typeof v === 'string') strings.push(v); else if (Array.isArray(v)) v.forEach((x) => walk(x, depth + 1)); else if (typeof v === 'object' && v !== null) Object.values(v).forEach((x) => walk(x, depth + 1)); };
+    walk(e.data, 0);
+    const odd = [...new Set(strings.flatMap(unknownColors))];
+    if (odd.length > 0) out.push(W.lintColor(nameOf(e), odd.map((c) => '.' + c).join(', '), TEXT_COLORS.join(', ')));
     if (e.kinds.includes('question')) {
       if (promptCites(e.data.prompt)) out.push(W.lintCitePrompt(nameOf(e)));
       continue;

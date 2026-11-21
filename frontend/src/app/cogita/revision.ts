@@ -373,6 +373,12 @@ export interface Plan {
    * które się zna najsłabiej („na zapas”) — lauf się nie kończy sam. `false` („endWhenDone”): koniec.
    */
   readonly ahead: boolean;
+  /**
+   * 2026-11-21 (Eigentümer: „was in den nächsten drei Minuten fällig wird, gleich mitfragen — eine zu Ende gebrachte Wiederholung ist
+   * wirklich zu Ende") — `temporal`: eine Karte, die in diesem Lauf noch nicht gefragt wurde, kommt schon dann in den Stapel, wenn sie
+   * innerhalb dieser Spanne (ms) fällig wird; was während des Laufs fällig wird, kommt ebenso dazu. Gefragtes zählt wie bisher.
+   */
+  readonly horizon?: number;
   /** 2026-10-30 — warunki kart (z „Filtra znajomości") z rozwiązanymi relacjami — liczą się także bez internetu. */
   readonly when?: Readonly<Record<string, CardGate>>;
   /** 2026-10-30 — miejsce karty dla „jak w tekście” i „według daty” (liczone przy planowaniu). */
@@ -401,6 +407,7 @@ export function readPlan(cards: readonly Card[], config: Readonly<Record<string,
     pick: pickMode,
     ...(pickMode === 'sample' ? { perTopic: Math.max(1, Math.min(50, Math.round(num(config.perTopic, 2)))) } : {}),
     ahead: mode === 'temporal' && config.endWhenDone !== true,
+    ...(mode === 'temporal' && num(config.horizon, 0) > 0 ? { horizon: Math.min(3_600_000, num(config.horizon, 0)) } : {}),
     ...(when === undefined || Object.keys(when).length === 0 ? {} : { when }),
     ...(rank === undefined ? {} : { rank }),
     ...(rule !== undefined ? { rule } : {})
@@ -720,7 +727,9 @@ function fillTemporal(s: Internal, active: readonly string[], now: number): stri
   for (const card of eligible(s, now)) {
     if (taken.has(card.key)) continue;
     const st = stateIn(s, card.key);
-    const k = st === null ? 0 : knownessAt(st, now);
+    /* 2026-11-21 — noch nicht Gefragtes: wie es in `horizon` stünde (was gleich fällig wird, kommt jetzt). */
+    const when = s.plan.horizon !== undefined && !s.asked.has(card.key) ? now + s.plan.horizon : now;
+    const k = st === null ? 0 : knownessAt(st, when);
     const level = st === null ? 'unseen' : levelOfKnowness(k);
     if (level === 'unseen') unknown.push(card.key);
     else (level === 'learning' ? due : known).push({ key: card.key, k, r: rankOf(s, card.key, now) });

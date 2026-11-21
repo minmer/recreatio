@@ -165,7 +165,7 @@ export function citedPlaces(blocks: readonly Block[]): CiteItem[] {
   const inline = (xs: readonly Inline[]) => {
     for (const x of xs) {
       if (x.t === 'cite') out.push(...x.items);
-      else if (x.t === 'b' || x.t === 'i' || x.t === 'link' || x.t === 'ref' || x.t === 'note') inline(x.c);
+      else if (x.t === 'b' || x.t === 'i' || x.t === 'link' || x.t === 'ref' || x.t === 'note' || x.t === 'color') inline(x.c);
     }
   };
   const walk = (bs: readonly Block[]) => {

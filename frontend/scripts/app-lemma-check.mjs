@@ -61,7 +61,7 @@ const fieldOf = (key) => K.QUESTION.fields.find((f) => f.key === key);
 check('the question kind lists the new keys with their types',
   ['hints', 'explanation', 'feedback', 'extra', 'preview', 'alternatives', 'join', 'choices', 'tests', 'params', 'let', 'require'].map((k) => `${k}:${fieldOf(k)?.type}`),
   ['hints:list', 'explanation:markup', 'feedback:list', 'extra:list', 'preview:choice', 'alternatives:json', 'join:json', 'choices:json', 'tests:json', 'params:json', 'let:json', 'require:list']);
-check('the form „build” is a question type with its fields', QT.questionType('build').fields, ['items', 'extra', 'alternatives', 'preview', 'join']);
+check('the form „build” is a question type with its fields', QT.questionType('build').fields, ['items', 'extra', 'alternatives', 'preview', 'join', 'tags']);
 const qLook = { kind: (id) => K.baseKind(id), entity: () => undefined };
 check('a json field is one value, never „outside the schema”', [S.valuesOf(q('j', { alternatives: [['a', 'b'], ['c']] }), fieldOf('alternatives')).length, S.outsideOf(q('j', { form: 'build', alternatives: [['a'], ['b']], join: ' ', params: [] }), qLook).length], [1, 0]);
 

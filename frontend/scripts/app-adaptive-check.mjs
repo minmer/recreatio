@@ -24,7 +24,7 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-adaptive-'));
 const entries = {
   logic: 'src/app/cogita/logic.ts', flow: 'src/app/cogita/flow.ts', ad: 'src/app/cogita/adaptive.ts', running: 'src/app/cogita/runningStory.ts',
   sp: 'src/app/cogita/storyPath.ts', check: 'src/app/cogita/flowCheck.ts', wg: 'src/app/cogita/worldmap/wmGraph.ts', wl: 'src/app/cogita/worldmap/wmLines.ts',
-  fx: 'src/app/cogita/worldmap/wmFixtures.ts', mem: 'src/app/cogita/memoryBase.ts', json: 'src/app/cogita/json.ts', kn: 'src/app/cogita/knowness.ts'
+  fx: 'src/app/cogita/worldmap/wmFixtures.ts', mem: 'src/app/cogita/memoryBase.ts', json: 'src/app/cogita/json.ts', kn: 'src/app/cogita/knowness.ts', rev: 'src/app/cogita/revision.ts', cards: 'src/app/cogita/cards.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -32,7 +32,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [LG, FL, AD, RS, SP, FC, WG, WL, FX, MEM, JS, KN] = await Promise.all(Object.keys(entries).map(load));
+const [LG, FL, AD, RS, SP, FC, WG, WL, FX, MEM, JS, KN, RV, CD] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -245,6 +245,30 @@ const at = (s) => (s.ended ? 'END' : s.step);
   const b = [{ at: 1, correctness: 0, via: 'F', branch: 'F|q|retry', tags: ['lit', 'mix'] }, { at: 2, correctness: 0, via: 'F', branch: 'F|q|wrong' }];
   const ins = AD.branchInsight([a, b]);
   check('insight: per branch taken / next check right; per tag occurrences (no learner in the result)', [ins.branches.map((x) => [x.exit, x.taken, x.checked, x.right]), ins.tags], [[['retry', 2, 2, 1], ['rightOnRetry', 1, 1, 1], ['wrong', 1, 0, 0]], [{ tag: 'lit', count: 2 }, { tag: 'mix', count: 1 }]]);
+}
+
+/* -- 10. (2026-11-21) Eine Wiederholung fragt, was in den nächsten 3 Minuten fällig wird — und ist dann wirklich zu Ende -------- */
+{
+  const q = (id) => CD.questionCard({ id, kinds: ['question'], data: { form: 'truefalse', prompt: id, value: true } }, '');
+  const [qa, qb, qc] = [q('qa'), q('qb'), q('qc')];
+  const once = [{ at: 0, correctness: 1 }];
+  /* Wann eine einmal richtig beantwortete Karte fällig wird (ihre Kenntnis fällt unter 1). */
+  let due = 1000;
+  while (KN.knownessOf(once, due) >= 1 && due < 86_400_000) due += 1000;
+  const marks = (key) => (key === qb.key || key === qc.key ? once : []);
+  const run = (horizon, now) => {
+    let s = RV.start({ plan: RV.readPlan([qa, qb, qc], { mode: 'temporal', stackSize: 20, endWhenDone: true, ...(horizon === 0 ? {} : { horizon }) }), all: [qa, qb, qc], marks, deps: [], now, seed: 'h' });
+    const asked = [];
+    let t = now;
+    while (s.current !== null && asked.length < 20) { asked.push(s.current); t += 5000; s = RV.answer(s, 1, t).session; }
+    return asked.sort();
+  };
+  check('review: a card due in 1 minute is asked now (horizon 3 min); without the horizon it would wait', [run(180_000, due - 60_000), run(0, due - 60_000)], [['qa', 'qb', 'qc'], ['qa']]);
+  check('review: a card due only in 10 minutes is not asked (the run still ends)', run(180_000, due - 600_000), ['qa']);
+  let s = RV.start({ plan: RV.readPlan([qa, qb], { mode: 'temporal', stackSize: 20, endWhenDone: true, horizon: 180_000 }), all: [qa, qb], marks: (k) => (k === qb.key ? once : []), deps: [], now: due - 600_000, seed: 'd' });
+  const first = s.current;
+  s = RV.answer(s, 1, due + 5_000).session;
+  check('review: a card that falls due DURING the run is added and asked before the end', [first, s.current], ['qa', 'qb']);
 }
 
 await rm(workspace, { recursive: true, force: true });

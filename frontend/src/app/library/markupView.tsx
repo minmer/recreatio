@@ -13,7 +13,7 @@ import { blocksKeyOf, blocksOf, THESIS_LIMIT } from './blocks';
 import { aboutLine, isAnswered, statementOf, statementRole } from './statement';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
-import { parseInline, parseMarkup, unreadable, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
+import { isTextColor, parseInline, parseMarkup, unreadable, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 import { later } from '../ui/later';
 import { Glue, glue, Tex } from '../ui/tex/Tex';
 import { texPieces } from '../core/tex';
@@ -331,6 +331,10 @@ export function Inlines({ list, notes, prefix = '', look }: { list: readonly Inl
           case 'math': return <Glue key={i} punct={punct}><Tex tex={one.tex} display={one.display} /></Glue>;
           case 'b': return <strong key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></strong>;
           case 'i': return <em key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></em>;
+          /* 2026-11-21 — [Wort]{.red}: eine Farbe der festen Palette (unbekannt: ohne Farbe). */
+          case 'color': return isTextColor(one.color)
+            ? <span key={i} className={'lib-c lib-c-' + one.color} data-text-color={one.color}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></span>
+            : <Fragment key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></Fragment>;
           case 'link':
             return (
               <a key={i} href={one.href} {...(/^https?:/i.test(one.href) ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>

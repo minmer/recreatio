@@ -765,7 +765,8 @@
       "due": "do powtórki",
       "ring": "możesz zacząć",
       "later": "najpierw wcześniejsze slajdy"
-    }
+    },
+    "lintColor": "Wpis {who} używa koloru, którego nie ma ({list}) — ten tekst zostaje bez koloru. Kolory: {known}."
   },
   "world": {
     "section": "W innych światach",
