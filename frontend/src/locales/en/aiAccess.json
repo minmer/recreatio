@@ -212,7 +212,13 @@
       "one": "Could not prepare {count} copy ({reason}). Try “Refresh now”.",
       "other": "Could not prepare {count} copies ({reason}). Try “Refresh now”."
     },
-    "noKeyHere": "no key of this area on this device"
+    "noKeyHere": "no key of this area on this device",
+    "stage": {
+      "loading": "{name}: loading texts, part {done}/{total}",
+      "cutting": "{name}: cutting {count} texts into pieces",
+      "pieces": "{name}: uploading text pieces {done}/{total}",
+      "index": "{name}: saving the index"
+    }
   },
   "snap": {
     "notInAccess": "This collection doesn't belong to this access.",

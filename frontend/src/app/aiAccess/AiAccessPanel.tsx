@@ -36,6 +36,9 @@ interface Container {
 const day = (iso: string): string => new Date(iso).toLocaleDateString(localeOf(appLang()), { day: 'numeric', month: 'short', year: 'numeric' });
 const said = (e: unknown): string => (e instanceof WorkspaceError || e instanceof Error) && e.message !== '' ? e.message : tApp('common.failed');
 
+/** 2026-11-23 — der Stand und, was gerade geschieht („Prywatny księgozbiór: wysyłam fragmenty 120/480"). */
+const withDetail = (head: string, detail?: string): string => (detail === undefined || detail === '' ? head : `${head} — ${detail}`);
+
 export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null }) {
   const [list, setList] = useState<AiAccessList | null>(null);
   const [containers, setContainers] = useState<readonly Container[] | null>(null);
@@ -73,7 +76,7 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
         /* Wer hier schreibt und die Karte öffnet, frischt alte Abschriften auf — still, mit Stand. */
         if (ring !== null && next.writes && next.accesses.some((a) => a.works && a.parts.some((p) => !p.fresh))) {
           setWorking(t('aiAccess.panel.refreshingAi'));
-          const done = await refreshAiAccess(ring, area.areaId, { progress: (d, total) => { if (alive) setWorking(t('aiAccess.panel.refreshingAiN', { done: d, total })); } });
+          const done = await refreshAiAccess(ring, area.areaId, { progress: (d, total, detail) => { if (alive) setWorking(withDetail(t('aiAccess.panel.refreshingAiN', { done: d, total }), detail)); } });
           if (alive) { await reload(); setError(failedWords(done)); }
         }
       } catch (e) {
@@ -235,7 +238,7 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
           <button type="button" className="wk-link-btn" disabled={busy}
             onClick={() => void run(t('aiAccess.panel.refreshing'), async () => {
               const failed = failedWords(await refreshAiAccess(ring, area.areaId, {
-                accessId: row.id, all: true, progress: (done, total) => setWorking(t('aiAccess.panel.refreshingN', { done, total }))
+                accessId: row.id, all: true, progress: (done, total, detail) => setWorking(withDetail(t('aiAccess.panel.refreshingN', { done, total }), detail))
               }));
               if (failed !== null) throw new WorkspaceError(failed);
             })}>
@@ -286,7 +289,7 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
             await setAiParts(area.areaId, row.id, libraries, whole);
             setEditParts(false);
             forgetAiWatch(area.areaId);
-            const failed = failedWords(await refreshAiAccess(ring, area.areaId, { accessId: row.id, progress: (done, total) => setWorking(t('aiAccess.connect.snapshots', { done, total })) }));
+            const failed = failedWords(await refreshAiAccess(ring, area.areaId, { accessId: row.id, progress: (done, total, detail) => setWorking(withDetail(t('aiAccess.connect.snapshots', { done, total }), detail)) }));
             if (failed !== null) throw new WorkspaceError(failed);
           })}
         />

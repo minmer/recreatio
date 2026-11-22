@@ -212,7 +212,13 @@
       "one": "{count} Abschrift konnte nicht vorbereitet werden ({reason}). Versuche „Jetzt auffrischen“.",
       "other": "{count} Abschriften konnten nicht vorbereitet werden ({reason}). Versuche „Jetzt auffrischen“."
     },
-    "noKeyHere": "kein Schlüssel dieses Bereichs auf diesem Gerät"
+    "noKeyHere": "kein Schlüssel dieses Bereichs auf diesem Gerät",
+    "stage": {
+      "loading": "{name}: lade Texte, Teil {done}/{total}",
+      "cutting": "{name}: teile {count} Texte in Stücke",
+      "pieces": "{name}: lade Textstücke hoch {done}/{total}",
+      "index": "{name}: speichere das Verzeichnis"
+    }
   },
   "snap": {
     "notInAccess": "Diese Sammlung gehört nicht zu diesem Zugang.",

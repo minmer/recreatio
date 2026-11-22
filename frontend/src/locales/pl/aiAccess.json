@@ -230,7 +230,13 @@
       "many": "Nie udało się przygotować {count} odpisów ({reason}). Spróbuj „Odśwież teraz”.",
       "other": "Nie udało się przygotować {count} odpisów ({reason}). Spróbuj „Odśwież teraz”."
     },
-    "noKeyHere": "brak klucza tego obszaru na tym urządzeniu"
+    "noKeyHere": "brak klucza tego obszaru na tym urządzeniu",
+    "stage": {
+      "loading": "{name}: wczytuję teksty {done}/{total} części",
+      "cutting": "{name}: dzielę {count} tekstów na fragmenty",
+      "pieces": "{name}: wysyłam fragmenty tekstów {done}/{total}",
+      "index": "{name}: zapisuję spis"
+    }
   },
   "snap": {
     "notInAccess": "Ten zbiór nie należy do tego dostępu.",

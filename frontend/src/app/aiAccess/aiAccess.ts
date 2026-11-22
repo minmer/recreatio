@@ -336,17 +336,26 @@ const MAX_PACKED = 30 * 1024 * 1024;
  * 2026-10-24 — DIE TEXTE EINES BEHÄLTERS ÖFFNEN: ihre Teile sind schwere Einträge (nur ihre Zeilen
  * kommen beim Abgleich) — für die Abschrift werden sie geholt. Nur eine Bibliothek hat Texte.
  */
-async function withTexts(parts: readonly ScopePart[], libraryId: string): Promise<ScopePart[]> {
+async function withTexts(parts: readonly ScopePart[], libraryId: string, say: (detail: string) => void = () => undefined): Promise<ScopePart[]> {
   const part = parts.find((p) => p.store.libraryId === libraryId);
   if (part === undefined || part.kind !== 'books' || part.texts !== undefined) return [...parts];
   const manifests = part.store.all().filter((e) => e.kind === TEXT_KIND);
   if (manifests.length === 0) return [...parts];
   const ids = manifests.flatMap((m) => readManifest(m.data).parts.map((x) => x.id));
-  const opened = await part.store.heavyMany(ids);
+  /* 2026-11-23 — in Portionen, mit Fortschritt: eine grosse Bibliothek braucht hier Minuten, und man soll sehen, dass es geht. */
+  const opened: Awaited<ReturnType<typeof part.store.heavyMany>> = [];
+  for (let at = 0; at < ids.length; at += HEAVY_BATCH) {
+    say(t('aiAccess.panel.stage.loading', { name: part.name, done: at, total: ids.length }));
+    opened.push(...await part.store.heavyMany(ids.slice(at, at + HEAVY_BATCH)));
+  }
   const byId = new Map(opened.filter((e): e is NonNullable<typeof e> => e !== null).map((e) => [e.id, e]));
   const texts = manifests.map((entry) => ({ entry, parts: readManifest(entry.data).parts.flatMap((x) => { const e = byId.get(x.id); return e === undefined ? [] : [{ id: e.id, data: e.data }]; }) }));
   return parts.map((p) => (p === part ? { ...p, texts } : p));
 }
+
+/** So viele Teile eines Textes werden auf einmal geholt; so viele Stücke zugleich hinaufgeladen. */
+const HEAVY_BATCH = 40;
+const UPLOADS_AT_ONCE = 4;
 
 /* -- Auffrischen -------------------------------------------------------------------------------- */
 
@@ -360,7 +369,7 @@ async function withTexts(parts: readonly ScopePart[], libraryId: string): Promis
  */
 export async function refreshAiAccess(
   ring: Ring, areaId: string,
-  opts: { readonly only?: string; readonly accessId?: string; readonly all?: boolean; readonly progress?: (done: number, total: number) => void } = {}
+  opts: { readonly only?: string; readonly accessId?: string; readonly all?: boolean; readonly progress?: (done: number, total: number, detail?: string) => void } = {}
 ): Promise<Refreshed> {
   const list = await loadAiAccess(areaId);
   if (!list.writes) return { refreshed: 0, failed: 0 };
@@ -387,7 +396,9 @@ export async function refreshAiAccess(
     for (const part of job.parts) {
       try {
         /* 2026-10-24 — mit den vollständigen Texten, die in diesem Behälter liegen; zu gross: ohne sie (die Einträge zuerst). */
-        const scope = await withTexts(parts, part.libraryId);
+        /* 2026-11-23 — was gerade geschieht, mit Zahlen (die Zahl der Behälter allein steht sonst minutenlang still). */
+        const say = (detail: string) => opts.progress?.(refreshed + failed, total, detail);
+        const scope = await withTexts(parts, part.libraryId, say);
         const madeAt = new Date().toISOString();
         /* 2026-10-30 — eine Baza wiedzy: dazu, was ihr Lernen steuert (`get_knowledge_setup`). */
         const setup = await snapshotSetup(scope, part.libraryId);
@@ -399,16 +410,30 @@ export async function refreshAiAccess(
         let index: Awaited<ReturnType<typeof snapshotTextObjects>>['texts'] | undefined;
         let keep: string[] = [];
         if (texts !== undefined && texts.length > 0) {
+          const name = scope.find((p) => p.store.libraryId === part.libraryId)?.name ?? '';
+          say(t('aiAccess.panel.stage.cutting', { name, count: texts.length }));
           const objects = await snapshotTextObjects(scope, part.libraryId);
           const have = new Set((await listTextObjects(areaId, job.access.id, part.libraryId)).hashes);
           const bad = new Map<string, 'too_large' | 'not_uploaded'>();
-          for (const [hash, json] of objects.chunks) {
-            if (have.has(hash)) continue;
-            const sealedText = await seal(key, textAad(part.libraryId), await gzip(json));
-            if (sealedText.length > MAX_TEXT_OBJECT) { bad.set(hash, 'too_large'); continue; }
-            try { await uploadTextObject(areaId, job.access.id, part.libraryId, hash, sealedText); have.add(hash); }
-            catch { bad.set(hash, 'not_uploaded'); }
-          }
+          /* Nur neue Stücke, vier zugleich; jedes für sich (eines, das scheitert, betrifft nur seinen Text). */
+          const todo = [...objects.chunks].filter(([hash]) => !have.has(hash));
+          let sent = 0;
+          say(t('aiAccess.panel.stage.pieces', { name, done: 0, total: todo.length }));
+          const worker = async () => {
+            for (let next = todo.shift(); next !== undefined; next = todo.shift()) {
+              const [hash, json] = next;
+              const sealedText = await seal(key, textAad(part.libraryId), await gzip(json));
+              if (sealedText.length > MAX_TEXT_OBJECT) bad.set(hash, 'too_large');
+              else {
+                try { await uploadTextObject(areaId, job.access.id, part.libraryId, hash, sealedText); have.add(hash); }
+                catch { bad.set(hash, 'not_uploaded'); }
+              }
+              sent += 1;
+              say(t('aiAccess.panel.stage.pieces', { name, done: sent, total: sent + todo.length }));
+            }
+          };
+          await Promise.all(Array.from({ length: UPLOADS_AT_ONCE }, worker));
+          say(t('aiAccess.panel.stage.index', { name }));
           index = withTextStates(objects.texts, bad);
           keep = [...objects.chunks.keys()].filter((h) => have.has(h));
         }
