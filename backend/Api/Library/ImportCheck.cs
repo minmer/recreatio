@@ -35,7 +35,16 @@ public static class ImportCheck
     /// <summary>So viele Prüfungen zugleich — jede braucht ein paar hundert MB, solange sie läuft.</summary>
     public const int MaxParallel = 2;
 
+    /// <summary>
+    /// 2026-11-22 — so viele dürfen auf eine Maschine WARTEN; wer danach kommt, hört sofort „busy" (statt dass sich Anfragen
+    /// mit ihren grossen Abschriften im Speicher stauen, bis der Dienst ohne Speicher dasteht).
+    /// </summary>
+    public const int MaxWaiting = 4;
+    /// <summary>Über diesem Anteil der Speichergrenze des Prozesses (GC, auch die des App-Pools) startet keine Maschine.</summary>
+    public const double MemoryCeiling = 0.8;
+
     private static readonly SemaphoreSlim Gate = new(MaxParallel, MaxParallel);
+    private static int waiting;
 
     private static readonly Lazy<Prepared<Acornima.Ast.Script>> Script = new(() => Engine.PrepareScript(ReadResource(ScriptResource), ScriptResource));
 
@@ -86,10 +95,9 @@ public static class ImportCheck
     public static async Task<Outcome> RunAsync(string format, string documentJson, string? baseJson, string lang, CancellationToken ct)
     {
         lang = LanguageOf(lang);
-        var input = InputOf(format, documentJson, baseJson, lang);
         var locales = Locales.Value;
         var dicts = $"{{\"{lang}\":{locales[lang]}{(lang == "en" ? "" : $",\"en\":{locales["en"]}")}}}";
-        return await InvokeAsync("recreatioImportCheck", input, dicts, ct);
+        return await InvokeAsync("recreatioImportCheck", () => InputOf(format, documentJson, baseJson, lang), dicts, ct);
     }
 
     /// <summary>
@@ -100,35 +108,83 @@ public static class ImportCheck
     public static Task<Outcome> RunWorldChecksAsync(string baseJson, string lang, CancellationToken ct)
     {
         lang = LanguageOf(lang);
-        var input = $"{{\"lang\":{JsonSerializer.Serialize(lang)},\"base\":{baseJson}}}";
         var dicts = $"{{{string.Join(",", Languages.Select(l => $"\"{l}\":{Locales.Value[l]}"))}}}";
-        return InvokeAsync("recreatioWorldChecks", input, dicts, ct);
+        return InvokeAsync("recreatioWorldChecks", () => $"{{\"lang\":{JsonSerializer.Serialize(lang)},\"base\":{baseJson}}}", dicts, ct);
     }
 
-    /// <summary>Eine Funktion des Bündels in einer eigenen, abgeschlossenen Maschine (Zeit, Rekursion, kein .NET).</summary>
-    private static async Task<Outcome> InvokeAsync(string function, string input, string dicts, CancellationToken ct)
+    /// <summary>Zu viele Prüfungen zugleich oder zu wenig Speicher: später noch einmal (nichts ist kaputt).</summary>
+    public sealed class BusyException(string message) : Exception(message);
+
+    /// <summary>Ist der Speicher des Prozesses schon fast voll (Grenze des GC — auf dem Server die des App-Pools bzw. der Maschine)?</summary>
+    private static bool MemoryTight()
     {
-        await Gate.WaitAsync(ct);
+        var info = GC.GetGCMemoryInfo();
+        return info.HighMemoryLoadThresholdBytes > 0 && info.MemoryLoadBytes > info.HighMemoryLoadThresholdBytes
+            || info.TotalAvailableMemoryBytes > 0 && GC.GetTotalMemory(false) > info.TotalAvailableMemoryBytes * MemoryCeiling;
+    }
+
+    /// <summary>Nach einer Maschine den grossen Speicher (Abschrift, Dokument, Jint-Objekte) wirklich zurückgeben.</summary>
+    private static void GiveBack()
+    {
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+    }
+
+    /// <summary>
+    /// Eine Funktion des Bündels in einer eigenen, abgeschlossenen Maschine (Zeit, Rekursion, kein .NET). 2026-11-22: höchstens
+    /// <see cref="MaxWaiting"/> warten, die Eingabe entsteht erst, wenn die Maschine an der Reihe ist, keine Maschine startet bei
+    /// fast vollem Speicher, ein <see cref="OutOfMemoryException"/> wird zu „busy", danach wird der Speicher zurückgegeben.
+    /// </summary>
+    private static async Task<Outcome> InvokeAsync(string function, Func<string> input, string dicts, CancellationToken ct)
+    {
+        if (Interlocked.Increment(ref waiting) > MaxWaiting + MaxParallel)
+        {
+            Interlocked.Decrement(ref waiting);
+            throw new BusyException($"busy: {MaxParallel} checks are running and {MaxWaiting} are waiting — try again in a minute.");
+        }
         try
         {
+            await Gate.WaitAsync(ct);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref waiting);
+            throw;
+        }
+        try
+        {
+            if (MemoryTight())
+            {
+                GiveBack();
+                if (MemoryTight()) throw new BusyException("busy: the server is short of memory right now — try again in a minute.");
+            }
             return await Task.Run(() =>
             {
                 var watch = Stopwatch.StartNew();
-                using var engine = new Engine(options =>
+                try
                 {
-                    options.TimeoutInterval(Timeout);
-                    options.LimitRecursion(4000);
-                    options.CancellationToken(ct);
-                });
-                engine.Execute(Script.Value);
-                var run = engine.GetValue(function);
-                var result = engine.Invoke(run, input, dicts).UnwrapIfPromise(Timeout);
-                return new Outcome(result.AsString(), watch.ElapsedMilliseconds);
+                    using var engine = new Engine(options =>
+                    {
+                        options.TimeoutInterval(Timeout);
+                        options.LimitRecursion(4000);
+                        options.CancellationToken(ct);
+                    });
+                    engine.Execute(Script.Value);
+                    var run = engine.GetValue(function);
+                    var result = engine.Invoke(run, input(), dicts).UnwrapIfPromise(Timeout);
+                    return new Outcome(result.AsString(), watch.ElapsedMilliseconds);
+                }
+                catch (OutOfMemoryException)
+                {
+                    throw new BusyException("busy: the check ran out of memory (too many at once, or a very large document) — try again in a minute.");
+                }
             }, ct);
         }
         finally
         {
             Gate.Release();
+            Interlocked.Decrement(ref waiting);
+            GiveBack();
         }
     }
 

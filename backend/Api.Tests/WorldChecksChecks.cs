@@ -88,5 +88,58 @@ internal static class WorldChecksChecks
         try { AiMcpTools.TakePart("caller-a", "x", 4, 3, "{"); } catch (McpException) { refused = true; }
         check(refused, "a part beyond `of` is refused");
         check(ImportFormats.Find("calendar")?.Where is { Length: > 0 }, "every format says where in the app it is imported (ImportIn)");
+
+        /* 6. 2026-11-22 — ein grosses Dokument an die Adresse von start_upload (auch gzip), dann check_import ohne document. */
+        var http = new FixedContext(new Microsoft.AspNetCore.Http.DefaultHttpContext());
+        http.HttpContext!.Items["ai.mcp.secrets"] = new List<string> { "geheim-a" };
+        http.HttpContext!.Request.Scheme = "https";
+        http.HttpContext!.Request.Host = new Microsoft.AspNetCore.Http.HostString("api.example");
+        var started = AiMcpTools.StartUpload(http);
+        var token = started.Url[(started.Url.LastIndexOf('/') + 1)..];
+        check(started.Url.StartsWith("https://api.example/ai/upload/") && token.Length >= 40, $"start_upload gives a one-time address: {started.Url}");
+        var early = false;
+        try { await AiMcpTools.CheckImport(http, null!, null!, "page", upload: started.Upload); } catch (McpException e) { early = e.Message.Contains("nothing has arrived"); }
+        check(early, "check_import before the file arrived says so");
+        var post = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        var zipped = new MemoryStream();
+        using (var gz = new System.IO.Compression.GZipStream(zipped, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+            gz.Write(System.Text.Encoding.UTF8.GetBytes(whole));
+        zipped.Position = 0;
+        post.Request.Body = zipped;
+        post.Request.Headers.ContentEncoding = "gzip";
+        await AiMcpTools.ReceiveUploadAsync(post, token);
+        var viaUpload = await AiMcpTools.CheckImport(http, null!, null!, "page", upload: started.Upload);
+        var direct = AiMcpTools.CheckResultOf(asOne, null, null, null, 0);
+        check(viaUpload.Ok == direct.Ok && viaUpload.Changes.SequenceEqual(direct.Changes) && viaUpload.ErrorCount == direct.ErrorCount, "checked via the upload address = checked as one (gzip body)");
+        var twice = false;
+        try { await AiMcpTools.CheckImport(http, null!, null!, "page", upload: started.Upload); } catch (McpException) { twice = true; }
+        check(twice, "an upload is used once");
+        var otherCaller = new FixedContext(new Microsoft.AspNetCore.Http.DefaultHttpContext());
+        otherCaller.HttpContext!.Items["ai.mcp.secrets"] = new List<string> { "geheim-b" };
+        var second = AiMcpTools.StartUpload(http);
+        var post2 = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        post2.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(whole));
+        await AiMcpTools.ReceiveUploadAsync(post2, second.Url[(second.Url.LastIndexOf('/') + 1)..]);
+        var foreign = false;
+        try { await AiMcpTools.CheckImport(otherCaller, null!, null!, "page", upload: second.Upload); } catch (McpException) { foreign = true; }
+        check(foreign, "another connection cannot use the upload");
+
+        /* 7. Viele Kontrollen zugleich: höchstens MaxParallel rechnen, MaxWaiting warten, der Rest hört „busy" — kein Absturz. */
+        var many = Enumerable.Range(0, ImportCheck.MaxParallel + ImportCheck.MaxWaiting + 4)
+            .Select(_ => Task.Run(async () =>
+            {
+                try { await ImportCheck.RunWorldChecksAsync(baseJson, "pl", CancellationToken.None); return "ok"; }
+                catch (ImportCheck.BusyException) { return "busy"; }
+            })).ToList();
+        var said = await Task.WhenAll(many);
+        check(said.Count(x => x == "busy") >= 1 && said.Count(x => x == "ok") >= ImportCheck.MaxParallel, $"many at once: some run, the rest are told busy ({string.Join(",", said)})");
+        var after = await ImportCheck.RunWorldChecksAsync(baseJson, "pl", CancellationToken.None);
+        check(after.Json.Contains("findings"), "after the rush a check runs again");
     }
+}
+
+/// <summary>Ein fester Kontext (HttpContextAccessor teilt seinen über AsyncLocal — zwei Verbindungen wären eine).</summary>
+internal sealed class FixedContext(Microsoft.AspNetCore.Http.HttpContext ctx) : Microsoft.AspNetCore.Http.IHttpContextAccessor
+{
+    public Microsoft.AspNetCore.Http.HttpContext? HttpContext { get => ctx; set { } }
 }

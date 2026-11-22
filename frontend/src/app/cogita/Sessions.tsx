@@ -26,7 +26,7 @@ import { newId } from '../core/ids';
 import { fmtDate, rich, useT } from '../core/i18n';
 import { AnswerInput, answerText, Verdict } from './CardFace';
 import { checkCard } from './cards';
-import { type Card } from './cardBasics';
+import { screenOrder, type Card } from './cardBasics';
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
 import { readGame } from './game';
 import { GameHost, GamePlay } from './GamePanel';
@@ -599,7 +599,7 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
       <span className="cg-muted">{t('cogitaViewsStats.sess.questionOf', { n: current.index + 1, total: current.total })}</span>
       <div className="cg-prompt"><PromptLine card={current.card} /></div>
       {(a.form === 'one' || a.form === 'many') && (
-        <div className="cg-live-buttons">{a.options.map((o, i) => <button key={i} type="button" className={reveal !== null && reveal.card.answer.form === a.form && (reveal.card.answer.form === 'one' ? reveal.card.answer.correct === i : reveal.card.answer.form === 'many' && reveal.card.answer.correct.includes(i)) ? 'is-on' : ''}><TexText text={o} /></button>)}</div>
+        <div className="cg-live-buttons">{screenOrder(current.card).map((i) => ({ o: a.options[i]!, i })).map(({ o, i }) => <button key={i} type="button" className={reveal !== null && reveal.card.answer.form === a.form && (reveal.card.answer.form === 'one' ? reveal.card.answer.correct === i : reveal.card.answer.form === 'many' && reveal.card.answer.correct.includes(i)) ? 'is-on' : ''}><TexText text={o} /></button>)}</div>
       )}
       {reveal === null ? <span className="cg-timer">{left === null ? `${answered}/${joined}` : `${left} s · ${answered}/${joined}`}</span>
         : (

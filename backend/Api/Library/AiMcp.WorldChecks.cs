@@ -35,6 +35,7 @@ public sealed partial class AiMcpTools
     private const int WorldChecksDefault = 100;
     private static readonly TimeSpan WorldChecksKeep = TimeSpan.FromMinutes(15);
     private static readonly ConcurrentDictionary<string, (DateTime At, string Json, long Ms)> WorldChecksMemo = new();
+    private static readonly ConcurrentDictionary<string, Lazy<Task<ImportCheck.Outcome>>> WorldChecksRunning = new();
 
     private const string WorldChecksNote =
         "World checks of the guide guide-good-world (read it first: get_import_format guide-good-world): findings per base, tower and path — code, weight " +
@@ -71,11 +72,19 @@ public sealed partial class AiMcpTools
         else
         {
             ImportCheck.Outcome outcome;
+            /* 2026-11-22 — dieselbe Abschrift in derselben Sprache rechnet nur EINMAL zugleich: wer währenddessen fragt, wartet auf
+               dieselbe Rechnung (sonst legt jede gleichzeitige Anfrage ihre eigene Maschine mit der ganzen Baza in den Speicher). */
+            var run = WorldChecksRunning.GetOrAdd(key, k => new Lazy<Task<ImportCheck.Outcome>>(async () =>
+            {
+                try { return await ImportCheck.RunWorldChecksAsync(ImportCheck.BaseJsonOf(p), lang, CancellationToken.None); }
+                finally { WorldChecksRunning.TryRemove(k, out var _); }
+            }));
             try
             {
-                outcome = await ImportCheck.RunWorldChecksAsync(ImportCheck.BaseJsonOf(p), lang, cancellationToken);
+                outcome = await run.Value.WaitAsync(cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (ImportCheck.BusyException busy) { throw new McpException(busy.Message); }
             catch (Exception e) when (e is not McpException)
             {
                 throw new McpException($"check_failed: the world check did not run ({e.GetType().Name}: {e.Message}).");

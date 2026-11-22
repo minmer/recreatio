@@ -20,7 +20,7 @@ import { TexText } from '../../ui/tex/Tex';
 import { Loading } from '../../ui/Loading';
 import { AnswerInput, answerText, givenText, Verdict } from '../CardFace';
 import { checkCard } from '../cards';
-import type { Card } from '../cardBasics';
+import { inScreenOrder, type Card } from '../cardBasics';
 import { contentOfLibrary, EntityView, FlowPlayer } from '../FlowPlayer';
 import { setSessionState, stripCard, type SessionRow } from '../live';
 import type { PublicEntity } from '../publish';
@@ -437,7 +437,7 @@ function QuestionsRound({ part, index, cards, name, lesson }: { part: LessonQues
         <>
           <div className="cg-prompt"><TexText text={card.prompt.map((p) => p.text).join(' ')} /></div>
           {(card.answer.form === 'one' || card.answer.form === 'many') && (
-            <ol className="cg-lesson-options" type="A">{card.answer.options.map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
+            <ol className="cg-lesson-options" type="A">{inScreenOrder(card, card.answer.options).map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
           )}
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-line" onClick={() => setAt((n) => n + 1)} data-lesson-round-next="">
@@ -483,15 +483,15 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
           {v.reveal === null ? (
             <>
               {(v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many') && (
-                <ol className="cg-lesson-options" type="A">{v.q.card.answer.options.map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
+                <ol className="cg-lesson-options" type="A">{inScreenOrder(v.q.card, v.q.card.answer.options).map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
               )}
               <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: now.tally?.votes ?? 0, total: now.joined })}</span>
-              {now.tally !== null && <TallyBars bars={now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false }))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
+              {now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
             </>
           ) : (
             <>
               {v.reveal.tally !== undefined
-                ? <TallyBars bars={v.reveal.tally.bars} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />
+                ? <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />
                 : <p>{t('cogitaLesson.screen.answered', { count: v.reveal.answered })}</p>}
               <strong data-lesson-screen-share="">{t('cogitaLesson.screen.share', { pct: v.reveal.answered === 0 ? 0 : Math.round((v.reveal.correct / v.reveal.answered) * 100) })}</strong>
               <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(v.reveal.card)} /></p>
@@ -586,13 +586,13 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
           </section>
         )}
         {v.reveal === null && mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
-        {v.reveal === null && now.tally !== null && <TallyBars bars={now.tally.counts.map((n, i) => ({ key: String(i), label: '', count: n, correct: false }))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
+        {v.reveal === null && now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
         {v.reveal !== null && (
           <>
             {mine !== undefined
               ? <Verdict card={v.reveal.card} outcome={checkCard(v.reveal.card, mine)} given={mine} />
               : <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(v.reveal.card)} /></p>}
-            {v.reveal.tally !== undefined && <TallyBars bars={v.reveal.tally.bars} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />}
+            {v.reveal.tally !== undefined && <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />}
           </>
         )}
       </div>

@@ -77,6 +77,7 @@ public static class AiMcp
         app.Use(GateAsync);
         app.MapMcp("/mcp").RequireCors(OpenCors);
         app.MapMcp("/mcp/{link}").RequireCors(OpenCors);
+        AiMcpTools.MapUpload(app);
         AiOAuth.Map(app);
     }
 

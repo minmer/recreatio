@@ -85,6 +85,32 @@ export function shuffleAway<T>(list: readonly T[], rng: () => number, same: (a: 
 }
 
 /**
+ * 2026-11-22 (Eigentümer: „immer die Reihenfolge der Antworten mischen") — DIE REIHENFOLGE AUF EINEM GETEILTEN BILDSCHIRM
+ * (Beamer einer Lektion, Live-Sitzung): die Möglichkeiten einer Wahl nie so, wie sie gespeichert sind, aber je Karte fest
+ * (dieselbe Frage in Runde 2 steht gleich da, Balken und Liste stimmen überein). Stelle auf dem Bildschirm → Stelle in der
+ * Karte. Die Lernenden mischen auf ihrem Gerät je Zeigen neu (`CardFace`).
+ */
+const screenOrders = new Map<string, number[]>();
+export function screenOrder(card: Card): number[] {
+  const a = card.answer;
+  const n = a.form === 'one' || a.form === 'many' ? a.options.length : 0;
+  const key = `${card.key}|${card.fingerprint}|${n}`;
+  let order = screenOrders.get(key);
+  if (order === undefined) {
+    if (screenOrders.size > 500) screenOrders.clear();
+    order = shuffleAway(Array.from({ length: n }, (_, i) => i), Math.random);
+    screenOrders.set(key, order);
+  }
+  return order;
+}
+
+/** Eine Liste je Möglichkeit (Texte, Balken) in der Reihenfolge des Bildschirms — anders lange Listen bleiben, wie sie sind. */
+export function inScreenOrder<T>(card: Card, list: readonly T[]): T[] {
+  const order = screenOrder(card);
+  return order.length === list.length ? order.map((i) => list[i]!) : list.slice();
+}
+
+/**
  * 2026-10-31 — PAARE ZUM VERBINDEN: beide Spalten unabhängig gemischt (die linke nie in der gespeicherten Folge, die
  * rechte nie gerade gegenüber ihrer Partnerin); `pairs` nennt je Paar die Stelle links und rechts.
  */
