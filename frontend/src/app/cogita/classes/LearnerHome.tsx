@@ -23,6 +23,7 @@ interface Home {
   readonly due: readonly DueRow[];
   readonly live: readonly SessionRow[];
   readonly tasks: readonly SessionRow[];
+  readonly homework: readonly SessionRow[];
 }
 
 const inClass = (list: readonly ClassOf[], areaId: string) => list.find((c) => c.areaId.toLowerCase() === areaId.toLowerCase());
@@ -44,6 +45,8 @@ export function LearnerHome({ who }: { who: Who }) {
         setHome({
           classes, leads, due,
           live: mine.filter((s) => s.kind === 'lesson' && (s.state === 'running' || s.state === 'lobby')),
+          /* 2026-11-22 (Homer) — eine Einheit zwischen den Stunden: ihre Hausaufgaben. */
+          homework: mine.filter((s) => s.kind === 'lesson' && s.state === 'paused' && s.joinCode !== null),
           tasks: mine.filter((s) => s.kind === 'task' && s.state !== 'closed' && s.state !== 'finished')
         });
       }
@@ -71,6 +74,16 @@ export function LearnerHome({ who }: { who: Who }) {
             <span className="cl-live-dot" aria-hidden="true" />
             <strong>{t('cogitaClass.home.liveIn', { name: klass.name })}</strong>
             <span>{t('cogitaClass.page.liveJoin')}</span>
+          </a>
+        );
+      })}
+
+      {home.homework.map((s) => {
+        const klass = inClass(home.classes, s.areaId)!;
+        return (
+          <a key={s.sessionId} className="cl-live is-homework" href={s.libraryId === null ? pageOf(klass) : viewPath('learn', s.libraryId, 'sesje', s.sessionId)} data-home-homework={s.sessionId}>
+            <strong>{t('cogitaUnit.home.homeworkIn', { name: klass.name })}</strong>
+            <span>{t('cogitaUnit.home.homeworkOpen')}</span>
           </a>
         );
       })}

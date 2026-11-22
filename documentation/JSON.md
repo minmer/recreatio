@@ -98,6 +98,12 @@ What each import may do, in short (the descriptions say it in full):
   generator with no valid instance in 60 draws makes no card and says why. Guide `guide-generators`
   (`templates/cogita/generatory-AI.md`), the four patterns as one course `example-generators`
   (`przyklad-generatory.json`).
+- **knowledge-base reading tasks** (2026-11-22, Homer unit) — question forms `lines` (mark lines, `"lines": "3-5, 9"`), `label`
+  (`"roles"` + `"labels": ["1: Hektor", "3-4: Achilles"]`) and `span` (`"spans": "12-15; 30-31"`) on a passage of a Library text,
+  `"passage": {"work": "<id | key | @name>", "locator": "XXII 247-272"}` — the text itself never goes into the base. Lines are numbered
+  1… within the passage; partial credit; `tags` as rows `"7: tag"`. A kind whose fields carry `"glossary": "word" | "forms" |
+  "meaning" | "work"` is the glossary (underlined words, tap = meaning). The import warns about missing parts, unknown roles
+  and tag rows without lines (`cogita/reading/readingImport.ts`); format text `cogitaDataFormat.question.body.s16Reading`.
 - **knowledge-base landscape** (2026-11-03) — views with `"mode": "landscape"` and `"landscape": {"budget": 60}`
   (6–400), the condition `{"type": "knowness", "rel": "chain", "band": "known"}`; on pages the module `view` with
   `"mode": "krajobraz"` (+ `answers`, `rewards`). The goal is kept per learner and view in the learner's positions
@@ -108,7 +114,7 @@ What each import may do, in short (the descriptions say it in full):
 - **knowledge-base whole world and parts** (2026-11-22, A2) — `"wholeWorld": true` in the head of a course: everything
   of the base the file does not contain is deleted in the same save (entries and the doc kinds of `WHOLE_WORLD_DOCS`
   in `cogita/json.ts` — templates, revisions, flows, looks, rules, values, collections, views, forms, anchors, rewards,
-  paths; never kinds, settings, feedback, learner data). It runs through the ordinary removals (`plan.removals`,
+  paths, units; never kinds, settings, feedback, learner data). It runs through the ordinary removals (`plan.removals`,
   `removalEffects`): the first preview line says how many, each is listed and can be unticked, a flow/view that still
   points at one blocks the save. Items the file points at without containing them stay (warning). `"part": "<name>"`
   stamps `_part` on every entry (mark) and doc (data) the file creates or changes, also unchanged ones (bookkeeping
@@ -120,6 +126,13 @@ What each import may do, in short (the descriptions say it in full):
   `"stage"` that writes all parts in ONE transaction with the same checks (versions, library, removals) — all or
   nothing; the parts are deleted with it or on failure. Each request stays under the IIS limit (30 MB). Checks:
   `app-import-check` §8, Api.Tests `LibraryChecks` (stage), LocalDB drive (A4 session scratchpad `a4/drive.mjs`, 13).
+- **knowledge-base `units`** (2026-11-22, Homer) — lesson units: several lessons as one list of stages
+  (`cogita/unit/unitModel.ts`): `{ref, name, lessons: [{title}], stages: [{id, lesson, title, type core|flex|close,
+  minutes [min,max], modes ["P","V","R","I","O","Q","X"], led?, order fixed|free, items, bonus?, skipIf?}], settings?}`;
+  items `{flow, start?}` · `{questions: [@q…]}` · `{prompt, max ≤ 80, anonymous}` · `{poll, options, id?, after?}`.
+  Refs resolve like every doc (`flow` a flow, `questions` entries); an unknown flow/question, an unreadable item or a
+  stage id twice blocks the save (`unitIssues`), a lesson without `close` or a core over ~40 min warns. Part of
+  `WHOLE_WORLD_DOCS`. Example `example-unit` (`templates/cogita/przyklad-jednostka.json`). Checks: `app-unit-check`.
 - **lamps** — lamps, signals, timers and the button pace; deletes only with `"remove": true`.
 - **addresses** — aliases and domains the app can set; the preview lists what remains outside (DNS, hosting, the
   service's origins).

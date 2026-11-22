@@ -57,6 +57,18 @@
               "label": "Zbuduj z kafelków"
             },
             {
+              "value": "lines",
+              "label": "Zaznacz wersy"
+            },
+            {
+              "value": "label",
+              "label": "Przypisz wersy"
+            },
+            {
+              "value": "span",
+              "label": "Znajdź środek"
+            },
+            {
               "value": "flash",
               "label": "Fiszka (sam oceniasz)"
             },
@@ -73,7 +85,7 @@
               "label": "Rysunek do poruszania"
             }
           ],
-          "says": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: text (Odpowiedź słowami), number (Liczba), date (Data), gap (Luka w tekście), one (Jedna z kilku), many (Kilka z kilku), truefalse (Prawda czy fałsz), match (Połącz w pary), order (Ułóż w kolejności), build (Zbuduj z kafelków), flash (Fiszka (sam oceniasz)), point (Miejsce na mapie), code (Kod (Python)), interactive (Rysunek do poruszania)"
+          "says": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: text (Odpowiedź słowami), number (Liczba), date (Data), gap (Luka w tekście), one (Jedna z kilku), many (Kilka z kilku), truefalse (Prawda czy fałsz), match (Połącz w pary), order (Ułóż w kolejności), build (Zbuduj z kafelków), lines (Zaznacz wersy), label (Przypisz wersy), span (Znajdź środek), flash (Fiszka (sam oceniasz)), point (Miejsce na mapie), code (Kod (Python)), interactive (Rysunek do poruszania)"
         },
         {
           "key": "prompt",
@@ -159,10 +171,75 @@
               "many",
               "match",
               "order",
-              "build"
+              "build",
+              "lines",
+              "label",
+              "span"
             ]
           },
-          "says": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”"
+          "says": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika); przy fragmencie (lines, label, span) jeden wiersz na zakres wersów, \"7: znacznik\" — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”"
+        },
+        {
+          "key": "passage",
+          "label": "Fragment",
+          "type": "json",
+          "when": {
+            "field": "form",
+            "values": [
+              "lines",
+              "label",
+              "span"
+            ]
+          },
+          "says": "Fragment tekstu z Biblioteki: {\"work\": \"<id albo @nazwa dzieła>\", \"locator\": \"<miejsce, np. XXII 136-213>\"} — wersy liczone są 1, 2, 3 … w obrębie fragmentu"
+        },
+        {
+          "key": "lines",
+          "label": "Dobre wersy",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "lines"
+            ]
+          },
+          "says": "Wersy fragmentu, które odpowiadają na polecenie, np. \"3-5, 9\" (rodzaj lines)"
+        },
+        {
+          "key": "roles",
+          "label": "Role",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "label"
+            ]
+          },
+          "says": "Role do wyboru, po jednej w wierszu, np. narrator, Hektor, Achilles (rodzaj label)"
+        },
+        {
+          "key": "labels",
+          "label": "Wersy i role",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "label"
+            ]
+          },
+          "says": "Jeden wiersz na zaznaczony wers lub zakres: \"1: Hektor\", \"3-4: Achilles\" (rodzaj label)"
+        },
+        {
+          "key": "spans",
+          "label": "Dobre zakresy",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "span"
+            ]
+          },
+          "says": "Zakresy, które liczą się jako znalezione, np. \"12-15; 30-31\" (rodzaj span)"
         },
         {
           "key": "value",

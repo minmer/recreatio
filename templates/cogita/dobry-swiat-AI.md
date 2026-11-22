@@ -65,7 +65,7 @@ Two links hold a world together:
 ## 1.4 Questions
 
 **Graded by the computer only.**
-- Never use `form: "flash"` (self-assessed). Use `one`, `many`, `truefalse`, `match`, `order`, `build`, `number` (with `unit`/`quantity`), `date`, `gap`, `text` with accepted answers, `point`, `code`, `interactive`, and generated questions (`params`).
+- Never use `form: "flash"` (self-assessed). Use `one`, `many`, `truefalse`, `match`, `order`, `build`, `number` (with `unit`/`quantity`), `date`, `gap`, `text` with accepted answers, `point`, `code`, `interactive`, the reading tasks on a Library passage `lines`, `label`, `span` (the passage by `work` + `locator`, never copied), and generated questions (`params`).
 - Typed answers (`text`, `gap`) list every accepted form: inflections, digits, forms without Polish diacritics. The first form is the canonical one.
 - A gap has one blank. Avoid gaps whose answer has real synonyms; if that cannot be avoided, accept the synonyms. In a gap with choices, never put a synonym of the answer among the wrong options.
 

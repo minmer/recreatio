@@ -1993,6 +1993,49 @@ From a class card („Zaplanuj lekcję") or from the map in teacher mode („Pro
   the sessions to join.
 - Checks: `scripts/app-lesson-plan-check.mjs` (28, Bosko shape); LocalDB drive session scratchpad `w4/drive.mjs` (19).
 
+### A unit over several lessons (2026-11-22, Homer spec)
+
+A unit is a doc kind `unit` of the base (course JSON `units`, see JSON.md) — lessons, an ordered list of stages (core / flex /
+close, minute range, modes P V R I O Q X, led or individual, fixed or free order, items, bonus items, `skipIf`). Code: `cogita/unit/`
+— `unitModel.ts` (pure: read, import problems, where the session stands, console rows, homework, resume target, recap, report),
+`unitSession.ts` (events, creating the session), `UnitHost.tsx` (console), `UnitPlay.tsx` + `UnitItems.tsx` (phone), `UnitScreen.tsx`
+(projector), `UnitStart.tsx` (Nauka → „Klasy" → class card „Jednostki" → `…/klasy/<class>/jednostki`).
+
+- **One session for the whole unit**: a `lesson` session in the class area (`createUnitSession`), config `{title, unitId, unit, parts: []}`
+  (the unit as it was at the start; teacher edits travel as `unit-plan` events). `running` in a lesson, `paused` between lessons (with its
+  code, so never taken for a saved plan), `finished` at the end; the same code and QR throughout. Sessions.tsx routes a lesson whose
+  config carries `unit` to the console / projector / phone.
+- **Events** — teacher, sealed with the session key: `unit-stage` (open a stage), `unit-item` (the current item of a led stage),
+  `unit-look` (everyone looks at the screen), `unit-results`, `unit-end` („Zakończ lekcję": the close stage opens), `unit-pause` (between
+  lessons), `unit-resume` (next lesson + recap question ids), `unit-plan` (order, skipped, added items, extended minutes), `unit-wall`
+  (approved prompt answers, no names), `unit-poll` (poll counts, before/after). Students — sealed for the class intake, only the teacher
+  opens them: `progress` `{participant, stage, item, what start|answer|done, step, result right|wrong|partial, tag, predict, lines}` (no
+  answer text; `lines` = the chosen line numbers of a `lines` reading question, for the heat map), `help`, `prompt` (open answer ≤ 80 or a
+  poll choice). Votes of led stages stay `question`/`answer`/`reveal` (LessonHost, `parts` prop). Backend: `progress`, `help`, `prompt`
+  are participant kinds (`Cogita.Session.cs`).
+- **Phone**: joins once (account name, no form; remembered per device). Only the current stage: led → follows the teacher
+  (`LessonPlay`), prompts and polls answered on the phone; individual → the items in self-study order („2 z 3", free order = a list), then
+  „Dobra robota. Poczekaj na klasę." with the bonus items — never the next stage. „Potrzebuję pomocy"; „Wszyscy patrzą na ekran" covers
+  the phone. Reports that cannot go out wait in an outbox on the device (`unit-outbox`) and are sent later.
+- **Done = own progress**: an item done is the learner value `~unit.<session>.<item>` (`Learner.keepUnitDone`), so homework is right on
+  every device; a led item counts as done for whoever was there when the teacher moved past it inside the lesson.
+- **Between lessons** (class page, small workspace start page, the session itself): each student sees exactly their unfinished core
+  stages of the lessons held (homework, before the next lesson) and the flex stages as optional; playable alone, reported as progress.
+- **Console**: time against the range (amber over), remaining core minutes, students × items (not started · working · done · waiting ·
+  stuck · help), stuck = `stuckWrong` wrong answers to one question (default 2) or `stuckMinutes` without progress (3), „18 / 26 gotowe",
+  top error tags (predictions never), help requests, open answers with hide toggles → „Pokaż na ekranie", poll bars → „Pokaż wyniki",
+  the plan (open now, ↑↓, +5 min, skip/unskip, add a path or a prompt, `skipIf` hint from the votes of the named stage), „Zakończ
+  lekcję" → close stage → „Koniec lekcji — zadania domowe" → „Wznów": recap = the 2 exit-ticket questions with the most errors (a led
+  stage `R<n>`), then the first core stage still open for ≥ `resumeShare` (50 %) of the class, else the new lesson's first stage.
+  Stage report (finished, median time, top tags, who still has it).
+- **Projector** (`…/ekran`): led stages through `LessonScreen`, the join QR in the corner while the class votes, „18 / 26 gotowe" for
+  individual stages with the heat map of the last answered `lines`/`span` reading task (progress carries `lines` + `card`), the open-answer
+  wall and poll bars only after the teacher releases them — never a name. Every session projector is a full-screen layer
+  (`.cg-projector`, no workspace frame, text from ~28 px at 1080p).
+- Not built here: ranking in a quiz (off), deleting single prompt answers (they go
+  with the session: „Usuń" removes the session and its events; answers to questions stay in the learners' progress).
+- Checks: `scripts/app-unit-check.mjs`; Api.Tests CogitaChecks (participant kinds); LocalDB drive session scratchpad `unit/drive.mjs`.
+
 ## Predictions and modes (2026-11-22, I3/I4)
 
 **Predictions.** A question step with `"predict": true` is answered normally and keeps its exits (`right`, `wrong`,
@@ -2029,6 +2072,34 @@ the steps each mode plays; „Wypróbuj jak na lekcji" (`[data-flow-try="lesson"
 
 **Checks.** `scripts/app-adaptive-check.mjs` §11 (78 in all); LocalDB drive session scratchpad `w3/drive.mjs` (5: the example
 imports clean, plays self-study and lesson in their own orders, the prediction note before and after only there).
+
+## Reading tasks: a Library passage with tasks (2026-11-22, Homer unit „R")
+
+Three question forms of the one kind „Pytanie" (group „You read a passage"), graded by the computer, usable everywhere
+(self-study, flows, lessons, page module). Code: `cogita/reading/` — `readingSpec.ts` (pure: ranges, card answer, checks,
+tags, heat, glossary, passage lines), `PassageLines.tsx` (loading), `ReadingAnswer.tsx` (the card), `ReadingFields.tsx`
+(editor), `linesHeat.ts` (+ `LinesHeatView.tsx`, exported from `linesHeat.ts` — on Windows `LinesHeat.tsx` next to
+`linesHeat.ts` would be the same file), `readingImport.ts` (import preview).
+
+- **Passage, never a copy**: `"passage": {"work": "<id | key | @lasting name>", "locator": "XXII 247-272"}`. The browser resolves
+  the work in the base and its sources (`lib.markupLook`), else in any open library (`loadedStores`); the place as „Czytaj
+  tekst" does it (`placeFor` → the first part that holds it → `findBlocks`/`labelBlocks`). Lines: every hit block split at its
+  line breaks (heading, note, page, figure, table skipped; markup dropped), numbered 1… within the passage, at most 400. Not
+  reachable: the card says so and offers „Pomiń" (answer `null` = not answered, like an empty answer elsewhere).
+- **`lines`** `"lines": "3-5, 9"`; given = line numbers; right only exactly; else `max(0, (hits − wrong) / right)`.
+  **`label`** `"roles"` (≥ 2) + `"labels"` rows `"3-4: Achilles"` / `{lines, role}`; given = role index per marked line (−1 none);
+  share of right lines. **`span`** `"spans": "12-15; 30-31"`; given = `[from, to]`; right if equal to an accepted range, else
+  the best overlap (common / union lines).
+- **Tags** `"tags": ["7: tag", "12-13: tag"]`: a wrong or missed line (lines), a wrongly labelled one (label), a wrong range
+  touching it (span) — `answerSignals` → `wrong:<tag>`. Template answer nodes don't offer these forms (no passage).
+- **Lessons**: votes as usual; `stripCard` keeps passage, marked lines and roles. The leader, the projector (during the vote:
+  the passage for everyone, live heat when votes are shown) and the class after closing see a heat map per line — counts,
+  never names (`TallyLite.heat`, `TallyEvent.heat`); bars group equal answers (lines sorted), the class answer keeps the
+  order of a label answer.
+- **Glossary**: field flag `"glossary": "word" | "forms" | "meaning"` (non-ref fields) or `"work"` (a ref: only in that work);
+  a kind with `word` and `meaning` makes its entries the glossary; words and forms are underlined case-insensitively, a tap
+  shows the meaning.
+- Checks: `scripts/app-reading-check.mjs` (47).
 
 ## Appendix A — definitions kept from the former specification
 

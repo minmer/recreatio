@@ -23,7 +23,7 @@ import { DEFAULT_THRESHOLDS, isFlowPart, readLessonConfig, type AssignTarget, ty
 /** Wer leitet: die eigene Person (wie beim Anlegen jeder Sitzung). */
 const hostOf = (me: Me) => me.roles.find((r) => r.kind === 'person') ?? me.person;
 
-async function newSession(lib: CogitaLibrary, me: Me, input: { areaId: string; kind: SessionKind; title: string; join: boolean; endsAt?: string | null; deliver?: boolean }, config: unknown, meta: unknown) {
+export async function newSession(lib: CogitaLibrary, me: Me, input: { areaId: string; kind: SessionKind; title: string; join: boolean; endsAt?: string | null; deliver?: boolean }, config: unknown, meta: unknown) {
   const keys = await myEpochKeys(me.ring, input.areaId);
   if (keys.size === 0) throw new Error(t('cogitaViewsStats.sess.noAreaKey'));
   const epoch = Math.max(...keys.keys());

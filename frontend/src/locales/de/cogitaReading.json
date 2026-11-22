@@ -1,0 +1,59 @@
+{
+  "line": "Zeilen",
+  "ask": {
+    "lines": "Tippe die Zeilen an, die die Aufgabe beantworten (nochmals tippen hebt die Markierung auf).",
+    "label": "Wähle für jede markierte Zeile eine Rolle.",
+    "span": "Tippe die erste und die letzte Zeile dessen an, was du suchst."
+  },
+  "opening": "Text wird geöffnet…",
+  "missing": "Der Text dieses Abschnitts lässt sich hier nicht öffnen — die Bibliothek, in der er steht, ist für dich nicht zugänglich.",
+  "skip": "Überspringen",
+  "passage": "Abschnitt",
+  "chosenLines": "Markiert: {list}",
+  "chosenSpan": "Markiert: Zeilen {range}",
+  "labelled": "{k} von {n} Zeilen zugeordnet",
+  "roleOf": "Rolle in Zeile {n}",
+  "closeGloss": "Erklärung schließen",
+  "overlap": "{pct} % Überlappung",
+  "legend": "✓ richtig · ✗ falsch · • hätte markiert werden sollen",
+  "heat": {
+    "title": "Welche Zeilen die Klasse markiert hat",
+    "none": "Noch keine Antworten.",
+    "right": "richtige Zeile"
+  },
+  "edit": {
+    "work": "Werk (sein Text in der Bibliothek)",
+    "pickWork": "— Werk wählen —",
+    "noWorks": "Diese Basis erreicht keinen Text aus der Bibliothek. Füge die Bibliothek mit dem Text in den Einstellungen als Quelle hinzu.",
+    "locator": "Stelle",
+    "locatorPh": "z. B. XXII 136-213",
+    "lines": "Richtige Zeilen",
+    "roles": "Rollen (eine je Zeile)",
+    "rolesPh": "Erzähler\nHektor\nAchilles",
+    "labels": "Zeilen und Rollen (eine je Zeile)",
+    "labelsPh": "1: Hektor\n3-4: Achilles",
+    "spans": "Richtige Bereiche",
+    "tags": "Fehler-Tags nach Zeilen (einer je Zeile)",
+    "tagsPh": "7: verwechselt-erzaehler\n12-13: zu-woertlich",
+    "notFound": "Diese Stelle wurde in keinem hier verfügbaren Text des Werks gefunden.",
+    "showLines": {
+      "one": "Abschnitt zeigen ({count} Zeile)",
+      "other": "Abschnitt zeigen ({count} Zeilen)"
+    }
+  },
+  "problem": {
+    "passage": "Wähle das Werk und die Stelle des Abschnitts.",
+    "readLines": "Schreibe die richtigen Zeilen, z. B. 3-5, 9.",
+    "readRoles": "Schreibe mindestens zwei Rollen.",
+    "readLabels": "Ordne mindestens einer Zeile eine Rolle zu, z. B. 1: Hektor.",
+    "readSpans": "Schreibe den richtigen Bereich, z. B. 12-15."
+  },
+  "import": {
+    "question": "Frage „{name}“: {problems}",
+    "unknownRole": {
+      "one": "{count} Zeile von „labels“ nennt eine Rolle, die nicht in „roles“ steht.",
+      "other": "{count} Zeilen von „labels“ nennen eine Rolle, die nicht in „roles“ steht."
+    },
+    "tagRows": "Einige Zeilen von „tags“ nennen keine Zeilen — schreibe sie als „7: tag“ oder „12-13: tag“."
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "line": "wersy",
+  "ask": {
+    "lines": "Stuknij wersy, które odpowiadają na polecenie (ponowne stuknięcie odznacza).",
+    "label": "Wybierz rolę dla każdego zaznaczonego wersu.",
+    "span": "Stuknij pierwszy i ostatni wers tego, czego szukasz."
+  },
+  "opening": "Otwieram tekst…",
+  "missing": "Tekstu tego fragmentu nie da się tu otworzyć — biblioteka, w której jest, nie jest dla ciebie dostępna.",
+  "skip": "Pomiń",
+  "passage": "Fragment",
+  "chosenLines": "Zaznaczone: {list}",
+  "chosenSpan": "Zaznaczone: wersy {range}",
+  "labelled": "Przypisano {k} z {n} wersów",
+  "roleOf": "Rola w wersie {n}",
+  "closeGloss": "Zamknij objaśnienie",
+  "overlap": "pokrycie {pct} %",
+  "legend": "✓ dobrze · ✗ źle · • ten wers trzeba było zaznaczyć",
+  "heat": {
+    "title": "Które wersy zaznaczyła klasa",
+    "none": "Jeszcze nikt nie odpowiedział.",
+    "right": "dobry wers"
+  },
+  "edit": {
+    "work": "Dzieło (jego tekst w Bibliotece)",
+    "pickWork": "— wybierz dzieło —",
+    "noWorks": "Ta baza nie ma dostępu do żadnego tekstu z Biblioteki. Dodaj bibliotekę z tekstem jako źródło w ustawieniach.",
+    "locator": "Miejsce",
+    "locatorPh": "np. XXII 136-213",
+    "lines": "Dobre wersy",
+    "roles": "Role (po jednej w wierszu)",
+    "rolesPh": "narrator\nHektor\nAchilles",
+    "labels": "Wersy i role (po jednym w wierszu)",
+    "labelsPh": "1: Hektor\n3-4: Achilles",
+    "spans": "Dobre zakresy",
+    "tags": "Znaczniki błędów według wersów (po jednym w wierszu)",
+    "tagsPh": "7: myli-narratora\n12-13: zbyt-doslownie",
+    "notFound": "Nie znaleziono tego miejsca w dostępnym tu tekście dzieła.",
+    "showLines": {
+      "one": "Pokaż fragment ({count} wers)",
+      "few": "Pokaż fragment ({count} wersy)",
+      "many": "Pokaż fragment ({count} wersów)",
+      "other": "Pokaż fragment ({count} wersu)"
+    }
+  },
+  "problem": {
+    "passage": "Wybierz dzieło i miejsce fragmentu.",
+    "readLines": "Wpisz dobre wersy, np. 3-5, 9.",
+    "readRoles": "Wpisz co najmniej dwie role.",
+    "readLabels": "Przypisz rolę co najmniej jednemu wersowi, np. 1: Hektor.",
+    "readSpans": "Wpisz dobry zakres, np. 12-15."
+  },
+  "import": {
+    "question": "Pytanie „{name}”: {problems}",
+    "unknownRole": {
+      "one": "{count} wiersz „labels” podaje rolę, której nie ma w „roles”.",
+      "few": "{count} wiersze „labels” podają rolę, której nie ma w „roles”.",
+      "many": "{count} wierszy „labels” podaje rolę, której nie ma w „roles”.",
+      "other": "{count} wiersza „labels” podaje rolę, której nie ma w „roles”."
+    },
+    "tagRows": "Niektóre wiersze „tags” nie podają wersów — pisz je jako „7: znacznik” albo „12-13: znacznik”."
+  }
+}

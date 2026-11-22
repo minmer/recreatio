@@ -179,7 +179,23 @@
     "qpathCheckMany": "der Abschluss hat {count} Fragen — es zählen die ersten {max}.",
     "qpathDeeper": "\"deeper\": es gibt keinen Weg {ref}.",
     "qpathLoop": "\"deeper\" führt zu diesem Weg zurück (eine Schleife).",
-    "branchLine": "Ablauf „{flow}“, Frage „{step}“: {what}"
+    "branchLine": "Ablauf „{flow}“, Frage „{step}“: {what}",
+    "unitIssue": "Einheit „{name}“: {text}",
+    "unitError": "Fehler: {text}",
+    "unit": {
+      "noStages": "es gibt keinen Abschnitt („stages“).",
+      "stageNoId": "ein Abschnitt ohne „id“.",
+      "stageTwice": "Abschnitt „{stage}“ kommt zweimal vor.",
+      "stageEmpty": "Abschnitt „{stage}“ hat keine „items“.",
+      "itemUnread": "Abschnitt „{stage}“: ein Element, das sich nicht lesen lässt (nötig ist „flow“, „questions“, „prompt“ oder „poll“ mit mindestens zwei Optionen).",
+      "itemFlow": "Abschnitt „{stage}“: den Pfad „{ref}“ gibt es in der Basis nicht.",
+      "itemQuestion": "Abschnitt „{stage}“: die Frage „{ref}“ gibt es in der Basis nicht.",
+      "promptLong": "Abschnitt „{stage}“: eine offene Antwort hat höchstens {max} Zeichen.",
+      "skipNowhere": "Abschnitt „{stage}“: „skipIf“ nennt Abschnitt „{ref}“, den es nicht gibt.",
+      "pollAfter": "Abschnitt „{stage}“: „after“ nennt Element „{ref}“, das es nicht gibt.",
+      "noClose": "Stunde {lesson} hat keinen Abschluss („type“: „close“, Exit Ticket).",
+      "coreLong": "die Kernabschnitte der Stunde {lesson} dauern bis zu {minutes} Min. — plane höchstens etwa 40."
+    }
   },
   "progress": {
     "tallyOne": "Antwort {n}: {text}",
@@ -373,7 +389,12 @@
       "needs": "Zuerst wissen",
       "form": "Fragetyp",
       "tags": "Fehler-Tags",
-      "use": "Gespielt"
+      "use": "Gespielt",
+      "passage": "Abschnitt",
+      "lines": "Richtige Zeilen",
+      "roles": "Rollen",
+      "labels": "Zeilen und Rollen",
+      "spans": "Richtige Bereiche"
     },
     "says": {
       "prompt": "Text der Frage; bei „Wahr oder falsch“ — die Aussage, bei einer Karteikarte — ihre Vorderseite, bei einer Lücke — der Text mit der Lücke [[Wort]] (mehrere Lücken: jede einzeln). Formeln: $…$ im Satz, $$…$$ abgesetzt",
@@ -424,8 +445,13 @@
       "about": "Einträge, die diese Frage prüft: ihr Ergebnis zählt zu deren Kenntnis, und die Frage selbst wartet, bis du beherrschst, was vor ihnen zu wissen ist",
       "needs": "Einträge oder Fragen, die beherrscht sein müssen, bevor diese Frage kommt (z. B. „Was ist ein Atom?“ vor „Was ist ein Orbital?“)",
       "form": "Wie gefragt und geantwortet wird — davon hängt ab, welche Felder unten ausgefüllt werden: {list}",
-      "tags": "Ein Fehler-Tag je Möglichkeit (one, many), Paar (match), Lücke (gap) oder Stelle (order, build), in derselben Reihenfolge (leer: kein Tag) — ein Ablauf kann mit dem Ausgang „wrong:<tag>“ danach verzweigen",
-      "use": "Wann die Frage gespielt wird: allein und im Unterricht (Vorgabe), nur allein oder nur im Unterricht. Ein Schritt eines Ablaufs kann es mit \"use\" anders sagen."
+      "tags": "Ein Fehler-Tag je Möglichkeit (one, many), Paar (match), Lücke (gap) oder Stelle (order, build), in derselben Reihenfolge (leer: kein Tag); bei einem Abschnitt (lines, label, span) eine Zeile je Zeilenbereich, \"7: tag\" — ein Ablauf kann mit dem Ausgang „wrong:<tag>“ danach verzweigen",
+      "use": "Wann die Frage gespielt wird: allein und im Unterricht (Vorgabe), nur allein oder nur im Unterricht. Ein Schritt eines Ablaufs kann es mit \"use\" anders sagen.",
+      "passage": "Der Abschnitt eines Textes der Bibliothek: {\"work\": \"<ID oder @Name des Werks>\", \"locator\": \"<Stelle, z. B. XXII 136-213>\"} — die Zeilen werden innerhalb des Abschnitts 1, 2, 3 … gezählt",
+      "lines": "Die Zeilen des Abschnitts, die die Aufgabe beantworten, z. B. \"3-5, 9\" (Art lines)",
+      "roles": "Die Rollen zur Auswahl, eine je Zeile, z. B. Erzähler, Hektor, Achilles (Art label)",
+      "labels": "Eine Zeile je markierte Zeile oder Bereich: \"1: Hektor\", \"3-4: Achilles\" (Art label)",
+      "spans": "Die Bereiche, die als gefunden zählen, z. B. \"12-15; 30-31\" (Art span)"
     },
     "inverse": {
       "about": "Fragen",
@@ -471,13 +497,15 @@
     "reward": "Belohnungen",
     "worldmap": "Lage der Weltkarte",
     "qpath": "Weg zu einer Frage",
-    "feedback": "Rückmeldung"
+    "feedback": "Rückmeldung",
+    "unit": "Unterrichtseinheit"
   },
   "questionGroup": {
     "write": "Du schreibst die Antwort",
     "choose": "Du wählst",
     "connect": "Du verbindest und ordnest",
-    "other": "Andere"
+    "other": "Andere",
+    "read": "Du liest einen Abschnitt"
   },
   "questionType": {
     "text": {
@@ -549,6 +577,21 @@
       "label": "Zeichnung zum Bewegen",
       "prompt": "Frage",
       "says": "Die Lernenden stellen die Zeichnung ein (Schieberegler, Ziehen) und prüfen; richtig, wenn die Simulation das Ziel erreicht."
+    },
+    "lines": {
+      "label": "Zeilen markieren",
+      "prompt": "Aufgabe",
+      "says": "Die Lernenden lesen einen Abschnitt eines Textes aus der Bibliothek (über Werk und Stelle — der Text wird nie in die Basis kopiert) und tippen die Zeilen an, die die Aufgabe beantworten; teilweise richtig zählt teilweise."
+    },
+    "label": {
+      "label": "Zeilen zuordnen",
+      "prompt": "Aufgabe",
+      "says": "Die Lernenden lesen einen Abschnitt aus der Bibliothek und ordnen jeder markierten Zeile eine Rolle zu (Erzähler, eine Figur, ein Gott …); jede Zeile zählt für sich."
+    },
+    "span": {
+      "label": "Stilmittel finden",
+      "prompt": "Aufgabe",
+      "says": "Die Lernenden lesen einen Abschnitt aus der Bibliothek und markieren die erste und die letzte Zeile eines Stilmittels (Gleichnis, Epitheton …); eine teilweise Überlappung zählt teilweise."
     }
   },
   "questionProblem": {
@@ -837,7 +880,10 @@
     "code": "Code (Python)",
     "point": "Punkt auf einem Bild oder einer Karte",
     "interactive": "Zeichnung zum Bewegen (z. B. Physik)",
-    "build": "Aus Kacheln bauen"
+    "build": "Aus Kacheln bauen",
+    "lines": "Zeilen markieren",
+    "label": "Zeilen zuordnen",
+    "span": "Stilmittel finden"
   },
   "check": {
     "unknownUnit": "Die Einheit „{unit}“ kenne ich nicht.",

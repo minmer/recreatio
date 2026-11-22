@@ -29,6 +29,7 @@ import { adaptiveProblems, branchSummaries, branchWords, checkContext } from './
 import { isPredict, modeProblems } from './modes';
 import { flowProblems } from './flowCheck';
 import { pathProblems, readPath, type PathCheckCtx } from './worldmap/wmPaths';
+import { unitProblems } from './unit/unitModel';
 import { effectiveWorldFor } from './worldmap/wmReview';
 import { levelsChange, levelsChangeWords } from './worldmap/levelsChange';
 import { readLevelsSetup } from './worldmap/wmRuns';
@@ -46,6 +47,7 @@ import type { BatchItem, CogitaLibrary } from './store';
 import { AXIS_COLUMN, readView, viewJson } from './views';
 import { landscapeImportWarnings } from './landscapeImport';
 import { generatorImportWarnings } from './generatorImport';
+import { readingImportWarnings } from './reading/readingImport';
 import { slideImportWarnings } from './slideLint';
 import { interactiveImportWarnings } from './interactiveCheck';
 import { crossImportWarnings } from './worldsImport';
@@ -72,7 +74,9 @@ const LIST_OF: Record<DocKind, string> = {
   /* 2026-11-09 — die Lage der Weltkarte: gerechnet, nie exportiert oder eingespielt (spec §9.7). */
   worldmap: 'worldmaps',
   /* 2026-11-12 (Prompt 25) — Wege zu einer Frage („Czego chcesz się dowiedzieć?", `worldmap/wmPaths.ts`). */
-  qpath: 'paths'
+  qpath: 'paths',
+  /* 2026-11-22 (Homer) — Unterrichtseinheiten (`unit/unitModel.ts`). */
+  unit: 'units'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -469,7 +473,7 @@ const PREFER: Readonly<Record<string, DocKind>> = {
   deeper: 'qpath'
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
-const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint', 'promise', 'why']);
+const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint', 'promise', 'why', 'poll']);
 
 /**
  * 2026-11-22 (A2) — WELCHE DOKUMENTE „DIE GANZE WELT" MITLÖSCHT: genau die, die ein Kurs trägt und `exportCourse`
@@ -477,7 +481,7 @@ const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'ti
  * Vorschläge, die Lage der Weltkarte (gerechnet), Uwagi (`feedback`) — und nie, was Lernende tun (das liegt nicht in der Baza).
  * Ein Export, als ganze Welt wieder eingelesen, löscht darum nichts.
  */
-export const WHOLE_WORLD_DOCS: readonly DocKind[] = ['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'addform', 'anchor', 'reward', 'qpath'];
+export const WHOLE_WORLD_DOCS: readonly DocKind[] = ['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'addform', 'anchor', 'reward', 'qpath', 'unit'];
 /** Wie lang der Name eines Teils höchstens ist. */
 const PART_MAX = 100;
 
@@ -850,7 +854,9 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     /* 2026-11-02 — Nagrody: Punkte, Serie, Tagesziel, Stufen, Abzeichen (`rewards.ts`). */
     ['reward', doc.rewards],
     /* 2026-11-12 (Prompt 25) — nach Einträgen und Abläufen: ein Weg nennt Orte, Erzählungen und andere Wege beim Namen. */
-    ['qpath', doc.paths]
+    ['qpath', doc.paths],
+    /* 2026-11-22 (Homer) — zuletzt: eine Einheit nennt Erzählungen und Fragen beim Namen. */
+    ['unit', doc.units]
   ];
   type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; at: number; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
   const incoming: Incoming[] = [];
@@ -1063,10 +1069,13 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   /* 2026-11-04 — die Ścieżka jedes Ablaufs: ein Anfang, ein Ende, keine Sackgassen (`flowCheck.ts`; ohne Anfang oder Ende geht der Zapis nicht). */
   warnings.push(...flowWarnings(lib, docs, entities));
   warnings.push(...pathWarnings(lib, docs, entities));
+  warnings.push(...unitIssues(lib, docs, entities).map((p) => (p.error ? t('cogitaData.import.unitError', { text: p.text }) : p.text)));
   /* 2026-11-03 — der Krajobraz: Kreise in der Reihenfolge des Lernens, unbekannte Achsen, keine Reihenfolge (`landscapeImport.ts`). */
   warnings.push(...landscapeImportWarnings(lib, { kinds, entities, docs }));
   /* 2026-11-03 — die Generatoren: übersetzen ihre Ausdrücke, gelingen Proben (mit den Einträgen nach dem Import)? */
   warnings.push(...generatorImportWarnings(lib, { kinds, entities, docs }));
+  /* 2026-11-22 (Homer-Einheit) — Lektüre-Fragen: Werk und Stelle, Zeilen, Rollen, Bereiche, Tags je Zeilen (`reading/readingImport.ts`). */
+  warnings.push(...readingImportWarnings({ entities }));
   /* 2026-11-05 (Prompt 23, A6) — die Folien: alte Zitate „Cytat (…):“, handgeschriebene „Przypisy“, „kliknij dalej“, Zitate ohne „> — Autor“, [@…] in Fragen. */
   warnings.push(...slideImportWarnings(lib, { kinds, entities }));
   /* 2026-11-05 (Prompt 23, D3) — die Rysunki do poruszania: unbekannte Namen in Ausdrücken, eine Lösung, die ihr Ziel verfehlt. */
@@ -1446,6 +1455,18 @@ export function pathWarnings(lib: CogitaLibrary, docs: ImportPlan['docs'], entit
   return planned.flatMap((d) => pathProblems(paths.get(d.id)!, d.data, ctx).map((p) => t('cogitaData.import.pathIssue', { name: paths.get(d.id)!.title || '—', text: t(`cogitaData.import.${p.key}`, p.params) })));
 }
 
+/**
+ * 2026-11-22 (Homer) — DIE UNTERRICHTSEINHEITEN prüfen (`unit/unitModel.ts` `unitProblems`): Etapy mit Kennung, Erzählungen und Fragen,
+ * die es nach dem Zapis gibt, ein Abschluss je Stunde, der Kern höchstens ~40 Minuten. Fehler blockieren.
+ */
+export function unitIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): { error: boolean; text: string }[] {
+  const planned = docs.filter((d) => d.kind === 'unit');
+  if (planned.length === 0) return [];
+  const flows = new Set([...lib.docs('flow').map((e) => e.id), ...docs.filter((d) => d.kind === 'flow').map((d) => d.id)]);
+  const has = { flow: (id: string) => flows.has(id), question: (id: string) => entities.some((e) => e.id === id) || lib.entity(id) !== undefined };
+  return planned.flatMap((d) => unitProblems(d.data, has).map((p) => ({ error: p.error, text: t('cogitaData.import.unitIssue', { name: str(d.data.name) || '—', text: t(`cogitaData.import.unit.${p.key}`, p.vars) }) })));
+}
+
 const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] => flowIssues(lib, docs, entities).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));
 
 /** Was ein Widok an Rodzajen nennt — nur, was dort sicher ein Rodzaj ist (Quelle, Gruppe, Achse). */
@@ -1528,6 +1549,8 @@ export function importProblems(lib: CogitaLibrary, plan: ImportPlan): { blocked:
   }
   /* 2026-11-04 — ein Ablauf ohne Anfang oder ohne Ende: kein Zapis (die Warnungen nennen die Schritte). */
   for (const p of flowIssues(lib, plan.docs)) if (p.level === 'error') blocked.push(p.text);
+  /* 2026-11-22 (Homer) — eine Einheit, deren Etap ins Leere zeigt oder unlesbar ist: kein Zapis. */
+  for (const p of unitIssues(lib, plan.docs, plan.entities)) if (p.error) blocked.push(p.text);
   for (const d of plan.docs) {
     if (d.kind !== 'view') continue;
     const title = t('cogitaData.import.docTitle', { doc: DOC_LABEL[d.kind], name: str(d.data.name) || '—' });
@@ -1678,7 +1701,7 @@ export function withRemovals(lib: CogitaLibrary, plan: ImportPlan): { plan: Impo
 /** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
 const DOC_ORDER: Readonly<Record<DocKind, number>> = {
   collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
-  view: 2, revision: 3, flow: 4, anchor: 5, qpath: 5, merge: 6, contribution: 6, worldmap: 7, feedback: 7
+  view: 2, revision: 3, flow: 4, anchor: 5, qpath: 5, unit: 6, merge: 6, contribution: 6, worldmap: 7, feedback: 7
 };
 
 /**
@@ -1769,12 +1792,15 @@ const QUESTION_EXAMPLE: Readonly<Record<string, string>> = {
   place: '{"lat": 53.49, "lon": 20.1}', radius: '20000', solution: '"v0 = 12"',
   /* 2026-11-01 (Lemma) */
   'gap.choices': '[["Satz 2.1", "Lemma 3.4"], []]', choices: '[["…"]]',
-  'build.items': '["$\\\\exists a\\\\in A$", "$:$", "$\\\\neg P(a)$"]', extra: '["$\\\\forall a\\\\in A$", "$P(a)$"]', alternatives: '[["…", "…"]]', preview: '"math"', 'order.preview': '"math"', join: '" "'
+  'build.items': '["$\\\\exists a\\\\in A$", "$:$", "$\\\\neg P(a)$"]', extra: '["$\\\\forall a\\\\in A$", "$P(a)$"]', alternatives: '[["…", "…"]]', preview: '"math"', 'order.preview': '"math"', join: '" "',
+  /* 2026-11-22 (Homer-Einheit) — Lektüre. */
+  passage: '{"work": "@iliada-dmochowski", "locator": "XXII 247-272"}', lines: '"3-5, 9"', spans: '"12-15; 30-31"'
 };
 /* 2026-11-05 — Beispielwerte mit Wörtern: in der Sprache der Beschreibung (`cogitaDataFormat.questionExample.*`). */
 const QUESTION_EXAMPLE_TEXT: Readonly<Record<string, string>> = {
   answers: 'answers', 'gap.answers': 'gapAnswers', options: 'options', right: 'right', leftLabel: 'leftLabel', rightLabel: 'rightLabel',
-  back: 'back', drawing: 'drawing', goal: 'goal', feedback: 'feedback', tests: 'tests'
+  back: 'back', drawing: 'drawing', goal: 'goal', feedback: 'feedback', tests: 'tests',
+  roles: 'roles', labels: 'labels', 'lines.tags': 'lineTags', 'label.tags': 'lineTags', 'span.tags': 'lineTags'
 };
 const questionExample = (key: string): string | undefined => {
   const text = QUESTION_EXAMPLE_TEXT[key];
@@ -1808,6 +1834,7 @@ ${t('cogitaDataFormat.question.body.s09Hints')}
 ${t('cogitaDataFormat.question.body.s10Explanation')}
 ${t('cogitaDataFormat.question.body.s11Feedback')}
 ${t('cogitaDataFormat.question.body.s12Build')}
+${t('cogitaDataFormat.question.body.s16Reading')}
 ${t('cogitaDataFormat.question.body.s13Code')}
 ${t('cogitaDataFormat.question.body.s14Generate')}
 ${t('cogitaDataFormat.question.body.s15')}
@@ -1940,6 +1967,7 @@ ${t('cogitaDataFormat.course.main.s29End')}
 ${t('cogitaDataFormat.course.main.s30Type')}
 ${t('cogitaDataFormat.course.main.s30Adaptive')}
 ${t('cogitaDataFormat.course.main.s30Modes')}
+${t('cogitaDataFormat.course.main.s30Units')}
 ${t('cogitaDataFormat.course.main.s31Goals')}
 ${t('cogitaDataFormat.course.main.s32Id')}
 ${t('cogitaDataFormat.course.main.s33DeszczPrzeglad')}

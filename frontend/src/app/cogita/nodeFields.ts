@@ -5,6 +5,7 @@
  */
 
 import { ANSWER_FORM_LABEL, ANSWER_FORMS } from './check';
+import { isReadingForm } from './reading/readingSpec';
 import { MODE_LABEL, MODES, ORDER_LABEL, ORDERS, PICK_LABEL, PICKS } from './revision';
 import { LEVEL_LABEL } from './knowness';
 import { conditionText, readCondition } from './logic';
@@ -238,7 +239,8 @@ export function configFields(palette: string, type: string): readonly ConfigFiel
   return table[type] ?? [];
 }
 
-export const FORM_OPTIONS: readonly { value: string; label: string }[] = ANSWER_FORMS.map((form) => ({ value: form, get label() { return ANSWER_FORM_LABEL[form]; } }));
+/* 2026-11-22 (Homer-Einheit) — Lektüre (lines, label, span) nur als eigene Frage: eine Vorlage hat keinen Abschnitt der Bibliothek. */
+export const FORM_OPTIONS: readonly { value: string; label: string }[] = ANSWER_FORMS.filter((form) => !isReadingForm(form)).map((form) => ({ value: form, get label() { return ANSWER_FORM_LABEL[form]; } }));
 export const LEVEL_OPTIONS: readonly { value: string; label: string }[] = (['unseen', 'learning', 'known'] as const).map((l) => ({ value: l, get label() { return LEVEL_LABEL[l]; } }));
 
 /** Ein kurzer Satz am Knoten: was er gerade einstellt. */

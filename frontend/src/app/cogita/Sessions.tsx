@@ -40,6 +40,10 @@ import { startGame } from './game';
 import { bodies, lastOf, plains, useEvents, type Opened } from './sessionEvents';
 import { createLesson, isPlanSession } from './lesson/lessonApi';
 import { LessonHost, LessonPlay, LessonScreen, type Send } from './lesson/LessonHost';
+import { UnitHost } from './unit/UnitHost';
+import { UnitPlay } from './unit/UnitPlay';
+import { UnitScreen } from './unit/UnitScreen';
+import { unitConfigOf } from './unit/unitSession';
 import { readAssignConfig } from './lesson/lessonTally';
 import { holderOfMe, useLearner } from './holders';
 import { describeRules, DEFAULT_RULES, onAllAnswered, onFirstAnswer, PRESETS, readRules, roundDeadline, scoreRound, type LiveRules, type Move, type Points } from './rules';
@@ -240,7 +244,9 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
     })();
   }, [me, session.areaId, session.sessionId, session.hostRoleId]);
 
-  const { opened, raw, poke, live } = useEvents(session.sessionId, cred, keys, intakeKey);
+  const { opened, raw, poke, live, session: fresh } = useEvents(session.sessionId, cred, keys, intakeKey);
+  /* 2026-11-22 (Homer) — eine Einheit über mehrere Stunden: ihre Konsole, ihre Leinwand (`unit/`). */
+  const unit = session.kind === 'lesson' ? unitConfigOf(opened) : null;
   const config = last(bodies<Config>(opened, 'config'))?.body ?? null;
   const epoch = Math.max(0, ...keys.keys());
   const key = keys.get(epoch);
@@ -287,7 +293,8 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
   );
 
   return (
-    <div className="cg-live">
+    /* 2026-11-22 (Homer) — die Leinwand („…/ekran") füllt den ganzen Bildschirm: ohne Leiste, Kopf und Reiter des Arbeitsbereichs. */
+    <div className={screen ? 'cg-live cg-projector' : 'cg-live'} data-projector={screen ? '' : undefined}>
       {!screen && head}
       {!screen && (session.joinCode !== null || link !== null) && (
         <div className="cg-row">
@@ -301,6 +308,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {config === null ? <Loading label={t('cogitaViewsStats.sess.loading')} />
         : session.kind === 'live' ? <LiveHost session={session} config={config} opened={opened} post={post} screen={screen} />
+        : unit !== null ? (screen ? <UnitScreen session={fresh ?? session} config={unit} opened={opened} link={link} code={session.joinCode} /> : <UnitHost session={fresh ?? session} config={unit} opened={opened} send={send} />)
         : session.kind === 'lesson' ? (screen ? <LessonScreen opened={opened} title={title} /> : <LessonHost session={session} opened={opened} send={send} />)
         : session.kind === 'task' ? <TaskHost session={session} config={config} />
         : session.kind === 'game' ? <GameHostPanel session={session} config={config} raw={raw} />
@@ -669,7 +677,8 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
   const device = useMemo(deviceId, []);
   const ctx = useContext(CogitaContext);
   useEffect(() => { void intakeOf(session.areaId).then(setIntake); }, [session.areaId]);
-  const { opened, raw, poke } = useEvents(session.sessionId, cred, keys, null);
+  const { opened, raw, poke, session: fresh } = useEvents(session.sessionId, cred, keys, null);
+  const unit = session.kind === 'lesson' ? unitConfigOf(opened) : null;
   const epoch = Math.max(0, ...keys.keys());
   const key = keys.get(epoch);
   void learnerRole;
@@ -679,7 +688,7 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
     if (key !== undefined) return { sealed: await sealForSession(key, eventId, body), epoch };
     throw new Error(t('cogitaViewsStats.sess.cannotOpen'));
   };
-  const send = (kind: 'join' | 'answer', body: unknown) => run(async () => {
+  const send = (kind: 'join' | 'answer' | 'progress' | 'help' | 'prompt', body: unknown) => run(async () => {
     const eventId = newId();
     const s = await seal(eventId, body);
     await postEvents(session.sessionId, [{ eventId, kind, epoch: s.epoch, sealed: s.sealed }], cred);
@@ -712,6 +721,19 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
     recorded.current.add(reveal.index);
     learner.record(reveal.card, checkCard(reveal.card, sent.get(reveal.index)).correctness, { via: session.sessionId });
   }, [reveal, learner, sent, session.sessionId, session.kind]);
+
+  /* 2026-11-22 (Homer) — eine Einheit: einmal beitreten (mit dem eigenen Namen, ohne Formular), dann bleibt das Gerät dabei. */
+  const unitJoined = (() => { try { return localStorage.getItem(`recreatio:cogita:unit-joined:${session.sessionId}:${participant}`) === '1'; } catch { return false; } })();
+  useEffect(() => {
+    if (unit === null || joined || given == null || given === '') return;
+    if (unitJoined) { setJoined(true); return; }
+    void send('join', { participant, name: given, team: null, device } satisfies Join).then(() => { try { localStorage.setItem(`recreatio:cogita:unit-joined:${session.sessionId}:${participant}`, '1'); } catch { /* nur jetzt */ } setJoined(true); });
+  }, [unit !== null, given]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (unit !== null && (joined || unitJoined)) {
+    return <UnitPlay session={fresh ?? session} config={unit} opened={opened} cred={cred} seal={intake !== null || key !== undefined ? seal : null} participant={participant} learner={learner ?? null}
+      slots={plains<{ index: number; form: string; count: number }>(raw, 'slot')} sent={sent}
+      onVote={(i, given2) => { setSent((m) => new Map(m).set(i, given2)); void send('answer', { participant, device, index: i, given: given2, at: Date.now() } satisfies Answer); }} />;
+  }
 
   if (!joined) {
     return (

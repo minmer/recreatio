@@ -11,6 +11,8 @@ import { checkCard } from './cards';
 import { HINT_COST, shuffleAway, type Card, type PromptPart } from './cardBasics';
 import { DATE_UNREAD, dateAsked, PRECISION_ASK, readDateAnswer, spansOf, withHints, type DatePartMark, type Outcome, type TextRule } from './check';
 import { BuildAnswer } from './BuildAnswer';
+import { ReadingAnswer } from './reading/ReadingAnswer';
+import { readingAnswerText, readingGivenText } from './reading/readingSpec';
 import { CodeAnswer, CodeResult, storedCodeGiven } from './CodeAnswer';
 import { ExplainList } from './EntityReading';
 import { isSlideEntity } from './slideLib';
@@ -92,6 +94,7 @@ export function answerText(card: Card): string {
     case 'point': return 'lat' in a.target ? `${a.target.lat.toFixed(4)}, ${a.target.lon.toFixed(4)}` : t('cogitaLearnRun.card.pointAnswer');
     case 'interactive': return solutionText(a) ?? t('cogitaLearnRun.card.drawingAnswer');
     case 'build': return a.items.join(a.join);
+    case 'lines': case 'label': case 'span': return readingAnswerText(a, { line: t('cogitaReading.line') });
   }
 }
 
@@ -128,6 +131,8 @@ export function givenText(card: Card, given: unknown): string {
   /* 2026-11-01 — gebaut: die Kacheln in ihrer Folge; mehrere Lücken: je Lücke, was dort stand. */
   if (a.form === 'build' && Array.isArray(given)) return given.map(String).join(a.join);
   if (a.form === 'gap' && Array.isArray(given)) return given.map((g) => (typeof g === 'string' && g.trim() !== '' ? g : '—')).join(' · ');
+  /* 2026-11-22 (Homer-Einheit) — Lektüre: die Zeilen, die Zuordnung, der Bereich. */
+  if (a.form === 'lines' || a.form === 'label' || a.form === 'span') return readingGivenText(a, given);
   return given === undefined || given === null ? '' : String(given);
 }
 
@@ -465,6 +470,12 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       );
     case 'interactive':
       return <div className={`cg-answer${revealed}`}><InteractiveAnswer card={card} disabled={shut} onSubmit={submit} />{nextRow}</div>;
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: der Abschnitt aus der Bibliothek, Zeilen wählen, zuordnen, ein Mittel finden. */
+    case 'lines':
+    case 'label':
+    case 'span':
+      return <ReadingAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} onSubmit={submit} action={next}
+        {...(reveal === undefined ? {} : { reveal: { given: reveal.given, outcome: reveal.outcome } })} />;
   }
 }
 
@@ -532,7 +543,7 @@ function CountPercent({ value, delay }: { value: number; delay: number }) {
 }
 
 /** Formen, deren Antwort nach der Prüfung mit ihren Marken stehen bleibt — dort steht das Ergebnis, nicht in einem langen Satz. */
-const MARKED_FORMS: ReadonlySet<string> = new Set(['one', 'many', 'truefalse', 'order', 'match', 'build', 'code']);
+const MARKED_FORMS: ReadonlySet<string> = new Set(['one', 'many', 'truefalse', 'order', 'match', 'build', 'code', 'lines', 'label', 'span']);
 
 export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven = true, marked = false }: {
   card: Card;

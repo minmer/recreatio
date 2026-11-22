@@ -185,6 +185,12 @@ export interface FieldDef {
    */
   readonly tag?: 'up';
   /**
+   * 2026-11-22 (Homer-Einheit) — EIN EINTRAG DES SŁOWNICZEK: `word` (das Wort), `forms` (weitere Formen), `meaning` (die Bedeutung),
+   * `work` (ein Verweis: nur in diesem Werk). Ein Rodzaj mit `word` und `meaning` macht seine Einträge zum Słowniczek: im Abschnitt
+   * einer Lektüre-Frage ist jedes solche Wort unterstrichen, ein Tippen zeigt die Bedeutung (`reading/`).
+   */
+  readonly glossary?: 'word' | 'forms' | 'meaning' | 'work';
+  /**
    * 2026-11-05 (Prompt 24) — `ref` IN ANDERE BAZY („Inne światy", `worlds.ts`): ein Wert darf auch "@@historia:@…" sein — ein
    * Angebot, nie eine Voraussetzung (darum nie zugleich `prerequisite` oder `structure`). Der Editor bietet „Link do innego świata".
    */
@@ -386,6 +392,8 @@ export function readField(raw: unknown): FieldDef | null {
     prerequisite: type === 'ref' && raw.external !== true && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
     part: type === 'ref' && raw.external !== true && (raw.part === 'up' || raw.part === 'down') ? raw.part : undefined,
     tag: type === 'ref' && raw.external !== true && raw.tag === 'up' ? 'up' : undefined,
+    glossary: raw.glossary === 'work' ? (type === 'ref' ? 'work' : undefined)
+      : (raw.glossary === 'word' || raw.glossary === 'forms' || raw.glossary === 'meaning') && type !== 'ref' ? raw.glossary : undefined,
     external: type === 'ref' && raw.external === true ? true : undefined,
     when: readWhen(raw.when, key),
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,

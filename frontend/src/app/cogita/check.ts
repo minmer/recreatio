@@ -33,7 +33,7 @@ import { t, texts } from '../core/i18n';
 
 /* -- Formen ------------------------------------------------------------------------ */
 
-export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build'] as const;
+export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build', 'lines', 'label', 'span'] as const;
 export type AnswerForm = (typeof ANSWER_FORMS)[number];
 
 export const ANSWER_FORM_LABEL: Readonly<Record<AnswerForm, string>> = texts({
@@ -50,7 +50,10 @@ export const ANSWER_FORM_LABEL: Readonly<Record<AnswerForm, string>> = texts({
   code: 'cogitaData.answerForm.code',
   point: 'cogitaData.answerForm.point',
   interactive: 'cogitaData.answerForm.interactive',
-  build: 'cogitaData.answerForm.build'
+  build: 'cogitaData.answerForm.build',
+  lines: 'cogitaData.answerForm.lines',
+  label: 'cogitaData.answerForm.label',
+  span: 'cogitaData.answerForm.span'
 });
 
 export type CompareAlgorithm = 'anchors' | 'bidirectional' | 'prefix';

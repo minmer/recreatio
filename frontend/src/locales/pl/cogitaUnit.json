@@ -1,0 +1,140 @@
+{
+  "recap": "Powtórka",
+  "host": {
+    "ledDone": "Dalej w etapie",
+    "someone": "Uczeń",
+    "open": "Otwórz: {name}",
+    "next": "Dalej: {name}",
+    "lookOn": "Wszyscy patrzą na ekran",
+    "lookOff": "Odblokuj telefony",
+    "endLesson": "Zakończ lekcję",
+    "pause": "Koniec lekcji — zadania domowe",
+    "resume": "Wznów (lekcja {n})",
+    "finishUnit": "Zakończ jednostkę",
+    "lessonOf": "lekcja {n} z {all}",
+    "elapsed": "{min} min (plan {from}–{to} min)",
+    "restCore": "pozostałe etapy core: ok. {min} min",
+    "ledItem": "Część {n} z {all} — prowadzisz, klasa podąża",
+    "lobby": "Dołączyło: {count}. Otwórz pierwszy etap, gdy klasa jest gotowa.",
+    "between": "Przerwa między lekcjami: każdy uczeń widzi swoje niedokończone etapy jako zadanie domowe. „Wznów” rozpoczyna następną lekcję od powtórki.",
+    "planTitle": "Plan jednostki (otwórz, pomiń, przestaw, wydłuż, dodaj)",
+    "reportTitle": "Raport etapów",
+    "ready": "{done} / {all} gotowe",
+    "helps": "Prośby o pomoc: {count}",
+    "tags": "Najczęstsze błędy: {list}",
+    "student": "Uczeń",
+    "status": "Stan",
+    "stuckSays": "Utknął: {wrong} błędne odpowiedzi na to samo pytanie albo ponad {min} min bez postępu.",
+    "answers": "Odpowiedzi: {count} z {all}",
+    "wallShow": "Pokaż na ekranie",
+    "wallUpdate": "Odśwież ścianę",
+    "itemNext": "Dalej",
+    "showResults": "Pokaż wyniki",
+    "skipHint": "klasa wie: {pct} % — można pominąć",
+    "openNow": "Otwórz teraz",
+    "up": "Wyżej",
+    "down": "Niżej",
+    "extend": "+5 min",
+    "skip": "Pomiń",
+    "add": "Dodaj",
+    "addFlow": "Ścieżka",
+    "addIt": "Dodaj",
+    "addPrompt": "Pytanie otwarte",
+    "skipped": "Pominięte"
+  },
+  "phase": {
+    "lobby": "Klasa dołącza",
+    "lesson": "Lekcja trwa",
+    "closing": "Zakończenie lekcji",
+    "between": "Między lekcjami",
+    "closed": "Jednostka zakończona"
+  },
+  "report": {
+    "stage": "Etap",
+    "finished": "Ukończyli",
+    "median": "Mediana czasu",
+    "tags": "Błędy",
+    "open": "Jeszcze do zrobienia",
+    "minutes": "{min} min",
+    "says": "Głosowania prognoz nigdy nie są liczone jako wynik. Etapy prowadzone wspólnie widać w „Postępach”."
+  },
+  "status": {
+    "none": "nie zaczął",
+    "working": "pracuje",
+    "done": "gotowe",
+    "waiting": "czeka",
+    "stuck": "utknął",
+    "help": "prosi o pomoc"
+  },
+  "poll": {
+    "before": "przed",
+    "legend": "Jasny pasek: przed, ciemny: teraz."
+  },
+  "type": {
+    "core": "core",
+    "flex": "flex",
+    "close": "zakończenie"
+  },
+  "play": {
+    "missing": "Tej części nie ma w bazie.",
+    "questionOf": "Pytanie {n} z {all}",
+    "promptLabel": "Twoja odpowiedź",
+    "promptSays": "Zostało znaków: {left}.",
+    "anonymous": "Bez imienia — nauczyciel wybiera, co pokaże.",
+    "send": "Wyślij",
+    "pollSays": "Wybierz jedną odpowiedź. Tu nie ma złych odpowiedzi.",
+    "loading": "Otwieram lekcję…",
+    "offline": "bez połączenia — wyślę później",
+    "lookTitle": "Wszyscy patrzą na ekran",
+    "lookSays": "Odłóż telefon na chwilę.",
+    "closed": "Ta jednostka jest zakończona. Dziękujemy!",
+    "soon": "Za chwilę zaczynamy — patrz na ekran.",
+    "sentWait": "Wysłane. Patrz na ekran.",
+    "help": "Potrzebuję pomocy",
+    "helpOn": "Nauczyciel wie — możesz pracować dalej",
+    "of": "{done} z {all}",
+    "pickAny": "Wybierz, od czego zaczynasz — kolejność jest dowolna.",
+    "backToList": "‹ Zadania domowe",
+    "wellDone": "Dobra robota. Poczekaj na klasę.",
+    "homeworkDone": "Gotowe — ten etap masz zrobiony.",
+    "bonusSays": "Jeśli chcesz, zrób coś dodatkowego:",
+    "homework": "Zadanie domowe",
+    "homeworkNone": "Masz wszystko zrobione. Do zobaczenia na lekcji!",
+    "homeworkUntil": "Do następnej lekcji — w tej kolejności:",
+    "optional": "Dla chętnych"
+  },
+  "item": {
+    "flow": "Ścieżka",
+    "questions": "Pytania ({count})"
+  },
+  "screen": {
+    "closed": "Jednostka zakończona.",
+    "between": "Koniec lekcji {n}. Zadania domowe są w aplikacji.",
+    "joined": "Dołączyło: {count}",
+    "answerOnPhone": "Odpowiedz na telefonie.",
+    "onPhones": "Pracujcie na telefonach."
+  },
+  "start": {
+    "loading": "Wczytuję jednostki…",
+    "title": "Jednostki lekcji — {name}",
+    "lede": "Jednostka to kilka lekcji jako jedna lista etapów. Ta sama sesja, ten sam kod przez wszystkie lekcje; czego nie zdążycie, staje się zadaniem domowym.",
+    "none": "W tej bazie nie ma jeszcze jednostek (zaimportuj je w JSON jako \"units\").",
+    "shape": "{lessons} lekcje · {stages} etapów",
+    "lesson": "Lekcja {n}",
+    "state": {
+      "lobby": "Otwórz (nie zaczęta)",
+      "running": "Wróć do lekcji",
+      "paused": "Otwórz (przerwa między lekcjami)",
+      "finished": "Zakończona — raport",
+      "closed": "Zamknięta"
+    },
+    "untitled": "Jednostka",
+    "begin": "Rozpocznij z klasą",
+    "cardButton": "Jednostki"
+  },
+  "home": {
+    "homework": "Zadanie domowe z lekcji",
+    "homeworkOpen": "Zobacz, co zostało",
+    "homeworkIn": "Zadanie domowe — {name}"
+  }
+}

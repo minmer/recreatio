@@ -1,0 +1,140 @@
+{
+  "recap": "Recap",
+  "host": {
+    "ledDone": "Next in this stage",
+    "someone": "Student",
+    "open": "Open: {name}",
+    "next": "Next: {name}",
+    "lookOn": "Everyone look at the screen",
+    "lookOff": "Release the phones",
+    "endLesson": "End the lesson",
+    "pause": "Lesson over — homework",
+    "resume": "Resume (lesson {n})",
+    "finishUnit": "Finish the unit",
+    "lessonOf": "lesson {n} of {all}",
+    "elapsed": "{min} min (planned {from}–{to} min)",
+    "restCore": "remaining core stages: about {min} min",
+    "ledItem": "Part {n} of {all} — you lead, the class follows",
+    "lobby": "Joined: {count}. Open the first stage when the class is ready.",
+    "between": "Between lessons: every student sees their unfinished stages as homework. “Resume” starts the next lesson with a recap.",
+    "planTitle": "Unit plan (open, skip, reorder, extend, add)",
+    "reportTitle": "Stage report",
+    "ready": "{done} / {all} done",
+    "helps": "Help requests: {count}",
+    "tags": "Most frequent errors: {list}",
+    "student": "Student",
+    "status": "Status",
+    "stuckSays": "Stuck: {wrong} wrong answers to the same question, or more than {min} min without progress.",
+    "answers": "Answers: {count} of {all}",
+    "wallShow": "Show on the screen",
+    "wallUpdate": "Update the wall",
+    "itemNext": "Next",
+    "showResults": "Show results",
+    "skipHint": "the class knows: {pct} % — can be skipped",
+    "openNow": "Open now",
+    "up": "Up",
+    "down": "Down",
+    "extend": "+5 min",
+    "skip": "Skip",
+    "add": "Add",
+    "addFlow": "Path",
+    "addIt": "Add",
+    "addPrompt": "Open prompt",
+    "skipped": "Skipped"
+  },
+  "phase": {
+    "lobby": "The class is joining",
+    "lesson": "Lesson running",
+    "closing": "Closing the lesson",
+    "between": "Between lessons",
+    "closed": "Unit finished"
+  },
+  "report": {
+    "stage": "Stage",
+    "finished": "Finished",
+    "median": "Median time",
+    "tags": "Errors",
+    "open": "Still to do",
+    "minutes": "{min} min",
+    "says": "Prediction votes are never counted as a score. Stages led together show in “Progress”."
+  },
+  "status": {
+    "none": "not started",
+    "working": "working",
+    "done": "done",
+    "waiting": "waiting",
+    "stuck": "stuck",
+    "help": "asks for help"
+  },
+  "poll": {
+    "before": "before",
+    "legend": "Light bar: before, dark bar: now."
+  },
+  "type": {
+    "core": "core",
+    "flex": "flex",
+    "close": "close"
+  },
+  "play": {
+    "missing": "This part is not in the base.",
+    "questionOf": "Question {n} of {all}",
+    "promptLabel": "Your answer",
+    "promptSays": "Characters left: {left}.",
+    "anonymous": "No name — the teacher chooses what to show.",
+    "send": "Send",
+    "pollSays": "Choose one answer. There are no wrong answers here.",
+    "loading": "Opening the lesson…",
+    "offline": "offline — will send later",
+    "lookTitle": "Everyone look at the screen",
+    "lookSays": "Put your phone down for a moment.",
+    "closed": "This unit is finished. Thank you!",
+    "soon": "We start in a moment — look at the screen.",
+    "sentWait": "Sent. Look at the screen.",
+    "help": "I need help",
+    "helpOn": "The teacher knows — you can keep working",
+    "of": "{done} of {all}",
+    "pickAny": "Choose where to start — any order.",
+    "backToList": "‹ Homework",
+    "wellDone": "Well done. Wait for the class.",
+    "homeworkDone": "Done — this stage is finished.",
+    "bonusSays": "If you like, do something extra:",
+    "homework": "Homework",
+    "homeworkNone": "You have done everything. See you in the lesson!",
+    "homeworkUntil": "Before the next lesson — in this order:",
+    "optional": "Optional"
+  },
+  "item": {
+    "flow": "Path",
+    "questions": "Questions ({count})"
+  },
+  "screen": {
+    "closed": "Unit finished.",
+    "between": "End of lesson {n}. Homework is in the app.",
+    "joined": "Joined: {count}",
+    "answerOnPhone": "Answer on your phone.",
+    "onPhones": "Work on your phones."
+  },
+  "start": {
+    "loading": "Loading units…",
+    "title": "Lesson units — {name}",
+    "lede": "A unit is several lessons as one list of stages. The same session and code for all lessons; what you do not finish becomes homework.",
+    "none": "This base has no units yet (import them in JSON as \"units\").",
+    "shape": "{lessons} lessons · {stages} stages",
+    "lesson": "Lesson {n}",
+    "state": {
+      "lobby": "Open (not started)",
+      "running": "Back to the lesson",
+      "paused": "Open (between lessons)",
+      "finished": "Finished — report",
+      "closed": "Closed"
+    },
+    "untitled": "Unit",
+    "begin": "Start with the class",
+    "cardButton": "Units"
+  },
+  "home": {
+    "homework": "Homework from the lesson",
+    "homeworkOpen": "See what is left",
+    "homeworkIn": "Homework — {name}"
+  }
+}

@@ -1291,6 +1291,13 @@ export class Learner {
     await this.change({ [`~qpath.${path}`]: Math.max(0, at) });
   }
 
+  /** 2026-11-22 (Homer) — Items einer Klassensitzung fertig (`~unit.<sitzung>.<item>` = Zeitpunkt; `unit/unitModel.ts` `doneValueKey`). */
+  async keepUnitDone(keys: readonly string[], at: number): Promise<void> {
+    const out: Record<string, number> = {};
+    for (const k of keys) if (k.startsWith('~unit.') && (this.progress.values[k] ?? 0) <= 0) out[k] = Math.max(1, at);
+    if (Object.keys(out).length > 0) await this.change(out);
+  }
+
   async keepPillar(width: number | null): Promise<void> {
     await this.change(valueChanges(this.progress.values, withOwnPillar(this.progress.values, width)));
   }

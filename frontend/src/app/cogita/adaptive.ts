@@ -28,6 +28,7 @@
 import type { Card } from './cardBasics';
 import type { Graph, GraphEdge, GraphNode } from './graph';
 import { choicesOf, rawList } from './questionTypes';
+import { readingTags } from './reading/readingSpec';
 import { t as tr } from '../core/i18n';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -248,6 +249,9 @@ export function answerSignals(card: Pick<Card, 'answer'>, data: Readonly<Record<
     const mine = new Map<number, number>();
     for (const p of Array.isArray(given) ? given : []) if (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number') mine.set(p[0], p[1]);
     for (const [l, r] of a.pairs) if (mine.get(l) !== r) tag(tags, lefts.indexOf(a.left[l] ?? '\u0000'));
+  } else if (a.form === 'lines' || a.form === 'label' || a.form === 'span') {
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: Tags je Zeilenbereich („7: tag”, `reading/readingSpec.ts`). */
+    for (const x of readingTags(a, d.tags, given)) out.add(x);
   } else if (a.form === 'gap' || a.form === 'order' || a.form === 'build') {
     const tags = tagList(d);
     const marks = outcome.marks ?? (a.form === 'order' || a.form === 'build'

@@ -30,7 +30,11 @@ import type { LessonDecision, LessonLink, LessonOption, LessonStep } from './les
 import {
   adviceOf, isFlowPart, readLessonConfig, tallyPoll, tallyQuestion, type Bar, type LessonConfig, type LessonPart, type LessonQuestionsPart, type ShowVotes, type Thresholds, type Vote
 } from './lessonTally';
+import { LinesHeat, linesHeat } from '../reading/linesHeat';
 import './lesson.css';
+
+/** 2026-11-22 (Homer-Einheit) — eine Lektüre-Frage, deren Antworten sich als Wärmekarte je Zeile zeigen lassen. */
+const heatForm = (card: Card): boolean => card.answer.form === 'lines' || card.answer.form === 'span';
 
 /* -- Die Ereignisse einer Stunde (dieselben Arten wie im Quiz, wo es geht: `question`, `answer`, `reveal`) --------------- */
 
@@ -71,6 +75,8 @@ export interface TallyLite {
   readonly correct: number;
   readonly bars: readonly Bar[];
   readonly tags: readonly { readonly tag: string; readonly count: number }[];
+  /** 2026-11-22 (Homer-Einheit) — Lektüre (lines, span): wie oft jede Zeile gewählt wurde (Index 0 = Zeile 1), nie wer. */
+  readonly heat?: readonly number[];
 }
 
 export interface LessonRevealEvent {
@@ -96,6 +102,8 @@ export interface TallyEvent {
   readonly index: number;
   readonly votes: number;
   readonly counts: readonly number[];
+  /** 2026-11-22 (Homer-Einheit) — Lektüre: die Wärmekarte je Zeile, live. */
+  readonly heat?: readonly number[];
 }
 
 interface AnswerEvent { readonly participant: string; readonly index: number; readonly given: unknown; readonly at: number }
@@ -202,11 +210,22 @@ interface OpenVote {
   closed: boolean;
 }
 
-export function LessonHost({ session, opened, send }: { session: SessionRow; opened: readonly Opened[]; send: Send }) {
+export function LessonHost({ session, opened, send, parts, onPartsDone }: {
+  session: SessionRow;
+  opened: readonly Opened[];
+  send: Send;
+  /**
+   * 2026-11-22 (Homer) — EIN GEMEINSAMER ETAP EINER EINHEIT (`unit/UnitHost.tsx`): diese Teile statt der Einstellung der Sitzung;
+   * am Ende `onPartsDone` statt des Endes der Stunde; die Einstellungen ändern nur dieses Gerät (die Einstellung trägt die Einheit).
+   */
+  parts?: readonly LessonPart[];
+  onPartsDone?: () => void;
+}) {
   const t = useT();
   const { lib } = useCtx();
   const now = lessonNow(opened);
-  const config = now.config;
+  const config: LessonConfig | null = parts === undefined ? now.config
+    : { title: '', showVotes: 'after', thresholds: { high: 0.7, low: 0.3 }, ...(now.config ?? {}), parts };
   const cards = useAsync(() => lib.cards('flow').then((r) => r.cards), [lib, lib.revision]);
   const content = useMemo(() => (cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
   const [partAt, setPartAt] = useState(0);
@@ -250,7 +269,8 @@ export function LessonHost({ session, opened, send }: { session: SessionRow; ope
     const given = answersOf(v.index);
     if (v.kind === 'question' && v.card !== undefined) {
       const tally = tallyQuestion(v.card, given, v.data ?? null);
-      const lite: TallyLite = { votes: tally.votes, correct: tally.correct, bars: tally.bars, tags: tally.tags };
+      const heat = linesHeat(v.card, given.map((g) => g.given));
+      const lite: TallyLite = { votes: tally.votes, correct: tally.correct, bars: tally.bars, tags: tally.tags, ...(heat.length === 0 ? {} : { heat }) };
       await send('reveal', { index: v.index, card: v.card, answered: tally.votes, correct: tally.correct, scores: [], teams: [], round: v.round, ...(showVotes === 'never' || quiet ? {} : { tally: lite }) } satisfies LessonRevealEvent);
     } else if (v.options !== undefined) {
       const pt = tallyPoll(v.options.length, given, v.options.flatMap((o, i) => (o.open ? [i] : [])));
@@ -301,7 +321,8 @@ export function LessonHost({ session, opened, send }: { session: SessionRow; ope
     const tm = window.setTimeout(() => {
       const given = answersOf(open.index);
       const counts = open.kind === 'question' && open.card !== undefined ? tallyQuestion(open.card, given, open.data ?? null).bars.map((b) => b.count) : tallyPoll(open.options?.length ?? 0, given).counts;
-      void send('tally', { index: open.index, votes: new Set(given.map((g) => g.participant)).size, counts } satisfies TallyEvent);
+      const heat = open.kind === 'question' && open.card !== undefined ? linesHeat(open.card, given.map((g) => g.given)) : [];
+      void send('tally', { index: open.index, votes: new Set(given.map((g) => g.participant)).size, counts, ...(heat.length === 0 ? {} : { heat }) } satisfies TallyEvent);
     }, 1500);
     return () => window.clearTimeout(tm);
   }, [liveCount, showVotes, open?.index]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -311,7 +332,7 @@ export function LessonHost({ session, opened, send }: { session: SessionRow; ope
     const merged = { ...config, ...next };
     if (next.showVotes !== undefined) setShowVotes(next.showVotes);
     if (next.thresholds !== undefined) { setThresholds(next.thresholds); try { localStorage.setItem(THRESHOLDS, JSON.stringify(next.thresholds)); } catch { /* nur jetzt */ } }
-    void run(() => send('config', merged));
+    if (parts === undefined) void run(() => send('config', merged));
   };
 
   if (config === null) return <p className="wk-error">{t('cogitaLesson.host.noConfig')}</p>;
@@ -337,6 +358,7 @@ export function LessonHost({ session, opened, send }: { session: SessionRow; ope
           <p className="cg-muted">{open.kind === 'question' ? t('cogitaLesson.host.voteQuestion', { round: open.round }) : open.kind === 'choice' ? t('cogitaLesson.host.voteWay') : t('cogitaLesson.host.voteOrder')}
             {' · '}{t('cogitaLesson.host.voted', { count: new Set(given.map((g) => g.participant)).size, total: now.joined })}</p>
           {qTally !== null && <TallyBars bars={qTally.bars} votes={qTally.votes} form={open.card?.answer.form} reveal={open.closed} tags={qTally.tags} />}
+          {open.card !== undefined && heatForm(open.card) && <LinesHeat card={open.card} counts={linesHeat(open.card, given.map((g) => g.given))} reveal={open.closed} />}
           {pTally !== null && open.options !== undefined && <PollBars options={open.options} counts={pTally.counts} votes={pTally.votes} winner={open.closed ? pTally.winner : null} />}
           {qTally !== null && open.closed && open.card !== undefined && <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(open.card)} /></p>}
           {qTally !== null && qTally.votes > 0 && (
@@ -369,6 +391,7 @@ export function LessonHost({ session, opened, send }: { session: SessionRow; ope
         <div className="wk-actions">
           {partAt + 1 < config.parts.length
             ? <button type="button" className="wk-btn" data-lesson-next-part="" onClick={() => { setDecide(null); setPartAt((n) => n + 1); }}>{t('cogitaLesson.host.nextPart', { name: partName(config.parts[partAt + 1]) })}</button>
+            : onPartsDone !== undefined ? <button type="button" className="wk-btn" data-lesson-parts-done="" onClick={onPartsDone}>{t('cogitaUnit.host.ledDone')}</button>
             : <button type="button" className="wk-btn" disabled={busy} data-lesson-finish="" onClick={() => void run(() => setSessionState(session.sessionId, 'finished'))}>{t('cogitaLesson.host.finish')}</button>}
         </div>
       )}
@@ -485,11 +508,14 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
               {(v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many') && (
                 <ol className="cg-lesson-options" type="A">{inScreenOrder(v.q.card, v.q.card.answer.options).map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
               )}
+              {/* 2026-11-22 (Homer-Einheit) — Lektüre: der Abschnitt für alle, mit der Wärmekarte, sobald der Leiter Stimmen zeigt. */}
+              {heatForm(v.q.card) && <LinesHeat card={v.q.card} counts={now.tally?.heat ?? []} />}
               <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: now.tally?.votes ?? 0, total: now.joined })}</span>
               {now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
             </>
           ) : (
             <>
+              {v.reveal.tally?.heat !== undefined && <LinesHeat card={v.reveal.card} counts={v.reveal.tally.heat} reveal />}
               {v.reveal.tally !== undefined
                 ? <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />
                 : <p>{t('cogitaLesson.screen.answered', { count: v.reveal.answered })}</p>}
@@ -592,6 +618,7 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
             {mine !== undefined
               ? <Verdict card={v.reveal.card} outcome={checkCard(v.reveal.card, mine)} given={mine} />
               : <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(v.reveal.card)} /></p>}
+            {v.reveal.tally?.heat !== undefined && <LinesHeat card={v.reveal.card} counts={v.reveal.tally.heat} reveal />}
             {v.reveal.tally !== undefined && <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />}
           </>
         )}

@@ -41,6 +41,7 @@ import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from 
 import { t } from '../core/i18n';
 import { hasTex, plainWithTex } from '../core/tex';
 import { choicesOf, GAP, pairsOf, rawList, showOf } from './questionTypes';
+import { checkReading, readingExpected, readingSpecOf } from './reading/readingSpec';
 import { drawInstance, drawsEntries, readParamsSpec, storedValues, withParams, type GenWorld } from './generator';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
@@ -60,6 +61,7 @@ function expectedOf(answer: AnswerSpec): unknown {
     case 'point': return { f: 'point', t: answer.target };
     case 'interactive': return interactiveExpected(answer);
     case 'build': return { f: 'build', i: answer.items, a: answer.alternatives, x: answer.extra.slice().sort() };
+    case 'lines': case 'label': case 'span': return readingExpected(answer);
   }
 }
 
@@ -124,6 +126,8 @@ export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>):
     case 'point': return checkPoint(a.target, isObject(given) ? (given as unknown as PointGiven) : null);
     case 'interactive': return checkInteractive(a, given);
     case 'build': return checkBuild([a.items, ...a.alternatives], Array.isArray(given) ? given.map(String) : []);
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: Zeilen, Zuordnung, Bereich (`reading/readingSpec.ts`). */
+    case 'lines': case 'label': case 'span': return checkReading(a, given);
   }
 }
 
@@ -402,7 +406,7 @@ export const templatesFor = (entity: Entity, templates: readonly Template[]): Te
 
 /* -- Von Hand geschriebene Fragen und das Thema als Frage ---------------------------- */
 
-const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build'];
+const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build', 'lines', 'label', 'span'];
 
 /* -- 2026-11-01: was nach Lemma dazukam -------------------------------------------------------------------- */
 
@@ -629,6 +633,8 @@ export function questionCard(entity: Entity, seed = '', world?: GenWorld): Card 
       break;
     }
     case 'interactive': answer = interactiveSpec(d, rng); break;
+    /* 2026-11-22 (Homer-Einheit) — ein Abschnitt der Bibliothek mit Aufgabe: nur Werk und Stelle, nie der Text selbst. */
+    case 'lines': case 'label': case 'span': answer = readingSpecOf(form, d); break;
   }
   if (answer === null) return null;
   /* 2026-11-01 — eine Frage mit Wzór behält ihn (`$…$`, gesetzt von KaTeX); ohne Wzór eine Zeile wie bisher. */

@@ -1,0 +1,59 @@
+{
+  "line": "lines",
+  "ask": {
+    "lines": "Tap the lines that answer the task (tap again to unmark).",
+    "label": "Choose a role for each marked line.",
+    "span": "Tap the first and the last line of what you are looking for."
+  },
+  "opening": "Opening the text…",
+  "missing": "The text of this passage cannot be opened here — the library that holds it is not available to you.",
+  "skip": "Skip",
+  "passage": "Passage",
+  "chosenLines": "Chosen: {list}",
+  "chosenSpan": "Chosen: lines {range}",
+  "labelled": "{k} of {n} lines labelled",
+  "roleOf": "Role in line {n}",
+  "closeGloss": "Close the explanation",
+  "overlap": "{pct} % overlap",
+  "legend": "✓ right · ✗ wrong · • should have been marked",
+  "heat": {
+    "title": "Which lines the class marked",
+    "none": "No answers yet.",
+    "right": "right line"
+  },
+  "edit": {
+    "work": "Work (its text in the Library)",
+    "pickWork": "— choose a work —",
+    "noWorks": "No text from the Library is available to this base. Add the library with the text as a source in the settings.",
+    "locator": "Place",
+    "locatorPh": "e.g. XXII 136-213",
+    "lines": "Right lines",
+    "roles": "Roles (one per row)",
+    "rolesPh": "narrator\nHector\nAchilles",
+    "labels": "Lines and roles (one per row)",
+    "labelsPh": "1: Hector\n3-4: Achilles",
+    "spans": "Right ranges",
+    "tags": "Mistake tags by lines (one per row)",
+    "tagsPh": "7: confuses-narrator\n12-13: too-literal",
+    "notFound": "This place was not found in a text of the work available here.",
+    "showLines": {
+      "one": "Show the passage ({count} line)",
+      "other": "Show the passage ({count} lines)"
+    }
+  },
+  "problem": {
+    "passage": "Choose the work and the place of the passage.",
+    "readLines": "Write the right lines, e.g. 3-5, 9.",
+    "readRoles": "Write at least two roles.",
+    "readLabels": "Assign a role to at least one line, e.g. 1: Hector.",
+    "readSpans": "Write the right range, e.g. 12-15."
+  },
+  "import": {
+    "question": "Question „{name}”: {problems}",
+    "unknownRole": {
+      "one": "{count} row of „labels” names a role that is not in „roles”.",
+      "other": "{count} rows of „labels” name a role that is not in „roles”."
+    },
+    "tagRows": "Some rows of „tags” name no lines — write them as „7: tag” or „12-13: tag”."
+  }
+}

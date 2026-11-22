@@ -31,6 +31,8 @@ internal static class CogitaChecks
         check(!Cogita.IsSessionKind("lekcja") && !Cogita.IsSessionKind(""), "session: an unknown kind is refused");
         check(Cogita.IsParticipantKind("answer") && Cogita.IsParticipantKind("join"), "session: a participant joins and votes");
         check(!Cogita.IsParticipantKind("step") && !Cogita.IsParticipantKind("poll") && !Cogita.IsParticipantKind("reveal") && !Cogita.IsParticipantKind("pollend") && !Cogita.IsParticipantKind("tally"), "session: steps, votes and results come only from the host");
+        check(Cogita.IsParticipantKind("progress") && Cogita.IsParticipantKind("help") && Cogita.IsParticipantKind("prompt"), "unit session (2026-11-22): a student reports progress, asks for help, answers an open prompt");
+        check(!Cogita.IsParticipantKind("unit-stage") && !Cogita.IsParticipantKind("unit-look") && !Cogita.IsParticipantKind("unit-wall"), "unit session: stages, look-at-screen and the wall come only from the teacher");
 
         check(Cogita.RulesProblem(rules) is null, "game: good rules pass");
         check(Cogita.RulesProblem(rules with { Triggers = [On("x", "enter", "nowhere")] }) is not null, "game: a trigger needs its zone");

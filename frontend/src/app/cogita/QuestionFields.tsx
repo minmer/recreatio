@@ -23,6 +23,7 @@ import { drawParams, paramsProblems, readParamsSpec, storedValues } from './gene
 import { paramsText } from './AnswerLog';
 import { QuestionSamples } from './GeneratorSamples';
 import { CogitaContext } from './ui';
+import { ReadingFields } from './reading/ReadingFields';
 import { choicesOf, GAP, QUESTION_GROUPS, QUESTION_TYPES, SHOW_MAX, pairsOf, parsePairs, questionProblems, questionType, rawList, showOf } from './questionTypes';
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
@@ -91,6 +92,8 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
       {type.form === 'order' && <Rows label={t('cogitaEditQuestion.orderItems')} add={t('cogitaEditQuestion.add.item')} values={rawList(data.items)} writes={writes} ordered min={2} placeholder={(i) => `${i + 1}.`} onChange={(v) => onSet('items', v)} />}
       {type.form === 'order' && <PreviewChoice data={data} writes={writes} onSet={onSet} optional />}
       {type.form === 'build' && <Build data={data} writes={writes} onSet={onSet} />}
+      {/* 2026-11-22 (Homer-Einheit) — Lektüre: Werk und Stelle der Bibliothek, die richtigen Zeilen, Rollen, Bereiche (`reading/`). */}
+      {(type.form === 'lines' || type.form === 'label' || type.form === 'span') && <ReadingFields form={type.form} data={data} writes={writes} onSet={onSet} />}
       {type.form === 'flash' && <Rows label={t('cogitaEditQuestion.back')} add={t('cogitaEditQuestion.add.line')} values={rawList(data.back)} writes={writes} min={1} placeholder={() => t('cogitaEditQuestion.ph.back')} onChange={(v) => onSet('back', v)} />}
       {(type.form === 'point' || type.form === 'interactive') && type.fields.map((key) => <div key={key}>{field(key)}</div>)}
       {type.form === 'code' && (

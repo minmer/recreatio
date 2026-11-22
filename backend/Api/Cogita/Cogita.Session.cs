@@ -53,7 +53,7 @@ public static partial class Cogita
     private static readonly HashSet<string> States = new(StringComparer.Ordinal) { "lobby", "running", "paused", "finished", "closed" };
 
     /// <summary>Was ein Teilnehmer schicken darf — alles andere ist Sache des Gastgebers.</summary>
-    private static readonly HashSet<string> ParticipantKinds = new(StringComparer.Ordinal) { "join", "answer", "leave", "hello", "react", "ready", "attempt" };
+    private static readonly HashSet<string> ParticipantKinds = new(StringComparer.Ordinal) { "join", "answer", "leave", "hello", "react", "ready", "attempt", "progress", "help", "prompt" };
 
     /// <summary>Was der Dienst selbst schreibt (im Spiel) — offen, für alle.</summary>
     private static readonly HashSet<string> ServiceKinds = new(StringComparer.Ordinal) { "trigger", "tick", "zone" };

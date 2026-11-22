@@ -28,8 +28,13 @@ async function studentsIn(klass: ClassOf, redeemed: number): Promise<number> {
 
 /* 2026-11-22 (I11) — eine Stunde planen: `…/klasy/<klasse>/plan…` (`lesson/LessonPlanner.tsx`). */
 const LessonPlanner = lazy(() => import('../lesson/LessonPlanner').then((m) => ({ default: m.LessonPlanner })));
+const UnitStart = lazy(() => import('../unit/UnitStart').then((m) => ({ default: m.UnitStart })));
 
 export function ClassesTab({ trail = [] }: { trail?: readonly string[] }) {
+  /* 2026-11-22 (Homer) — eine Einheit über mehrere Stunden beginnen: `…/klasy/<klasse>/jednostki` (`unit/UnitStart.tsx`). */
+  if (trail[0] !== undefined && trail[1] === 'jednostki') {
+    return <Suspense fallback={<Loading />}><UnitStart classAreaId={trail[0]} /></Suspense>;
+  }
   if (trail[0] !== undefined && trail[1] === 'plan') {
     return <Suspense fallback={<Loading />}><LessonPlanner classAreaId={trail[0]} trail={trail.slice(2)} /></Suspense>;
   }
@@ -159,6 +164,7 @@ function ClassCard({ klass, onShow, onChanged }: { klass: ClassOf; onShow: (url:
         {klass.joinInvitationId === null && <button type="button" className="wk-btn wk-btn-line" disabled={busy} onClick={renew}>{t('cogitaClass.card.open')}</button>}
         <a className="wk-btn wk-btn-line" href={href('postepy', klass.areaId)} data-class-progress={klass.areaId}><Icon name="list" />{t('cogitaClass.card.progress')}</a>
         <a className="wk-btn wk-btn-line" href={href('klasy', klass.areaId, 'plan')} data-class-plan={klass.areaId}><Icon name="flow" />{t('cogitaLesson.plan.cardButton')}</a>
+        {lib.docs('unit').length > 0 && <a className="wk-btn wk-btn-line" href={href('klasy', klass.areaId, 'jednostki')} data-class-units={klass.areaId}><Icon name="list" />{t('cogitaUnit.start.cardButton')}</a>}
       </div>
       {url === null && klass.joinInvitationId !== null && <p className="cl-note">{t('cogitaClass.card.notYours')}</p>}
       <p className="cl-note">{t('cogitaClass.card.lessonHint')}</p>

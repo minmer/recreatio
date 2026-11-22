@@ -22,6 +22,7 @@ import { t, texts } from '../core/i18n';
 import { newId } from '../core/ids';
 import { API, call } from '../core/session';
 import type { AnswerSpec, Card } from './cardBasics';
+import { stripReading } from './reading/readingSpec';
 import { stripInteractive } from './interactive';
 
 /* 2026-11-22 (Part B) — `lesson`: eine Erzählung, die die Klasse zusammen geht (der Leiter führt, alle stimmen ab); `task`: eine Zadanie (Ziel + Klasse + Frist). */
@@ -112,6 +113,8 @@ export function stripCard(card: Card): Card {
       case 'interactive': return stripInteractive(a);
       /* 2026-11-01 — die Kacheln ohne ihre Folge. */
       case 'build': return { ...a, items: [...a.items].sort(), alternatives: [] };
+      /* 2026-11-22 (Homer-Einheit) — der Abschnitt (Werk, Stelle), markierte Zeilen und Rollen bleiben; das Richtige nicht. */
+      case 'lines': case 'label': case 'span': return stripReading(a);
     }
   })();
   const { hints: _hints, explanation: _explanation, feedback: _feedback, ...rest } = card;

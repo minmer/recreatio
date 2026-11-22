@@ -1,0 +1,36 @@
+/* 2026-11-22 (Homer-Einheit) — Lektüre mit Aufgaben: der Abschnitt Zeile für Zeile, der Słowniczek, die Wärmekarte. */
+
+.cg-read { display: flex; flex-direction: column; gap: var(--wk-space-2); }
+.cg-read-ask { margin: 0; color: var(--wk-ink-2); font-size: var(--wk-text-sm); }
+.cg-read-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; max-height: min(60vh, 34rem); overflow-y: auto; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+.cg-read-line { display: grid; grid-template-columns: 2.2rem 1fr 1.2rem; align-items: baseline; gap: var(--wk-space-2); padding: 0.3rem var(--wk-space-2); line-height: 1.5; border-left: 3px solid transparent; }
+.cg-read-line.is-tappable { cursor: pointer; }
+.cg-read-line.is-tappable:hover { background: var(--wk-soft); }
+.cg-read-line:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.cg-read-line.is-on { background: var(--wk-accent-soft); border-left-color: var(--wk-accent); }
+.cg-read-line.is-marked { background: var(--wk-sunk); }
+.cg-read-line.is-right { background: color-mix(in srgb, var(--wk-ok) 16%, transparent); border-left-color: var(--wk-ok); }
+.cg-read-line.is-wrong { background: color-mix(in srgb, var(--wk-danger) 14%, transparent); border-left-color: var(--wk-danger); }
+.cg-read-line.is-missed { border-left: 3px dashed var(--wk-warn); background: color-mix(in srgb, var(--wk-warn) 10%, transparent); }
+.cg-read-no { color: var(--wk-muted); font-variant-numeric: tabular-nums; text-align: right; font-size: var(--wk-text-sm); }
+.cg-read-mark { font-weight: 700; text-align: center; }
+.cg-read-roles { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: var(--wk-space-1); margin-top: var(--wk-space-1); }
+.cg-read-role { padding: 0.15rem 0.6rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.cg-read-role.is-on { background: var(--wk-accent); border-color: var(--wk-accent); color: var(--wk-on-accent); }
+.cg-read-role.is-right { background: var(--wk-ok); border-color: var(--wk-ok); color: var(--wk-on-accent); }
+.cg-read-role.is-wrong { background: var(--wk-danger); border-color: var(--wk-danger); color: var(--wk-on-accent); }
+.cg-read-role.is-missed { border: 2px dashed var(--wk-ok); }
+.cg-read-role:disabled { cursor: default; }
+.cg-read-foot { align-items: center; gap: var(--wk-space-2); }
+.cg-read-legend { margin: 0; font-size: var(--wk-text-xs); }
+
+.cg-gloss-word { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline dotted; text-underline-offset: 0.2em; cursor: help; }
+.cg-gloss-word:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.cg-gloss-box { display: flex; align-items: baseline; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); font-size: var(--wk-text-sm); }
+.cg-gloss-box > button { margin-left: auto; }
+
+/* Die Wärmekarte (Leinwand, Leiter): je Zeile ein Balken — wie viele sie gewählt haben, nie wer. */
+.cg-read-heat .cg-read-line { grid-template-columns: 2.2rem 1fr 6rem; }
+.cg-read-heatbar { display: flex; align-items: center; gap: var(--wk-space-1); font-variant-numeric: tabular-nums; font-size: var(--wk-text-sm); }
+.cg-read-heatbar > span:first-child { flex: 1 1 auto; height: 0.6rem; border-radius: var(--wk-radius-pill); background: var(--wk-accent); opacity: var(--heat, 0); min-width: 2px; }
+.cg-read-heat .cg-read-line.is-right .cg-read-no { color: var(--wk-ok); font-weight: 700; }

@@ -24,10 +24,12 @@
 
 import type { AnswerForm } from './check';
 import { appLang, t } from '../core/i18n';
+import { readingProblems } from './reading/readingSpec';
 
-export type QuestionGroup = 'write' | 'choose' | 'connect' | 'other';
+export type QuestionGroup = 'write' | 'choose' | 'connect' | 'read' | 'other';
 
-export const QUESTION_GROUPS: readonly { readonly id: QuestionGroup; readonly label: string }[] = (['write', 'choose', 'connect', 'other'] as const)
+/* 2026-11-22 (Homer-Einheit) — die Gruppe „Lektüre“: Aufgaben an einem Abschnitt eines Textes der Bibliothek. */
+export const QUESTION_GROUPS: readonly { readonly id: QuestionGroup; readonly label: string }[] = (['write', 'choose', 'connect', 'read', 'other'] as const)
   .map((id) => ({ id, get label() { return t(`cogitaData.questionGroup.${id}`); } }));
 
 export interface QuestionType {
@@ -61,6 +63,10 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
   qt('match', 'connect', ['left', 'right', 'leftLabel', 'rightLabel', 'show', 'tags']),
   qt('order', 'connect', ['items', 'extra', 'preview', 'join', 'tags']),
   qt('build', 'connect', ['items', 'extra', 'alternatives', 'preview', 'join', 'tags']),
+  /* 2026-11-22 (Homer-Einheit) — Lektüre mit Aufgaben (`reading/readingSpec.ts`): der Abschnitt nur als Werk + Stelle. */
+  qt('lines', 'read', ['passage', 'lines', 'tags']),
+  qt('label', 'read', ['passage', 'roles', 'labels', 'tags']),
+  qt('span', 'read', ['passage', 'spans', 'tags']),
   qt('flash', 'other', ['back']),
   qt('point', 'other', ['place', 'radius']),
   qt('code', 'other', ['task', 'starter', 'tests', 'createInput', 'reference', 'cases']),
@@ -221,6 +227,7 @@ export function questionProblems(d: Readonly<Record<string, unknown>>): string[]
       break;
     }
     case 'interactive': if (str(d.drawing).trim() === '') out.push(t('cogitaData.questionProblem.drawing')); break;
+    case 'lines': case 'label': case 'span': for (const p of readingProblems(type.form, d)) out.push(t(`cogitaReading.problem.${p}`)); break;
   }
   if (type.form === 'gap') {
     const gaps = [...str(d.prompt).matchAll(GAP)].length;

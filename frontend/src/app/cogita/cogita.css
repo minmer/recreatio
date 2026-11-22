@@ -291,6 +291,9 @@
 .cg-live { display: grid; gap: 1rem; }
 .cg-live-code { font-size: 2.6rem; font-weight: 700; letter-spacing: 0.2em; font-family: ui-monospace, monospace; }
 .cg-live-screen { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 1.5rem; padding: 2rem; box-sizing: border-box; background: var(--wk-ground); }
+/* 2026-11-22 (Homer) — die Leinwand am Beamer: über allem, ohne Rahmen der App; Text ab ~28 px bei 1080p. */
+.cg-projector { position: fixed; inset: 0; z-index: var(--wk-z-dialog); overflow-y: auto; overscroll-behavior: contain; background: var(--wk-ground); font-size: clamp(1.1rem, 1.5vw, 2.2rem); }
+.cg-projector > .cg-live-screen { min-height: 100%; }
 .cg-live-screen .cg-prompt { font-size: clamp(1.6rem, 4vw, 3rem); text-align: center; max-width: 60rem; }
 .cg-live-buttons { display: grid; gap: 0.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 40rem; }
 .cg-live-buttons button { font: inherit; font-size: var(--wk-text-lg); min-height: 4.2rem; border-radius: 10px; border: 0; color: #fff; cursor: pointer; }

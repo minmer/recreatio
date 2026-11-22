@@ -195,7 +195,23 @@
     "qpathCheckMany": "zakończenie ma {count} pytań — liczą się pierwsze {max}.",
     "qpathDeeper": "\"deeper\": nie ma drogi {ref}.",
     "qpathLoop": "\"deeper\" prowadzi z powrotem do tej drogi (pętla).",
-    "branchLine": "Przebieg „{flow}”, pytanie „{step}”: {what}"
+    "branchLine": "Przebieg „{flow}”, pytanie „{step}”: {what}",
+    "unitIssue": "Jednostka „{name}”: {text}",
+    "unitError": "Błąd: {text}",
+    "unit": {
+      "noStages": "nie ma żadnego etapu („stages”).",
+      "stageNoId": "etap bez „id”.",
+      "stageTwice": "etap „{stage}” występuje dwa razy.",
+      "stageEmpty": "etap „{stage}” nie ma żadnych „items”.",
+      "itemUnread": "etap „{stage}”: element, którego nie da się odczytać (potrzebne jest „flow”, „questions”, „prompt” albo „poll” z co najmniej dwiema opcjami).",
+      "itemFlow": "etap „{stage}”: ścieżki „{ref}” nie ma w bazie.",
+      "itemQuestion": "etap „{stage}”: pytania „{ref}” nie ma w bazie.",
+      "promptLong": "etap „{stage}”: odpowiedź otwarta ma najwyżej {max} znaków.",
+      "skipNowhere": "etap „{stage}”: „skipIf” wskazuje etap „{ref}”, którego nie ma.",
+      "pollAfter": "etap „{stage}”: „after” wskazuje element „{ref}”, którego nie ma.",
+      "noClose": "lekcja {lesson} nie ma etapu zamykającego („type”: „close”, exit ticket).",
+      "coreLong": "etapy core lekcji {lesson} trwają do {minutes} min — zaplanuj najwyżej ok. 40."
+    }
   },
   "progress": {
     "tallyOne": "Odpowiedź {n}: {text}",
@@ -399,7 +415,12 @@
       "needs": "Najpierw trzeba znać",
       "form": "Rodzaj pytania",
       "tags": "Znaczniki błędów",
-      "use": "Gdzie gra"
+      "use": "Gdzie gra",
+      "passage": "Fragment",
+      "lines": "Dobre wersy",
+      "roles": "Role",
+      "labels": "Wersy i role",
+      "spans": "Dobre zakresy"
     },
     "says": {
       "prompt": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]] (kilka luk: każda osobno). Wzory: $…$ w zdaniu, $$…$$ osobno",
@@ -450,8 +471,13 @@
       "about": "Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi",
       "needs": "Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)",
       "form": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: {list}",
-      "tags": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”",
-      "use": "Kiedy pytanie się pojawia: w nauce samodzielnej i na lekcji (domyślnie), tylko w nauce samodzielnej albo tylko na lekcji. Krok przebiegu może to zmienić polem \"use\"."
+      "tags": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika); przy fragmencie (lines, label, span) jeden wiersz na zakres wersów, \"7: znacznik\" — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”",
+      "use": "Kiedy pytanie się pojawia: w nauce samodzielnej i na lekcji (domyślnie), tylko w nauce samodzielnej albo tylko na lekcji. Krok przebiegu może to zmienić polem \"use\".",
+      "passage": "Fragment tekstu z Biblioteki: {\"work\": \"<id albo @nazwa dzieła>\", \"locator\": \"<miejsce, np. XXII 136-213>\"} — wersy liczone są 1, 2, 3 … w obrębie fragmentu",
+      "lines": "Wersy fragmentu, które odpowiadają na polecenie, np. \"3-5, 9\" (rodzaj lines)",
+      "roles": "Role do wyboru, po jednej w wierszu, np. narrator, Hektor, Achilles (rodzaj label)",
+      "labels": "Jeden wiersz na zaznaczony wers lub zakres: \"1: Hektor\", \"3-4: Achilles\" (rodzaj label)",
+      "spans": "Zakresy, które liczą się jako znalezione, np. \"12-15; 30-31\" (rodzaj span)"
     },
     "inverse": {
       "about": "pytania",
@@ -497,13 +523,15 @@
     "reward": "Nagrody",
     "worldmap": "Położenie mapy świata",
     "qpath": "Droga do pytania",
-    "feedback": "Uwaga"
+    "feedback": "Uwaga",
+    "unit": "Jednostka lekcji"
   },
   "questionGroup": {
     "write": "Piszesz odpowiedź",
     "choose": "Wybierasz",
     "connect": "Łączysz i układasz",
-    "other": "Inne"
+    "other": "Inne",
+    "read": "Czytasz fragment"
   },
   "questionType": {
     "text": {
@@ -575,6 +603,21 @@
       "label": "Rysunek do poruszania",
       "prompt": "Pytanie",
       "says": "Uczący się ustawia rysunek (suwaki, przeciąganie) i sprawdza; dobrze, gdy symulacja osiąga cel."
+    },
+    "lines": {
+      "label": "Zaznacz wersy",
+      "prompt": "Polecenie",
+      "says": "Uczący się czyta fragment tekstu z Biblioteki (wskazany dziełem i miejscem — tekst nigdy nie jest kopiowany do bazy) i stuka wersy, które odpowiadają na polecenie; częściowo dobrze liczy się częściowo."
+    },
+    "label": {
+      "label": "Przypisz wersy",
+      "prompt": "Polecenie",
+      "says": "Uczący się czyta fragment z Biblioteki i każdemu zaznaczonemu wersowi przypisuje rolę (narrator, postać, bóg …); każdy wers liczy się osobno."
+    },
+    "span": {
+      "label": "Znajdź środek",
+      "prompt": "Polecenie",
+      "says": "Uczący się czyta fragment z Biblioteki i zaznacza pierwszy i ostatni wers środka (porównania, epitetu …); częściowe pokrycie liczy się częściowo."
     }
   },
   "questionProblem": {
@@ -891,7 +934,10 @@
     "code": "Kod (Python)",
     "point": "Punkt na obrazie albo mapie",
     "interactive": "Rysunek do poruszania (np. fizyka)",
-    "build": "Zbuduj z kafelków"
+    "build": "Zbuduj z kafelków",
+    "lines": "Zaznacz wersy",
+    "label": "Przypisz wersy",
+    "span": "Znajdź środek"
   },
   "check": {
     "unknownUnit": "Nie znam jednostki „{unit}”.",

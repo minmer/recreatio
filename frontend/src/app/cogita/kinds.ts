@@ -62,7 +62,7 @@ export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
 /* 2026-11-09 — `worldmap`: die gespeicherte Lage der Weltkarte (nur Schreibende legen sie ab; nie im JSON des Kurses). */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath', 'feedback'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath', 'feedback', 'unit'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
@@ -87,7 +87,9 @@ export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
   /* 2026-11-02 — punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
   reward: 'cogitaData.docKind.reward',
   /* 2026-11-20 — eine Rückmeldung zu einer Karte, Frage oder Folie für die KI, die die Baza baut (`feedback.ts`). */
-  feedback: 'cogitaData.docKind.feedback'
+  feedback: 'cogitaData.docKind.feedback',
+  /* 2026-11-22 (Homer) — eine Unterrichtseinheit über mehrere Stunden: Etapy, Stunden, Abschlüsse (`unit/unitModel.ts`). */
+  unit: 'cogitaData.docKind.unit'
 });
 
 export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readonly string[]).includes(kind);
@@ -197,6 +199,12 @@ export const QUESTION: KindDef = {
     q('feedback', 'list'),
     /* 2026-11-20 — Fehler-Tags (`adaptive.ts`): je Möglichkeit, Paar, Lücke oder Stelle einer; ein Ablauf verzweigt danach (`wrong:<tag>`). */
     q('tags', 'list'),
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: {work, locator} eines Textes der Bibliothek (nie der Text selbst), Zeilen, Rollen, Bereiche. */
+    q('passage', 'json'),
+    q('lines', 'line'),
+    q('roles', 'list'),
+    q('labels', 'list'),
+    q('spans', 'line'),
     q('value', 'bool'),
     q('left', 'list'),
     q('right', 'list'),
@@ -335,6 +343,8 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.part !== undefined) out.part = f.part;
       /* 2026-11-22 — ein Tag-Feld (`tags.ts`). */
       if (f.tag !== undefined) out.tag = f.tag;
+      /* 2026-11-22 (Homer-Einheit) — ein Feld des Słowniczek (`reading/readingSpec.ts`). */
+      if (f.glossary !== undefined) out.glossary = f.glossary;
       /* 2026-11-05 (Prompt 24) — ein Verweisfeld, das auch in andere Bazy zeigen darf ("@@historia:@…"). */
       if (f.external === true) out.external = true;
       if (f.when !== undefined) out.when = { field: f.when.field, values: [...f.when.values] };

@@ -19,6 +19,7 @@
 
 import type { AnswerSpec, Card } from './cardBasics';
 import { rngOf } from './cardBasics';
+import { readingAnswerText } from './reading/readingSpec';
 import { applyImport, planImport } from './json';
 import { Learner, type AnswerRecord } from './learn';
 import { drawParams, PARAM_TRIES, readParamsSpec } from './generator';
@@ -359,6 +360,8 @@ export function expectedText(a: AnswerSpec): string {
     case 'build': return a.items.join(a.join);
     case 'code': return t('cogitaData.memory.codePasses');
     case 'point': return t('cogitaData.memory.point');
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: Zeilen, Zuordnung oder Bereich, mit der Stelle im Werk. */
+    case 'lines': case 'label': case 'span': return `${a.passage.locator === '' ? '' : `${a.passage.locator}: `}${readingAnswerText(a, { line: t('cogitaReading.line') })}`;
     default: return t('cogitaData.memory.drawingGoal');
   }
 }

@@ -179,7 +179,23 @@
     "qpathCheckMany": "the closing check has {count} questions — the first {max} count.",
     "qpathDeeper": "\"deeper\": there is no path {ref}.",
     "qpathLoop": "\"deeper\" leads back to this path (a loop).",
-    "branchLine": "Flow “{flow}”, question “{step}”: {what}"
+    "branchLine": "Flow “{flow}”, question “{step}”: {what}",
+    "unitIssue": "Unit “{name}”: {text}",
+    "unitError": "Error: {text}",
+    "unit": {
+      "noStages": "there is no stage (“stages”).",
+      "stageNoId": "a stage without “id”.",
+      "stageTwice": "stage “{stage}” appears twice.",
+      "stageEmpty": "stage “{stage}” has no “items”.",
+      "itemUnread": "stage “{stage}”: an item that cannot be read (it needs “flow”, “questions”, “prompt” or “poll” with at least two options).",
+      "itemFlow": "stage “{stage}”: the path “{ref}” is not in the base.",
+      "itemQuestion": "stage “{stage}”: the question “{ref}” is not in the base.",
+      "promptLong": "stage “{stage}”: an open answer has at most {max} characters.",
+      "skipNowhere": "stage “{stage}”: “skipIf” names stage “{ref}”, which does not exist.",
+      "pollAfter": "stage “{stage}”: “after” names item “{ref}”, which does not exist.",
+      "noClose": "lesson {lesson} has no closing stage (“type”: “close”, exit ticket).",
+      "coreLong": "the core stages of lesson {lesson} take up to {minutes} min — plan about 40 at most."
+    }
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",
@@ -373,7 +389,12 @@
       "needs": "Must know first",
       "form": "Question type",
       "tags": "Mistake tags",
-      "use": "Used in"
+      "use": "Used in",
+      "passage": "Passage",
+      "lines": "Right lines",
+      "roles": "Roles",
+      "labels": "Lines and roles",
+      "spans": "Right ranges"
     },
     "says": {
       "prompt": "The question text; for “True or false” — the statement, for a flashcard — its front, for a gap — the text with the gap [[word]] (several gaps: each on its own). Formulas: $…$ inline, $$…$$ on their own",
@@ -424,8 +445,13 @@
       "about": "Entries this question checks: its result counts towards how well they are known, and the question itself waits until you master what must be known before them",
       "needs": "Entries or questions that must be mastered before this question comes (e.g. “What is an atom?” before “What is an orbital?”)",
       "form": "How it is asked and answered — this decides which fields below are filled in: {list}",
-      "tags": "One mistake tag for each option (one, many), pair (match), gap (gap) or position (order, build), in the same order (empty: no tag) — a flow can branch on it with the exit “wrong:<tag>”",
-      "use": "When the question is played: in self-study and in lessons (default), only in self-study, or only in lessons. A step of a flow can say it differently with \"use\"."
+      "tags": "One mistake tag for each option (one, many), pair (match), gap (gap) or position (order, build), in the same order (empty: no tag); for a passage (lines, label, span) one row per line range, \"7: tag\" — a flow can branch on it with the exit “wrong:<tag>”",
+      "use": "When the question is played: in self-study and in lessons (default), only in self-study, or only in lessons. A step of a flow can say it differently with \"use\".",
+      "passage": "The passage of a Library text: {\"work\": \"<id or @name of the work>\", \"locator\": \"<place, e.g. XXII 136-213>\"} — lines are numbered 1, 2, 3 … within the passage",
+      "lines": "The lines of the passage that answer the task, e.g. \"3-5, 9\" (form lines)",
+      "roles": "The roles to choose from, one per row, e.g. narrator, Hector, Achilles (form label)",
+      "labels": "One row per marked line or range: \"1: Hector\", \"3-4: Achilles\" (form label)",
+      "spans": "The ranges that count as found, e.g. \"12-15; 30-31\" (form span)"
     },
     "inverse": {
       "about": "questions",
@@ -471,13 +497,15 @@
     "reward": "Rewards",
     "worldmap": "World map positions",
     "qpath": "Question path",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "unit": "Lesson unit"
   },
   "questionGroup": {
     "write": "You write the answer",
     "choose": "You choose",
     "connect": "You connect and arrange",
-    "other": "Other"
+    "other": "Other",
+    "read": "You read a passage"
   },
   "questionType": {
     "text": {
@@ -549,6 +577,21 @@
       "label": "Drawing to move",
       "prompt": "Question",
       "says": "The learner sets the drawing (sliders, dragging) and checks; correct when the simulation reaches the goal."
+    },
+    "lines": {
+      "label": "Mark lines",
+      "prompt": "Task",
+      "says": "The learner reads a passage of a text from the Library (by work and place — the text is never copied into the base) and taps the lines that answer the task; partly right counts partly."
+    },
+    "label": {
+      "label": "Label lines",
+      "prompt": "Task",
+      "says": "The learner reads a passage from the Library and assigns a role (narrator, a character, a god …) to each marked line; every line counts for itself."
+    },
+    "span": {
+      "label": "Find the device",
+      "prompt": "Task",
+      "says": "The learner reads a passage from the Library and marks the first and the last line of a device (a simile, an epithet …); a partial overlap counts partly."
     }
   },
   "questionProblem": {
@@ -837,7 +880,10 @@
     "code": "Code (Python)",
     "point": "Point on an image or map",
     "interactive": "Drawing to move (e.g. physics)",
-    "build": "Build from tiles"
+    "build": "Build from tiles",
+    "lines": "Mark lines",
+    "label": "Label lines",
+    "span": "Find the device"
   },
   "check": {
     "unknownUnit": "I don’t know the unit “{unit}”.",

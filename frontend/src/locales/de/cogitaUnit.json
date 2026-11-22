@@ -1,0 +1,140 @@
+{
+  "recap": "Wiederholung",
+  "host": {
+    "ledDone": "Weiter in diesem Abschnitt",
+    "someone": "Schüler",
+    "open": "Öffnen: {name}",
+    "next": "Weiter: {name}",
+    "lookOn": "Alle schauen auf die Leinwand",
+    "lookOff": "Handys freigeben",
+    "endLesson": "Stunde beenden",
+    "pause": "Stunde vorbei — Hausaufgaben",
+    "resume": "Fortsetzen (Stunde {n})",
+    "finishUnit": "Einheit abschließen",
+    "lessonOf": "Stunde {n} von {all}",
+    "elapsed": "{min} Min. (geplant {from}–{to} Min.)",
+    "restCore": "übrige Kernabschnitte: etwa {min} Min.",
+    "ledItem": "Teil {n} von {all} — du leitest, die Klasse folgt",
+    "lobby": "Beigetreten: {count}. Öffne den ersten Abschnitt, wenn die Klasse bereit ist.",
+    "between": "Zwischen den Stunden: jede Schülerin, jeder Schüler sieht die unfertigen Abschnitte als Hausaufgabe. „Fortsetzen“ beginnt die nächste Stunde mit einer Wiederholung.",
+    "planTitle": "Plan der Einheit (öffnen, auslassen, umstellen, verlängern, ergänzen)",
+    "reportTitle": "Bericht je Abschnitt",
+    "ready": "{done} / {all} fertig",
+    "helps": "Bitten um Hilfe: {count}",
+    "tags": "Häufigste Fehler: {list}",
+    "student": "Schüler",
+    "status": "Stand",
+    "stuckSays": "Steckt fest: {wrong} falsche Antworten auf dieselbe Frage oder mehr als {min} Min. ohne Fortschritt.",
+    "answers": "Antworten: {count} von {all}",
+    "wallShow": "Auf der Leinwand zeigen",
+    "wallUpdate": "Wand aktualisieren",
+    "itemNext": "Weiter",
+    "showResults": "Ergebnisse zeigen",
+    "skipHint": "die Klasse weiß es: {pct} % — kann ausgelassen werden",
+    "openNow": "Jetzt öffnen",
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "extend": "+5 Min.",
+    "skip": "Auslassen",
+    "add": "Ergänzen",
+    "addFlow": "Pfad",
+    "addIt": "Hinzufügen",
+    "addPrompt": "Offene Frage",
+    "skipped": "Ausgelassen"
+  },
+  "phase": {
+    "lobby": "Die Klasse tritt bei",
+    "lesson": "Stunde läuft",
+    "closing": "Abschluss der Stunde",
+    "between": "Zwischen den Stunden",
+    "closed": "Einheit abgeschlossen"
+  },
+  "report": {
+    "stage": "Abschnitt",
+    "finished": "Fertig",
+    "median": "Median der Zeit",
+    "tags": "Fehler",
+    "open": "Noch offen",
+    "minutes": "{min} Min.",
+    "says": "Vorhersagen zählen nie als Ergebnis. Gemeinsam geleitete Abschnitte stehen in „Fortschritte“."
+  },
+  "status": {
+    "none": "nicht begonnen",
+    "working": "arbeitet",
+    "done": "fertig",
+    "waiting": "wartet",
+    "stuck": "steckt fest",
+    "help": "bittet um Hilfe"
+  },
+  "poll": {
+    "before": "vorher",
+    "legend": "Heller Balken: vorher, dunkler: jetzt."
+  },
+  "type": {
+    "core": "Kern",
+    "flex": "flex",
+    "close": "Abschluss"
+  },
+  "play": {
+    "missing": "Dieser Teil fehlt in der Basis.",
+    "questionOf": "Frage {n} von {all}",
+    "promptLabel": "Deine Antwort",
+    "promptSays": "Noch {left} Zeichen.",
+    "anonymous": "Ohne Namen — die Lehrkraft wählt, was gezeigt wird.",
+    "send": "Senden",
+    "pollSays": "Wähle eine Antwort. Hier gibt es keine falschen Antworten.",
+    "loading": "Die Stunde öffnet sich…",
+    "offline": "offline — wird später gesendet",
+    "lookTitle": "Alle schauen auf die Leinwand",
+    "lookSays": "Leg das Handy kurz weg.",
+    "closed": "Diese Einheit ist abgeschlossen. Danke!",
+    "soon": "Gleich geht es los — schau auf die Leinwand.",
+    "sentWait": "Gesendet. Schau auf die Leinwand.",
+    "help": "Ich brauche Hilfe",
+    "helpOn": "Die Lehrkraft weiß Bescheid — du kannst weiterarbeiten",
+    "of": "{done} von {all}",
+    "pickAny": "Wähle, womit du beginnst — die Reihenfolge ist frei.",
+    "backToList": "‹ Hausaufgaben",
+    "wellDone": "Gut gemacht. Warte auf die Klasse.",
+    "homeworkDone": "Fertig — dieser Abschnitt ist erledigt.",
+    "bonusSays": "Wenn du willst, mach etwas zusätzlich:",
+    "homework": "Hausaufgabe",
+    "homeworkNone": "Du hast alles erledigt. Bis zur Stunde!",
+    "homeworkUntil": "Bis zur nächsten Stunde — in dieser Reihenfolge:",
+    "optional": "Freiwillig"
+  },
+  "item": {
+    "flow": "Pfad",
+    "questions": "Fragen ({count})"
+  },
+  "screen": {
+    "closed": "Einheit abgeschlossen.",
+    "between": "Ende der Stunde {n}. Die Hausaufgaben sind in der App.",
+    "joined": "Beigetreten: {count}",
+    "answerOnPhone": "Antworte auf dem Handy.",
+    "onPhones": "Arbeitet auf den Handys."
+  },
+  "start": {
+    "loading": "Einheiten werden geladen…",
+    "title": "Unterrichtseinheiten — {name}",
+    "lede": "Eine Einheit sind mehrere Stunden als eine Liste von Abschnitten. Dieselbe Sitzung, derselbe Code für alle Stunden; was nicht fertig wird, wird Hausaufgabe.",
+    "none": "Diese Basis hat noch keine Einheiten (als \"units\" im JSON importieren).",
+    "shape": "{lessons} Stunden · {stages} Abschnitte",
+    "lesson": "Stunde {n}",
+    "state": {
+      "lobby": "Öffnen (nicht begonnen)",
+      "running": "Zurück zur Stunde",
+      "paused": "Öffnen (zwischen den Stunden)",
+      "finished": "Abgeschlossen — Bericht",
+      "closed": "Geschlossen"
+    },
+    "untitled": "Einheit",
+    "begin": "Mit der Klasse beginnen",
+    "cardButton": "Einheiten"
+  },
+  "home": {
+    "homework": "Hausaufgabe aus der Stunde",
+    "homeworkOpen": "Sehen, was offen ist",
+    "homeworkIn": "Hausaufgabe — {name}"
+  }
+}

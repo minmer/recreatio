@@ -485,8 +485,8 @@ function ClassLearn({ where, title, who }: { where: Where; title: string; who: W
       {live.map((s) => (
         <a key={s.sessionId} className="cl-live" href={viewPath('learn', where.libraryId, 'sesje', s.sessionId)} data-class-live={s.sessionId}>
           <span className="cl-live-dot" aria-hidden="true" />
-          <strong>{t('cogitaClass.page.liveNow')}</strong>
-          <span>{t('cogitaClass.page.liveJoin')}</span>
+          <strong>{s.state === 'paused' ? t('cogitaUnit.home.homework') : t('cogitaClass.page.liveNow')}</strong>
+          <span>{s.state === 'paused' ? t('cogitaUnit.home.homeworkOpen') : t('cogitaClass.page.liveJoin')}</span>
         </a>
       ))}
       {lib === undefined ? <Loading label={t('cogitaClass.page.opening')} />
@@ -511,7 +511,8 @@ function useLiveLessons(who: Who | null, where: Where): readonly SessionRow[] {
     if (who === null) { setLive([]); return undefined; }
     let alive = true;
     const look = () => void loadSessions(where.areaId, where.libraryId)
-      .then((r) => { if (alive) setLive(r.sessions.filter((s) => s.kind === 'lesson' && (s.state === 'running' || s.state === 'lobby'))); }, () => undefined);
+      /* 2026-11-22 (Homer) — dazu eine Einheit zwischen den Stunden (pausiert, mit Code): dort stehen die Hausaufgaben. */
+      .then((r) => { if (alive) setLive(r.sessions.filter((s) => s.kind === 'lesson' && (s.state === 'running' || s.state === 'lobby' || (s.state === 'paused' && s.joinCode !== null)))); }, () => undefined);
     look();
     const timer = window.setInterval(look, 20_000);
     return () => { alive = false; window.clearInterval(timer); };

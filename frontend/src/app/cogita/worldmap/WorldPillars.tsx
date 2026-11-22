@@ -1209,7 +1209,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || laneOn(l, focus.remaining) || laneOn(l, focus.done))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: laneOn(l, shown), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
       let markCount = 0;
       let variantCount = 0;
-      let lockCount = 0;
       let progressCount = 0;
       const halo0 = rgbCss(mix(pal.surface, pal.land, 0.1));
       const near = v.s >= LOCKS_FROM;
@@ -1248,26 +1247,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           ctx.setLineDash([]);
           variantCount += 1;
         }); }
-        /* 2026-11-10 (Eigentümer) — ein Zweig mit eigenem Tor: ein kleines Schloss an seinem Anfang, dabei der verlangte Turm. */
-        if (l.requires.length > 0 && len >= 20) {
-          let at = along(sp, Math.min(0.3, 12 / len));
-          for (let q = 0.12; q < 0.6 && pickAt(grid, at.x, at.y) !== null; q += 0.06) at = along(sp, q);
-          const lockD = groundDepth(at.x, at.y);
-          behind({ x0: at.x - 8, y0: at.y - 8, x1: at.x + 8, y1: at.y + 8 }, lockD, () => drawLock(ctx, at.x, at.y, 5.5, 'place', rgbCss(mix(pal.ink, pal.land, 0.25)), halo0));
-          if (near) {
-            const names = l.requires.map((id) => scene.byId.get(id)?.label ?? id);
-            ctx.font = '600 11px system-ui, sans-serif';
-            const text = fitText(ctx, names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', '), 160);
-            const w = ctx.measureText(text).width;
-            behind({ x0: at.x + 7, y0: at.y - 8, x1: at.x + 11 + w, y1: at.y + 8 }, lockD, () => {
-              ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-              ctx.lineWidth = 3; ctx.strokeStyle = halo0; ctx.strokeText(text, at.x + 9, at.y);
-              ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(text, at.x + 9, at.y);
-            });
-            boxes.push({ x0: at.x - 7, y0: at.y - 8, x1: at.x + 11 + w, y1: at.y + 8 });
-          }
-          lockCount += 1;
-        }
+        /* 2026-11-22 (Eigentümer) — das kleine Schloss am Tor eines Zweiges (mit den Namen der verlangten Türme) fällt weg; die Schlösser auf gesperrten Spuren bleiben. */
         if (!stroke.dots) continue;
         /* Je Folie ein Punkt, je Frage eine Raute, in ihrer Reihenfolge; gesehen gefüllt, sonst hohl; der nächste trägt einen Ring. */
         const n = l.marks.length;
@@ -1308,7 +1288,6 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       }
       canvas.dataset.wmPathMarks = String(markCount);
       canvas.dataset.wmVariants = String(variantCount);
-      canvas.dataset.wmLocks = String(lockCount);
       canvas.dataset.wmLaneProgress = String(progressCount);
       /*
         2026-11-10 (Eigentümer: „ein Abstecher ist eine Schleife an genau diesem Schritt") — DIE ABSTECHER: eine kleine Schleife neben

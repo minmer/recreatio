@@ -4,6 +4,7 @@
 
 import type { PointExpected, TextRule } from './check';
 import type { InteractiveSpec } from './interactive';
+import type { ReadingSpec } from './reading/readingSpec';
 import type { DatePrecision, Entity, Lookup, MediaRef, ValueState } from './schema';
 
 /* -- Was auf den Leitungen fliesst ------------------------------------------------- */
@@ -186,7 +187,9 @@ export type AnswerSpec =
   | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number; readonly tests?: readonly CodeTest[] }
   | { readonly form: 'point'; readonly on: 'map' | 'image'; readonly target: PointExpected }
   /* 2026-10-17 — ein Bild zum Anfassen (interactive.ts): die Antwort sind die eingestellten Werte. */
-  | InteractiveSpec;
+  | InteractiveSpec
+  /* 2026-11-22 (Homer-Einheit) — Lektüre mit Aufgaben: Zeilen wählen, zuordnen, ein Mittel finden (`reading/readingSpec.ts`). */
+  | ReadingSpec;
 
 export interface Card {
   /** Die Frage: eine von Hand geschriebene, oder `vorlage:eintrag[:wert]`. */

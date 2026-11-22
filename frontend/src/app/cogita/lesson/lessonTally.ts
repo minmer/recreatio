@@ -19,6 +19,15 @@
 import { answerSignals } from '../adaptive';
 import type { Card } from '../cardBasics';
 import { checkCard } from '../cards';
+import { givenLines, givenSpan, isReadingForm, readingGivenText, type ReadingSpec } from '../reading/readingSpec';
+
+/** 2026-11-22 (Homer-Einheit) — eine Lektüre-Antwort als Schlüssel: Zeilen sortiert, Bereich geordnet, Zuordnung je Zeile. */
+const readingKey = (card: Card, given: unknown): string => {
+  const f = card.answer.form;
+  if (f === 'lines') return JSON.stringify(givenLines(given));
+  if (f === 'span') return JSON.stringify(givenSpan(given));
+  return JSON.stringify(Array.isArray(given) ? given.map((g) => (typeof g === 'number' ? g : -1)) : []);
+};
 
 export interface Vote {
   readonly participant: string;
@@ -144,8 +153,10 @@ export function tallyQuestion(card: Card, votes: readonly Vote[], data: Readonly
       ...withTag(a.correct.includes(i) ? undefined : optionTag([i]))
     }));
   } else {
-    const all = groups(counted, typedKey);
-    bars = all.slice(0, MAX_TYPED).map((g) => ({ key: `t:${g.key}`, label: typedLabel(g.given), count: g.count, correct: checkCard(card, g.given).correct, ...withTag(optionTag(g.given)) }));
+    /* 2026-11-22 (Homer-Einheit) — Lektüre: dieselben Zeilen in anderer Folge sind dieselbe Antwort; als Zeilen benannt („3–5, 9”). */
+    const reading = isReadingForm(a.form);
+    const all = groups(counted, reading ? (g) => readingKey(card, g) : typedKey);
+    bars = all.slice(0, MAX_TYPED).map((g) => ({ key: `t:${g.key}`, label: reading ? readingGivenText(a as ReadingSpec, g.given) : typedLabel(g.given), count: g.count, correct: checkCard(card, g.given).correct, ...withTag(optionTag(g.given)) }));
     const rest = all.slice(MAX_TYPED).reduce((n, g) => n + g.count, 0);
     if (rest > 0) bars.push({ key: 'rest', label: '', count: rest, correct: false });
   }
@@ -164,7 +175,7 @@ export function classAnswer(card: Card, votes: readonly Vote[]): { readonly give
   const counted = lastVotes(votes);
   if (counted.length === 0) return null;
   const choice = card.answer.form === 'one' || card.answer.form === 'truefalse' || card.answer.form === 'many';
-  const key = (g: unknown) => (Array.isArray(g) ? JSON.stringify([...g].sort()) : typedKey(g));
+  const key = (g: unknown) => (isReadingForm(card.answer.form) ? readingKey(card, g) : Array.isArray(g) ? JSON.stringify([...g].sort()) : typedKey(g));
   const all = groups(counted, key);
   if (choice) {
     const top = all[0]!;
