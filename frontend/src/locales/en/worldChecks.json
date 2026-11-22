@@ -182,5 +182,23 @@
     "more": "… and {count} more",
     "fix": "Fix:",
     "open": "open"
+  },
+  "world": {
+    "linear": {
+      "message": "The world reads like a text: {count} of {total} towers stand in one line, each with at most one tower directly before and one after it.",
+      "fix": "Keep the order of the source as one dimension, but add others over the same towers: an overview with scenes and details under it, threads that follow a main character or a topic across scenes (question paths, tags), towers that join several scenes. See guide-good-world 1.2a."
+    },
+    "oneLevel": {
+      "message": "All {total} towers stand on one level of detail: no overview with parts under it, no blocks, no deepening paths.",
+      "fix": "Build levels: an overview tower (several towers build on it), blocks (\"part\": \"up\") for a large part, and deeper paths through detour (optional: true) — one, two, three or more levels."
+    },
+    "noThreads": {
+      "message": "The {total} towers can only be met in the order of the source: no question path through several towers, no tag that gathers towers from different parts, no tower that joins several scenes.",
+      "fix": "Add orders across the source: a question path that follows a main character, a tag for a topic or a person, a tower that compares the first and the last scene. The towers stay the same; only the way through them is new."
+    },
+    "dimensions": {
+      "message": "Dimensions of the world ({total} towers, {chain} in a chain): levels of detail {levels} (blocks {blocks}, deepened towers {deepenings}, overviews {overviews}); threads across the order: question paths {paths}, tags across parts {tags}, joining towers {joins}.",
+      "fix": "A good world uses several dimensions over the same towers: the order of the source, levels of detail, and threads (a character, a topic) — guide-good-world 1.2a."
+    }
   }
 }

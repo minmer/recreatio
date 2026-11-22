@@ -182,5 +182,23 @@
     "more": "… und {count} weitere",
     "fix": "Abhilfe:",
     "open": "öffnen"
+  },
+  "world": {
+    "linear": {
+      "message": "Die Welt liest sich wie ein Text: {count} von {total} Türmen stehen in einer Linie, jeder mit höchstens einem Turm direkt davor und einem danach.",
+      "fix": "Behalte die Ordnung der Quelle als eine Dimension, aber baue weitere über dieselben Türme: einen Überblick mit Szenen und Einzelheiten darunter, Fäden, die einer Hauptfigur oder einem Thema über die Szenen folgen (Wege zu einer Frage, Tags), Türme, die mehrere Szenen verbinden. Siehe guide-good-world 1.2a."
+    },
+    "oneLevel": {
+      "message": "Alle {total} Türme stehen auf einer Ebene der Ausführlichkeit: kein Überblick mit Teilen darunter, keine Blöcke, keine vertiefenden Pfade.",
+      "fix": "Baue Ebenen: einen Überblicksturm (mehrere Türme bauen auf ihm auf), Blöcke (\"part\": \"up\") für einen grossen Teil und tiefere Pfade über detour (optional: true) — eine, zwei, drei oder mehr Ebenen."
+    },
+    "noThreads": {
+      "message": "Die {total} Türme lassen sich nur in der Ordnung der Quelle kennenlernen: kein Weg zu einer Frage durch mehrere Türme, kein Tag, der Türme aus verschiedenen Teilen sammelt, kein Turm, der mehrere Szenen verbindet.",
+      "fix": "Füge Ordnungen quer zur Quelle hinzu: einen Weg zu einer Frage, der einer Hauptfigur folgt, einen Tag für ein Thema oder eine Person, einen Turm, der die erste und die letzte Szene vergleicht. Die Türme bleiben dieselben, nur der Weg durch sie ist neu."
+    },
+    "dimensions": {
+      "message": "Dimensionen der Welt ({total} Türme, {chain} in einer Kette): Ebenen der Ausführlichkeit {levels} (Blöcke {blocks}, vertiefte Türme {deepenings}, Überblicke {overviews}); Fäden quer zur Ordnung: Wege zu einer Frage {paths}, Tags über Teile {tags}, verbindende Türme {joins}.",
+      "fix": "Eine gute Welt nutzt mehrere Dimensionen über dieselben Türme: die Ordnung der Quelle, Ebenen der Ausführlichkeit und Fäden (eine Figur, ein Thema) — guide-good-world 1.2a."
+    }
   }
 }

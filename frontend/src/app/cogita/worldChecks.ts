@@ -33,8 +33,10 @@ import { fieldsOf } from './schema';
 import { slideImportWarnings } from './slideLint';
 import type { CogitaLibrary } from './store';
 import { storyPath, type WorkOfStep } from './storyPath';
+import { DIMENSIONS_FROM, worldDimensions } from './worldDimensions';
 import { crossImportWarnings } from './worldsImport';
 import { readWorld } from './worldmap/wmGraph';
+import { readPath } from './worldmap/wmPaths';
 import { placeKindsOf, worldInputOf } from './worldmap/wmInput';
 import { linesOf } from './worldmap/wmLines';
 import { worldTags } from './worldmap/wmTags';
@@ -412,6 +414,27 @@ export function worldChecks(lib: CogitaLibrary, input: WorldCheckInput): WorldCh
       const b = mapTags[j]!;
       if (nearSame(a.label, b.label)) add({ code: 'tag.nearDuplicate', weight: 'should', message: t('worldChecks.tag.nearDuplicate.message', { a: quoted(a.label), b: quoted(b.label) }), fix: t('worldChecks.tag.nearDuplicate.fix'), entity: ref(a.id) });
     }
+  }
+
+  /*
+    -- 2026-11-22 (Eigentümer) — EINE WELT IST KEIN TEXT: neben der Folge der Quelle Ebenen der Ausführlichkeit und Fäden quer
+    zur Folge (einer Figur folgen, einem Thema von Szene zu Szene) — über dieselben Türme (Leitfaden 1.2a, `worldDimensions.ts`).
+  */
+  const dims = worldDimensions(world, lines, net, lib.docs('qpath').filter((d) => lib.isOwn(d.id)).map((d) => readPath(d.id, d.data as Record<string, unknown>)));
+  if (dims.towers >= DIMENSIONS_FROM) {
+    const threads = dims.threads.questionPaths.length + dims.threads.crossTags.length + dims.threads.joins.length;
+    if (dims.linear) add({ code: 'world.linear', weight: 'should', message: t('worldChecks.world.linear.message', { count: dims.inChain, total: dims.towers }), fix: t('worldChecks.world.linear.fix') });
+    if (dims.depth.levels === 1) add({ code: 'world.oneLevel', weight: 'should', message: t('worldChecks.world.oneLevel.message', { total: dims.towers }), fix: t('worldChecks.world.oneLevel.fix') });
+    if (threads === 0) add({ code: 'world.noThreads', weight: 'should', message: t('worldChecks.world.noThreads.message', { total: dims.towers }), fix: t('worldChecks.world.noThreads.fix') });
+    add({
+      code: 'world.dimensions', weight: 'info',
+      message: t('worldChecks.world.dimensions.message', {
+        levels: dims.depth.levels, blocks: dims.depth.blocks, deepenings: dims.depth.deepenings, overviews: dims.depth.overviews.length,
+        paths: dims.threads.questionPaths.length, tags: dims.threads.crossTags.length, joins: dims.threads.joins.length,
+        chain: dims.inChain, total: dims.towers
+      }),
+      fix: t('worldChecks.world.dimensions.fix')
+    });
   }
 
   /* -- Die Stufen (I7: die Empfehlung, keine Regel) ----------------------------------------------------------------------------------- */

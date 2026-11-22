@@ -12,6 +12,8 @@
 
 A good world brings a learner **as fast as possible, but safely,** to knowledge that they did not have before. A learner should feel that someone is taking them by the hand: it reacts to what they answered, explains exactly what is missing, and moves on quickly once they understand.
 
+Above everything else, **a world is many-dimensional, not a text** (1.2a): the same towers can be met in the order of the source at several levels of detail, along a main character, or along a topic that jumps across the source.
+
 Seven principles follow from this:
 
 1. **Every tower is one step forward, of roughly equal size.** It is neither a trivial definition nor several new ideas at once.
@@ -44,6 +46,27 @@ Seven principles follow from this:
 Two links hold a world together:
 - **"Wymaga"** (`"prerequisite": "up"`) holds only **direct** prerequisites and must have no cycles. It decides order, tower height, the discs under locked towers and tickets.
 - **`about` / "wyjaśnia"** decides where a step stands on the map. Link every slide and every question to its tower.
+
+## 1.2a A world is many-dimensional, not a text
+
+**This is the most important property of a world.** A text has one order: sentence after sentence, chapter after chapter. A world must not copy that order. It splits the material into towers (one step each) and then offers **several ways through the same towers**. Even when the source is linear — a lecture, a novel, a book of the Bible — the world built from it is not.
+
+Build at least these dimensions over one set of towers:
+
+1. **The order of the source, at several levels of detail.** Get to know the parts one after the other — first an overview, then the scenes, then the details of a scene, and so on. A world may have one, two, three or more levels of detail; the learner goes as deep as they want.
+   - An **overview tower** that several scene towers build on ("Wymaga" points from the scenes to the overview).
+   - **Blocks** (`"part": "up"`) when a large part has its own parts.
+   - **Deeper paths** through `detour` (`optional: true`) for the details — the ladder of paths in 1.6.
+2. **Threads across the order.** Get to know several scenes by following one line through them:
+   - **a main character** ("Achilles from the quarrel to Priam's tent", "Peter in the Gospels") — a question path (`paths`) whose steps visit the scenes where the person acts, and a tag for the person;
+   - **a topic** that jumps through the source — from the first scene to the last one and then to the next ("Rage in the Iliad", "Covenant from Genesis to the Apocalypse") — a question path or a tag for the topic, and **joining towers** that compare scenes (a tower whose "Wymaga" names two scenes that do not build on each other).
+3. **Bridges** to other books and worlds (1.6) — the same scene seen from another source.
+
+**Rules.**
+- **Nothing is copied.** Every dimension is a different way through the same towers, questions and slides (principle 5). A thread does not retell the scenes; it links them and adds only what is new: the comparison, the development, the question that connects them.
+- **The order of the source stays one dimension among several.** Do not build only "chapter 1 → chapter 2 → …", and do not hide the source order either: a learner who wants to read along must still be able to.
+- **Plan the dimensions before the towers.** List the levels of detail, the main characters and the topics first; then cut the towers so that each can stand on several ways (one scene = one tower, not one chapter = one tower when a chapter holds three scenes).
+- **Check it.** `get_world_checks` reports `world.linear` (the towers form one line, like a text), `world.oneLevel` (no levels of detail), `world.noThreads` (no order across the source), and `world.dimensions` (info: what the world has — levels, blocks, deepenings, overviews, question paths, tags across parts, joining towers).
 
 ## 1.3 Towers
 
@@ -275,6 +298,7 @@ The plan can be saved and reused. Authors write paths and towers so that any rou
 ## 1.13 Checklist
 
 **Structure**
+- [ ] Many-dimensional, not a text (1.2a): the source order with levels of detail, plus threads across it (a main character, a topic); `world.linear`, `world.oneLevel` and `world.noThreads` are absent.
 - [ ] Equal steps, direct prerequisites, no cycles.
 - [ ] Every tower has questions whose `about` is that tower; no question is about a unit.
 - [ ] Every slide is linked to its tower, or deliberately to none (road slide).

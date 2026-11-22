@@ -190,5 +190,23 @@
     "more": "… i jeszcze {count}",
     "fix": "Poprawka:",
     "open": "otwórz"
+  },
+  "world": {
+    "linear": {
+      "message": "Świat czyta się jak tekst: {count} z {total} wież stoi w jednej linii, każda ma najwyżej jedną wieżę tuż przed sobą i jedną po sobie.",
+      "fix": "Zostaw porządek źródła jako jeden wymiar, ale zbuduj kolejne na tych samych wieżach: przegląd ze scenami i szczegółami pod nim, wątki idące za główną postacią albo tematem przez sceny (drogi do pytania, tagi), wieże łączące kilka scen. Zob. guide-good-world 1.2a."
+    },
+    "oneLevel": {
+      "message": "Wszystkie wieże ({total}) stoją na jednym poziomie szczegółowości: nie ma przeglądu z częściami pod nim, bloków ani ścieżek pogłębiających.",
+      "fix": "Zbuduj poziomy: wieżę-przegląd (kilka wież na niej buduje), bloki (\"part\": \"up\") dla dużej części i głębsze ścieżki przez detour (optional: true) — jeden, dwa, trzy albo więcej poziomów."
+    },
+    "noThreads": {
+      "message": "Wieże ({total}) można poznać tylko w porządku źródła: żadna droga do pytania nie prowadzi przez kilka wież, żaden tag nie zbiera wież z różnych części, żadna wieża nie łączy kilku scen.",
+      "fix": "Dodaj porządki w poprzek źródła: drogę do pytania idącą za główną postacią, tag dla tematu albo osoby, wieżę porównującą pierwszą i ostatnią scenę. Wieże zostają te same, nowa jest tylko droga przez nie."
+    },
+    "dimensions": {
+      "message": "Wymiary świata (wież: {total}, w łańcuchu: {chain}): poziomy szczegółowości {levels} (bloki {blocks}, pogłębione wieże {deepenings}, przeglądy {overviews}); wątki w poprzek porządku: drogi do pytania {paths}, tagi przez części {tags}, wieże łączące {joins}.",
+      "fix": "Dobry świat korzysta z kilku wymiarów na tych samych wieżach: porządku źródła, poziomów szczegółowości i wątków (postać, temat) — guide-good-world 1.2a."
+    }
   }
 }
