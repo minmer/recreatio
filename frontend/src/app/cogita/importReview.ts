@@ -21,6 +21,7 @@
 
 import { blockPlain, blocksIn, type CommentBlock } from '../library/blocks';
 import { DOC_KINDS, DOC_LABEL, kindDoc } from './kinds';
+import { feedbackTitle } from './feedbackImport';
 import { importIds, importProblems, planImport, removalEffects, withRemovals, type ImportPlan } from './json';
 import { t } from '../core/i18n';
 import { fieldsOf, fieldText, labelOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
@@ -53,6 +54,11 @@ export interface ImportChange {
    * fiel so ein neues Feld eines bestehenden Ablaufs ("review") still weg, wenn niemand „Przyjmij wszystkie" drückte.
    */
   readonly fills?: true;
+  /**
+   * 2026-11-22 (I6) — eine Uwaga, die das Dokument ausdrücklich erledigt (`"feedback": [{id, state, note}]`, `feedbackImport.ts`):
+   * vorgeschlagen angenommen, wie eine Löschung — das Dokument verlangt es, und es ändert keinen Inhalt.
+   */
+  readonly resolves?: true;
 }
 
 export interface Decisions {
@@ -217,7 +223,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
   }
 
   for (const d of plan.docs) {
-    const title = t('cogitaData.import.docTitle', { doc: DOC_LABEL[d.kind], name: typeof d.data.name === 'string' && d.data.name !== '' ? d.data.name : '—' });
+    const title = d.kind === 'feedback' ? feedbackTitle(d.data) : t('cogitaData.import.docTitle', { doc: DOC_LABEL[d.kind], name: typeof d.data.name === 'string' && d.data.name !== '' ? d.data.name : '—' });
     if (d.isNew) { out.push({ id: `d:${d.id}`, target: 'doc', targetId: d.id, isNew: true, title, beforeText: '', afterText: '', edit: null }); continue; }
     const before = DOC_KINDS.flatMap((k) => lib.docs(k)).find((x) => x.id === d.id);
     if (before === undefined) continue;
@@ -228,6 +234,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       const words = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' || typeof v === 'number' ? clip(String(v)) : clip(JSON.stringify(v), 300));
       out.push({
         id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: docKeyLabel(key), ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
+        ...(d.kind === 'feedback' ? { resolves: true as const } : {}),
         beforeText: words(was), afterText: now === undefined ? t('cogitaData.review.removed') : words(now), ...(now === undefined ? {} : { after: now }),
         edit: now === undefined ? null : typeof now === 'string' ? 'text' : 'json'
       });
@@ -238,7 +245,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
 
 /** Vorgeschlagen: alles Neue an, jede Änderung an Bestehendem aus — sie wird erst angenommen. */
 export function defaultDecisions(changes: readonly ImportChange[]): Decisions {
-  return { accepted: new Set(changes.filter((c) => c.isNew || c.remove === true || c.fills === true).map((c) => c.id)), edited: new Map() };
+  return { accepted: new Set(changes.filter((c) => c.isNew || c.remove === true || c.fills === true || c.resolves === true).map((c) => c.id)), edited: new Map() };
 }
 
 /* -- Der entschiedene Plan ------------------------------------------------------------------------- */
@@ -290,8 +297,13 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     const mine = (byTarget.get(e.id) ?? []).filter((c) => ok(c.id));
     if (mine.length === 0) {
       /* Nur der bleibende Name kommt dazu (ein Eintrag, der ihn noch nicht trug): Buchhaltung, ohne Frage. */
-      const stamp = e.marks?._ref;
-      if (typeof stamp === 'string' && lib.entry(e.id)?.data._ref !== stamp) entities.push({ ...e, kinds: [...before.kinds], data: { ...before.data }, marks: { _ref: stamp } });
+      /* 2026-11-22 (A2) — ebenso der Teil (`_part`): sonst gehörte ein unveränderter Eintrag nie zu dem Teil, mit dem er kam. */
+      const stored = lib.entry(e.id)?.data;
+      const marks = Object.fromEntries((['_ref', '_part'] as const).flatMap((key) => {
+        const stamp = e.marks?.[key];
+        return typeof stamp === 'string' && stored?.[key] !== stamp ? [[key, stamp]] : [];
+      }));
+      if (Object.keys(marks).length > 0) entities.push({ ...e, kinds: [...before.kinds], data: { ...before.data }, marks });
       continue;
     }
     const data: Record<string, unknown> = { ...before.data };
@@ -313,7 +325,8 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     if (before === undefined) continue;
     const mine = (byTarget.get(d.id) ?? []).filter((c) => ok(c.id));
     if (mine.length === 0) {
-      if (typeof d.data._ref === 'string' && before.data._ref !== d.data._ref) docs.push({ ...d, data: { ...before.data, _ref: d.data._ref } });
+      const stamps = Object.fromEntries((['_ref', '_part'] as const).flatMap((key) => (typeof d.data[key] === 'string' && before.data[key] !== d.data[key] ? [[key, d.data[key]]] : [])));
+      if (Object.keys(stamps).length > 0) docs.push({ ...d, data: { ...before.data, ...stamps } });
       continue;
     }
     const data: Record<string, unknown> = { ...before.data };
@@ -324,7 +337,7 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
       if (v !== null) data[c.field] = v.value;
     }
     /* Der bleibende Name und sein Dokument kommen mit dem Import, auch wenn sonst nur ein Teil angenommen ist. */
-    for (const key of ['_ref', '_refDoc']) if (d.data[key] !== undefined) data[key] = d.data[key];
+    for (const key of ['_ref', '_refDoc', '_part']) if (d.data[key] !== undefined) data[key] = d.data[key];
     docs.push({ ...d, data });
   }
 

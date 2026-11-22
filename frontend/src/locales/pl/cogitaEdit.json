@@ -176,6 +176,7 @@
       "date": "dat",
       "text": "tekstów"
     },
-    "role": "Rola (dla wbudowanych narzędzi)"
+    "role": "Rola (dla wbudowanych narzędzi)",
+    "tag": "Pole tagu: to, na co wskazuje, to tagi wpisu (u tagu: jego tagi nadrzędne) — mapa świata filtruje według nich"
   }
 }

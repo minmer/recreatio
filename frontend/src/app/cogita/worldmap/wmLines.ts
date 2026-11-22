@@ -20,6 +20,7 @@
 
 import { exitsOf, type Flow } from '../flow';
 import { isRemedialExit, remedialSteps } from '../adaptive';
+import { countedGraph, type PlayMode } from '../modes';
 import { readCondition, usesSession } from '../logic';
 import { readTicketCondition, unknownTypes } from './wmConditions';
 import { byCode, shownEntries } from './wmGraph';
@@ -691,7 +692,13 @@ const exitLabel = (n: { type: string; config: Readonly<Record<string, unknown>> 
 
 /* -- Alle Linien ------------------------------------------------------------------------------------------------------------- */
 
-export function linesOf(world: World, flows: readonly Flow[]): Lines {
+/**
+ * 2026-11-22 (I3/I4) — `mode`: welcher Modus gezählt wird (Vorgabe `self` — die Karte eines Lernenden; eine Stunde plant mit
+ * `lesson`). Was der Modus nicht spielt, und jede Vorhersage, ist kein Schritt der Linie (`modes.ts` `countedGraph`).
+ */
+export function linesOf(world: World, given: readonly Flow[], opts: { readonly mode?: PlayMode } = {}): Lines {
+  const view = { mode: opts.mode ?? 'self', useOf: (id: string) => world.entries.get(id)?.use } as const;
+  const flows = given.map((f) => { const c = countedGraph(f.graph, f.start, view); return c.graph === f.graph ? f : { ...f, graph: c.graph, start: c.start }; });
   const issues: WmIssue[] = [];
   const byId = new Map(flows.map((f) => [f.id, f] as const));
   const byRef = new Map<string, Flow>();

@@ -1,0 +1,194 @@
+{
+  "quoted": "„{name}”",
+  "listMore": "{list} … (+{count})",
+  "question": {
+    "flash": {
+      "message": "{name} to fiszka — ocenia ją uczący się, nie aplikacja.",
+      "fix": "Zamień ją na pytanie, które ocenia aplikacja: one, many, truefalse, match, order, number, gap albo text ze wszystkimi przyjmowanymi odpowiedziami."
+    },
+    "noTower": {
+      "message": "{name} nie należy do żadnej wieży (jego „about” nie wskazuje wieży).",
+      "fix": "Ustaw „about” na wieżę, którą pytanie sprawdza — każde pytanie należy do wieży."
+    },
+    "untaught": {
+      "message": "{name}: żaden slajd nie uczy jego wieży {tower} ani wieży, której ona wymaga.",
+      "fix": "Wyjaśnij to na slajdzie wieży (powiązanym z wieżą) albo wieży wymaganej, podepnij slajd w „explain” albo usuń pytanie.",
+      "scenes": "(Ta baza ma opowieści-prezentacje: tych scen ta kontrola nie widzi — jeśli scena tego uczy, wszystko w porządku.)"
+    },
+    "noFeedback": {
+      "message": {
+        "one": "{name}: {count} z {total} odpowiedzi nie ma zdania informacji zwrotnej.",
+        "few": "{name}: {count} z {total} odpowiedzi nie mają zdania informacji zwrotnej.",
+        "many": "{name}: {count} z {total} odpowiedzi nie ma zdania informacji zwrotnej.",
+        "other": "{name}: {count} z {total} odpowiedzi nie ma zdania informacji zwrotnej."
+      },
+      "fix": "Daj każdej odpowiedzi własne zdanie („feedback”, jedno na odpowiedź, w tej samej kolejności), które mówi, dlaczego jest dobra albo zła."
+    }
+  },
+  "tower": {
+    "noCore": {
+      "message": "Wieża {name} nie ma pytania kluczowego.",
+      "fix": "Oznacz 1–2 pytania, które sprawdzają sedno wieży, przez \"core\": true."
+    },
+    "fewVote": {
+      "message": "Wieża {name}: pytań gotowych do głosowania klasy: {count} — potrzeba co najmniej {min}.",
+      "fix": "Dodaj pytania rodzaju „one” z {options} odpowiedziami, w których każda zła odpowiedź jest nazwanym błędem myślenia („tags”)."
+    },
+    "longestCorrect": {
+      "message": "Wieża {name}: poprawna odpowiedź jest najdłuższa w {count} z {total} pytań wyboru ({share} %).",
+      "fix": "Niech złe odpowiedzi będą tak długie i wiarygodne jak dobra — dobra może być najdłuższa najwyżej w 3 na 10 pytań."
+    },
+    "positions": {
+      "message": "Wieża {name}: poprawna odpowiedź stoi na miejscu {position} w {count} z {total} pytań wyboru.",
+      "fix": "Rozłóż miejsce poprawnej odpowiedzi równo na pytania."
+    }
+  },
+  "slide": {
+    "long": {
+      "message": "{name}: {count} słów — slajd niesie jedną myśl, najwyżej około {max} słów.",
+      "fix": "Podziel go na dwa slajdy albo wytnij to, czego uczący się tu nie potrzebuje."
+    }
+  },
+  "path": {
+    "severalTowers": {
+      "message": "Ścieżka {name} prowadzi przez {count} wieże ({list}) — ścieżka prowadzi do jednej wieży.",
+      "fix": "Podziel ją na ścieżkę na wieżę albo zakończ ją rozwidleniem zewnętrznym, którego gałęzie prowadzą do wież."
+    },
+    "slidesInRow": {
+      "message": "Ścieżka {name}: {count} slajdów z rzędu przy {step} (najwyżej {max}).",
+      "fix": "Najwyżej {max} slajdy z rzędu: po jednym–dwóch slajdach pytanie dokładnie o nie."
+    },
+    "questionsInRow": {
+      "message": "Ścieżka {name}: {count} pytań z rzędu przy {step} (najwyżej {max} poza blokiem zamykającym).",
+      "fix": "Najwyżej {max} pytania z rzędu: slajd, który przygotowuje pytanie, tuż przed nim — albo przenieś je do bloku zamykającego."
+    },
+    "longClosing": {
+      "message": "Ścieżka {name}: blok zamykający ma {count} pytań (2–{max}).",
+      "fix": "Zostaw 2–{max} pytania, które łączą kroki; resztę wieża zada w swoim przejściu i w powtórkach."
+    },
+    "noQuestions": {
+      "message": "Ścieżka {name} pokazuje slajdy, ale o nic nie pyta.",
+      "fix": "Na przemian: jeden–dwa slajdy, potem pytanie dokładnie o nie."
+    }
+  },
+  "line": {
+    "ticket": {
+      "message": "Ścieżka {name} wymaga przed startem {list} — więcej, niż wymaga jej pierwsza wieża {tower}.",
+      "fix": "Bilet wymaga tylko tego, czego wymaga pierwsza wieża linii: przenieś wymaganie do wieży („Wymaga”) albo zacznij linię przy dalszej wieży."
+    }
+  },
+  "fork": {
+    "labelLong": {
+      "message": "Ścieżka {name}: wybór rozwidlenia {label} ma {count} znaków (najwyżej {max}).",
+      "fix": "Daj wyborowi krótką nazwę linii, najwyżej {max} znaków; więcej powiedz w podpowiedzi."
+    },
+    "hintLong": {
+      "message": "Ścieżka {name}: podpowiedź {label} ma {count} znaków (najwyżej {max}).",
+      "fix": "Skróć podpowiedź do najwyżej {max} znaków."
+    }
+  },
+  "mistakeTag": {
+    "noHelp": {
+      "message": {
+        "one": "{name}: tag błędu {list} nie ma pomocy w ścieżce {path}, która zadaje to pytanie.",
+        "few": "{name}: tagi błędów {list} nie mają pomocy w ścieżce {path}, która zadaje to pytanie.",
+        "many": "{name}: tagi błędów {list} nie mają pomocy w ścieżce {path}, która zadaje to pytanie.",
+        "other": "{name}: tagi błędów {list} nie mają pomocy w ścieżce {path}, która zadaje to pytanie."
+      },
+      "fix": "Poprowadź każdy nazwany błąd do slajdu, który go rozwiązuje: onWrong.byTag (albo krawędź wrong:<tag>) w kroku pytania."
+    },
+    "nearDuplicate": {
+      "message": "Tagi błędów {a} ({ca}×) i {b} ({cb}×) wyglądają na ten sam błąd zapisany inaczej.",
+      "fix": "Jeden zapis dla jednego błędu myślenia — przetaguj odpowiedzi."
+    },
+    "usedOnce": {
+      "message": {
+        "one": "{count} tag błędu występuje tylko przy jednej odpowiedzi: {list}.",
+        "few": "{count} tagi błędów występują tylko przy jednej odpowiedzi: {list}.",
+        "many": "{count} tagów błędów występuje tylko przy jednej odpowiedzi: {list}.",
+        "other": "{count} tagu błędów występuje tylko przy jednej odpowiedzi: {list}."
+      },
+      "fix": "Tag nazywa typowy błąd myślenia, który powraca — sprawdź, czy nie pasuje już istniejący."
+    }
+  },
+  "tag": {
+    "usedOnce": {
+      "message": "Tag {name} wybiera tylko jedną wieżę ({tower}).",
+      "fix": "Użyj istniejącego tagu albo zrezygnuj z tagu, który wybiera jedną wieżę."
+    },
+    "nearDuplicate": {
+      "message": "Tagi {a} i {b} wyglądają na to samo słowo w innej formie.",
+      "fix": "Zostaw jeden z nich i przetaguj wieże."
+    }
+  },
+  "levels": {
+    "none": "bez poziomów",
+    "rule": "{pct} % ({attempts})",
+    "attempts": {
+      "any": "dowolnie wiele prób",
+      "one": "jedna poprawka",
+      "first": "pierwsza próba"
+    },
+    "openAt": "ścieżki otwierają się od poziomu {level}",
+    "standard": {
+      "message": "Poziomy zdobycia: {now}. Zalecane w każdym świecie: dwa poziomy — 75 % przy dowolnej liczbie prób, 90 % z jedną poprawką, ścieżki od poziomu 1.",
+      "fix": "Zapytaj właściciela, czy przejść na standard dwóch poziomów (levelsSetup) — nie zmieniaj tego po cichu."
+    }
+  },
+  "feedback": {
+    "open": {
+      "message": {
+        "one": "{name}: {count} otwarta uwaga ({categories}) — id {ids}.",
+        "few": "{name}: {count} otwarte uwagi ({categories}) — id {ids}.",
+        "many": "{name}: {count} otwartych uwag ({categories}) — id {ids}.",
+        "other": "{name}: {count} otwartej uwagi ({categories}) — id {ids}."
+      },
+      "fix": "Przeczytaj je (get_feedback), popraw to, co zgłaszają, i rozwiąż je w pliku importu: \"feedback\": [{\"id\": …, \"state\": \"done\", \"note\": …}]."
+    }
+  },
+  "flow": {
+    "preview": {
+      "fix": "Popraw ścieżkę w edytorze przebiegu albo w pliku importu (guide-stories); podgląd importu mówi to samo."
+    }
+  },
+  "preview": {
+    "paths": {
+      "fix": "Popraw drogę do pytania (guide-world-map, „paths”)."
+    },
+    "slides": {
+      "fix": "Popraw tekst slajdu (guide-stories, slajdy i tekst)."
+    },
+    "generators": {
+      "fix": "Popraw generator (guide-generators)."
+    },
+    "drawings": {
+      "fix": "Popraw rysunek (guide-visuals)."
+    },
+    "landscape": {
+      "fix": "Popraw kolejność nauki albo widok (guide-world-map)."
+    },
+    "worlds": {
+      "fix": "Popraw odnośnik do innego świata (\"@@handle:…\", w polu odwołania z \"external\": true)."
+    }
+  },
+  "map": {
+    "fix": "Zob. guide-world-map: wieże, wymagania i ścieżki."
+  },
+  "panel": {
+    "title": "Kontrola świata",
+    "lede": "Czego świat jeszcze potrzebuje według przewodnika dobrych światów — lista do zrobienia, nic nie jest blokowane. Tę samą listę dostają asystenci AI (get_world_checks).",
+    "counting": "Sprawdzam świat…",
+    "failed": "Kontrola się nie powiodła: {error}",
+    "none": "Kontrola świata nie znajduje nic do zrobienia.",
+    "counts": "musi {must} · powinno {should} · info {info}",
+    "size": "wieże {towers} · ścieżki {paths} · pytania {questions} · slajdy {slides}",
+    "weight": {
+      "must": "musi",
+      "should": "powinno",
+      "info": "info"
+    },
+    "more": "… i jeszcze {count}",
+    "fix": "Poprawka:",
+    "open": "otwórz"
+  }
+}

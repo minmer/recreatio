@@ -42,7 +42,14 @@ public static partial class Cogita
     private const int MaxEventsPerSession = 50_000;
     private const int MaxTitle = 4096;
 
-    private static readonly HashSet<string> SessionKinds = new(StringComparer.Ordinal) { "live", "async", "sync", "story", "game", "shared" };
+    /// <summary>2026-11-22 (0144) — dazu <c>lesson</c> (die Klasse geht eine Erzählung zusammen) und <c>task</c> (eine Zadanie: Ziel, Klasse, Frist).</summary>
+    private static readonly HashSet<string> SessionKinds = new(StringComparer.Ordinal) { "live", "async", "sync", "story", "game", "shared", "lesson", "task" };
+
+    /// <summary>Gibt es diese Art einer Sitzung? (geprüft ohne Datenbank, <c>Api.Tests/CogitaChecks.cs</c>)</summary>
+    public static bool IsSessionKind(string kind) => SessionKinds.Contains(kind);
+
+    /// <summary>Darf ein Teilnehmer (nicht der Gastgeber) ein Ereignis dieser Art schicken?</summary>
+    public static bool IsParticipantKind(string kind) => ParticipantKinds.Contains(kind);
     private static readonly HashSet<string> States = new(StringComparer.Ordinal) { "lobby", "running", "paused", "finished", "closed" };
 
     /// <summary>Was ein Teilnehmer schicken darf — alles andere ist Sache des Gastgebers.</summary>

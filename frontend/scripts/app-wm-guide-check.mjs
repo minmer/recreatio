@@ -30,7 +30,8 @@ const text = async (p) => (await readFile(p, 'utf8')).replace(/\r\n/g, '\n');
 /* -- Der Leitfaden ------------------------------------------------------------------------------------------------------------ */
 const guide = await text('../templates/cogita/weltkarte-AI.md');
 check('guide: Polish, with the eight points of §9', [
-  /jeden temat = jedno miejsce/i.test(guide) && /10–15 pytań/.test(guide),
+  /* 2026-11-22 (guide-good-world) — die Grösse eines Turms nach Zeit: „4–8 minut … zwykle 10–15“. */
+  /jeden temat = jedno miejsce/i.test(guide) && /4–8 minut/.test(guide) && /zwykle 10–15/.test(guide),
   guide.includes('"part": "up"') && /nigdy[^.]*"prerequisite"/i.test(guide),
   guide.includes('"prerequisite": "up"') && /BEZPOŚREDNIO/.test(guide),
   /Jeden przebieg = jedna linia/.test(guide) && guide.includes('"about"'),

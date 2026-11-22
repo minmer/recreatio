@@ -16,10 +16,11 @@
  *   node scripts/wm-courses.mjs <kurse>
  *   node scripts/wm-click-paths.mjs http://localhost:4791 <kurse>/fixture.json <bilder> [1,2,3,4,5]
  *
- * Schreibt je Pfad Bilder und `click-paths.json`; scheitert (Ausgang 1), wenn ein Pfad nicht ankommt.
+ * Schreibt je Pfad Bilder und `click-paths.json`; scheitert (Ausgang 1), wenn ein Pfad nicht ankommt. Pfad 18 (Tags) liest
+ * `fixture-tags.json` neben der gegebenen Datei (ohne sie fällt er weg).
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Browser } from '../mcp/cdp.mjs';
 
 const [base, coursePath, outDir, onlyArg] = process.argv.slice(2);
@@ -32,6 +33,8 @@ if (base === undefined || coursePath === undefined || outDir === undefined) {
 }
 await mkdir(outDir, { recursive: true });
 const doc = await readFile(coursePath, 'utf8');
+/* 2026-11-22 (Pfad 18) — die Bosko-Gestalt mit einem Netz von Tags (`wm-courses.mjs` schreibt sie neben fixture.json). */
+const tagDoc = await readFile(join(dirname(coursePath), 'fixture-tags.json'), 'utf8').catch(() => null);
 const VIEW = '@wmfx/view/world';
 /* Die Testwelt (wmFixtures.ts, Gestalt Bosko): Namen, wie die Karte sie zeigt. */
 const N = {
@@ -107,10 +110,10 @@ try {
   };
   /* Nach einem Teil mit Navigation steht erst der Weg da (2026-11-10): „Wróć do mapy" führt zur Karte. */
   const ready = `(() => { const back = document.querySelector('[data-world-next-page] [data-world-next-map]'); if (back) back.click(); const h = document.querySelector('[data-world-geometry]'); const c = document.querySelector('[data-world-canvas]'); return h && h.dataset.worldGeometry !== 'pending' && c && Number(c.dataset.wmFrame || 0) > 0; })()`;
-  const open = async (progress = 'none', author = false, query = '') => {
+  const open = async (progress = 'none', author = false, query = '', which = doc) => {
     await page.navigate(`${base}/preview.html?lang=pl${query}`);
     await waitFor('typeof window.recreatioPreview === "object"', 'the preview');
-    const r = await ev(`window.recreatioPreview.knowledge({ doc: ${doc}, view: ${JSON.stringify(VIEW)}, progress: ${JSON.stringify(progress)}, author: ${author} }).then((x) => ({ error: x.error ?? null }))`);
+    const r = await ev(`window.recreatioPreview.knowledge({ doc: ${which}, view: ${JSON.stringify(VIEW)}, progress: ${JSON.stringify(progress)}, author: ${author} }).then((x) => ({ error: x.error ?? null }))`);
     if (r.error !== null) throw new Error(r.error);
     await waitFor(ready, 'the world map', 60000);
     await sleep(300);
@@ -1097,6 +1100,77 @@ try {
       check(P, 'the check passed: the path is done — "Powtórz" outlined, "Głębiej", no "Odkryj"', after.state === 'done' && after.deeper !== null && after.repeat && !after.go, after);
       await shot('p13-done');
     }
+  }
+
+  /*
+    -- 18 · (2026-11-22, Änderungspaket C2) Tags: zuerst nur erreichbare (mit „+N"), ein oberer Tag zeigt alle Türme unter sich (über alle
+    Ebenen), ein Untertag grenzt ein, je Tag erobert/alle, im Baum steht ein Untertag unter jedem seiner oberen, „Sprawdź, co wiesz"
+    fragt nur im Ausschnitt, die Wahl bleibt nach dem Neuladen, „Wszystkie tematy" zeigt wieder alles.
+  */
+  if (runs('18') && tagDoc !== null) {
+    const P = '18 tags';
+    await page.navigate('about:blank');
+    await open('none', false, '', tagDoc);
+    await ev(`(() => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('cg-wm-tag:')) localStorage.removeItem(k); } catch {} return true; })()`);
+    await open('none', false, '', tagDoc);
+    const chips = () => ev(`[...document.querySelectorAll('[data-world-tag-chip]')].map((b) => b.textContent.trim())`);
+    const chipId = (prefix) => ev(`[...document.querySelectorAll('[data-world-tag-chip]')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(prefix)}))?.dataset.worldTagChip ?? null`);
+    const towersDrawn = () => ev(`Number(document.querySelector('[data-world-map]')?.dataset.worldMap ?? -1)`);
+    const crumb = () => ev(`(() => { const s = document.querySelector('strong[data-world-tag-crumb] .cg-wm-tagn'); const m = /(\\d+)[/](\\d+)/.exec(s?.textContent ?? ''); return m === null ? null : { done: Number(m[1]), total: Number(m[2]) }; })()`);
+    const all = await towersDrawn();
+    const first = await chips();
+    check(P, 'a small world opens with everything; the tag bar offers only reachable top tags first (with "+N")', all > 40 && first.length === 1 && first[0].startsWith('Okresy życia') && /\d+\/\d+/.test(first[0])
+      && await ev(`document.querySelector('[data-world-tag-more]') !== null`), { all, first });
+    await click('[data-world-tag-more]');
+    await sleep(300);
+    const more = await chips();
+    check(P, '"+N" shows the other top tags too', more.some((c) => c.startsWith('Ludzie')), more);
+    await click(`[data-world-tag-chip="${await chipId('Okresy')}"]`);
+    await waitFor(`document.querySelector('[data-world-tagbar]')?.dataset.worldTagPath !== ''`, 'the chosen tag');
+    await sleep(900);
+    const okresy = await crumb();
+    const nOkresy = await towersDrawn();
+    check(P, 'a top tag: only the towers below it (all levels, also a subtag with two parents) are drawn — as many as its count says', okresy !== null && nOkresy === okresy.total && nOkresy < all && nOkresy >= 27, { okresy, nOkresy, all });
+    await shot('p18-okresy');
+    const sub = await chips();
+    check(P, 'refine: the subtags of the chosen tag, each with conquered/all', sub.length >= 1 && sub.every((c) => /\d+\/\d+/.test(c)) && sub.some((c) => c.startsWith('Młodość')), sub);
+    await click(`[data-world-tag-chip="${await chipId('Młodość')}"]`);
+    await sleep(900);
+    const mlodosc = await crumb();
+    const nMl = await towersDrawn();
+    check(P, 'a subtag narrows the slice (the 8 towers of "Młodość")', mlodosc !== null && nMl === mlodosc.total && nMl === 8, { mlodosc, nMl });
+    const depth = await ev(`document.querySelector('[data-world-tagbar]').dataset.worldTagPath.split('|').length`);
+    check(P, 'the breadcrumb holds the way down (top tag › subtag)', depth === 2, depth);
+    /* Der Baum: ein Untertag mit zwei oberen steht unter beiden. */
+    await click('[data-world-tag-open]');
+    await waitFor(`document.querySelector('[data-world-tag-panel]')`, 'the tag tree');
+    /* „+N“ hat schon alle gezeigt: das Häkchen nur setzen, wenn es fehlt. */
+    await ev(`(() => { const el = document.querySelector('[data-world-tag-all]'); if (!el.checked) el.click(); return true; })()`);
+    await sleep(300);
+    const twice = await ev(`[...document.querySelectorAll('[data-world-tag-panel] [data-world-tag-choose]')].filter((b) => b.textContent.trim().startsWith('Przyjaciele')).length`);
+    check(P, 'the tree: a subtag with two parents stands under each of them', twice === 2, twice);
+    await shot('p18-tree');
+    await click('[data-world-tag-open]');
+    await sleep(200);
+    /* Gemerkt je Widok auf diesem Gerät (die Vorschau legt die Welt bei jedem Laden mit neuen Kennungen an: geprüft wird der Speicher). */
+    const kept = await ev(`(() => { try { const k = Object.keys(localStorage).find((x) => x.startsWith('cg-wm-tag:')); return k === undefined ? null : JSON.parse(localStorage.getItem(k)).length; } catch { return null; } })()`);
+    check(P, 'the choice is kept on this device (the way down, per view)', kept === 2, kept);
+    /* „Wszystkie tematy": wieder alles; dann zurück zu Okresy › Młodość. */
+    await click('[data-world-tag-crumb=""]');
+    await sleep(900);
+    const back = await towersDrawn();
+    check(P, '"Wszystkie tematy" draws the whole world again', back === all, { back, all });
+    await click(`[data-world-tag-chip="${await chipId('Okresy')}"]`);
+    await sleep(600);
+    await click(`[data-world-tag-chip="${await chipId('Młodość')}"]`);
+    await sleep(900);
+    /* „Sprawdź, co wiesz" im Ausschnitt. */
+    await click('[data-world-selfcheck]');
+    await waitFor(`document.querySelector('[data-world-running]')`, 'the check run', 15000);
+    await sleep(800);
+    const run = await ev(`(() => { const r = document.querySelector('[data-world-running]'); const head = r.querySelector('.cg-run-head'); const m = /(\\d+)\\D+(\\d+)/.exec(head?.querySelector('.cg-muted')?.textContent ?? ''); return { title: head?.querySelector('strong')?.textContent ?? '', total: m === null ? null : Number(m[2]) }; })()`);
+    check(P, '"Sprawdź, co wiesz" with a tag asks only about its towers (the title names the tag)', run.title.includes('Młodość') && (run.total === null || run.total <= 8), run);
+    await shot('p18-check');
   }
 
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');

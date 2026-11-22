@@ -9,6 +9,7 @@ import { t } from '../core/i18n';
 import { fieldDependencies, prerequisiteGraph } from './prerequisites';
 import { labelOf, type Entity, type KindDef, type Lookup } from './schema';
 import { readView } from './views';
+import { tagNetwork, tagSourcesOf } from './tags';
 
 interface Planned {
   readonly kinds: readonly { readonly id: string; readonly def: KindDef }[];
@@ -42,6 +43,15 @@ export function landscapeImportWarnings(lib: BaseLike, plan: Planned): string[] 
     if (touched.length > 0) {
       const names = [...new Set(touched.flatMap((d) => [d.parent, d.child]))].map((id) => { const e = look.entity(id); return e === undefined ? id : labelOf(e, look); });
       out.push(t('cogitaData.landscape.circle', { list: listed(names) }));
+    }
+  }
+  /* 2026-11-22 (Tagi der Welt) — ein Kreis im Netz der Tags (ein Tag, der über sich selbst liegt): geschnitten, aber gemeldet. */
+  if (planned.size > 0) {
+    const net = tagNetwork(tagSourcesOf(all, look), []);
+    const loops = net.cut.filter(([a, b]) => planned.has(a) || planned.has(b));
+    if (loops.length > 0) {
+      const names = [...new Set(loops.flat())].map((id) => { const e = look.entity(id); return e === undefined ? id : labelOf(e, look); });
+      out.push(t('cogitaData.landscape.tagCircle', { list: listed(names) }));
     }
   }
   for (const v of views) {

@@ -120,6 +120,11 @@ export async function createLibrary(ring: Ring, areaId: string, name: string, ki
     method: 'POST',
     body: JSON.stringify({ libraryId, areaId, epoch, kind, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || fallback)) })
   });
+  /*
+    2026-11-22 (guide-good-world §1.3, I7) — eine neue Baza wiedzy beginnt mit den empfohlenen Stufen der Eroberung (2 Stufen: 75 %
+    beliebig, 90 % mit einer Korrektur, Pfade ab Stufe 1) — gleich wo sie entsteht. Geht es nicht, bleibt sie ohne (wie bisher).
+  */
+  if (kind === 'knowledge') await import('../cogita/baseDefaults').then((m) => m.seedNewBase(ring, { libraryId, areaId })).catch(() => undefined);
   /* 2026-10-24 (0128) — folgt ein Link für AI diesem Bereich, bekommt er den neuen Behälter: seine Abschrift entsteht hier. */
   void import('../aiAccess/aiAccess').then((m) => m.aiCollectionAdded(ring, areaId, libraryId)).catch(() => undefined);
   return libraryId;
@@ -228,11 +233,56 @@ export interface PutEntryRow {
   readonly version: number;
 }
 
-/** 2026-11-03 — `remove`: Einträge, die derselbe Zapis löscht (Kennung und der Stand, den der Browser sah). */
-export const putEntries = (
-  libraryId: string, entries: readonly PutEntryRow[], remove: readonly { readonly entryId: string; readonly version: number }[] = []
-): Promise<{ saved: number; entries: readonly { entryId: string; version: number; updatedAt: string }[]; removed?: readonly { entryId: string; version: number }[] }> =>
-  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries/save`, { method: 'POST', body: JSON.stringify(remove.length === 0 ? { entries } : { entries, remove }) });
+/**
+ * 2026-11-22 (A4) — EIN STÜCK EINES GROSSEN ZAPIS: höchstens so viele Einträge (mit Löschungen) und so viele Zeichen
+ * Hüllen. So bleibt jede Anfrage weit unter der Grenze des IIS (30 MB) — der Dienst legt die Stücke ab (0143) und
+ * schreibt sie mit dem letzten Aufruf in EINER Transaktion.
+ */
+export const SAVE_PART_ITEMS = 2000;
+export const SAVE_PART_CHARS = 16 * 1024 * 1024;
+
+type PutRemove = { readonly entryId: string; readonly version: number };
+type PutResult = { saved: number; entries: readonly { entryId: string; version: number; updatedAt: string }[]; removed?: readonly { entryId: string; version: number }[] };
+
+/** 2026-11-22 — die Stücke eines Zapis: Einträge der Reihe nach (je Stück höchstens `items` und `chars`), dann die Löschungen. Rein. */
+export function saveParts(
+  entries: readonly PutEntryRow[], remove: readonly PutRemove[], items = SAVE_PART_ITEMS, chars = SAVE_PART_CHARS
+): { entries: PutEntryRow[]; remove: PutRemove[] }[] {
+  const parts: { entries: PutEntryRow[]; remove: PutRemove[]; chars: number }[] = [];
+  let at: (typeof parts)[number] | undefined;
+  const room = (size: number) => at !== undefined && at.entries.length + at.remove.length < items && (size === 0 || at.chars + size <= chars || at.entries.length === 0);
+  for (const row of entries) {
+    if (!room(row.sealed.length)) { at = { entries: [], remove: [], chars: 0 }; parts.push(at); }
+    at!.entries.push(row);
+    at!.chars += row.sealed.length;
+  }
+  for (const one of remove) {
+    if (!room(0)) { at = { entries: [], remove: [], chars: 0 }; parts.push(at); }
+    at!.remove.push(one);
+  }
+  return parts.map((p) => ({ entries: p.entries, remove: p.remove }));
+}
+
+/**
+ * 2026-11-03 — `remove`: Einträge, die derselbe Zapis löscht (Kennung und der Stand, den der Browser sah).
+ * 2026-11-22 (A4) — passt der Zapis nicht in ein Stück (mehr als `SAVE_PART_ITEMS` oder `SAVE_PART_CHARS`), geht er in
+ * Stücken (`…/entries/save/stage`), und der letzte Aufruf (`"stage"`) schreibt alles in einer Transaktion: alle oder
+ * keiner, wie aus einem Guss. `sent`: wie viele Stücke schon beim Dienst liegen.
+ */
+export async function putEntries(
+  libraryId: string, entries: readonly PutEntryRow[], remove: readonly PutRemove[] = [], sent?: (done: number, total: number) => void
+): Promise<PutResult> {
+  const base = `/workspace/library/${encodeURIComponent(libraryId)}/entries/save`;
+  const parts = saveParts(entries, remove);
+  if (parts.length <= 1) return call(base, { method: 'POST', body: JSON.stringify(remove.length === 0 ? { entries } : { entries, remove }) });
+  let token: string | undefined;
+  for (const [part, one] of parts.entries()) {
+    const done = await call<{ token: string }>(`${base}/stage`, { method: 'POST', body: JSON.stringify({ ...(token === undefined ? {} : { token }), part, entries: one.entries, ...(one.remove.length === 0 ? {} : { remove: one.remove }) }) });
+    token = done.token;
+    sent?.(part + 1, parts.length);
+  }
+  return call(base, { method: 'POST', body: JSON.stringify({ stage: token }) });
+}
 
 export const removeEntry = (libraryId: string, entryId: string): Promise<{ deleted: boolean }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}`, { method: 'DELETE' });

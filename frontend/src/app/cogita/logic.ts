@@ -24,6 +24,7 @@
  */
 
 import { levelOfKnowness } from './knowness';
+import { readMode, type PlayMode } from './modeWords';
 import { t, texts } from '../core/i18n';
 
 /* -- Werte, Vergleich, Tore — für alle ------------------------------------------- */
@@ -142,6 +143,11 @@ export interface Facts {
    * Spielers): keine Antworten.
    */
   readonly session?: SessionFacts;
+  /**
+   * 2026-11-22 (I4) — WIE GERADE GESPIELT WIRD: allein (`self`, Vorgabe) oder in einer Stunde (`lesson`) — die Bedingung „mode"
+   * und was die Schritte mit "use" spielen (`modes.ts`).
+   */
+  readonly mode?: PlayMode;
 }
 
 /** 2026-11-20 — eine Antwort in einem Lauf eines Ablaufs (nur im Spieler, nie gespeichert). */
@@ -238,13 +244,13 @@ export const NO_FACTS: Facts = {
   values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0)
 };
 
-export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'session', 'lastAnswer', 'streak', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
+export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'session', 'lastAnswer', 'streak', 'mode', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
 export type ConditionType = (typeof CONDITION_TYPES)[number];
 
 export const CONDITION_LABEL: Readonly<Record<ConditionType, string>> = texts({
   value: 'cogitaData.logic.condition.value', knowness: 'cogitaData.logic.condition.knowness', answered: 'cogitaData.logic.condition.answered',
   visited: 'cogitaData.logic.condition.visited', flow: 'cogitaData.logic.condition.flow',
-  session: 'cogitaData.logic.condition.session', lastAnswer: 'cogitaData.logic.condition.lastAnswer', streak: 'cogitaData.logic.condition.streak', time: 'cogitaData.logic.condition.time',
+  session: 'cogitaData.logic.condition.session', lastAnswer: 'cogitaData.logic.condition.lastAnswer', streak: 'cogitaData.logic.condition.streak', mode: 'cogitaData.logic.condition.mode', time: 'cogitaData.logic.condition.time',
   place: 'cogitaData.logic.condition.place', zone: 'cogitaData.logic.condition.zone', and: 'cogitaData.logic.condition.and',
   or: 'cogitaData.logic.condition.or', not: 'cogitaData.logic.condition.not', xor: 'cogitaData.logic.condition.xor'
 });
@@ -282,6 +288,7 @@ export const FLOW_CHECK_LABEL: Readonly<Record<FlowCheck, string>> = texts({ sta
  *   { "type": "session", "since": "q1" | "flowStart" | "unit", "wrong": { "op": "ge", "than": 3 } }   (2026-11-20) right · partial · hintsUsed
  *   { "type": "lastAnswer", "correct": false } · "partial": true · "tag": "<tag>" · "hintsUsed"/"timeMs": { "op", "than" }
  *   { "type": "streak", "right": 3 } · { "wrong": 2 }                  die letzten N Antworten des Laufs alle richtig / alle falsch
+ *   { "type": "mode", "is": "lesson" }                                 (2026-11-22) gespielt in einer Stunde · "self": allein (`modes.ts`)
  *   { "type": "and", "items": [ … ] }   or · xor · not (ein Element)
  * </code>
  */
@@ -318,6 +325,8 @@ export interface Condition {
   /** 2026-11-20 — „lastAnswer": teilweise richtig; ein Fehler-Tag der letzten Antwort. */
   readonly partial?: boolean;
   readonly tag?: string;
+  /** 2026-11-22 — „mode": in welchem Modus sie gilt. */
+  readonly is?: PlayMode;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -340,6 +349,12 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     return { type, ...(flow === undefined ? {} : { flow }), state, ...(state === 'goal' && str(raw.goal) !== undefined ? { goal: str(raw.goal) } : {}) };
   }
   const op = (COMPARE_OPS as readonly string[]).includes(String(raw.op)) ? (raw.op as CompareOp) : undefined;
+  /* 2026-11-22 (I4) — der Modus: "is" lesson oder self (auch „lekcja", „samodzielnie" …); fehlt es: lesson (so legt der Editor sie an), ein unbekanntes: keine Bedingung (der Import warnt). */
+  if (type === 'mode') {
+    if (raw.is === undefined) return { type, is: 'lesson' };
+    const is = readMode(raw.is);
+    return is === null ? null : { type, is };
+  }
   /* 2026-11-20 — die Bedingungen des Laufs: „wrong": {"op","than"} (oder eine Zahl: ≥) — gelesen auch in der Form des Editors ("measure"). */
   if (type === 'session' || type === 'lastAnswer' || type === 'streak') return readSessionCondition(type, raw, op);
   /*
@@ -399,10 +414,13 @@ function readSessionCondition(type: 'session' | 'lastAnswer' | 'streak', raw: Re
   };
 }
 
-/** 2026-11-20 — schaut die Bedingung (irgendwo in ihr) auf die Antworten des Laufs? Dann entscheidet sie sich erst unterwegs. */
+/**
+ * 2026-11-20 — schaut die Bedingung (irgendwo in ihr) auf die Antworten des Laufs? Dann entscheidet sie sich erst unterwegs.
+ * 2026-11-22 — auch der Modus (allein / Stunde) gehört dem Lauf: so eine Bedingung ist nie eine Fahrkarte und kein Tor.
+ */
 export function usesSession(c: Condition | null): boolean {
   if (c === null) return false;
-  if (c.type === 'session' || c.type === 'lastAnswer' || c.type === 'streak') return true;
+  if (c.type === 'session' || c.type === 'lastAnswer' || c.type === 'streak' || c.type === 'mode') return true;
   return (c.items ?? []).some(usesSession);
 }
 
@@ -471,6 +489,7 @@ export function conditionText(c: Condition, name: (id: string) => string = (id) 
       since: c.since === undefined || c.since === 'unit' ? t('cogitaData.logic.since.unit') : c.since === 'flowStart' ? t('cogitaData.logic.since.flowStart') : t('cogitaData.logic.since.step', { name: name(c.since) })
     });
     case 'streak': return t(c.measure === 'wrong' ? 'cogitaData.logic.text.streakWrong' : 'cogitaData.logic.text.streakRight', { n: c.than ?? 1 });
+    case 'mode': return t(c.is === 'self' ? 'cogitaData.logic.text.modeSelf' : 'cogitaData.logic.text.modeLesson');
     case 'lastAnswer': return [
       t('cogitaData.logic.text.lastAnswer'),
       c.correct === undefined ? '' : t(c.correct ? 'cogitaData.logic.text.lastRight' : 'cogitaData.logic.text.lastWrong'),
@@ -539,6 +558,7 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
     case 'session':
     case 'lastAnswer':
     case 'streak': return holdsSession(c, facts);
+    case 'mode': return (facts.mode ?? 'self') === (c.is ?? 'lesson');
     case 'and': return gate('and', (c.items ?? []).map((i) => holds(i, facts)));
     case 'or': return gate('or', (c.items ?? []).map((i) => holds(i, facts)));
     case 'xor': return gate('xor', (c.items ?? []).map((i) => holds(i, facts)));

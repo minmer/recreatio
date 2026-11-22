@@ -64,9 +64,13 @@ interface Prepared {
   readonly before: Pick<Entry, 'createdAt' | 'publishedAt' | 'publishedAs'> | undefined;
 }
 
-/** 2026-11-03 — wie viel ein Zapis aus einem Guss höchstens trägt (der Dienst: 5000 Einträge, 40 MB Hüllen; die Anfrage bleibt so unter 30 MB). */
-const SAVE_ALL_MAX = 5000;
-const SAVE_ALL_BYTES = 24 * 1024 * 1024;
+/**
+ * 2026-11-03 — wie viel ein Zapis höchstens trägt. 2026-11-22 (A4): bis 20 000 Elemente und 200 MB Hüllen (als Text) —
+ * was nicht in eine Anfrage passt, geht in Stücken (`putEntries`, 0143) und wird doch in EINER Transaktion geschrieben
+ * (der Dienst: 20 000 Einträge, 160 MB Hüllen als Bytes).
+ */
+const SAVE_ALL_MAX = 20_000;
+const SAVE_ALL_BYTES = 200 * 1024 * 1024;
 
 /** Leere Werte fallen weg — ein Eintrag trägt nur, was gesagt ist. */
 export function cleanData(data: EntryData): EntryData {
@@ -717,7 +721,7 @@ export class LibraryStore implements Lookup {
    * Bibliothek, zu gross), ist keiner gespeichert: der Fehler nennt jeden Eintrag, der nicht ging (`problems`), und
    * hier ändert sich nichts. Vorher, im Browser: ein Eintrag einer anderen Bibliothek, eine Kennung zweimal, zu viel.
    */
-  async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void, remove: readonly string[] = []): Promise<Entry[]> {
+  async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void, remove: readonly string[] = [], sent?: (done: number, total: number) => void): Promise<Entry[]> {
     if (inputs.length === 0 && remove.length === 0) return [];
     if (inputs.length + remove.length > SAVE_ALL_MAX) throw new WorkspaceError(t('libraryData.store.tooMany', { n: inputs.length + remove.length, max: SAVE_ALL_MAX }));
     /* 2026-11-03 — was derselbe Zapis löscht: nur eigene Einträge, mit dem Stand, den dieser Browser kennt. */
@@ -745,7 +749,7 @@ export class LibraryStore implements Lookup {
     }
     let done: Awaited<ReturnType<typeof putEntries>>;
     try {
-      done = await putEntries(this.libraryId, ready.map((r) => r.row), gone);
+      done = await putEntries(this.libraryId, ready.map((r) => r.row), gone, sent);
     } catch (e) {
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
       throw e;

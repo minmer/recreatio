@@ -492,6 +492,13 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
             {c.since !== undefined && c.since !== 'unit' && c.since !== 'flowStart' && <input value={c.since} placeholder={t('cogitaViews.ui.cond.step')} onChange={(e) => set({ since: e.target.value })} />}
           </>
         )}
+        {/* 2026-11-22 (I4) — der Modus: in einer Stunde oder allein gespielt (`modes.ts`). */}
+        {c.type === 'mode' && (
+          <select value={c.is ?? 'lesson'} aria-label={t('cogitaData.logic.condition.mode')} data-cond-mode="" onChange={(e) => set({ is: e.target.value === 'self' ? 'self' : 'lesson' })}>
+            <option value="lesson">{t('cogitaData.logic.mode.lesson')}</option>
+            <option value="self">{t('cogitaData.logic.mode.self')}</option>
+          </select>
+        )}
         {c.type === 'streak' && (
           <>
             <select value={c.measure === 'wrong' ? 'wrong' : 'right'} aria-label={t('cogitaViews.ui.cond.measure')} onChange={(e) => set({ measure: e.target.value as SessionMeasure })}>

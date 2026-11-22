@@ -308,7 +308,7 @@ async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring 
     quiet<readonly PageCard[]>(loadDesk().then((d) => d.pages.filter((p) => p.aliasOf === null)), []),
     quiet<readonly Member[]>(loadMembers(areaId).then((r) => r.members), []),
     quiet<readonly SealedName[]>(loadAreaNames(areaId).then((r) => r.names), []),
-    profile.kind === 'course' ? quiet<readonly LibraryRow[]>(loadLibraries().then((r) => r.libraries), []) : Promise.resolve([] as readonly LibraryRow[]),
+    holdsBases(profile.kind) ? quiet<readonly LibraryRow[]>(loadLibraries().then((r) => r.libraries), []) : Promise.resolve([] as readonly LibraryRow[]),
     quiet<readonly ImportKey[]>(loadImportKeys(areaId).then((r) => r.keys), [])
   ]);
   const keyOf = new Map(keys.filter((k) => k.kind === 'role' && k.refId !== null).map((k) => [k.refId!.toLowerCase(), k.key] as const));
@@ -331,20 +331,20 @@ async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring 
    * Bereichen der Rolle (dann zählte jede Nachbarin im selben Bereich mit) und ihre Ustawienia wurden umgestellt.
    */
   const knowledge = libraries.filter((l) => libraryKindOf(l) === 'knowledge');
-  const refs = profile.kind !== 'course' ? [] : courseBaseRefs({
+  const refs = !holdsBases(profile.kind) ? [] : courseBaseRefs({
     areaId, knowledge, keys,
     parts: (page?.parts ?? []).map((p) => ({ id: p.id, kind: p.kind, config: readConfig(p.config) })),
     knowledgeFields: (kind) => partOf(kind)?.fields.filter((f) => f.kind === 'knowledge').map((f) => f.key) ?? []
   });
   const rowOf = (id: string) => knowledge.find((l) => l.libraryId.toLowerCase() === id.toLowerCase()) ?? null;
-  const learners = profile.kind === 'course' ? roleFor(roles, LEARNERS) : null;
+  const learners = holdsBases(profile.kind) ? roleFor(roles, readersOf(profile.kind)) : null;
   const elsewhere = [...new Set(refs.map((b) => rowOf(b.libraryId)?.areaId ?? areaId).filter((there) => there !== areaId))];
   const read = learners === null ? [] : await Promise.all(elsewhere.map((there) => quiet<string | null>(loadMembers(there)
     .then((r) => (r.members.some((m) => m.roleId.toLowerCase() === learners.roleId.toLowerCase()) ? there : null)), null)));
   const learnersIn = new Set(read.filter((x): x is string => x !== null));
   const rows = refs.map((b) => rowOf(b.libraryId)).filter((r): r is LibraryRow => r !== null);
-  const others = profile.kind === 'course' ? knowledge.filter((l) => !refs.some((b) => b.libraryId.toLowerCase() === l.libraryId.toLowerCase())) : [];
-  const named = ring === null || profile.kind !== 'course' ? [] : await openLibraries(ring, [...rows, ...others]).catch(() => [] as OpenLibrary[]);
+  const others = holdsBases(profile.kind) ? knowledge.filter((l) => !refs.some((b) => b.libraryId.toLowerCase() === l.libraryId.toLowerCase())) : [];
+  const named = ring === null || !holdsBases(profile.kind) ? [] : await openLibraries(ring, [...rows, ...others]).catch(() => [] as OpenLibrary[]);
   const baseNames = new Map(named.map((l) => [l.libraryId, l.name]));
 
   return {
@@ -404,6 +404,18 @@ const LEARNERS: RoleDef = {
   key: 'learners', capability: 'read', legacy: 'Uczący się', // i18n-ignore — der Name älterer Rollen
   get label() { return tApp('areasKind.role.learners.label'); }, get says() { return tApp('areasKind.role.learners.says'); }, get link() { return tApp('areasKind.role.learners.link'); }
 };
+/** Die Uczniowie einer Klasse (ClassTools) — 2026-11-22 hier, weil auch eine Klasse Bazy führt (B8). */
+export const STUDENTS: RoleDef = {
+  key: 'students', capability: 'read', legacy: 'Uczniowie', // i18n-ignore — der Name älterer Rollen
+  get label() { return tApp('areasSchool.class.students'); }, get says() { return tApp('areasSchool.class.studentsSay'); }, get link() { return tApp('areasSchool.class.studentsLink'); }
+};
+/**
+ * 2026-11-22 (Part B, B8) — WER DIE BAZY EINES BEREICHS LIEST: im Kurs die Uczący się, in einer Klasse die Uczniowie. Eine Klasse
+ * führt eine Baza wie ein Kurs (`courseBases.ts`, Schlüssel `base-<id>`): die Uczniowie lesen ihren Bereich, die Lehrerin leitet
+ * dort Stunden und gibt Zadania.
+ */
+const readersOf = (kind: string | null): RoleDef => (kind === 'class' ? STUDENTS : LEARNERS);
+const holdsBases = (kind: string | null): boolean => kind === 'course' || kind === 'class';
 
 /** Die Rolle einer Art — unter ihrem Schlüssel (auch aus einem JSON-Import), sonst an ihrem Namen („Uczestnicy: Rekolekcje 2027"). */
 export const roleFor = (roles: readonly RoleSeen[], def: RoleDef): RoleSeen | null =>
@@ -1117,6 +1129,20 @@ function OrganisationTools({ ctx }: { ctx: Ctx }) {
  * Hauptseite mit ihr lernt — und Otwórz, Postępy (die dieses Kurses), Dodaj na stronę, Odłącz.
  */
 function CourseTools({ ctx }: { ctx: Ctx }) {
+  return (
+    <>
+      <BasesTool ctx={ctx} />
+      <RolesTool ctx={ctx} defs={[LEARNERS]} />
+      <MainPageTool ctx={ctx} optional />
+    </>
+  );
+}
+
+/**
+ * Die Bazy eines Kurses — 2026-11-22 (B8) auch einer Klasse: die Welt, mit der sie lernt (die Lehrerin leitet dort Stunden und gibt
+ * Zadania; die Uczniowie lesen den Bereich der Baza).
+ */
+export function BasesTool({ ctx }: { ctx: Ctx }) {
   const { t } = ctx;
   const bases = ctx.world.bases;
   const picking = ctx.open === 'base';
@@ -1146,8 +1172,6 @@ function CourseTools({ ctx }: { ctx: Ctx }) {
           </div>
         )}
       </Tool>
-      <RolesTool ctx={ctx} defs={[LEARNERS]} />
-      <MainPageTool ctx={ctx} optional />
     </>
   );
 }
@@ -1157,7 +1181,7 @@ function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
   const { t } = ctx;
   const name = base.name ?? t('areasKind.base');
   const row = base.row;
-  const learners = roleFor(ctx.world.roles, LEARNERS);
+  const learners = roleFor(ctx.world.roles, readersOf(ctx.profile.kind));
   const elsewhere = row !== null && !base.own;
   const reads = row === null || base.own || ctx.world.learnersIn.has(row.areaId);
   const open = !reads && row !== null && isPublic(ctx, row.areaId);
@@ -1173,7 +1197,7 @@ function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
       title: t('areasKind.course.unlinkAsk', { name }),
       body: [
         base.parts.length > 0 ? t('areasKind.course.unlinkModules') : null,
-        closes && row !== null ? t('areasKind.course.unlinkRole', { role: LEARNERS.label, name: nameOf(ctx, row.areaId) }) : null,
+        closes && row !== null ? t('areasKind.course.unlinkRole', { role: readersOf(ctx.profile.kind).label, name: nameOf(ctx, row.areaId) }) : null,
         t('areasKind.course.unlinkStays')
       ].filter((x) => x !== null).join(' '),
       confirm: t('areas.audience.detach')
@@ -1249,9 +1273,9 @@ function PickBase({ ctx }: { ctx: Ctx }) {
           ) : (
             <p className="wk-warn" data-course-pick-warn="">
               {neighbours.length > 0
-                ? t('areasKind.course.pickWarnNeighbours', { name: nameOf(ctx, chosen.areaId), role: LEARNERS.label, count: neighbours.length, bases: neighbours.map((b) => t('areasJson.quoted', { name: name(b) })).join(', ') })
-                : t('areasKind.course.pickWarn', { name: nameOf(ctx, chosen.areaId), role: LEARNERS.label })}
-              {roleFor(ctx.world.roles, LEARNERS) === null && ` ${t('areasKind.course.roleWillBeMade')}`}
+                ? t('areasKind.course.pickWarnNeighbours', { name: nameOf(ctx, chosen.areaId), role: readersOf(ctx.profile.kind).label, count: neighbours.length, bases: neighbours.map((b) => t('areasJson.quoted', { name: name(b) })).join(', ') })
+                : t('areasKind.course.pickWarn', { name: nameOf(ctx, chosen.areaId), role: readersOf(ctx.profile.kind).label })}
+              {roleFor(ctx.world.roles, readersOf(ctx.profile.kind)) === null && ` ${t('areasKind.course.roleWillBeMade')}`}
             </p>
           )}
           <p className="wk-kind-small">{t('areasKind.course.settingsStay')}</p>
@@ -2236,13 +2260,14 @@ async function nameRoleIn(ring: Ring, areaId: string, roleId: string, name: stri
  */
 async function letLearnersIn(ctx: Ctx, held: Held, areas: readonly string[]): Promise<Ring> {
   const course = ctx.area.areaId;
-  const name = ctx.t('areasKind.act.roleName', { role: LEARNERS.label, name: ctx.title });
-  const learners = roleFor(ctx.world.roles, LEARNERS);
+  const def = readersOf(ctx.profile.kind);
+  const name = ctx.t('areasKind.act.roleName', { role: def.label, name: ctx.title });
+  const learners = roleFor(ctx.world.roles, def);
   if (learners === null) {
     held.step(ctx.t('areasKind.act.learnersRole'));
     const made = await createCommonRole(held.ring, held.person, { name, areas: [course, ...areas].map((areaId) => ({ areaId, capability: 'read' as const })) }, held.step);
     for (const there of [course, ...areas]) await nameRoleIn(made.ring, there, made.roleId, name);
-    await saveImportKeys(course, [{ kind: 'role', key: LEARNERS.key, refId: made.roleId, refText: LEARNERS.label }]).catch(() => undefined);
+    await saveImportKeys(course, [{ kind: 'role', key: def.key, refId: made.roleId, refText: def.label }]).catch(() => undefined);
     return made.ring;
   }
   for (const there of areas) {
@@ -2360,7 +2385,7 @@ async function unlinkBase(ctx: Ctx, held: Held, base: CourseBase, closes: boolea
     const gone = new Set(base.parts);
     await saveParts(ctx.main, page.parts.map(toDraft).filter((part) => !gone.has(part.id)));
   }
-  const learners = roleFor(ctx.world.roles, LEARNERS);
+  const learners = roleFor(ctx.world.roles, readersOf(ctx.profile.kind));
   if (closes && learners !== null && base.row !== null) {
     held.step(ctx.t('areasKind.act.closingFor', { name: nameOf(ctx, base.row.areaId) }));
     const r = await dropFromArea(base.row.areaId, learners.roleId);

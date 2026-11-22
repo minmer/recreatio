@@ -30,7 +30,8 @@ const entry = join(workspace, 'entry.ts');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export { memoryBase, MemoryStore } from '${app}cogita/memoryBase';
-export { applyImport, importProblems, ImportBlocked, planImport } from '${app}cogita/json';
+export { applyImport, exportCourse, importProblems, ImportBlocked, planImport, WHOLE_WORLD_DOCS } from '${app}cogita/json';
+export { saveParts, SAVE_PART_CHARS, SAVE_PART_ITEMS } from '${app}library/library';
 export { changesOf, changeSummary, decidedPlan, defaultDecisions, importSession } from '${app}cogita/importReview';
 export { CogitaLibrary } from '${app}cogita/store';
 export { readView } from '${app}cogita/views';
@@ -39,6 +40,7 @@ export { knowStats } from '${app}cogita/knowStats';
 export { answerIndex } from '${app}cogita/measures';
 export { landscapeInput, landscapeState } from '${app}cogita/landscapeData';
 export { LandscapeEngine } from '${app}cogita/landscape';
+export { feedbackForAi, feedbackOf } from '${app}cogita/feedback';
 `);
 await build({
   entryPoints: { entry }, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error',
@@ -422,6 +424,135 @@ const countSaves = (lib) => { let n = 0; const was = lib.store.saveAll.bind(lib.
   check('4 MB file: the document is at least 4 MB', size >= 4 * 1024 * 1024, true);
   check('4 MB file: one preview lists every new entry, one save stores them all', [changes.filter((c) => c.isNew && c.target === 'entity').length, saves(), lib.ofKind(temat(lib).id).length], [1900, 1, 1906]);
   check('4 MB file: preview and save under 20 s in node', t2 - t0 < 20000, true);
+}
+
+/* ===================================================================================================================
+ * 8. 2026-11-22 (A4) — EIN GROSSER ZAPIS IN STÜCKEN: je Stück höchstens 2000 Elemente und 16 MB Hüllen; die Reihenfolge bleibt
+ * =================================================================================================================== */
+{
+  const row = (i, size = 100) => ({ entryId: `e${i}`, kind: 'entity', epoch: 1, sealed: 'x'.repeat(size), version: 0 });
+  const rows = Array.from({ length: 4600 }, (_, i) => row(i));
+  const gone = Array.from({ length: 300 }, (_, i) => ({ entryId: `g${i}`, version: 1 }));
+  const parts = A.saveParts(rows, gone);
+  check('parts: 4600 entries + 300 deletions → 2000, 2000, 900 (the deletions fill the last part)', parts.map((p) => p.entries.length + p.remove.length), [2000, 2000, 900]);
+  check('parts: the order stays (entries first, then the deletions)', [parts[0].entries[0].entryId, parts[2].entries.at(-1).entryId, parts[2].remove[0].entryId], ['e0', 'e4599', 'g0']);
+  check('parts: a small save is one part (the old single request)', A.saveParts(rows.slice(0, 50), gone.slice(0, 5)).length, 1);
+  const big = Array.from({ length: 10 }, (_, i) => row(i, 7 * 1024 * 1024));
+  check('parts: by size too — 7 MB envelopes go two per 16 MB part', A.saveParts(big, []).map((p) => p.entries.length), [2, 2, 2, 2, 2]);
+  check('parts: one envelope above the limit still goes (alone) — the service decides', A.saveParts([row(0, A.SAVE_PART_CHARS + 1), row(1)], []).map((p) => p.entries.length), [1, 1]);
+  check('parts: the limits are 2000 items and 16 MB', [A.SAVE_PART_ITEMS, A.SAVE_PART_CHARS], [2000, 16 * 1024 * 1024]);
+}
+
+/* ===================================================================================================================
+ * 7. 2026-11-22 (A2) — DIE GANZE WELT: "wholeWorld": true löscht, was die Datei nicht enthält; "part" grenzt es ein
+ * =================================================================================================================== */
+const courseDoc = (more) => ({ format: 'recreatio.cogita.course', version: 1, name: 'Kurs', ...more });
+const removalIds = (plan) => (plan.removals ?? []).map((r) => r.id).sort();
+{
+  /* Ohne Teil: alles Eigene, was nicht in der Datei steht — Einträge und Strukturen; nie Rodzaje, Ustawienia, Uwagi. */
+  const lib = await freshBase();
+  const [e1, e2, e3] = stageIds(lib);
+  const details = detailIds(lib);
+  const flow = await lib.saveDoc('flow', { name: 'Stara opowieść', graph: { nodes: [], edges: [] } });
+  const feedback = await lib.saveDoc('feedback', { target: e1, category: 'good', comment: 'dobrze', state: 'open' });
+  await lib.saveSettings({ dailyGoal: 7 });
+  const kindsBefore = lib.kinds.map((k) => k.id).sort();
+  const doc = courseDoc({ wholeWorld: true, kinds: [TEMAT], entities: STAGES.slice(0, 2), views: [VIEW] });
+  const plan = A.planImport(lib, doc);
+  check('whole world: every entry and structure not in the file is a removal (stage 3, 3 details, the old flow)', removalIds(plan), [e3, ...details, flow.id].sort());
+  truth('whole world: the first line says it, with the counts', plan.lines[0].startsWith('CAŁY ŚWIAT') && plan.lines[0].includes('wpisy: 4') && plan.lines[0].includes(': 1.'), plan.lines);
+  check('whole world: kinds, settings and feedback are never removals', [plan.removals.some((r) => r.id === feedback.id || r.id === lib.settingsEntry().id), plan.kinds.length], [false, 1]);
+  check('whole world: the doc kinds it deletes are the course\'s (no settings, no feedback, no kinds)', ['settings', 'feedback', 'kind', 'worldmap'].some((k) => A.WHOLE_WORLD_DOCS.includes(k)), false);
+  const { s, d } = decideAll(lib, doc);
+  check('whole world: removals start ticked and nothing blocks', [A.defaultDecisions(s.changes()).accepted.has(`x:${e3}`), d.blocked], [true, []]);
+  const saves = countSaves(lib);
+  await A.applyImport(lib, d.plan, () => undefined);
+  check('whole world: one save; only the file\'s entries remain, with their ids', [saves(), lib.ofKind(temat(lib).id).map((e) => e.id).sort()], [1, [e1, e2].sort()]);
+  check('whole world: the old flow is gone, feedback and settings stay, the kinds are the same', [lib.docs('flow').length, lib.docs('feedback').length, lib.settingsEntry()?.data.dailyGoal, lib.kinds.map((k) => k.id).sort()], [0, 1, 7, kindsBefore]);
+  /* Ein Export, als ganze Welt wieder eingelesen, löscht nichts. */
+  const round = A.planImport(lib, { ...A.exportCourse(lib, 'Kurs'), wholeWorld: true });
+  check('whole world: re-importing an export deletes nothing', 'error' in round ? round.error : removalIds(round), []);
+  /* Ein Untick hält es zurück. */
+  const lib2 = await freshBase();
+  const s2 = A.importSession(lib2, courseDoc({ wholeWorld: true, kinds: [TEMAT], entities: STAGES, views: [VIEW] }));
+  const keep = detailIds(lib2)[0];
+  const decisions = acceptAll(s2.changes());
+  decisions.accepted.delete(`x:${keep}`);
+  await A.applyImport(lib2, s2.decide(decisions).plan, () => undefined);
+  check('whole world: an unticked removal stays, the others go', [lib2.entity(keep) !== undefined, DETAILS.filter((x) => lib2.byImportRef(x.ref.slice(1), 'entity') !== undefined).length], [true, 1]);
+}
+{
+  /* Was die Datei nennt, ohne es zu enthalten, bleibt — mit Hinweis. */
+  const lib = await freshBase();
+  const [d1, d2] = detailIds(lib);
+  const doc = courseDoc({ wholeWorld: true, kinds: [TEMAT], entities: [...STAGES, { ref: '@kurs/temat/nowy', kinds: ['@kurs/temat'], data: { nazwa: 'Nowy', wymaga: ['@kurs/temat/szczegol-1'] } }], views: [VIEW] });
+  const plan = A.planImport(lib, doc);
+  check('whole world: an entry the file points at (by its lasting name) stays', [removalIds(plan).includes(d1), removalIds(plan).includes(d2)], [false, true]);
+  truth('… and the preview says so, by name', plan.warnings.some((w) => w.includes('Szczegół 1') && w.includes('wskazuje')), plan.warnings);
+  /* Nicht in einem Kurs: übergangen, mit Hinweis. */
+  const other = A.planImport(lib, entitiesDoc([STAGES[0]], { wholeWorld: true }));
+  check('whole world outside a course document: ignored with a warning', [removalIds(other), other.warnings.some((w) => w.includes('wholeWorld'))], [[], true]);
+}
+{
+  /* Teile: was mit einem Teil kam, trägt ihn; "wholeWorld" mit Teil löscht nur dessen Eigenes. */
+  const lib = await freshBase();
+  const mech = (n, more = {}) => ({ ref: `@kurs/mech/m-${n}`, kinds: ['@kurs/temat'], data: { nazwa: `Mechanika ${n}`, ...more } });
+  const optik = { ref: '@kurs/optik/o-1', kinds: ['@kurs/temat'], data: { nazwa: 'Optyka 1' } };
+  await A.applyImport(lib, decideAll(lib, courseDoc({ part: 'mechanika', kinds: [TEMAT], entities: [mech(1), mech(2)] })).d.plan, () => undefined);
+  await A.applyImport(lib, decideAll(lib, courseDoc({ part: 'optyka', kinds: [TEMAT], entities: [optik] })).d.plan, () => undefined);
+  const id = (r) => lib.byImportRef(r, 'entity').id;
+  check('part: every item the file creates carries its part', [lib.entry(id('kurs/mech/m-1')).data._part, lib.entry(id('kurs/optik/o-1')).data._part], ['mechanika', 'optyka']);
+  /* Ein unveränderter, schon vorhandener Eintrag bekommt den Teil trotzdem (nur die Buchhaltung, ohne Frage). */
+  await A.applyImport(lib, decideAll(lib, courseDoc({ part: 'mechanika', kinds: [TEMAT], entities: [STAGES[0]] })).d.plan, () => undefined);
+  const [e1] = stageIds(lib);
+  check('part: an unchanged existing entry named by the file joins the part', lib.entry(e1).data._part, 'mechanika');
+  const plan = A.planImport(lib, courseDoc({ part: 'mechanika', wholeWorld: true, kinds: [TEMAT], entities: [mech(1)] }));
+  check('part + whole world: only this part\'s items not in the file are removals (m-2, Etap 1)', removalIds(plan), [id('kurs/mech/m-2'), e1].sort());
+  truth('part + whole world: the first line names the part', plan.lines[0].includes('część „mechanika”'), plan.lines[0]);
+  truth('part + whole world: items of no part are counted and stay (2 stages, 3 details, the view)', plan.warnings.some((w) => w.startsWith('6 elementów tej bazy nie należy do żadnej części')), plan.warnings);
+  await A.applyImport(lib, decideAll(lib, courseDoc({ part: 'mechanika', wholeWorld: true, kinds: [TEMAT], entities: [mech(1)] })).d.plan, () => undefined);
+  check('part + whole world: m-2 and Etap 1 are gone; optyka, the other stages and the details stay', [lib.byImportRef('kurs/mech/m-2', 'entity'), lib.entity(e1), lib.byImportRef('kurs/optik/o-1', 'entity') !== undefined, lib.ofKind(temat(lib).id).length], [undefined, undefined, true, 7]);
+  /* Ein Ablauf eines anderen Teils zeigt auf einen Eintrag dieses Teils: das blockiert, und es bleibt alles. */
+  const m1 = id('kurs/mech/m-1');
+  await lib.saveDoc('flow', { name: 'Opowieść optyki', unit: m1, graph: { nodes: [], edges: [] }, _part: 'optyka' });
+  const blocked = decideAll(lib, courseDoc({ part: 'mechanika', wholeWorld: true, kinds: [TEMAT], entities: [mech(3)] })).d;
+  truth('part + whole world: a removal another part\'s flow points at blocks, naming the flow', blocked.blocked.some((l) => l.includes('Opowieść optyki')), blocked.blocked);
+  const rows = lib.store.all().length;
+  let threw = null;
+  try { await A.applyImport(lib, blocked.plan, () => undefined); } catch (e) { threw = e; }
+  check('… and applying it saves and deletes nothing', [threw instanceof A.ImportBlocked, lib.entity(m1) !== undefined, lib.store.all().length], [true, true, rows]);
+}
+
+/* -- 9. 2026-11-22 (I6) — Uwagi erledigen mit dem Import: "feedback": [{id, state, note}] ---------------------------------- */
+{
+  const lib = await freshBase('kurs-uwagi');
+  const [e1, e2] = stageIds(lib);
+  const fb1 = (await lib.saveDoc('feedback', { target: { kind: 'entry', entity: e1, label: 'Etap 1' }, category: 'wrong', text: 'Zły opis.', at: '2026-11-20T10:00:00Z', state: 'open' })).id;
+  const fb2 = (await lib.saveDoc('feedback', { target: { kind: 'entry', entity: e2, label: 'Etap 2' }, category: 'language', text: 'Literówka.', at: '2026-11-20T11:00:00Z', state: 'open' })).id;
+  const doc = courseDoc({ kinds: [TEMAT], entities: [{ ...STAGES[0], data: { ...STAGES[0].data, nazwa: 'Etap pierwszy' } }], feedback: [{ id: fb1, state: 'done', note: 'Opis poprawiony.' }, { id: 'nie-ma-takiej', state: 'done' }] });
+  const plan = A.planImport(lib, doc);
+  truth('feedback: the preview says how many are marked done', plan.lines.some((l) => /uwag|feedback|rückmeld/i.test(l) && l.includes('1')), plan.lines);
+  truth('feedback: an unknown id is a warning (not an error)', plan.warnings.some((w) => w.includes('nie-ma-takiej')), plan.warnings);
+  const s = A.importSession(lib, doc);
+  const mine = s.changes().filter((c) => c.targetId === fb1);
+  check('feedback: the resolution is listed (state, note, when) and accepted by default, titled by its category and target', [mine.map((c) => c.field).sort(), mine.every((c) => c.resolves === true), mine.every((c) => A.defaultDecisions(s.changes()).accepted.has(c.id)), mine[0]?.title.includes('Etap 1')], [['doneAt', 'note', 'state'], true, true, true]);
+  /* Die Änderung am Eintrag beginnt abgewählt (wie immer) — hier angenommen, um denselben Zapis zu zeigen. */
+  const d = s.decide(acceptAll(s.changes()));
+  check('feedback: nothing blocks', d.blocked, []);
+  const saves = countSaves(lib);
+  await A.applyImport(lib, d.plan, () => undefined);
+  const after = A.feedbackOf(lib);
+  const one = after.find((f) => f.id === fb1);
+  check('feedback: marked done with the note in the SAME save as the entry change; the other one stays open', [saves(), one.state, one.note, typeof one.doneAt === 'string', after.find((f) => f.id === fb2).state, lib.entity(e1).data.nazwa], [1, 'done', 'Opis poprawiony.', true, 'open', 'Etap pierwszy']);
+  const ai = A.feedbackForAi(lib, (id) => id).find((f) => f.id === fb1);
+  check('feedback: get_feedback (the snapshot) shows the note', [ai.state, ai.note], ['done', 'Opis poprawiony.']);
+  const twice = A.importSession(lib, courseDoc({ feedback: [{ id: fb1, state: 'done', note: 'Opis poprawiony.' }] }));
+  check('feedback: the same resolution again changes nothing', twice.changes().filter((c) => c.targetId === fb1).length, 0);
+  const entitiesOnly = A.planImport(lib, entitiesDoc([{ ...STAGES[1] }], { feedback: [{ id: fb2, state: 'done' }] }));
+  truth('feedback: only a course document resolves feedback (others warn and ignore it)', !('error' in entitiesOnly) && entitiesOnly.docs.every((x) => x.kind !== 'feedback') && entitiesOnly.warnings.some((w) => w.includes('recreatio.cogita.course')), entitiesOnly);
+  const reopen = A.importSession(lib, courseDoc({ feedback: [{ id: fb1, state: 'open' }] })).decide(null);
+  await A.applyImport(lib, reopen.plan, () => undefined);
+  check('feedback: "state": "open" reopens it (the note stays as it was)', [A.feedbackOf(lib).find((f) => f.id === fb1).state, A.feedbackOf(lib).find((f) => f.id === fb1).doneAt], ['open', undefined]);
 }
 
 await rm(workspace, { recursive: true, force: true });

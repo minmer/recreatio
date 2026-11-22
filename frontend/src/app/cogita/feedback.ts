@@ -57,6 +57,10 @@ export interface Feedback {
   readonly text: string;
   readonly at: string;
   readonly state: 'open' | 'done';
+  /** 2026-11-22 (I6) — was dafür geändert wurde (ein Import, der sie erledigt: `"feedback": [{"id", "state": "done", "note"}]`). */
+  readonly note?: string;
+  /** Wann sie erledigt wurde (ISO). */
+  readonly doneAt?: string;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -73,11 +77,17 @@ export function readFeedback(id: string, data: Readonly<Record<string, unknown>>
     ...(str(tg.card) === '' ? {} : { card: str(tg.card) }),
     label: str(tg.label).slice(0, 300)
   };
-  return { id, target, category: data.category, text: str(data.text).slice(0, FEEDBACK_TEXT_MAX), at: str(data.at), state: data.state === 'done' ? 'done' : 'open' };
+  return {
+    id, target, category: data.category, text: str(data.text).slice(0, FEEDBACK_TEXT_MAX), at: str(data.at), state: data.state === 'done' ? 'done' : 'open',
+    ...(str(data.note).trim() === '' ? {} : { note: str(data.note).slice(0, FEEDBACK_TEXT_MAX) }), ...(str(data.doneAt) === '' ? {} : { doneAt: str(data.doneAt) })
+  };
 }
 
 export function feedbackData(f: Omit<Feedback, 'id'>): Record<string, unknown> {
-  return { target: { ...f.target }, category: f.category, text: f.text.trim().slice(0, FEEDBACK_TEXT_MAX), at: f.at, state: f.state };
+  return {
+    target: { ...f.target }, category: f.category, text: f.text.trim().slice(0, FEEDBACK_TEXT_MAX), at: f.at, state: f.state,
+    ...(f.note === undefined || f.note.trim() === '' ? {} : { note: f.note.trim().slice(0, FEEDBACK_TEXT_MAX) }), ...(f.doneAt === undefined ? {} : { doneAt: f.doneAt })
+  };
 }
 
 /** Eine Karte als Ziel: eine Frage (ohne Vorlage) oder eine Karte aus einer Vorlage. */
@@ -116,7 +126,10 @@ export function feedbackForAi(lib: CogitaLibrary, named: (id: string) => string)
       shownAs: f.target.label
     },
     text: f.text,
-    at: f.at
+    at: f.at,
+    /* 2026-11-22 (I6) — erledigt durch einen Import: was geändert wurde und wann. */
+    ...(f.note === undefined ? {} : { note: f.note }),
+    ...(f.doneAt === undefined ? {} : { doneAt: f.doneAt })
   }));
 }
 

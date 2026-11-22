@@ -35,6 +35,8 @@
     "save": "Save",
     "saved": "Saved",
     "clear": "Back to the default (no levels)",
+    "recommended": "Use the recommendation: 2 levels (75 %, then 90 % with one correction; paths open at level 1)",
+    "recommendedSays": "The recommended setting for every knowledge world — new bases start with it.",
     "leaving": {
       "one": "With this setting {count} card leaves the regular reviews until its place is conquered.",
       "other": "With this setting {count} cards leave the regular reviews until their places are conquered."
@@ -662,5 +664,20 @@
     "level": "Level {level}",
     "star": "Masterly — every card right the first time (all levels at once)",
     "how": "A run raises you by every level whose rule it meets. One mistake does not undo your learning: every answer counts for your knowledge."
+  },
+  "tags": {
+    "label": "Topic",
+    "all": "All topics",
+    "count": "{done}/{total}",
+    "countTitle": "{done} of {total} towers conquered",
+    "tree": "Topics of this world",
+    "crumbs": "Chosen topic",
+    "start": "Start with:",
+    "refine": "Narrow down:",
+    "more": {
+      "one": "+{count} more",
+      "other": "+{count} more"
+    },
+    "showAll": "Show all topics (also those with nothing reachable yet)"
   }
 }

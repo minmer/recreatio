@@ -32,9 +32,8 @@ import { useState } from 'react';
 import { initialLang, langChosen, setAppLang, useT } from '../core/i18n';
 import { LangPick } from '../ui/LangPick';
 
-import { forgetKeys, keysFor } from '../core/ringOf';
-import { createRole } from '../roles/roles';
-import { register, signIn, WorkspaceError, type Who } from '../core/session';
+import { signIn, WorkspaceError, type Who } from '../core/session';
+import { createAccount } from './accountCreate';
 import { PasswordInput } from '../ui/PasswordInput';
 
 type Mode = 'in' | 'new';
@@ -68,33 +67,6 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
     : mode === 'new' && nick.trim() === '' ? t('shell.signIn.needName')
     : null;
 
-  /**
-   * Was NACH dem Anlegen noch geschieht: der erste Mensch entsteht, unter dem
-   * Konto. Das Konto selbst braucht keinen Namen mehr (0040) — es heisst
-   * überall „Konto".
-   *
-   * Getrennt vom Anlegen, weil hier bereits ein gültiges Konto steht. Scheitert
-   * dieser Teil, ist man trotzdem angemeldet — die Namen lassen sich unter
-   * „Role" nachtragen, ein verworfenes Konto liesse sich nicht nachtragen.
-   */
-  const firstPerson = async (who: Who, wanted: string): Promise<void> => {
-    const { ring, graph } = await keysFor(who);
-
-    if (ring === null) {
-      throw new WorkspaceError(t('shell.signIn.noKeys'));
-    }
-
-    const root = graph.roles.find((r) => r.isPersonal);
-    if (root === undefined) {
-      throw new WorkspaceError(t('shell.signIn.noRole'));
-    }
-
-    await createRole(ring, root, { kind: 'person', name: wanted });
-
-    // Der Bund kennt den Schlüssel der neuen Rolle sonst nicht.
-    forgetKeys();
-  };
-
   const go = async () => {
     // „Liczenie" und nicht „Wczytywanie": es rechnet wirklich, und zwar hier.
     setBusy(mode === 'in' ? t('shell.unlock.busy') : t('shell.signIn.creating'));
@@ -108,25 +80,17 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
         return;
       }
 
-      const who = await register(loginId.trim(), password);
+      /*
+       * AB HIER STEHT DAS KONTO (`accountCreate.ts`). Ein Fehlschlag beim ersten Menschen nimmt die Anmeldung
+       * nicht zurück — er wird gezeigt, und man ist trotzdem drin.
+       */
+      const { who, personFailed } = await createAccount(loginId, password, nick, (what) => {
+        if (what === 'person') setBusy(t('shell.signIn.creatingPerson'));
+      });
 
       // Das Passwort bleibt nicht im Speicher der Ansicht liegen.
       setPassword('');
-
-      /*
-       * AB HIER STEHT DAS KONTO. Ein Fehlschlag darunter darf die Anmeldung
-       * nicht zurücknehmen — er wird gezeigt, und man ist trotzdem drin.
-       */
-      setBusy(t('shell.signIn.creatingPerson'));
-
-      try {
-        await firstPerson(who, nick.trim());
-      } catch (e) {
-        setFailed(e instanceof WorkspaceError
-          ? t('shell.signIn.personFailedWhy', { why: e.message })
-          : t('shell.signIn.personFailed'));
-      }
-
+      if (personFailed !== null) setFailed(personFailed);
       setNick('');
       onDone(who);
     } catch (e) {

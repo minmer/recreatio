@@ -1,0 +1,186 @@
+{
+  "quoted": "“{name}”",
+  "listMore": "{list} … (+{count})",
+  "question": {
+    "flash": {
+      "message": "{name} is a flash card — the learner grades it, not the app.",
+      "fix": "Make it a question the app grades: one, many, truefalse, match, order, number, gap, or text with every accepted answer."
+    },
+    "noTower": {
+      "message": "{name} belongs to no tower (its “about” names no tower).",
+      "fix": "Set “about” to the tower the question tests — every question belongs to a tower."
+    },
+    "untaught": {
+      "message": "{name}: no slide teaches its tower {tower} or a tower it requires.",
+      "fix": "Teach it on a slide of the tower (linked to the tower) or of a required tower, link the slide in “explain”, or delete the question.",
+      "scenes": "(This base has presentation stories: their scenes are not visible to this check — if a scene teaches it, all is well.)"
+    },
+    "noFeedback": {
+      "message": {
+        "one": "{name}: {count} of {total} options has no feedback sentence.",
+        "other": "{name}: {count} of {total} options have no feedback sentence."
+      },
+      "fix": "Give every option its own sentence (“feedback”, one per option, same order) saying why it is right or wrong."
+    }
+  },
+  "tower": {
+    "noCore": {
+      "message": "Tower {name} has no key question.",
+      "fix": "Mark the 1–2 questions that test the heart of the tower with \"core\": true."
+    },
+    "fewVote": {
+      "message": "Tower {name}: {count} question(s) ready for a class vote — at least {min} are needed.",
+      "fix": "Add questions of the form “one” with {options} options where every wrong option is a named thinking error (“tags”)."
+    },
+    "longestCorrect": {
+      "message": "Tower {name}: the correct option is the longest in {count} of {total} choice questions ({share} %).",
+      "fix": "Make the wrong options as long and credible as the right one — the right one may be the longest in at most 3 of 10 questions."
+    },
+    "positions": {
+      "message": "Tower {name}: the correct option is at position {position} in {count} of {total} choice questions.",
+      "fix": "Spread the position of the correct option evenly over the questions."
+    }
+  },
+  "slide": {
+    "long": {
+      "message": "{name}: {count} words — a slide carries one thought, at most about {max} words.",
+      "fix": "Split it into two slides, or cut what the learner does not need here."
+    }
+  },
+  "path": {
+    "severalTowers": {
+      "message": "Path {name} leads through {count} towers ({list}) — a path leads to one tower.",
+      "fix": "Split it into one path per tower, or end it at an outer fork whose branches lead to the towers."
+    },
+    "slidesInRow": {
+      "message": "Path {name}: {count} slides in a row at {step} (at most {max}).",
+      "fix": "At most {max} slides in a row: after one or two slides, a question about exactly them."
+    },
+    "questionsInRow": {
+      "message": "Path {name}: {count} questions in a row at {step} (at most {max} outside the closing block).",
+      "fix": "At most {max} questions in a row: put the slide that prepares a question right before it, or move them to the closing block."
+    },
+    "longClosing": {
+      "message": "Path {name}: the closing block has {count} questions (2–{max}).",
+      "fix": "Keep 2–{max} questions that connect the steps; the tower asks the rest in its run and in reviews."
+    },
+    "noQuestions": {
+      "message": "Path {name} shows slides but asks nothing.",
+      "fix": "Alternate: one or two slides, then a question about exactly them."
+    }
+  },
+  "line": {
+    "ticket": {
+      "message": "Path {name} requires {list} before it starts — more than its first tower {tower} requires.",
+      "fix": "A ticket requires only what the first tower of the line requires: move the requirement to the tower (“Wymaga”) or let the line start at a later tower."
+    }
+  },
+  "fork": {
+    "labelLong": {
+      "message": "Path {name}: the fork option {label} has {count} characters (at most {max}).",
+      "fix": "Give the option a short line name of at most {max} characters; say more in its hint."
+    },
+    "hintLong": {
+      "message": "Path {name}: the hint of {label} has {count} characters (at most {max}).",
+      "fix": "Shorten the hint to at most {max} characters."
+    }
+  },
+  "mistakeTag": {
+    "noHelp": {
+      "message": {
+        "one": "{name}: the error tag {list} has no help in the path {path} that asks it.",
+        "other": "{name}: the error tags {list} have no help in the path {path} that asks it."
+      },
+      "fix": "Lead each named error to the slide that resolves it: onWrong.byTag (or an edge wrong:<tag>) at the question step."
+    },
+    "nearDuplicate": {
+      "message": "The error tags {a} ({ca}×) and {b} ({cb}×) look like the same error written differently.",
+      "fix": "Use one spelling for one thinking error and retag the options."
+    },
+    "usedOnce": {
+      "message": {
+        "one": "{count} error tag occurs in one option only: {list}.",
+        "other": "{count} error tags occur in one option only: {list}."
+      },
+      "fix": "A tag names a typical thinking error that recurs — check whether an existing tag fits."
+    }
+  },
+  "tag": {
+    "usedOnce": {
+      "message": "The tag {name} selects one tower only ({tower}).",
+      "fix": "Reuse an existing tag, or drop a tag that selects a single tower."
+    },
+    "nearDuplicate": {
+      "message": "The tags {a} and {b} look like the same word in another form.",
+      "fix": "Keep one of them and retag the towers."
+    }
+  },
+  "levels": {
+    "none": "no levels",
+    "rule": "{pct} % ({attempts})",
+    "attempts": {
+      "any": "any attempts",
+      "one": "one correction",
+      "first": "first attempt"
+    },
+    "openAt": "paths open from level {level}",
+    "standard": {
+      "message": "Conquest levels: {now}. Recommended for every world: two levels — 75 % with any attempts, 90 % with one correction, paths open from level 1.",
+      "fix": "Ask the owner whether to switch to the two-level standard (levelsSetup) — do not switch silently."
+    }
+  },
+  "feedback": {
+    "open": {
+      "message": {
+        "one": "{name}: {count} open feedback item ({categories}) — id {ids}.",
+        "other": "{name}: {count} open feedback items ({categories}) — ids {ids}."
+      },
+      "fix": "Read them (get_feedback), fix what they report, and resolve them in the import file: \"feedback\": [{\"id\": …, \"state\": \"done\", \"note\": …}]."
+    }
+  },
+  "flow": {
+    "preview": {
+      "fix": "Fix the path in the flow editor or in the import file (guide-stories); the import preview says the same."
+    }
+  },
+  "preview": {
+    "paths": {
+      "fix": "Fix the question path (guide-world-map, “paths”)."
+    },
+    "slides": {
+      "fix": "Fix the text of the slide (guide-stories, slides and text)."
+    },
+    "generators": {
+      "fix": "Fix the generator (guide-generators)."
+    },
+    "drawings": {
+      "fix": "Fix the drawing (guide-visuals)."
+    },
+    "landscape": {
+      "fix": "Fix the order of learning or the view (guide-world-map)."
+    },
+    "worlds": {
+      "fix": "Fix the link into the other world (\"@@handle:…\", with \"external\": true in a reference field)."
+    }
+  },
+  "map": {
+    "fix": "See guide-world-map: towers, prerequisites and paths."
+  },
+  "panel": {
+    "title": "World check",
+    "lede": "What the world still needs according to the guide for good worlds — a to-do list, nothing is blocked. The same list reaches AI assistants (get_world_checks).",
+    "counting": "Checking the world…",
+    "failed": "The check could not run: {error}",
+    "none": "The world check finds nothing to do.",
+    "counts": "must {must} · should {should} · info {info}",
+    "size": "{towers} towers · {paths} paths · {questions} questions · {slides} slides",
+    "weight": {
+      "must": "must",
+      "should": "should",
+      "info": "info"
+    },
+    "more": "… and {count} more",
+    "fix": "Fix:",
+    "open": "open"
+  }
+}

@@ -221,6 +221,15 @@ internal static class AiAccessChecks
             check(formatList.Formats.Any(f => f.Id == "guide-world-map" && f.Group == "Przewodniki dla AI") && worldGuide.Parts == 1 && worldGuide.Text.Contains("\"style\": \"world\"") && worldGuide.Text.Contains("\"part\": \"up\"") && worldGuide.Text.Contains("levelsSetup")
                 && ImportFormats.Find("guide-stories")!.Parts.Any(p => p.Contains("guide-world-map")) && ImportFormats.Find("guide-schemes")!.Parts.Any(p => p.Contains("\"part\": \"up\"")),
                 "MCP get_import_format: the world map guide (places, part blocks, lines, tickets, levels), linked from the stories guide; the schemes guide documents \"part\"");
+            /* 2026-11-22 (guide-good-world, I1) — was eine gute Welt ist: zuerst in seiner Gruppe, von den Leitfäden verlinkt, in den Anweisungen genannt. */
+            var goodWorld = AiMcpTools.GetImportFormat("guide-good-world");
+            var guides = formatList.Formats.Where(f => f.Group == "Przewodniki dla AI").ToList();
+            var goodWorldText = string.Join("\n", ImportFormats.Find("guide-good-world")!.Parts);
+            check(guides.Count > 0 && guides[0].Id == "guide-good-world" && goodWorld.Part == 1 && goodWorldText.Contains("## 1.13 Checklist") && goodWorldText.Contains("\"attempts\": \"one\"")
+                && AiMcp.Instructions.Contains("guide-good-world")
+                && new[] { "guide-stories", "guide-world-map", "guide-schemes" }.All(id => ImportFormats.Find(id)!.Parts[0].Contains("guide-good-world"))
+                && worldGuide.Text.Contains("\"levels\": 2"),
+                "MCP guide-good-world: first among the guides, read before building a world (instructions), linked at the start of the stories, world map and schemes guides; the world map guide shows the two recommended levels");
 
             /* 2026-10-30 — get_knowledge_setup: was das Lernen einer Baza wiedzy steuert, als Kurs ohne Einträge. */
             using var setupDoc = JsonDocument.Parse("""
@@ -270,6 +279,24 @@ internal static class AiAccessChecks
             check(!staleSetup.SnapshotCurrent && staleSetup.ChangedAt == setupSnap.ChangedAt && staleSetup.Note.StartsWith("STALE SNAPSHOT") && staleSetup.Note.Contains(setupSnap.ChangedAt),
                 "MCP get_knowledge_setup: a snapshot older than the last change says so first, with when the base changed");
             setupSnap.Current = true;
+            /* 2026-11-22 (A5) — die Tags der Welt: im Ganzen dabei, als eigener Abschnitt (auch polnisch), nie im Dokument; die Werkzeugbeschreibung sagt „erst lesen". */
+            using var tagDoc = JsonDocument.Parse("""
+                { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Fizyka", "entries": [],
+                  "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Fizyka", "views": [] },
+                    "tags": [ { "ref": "@tag/mechanika", "name": "Mechanika", "parents": [], "level": 0, "towers": 0, "towersBelow": 3 },
+                              { "ref": "@tag/energia", "name": "Energia", "parents": [], "level": 0, "towers": 1, "towersBelow": 3 },
+                              { "ref": "@tag/energia-mech", "name": "Energia mechaniczna", "parents": ["@tag/mechanika", "@tag/energia"], "level": 1, "towers": 2, "towersBelow": 2, "knowness": 0.4 } ] } }
+                """);
+            var tagSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", tagDoc.RootElement)!;
+            var tagWhole = AiMcpTools.SetupOf(tagSnap, null, 0);
+            var tagOnly = AiMcpTools.SetupOf(tagSnap, "tagi", 0);
+            check(tagWhole.Complete && tagWhole.Tags?.Count == 3 && tagWhole.Tags[2]?["parents"]?.AsArray().Count == 2 && tagWhole.Tags[2]?["knowness"] is null
+                && tagWhole.Sections.Any(x => x.Name == "tags" && x.Items == 3) && tagWhole.Document["tags"] is null && tagWhole.Note.Contains("Tags =")
+                && tagOnly.Section == "tags" && tagOnly.Tags?.Count == 3 && tagOnly.Document["tags"] is null && tagOnly.Document["views"] is null
+                && whole.Tags is null,
+                "MCP get_knowledge_setup: the world's tags (ref, name, several parents, level, towers, towers below) whole and as section \"tags\"/\"tagi\"; learner data scrubbed; none without tags");
+            var setupTool = typeof(AiMcpTools).GetMethod(nameof(AiMcpTools.GetKnowledgeSetup))!.GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false).Cast<System.ComponentModel.DescriptionAttribute>().First().Description;
+            check(setupTool.Contains("BEFORE tagging") && AiMcp.Instructions.Contains("\"tag\": \"up\""), "MCP get_knowledge_setup: the tool description and the instructions say to read the tag list before tagging");
             using var oldBase = JsonDocument.Parse("""{ "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Stara", "entries": [] }""");
             check(Fails(() => AiMcpTools.SetupOf(AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", oldBase.RootElement)!, null, 0)) == "not_ready"
                 && AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "books", setupDoc.RootElement)!.Setup.ValueKind == JsonValueKind.Undefined,

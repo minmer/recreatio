@@ -222,5 +222,35 @@
       "many": ", własna pomoc dla {count} znaczników",
       "other": ", własna pomoc dla {count} znacznika"
     }
+  },
+  "modes": {
+    "title": "Lekcja czy nauka samodzielna",
+    "count": {
+      "one": "({count} oznaczony)",
+      "few": "({count} oznaczone)",
+      "many": "({count} oznaczonych)",
+      "other": "({count} oznaczonych)"
+    },
+    "hint": "Jedna treść, dwie kolejności: samodzielnie najpierw wyjaśnij, potem pytaj; na lekcji najpierw niech klasa przewiduje, potem wyjaśnij. Oznacz, co gra tylko w jednej z nich — krok, którego tryb nie gra, jest pomijany, a wybór z jedną pasującą gałęzią bierze ją sam. Przewidywanie jest zadawane i rozgałęzia, ale nigdy się nie liczy.",
+    "left": {
+      "one": "{mode}: {count} krok",
+      "few": "{mode}: {count} kroki",
+      "many": "{mode}: {count} kroków",
+      "other": "{mode}: {count} kroku"
+    },
+    "use": "Gra",
+    "fromEntry": "jak mówi wpis ({use})",
+    "useOf": {
+      "both": "oba",
+      "self": "tylko samodzielnie",
+      "lesson": "tylko na lekcji"
+    },
+    "predict": "Przewidywanie — nie liczy się",
+    "plays": {
+      "self": "gra tylko w nauce samodzielnej",
+      "lesson": "gra tylko na lekcji"
+    },
+    "tryLesson": "Wypróbuj jak na lekcji",
+    "tryLessonSays": "Ta sama opowieść w kolejności lekcji: kroki tylko do nauki samodzielnej są pomijane, przewidywania się nie liczą."
   }
 }

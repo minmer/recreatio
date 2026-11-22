@@ -235,6 +235,8 @@ export const QUESTION: KindDef = {
     qf('let', 'json'),
     qf('require', 'list'),
     qf('core', 'bool'),
+    /* 2026-11-22 (I4) — wann die Frage gespielt wird: allein, in einer Stunde, oder beides (Vorgabe; `modes.ts`). */
+    qf('use', 'choice', { options: options('use', ['both', 'self', 'lesson']) }),
     qf('about', 'ref', { multi: true }, undefined, true),
     qf('needs', 'ref', { multi: true, prerequisite: 'up' }, undefined, true)
   ]
@@ -331,6 +333,8 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.prerequisite !== undefined) out.prerequisite = f.prerequisite;
       /* 2026-11-09 (Weltkarte) — ein Teil eines Blocks. */
       if (f.part !== undefined) out.part = f.part;
+      /* 2026-11-22 — ein Tag-Feld (`tags.ts`). */
+      if (f.tag !== undefined) out.tag = f.tag;
       /* 2026-11-05 (Prompt 24) — ein Verweisfeld, das auch in andere Bazy zeigen darf ("@@historia:@…"). */
       if (f.external === true) out.external = true;
       if (f.when !== undefined) out.when = { field: f.when.field, values: [...f.when.values] };

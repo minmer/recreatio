@@ -22,7 +22,8 @@
     "roles": "Rollen",
     "account": "Konto",
     "sprawy": "Anliegen",
-    "widok": "Ansicht"
+    "widok": "Ansicht",
+    "klasa": "Klasse"
   },
   "routes": {
     "noSlug": "Der Teil \"{route}\" benennt keine einzelnen Dinge — \"{slug}\" gehört nicht dahinter."

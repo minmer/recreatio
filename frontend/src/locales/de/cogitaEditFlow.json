@@ -206,5 +206,31 @@
       "one": ", eigene Hilfe für {count} Tag",
       "other": ", eigene Hilfe für {count} Tags"
     }
+  },
+  "modes": {
+    "title": "Unterricht oder allein",
+    "count": {
+      "one": "({count} markiert)",
+      "other": "({count} markiert)"
+    },
+    "hint": "Ein Inhalt, zwei Reihenfolgen: allein erst erklären, dann fragen; im Unterricht erst die Klasse vorhersagen lassen, dann erklären. Markiere, was nur eines davon spielt — ein Schritt, den der Modus nicht spielt, wird übersprungen, und eine Wahl mit nur einem passenden Zweig nimmt ihn selbst. Eine Vorhersage wird gefragt und verzweigt, zählt aber nie.",
+    "left": {
+      "one": "{mode}: {count} Schritt",
+      "other": "{mode}: {count} Schritte"
+    },
+    "use": "Gespielt",
+    "fromEntry": "wie der Eintrag sagt ({use})",
+    "useOf": {
+      "both": "beides",
+      "self": "nur allein",
+      "lesson": "nur im Unterricht"
+    },
+    "predict": "Vorhersage — zählt nicht",
+    "plays": {
+      "self": "spielt nur beim Lernen allein",
+      "lesson": "spielt nur im Unterricht"
+    },
+    "tryLesson": "Als Unterricht ausprobieren",
+    "tryLessonSays": "Dieselbe Erzählung in der Reihenfolge einer Stunde: Schritte nur für das Lernen allein fallen weg, Vorhersagen zählen nicht."
   }
 }

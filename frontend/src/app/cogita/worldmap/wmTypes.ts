@@ -28,6 +28,8 @@ export interface WmRef {
   /** `"part": "up"` — der Eintrag ist ein Teil des Blocks, auf den er zeigt (`down`: der Block nennt seine Teile). */
   readonly part?: 'up' | 'down';
   readonly structure?: 'up' | 'down';
+  /** 2026-11-22 — ein Tag-Feld (`"tag": "up"`): das Ziel ist ein Tag dieses Eintrags (`tags.ts`, `wmTags.ts`). */
+  readonly tag?: 'up';
 }
 
 export interface WmEntry {
@@ -35,6 +37,8 @@ export interface WmEntry {
   readonly kinds: readonly string[];
   readonly label: string;
   readonly refs: readonly WmRef[];
+  /** 2026-11-22 (I4) — eine Folie oder Frage nur allein (`self`) oder nur in einer Stunde (`lesson`); fehlt: beide (`modes.ts`). */
+  readonly use?: 'self' | 'lesson';
 }
 
 /** Eine Karte, wie die Weltkarte sie braucht. `about`: die Einträge, die sie prüft (bei einer Vorlage: ihr Eintrag). */

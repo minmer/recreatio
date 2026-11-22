@@ -242,6 +242,8 @@ export interface PillarsProps {
   readonly portals?: ReadonlyMap<string, number> | null;
   /** Das Ziel („Ustaw jako cel"): eine Fahne in der Farbe des Ziels. */
   readonly goal?: string | null;
+  /** 2026-11-22 (Part B, B7) — Türme mit einer offenen Zadanie der Klasse: ein Wimpel. */
+  readonly tasks?: ReadonlySet<string> | null;
   /** Was sich seit dem letzten Zeigen änderte (einmal je `id`; `wmViews.ts`). */
   readonly playback?: WorldPlayback | null;
   readonly onPlayback?: (e: PlayEvent) => void;
@@ -462,7 +464,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, towerActions = null, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
+    lit = null, portals = null, goal = null, tasks = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -594,8 +596,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     return h.toString(36);
   }, [focus]);
   const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}:${focusKey}`, [scene, pillarWidth, focusKey]);
-  /* Die Insel und ihre Bäume: einmal je Stand. */
-  const island = useMemo(() => islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks }), [scene]);
+  /* Die Insel und ihre Bäume: einmal je Gestalt — immer die der ganzen Welt (2026-11-22: auch, wenn nur ein Ausschnitt gezeichnet ist). */
+  const island = useMemo(() => islandOf(scene.ground), [scene.ground]);
   const sceneId = useRef(0);
   const lastScene = useRef<Scene | null>(null);
   if (lastScene.current !== scene) { lastScene.current = scene; sceneId.current += 1; groundRef.current = null; }
@@ -623,18 +625,35 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const calm = (c: Rgb, k: number): Rgb => (fx === null ? c : mix(c, neutral, k));
     const land = calm(pal.land, 0.55);
     /* 2026-11-12 — das Wasser malt der Boden nicht (sonst stünde sein Rechteck im Verlauf des Lichts): darunter liegen Himmel und Sonne. */
+    /*
+      2026-11-22 (C2, gemessen: ein Wechsel des Ausschnitts auf 600 Türmen verbrachte ~85 % in `fill`) — Land, Strand, Schatten und
+      Kronen je als EIN Pfad aus allen Kreisen (eine Farbe, deckend: dasselbe Bild), nur was im gerasterten Ausschnitt liegt.
+    */
+    const inRaster = (x: number, y: number, r: number) => x + r >= x0 && x - r <= x1 && y + r >= y0 && y - r <= y1;
+    const discs = (list: readonly (readonly [number, number, number])[], grow: number) => {
+      g.beginPath();
+      for (const d of list) { const r = d[2] + grow; if (!inRaster(d[0], d[1], r)) continue; g.moveTo(d[0] + r, d[1]); g.arc(d[0], d[1], r, 0, Math.PI * 2); }
+      g.fill();
+    };
     g.fillStyle = rgbCss(calm(pal.sand, 0.55));
-    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
+    discs(island.land, BEACH);
     g.fillStyle = rgbCss(land);
-    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
+    discs(island.land, 0);
     /* Bäume: nah stehen sie aufrecht (im Bild, mit den Säulen); auf dem Boden nur ihr Schatten — fern die flache Krone. */
     const flat = v.s * TREE_SIZE < TREE_UPRIGHT;
+    g.fillStyle = rgbCss(calm(mix(pal.treeShade, pal.land, flat ? 0 : 0.45), 0.6));
+    g.beginPath();
     for (const [tx, ty, ts] of island.trees) {
-      g.fillStyle = rgbCss(calm(mix(pal.treeShade, pal.land, flat ? 0 : 0.45), 0.6));
-      g.beginPath(); g.ellipse(tx + ts * pal.shadow.dx, ty + ts * pal.shadow.dy, ts, ts * 0.8, 0, 0, Math.PI * 2); g.fill();
-      if (!flat) continue;
+      const sx = tx + ts * pal.shadow.dx, sy = ty + ts * pal.shadow.dy;
+      if (!inRaster(sx, sy, ts)) continue;
+      g.moveTo(sx + ts, sy); g.ellipse(sx, sy, ts, ts * 0.8, 0, 0, Math.PI * 2);
+    }
+    g.fill();
+    if (flat) {
       g.fillStyle = rgbCss(calm(pal.tree, 0.6));
-      g.beginPath(); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); g.fill();
+      g.beginPath();
+      for (const [tx, ty, ts] of island.trees) { if (!inRaster(tx, ty, ts)) continue; g.moveTo(tx + ts * 0.86, ty); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); }
+      g.fill();
     }
     /* Scheiben der Blöcke, knapp über dem Boden. */
     for (const b of scene.blocks) {
@@ -1124,6 +1143,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     };
     /* Das Ziel („Ustaw jako cel", wie im Krajobraz): eine Fahne in der Farbe des Ziels. */
     if (goal !== null) { const at = topOf(goal); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.goal)); }
+    /* 2026-11-22 (Part B) — die offenen Zadania der Klasse: ein Wimpel an ihrem Turm. */
+    if (tasks !== null) for (const id of tasks) { if (id === goal) continue; const at = topOf(id); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.lit), true); }
     /* Die Navigation (§8.3): Gabeln am Ring, die Fahne am Ziel, der Wimpel am jetzigen Schritt („Tu zacznij"). */
     if (marks !== null) {
       for (const id of marks.forks) {
@@ -1487,13 +1508,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmLit = lit === null ? '' : String(litCount);
     canvas.dataset.wmPortals = String(portalSigns);
     canvas.dataset.wmGoal = goal ?? '';
+    canvas.dataset.wmTasks = String(tasks?.size ?? 0);
     canvas.dataset.wmRoute = (route ?? []).join(' ');
     canvas.dataset.wmFaint = (faint ?? []).join(' ');
     canvas.dataset.wmPlaying = play === null || play.t0 === Infinity ? '' : String(play.pb.id);
     canvas.dataset.wmHeld = play !== null && play.t0 === Infinity ? String(play.pb.id) : '';
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, focus, hoverLane, signs, chosenSign, hoverMark, markStates]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, tasks, focus, hoverLane, signs, chosenSign, hoverMark, markStates]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);

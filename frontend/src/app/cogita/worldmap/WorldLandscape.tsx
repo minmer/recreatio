@@ -36,6 +36,7 @@ import { selfCheckWords } from '../selfCheckWords';
 import { stackFor } from '../spacing';
 import { learnerGauge } from '../storyLock';
 import { useCtx } from '../ui';
+import { useMapClassTools, type MapTarget } from '../lesson/MapClassTools';
 import type { ViewDoc } from '../views';
 import { useWorlds, WorldsSection } from '../WorldLinks';
 import { FlagIcon } from '../WorldMap';
@@ -73,7 +74,10 @@ import { reviewable, type WorldState, stateOf, type LearnerInput } from './wmSta
 import { useServerRuns } from './useServerRuns';
 import { layoutPass } from './wmStore';
 import { HOME } from './wmTypes';
-import { diffPlaces, dueOf, keepMode, keptMode, litPlaces, packPlace, shownOfPlace, WORLD_MODES, type WorldMode, type WorldPlayback } from './wmViews';
+import { diffPlaces, dueOf, keepMode, keptMode, litPlaces, packPlace, readyNow, shownOfPlace, WORLD_MODES, type WorldMode, type WorldPlayback } from './wmViews';
+import { keepSlice, keptSlice, SLICE_FROM, validSlice, worldTags } from './wmTags';
+import { reachableTags, startTag, tagCount } from '../tags';
+import { TagSlicePicker } from './WorldTags';
 import './worldmap.css';
 
 /* Wie im Krajobraz: was der Zähler der Punkte über der Karte nicht zeigt (gross / klein). */
@@ -281,7 +285,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     return () => { alive = false; };
   }, [world, lines, keys, relay, regionsDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const scene = useMemo(() => (geometry === null ? null : sceneOf(world, lines, state, geometry, { placeColour, lineColour: colours, fallback: oklch(0.5, 0.05, 250) })), [world, lines, state, geometry, placeColour, colours]);
   /*
     2026-11-14 (Eigentümer) — DER RUNDGANG (`WorldTour.tsx`): auf dieser Karte, mit erfundenem Fortschritt. Er zeichnet ein eigenes Bild
     (`tourScene`) aus einem erfundenen Stand — alles andere (Weg, Ziel, Punkte, das Gemerkte) rechnet weiter mit dem echten Stand.
@@ -374,6 +377,34 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     if (isPathTarget(nav.target)) { const p = pathById.get(pathOfTarget(nav.target)); return p === undefined ? null : pathPlan(pctx, p, nav.choices, refreshed).steps; }
     return world.places.has(nav.target) ? planRoute(state, nav.target, { choices: nav.choices, refreshed }).steps : null;
   }, [nav, state, world, pathById, pctx, refreshed]);
+  /*
+    -- 2026-11-22 (Änderungspaket C2) — DER AUSSCHNITT NACH TAG (`wmTags.ts`): der Lernende wählt einen Tag, die Karte baut und zeichnet nur
+    die Türme unter ihm (und den Weg einer laufenden Navigation); Insel und Lage bleiben die der ganzen Welt. Gemerkt je Widok auf diesem
+    Gerät. Ohne gemerkte Wahl öffnet eine sehr grosse Welt (`SLICE_FROM`) auf dem Tag, unter dem gerade am meisten zu tun ist.
+  */
+  const tagNet = useMemo(() => worldTags(world), [world]);
+  const [slicePathKept, setSlicePathKept] = useState<string[] | null>(() => keptSlice(memo));
+  const placeReach = useCallback((id: string): boolean => { const ps = state.places.get(id); return ps !== undefined && (ps.conquered || ps.saturation !== 'never' || ps.level > 0 || readyNow(state, id)); }, [state]);
+  const reachTags = useMemo(() => reachableTags(tagNet, placeReach), [tagNet, placeReach]);
+  const slicePath = useMemo((): readonly string[] => {
+    if (tagNet.tags.size === 0) return [];
+    if (slicePathKept !== null) return validSlice(tagNet, slicePathKept);
+    if (world.places.size < SLICE_FROM) return [];
+    const first = startTag(tagNet, reachTags, (id) => { const ps = state.places.get(id); return ps !== undefined && !ps.conquered && ps.saturation !== 'never'; }, (id) => readyNow(state, id));
+    return first === null ? [] : [first];
+  }, [tagNet, slicePathKept, world, reachTags, state]);
+  const setSlicePath = (path: readonly string[]) => { setSlicePathKept([...path]); keepSlice(memo, path); };
+  const sliceTag = slicePath[slicePath.length - 1] ?? null;
+  const slice = useMemo((): ReadonlySet<string> | null => {
+    if (sliceTag === null) return null;
+    const out = new Set(tagNet.below(sliceTag));
+    if (navPlan !== null) for (const id of [...navPlan.places, navPlan.target]) if (world.places.has(id)) out.add(id);
+    return out;
+  }, [sliceTag, tagNet, navPlan, world]);
+  const scene = useMemo(() => (geometry === null ? null : sceneOf(world, lines, state, geometry, { placeColour, lineColour: colours, fallback: oklch(0.5, 0.05, 250), only: slice })), [world, lines, state, geometry, placeColour, colours, slice]);
+  /* Je Tag: erobert / alle Türme unter ihm. */
+  const tagCounts = useMemo(() => new Map(tagNet.order.map((id) => [id, tagCount(tagNet, id, (x) => state.places.get(x)?.conquered === true)] as const)), [tagNet, state]);
+  const countOfTag = (id: string) => tagCounts.get(id) ?? { done: 0, total: 0 };
   /* 2026-11-10 — angehalten, nicht vergessen; am Ziel ist der Weg zu Ende. */
   const pauseNav = () => setNav((n) => (n === null || (navPlan !== null && navPlan.steps.length === 0) ? null : { ...n, paused: true }));
   /*
@@ -402,7 +433,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const [mine, setMine] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const pillars = useRef<PillarsHandle | null>(null);
-  const cardByKey = useMemo(() => new Map(cards.map((c) => [c.key, c] as const)), [cards]);
+  /* 2026-11-22 (C2) — ein anderer Tag: die Kamera zeigt den neuen Ausschnitt ganz (nicht beim ersten Bild: dort gilt die gemerkte). */
+  const sliceSeen = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (scene === null) return;
+    if (sliceSeen.current !== undefined && sliceSeen.current !== sliceTag) pillars.current?.fit();
+    sliceSeen.current = sliceTag;
+  }, [sliceTag, scene]);
+  const cardByKey =useMemo(() => new Map(cards.map((c) => [c.key, c] as const)), [cards]);
   const cardsOf = (keysOf: readonly string[]): Card[] => keysOf.map((k) => cardByKey.get(k)).filter((c): c is Card => c !== undefined && !(progress?.suspended.has(c.key) ?? false));
   /**
    * `scope` (2026-11-21): weitere Karten, die der Lauf fragt, sobald sie fällig sind oder in `REVIEW_QUIET` fällig würden — die Karten
@@ -524,6 +562,35 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     show: (kind, id) => { setChosen({ kind, id }); if (kind === 'place') pillars.current?.focus(id); },
     peek: (ids) => setPeekRoad(ids),
     ...(onOpen === undefined ? {} : { open: onOpen })
+  };
+  /* 2026-11-22 (Part B) — die Klasse: ⚙, „Prowadzę / Uczę się", „Prowadź tutaj" / „Zadaj", die Zadania (`lesson/MapClassTools.tsx`). */
+  const classCtx = useCtx();
+  const cls = useMapClassTools({
+    lib, me: classCtx.me, learner, nameOf, href: classCtx.href, onShow: (kind, id) => act.show(kind, id),
+    facts: {
+      conquered: (id) => state.places.get(id)?.conquered === true,
+      flowDone: (f) => learnerInput.progress(f)?.done === true,
+      due: (id) => dueOf(state, id).length,
+      answeredSince: (id, at) => (state.places.get(id)?.cards ?? []).some((k) => (learner?.marks(k) ?? []).some((m) => m.at >= at))
+    }
+  });
+  const classTarget = (kind: string, id: string): MapTarget | null => {
+    const flowOf = (line: string, start?: { readonly step: string; readonly exit?: string }) => ({
+      flow: line, name: lines.lines.get(line)?.name ?? line, lesson: lib.docs('flow').some((e) => e.id === line && e.data.lesson === true), ...(start === undefined ? {} : { start })
+    });
+    if (kind === 'place') {
+      const via = [...lines.lines.values()].filter((l) => l.unit === id || l.sections.some((s) => lines.sections.get(s)?.to === id)).map((l) => flowOf(l.id));
+      return { kind: 'place', id, name: nameOf(id), flows: via };
+    }
+    if (kind === 'section') {
+      const sec = lines.sections.get(id);
+      return sec === undefined ? null : { kind: 'section', id, name: nameOf(sec.to), flows: [flowOf(sec.line, sec.start)] };
+    }
+    if (kind === 'junction') {
+      const j = lines.junctions.get(id);
+      return j === undefined ? null : { kind: 'junction', id, name: nameOf(id), flows: [flowOf(j.line, j.step === undefined ? undefined : { step: j.step })] };
+    }
+    return null;
   };
   /* 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man gesehen hat und noch nicht kann (und was keine Erzählung erreicht). */
   const prepareStep = (step: PlanStep) => { if (step.kind === 'run' && step.prepare.length > 0) startCards(step.prepare, nameOf(step.place), false); };
@@ -794,7 +861,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setNote(null);
     setRunning({ kind: 'cards', key: `check:${Date.now()}`, source: { plan: readPlan(free, { mode: 'once', order: 'general', pick: 'next' }), cards, title } });
   };
-  const checkAll = () => { setMode('gaps'); runOnce(SC.checkTitle(baseName), selfCheckCards(cards, placeIds)); };
+  /* 2026-11-22 (C2) — mit einem gewählten Tag: nur die Türme unter ihm. */
+  const checkAll = () => { setMode('gaps'); runOnce(sliceTag === null ? SC.checkTitle(baseName) : SC.checkTitle(`${baseName} · ${tagNet.tags.get(sliceTag)?.label ?? ''}`), selfCheckCards(cards, slice ?? placeIds)); };
   const fillGaps = gapsNow.gaps.size === 0 ? null : () => runOnce(SC.fillTitle(baseName), fillCards(cards, gapsNow.gaps, gapsNow.checked, Date.now().toString(36)));
   /* Die Liste aller Orte (für die Tastatur): erst beim Öffnen gebaut. */
   const [listOpen, setListOpen] = useState(false);
@@ -1270,7 +1338,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             {learner !== null && <button type="button" className="cg-wm-mode is-check" onClick={checkAll} data-world-selfcheck="">{SC.check}</button>}
           </div>
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
+          {cls.menu}
         </div>
+        {cls.overlay}
+        {/* 2026-11-22 (C2) — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */}
+        <TagSlicePicker net={tagNet} path={slicePath} reachable={reachTags} count={countOfTag} onPath={setSlicePath} t={t} />
         {won !== null && (
           <p className="wk-note cg-ls-conquered" role="status" data-world-won={won.names.join('|')} data-world-won-points={won.points}>
             <FlagIcon /> {t('cogitaWorld.map.conqueredNow', { names: wonNames })}{won.points > 0 ? ` · ${MW.points(won.points)}` : ''}
@@ -1300,7 +1372,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               route={tourStep !== undefined ? tourStep.route ?? (tourFocus === null ? null : [...tourFocus.remaining]) : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn ? null : peek !== null && lines.sections.has(peek) ? route : faint}
               chosen={tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={tourStep !== undefined ? (tourFocus ?? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node))) : focus}
               marks={tourOn || marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
-              lit={tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || (goal !== null && isPathTarget(goal)) ? null : goal} playback={tourOn ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && playHeld} playAfter={PLAY_AFTER_MS}
+              lit={tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || (goal !== null && isPathTarget(goal)) ? null : goal} tasks={tourOn || cls.teaching ? null : cls.marked} playback={tourOn ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && playHeld} playAfter={PLAY_AFTER_MS}
               signs={signs} chosenSign={tourStep !== undefined ? tourStep.sign ?? null : chosen?.kind === 'sign' ? chosen.id : chosen?.kind === 'qpath' ? signs.find((x) => x.paths.includes(chosen.id))?.key ?? null : null} onPickSign={(key) => { if (tourOn) tourHit('sign', key); else pickSign(key); }}
               onHover={(id, at) => setHover(tourOn || id === null || at === null ? null : { id, x: at.x, y: at.y })}
               onHoverLane={(id, at) => setHoverLane((was) => (tourOn || id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
@@ -1335,7 +1407,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
                   const real = ac.kind === 'section' ? laneButtons(ac.id) : ac.kind === 'sign' ? signButtons(ac.id) : ac.kind === 'junction' ? forkButtons(ac.id) : towerButtons(ac.id);
                   return { place: ac.id, kind, buttons: real.filter((b) => b.key !== 'tour').map((b) => ({ ...b, onClick: () => undefined })) };
                 })()
-                : !tourOn && floatKind !== null && chosen !== null && learner !== null ? { place: chosen.id, kind: floatKind, buttons: chosen.kind === 'section' ? laneButtons(chosen.id) : chosen.kind === 'sign' ? signButtons(chosen.id) : chosen.kind === 'junction' ? forkButtons(chosen.id) : towerButtons(chosen.id) } : null}
+                : !tourOn && floatKind !== null && chosen !== null && learner !== null ? { place: chosen.id, kind: floatKind, buttons: cls.buttons(classTarget(chosen.kind, chosen.id), chosen.kind === 'section' ? laneButtons(chosen.id) : chosen.kind === 'sign' ? signButtons(chosen.id) : chosen.kind === 'junction' ? forkButtons(chosen.id) : towerButtons(chosen.id)) } : null}
               startAction={!tourOn && floatKind === null && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
                 /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
                 ? { label: t('cogitaWorld.way.stepButton', { n: tt.done.length + 1, kind: t(`cogitaWorld.way.kind.${tt.upcoming[0].kind}`) }), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
@@ -1401,7 +1473,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           <summary>{t('cogitaWorld.map.places', { count: world.places.size })}</summary>
           {listOpen && (
             <ol className="cg-wm-rows">
-              {world.order.filter((id) => lit === null || lit.has(id)).map((id) => {
+              {world.order.filter((id) => (slice === null || slice.has(id)) && (lit === null || lit.has(id))).map((id) => {
                 const ps = state.places.get(id);
                 return (
                   <li key={id} className="cg-wm-row" data-world-list-place={id}>

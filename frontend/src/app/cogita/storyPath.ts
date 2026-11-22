@@ -23,6 +23,7 @@
 import { t } from '../core/i18n';
 import { exitsOf, follow, STEP_LABEL, type Flow } from './flow';
 import { isAnswerExit, isRemedialExit, remedialSteps } from './adaptive';
+import { countedGraph, type PlayMode, type UseOf } from './modes';
 import type { GraphNode } from './graph';
 import { countsAsStep, pathModel, type PartKind, type PathFork, type PathMarks, type PathModel, type PathState } from './pathLayout';
 
@@ -127,6 +128,12 @@ export interface StoryPathOptions {
   readonly flowName?: (id: string) => string | null;
   /** Das Thema einer Frage (worüber sie ist) — `null`: keins; ihr Text ist nie ein Name. */
   readonly topicName?: (questionRef: string) => string | null;
+  /**
+   * 2026-11-22 (I3/I4) — WAS GEZÄHLT WIRD (`modes.ts` `countedGraph`): was der Modus (Vorgabe `self`) nicht spielt, und jede
+   * Vorhersage (`"predict": true`), fällt aus der Ścieżka — eine Vorhersage zählt wie ein Schritt der Nachhilfe.
+   */
+  readonly mode?: PlayMode;
+  readonly useOf?: UseOf;
 }
 
 const STOPS = new Set(['end', 'return', 'handoff']);
@@ -203,7 +210,9 @@ export function stepName(node: GraphNode, label: (id: string) => string, options
 
 type Way = { readonly exit: string; readonly to: string | null };
 
-export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => string, options: StoryPathOptions = {}): StoryPath {
+export function storyPath(given: Flow, work: WorkOfStep, label: (id: string) => string, options: StoryPathOptions = {}): StoryPath {
+  const counted = countedGraph(given.graph, given.start, { mode: options.mode ?? 'self', ...(options.useOf === undefined ? {} : { useOf: options.useOf }) });
+  const flow: Flow = counted.graph === given.graph ? given : { ...given, graph: counted.graph, start: counted.start };
   const Wd = options.words ?? STORY_WORDS;
   const nodes = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
   const empty: StoryPath = { parts: [], model: pathModel([], []), partOfStep: new Map(), loops: [] };

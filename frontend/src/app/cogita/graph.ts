@@ -131,10 +131,18 @@ export function readGraph(raw: unknown, cycles = false): Graph {
   let graph: Graph = { nodes, edges: [] };
   const edgeIds = new Set<string>();
   const pairs = new Set<string>();
+  /*
+    2026-11-22 (guide-good-world I9) — EIN ÜBERGANG OHNE "id" (wie in den Beispielen der Leitfäden: {"from", "out", "to"}) fiel bisher
+    still weg — der Ablauf hatte dann kein Ende, und ein "explore" mit nur "done" sah aus, als fehle ihm ein Ausgang. Jetzt bekommt er
+    eine eigene Kennung (`~e<n>`, ein Raum, den Autoren nicht benutzen).
+  */
+  const explicit = new Set((Array.isArray(doc.edges) ? doc.edges : []).map((e) => (isObject(e) ? str(e.id).trim() : '')).filter((id) => id !== ''));
+  let made = 0;
+  const freshId = (): string => { let id = ''; do { made += 1; id = `~e${made}`; } while (explicit.has(id) || edgeIds.has(id)); return id; };
   for (const one of Array.isArray(doc.edges) ? doc.edges : []) {
     if (!isObject(one)) continue;
     const edge: GraphEdge = {
-      id: str(one.id).trim(),
+      id: str(one.id).trim() || freshId(),
       from: str(one.from).trim(),
       out: str(one.out).trim() || 'out',
       to: str(one.to).trim(),

@@ -651,3 +651,20 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .wk-btn.cg-wm-need.is-score, .wk-btn.cg-wm-need.is-score:hover:not(:disabled) { background: oklch(0.8 0.14 var(--score-h, 150)); border-color: oklch(0.66 0.15 var(--score-h, 150)); color: #1b1712; }
 :root[data-mode='dark'] .wk-btn.cg-wm-need.is-score { background: oklch(0.7 0.14 var(--score-h, 150)); }
 .cg-wm-dot.is-score { background: oklch(0.7 0.17 var(--score-h, 150)); }
+
+/* 2026-11-22 (Änderungspaket C2) — der Tag-Filter des Lernenden: Wahl, Brotkrumen, Untertags zum Verfeinern, das Netz als Baum. */
+.cg-wm-tagbar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); margin: var(--wk-space-1) 0; min-width: 0; }
+.cg-wm-tagopen { border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); }
+.cg-wm-tagcrumbs { display: flex; flex-wrap: wrap; align-items: center; font-size: var(--wk-text-sm); }
+.cg-wm-tagsep { margin: 0 0.35em; color: var(--wk-ink-2); }
+.cg-wm-tagchips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); }
+.cg-wm-tagchip { appearance: none; min-height: 2rem; padding: 0.15rem 0.6rem; border: 1px solid var(--wk-line); border-radius: 999px; background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.cg-wm-tagchip:hover, .cg-wm-tagchip:focus-visible { border-color: var(--wk-accent); }
+.cg-wm-tagn { color: var(--wk-ink-2); font-size: var(--wk-text-xs); font-variant-numeric: tabular-nums; font-weight: 400; }
+.cg-wm-tagpanel { position: absolute; top: 100%; left: 0; z-index: 8; display: grid; gap: var(--wk-space-2); width: min(28rem, 100%); max-height: min(60vh, 26rem); overflow-y: auto; box-sizing: border-box; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
+.cg-wm-tagtree { margin: 0; padding: 0 0 0 var(--wk-space-3); list-style: none; }
+.cg-wm-tagpanel > .cg-wm-tagtree { padding-left: 0; }
+.cg-wm-tagpick { appearance: none; min-height: 1.9rem; padding: 0.2rem 0.35rem; border: 0; border-radius: var(--wk-radius-sm); background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wm-tagpick:hover, .cg-wm-tagpick:focus-visible { background: var(--wk-sunk); }
+.cg-wm-tagpick.is-on { font-weight: 600; box-shadow: inset 3px 0 0 var(--wk-accent); }
+.cg-wm-tagpick.is-far { color: var(--wk-ink-2); }

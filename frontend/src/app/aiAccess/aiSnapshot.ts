@@ -42,7 +42,7 @@ import { projectLiturgyEntries } from '../library/liturgy/projection';
 import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
 import { docEntity as liturgicalDoc } from '../library/liturgy/liturgyJson';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
-import { worldLayouts, type WorldLayoutDoc } from '../cogita/worldmap/wmExport';
+import { tagsForAi, worldLayouts, type TagRowForAi, type WorldLayoutDoc } from '../cogita/worldmap/wmExport';
 import { exportSetup, nameIn, type KnowledgeSetup } from '../cogita/json';
 import { feedbackForAi } from '../cogita/feedback';
 import { CogitaLibrary } from '../cogita/store';
@@ -90,6 +90,8 @@ export interface SnapshotSetup extends KnowledgeSetup {
   readonly landscapes?: readonly (LandscapeLayoutDoc | WorldLayoutDoc)[];
   /** 2026-11-20 — Rückmeldungen zu Karten, Fragen und Folien für die KI (`cogita/feedback.ts`, MCP `get_feedback`). */
   readonly feedback?: readonly Record<string, unknown>[];
+  /** 2026-11-22 (A5) — die Tags der Welt mit ihrer Hierarchie und den Türmen darunter (`tagsForAi`): erst lesen, dann taggen. */
+  readonly tags?: readonly TagRowForAi[];
 }
 
 /** Ein Text eines Werks: sein Verzeichnis und seine Teile (die schweren Einträge, vorher geholt — `aiAccess.ts`). */
@@ -521,12 +523,14 @@ export async function snapshotSetup(parts: readonly ScopePart[], libraryId: stri
   const setup = await exportSetup(lib, part.name);
   /* 2026-11-03 (H) — die Karten sind eben gerechnet (gemerkt je Stand der Baza): die feste Karte jedes Krajobraz dazu. */
   let landscapes: readonly (LandscapeLayoutDoc | WorldLayoutDoc)[] = [];
+  let tags: readonly TagRowForAi[] = [];
   try {
     const cards = (await lib.cards()).cards;
     landscapes = [...landscapeLayouts(lib, cards), ...(await worldLayouts(lib, cards).catch(() => []))];
+    try { tags = tagsForAi(lib, cards); } catch { /* ohne Tags: der Rest kommt */ }
   } catch { /* ohne Karte: der Rest kommt */ }
   const feedback = feedbackForAi(lib, nameIn(lib));
-  return { ...setup, ...(landscapes.length === 0 ? {} : { landscapes }), ...(feedback.length === 0 ? {} : { feedback }), ...(part.readers === undefined ? {} : { readers: part.readers }) };
+  return { ...setup, ...(landscapes.length === 0 ? {} : { landscapes }), ...(tags.length === 0 ? {} : { tags }), ...(feedback.length === 0 ? {} : { feedback }), ...(part.readers === undefined ? {} : { readers: part.readers }) };
 }
 
 /** gzip (CompressionStream, im Browser wie in Node) — der Dienst entpackt mit einer Obergrenze. */

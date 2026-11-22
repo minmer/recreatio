@@ -567,7 +567,7 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   const parts = a.form === 'many' ? a.options.length : a.form === 'match' ? a.pairs.length : a.form === 'order' ? a.items.length : 0;
   const share = <CountPercent value={outcome.correctness} delay={Math.min(700, parts * 90)} />;
   const box = (
-    <div className={`cg-verdict ${hinted ? 'is-near' : level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'} data-hints={outcome.hints}>
+    <div className={`cg-verdict ${hinted ? 'is-near' : level}${!outcome.correct && outcome.answered ? ' is-score' : ''}`} ref={!outcome.correct && outcome.answered ? scoreRef(outcome.correctness) : undefined} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'} data-hints={outcome.hints}>
       <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? rich(t('cogitaLearnRun.card.rightHinted'), { s: () => share }) : outcome.correct ? t('cogitaLearnRun.card.verdictRight') : close ? rich(t('cogitaLearnRun.card.almost'), { s: () => share }) : outcome.answered ? (outcome.correctness > 0 ? rich(t('cogitaLearnRun.card.wrongShare'), { s: () => share }) : t('cogitaLearnRun.card.verdictWrong')) : t('cogitaLearnRun.card.noAnswer')}</strong>
       {/* 2026-11-01 — ein Datum Teil für Teil: was stimmt, was nah ist, was nicht. */}
       {outcome.dateParts !== undefined && !outcome.correct && <DateParts parts={outcome.dateParts} />}

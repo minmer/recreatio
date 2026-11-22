@@ -10,6 +10,7 @@ import type { LockSymbol } from './wmConditions';
 import type { Rgb } from './wmColors';
 import type { LineColour } from './wmColors';
 import type { Geometry } from './wmGeometry';
+import type { IslandInput } from './wmIsland';
 import { HOME_ID } from './wmGeometry';
 import type { WorldState } from './wmState';
 import { laneOffset, offsetPoints } from './wmTracks';
@@ -211,6 +212,26 @@ export interface Scene {
   readonly loops: readonly SceneLoop[];
   /** Mitte und Halbmesser der ganzen Welt. */
   readonly extent: { readonly cx: number; readonly cy: number; readonly radius: number };
+  /**
+   * 2026-11-22 (Änderungspaket C2) — DER BODEN DER GANZEN WELT (Insel, Bäume), auch wenn nur ein Ausschnitt gezeichnet wird: die Karte
+   * bleibt eine Karte, an derselben Stelle; die Türme ausserhalb des Ausschnitts sind nicht da (Lichtungen).
+   */
+  readonly ground: IslandInput;
+  /** Nur ein Ausschnitt der Welt (die Türme unter einem Tag) ist gebaut und gezeichnet. */
+  readonly sliced: boolean;
+}
+
+/** Der Boden je Gestalt: alle Orte mit Lage, das Haus, die Gleise — einmal gerechnet. */
+const GROUND = new WeakMap<Geometry, IslandInput>();
+function groundOf(world: World, g: Geometry): IslandInput {
+  const had = GROUND.get(g);
+  if (had !== undefined) return had;
+  const places: { x: number; y: number; r: number }[] = [];
+  for (const id of world.order) { const pos = g.positions[id]; if (pos !== undefined) places.push({ x: pos[0], y: pos[1], r: g.radii[id] ?? 28 }); }
+  const home = g.positions[HOME_ID] === undefined ? null : { x: g.positions[HOME_ID][0], y: g.positions[HOME_ID][1], r: g.radii[HOME_ID] };
+  const out: IslandInput = { places, home, tracks: g.tracks.map((t) => ({ points: t.points })) };
+  GROUND.set(g, out);
+  return out;
 }
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
@@ -219,9 +240,15 @@ const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 export const NAME_MIN = 30;
 export const nameOnTop = (radiusPx: number, topHalfPx: number): boolean => radiusPx * 1.8 >= NAME_MIN && topHalfPx >= 5;
 
-export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geometry, opts: { readonly placeColour: (place: string) => Rgb; readonly lineColour: ReadonlyMap<string, LineColour>; readonly fallback: Rgb }): Scene {
+export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geometry, opts: {
+  readonly placeColour: (place: string) => Rgb; readonly lineColour: ReadonlyMap<string, LineColour>; readonly fallback: Rgb;
+  /** 2026-11-22 (C2) — nur diese Türme bauen und zeichnen (die Wege zwischen ihnen, ihre Knoten); `null`/fehlt: alle. */
+  readonly only?: ReadonlySet<string> | null;
+}): Scene {
+  const only = opts.only ?? null;
   const places: ScenePlace[] = [];
   for (const id of world.order) {
+    if (only !== null && !only.has(id)) continue;
     const p = world.places.get(id)!;
     const pos = g.positions[id];
     if (pos === undefined) continue;
@@ -242,7 +269,24 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     });
   }
   const byId = new Map(places.map((p) => [p.id, p] as const));
-  const blocks = [...world.blocks.values()].filter((b) => g.positions[b.id] !== undefined).map((b) => ({ id: b.id, label: b.label, x: g.positions[b.id][0], y: g.positions[b.id][1], r: g.radii[b.id] }));
+  /*
+    2026-11-22 (C2) — WAS ZUM AUSSCHNITT GEHÖRT: seine Türme, ihre Blöcke, das Haus und die Knoten (Gabelungen, Tore), die an einem
+    seiner Türme hängen oder zu einem führen (auch über einen zweiten Knoten). Ein Weg gehört dazu, wenn beide Enden dazugehören.
+  */
+  const blockKept = (id: string) => world.blocks.get(id)?.parts.some((x) => only === null || only.has(x)) === true;
+  const keptJunction = new Set<string>();
+  if (only !== null) {
+    const placeIn = (id: string) => only.has(id) || blockKept(id);
+    for (const j of lines.junctions.values()) if (placeIn(j.from)) keptJunction.add(j.id);
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (const s of lines.sections.values()) {
+        if (isJunction(s.from) && (placeIn(s.to) || keptJunction.has(s.to))) keptJunction.add(s.from);
+        if (isJunction(s.to) && placeIn(s.from)) keptJunction.add(s.to);
+      }
+    }
+  }
+  const nodeKept = (id: string): boolean => only === null || id === HOME_ID || only.has(id) || blockKept(id) || keptJunction.has(id);
+  const blocks = [...world.blocks.values()].filter((b) => g.positions[b.id] !== undefined && (only === null || blockKept(b.id))).map((b) => ({ id: b.id, label: b.label, x: g.positions[b.id][0], y: g.positions[b.id][1], r: g.radii[b.id] }));
   const home = g.positions[HOME_ID] === undefined ? null : { x: g.positions[HOME_ID][0], y: g.positions[HOME_ID][1], r: g.radii[HOME_ID] };
 
   /* Die Gleise und welche Linien auf ihnen fahren (in fester Reihenfolge: grosse vor Vertiefungen, dann nach Kennung). */
@@ -315,9 +359,12 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     return world.places.get(at)?.label ?? world.blocks.get(at)?.label ?? lines.lines.get(s.line)?.name ?? '';
   };
   const lanes: SceneLane[] = [];
+  const keptLanes = new Set<string>();
   for (const s of lines.sections.values()) {
     if (s.from === s.to) continue;
     if ((shownOf.get(s.id) ?? s.id) !== s.id) continue;
+    if (!nodeKept(s.from) || !nodeKept(s.to)) continue;
+    keptLanes.add(s.id);
     const a = nodeOf(s.from), b = nodeOf(s.to);
     const st = state.sections.get(s.id);
     const colour = opts.lineColour.get(s.line);
@@ -363,7 +410,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   const junctions: SceneJunction[] = [];
   for (const j of lines.junctions.values()) {
     const pos = g.positions[j.id];
-    if (pos === undefined) continue;
+    if (pos === undefined || !nodeKept(j.id)) continue;
     const seen = new Set<string>();
     const ways: { section: string; to: string; slides: number; questions: number }[] = [];
     for (const id of j.out) {
@@ -387,6 +434,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   };
   const conqueredOf = (p: string) => state.places.get(p)?.passable === true || (world.blocks.get(p)?.parts.every((x) => state.places.get(x)?.passable === true) ?? false);
   for (const l of lines.links) {
+    if (!nodeKept(l.from) || !nodeKept(l.to)) continue;
     const a = at(l.from), b = at(l.to);
     if (a === null || b === null) continue;
     links.push({ id: l.id, from: l.from, to: l.to, a: a.p, b: b.p, ra: a.r, rb: b.r, met: conqueredOf(l.from), kind: 'gate' });
@@ -400,8 +448,10 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   const shownBy = (need: string, place: string): boolean => (into.get(place) ?? []).some((s) => s.from === need
     || (lines.junctions.get(s.from)?.from === need) || lines.links.some((l) => l.from === need && l.to === s.from));
   for (const p of world.places.values()) {
+    if (only !== null && !only.has(p.id)) continue;
     if (state.places.get(p.id)?.conquered === true || p.needs.every((n) => state.places.get(n)?.passable === true)) continue;
     for (const n of p.needs) {
+      if (only !== null && !nodeKept(n)) continue;
       if (shownBy(n, p.id)) continue;
       const a = at(n), b = at(p.id);
       if (a === null || b === null) continue;
@@ -414,7 +464,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   for (const l of [...lines.loops].sort((a, b) => Number(b.section === (shownOf.get(b.section) ?? b.section)) - Number(a.section === (shownOf.get(a.section) ?? a.section)))) {
     const shown = shownOf.get(l.section) ?? l.section;
     const s = lines.sections.get(shown);
-    if (s === undefined || s.from === s.to || loopSeen.has(`${shown}|${l.target}|${l.step}`)) continue;
+    if (s === undefined || s.from === s.to || !keptLanes.has(shown) || loopSeen.has(`${shown}|${l.target}|${l.step}`)) continue;
     loopSeen.add(`${shown}|${l.target}|${l.step}`);
     loops.push({ section: shown, target: l.target, at: Math.max(0.05, Math.min(0.95, (l.at + 0.5) / Math.max(1, s.steps.length + 1))), marks: l.marks, color: opts.lineColour.get(l.target)?.color ?? opts.lineColour.get(l.line)?.color ?? opts.fallback });
   }
@@ -426,5 +476,5 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
   let radius = 60;
   for (const id of Object.keys(g.positions)) { const [x, y] = g.positions[id]; radius = Math.max(radius, Math.hypot(x - cx, y - cy) + (g.radii[id] ?? 28)); }
   const extent = Number.isFinite(x0) ? { cx, cy, radius } : { cx: 0, cy: 0, radius: 200 };
-  return { places, byId, blocks, home, tracks, lanes, junctions, links, loops, extent };
+  return { places, byId, blocks, home, tracks, lanes, junctions, links, loops, extent, ground: groundOf(world, g), sliced: only !== null };
 }

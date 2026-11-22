@@ -188,6 +188,10 @@ span.pe-item-title { cursor: default; }
 .wk-json-plan li { white-space: pre-wrap; }
 .wk-json-plan p { margin: 0; }
 .wk-json-warn { color: var(--wk-held-ink); }
+/* 2026-11-22 (A3) — gleiche Meldungen als eine Zeile mit „×N"; die einzelnen klappen auf (ui/MessageList.tsx). */
+.wk-msg-count { font-weight: 700; white-space: nowrap; }
+.wk-msg-group > details > summary { cursor: pointer; }
+.wk-msg-group > details > ul { margin-top: 0.25rem; }
 .wk-json-options { display: grid; gap: 0.5rem; }
 .wk-json-options .pe-check { align-items: flex-start; }
 .wk-json-options .pe-check input { margin-top: 0.25rem; }

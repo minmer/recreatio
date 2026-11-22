@@ -35,6 +35,8 @@
     "save": "Speichern",
     "saved": "Gespeichert",
     "clear": "Zurück zur Vorgabe (keine Stufen)",
+    "recommended": "Die Empfehlung nehmen: 2 Stufen (75 %, dann 90 % mit einer Korrektur; Pfade ab Stufe 1)",
+    "recommendedSays": "Die empfohlene Einstellung für jede Welt des Wissens — neue Bazy beginnen damit.",
     "leaving": {
       "one": "Mit dieser Einstellung verlässt {count} Karte die regulären Wiederholungen, bis ihr Ort erobert ist.",
       "other": "Mit dieser Einstellung verlassen {count} Karten die regulären Wiederholungen, bis ihre Orte erobert sind."
@@ -662,5 +664,20 @@
     "level": "Stufe {level}",
     "star": "Meisterhaft — jede Karte beim ersten Mal richtig (alle Stufen auf einmal)",
     "how": "Ein Durchgang hebt dich um jede Stufe, deren Regel er erfüllt. Ein Fehler macht das Lernen nicht zunichte: jede Antwort zählt für dein Wissen."
+  },
+  "tags": {
+    "label": "Thema",
+    "all": "Alle Themen",
+    "count": "{done}/{total}",
+    "countTitle": "{done} von {total} Türmen erobert",
+    "tree": "Themen dieser Welt",
+    "crumbs": "Gewähltes Thema",
+    "start": "Beginne mit:",
+    "refine": "Eingrenzen:",
+    "more": {
+      "one": "+{count} weiteres",
+      "other": "+{count} weitere"
+    },
+    "showAll": "Alle Themen zeigen (auch solche, in denen noch nichts erreichbar ist)"
   }
 }

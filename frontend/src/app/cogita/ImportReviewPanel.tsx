@@ -18,6 +18,7 @@ import { ImportBlocked, structurePreview, type ImportPlan } from './json';
 import { changeSummary, defaultDecisions, editedValue, editText, importSession, type Decisions, type ImportChange, type ImportSession } from './importReview';
 import type { CogitaLibrary } from './store';
 import { TexText } from '../ui/tex/Tex';
+import { MessageList } from '../ui/MessageList';
 import { CogitaContext } from './ui';
 import { crossCheckFor, crossUses, incomingLinksFor, incomingText, withWorlds, type CrossCheck } from './worldsImport';
 
@@ -149,7 +150,8 @@ function ImportReview({ session, decisions, onDecisions, incoming }: { session: 
       {blocked.length > 0 && (
         <div className="wk-error" role="alert" data-review-blocked={blocked.length}>
           <p>{t('cogitaData.reviewPanel.blocked')}</p>
-          <ul>{blocked.slice(0, 20).map((line, i) => <li key={i}>{line}</li>)}{blocked.length > 20 && <li>{t('cogitaData.reviewPanel.more', { count: blocked.length - 20 })}</li>}</ul>
+          {/* 2026-11-22 (A3) — alle, gleiche zusammen (statt der ersten 20). */}
+          <MessageList lines={blocked} />
         </div>
       )}
 

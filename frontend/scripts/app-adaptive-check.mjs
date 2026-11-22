@@ -9,6 +9,8 @@
  *   7. Ścieżka und Weltkarte: Nachhilfe zählt nie (keine Teile, keine Halte, keine Gabel), nur „N Schritte" / kleine Schleife;
  *   8. Prüfung und Vorschau: Warnungen, Zeilen je Frage; das Beispiel „example-adaptive" importiert ohne Warnung und geht unverändert hinaus;
  *   9. Einsicht für Autoren: nur zusammengezählt.
+ *  11. (2026-11-22, I3/I4) Vorhersagen zählen nie; "use" und der Modus (allein / Stunde): überspringen, Zweige, die Bedingung „mode",
+ *      die Wahl, die der Modus entscheidet, Kapitel, Ścieżka und Weltkarte je Modus, Warnungen, das Beispiel „example-lesson".
  *
  *   node scripts/app-adaptive-check.mjs
  */
@@ -24,7 +26,8 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-adaptive-'));
 const entries = {
   logic: 'src/app/cogita/logic.ts', flow: 'src/app/cogita/flow.ts', ad: 'src/app/cogita/adaptive.ts', running: 'src/app/cogita/runningStory.ts',
   sp: 'src/app/cogita/storyPath.ts', check: 'src/app/cogita/flowCheck.ts', wg: 'src/app/cogita/worldmap/wmGraph.ts', wl: 'src/app/cogita/worldmap/wmLines.ts',
-  fx: 'src/app/cogita/worldmap/wmFixtures.ts', mem: 'src/app/cogita/memoryBase.ts', json: 'src/app/cogita/json.ts', kn: 'src/app/cogita/knowness.ts', rev: 'src/app/cogita/revision.ts', cards: 'src/app/cogita/cards.ts'
+  fx: 'src/app/cogita/worldmap/wmFixtures.ts', mem: 'src/app/cogita/memoryBase.ts', json: 'src/app/cogita/json.ts', kn: 'src/app/cogita/knowness.ts', rev: 'src/app/cogita/revision.ts', cards: 'src/app/cogita/cards.ts',
+  md: 'src/app/cogita/modes.ts', fa: 'src/app/cogita/flowAsk.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -32,7 +35,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [LG, FL, AD, RS, SP, FC, WG, WL, FX, MEM, JS, KN, RV, CD] = await Promise.all(Object.keys(entries).map(load));
+const [LG, FL, AD, RS, SP, FC, WG, WL, FX, MEM, JS, KN, RV, CD, MD, FA] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -269,6 +272,118 @@ const at = (s) => (s.ended ? 'END' : s.step);
   const first = s.current;
   s = RV.answer(s, 1, due + 5_000).session;
   check('review: a card that falls due DURING the run is added and asked before the end', [first, s.current], ['qa', 'qb']);
+}
+
+/* -- 11. (2026-11-22, I3/I4) Vorhersagen, "use" und der Modus ------------------------------------------------------------------ */
+{
+  /* Ein Spielzusammenhang mit Modus und "use" der Einträge. */
+  const ctxIn = (flow, mode, uses = {}) => ({ facts: (s) => ({ values: s.values, knowness: () => 0, answered: () => null, visited: new Set(s.visited), now: new Date(0), session: FL.sessionOf(s), mode }), flows: (id) => (id === flow.id ? flow : undefined), members: () => [], useOf: (id) => uses[id] });
+  const enterIn = (flow, mode, uses = {}) => RS.startRun(flow, {}, ctxIn(flow, mode, uses)).state;
+  const go = (flow, s, exit, mode, uses = {}) => FL.advance(flow, s, exit, ctxIn(flow, mode, uses));
+
+  /* Vorhersage: gefragt, verzweigt, aber nie gezählt. */
+  const pf = flowOf([['s', 'show', { of: 'S' }], ['p', 'question', { of: 'P', predict: true }], ['r', 'show', { of: 'R' }], ['h', 'show', { of: 'H' }], ['w', 'show', { of: 'W' }], ['u', 'question', { of: 'U' }], ['z', 'end']],
+    [['s', 'next', 'p'], ['p', 'right', 'r'], ['p', 'wrong:heavy', 'h'], ['p', 'wrong', 'w'], ['r', 'next', 'u'], ['h', 'next', 'u'], ['w', 'next', 'u'], ['u', 'right', 'z'], ['u', 'wrong', 'z']]);
+  const atP = go(pf, start(pf), 'next', 'self');
+  check('predict: asked and branching like any question (right, wrong:<tag>, wrong)', [at(answer(pf, atP, { score: 1, correct: true })), at(answer(pf, atP, { score: 0, tags: ['heavy'] })), at(answer(pf, atP, { score: 0 }))], ['r', 'h', 'w']);
+  const sp = SP.storyPath(pf, SP.stepWorkOf(() => ['T']), (x) => x);
+  check('predict: no part, no question on the path (it counts like a help step) — only the understanding question', [sp.parts.flatMap((p) => p.steps).includes('p'), sp.parts.reduce((n, p) => n + p.questions, 0)], [false, 1]);
+  const cardOf = (id) => ({ key: `k/${id}`, question: id });
+  check('predict: not among the cards of the story (a review never asks it) and not "left to ask"', [FA.cardsInFlow(pf, cardOf).map((c) => c.key), FA.questionsLeft(pf, 's', cardOf, null).keys], [['k/U'], ['k/U']]);
+
+  /* "use": was der Modus nicht spielt, wird übersprungen — am Schritt oder am Eintrag. */
+  const uf = flowOf([['a', 'show', { of: 'A', use: 'self' }], ['b', 'show', { of: 'B', use: 'lesson' }], ['c', 'show', { of: 'C' }], ['q', 'question', { of: 'Q' }], ['z', 'end']], [['a', 'next', 'b'], ['b', 'next', 'c'], ['c', 'next', 'q'], ['q', 'right', 'z'], ['q', 'wrong', 'z']]);
+  check('use on a step: self-study skips the lesson slide, a lesson skips the self-study slide', [at(enterIn(uf, 'self')), at(go(uf, enterIn(uf, 'self'), 'next', 'self')), at(enterIn(uf, 'lesson'))], ['a', 'c', 'b']);
+  check('use on the entry (its data), a question skipped over "right"; the own "use" of a step wins', [at(go(uf, enterIn(uf, 'self', { C: 'lesson', Q: 'lesson' }), 'next', 'self', { C: 'lesson', Q: 'lesson' })), at(enterIn(flowOf([['a', 'show', { of: 'A', use: 'both' }], ['z', 'end']], [['a', 'next', 'z']]), 'lesson', { A: 'self' }))], ['END', 'a']);
+  check('use words: aliases in Polish/German, unknown → none', [MD.readUse('lekcja'), MD.readUse('samodzielnie'), MD.readUse('beide'), MD.readUse('x'), MD.readMode('both')], ['lesson', 'self', 'both', null, null]);
+
+  /* Die Wahl, die der Modus entscheidet — auch mit "of" und "hold". */
+  const cf = flowOf([['c', 'choice', { of: 'FORK', hold: true, options: [{ label: 'Razem' }, { label: 'Sam' }] }], ['l', 'show', { of: 'L', use: 'lesson' }], ['o', 'show', { of: 'O', use: 'self' }], ['z', 'end']],
+    [['c', 'o0', 'l'], ['c', 'o1', 'o'], ['l', 'next', 'z'], ['o', 'next', 'z']]);
+  check('choice: one branch fits the mode → taken by itself, even with "of" and "hold" (self → o1, lesson → o0)', [at(enterIn(cf, 'self')), at(enterIn(cf, 'lesson'))], ['o', 'l']);
+  const both = flowOf([['c', 'choice', { options: [{ label: 'A' }, { label: 'B' }] }], ['a', 'show'], ['b', 'show'], ['z', 'end']], [['c', 'o0', 'a'], ['c', 'o1', 'b'], ['a', 'next', 'z'], ['b', 'next', 'z']]);
+  check('choice: two branches fit → the learner chooses (no automatic choice)', at(enterIn(both, 'lesson')), 'c');
+  const cond = flowOf([['c', 'choice', { options: [{ label: 'L', condition: { type: 'mode', is: 'lesson' } }, { label: 'S', condition: { type: 'mode', is: 'self' } }] }], ['a', 'show'], ['b', 'show'], ['z', 'end']], [['c', 'o0', 'a'], ['c', 'o1', 'b'], ['a', 'next', 'z'], ['b', 'next', 'z']]);
+  check('choice: a "mode" condition on the options decides too', [at(enterIn(cond, 'lesson')), at(enterIn(cond, 'self'))], ['a', 'b']);
+  const factsIn = (mode) => ({ values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0), mode });
+  check('choice: open options and the options the mode shows (the others are never seen)', [FL.openOptions(cf, cf.graph.nodes[0], factsIn('self'), {}).map((o) => o.exit), [...FL.modeOptions(cf, cf.graph.nodes[0], 'lesson', {})]], [['o1'], ['o0']]);
+
+  /* Die Bedingung „mode" (Warunek, skipWhen). */
+  const gf = flowOf([['g', 'condition', { condition: { type: 'mode', is: 'lesson' } }], ['t', 'show', { skipWhen: { type: 'mode', is: 'self' } }], ['y', 'show'], ['z', 'end']], [['g', 'yes', 'y'], ['g', 'no', 't'], ['t', 'next', 'z'], ['y', 'next', 'z']]);
+  check('condition "mode": yes in a lesson, no in self-study; skipWhen with it', [at(enterIn(gf, 'lesson')), at(enterIn(gf, 'self'))], ['y', 'END']);
+  check('condition "mode" read: aliases, missing "is" → lesson, unknown → none; its text', [LG.readCondition({ type: 'mode', is: 'lekcja' }), LG.readCondition({ type: 'mode' }), LG.readCondition({ type: 'mode', is: 'nope' }), LG.conditionText({ type: 'mode', is: 'self' })], [{ type: 'mode', is: 'lesson' }, { type: 'mode', is: 'lesson' }, null, 'played in self-study']);
+  check('condition "mode" is decided on the run (no ticket, no gate on the map)', LG.usesSession(LG.readCondition({ type: 'and', items: [{ type: 'mode', is: 'lesson' }, { type: 'value', value: 'x' }] })), true);
+
+  /* Kapitel: was der Modus nicht spielt, zählt nicht; bleibt durch den Modus eines, beginnt es. */
+  const ch = flowOf([['h', 'chapters', { chapters: [{ title: 'L' }, { title: 'S' }] }], ['l', 'show', { use: 'lesson' }], ['s', 'show', { use: 'self' }], ['e', 'chapterEnd'], ['z', 'end']],
+    [['h', 'c0', 'l'], ['h', 'c1', 's'], ['l', 'next', 'e'], ['s', 'next', 'e'], ['h', 'done', 'z']]);
+  const inSelf = enterIn(ch, 'self');
+  check('chapters: self-study starts the only chapter it plays; after it, "done"', [at(inSelf), at(go(ch, inSelf, 'next', 'self'))], ['s', 'END']);
+
+  /* Gezählt je Modus: Ścieżka und Weltkarte. */
+  const two = flowOf([['a', 'show', { of: 'A' }], ['c', 'choice', { options: [{ label: 'L' }, { label: 'S' }] }], ['l', 'show', { of: 'L', use: 'lesson' }], ['s', 'show', { of: 'S2', use: 'self' }], ['q', 'question', { of: 'Q' }], ['z', 'end']],
+    [['a', 'next', 'c'], ['c', 'o0', 'l'], ['c', 'o1', 's'], ['l', 'next', 'q'], ['s', 'next', 'q'], ['q', 'right', 'z'], ['q', 'wrong', 'z']]);
+  const parts = (mode) => SP.storyPath(two, SP.stepWorkOf((n) => (typeof n.config.of === 'string' ? [n.config.of] : [])), (x) => x, { mode });
+  check('path per mode: the branch the mode does not play is no fork and no part', [parts('self').parts.some((p) => p.fork !== undefined), parts('self').parts.flatMap((p) => p.steps).filter((x) => x === 'l' || x === 's'), parts('lesson').parts.flatMap((p) => p.steps).filter((x) => x === 'l' || x === 's')], [false, ['s'], ['l']]);
+  const counted = MD.countedGraph(two.graph, two.start, { mode: 'self' });
+  check('countedGraph: lesson-only steps gone; a choice the mode decides (one branch left) is no step either — the rest unchanged', [counted.graph.nodes.map((n) => n.id).sort(), counted.graph.edges.map((e) => `${e.from}>${e.out}>${e.to}`).sort()], [['a', 'q', 's', 'z'], ['a>next>s', 'q>right>z', 'q>wrong>z', 's>next>q']]);
+  const three = flowOf([['c', 'choice', { options: [{ label: 'L' }, { label: 'S' }, { label: 'B' }] }], ['l', 'show', { use: 'lesson' }], ['s', 'show', { use: 'self' }], ['b', 'show'], ['z', 'end']],
+    [['c', 'o0', 'l'], ['c', 'o1', 's'], ['c', 'o2', 'b'], ['l', 'next', 'z'], ['s', 'next', 'z'], ['b', 'next', 'z']]);
+  const c3 = MD.countedGraph(three.graph, three.start, { mode: 'self' });
+  check('countedGraph: two branches left — the choice stays, the dropped one is no exit', [c3.graph.edges.filter((e) => e.from === 'c').map((e) => e.out), FL.exitsOf('choice', c3.graph.nodes.find((n) => n.id === 'c').config).map((p) => p.id)], [['o1', 'o2'], ['o1', 'o2']]);
+
+  const bx = FX.boskoWorld();
+  const world = WG.readWorld(bx.input);
+  const [pa, pb] = world.order.slice(0, 2);
+  const b = new FX.FlowBuilder('M');
+  b.show(`s/${pa}`);
+  const lessonSlide = b.step('show', { of: `s/${pb}`, use: 'lesson' });
+  const pq = b.ask(world.places.get(pa).cards[0]);
+  b.nodes.find((x) => x.id === pq).config.predict = true;
+  b.end();
+  const mf = b.flow('f/m', { name: 'M', unit: 'u/L1' });
+  const stepsIn = (ls) => [...ls.sections.values()].flatMap((s) => s.steps);
+  const selfLines = WL.linesOf(world, [mf]);
+  const lessonLines = WL.linesOf(world, [mf], { mode: 'lesson' });
+  check('world map: self-study counts neither the lesson slide nor the prediction; a lesson counts the slide, never the prediction', [stepsIn(selfLines).includes(lessonSlide), stepsIn(lessonLines).includes(lessonSlide), stepsIn(selfLines).includes(pq) || stepsIn(lessonLines).includes(pq)], [false, true, false]);
+
+  /* Warnungen. */
+  const warn = (f, uses = {}) => MD.modeProblems(f.graph, f.start, (id) => uses[id]).map((p) => `${p.key}:${p.step ?? ''}:${p.params.exit ?? p.params.mode ?? p.params.value ?? ''}`).sort();
+  const never = flowOf([['c', 'choice', { options: [{ label: 'X', condition: { type: 'mode', is: 'lesson' } }, { label: 'Y' }] }], ['x', 'show', { use: 'self' }], ['y', 'show'], ['z', 'end']], [['c', 'o0', 'x'], ['c', 'o1', 'y'], ['x', 'next', 'z'], ['y', 'next', 'z']]);
+  check('warnings: a branch no mode enters; a story with nothing in one mode; unknown "use" and "is"', [
+    warn(never),
+    warn(flowOf([['a', 'show', { of: 'A' }], ['z', 'end']], [['a', 'next', 'z']]), { A: 'lesson' }),
+    warn(flowOf([['a', 'show', { use: 'klass' }], ['g', 'condition', { condition: { type: 'mode', is: 'nope' } }], ['z', 'end']], [['a', 'next', 'g'], ['g', 'yes', 'z'], ['g', 'no', 'z']]))
+  ], [['branchNever:c:o0'], ['emptyIn::self'], ['modeUnknown:g:nope', 'useUnknown:a:klass']]);
+  check('warnings: none for a story without modes', warn(flowOf([['a', 'show'], ['z', 'end']], [['a', 'next', 'z']])), []);
+
+  /* Das Beispiel „example-lesson": Import ohne Warnungen; allein und in der Stunde. */
+  const doc = JSON.parse(await readFile('../templates/cogita/przyklad-lekcja.json', 'utf8'));
+  const base = await MEM.memoryBase(doc, { libraryId: 'lekcja' });
+  if ('error' in base) throw new Error(base.error);
+  check('example-lesson: imports without warnings', base.warnings, []);
+  const flowDoc = base.lib.docs('flow')[0];
+  const lf = FL.readFlow(flowDoc.id, flowDoc.data);
+  const uses = (id) => base.lib.entity(id)?.data.use;
+  const lctx = (mode) => ({ facts: (s) => ({ values: s.values, knowness: () => 0, answered: () => null, visited: new Set(s.visited), now: new Date(0), session: FL.sessionOf(s), mode }), flows: (id) => (id === lf.id ? lf : undefined), members: () => [], useOf: uses });
+  const walk = (mode, answers) => {
+    const ctx = lctx(mode);
+    let run = RS.startRun(lf, {}, ctx);
+    const seen = [];
+    for (let i = 0; i < 20 && !run.state.ended; i += 1) {
+      const node = lf.graph.nodes.find((n) => n.id === run.state.step);
+      seen.push(node.id);
+      run = node.type === 'question' ? RS.stepRun(run, ctx.flows, undefined, ctx, answers[node.id] ?? { score: 1, correct: true }).run : RS.stepRun(run, ctx.flows, 'next', ctx).run;
+    }
+    return seen;
+  };
+  check('example-lesson: self-study — explain first, no prediction, the home experiment chosen by itself, no exit ticket', walk('self', {}), ['sytuacja', 'wyjasnienie', 'sam', 'zrozumienie']);
+  check('example-lesson: lesson — situation, prediction (a wrong answer leads to the explanation of exactly that error), class experiment, understanding, exit ticket', walk('lesson', { przewidywanie: { score: 0, tags: ['ciezsze-szybciej'] } }), ['sytuacja', 'przewidywanie', 'blad-ciezsze', 'razem', 'zrozumienie', 'bilet']);
+  /* Dieselbe Frage als Vorhersage und gezählt: eine Warnung. */
+  const dup = JSON.parse(JSON.stringify(doc));
+  dup.flows.push({ ref: '@lekcja/drugi', name: 'Drugi', start: 'q', graph: { nodes: [{ id: 'q', type: 'question', x: 0, y: 0, config: { of: '@lekcja/q/przewidywanie' } }, { id: 'z', type: 'end', x: 0, y: 0, config: {} }], edges: [{ id: 'a', from: 'q', out: 'right', to: 'z', in: 'in' }, { id: 'b', from: 'q', out: 'wrong', to: 'z', in: 'in' }] } });
+  const plan = JS.planImport(base.writer, dup);
+  check('import: a question that is a prediction in one story and counts in another warns', 'error' in plan ? plan.error : plan.warnings.filter((w) => w.includes('prediction')).length, 1);
 }
 
 await rm(workspace, { recursive: true, force: true });

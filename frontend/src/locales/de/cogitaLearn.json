@@ -265,7 +265,9 @@
     "remedialSteps": {
       "one": "{count} Hilfsschritt",
       "other": "{count} Hilfsschritte"
-    }
+    },
+    "predictBefore": "Erst vorhersagen. Diese Frage zählt nicht — sie ist eine Vorhersage.",
+    "predictAfter": "Diese Frage zählt nicht — sie ist eine Vorhersage. Jetzt sieh, wie es wirklich ist."
   },
   "spacing": {
     "title": "Abstände der Wiederholungen",

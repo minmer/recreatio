@@ -247,7 +247,9 @@
       "sync": "Several people at one device",
       "story": "Story with a code",
       "game": "Outdoor game",
-      "shared": "Open link"
+      "shared": "Open link",
+      "lesson": "Lesson",
+      "task": "Assignment"
     },
     "connectFailed": "Could not connect to the session."
   },

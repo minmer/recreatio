@@ -22,7 +22,8 @@
     "roles": "Role",
     "account": "Konto",
     "sprawy": "Sprawy",
-    "widok": "Widok"
+    "widok": "Widok",
+    "klasa": "Klasa"
   },
   "routes": {
     "noSlug": "Część \"{route}\" nie nazywa pojedynczych rzeczy — \"{slug}\" nie pasuje za nią."

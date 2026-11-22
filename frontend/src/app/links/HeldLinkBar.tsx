@@ -175,6 +175,8 @@ export function HeldLinkBar({ who }: { who?: Who }) {
     return () => { alive = false; };
   }, [arrived, who]);
 
+  /* 2026-11-22 — der Code einer Klasse: die Seite der Klasse sagt selbst, was er gibt und wie man beitritt (`ClassPage.tsx`). */
+  if (arrived !== null && (arrived.aim ?? '').startsWith('workspace/klasa/')) return null;
   /* Kein frischer Link: im Arbeitsplatz die, die das Konto noch nicht hat. */
   if (arrived === null) return who === undefined ? null : <Unjoined who={who} />;
   if (seen === undefined) return null;

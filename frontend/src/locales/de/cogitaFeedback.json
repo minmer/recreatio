@@ -20,5 +20,6 @@
     "easy": "Zu leicht",
     "display": "Darstellung",
     "other": "Anderes"
-  }
+  },
+  "note": "Erledigt: {note}"
 }

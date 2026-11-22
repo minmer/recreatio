@@ -265,7 +265,9 @@
     "remedialSteps": {
       "one": "{count} help step",
       "other": "{count} help steps"
-    }
+    },
+    "predictBefore": "First predict. This question does not count — it is a prediction.",
+    "predictAfter": "This question does not count — it is a prediction. Now see how it really is."
   },
   "spacing": {
     "title": "Review spacing",

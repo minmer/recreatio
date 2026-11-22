@@ -1,0 +1,186 @@
+{
+  "quoted": "„{name}“",
+  "listMore": "{list} … (+{count})",
+  "question": {
+    "flash": {
+      "message": "{name} ist eine Lernkarte — der Lernende bewertet sie, nicht die App.",
+      "fix": "Mach daraus eine Frage, die die App bewertet: one, many, truefalse, match, order, number, gap oder text mit allen akzeptierten Antworten."
+    },
+    "noTower": {
+      "message": "{name} gehört zu keinem Turm (sein „about“ nennt keinen Turm).",
+      "fix": "Setze „about“ auf den Turm, den die Frage prüft — jede Frage gehört zu einem Turm."
+    },
+    "untaught": {
+      "message": "{name}: keine Folie lehrt seinen Turm {tower} oder einen Turm, den er verlangt.",
+      "fix": "Erkläre es auf einer Folie des Turms (mit dem Turm verknüpft) oder eines verlangten Turms, verknüpfe die Folie in „explain“, oder lösche die Frage.",
+      "scenes": "(Diese Baza hat Präsentationen: ihre Szenen sieht diese Kontrolle nicht — lehrt eine Szene es, ist alles gut.)"
+    },
+    "noFeedback": {
+      "message": {
+        "one": "{name}: {count} von {total} Möglichkeiten hat keinen Rückmeldungssatz.",
+        "other": "{name}: {count} von {total} Möglichkeiten haben keinen Rückmeldungssatz."
+      },
+      "fix": "Gib jeder Möglichkeit ihren eigenen Satz („feedback“, einer je Möglichkeit, in derselben Reihenfolge), der sagt, warum sie richtig oder falsch ist."
+    }
+  },
+  "tower": {
+    "noCore": {
+      "message": "Turm {name} hat keine Schlüsselfrage.",
+      "fix": "Markiere die 1–2 Fragen, die den Kern des Turms prüfen, mit \"core\": true."
+    },
+    "fewVote": {
+      "message": "Turm {name}: Fragen für eine Abstimmung der Klasse: {count} — mindestens {min} sind nötig.",
+      "fix": "Füge Fragen der Art „one“ mit {options} Möglichkeiten hinzu, bei denen jede falsche Möglichkeit ein benannter Denkfehler ist („tags“)."
+    },
+    "longestCorrect": {
+      "message": "Turm {name}: die richtige Möglichkeit ist die längste in {count} von {total} Auswahlfragen ({share} %).",
+      "fix": "Mach die falschen Möglichkeiten so lang und glaubwürdig wie die richtige — die richtige darf höchstens in 3 von 10 Fragen die längste sein."
+    },
+    "positions": {
+      "message": "Turm {name}: die richtige Möglichkeit steht an Stelle {position} in {count} von {total} Auswahlfragen.",
+      "fix": "Verteile die Stelle der richtigen Möglichkeit gleichmässig über die Fragen."
+    }
+  },
+  "slide": {
+    "long": {
+      "message": "{name}: {count} Wörter — eine Folie trägt einen Gedanken, höchstens etwa {max} Wörter.",
+      "fix": "Teile sie in zwei Folien oder streiche, was der Lernende hier nicht braucht."
+    }
+  },
+  "path": {
+    "severalTowers": {
+      "message": "Pfad {name} führt über {count} Türme ({list}) — ein Pfad führt zu einem Turm.",
+      "fix": "Teile ihn in einen Pfad je Turm, oder lass ihn an einer äusseren Gabelung enden, deren Zweige zu den Türmen führen."
+    },
+    "slidesInRow": {
+      "message": "Pfad {name}: {count} Folien hintereinander bei {step} (höchstens {max}).",
+      "fix": "Höchstens {max} Folien hintereinander: nach einer oder zwei Folien eine Frage genau zu ihnen."
+    },
+    "questionsInRow": {
+      "message": "Pfad {name}: {count} Fragen hintereinander bei {step} (höchstens {max} ausserhalb des Abschlusses).",
+      "fix": "Höchstens {max} Fragen hintereinander: die Folie, die eine Frage vorbereitet, direkt davor — oder verschiebe sie in den Abschluss."
+    },
+    "longClosing": {
+      "message": "Pfad {name}: der Abschluss hat {count} Fragen (2–{max}).",
+      "fix": "Behalte 2–{max} Fragen, die die Schritte verbinden; den Rest fragt der Turm in seinem Lauf und in Wiederholungen."
+    },
+    "noQuestions": {
+      "message": "Pfad {name} zeigt Folien, fragt aber nichts.",
+      "fix": "Im Wechsel: ein, zwei Folien, dann eine Frage genau zu ihnen."
+    }
+  },
+  "line": {
+    "ticket": {
+      "message": "Pfad {name} verlangt vor dem Start {list} — mehr, als sein erster Turm {tower} verlangt.",
+      "fix": "Eine Fahrkarte verlangt nur, was der erste Turm der Linie verlangt: verschiebe die Voraussetzung zum Turm („Wymaga“) oder lass die Linie bei einem späteren Turm beginnen."
+    }
+  },
+  "fork": {
+    "labelLong": {
+      "message": "Pfad {name}: die Möglichkeit {label} der Gabelung hat {count} Zeichen (höchstens {max}).",
+      "fix": "Gib der Möglichkeit einen kurzen Liniennamen mit höchstens {max} Zeichen; mehr sagt ihr Hinweis."
+    },
+    "hintLong": {
+      "message": "Pfad {name}: der Hinweis zu {label} hat {count} Zeichen (höchstens {max}).",
+      "fix": "Kürze den Hinweis auf höchstens {max} Zeichen."
+    }
+  },
+  "mistakeTag": {
+    "noHelp": {
+      "message": {
+        "one": "{name}: der Fehler-Tag {list} hat keine Hilfe im Pfad {path}, der die Frage stellt.",
+        "other": "{name}: die Fehler-Tags {list} haben keine Hilfe im Pfad {path}, der die Frage stellt."
+      },
+      "fix": "Führe jeden benannten Fehler zur Folie, die ihn auflöst: onWrong.byTag (oder eine Kante wrong:<tag>) am Schritt der Frage."
+    },
+    "nearDuplicate": {
+      "message": "Die Fehler-Tags {a} ({ca}×) und {b} ({cb}×) sehen aus wie derselbe Fehler, anders geschrieben.",
+      "fix": "Eine Schreibweise für einen Denkfehler — tagge die Möglichkeiten um."
+    },
+    "usedOnce": {
+      "message": {
+        "one": "{count} Fehler-Tag kommt nur an einer Möglichkeit vor: {list}.",
+        "other": "{count} Fehler-Tags kommen nur an einer Möglichkeit vor: {list}."
+      },
+      "fix": "Ein Tag benennt einen typischen Denkfehler, der wiederkehrt — prüfe, ob ein vorhandener passt."
+    }
+  },
+  "tag": {
+    "usedOnce": {
+      "message": "Der Tag {name} wählt nur einen Turm aus ({tower}).",
+      "fix": "Nutze einen vorhandenen Tag oder verzichte auf einen Tag, der einen einzigen Turm auswählt."
+    },
+    "nearDuplicate": {
+      "message": "Die Tags {a} und {b} sehen aus wie dasselbe Wort in anderer Form.",
+      "fix": "Behalte einen davon und tagge die Türme um."
+    }
+  },
+  "levels": {
+    "none": "keine Stufen",
+    "rule": "{pct} % ({attempts})",
+    "attempts": {
+      "any": "beliebig viele Versuche",
+      "one": "eine Korrektur",
+      "first": "erster Versuch"
+    },
+    "openAt": "Pfade öffnen ab Stufe {level}",
+    "standard": {
+      "message": "Stufen der Eroberung: {now}. Empfohlen für jede Welt: zwei Stufen — 75 % bei beliebig vielen Versuchen, 90 % mit einer Korrektur, Pfade ab Stufe 1.",
+      "fix": "Frag den Eigentümer, ob auf den Standard mit zwei Stufen (levelsSetup) umgestellt wird — nicht still umstellen."
+    }
+  },
+  "feedback": {
+    "open": {
+      "message": {
+        "one": "{name}: {count} offene Rückmeldung ({categories}) — id {ids}.",
+        "other": "{name}: {count} offene Rückmeldungen ({categories}) — ids {ids}."
+      },
+      "fix": "Lies sie (get_feedback), behebe, was sie melden, und erledige sie in der Importdatei: \"feedback\": [{\"id\": …, \"state\": \"done\", \"note\": …}]."
+    }
+  },
+  "flow": {
+    "preview": {
+      "fix": "Behebe den Pfad im Editor des Ablaufs oder in der Importdatei (guide-stories); die Vorschau des Imports sagt dasselbe."
+    }
+  },
+  "preview": {
+    "paths": {
+      "fix": "Behebe den Weg zu einer Frage (guide-world-map, „paths“)."
+    },
+    "slides": {
+      "fix": "Behebe den Text der Folie (guide-stories, Folien und Text)."
+    },
+    "generators": {
+      "fix": "Behebe den Generator (guide-generators)."
+    },
+    "drawings": {
+      "fix": "Behebe die Zeichnung (guide-visuals)."
+    },
+    "landscape": {
+      "fix": "Behebe die Reihenfolge des Lernens oder den Widok (guide-world-map)."
+    },
+    "worlds": {
+      "fix": "Behebe den Verweis in die andere Welt (\"@@handle:…\", in einem Verweisfeld mit \"external\": true)."
+    }
+  },
+  "map": {
+    "fix": "Siehe guide-world-map: Türme, Voraussetzungen und Pfade."
+  },
+  "panel": {
+    "title": "Kontrolle der Welt",
+    "lede": "Was die Welt nach dem Leitfaden für gute Welten noch braucht — eine Liste zum Abarbeiten, nichts wird blockiert. Dieselbe Liste bekommen KI-Assistenten (get_world_checks).",
+    "counting": "Die Welt wird geprüft…",
+    "failed": "Die Kontrolle ging nicht: {error}",
+    "none": "Die Kontrolle der Welt findet nichts zu tun.",
+    "counts": "muss {must} · sollte {should} · Hinweis {info}",
+    "size": "{towers} Türme · {paths} Pfade · {questions} Fragen · {slides} Folien",
+    "weight": {
+      "must": "muss",
+      "should": "sollte",
+      "info": "Hinweis"
+    },
+    "more": "… und {count} weitere",
+    "fix": "Abhilfe:",
+    "open": "öffnen"
+  }
+}

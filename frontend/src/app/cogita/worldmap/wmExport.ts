@@ -27,6 +27,8 @@ import { placeKindsOf, worldInputOf } from './wmInput';
 import { linesOf } from './wmLines';
 import { storedLayout } from './wmStore';
 import { HOME, type World } from './wmTypes';
+import { worldTags } from './wmTags';
+import { tagList } from '../tags';
 
 /** Welche Arten Orte sind (`wmInput.ts`; dieselbe Regel für Karte, Ausfuhr und Wiederholungen). */
 export { placeKindsOf };
@@ -86,6 +88,28 @@ function signsFor(paths: readonly QPath[], at: (a: QAnchor) => readonly [number,
     anchor: anchor.kind === 'home' ? 'home' : anchor.kind === 'place' ? ref(anchor.place) : { flow: ref(anchor.flow), step: anchor.step },
     paths: list, at: at(anchor)
   }));
+}
+
+/**
+ * 2026-11-22 (Änderungspaket A5) — DIE TAGS DER WELT für MCP (`get_knowledge_setup`, Abschnitt "tags"): je Tag der bleibende Name,
+ * der Name, die oberen Tags, die Ebene, wie viele Türme ihn selbst tragen und wie viele unter ihm liegen (über alle Ebenen). Die Türme
+ * sind die des ersten Widoku `style: "world"` (sonst die abgeleiteten Orte). Kein Fortschritt — nur Bau. Leer: keine Tags.
+ */
+export interface TagRowForAi {
+  readonly ref: string;
+  readonly name: string;
+  readonly parents: readonly string[];
+  readonly level: number;
+  readonly towers: number;
+  readonly towersBelow: number;
+}
+
+export function tagsForAi(lib: CogitaLibrary, cards: readonly Card[]): TagRowForAi[] {
+  const name = nameIn(lib);
+  const ref = (id: string): string => `@${name(id)}`;
+  const view = lib.docs('view').map((d) => readView(d.data)).find((v) => v.mode === 'landscape' && v.landscape?.style === 'world');
+  const world = readWorld(worldInputOf(lib, cards, { placeKinds: view === undefined ? [] : placeKindsOf(view) }));
+  return tagList(worldTags(world)).map((row) => ({ ref: ref(row.id), name: row.name, parents: row.parents.map(ref), level: row.level, towers: row.towers, towersBelow: row.towersBelow }));
 }
 
 /** Die Weltkarte jedes Widoku `style: "world"` — dieselbe Lage wie in der Ansicht (abgelegt, sonst im Worker gerechnet). */

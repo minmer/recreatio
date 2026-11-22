@@ -83,6 +83,8 @@ export function FeedbackButton({ lib: given, target }: { lib: CogitaLibrary | nu
                   <li key={f.id} className={f.state === 'done' ? 'is-done' : ''} data-feedback-item={f.state}>
                     <span className="cg-fb-tag">{FEEDBACK_LABEL[f.category]}</span>
                     {f.text !== '' && <span className="cg-fb-text">{f.text}</span>}
+                    {/* 2026-11-22 (I6) — erledigt mit einem Import: was geändert wurde. */}
+                    {f.note !== undefined && <span className="cg-fb-text cg-fb-note" data-feedback-note="">{t('cogitaFeedback.note', { note: f.note })}</span>}
                     <span className="cg-muted cg-fb-at">{f.at.slice(0, 10)}</span>
                     <span className="cg-fb-item-acts">
                       <button type="button" className="wk-link-btn" onClick={() => void setState(f.id, raw, f.state === 'open' ? 'done' : 'open')}>{f.state === 'open' ? t('cogitaFeedback.markDone') : t('cogitaFeedback.reopen')}</button>

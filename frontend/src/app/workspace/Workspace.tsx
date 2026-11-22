@@ -51,6 +51,7 @@ import { DESK_EVENT } from './viewData';
 
 /* 0109 — die Nauka als eigenes Bündel (Karten, Läufe, Sitzungen): erst, wenn man sie öffnet. */
 const LearnView = lazy(() => import('../cogita/LearnView').then((m) => ({ default: m.LearnView })));
+const ClassPage = lazy(() => import('../cogita/classes/ClassPage').then((m) => ({ default: m.ClassPage })));
 /* 2026-10-23 — das Skryptorium erst, wenn es geöffnet wird. */
 const ScriptoriumView = lazy(() => import('../scriptorium/ScriptoriumView').then((m) => ({ default: m.ScriptoriumView })));
 
@@ -245,6 +246,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'scriptorium') return <Suspense fallback={<Loading />}><ScriptoriumView who={who} trail={trail} /></Suspense>;
   /* 2026-10-24 — Cogita in zwei Teilen: Wiedza (Einträge, Dodaj, Schematy) und Nauka, dieselben Bazy (`cogita/parts.ts`). */
   if (view === 'knowledge') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} part="knowledge" /></Suspense>;
+  if (view === 'klasa') return <Suspense fallback={<Loading />}><ClassPage trail={trail} who={who} /></Suspense>;
   if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} part="learn" /></Suspense>;
   if (view === 'sms') return <Suspense fallback={<Loading />}><SmsApp who={who} trail={trail} /></Suspense>;
   if (view === 'contacts') return <Suspense fallback={<Loading />}><ContactsApp who={who} trail={trail} /></Suspense>;

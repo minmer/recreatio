@@ -247,7 +247,9 @@
       "sync": "Mehrere Personen an einem Gerät",
       "story": "Geschichte mit Code",
       "game": "Geländespiel",
-      "shared": "Offener Link"
+      "shared": "Offener Link",
+      "lesson": "Unterrichtsstunde",
+      "task": "Aufgabe"
     },
     "connectFailed": "Verbindung zur Sitzung nicht möglich."
   },

@@ -178,6 +178,13 @@ export interface FieldDef {
    */
   readonly part?: 'up' | 'down';
   /**
+   * 2026-11-22 (Tagi der Welt) — `ref` ALS TAG: `up` — was er nennt, sind die Tags dieses Eintrags. Ein Tag ist irgendein Eintrag
+   * (meist eines eigenen Rodzaj „Tag"); die Tag-Felder eines Tags nennen seine OBEREN Tags — ein Netz mit Ebenen, ein Untertag darf
+   * mehreren oberen angehören (`tags.ts`). Die Weltkarte filtert danach (der Lernende wählt), die Einstufung lässt sich auf einen
+   * Tag begrenzen, MCP liefert die Liste. Etwas anderes als die Fehler-Tags einer Frage (Feld `tags`).
+   */
+  readonly tag?: 'up';
+  /**
    * 2026-11-05 (Prompt 24) — `ref` IN ANDERE BAZY („Inne światy", `worlds.ts`): ein Wert darf auch "@@historia:@…" sein — ein
    * Angebot, nie eine Voraussetzung (darum nie zugleich `prerequisite` oder `structure`). Der Editor bietet „Link do innego świata".
    */
@@ -378,6 +385,7 @@ export function readField(raw: unknown): FieldDef | null {
     structure: type === 'ref' && raw.external !== true && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
     prerequisite: type === 'ref' && raw.external !== true && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
     part: type === 'ref' && raw.external !== true && (raw.part === 'up' || raw.part === 'down') ? raw.part : undefined,
+    tag: type === 'ref' && raw.external !== true && raw.tag === 'up' ? 'up' : undefined,
     external: type === 'ref' && raw.external === true ? true : undefined,
     when: readWhen(raw.when, key),
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,

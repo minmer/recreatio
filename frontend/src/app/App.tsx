@@ -21,6 +21,7 @@ import {
   type Address
 } from './routes';
 import { forget as forgetState } from './core/prefs';
+import { useShell } from './cogita/classes/shellChoice';
 import { keepFromAddress } from './seats/seatKeep';
 import { heldLinks, keepLinkFromAddress } from './links/linkKeep';
 import { keepsKey, sessionNow, signOut, type Who } from './core/session';
@@ -40,6 +41,10 @@ import { rich, useT } from './core/i18n';
  * mit, bevor sie etwas zeigte.
  */
 const WorkspaceShell = lazy(() => import('./shell/WorkspaceShell'));
+/* 2026-11-22 — die kleine Werkstatt (nur die Nauka) für wer über den QR-Code einer Klasse ein Konto anlegte. */
+const LearnerShell = lazy(() => import('./shell/LearnerShell'));
+/* 2026-11-22 — die Seite einer Klasse ohne Anmeldung: hierher führt ihr QR-Code. */
+const ClassPage = lazy(() => import('./cogita/classes/ClassPage').then((m) => ({ default: m.ClassPage })));
 const LinkCalendar = lazy(() => import('./calendar/LinkCalendar').then((m) => ({ default: m.LinkCalendar })));
 const JoinLink = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinLink })));
 const JoinWithoutAccount = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
@@ -347,6 +352,20 @@ export function App() {
     }
 
     /*
+     * 2026-11-22 — DIE KLASSE OHNE KONTO (`#/workspace/klasa/<klasse>/<baza>`): der QR-Code der Lehrerin führt hierher —
+     * ein Konto anlegen, sich anmelden oder ohne Konto beitreten (`ClassPage.tsx`); wer schon drin ist, lernt gleich.
+     */
+    if (view === 'klasa' && here !== null && here.kind === 'view' && !signInWanted) {
+      return (
+        <PlainFrame>
+          <Suspense fallback={<Loading />}>
+            <ClassPage trail={here.trail} who={null} onWho={setWho} />
+          </Suspense>
+        </PlainFrame>
+      );
+    }
+
+    /*
      * DER LINK OHNE ZIEL (`#/dolacz/<T>`), ohne Konto: was er hier gibt und
      * wohin es geht — KEIN Angebot, ihn einem Konto hinzuzufügen. Das bekommt
      * nur, wer angemeldet ist (`JoinLink`); die Anmeldung ist einen Klick weit.
@@ -434,9 +453,21 @@ export function App() {
 
   return (
     <Suspense fallback={<div className="wk-root wk-plain"><main className="wk-main"><Loading /></main></div>}>
-      <WorkspaceShell who={who} spot={spot} onSignOut={signOutNow} cut={cut} />
+      <Shells who={who} spot={spot} onSignOut={signOutNow} cut={cut} />
     </Suspense>
   );
+}
+
+/**
+ * 2026-11-22 — WELCHE WERKSTATT: die ganze, oder die kleine (nur die Nauka) für wer über eine Klasse kam (`shellChoice.ts`).
+ * Solange das Konto es nicht gesagt hat und das Gerät es nicht weiss, wartet die Seite einen Augenblick.
+ */
+function Shells({ who, spot, onSignOut, cut }: { who: Who; spot: ReturnType<typeof spotOf>; onSignOut: () => void; cut: boolean }) {
+  const shell = useShell(who.accountId);
+  if (shell === undefined) return <div className="wk-root wk-plain"><main className="wk-main"><Loading /></main></div>;
+  return shell === 'learn'
+    ? <LearnerShell who={who} spot={spot} onSignOut={onSignOut} cut={cut} />
+    : <WorkspaceShell who={who} spot={spot} onSignOut={onSignOut} cut={cut} />;
 }
 
 export default App;

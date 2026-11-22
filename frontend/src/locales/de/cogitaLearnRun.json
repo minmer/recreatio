@@ -384,6 +384,13 @@
     "linkPerson": "die Person aus dem Link",
     "you": "du",
     "asOffice": "Du lernst als {who} — die Kursleitung sieht den Fortschritt auch.",
-    "asOwn": "Du lernst als {who} — der Fortschritt bleibt in deinem Konto."
+    "asOwn": "Du lernst als {who} — der Fortschritt bleibt in deinem Konto.",
+    "group": "Klasse",
+    "school": "Schule",
+    "consent": "Ich bin einverstanden mitzumachen: meine Antworten und mein Fortschritt sind für die Lehrkraft dieser Klasse sichtbar.",
+    "madeTitle": "Dein persönlicher Link",
+    "madeText": "Behalte diesen Link — er ist dein Zugang, ohne Passwort. Wer ihn hat, lernt als du (gib ihn also nicht weiter). Dein Fortschritt wartet dort auf jedem Gerät auf dich.",
+    "copy": "Link kopieren",
+    "continue": "Weiter"
   }
 }

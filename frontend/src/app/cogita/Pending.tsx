@@ -28,6 +28,7 @@ import { worldWords } from './worldWords';
 import { baseLang } from './lang';
 import { cogitaPath } from './parts';
 import { useT } from '../core/i18n';
+import { WorldChecksPanel } from './WorldChecksPanel';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -87,6 +88,8 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   return (
     <div className="cg">
       <BrokenWorldLinks pathOf={pathOf} />
+      {/* 2026-11-22 (I2) — die Kontrolle der Welt nach dem Leitfaden („guide-good-world"), dieselbe wie MCP get_world_checks. */}
+      {writes && <WorldChecksPanel onOpen={onOpen} />}
       <section className="cg-card">
         <h3>{t('cogitaLearnPath.pending.open', { n: openQuestions.length })}</h3>
         {openQuestions.length === 0 ? <span className="cg-muted">{t('cogitaLearnPath.pending.openNone')}</span>

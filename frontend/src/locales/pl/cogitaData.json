@@ -50,6 +50,23 @@
     "summaryEntries": "Wpisy: {fresh} nowych, {changed} do zmiany.",
     "summaryDocs": "{doc}: {fresh} nowych, {changed} do zmiany.",
     "summaryRemove": "Do usunięcia: {count}.",
+    "wholeWorldLine": "CAŁY ŚWIAT: wszystko, czego nie ma w pliku, zostanie usunięte — wpisy: {entries}, struktury (przebiegi, widoki, powtórki, …): {docs}. Każde stoi niżej i można je odznaczyć.",
+    "wholeWorldPartLine": "CAŁY ŚWIAT, część „{part}”: wszystko z tej części, czego nie ma w pliku, zostanie usunięte — wpisy: {entries}, struktury (przebiegi, widoki, powtórki, …): {docs}. Każde stoi niżej i można je odznaczyć.",
+    "wholeWorldNotBool": "\"wholeWorld\" musi być true albo false — ten plik niczego nie usuwa.",
+    "partEmpty": "\"part\" jest puste — plik nie należy do żadnej części.",
+    "wholeWorldCourseOnly": "\"wholeWorld\" i \"part\" działają tylko w kursie (\"format\": \"{course}\") — tu pominięte.",
+    "wholeWorldKept": {
+      "one": "{count} element nie jest w pliku, ale plik na niego wskazuje — zostaje: {list}. Dodaj go do pliku albo usuń odwołanie, jeśli ma zniknąć.",
+      "few": "{count} elementy nie są w pliku, ale plik na nie wskazuje — zostają: {list}. Dodaj je do pliku albo usuń odwołania, jeśli mają zniknąć.",
+      "many": "{count} elementów nie jest w pliku, ale plik na nie wskazuje — zostają: {list}. Dodaj je do pliku albo usuń odwołania, jeśli mają zniknąć.",
+      "other": "{count} elementu nie ma w pliku, ale plik na nie wskazuje — zostają: {list}. Dodaj je do pliku albo usuń odwołania, jeśli mają zniknąć."
+    },
+    "partLoose": {
+      "one": "{count} element tej bazy nie należy do żadnej części (nigdy nie przyszedł z \"part\") — zostaje. Zaimportuj go raz z \"part\": \"{part}\", żeby do niej należał.",
+      "few": "{count} elementy tej bazy nie należą do żadnej części (nigdy nie przyszły z \"part\") — zostają. Zaimportuj je raz z \"part\": \"{part}\", żeby do niej należały.",
+      "many": "{count} elementów tej bazy nie należy do żadnej części (nigdy nie przyszły z \"part\") — zostają. Zaimportuj je raz z \"part\": \"{part}\", żeby do niej należały.",
+      "other": "{count} elementu tej bazy nie należy do żadnej części — zostają. Zaimportuj je raz z \"part\": \"{part}\", żeby do niej należały."
+    },
     "nothingToImport": "W dokumencie nie ma nic do zaimportowania.",
     "anchorDefault": "Wejście",
     "anchorNoEntry": "Wejście „{name}”: wpisu „{entry}” nie ma — wejście poprowadzi do sposobu wyświetlania bez wpisu.",
@@ -114,6 +131,7 @@
       "other": "Zapisywanie {count} elementu i usuwanie {removed} w jednym zapisie…"
     },
     "sealing": "Pieczętowanie {done} z {total}…",
+    "sendingPart": "Wysyłanie części {done} z {total} (zapisane będzie dopiero z ostatnią)…",
     "serviceRejected": "Nic nie zapisano — usługa nie przyjęła tych elementów (pozostałe czekały razem z nimi):",
     "saveFailed": "zapis się nie udał",
     "nothingSaved": "Nic nie zapisano",
@@ -134,6 +152,32 @@
     "aiFailed": "Kopii dla AI (MCP) nie udało się odświeżyć — odświeży się przy następnej zmianie.",
     "aiFailedBecause": "Kopii dla AI (MCP) nie udało się odświeżyć: {reason} — odświeży się przy następnej zmianie.",
     "hintLong": "możliwość „{label}” ma wskazówkę z {count} znakami — wystarczy jedna krótka linia (najwyżej {max})",
+    "labelLong": "możliwość „{label}” ma nazwę z {count} znakami — to nazwa linii na mapie świata, niech będzie krótka (najwyżej {max})",
+    "levels": {
+      "none": "bez poziomów (wieża jest osiągnięta, gdy jej karty są umiane)",
+      "rule": "{pct} % {attempts}",
+      "any": "przy dowolnej liczbie prób",
+      "one": "z jedną poprawką (pytanie może być raz złe, potem dobre)",
+      "first": "za pierwszym razem",
+      "openConquered": "ścieżki otwierają się po zdobyciu wieży",
+      "openNow": "ścieżki otwarte od razu",
+      "openAt": "ścieżki otwierają się od poziomu {level}",
+      "count": {
+        "one": "{count} poziom ({rules}; {open})",
+        "few": "{count} poziomy ({rules}; {open})",
+        "many": "{count} poziomów ({rules}; {open})",
+        "other": "{count} poziomu ({rules}; {open})"
+      },
+      "line": "Poziomy zdobywania się zmieniają: {from} → {to}.",
+      "computed": "Uczący się nie tracą niczego, co zdobyli: poziomy nie są zapisane, tylko liczone z ich przebiegów według obowiązujących reguł — każda wieża dostaje od razu każdy poziom, który wcześniejszy przebieg osiąga według nowych reguł, a „Mistrzowsko” (wszystko dobrze za pierwszym razem) zostaje.",
+      "keeps": "Nowy poziom {level}: każdy, kto miał wcześniej poziom {from}.",
+      "needsRun": "Nowy poziom {level} ({rule}): pewny dopiero z przebiegiem, który go osiąga — kto go nie osiągnął, ma do następnego przebiegu poziom niżej.",
+      "conquestKept": "Kto zdobył wieżę, ma ją dalej zdobytą.",
+      "conquestRun": "Kto zdobył wieżę, może potrzebować jeszcze jednego przebiegu do nowego najwyższego poziomu.",
+      "toRuns": "Dotąd wieża była osiągnięta, gdy jej karty były umiane; od teraz zdobywa się ją w przebiegu (wszystkie jej pytania naraz). Odpowiedzi i znajomość zostają, ale każda wieża zaczyna od poziomu 0 do pierwszego przebiegu, a w powtórkach wracają tylko zdobyte wieże.",
+      "toCards": "Poziomy są wyłączone: wieża jest osiągnięta, gdy jej karty są umiane. Przebiegi zostają zapisane i liczą się znowu, gdy poziomy wrócą.",
+      "own": "Uczący się, którzy ustawili własne poziomy, zachowują je, chyba że ustawienie jest zablokowane."
+    },
     "exploreRange": "sprawdzanie: \"{field}\" ma wartość {value} — dozwolona jest liczba całkowita od 1 do 10 (zostanie ograniczona)",
     "exploreLevels": "sprawdzanie: poziomów docelowych {list} nie ma w tej bazie (ma ich {levels})",
     "exploreEmpty": "sprawdzanie: jego zakres nie wskazuje niczego, co tu istnieje — nic nigdy nie będzie otwarte",
@@ -354,7 +398,8 @@
       "about": "O czym",
       "needs": "Najpierw trzeba znać",
       "form": "Rodzaj pytania",
-      "tags": "Znaczniki błędów"
+      "tags": "Znaczniki błędów",
+      "use": "Gdzie gra"
     },
     "says": {
       "prompt": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]] (kilka luk: każda osobno). Wzory: $…$ w zdaniu, $$…$$ osobno",
@@ -405,7 +450,8 @@
       "about": "Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi",
       "needs": "Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)",
       "form": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: {list}",
-      "tags": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”"
+      "tags": "Jeden znacznik błędu na każdą możliwość (one, many), parę (match), lukę (gap) lub pozycję (order, build), w tej samej kolejności (puste: bez znacznika) — przebieg może się według niego rozgałęzić wyjściem „wrong:<tag>”",
+      "use": "Kiedy pytanie się pojawia: w nauce samodzielnej i na lekcji (domyślnie), tylko w nauce samodzielnej albo tylko na lekcji. Krok przebiegu może to zmienić polem \"use\"."
     },
     "inverse": {
       "about": "pytania",
@@ -424,6 +470,11 @@
       "check": {
         "live": "cel widać już przy próbach",
         "submit": "dopiero po „Sprawdź”"
+      },
+      "use": {
+        "both": "oba",
+        "self": "tylko samodzielnie",
+        "lesson": "tylko na lekcji"
       }
     },
     "name": "Pytanie"
@@ -724,7 +775,8 @@
   "landscape": {
     "circle": "Kolejność nauki („Najpierw trzeba znać”) zamyka koło: {list} — w krajobrazie koło liczy się jako jeden krok, a ścieżka i poziomy pomijają jedno połączenie. Popraw je.",
     "noAxis": "Krajobraz „{name}”: nie ma rodzaju-osi „{kind}” — kierunek przyjdzie z sąsiedztwa w kolejności nauki.",
-    "noOrder": "Krajobraz „{name}”: baza nie ma jeszcze kolejności nauki (pól „Najpierw trzeba znać”) — wszystko, czego się nie umie, leży na pierścieniu, bez gór."
+    "noOrder": "Krajobraz „{name}”: baza nie ma jeszcze kolejności nauki (pól „Najpierw trzeba znać”) — wszystko, czego się nie umie, leży na pierścieniu, bez gór.",
+    "tagCircle": "Tagi leżą nad samymi sobą (koło w sieci tagów): {list} — koło zostaje przecięte; popraw pola z \"tag\"."
   },
   "interactive": {
     "cannotCompute": "solution „{name}”: nie da się policzyć („{source}”)",
@@ -916,7 +968,8 @@
       "xor": "ALBO",
       "session": "Odpowiedzi w tym przejściu",
       "lastAnswer": "Ostatnia odpowiedź",
-      "streak": "Seria"
+      "streak": "Seria",
+      "mode": "Tryb (lekcja / nauka samodzielna)"
     },
     "flowCheck": {
       "started": "rozpoczęty",
@@ -951,7 +1004,9 @@
       "lastWrong": "zła",
       "lastPartial": "częściowo dobra",
       "lastTag": "z błędem „{tag}”",
-      "lastMeasure": "{measure} {op} {than}"
+      "lastMeasure": "{measure} {op} {than}",
+      "modeSelf": "w nauce samodzielnej",
+      "modeLesson": "na lekcji"
     },
     "measure": {
       "wrong": "złe odpowiedzi",
@@ -964,6 +1019,10 @@
       "unit": "od początku tego przejścia",
       "flowStart": "od początku tego przebiegu",
       "step": "od kroku „{name}”"
+    },
+    "mode": {
+      "self": "nauka samodzielna",
+      "lesson": "lekcja"
     }
   },
   "rules": {
@@ -1225,5 +1284,26 @@
     "noExit": "krok pomocy „{step}” nigdy nie wraca na główną drogę",
     "retryMax": "pytanie „{step}” pozwala na {max} kolejnych prób — więcej niż 2 rzadko pomaga",
     "offTopic": "slajd pomocy „{slide}” do „{step}” nie jest powiązany z tematem pytania"
+  },
+  "modes": {
+    "useUnknown": "krok „{step}”: \"use\": \"{value}\" nie istnieje — \"self\", \"lesson\" albo \"both\" (gra w obu).",
+    "modeUnknown": "krok „{step}”: warunek \"mode\" z \"is\": \"{value}\" — \"lesson\" albo \"self\" (warunek jest pomijany).",
+    "branchNever": "krok „{step}”: do gałęzi „{branch}” nie wchodzi żaden tryb — jej pierwszy krok i jej warunek wykluczają i naukę samodzielną, i lekcję.",
+    "emptyIn": "w trybie {mode} z tej opowieści nic się nie odtwarza (każdy krok należy do drugiego trybu).",
+    "predictCounted": "Pytanie „{question}” jest przewidywaniem w: {predicted}, a liczy się w: {counted} — przewidywanie potrzebuje własnego pytania; pytanie sprawdzające zrozumienie musi być innym pytaniem."
+  },
+  "feedbackImport": {
+    "onlyCourse": "Uwagi rozwiązuje tylko dokument kursu (recreatio.cogita.course) — \"feedback\" jest tu pomijane.",
+    "notList": "\"feedback\" musi być listą: [{\"id\": \"<feedback id>\", \"state\": \"done\", \"note\": \"co zmieniono\"}] — pominięte.",
+    "noId": "Element \"feedback\" bez \"id\" — pominięty.",
+    "unknown": "Uwagi „{id}” nie ma (już) w tej bazie — pominięta.",
+    "line": {
+      "one": "Uwagi oznaczone jako załatwione: {count} (otwarte ponownie: {reopened})",
+      "few": "Uwagi oznaczone jako załatwione: {count} (otwarte ponownie: {reopened})",
+      "many": "Uwagi oznaczone jako załatwione: {count} (otwarte ponownie: {reopened})",
+      "other": "Uwagi oznaczone jako załatwione: {count} (otwarte ponownie: {reopened})"
+    },
+    "title": "Uwaga „{category}” do „{label}”",
+    "titlePlain": "Uwaga"
   }
 }

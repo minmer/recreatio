@@ -27,7 +27,7 @@ import { createModule, type ModuleRow } from '../modules/module';
 import { formPath, PEOPLE_TAB, viewPath } from '../routes';
 import { Loading } from '../ui/Loading';
 import { modulesNow } from '../workspace/viewData';
-import { ChatTool, MainPageTool, RolesTool, Tool, type Ctx, type RoleDef } from './AreaKindPanel';
+import { BasesTool, ChatTool, MainPageTool, RolesTool, STUDENTS, Tool, type Ctx, type RoleDef } from './AreaKindPanel';
 import { ClassJournal, type JournalLesson } from './ClassJournal';
 import { loadImportKeys, saveImportKeys, type ImportKey } from './profile';
 import {
@@ -36,10 +36,6 @@ import {
 } from './school';
 import './classes.css';
 
-const STUDENTS: RoleDef = {
-  key: 'students', capability: 'read', legacy: 'Uczniowie', // i18n-ignore — der Name älterer Rollen
-  get label() { return tApp('areasSchool.class.students'); }, get says() { return tApp('areasSchool.class.studentsSay'); }, get link() { return tApp('areasSchool.class.studentsLink'); }
-};
 const PARENTS: RoleDef = {
   key: 'parents', capability: 'read', legacy: 'Rodzice', // i18n-ignore — der Name älterer Rollen
   get label() { return tApp('areasSchool.class.parents'); }, get says() { return tApp('areasSchool.class.parentsSay'); }, get link() { return tApp('areasSchool.class.parentsLink'); }
@@ -112,6 +108,8 @@ export function ClassTools({ ctx }: { ctx: Ctx }) {
           : <ClassJournal ctx={ctx} store={store} library={library} lessons={lessons} round={round} revision={revision} />}
       </Tool>
       <StudentsTool ctx={ctx} round={round} onChanged={again} />
+      {/* 2026-11-22 (Part B, B8) — die Welt der Klasse: eine Baza wiedzy wie im Kurs; die Lehrerin leitet dort Stunden, gibt Zadania. */}
+      <BasesTool ctx={ctx} />
       <ChatTool ctx={ctx} kind="channel" />
       <ChatTool ctx={ctx} kind="area" />
       <RolesTool ctx={ctx} defs={[STUDENTS, PARENTS]} />

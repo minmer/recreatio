@@ -26,13 +26,14 @@ import { useMe, useWho } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { heldLinkKeys } from '../links/linkAccess';
 import { heldLinks } from '../links/linkKeep';
-import { createLinkPerson } from '../links/linkPerson';
+import { createLinkPerson, portalOf } from '../links/linkPerson';
 import { usePerson } from '../pages/pagePerson';
 import { parsePath } from '../routes';
 import { answersArea } from './answersTo';
 import { holderOfMe, holderOfSeat, localHolder, useLearner } from './holders';
 import type { Holder, Learner } from './learn';
 import type { CogitaLibrary } from './store';
+import './lesson/lesson.css';
 
 /** Ein Link dieses Browsers, der den Bereich der Baza öffnet — mit ihm stellt man sich vor. */
 export interface LearnLink {
@@ -129,19 +130,30 @@ export function usePageLearner(lib: CogitaLibrary | null | undefined, answers: s
 /**
  * SICH VORSTELLEN, UM ZU LERNEN — Imię, Nazwisko: eine Person des Links (wie in der Rozmowa). Danach
  * gehen die Antworten an den Kurs, und wer ihn prowadzi, sieht, wie man lernt.
+ *
+ * 2026-11-22 (Part B, B3) — EIN SCHÜLER OHNE KONTO: dazu Klasse und Schule (sie stehen mit dem Namen — die Lehrerin sieht
+ * sie überall, wo sie den Namen sieht) und die Zustimmung zur Teilnahme (ohne sie wird niemand angelegt). Angelegt wird ein
+ * leichter Zugang ohne Passwort: der persönliche Link IST der Zugang — er steht danach zum Behalten da (wer ihn hat, lernt
+ * als diese Person; dafür ist er da, nicht für Noten).
  */
 export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (token: string) => void }) {
   const [given, setGiven] = useState('');
   const [surname, setSurname] = useState('');
+  const [group, setGroup] = useState('');
+  const [school, setSchool] = useState('');
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const t = useT();
   const join = async () => {
+    if (!consent) return;
     setBusy(true);
     setFailed(null);
     try {
-      const made = await createLinkPerson(link, given, surname, parsePath(window.location.hash).page ?? null);
-      onDone(made.token);
+      const person = await createLinkPerson(link, given, surname, parsePath(window.location.hash).page ?? null, { group, school });
+      const base = typeof window === 'undefined' ? '' : `${window.location.origin}${window.location.pathname}`;
+      keepOwnLink(`${base}${portalOf(person)}`);
+      onDone(person.token);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : t('cogitaLearnRun.intro.failed'));
     } finally {
@@ -155,11 +167,44 @@ export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (t
         <label className="wk-field"><span>{t('cogitaLearnRun.intro.given')}</span><input value={given} maxLength={80} autoComplete="given-name" data-learn-given="" onChange={(e) => setGiven(e.target.value)} /></label>
         <label className="wk-field"><span>{t('cogitaLearnRun.intro.surname')}</span><input value={surname} maxLength={100} autoComplete="family-name" data-learn-surname="" onChange={(e) => setSurname(e.target.value)} /></label>
       </div>
+      <div className="cg-row">
+        <label className="wk-field"><span>{t('cogitaLearnRun.intro.group')}</span><input value={group} maxLength={40} data-learn-group="" onChange={(e) => setGroup(e.target.value)} /></label>
+        <label className="wk-field"><span>{t('cogitaLearnRun.intro.school')}</span><input value={school} maxLength={60} autoComplete="organization" data-learn-school="" onChange={(e) => setSchool(e.target.value)} /></label>
+      </div>
+      <label className="wk-check" data-learn-consent="">
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        <span>{t('cogitaLearnRun.intro.consent')}</span>
+      </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" data-learn-go="" disabled={busy || given.trim() === '' || surname.trim() === ''}>{busy ? t('cogitaLearnRun.intro.busy') : t('cogitaLearnRun.intro.go')}</button>
+        <button type="submit" className="wk-btn" data-learn-go="" disabled={busy || !consent || given.trim() === '' || surname.trim() === ''}>{busy ? t('cogitaLearnRun.intro.busy') : t('cogitaLearnRun.intro.go')}</button>
       </div>
     </form>
+  );
+}
+
+/*
+  2026-11-22 (Part B, B3) — DER PERSÖNLICHE LINK ZUM BEHALTEN. Gleich nach dem Vorstellen wählt die Seite den neuen Platz (das Feld
+  „Przedstaw się" verschwindet) — darum steht der Link in diesem Tab (sessionStorage), bis man ihn wegklickt, und jeder Lernbaustein
+  zeigt ihn (`OwnLinkNote`).
+*/
+const OWN_LINK = 'recreatio:cogita:own-link';
+const keepOwnLink = (url: string) => { try { sessionStorage.setItem(OWN_LINK, url); } catch { /* nur jetzt nicht */ } };
+
+export function OwnLinkNote() {
+  const t = useT();
+  const [url, setUrl] = useState<string | null>(() => { try { return sessionStorage.getItem(OWN_LINK); } catch { return null; } });
+  if (url === null) return null;
+  return (
+    <div className="wk-form cg-learn-intro" data-learn-introduced="">
+      <p><strong>{t('cogitaLearnRun.intro.madeTitle')}</strong></p>
+      <p className="wk-card-muted">{t('cogitaLearnRun.intro.madeText')}</p>
+      <p className="cg-learn-link" data-learn-own-link={url}><a href={url}>{url}</a></p>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn wk-btn-line" onClick={() => void navigator.clipboard?.writeText(url)}>{t('cogitaLearnRun.intro.copy')}</button>
+        <button type="button" className="wk-btn" data-learn-continue="" onClick={() => { try { sessionStorage.removeItem(OWN_LINK); } catch { /* */ } setUrl(null); }}>{t('cogitaLearnRun.intro.continue')}</button>
+      </div>
+    </div>
   );
 }
 

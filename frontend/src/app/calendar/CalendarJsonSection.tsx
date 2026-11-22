@@ -20,6 +20,7 @@ import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import type { CalendarRow } from './calendar';
 import { CALENDAR_FORMAT, CALENDAR_JSON, dayOf, docNeeds, docProblem, infoOf, planCalendar, type CalendarState } from './calendarJson';
 import { exportCalendarRange, loadDocState, runCalendarImport, type ExportChoice } from './calendarJsonRun';
+import { MessageList } from '../ui/MessageList';
 
 type Choice = ExportChoice['kind'];
 
@@ -131,7 +132,7 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
           </>
         )}
       </div>
-      {notes.length > 0 && <ul className="wk-json-warn">{notes.map((one, i) => <li key={i}>{one}</li>)}</ul>}
+      {notes.length > 0 && <MessageList className="wk-json-warn" lines={notes} />}
       <JsonPanel
         summary={t('calendarData.jsonSection.summary')}
         lead={(

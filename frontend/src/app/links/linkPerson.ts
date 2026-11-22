@@ -24,7 +24,7 @@ import { newId } from '../core/ids';
 import { heldLinkKeys, heldProofs, linkSecrets } from './linkAccess';
 import { heldLinks } from './linkKeep';
 import { seatRoleAad } from '../roles/memberRole';
-import { openSeatName, personName, sealName, seatNameAad, seatOwnNameAad } from '../core/names';
+import { nameText, openSeatName, personName, sealName, seatNameAad, seatOwnNameAad } from '../core/names';
 import { newLink, seatAad } from '../seats/seat';
 import { loadSeatChats } from '../seats/seatChat';
 import { sealLink } from '../seats/seatCheck';
@@ -127,10 +127,14 @@ export async function personFor(chatId: string): Promise<HeldPerson | null> {
  * Browser den Platz (`seatKeep`), und die Seite findet ihn.
  */
 export async function createLinkPerson(
-  chat: Pick<LinkChat, 'areaId' | 'invitationId' | 'linkRoleId'>, givenName: string, surname: string, under: string | null
+  chat: Pick<LinkChat, 'areaId' | 'invitationId' | 'linkRoleId'>, givenName: string, surname: string, under: string | null,
+  /** 2026-11-22 (Part B, B3) — Klasse und Schule (ein Schüler ohne Konto): sie stehen mit dem Namen, so sieht die Lehrerin sie überall. */
+  about: { readonly group?: string; readonly school?: string } = {}
 ): Promise<HeldPerson & { readonly seatId: string; readonly name: string; readonly via: string }> {
-  const name = personName(givenName, surname);
-  if (name === null) throw new WorkspaceError(t('links.person.needName'));
+  const bare = personName(givenName, surname);
+  if (bare === null) throw new WorkspaceError(t('links.person.needName'));
+  const extra = [about.group, about.school].map((x) => (x ?? '').trim().slice(0, 60)).filter((x) => x !== '');
+  const name = nameText(extra.length === 0 ? bare : `${bare} (${extra.join(' · ')})`);
 
   const keys = await heldLinkKeys();
   const link = keys.links.find((one) => one.info?.invitationId === chat.invitationId);

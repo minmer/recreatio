@@ -24,7 +24,8 @@ import { API, call } from '../core/session';
 import type { AnswerSpec, Card } from './cardBasics';
 import { stripInteractive } from './interactive';
 
-export type SessionKind = 'live' | 'async' | 'sync' | 'story' | 'game' | 'shared';
+/* 2026-11-22 (Part B) — `lesson`: eine Erzählung, die die Klasse zusammen geht (der Leiter führt, alle stimmen ab); `task`: eine Zadanie (Ziel + Klasse + Frist). */
+export type SessionKind = 'live' | 'async' | 'sync' | 'story' | 'game' | 'shared' | 'lesson' | 'task';
 export type SessionState = 'lobby' | 'running' | 'paused' | 'finished' | 'closed';
 
 export const SESSION_KIND_LABEL: Readonly<Record<SessionKind, string>> = texts({
@@ -33,7 +34,9 @@ export const SESSION_KIND_LABEL: Readonly<Record<SessionKind, string>> = texts({
   sync: 'cogitaViewsRewards.session.kind.sync',
   story: 'cogitaViewsRewards.session.kind.story',
   game: 'cogitaViewsRewards.session.kind.game',
-  shared: 'cogitaViewsRewards.session.kind.shared'
+  shared: 'cogitaViewsRewards.session.kind.shared',
+  lesson: 'cogitaViewsRewards.session.kind.lesson',
+  task: 'cogitaViewsRewards.session.kind.task'
 });
 
 export interface SessionRow {
@@ -274,6 +277,16 @@ export async function deliverSessionKeys(sessionId: string, keys: ReadonlyMap<nu
     granted += done.granted;
   }
   return granted;
+}
+
+/* -- Das Geheimnis des Links (nur in diesem Browser des Gastgebers) ----------------------------- */
+
+const SECRETS = 'recreatio:cogita:secrets';
+export function rememberSecret(sessionId: string, secret: string): void {
+  try { const all = JSON.parse(localStorage.getItem(SECRETS) ?? '{}') as Record<string, string>; all[sessionId] = secret; localStorage.setItem(SECRETS, JSON.stringify(all)); } catch { /* nur jetzt */ }
+}
+export function secretOf(sessionId: string): string | null {
+  try { return (JSON.parse(localStorage.getItem(SECRETS) ?? '{}') as Record<string, string>)[sessionId] ?? null; } catch { return null; }
 }
 
 /* -- Ein Link zum Mitmachen --------------------------------------------------------------- */

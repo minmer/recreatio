@@ -29,6 +29,7 @@ import { useRemembered } from '../core/prefs';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { useT } from '../core/i18n';
+import { MessageList } from '../ui/MessageList';
 
 const SHOWN = 6;
 
@@ -224,7 +225,7 @@ function JsonIntake({ store, work, onClose }: { store: LibraryStore; work: Entry
           <p className="wk-hint">
             {t('libraryData.quotes.summary', { quotes: t('libraryData.quotes.count', { count: items.length }), unsure: items.filter((i) => i.uncertain).length, known: items.filter((i) => i.duplicateOf !== undefined).length })}
           </p>
-          {warnings.length > 0 && <ul className="wk-json-warn">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+          {warnings.length > 0 && <MessageList className="wk-json-warn" lines={warnings} />}
           <ol className="lib-review">
             {items.map((item) => (
               <li key={item.n} className={`${item.keep ? '' : 'is-off'}${item.uncertain ? ' is-unsure' : ''}`}>

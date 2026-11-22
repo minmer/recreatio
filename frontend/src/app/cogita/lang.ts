@@ -185,6 +185,9 @@ export function words(lang: Lang) {
     /* 2026-11-20 — die Nachhilfe an einem Teil (adaptive Abläufe): eine kleine Schleife, nie im Fortschritt. */
     remedialKind: t('cogitaLearn.words.remedialKind'),
     remedialSteps: (count: number): string => t('cogitaLearn.words.remedialSteps', { count }),
+    /* 2026-11-22 (I3) — eine Vorhersage ("predict": true): vor und nach der Antwort, dass sie nicht zählt. */
+    predictBefore: t('cogitaLearn.words.predictBefore'),
+    predictAfter: t('cogitaLearn.words.predictAfter'),
     loopWhy: t('cogitaLearn.words.loopWhy'),
     optionalKind: t('cogitaLearn.words.optionalKind'),
     optionalWhy: t('cogitaLearn.words.optionalWhy'),

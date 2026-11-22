@@ -450,6 +450,12 @@ export const VIEWS = texts({
   learn: 'app.view.learn',
 
   /*
+   * 2026-11-22 — EINE KLASSE (`klasa/<klasse>/<baza>`): hierher führt ihr QR-Code — beitreten (mit Konto, ohne Konto) und
+   * lernen. Auch ohne Anmeldung (`App.tsx`): der Code ist der Weg hinein.
+   */
+  klasa: 'app.view.klasa',
+
+  /*
    * 0071 — DIE KARTOTEKA: Adressen eines Gebiets (der Pfarrei), die Familien
    * darin und die Kolęda Jahr für Jahr. Die Adressen in Teilen, die Familien
    * versiegelt.

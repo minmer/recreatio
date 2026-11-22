@@ -48,6 +48,19 @@
     "summaryEntries": "Einträge: {fresh} neu, {changed} zu ändern.",
     "summaryDocs": "{doc}: {fresh} neu, {changed} zu ändern.",
     "summaryRemove": "Zu löschen: {count}.",
+    "wholeWorldLine": "GANZE WELT: Alles, was die Datei nicht enthält, wird gelöscht — Einträge: {entries}, Strukturen (Abläufe, Ansichten, Wiederholungen, …): {docs}. Jedes steht unten und lässt sich abwählen.",
+    "wholeWorldPartLine": "GANZE WELT, Teil „{part}“: Alles aus diesem Teil, was die Datei nicht enthält, wird gelöscht — Einträge: {entries}, Strukturen (Abläufe, Ansichten, Wiederholungen, …): {docs}. Jedes steht unten und lässt sich abwählen.",
+    "wholeWorldNotBool": "\"wholeWorld\" muss true oder false sein — diese Datei löscht nichts.",
+    "partEmpty": "\"part\" ist leer — die Datei gehört zu keinem Teil.",
+    "wholeWorldCourseOnly": "\"wholeWorld\" und \"part\" gelten nur in einem Kurs (\"format\": \"{course}\") — hier übergangen.",
+    "wholeWorldKept": {
+      "one": "{count} Element ist nicht in der Datei, aber die Datei zeigt darauf — es bleibt: {list}. Nimm es in die Datei auf oder entferne den Verweis, wenn es gehen soll.",
+      "other": "{count} Elemente sind nicht in der Datei, aber die Datei zeigt darauf — sie bleiben: {list}. Nimm sie in die Datei auf oder entferne die Verweise, wenn sie gehen sollen."
+    },
+    "partLoose": {
+      "one": "{count} Element dieser Baza gehört zu keinem Teil (es kam nie mit \"part\") — es bleibt. Importiere es einmal mit \"part\": \"{part}\", damit es dazugehört.",
+      "other": "{count} Elemente dieser Baza gehören zu keinem Teil (sie kamen nie mit \"part\") — sie bleiben. Importiere sie einmal mit \"part\": \"{part}\", damit sie dazugehören."
+    },
     "nothingToImport": "Im Dokument gibt es nichts zu importieren.",
     "anchorDefault": "Einstieg",
     "anchorNoEntry": "Einstieg „{name}“: den Eintrag „{entry}“ gibt es nicht — der Einstieg führt zur Ansicht ohne Eintrag.",
@@ -106,6 +119,7 @@
       "other": "Speichere {count} Elemente und lösche {removed} in einem Speichervorgang…"
     },
     "sealing": "Versiegle {done} von {total}…",
+    "sendingPart": "Sende Teil {done} von {total} (gespeichert wird erst mit dem letzten)…",
     "serviceRejected": "Nichts gespeichert — der Dienst hat diese Elemente nicht angenommen (die übrigen warteten mit ihnen):",
     "saveFailed": "das Speichern ist fehlgeschlagen",
     "nothingSaved": "Nichts gespeichert",
@@ -124,6 +138,30 @@
     "aiFailed": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren — sie wird bei der nächsten Änderung aktualisiert.",
     "aiFailedBecause": "Die Kopie für KI (MCP) ließ sich nicht aktualisieren: {reason} — sie wird bei der nächsten Änderung aktualisiert.",
     "hintLong": "die Möglichkeit „{label}“ hat einen Hinweis mit {count} Zeichen — eine kurze Zeile genügt (höchstens {max})",
+    "labelLong": "die Möglichkeit „{label}“ hat einen Namen mit {count} Zeichen — er ist der Name der Linie auf der Weltkarte, halte ihn kurz (höchstens {max})",
+    "levels": {
+      "none": "keine Stufen (ein Turm ist erreicht, wenn seine Karten gekonnt sind)",
+      "rule": "{pct} % {attempts}",
+      "any": "bei beliebig vielen Versuchen",
+      "one": "mit einer Korrektur (eine Frage darf einmal falsch, dann richtig sein)",
+      "first": "beim ersten Versuch",
+      "openConquered": "Pfade öffnen sich, wenn der Turm erobert ist",
+      "openNow": "Pfade sind sofort offen",
+      "openAt": "Pfade öffnen sich ab Stufe {level}",
+      "count": {
+        "one": "{count} Stufe ({rules}; {open})",
+        "other": "{count} Stufen ({rules}; {open})"
+      },
+      "line": "Die Stufen der Eroberung ändern sich: {from} → {to}.",
+      "computed": "Lernende verlieren nichts, was sie erreicht haben: Stufen werden nicht gespeichert, sondern aus ihren Durchgängen nach den geltenden Regeln berechnet — jeder Turm bekommt sofort jede Stufe, die ein früherer Durchgang nach den neuen Regeln erreicht, und „Mistrzowsko“ (alles beim ersten Versuch richtig) bleibt.",
+      "keeps": "Neue Stufe {level}: jeder, der vorher Stufe {from} hatte.",
+      "needsRun": "Neue Stufe {level} ({rule}): sicher erst mit einem Durchgang, der sie erreicht — wer sie nicht erreicht hat, ist bis zum nächsten Durchgang eine Stufe tiefer.",
+      "conquestKept": "Wer einen Turm erobert hatte, hat ihn weiter erobert.",
+      "conquestRun": "Wer einen Turm erobert hatte, braucht für die neue oberste Stufe vielleicht noch einen Durchgang.",
+      "toRuns": "Bisher war ein Turm erreicht, wenn seine Karten gekonnt waren; ab jetzt wird er in einem Durchgang erobert (alle seine Fragen auf einmal). Antworten und Kenntnis bleiben, aber jeder Turm beginnt bis zum ersten Durchgang bei Stufe 0, und in Wiederholungen kommen nur eroberte Türme zurück.",
+      "toCards": "Die Stufen sind ausgeschaltet: ein Turm ist erreicht, wenn seine Karten gekonnt sind. Die Durchgänge bleiben gespeichert und zählen wieder, wenn Stufen zurückkommen.",
+      "own": "Lernende, die eigene Stufen eingestellt haben, behalten sie, ausser die Einstellung ist gesperrt."
+    },
     "exploreRange": "die Einstufung: \"{field}\" ist {value} — erlaubt ist eine ganze Zahl von 1 bis 10 (sie wird begrenzt)",
     "exploreLevels": "die Einstufung: die Zielstufen {list} gibt es in dieser Baza nicht (sie hat {levels})",
     "exploreEmpty": "die Einstufung: ihr Bereich nennt nichts, was es hier gibt — offen kann nie etwas sein",
@@ -334,7 +372,8 @@
       "about": "Worum es geht",
       "needs": "Zuerst wissen",
       "form": "Fragetyp",
-      "tags": "Fehler-Tags"
+      "tags": "Fehler-Tags",
+      "use": "Gespielt"
     },
     "says": {
       "prompt": "Text der Frage; bei „Wahr oder falsch“ — die Aussage, bei einer Karteikarte — ihre Vorderseite, bei einer Lücke — der Text mit der Lücke [[Wort]] (mehrere Lücken: jede einzeln). Formeln: $…$ im Satz, $$…$$ abgesetzt",
@@ -385,7 +424,8 @@
       "about": "Einträge, die diese Frage prüft: ihr Ergebnis zählt zu deren Kenntnis, und die Frage selbst wartet, bis du beherrschst, was vor ihnen zu wissen ist",
       "needs": "Einträge oder Fragen, die beherrscht sein müssen, bevor diese Frage kommt (z. B. „Was ist ein Atom?“ vor „Was ist ein Orbital?“)",
       "form": "Wie gefragt und geantwortet wird — davon hängt ab, welche Felder unten ausgefüllt werden: {list}",
-      "tags": "Ein Fehler-Tag je Möglichkeit (one, many), Paar (match), Lücke (gap) oder Stelle (order, build), in derselben Reihenfolge (leer: kein Tag) — ein Ablauf kann mit dem Ausgang „wrong:<tag>“ danach verzweigen"
+      "tags": "Ein Fehler-Tag je Möglichkeit (one, many), Paar (match), Lücke (gap) oder Stelle (order, build), in derselben Reihenfolge (leer: kein Tag) — ein Ablauf kann mit dem Ausgang „wrong:<tag>“ danach verzweigen",
+      "use": "Wann die Frage gespielt wird: allein und im Unterricht (Vorgabe), nur allein oder nur im Unterricht. Ein Schritt eines Ablaufs kann es mit \"use\" anders sagen."
     },
     "inverse": {
       "about": "Fragen",
@@ -404,6 +444,11 @@
       "check": {
         "live": "Ziel schon beim Ausprobieren sichtbar",
         "submit": "erst nach „Prüfen“"
+      },
+      "use": {
+        "both": "beides",
+        "self": "nur allein",
+        "lesson": "nur im Unterricht"
       }
     },
     "name": "Frage"
@@ -686,7 +731,8 @@
   "landscape": {
     "circle": "Die Lernreihenfolge („Zuerst wissen“) schließt einen Kreis: {list} — in der Landschaft zählt der Kreis als ein Schritt, und Pfad und Stufen übergehen eine Verbindung. Korrigiere ihn.",
     "noAxis": "Landschaft „{name}“: die Achsenart „{kind}“ gibt es nicht — die Richtung ergibt sich aus der Nachbarschaft in der Lernreihenfolge.",
-    "noOrder": "Landschaft „{name}“: die Basis hat noch keine Lernreihenfolge (Felder „Zuerst wissen“) — alles, was man nicht kann, liegt auf dem Ring, ohne Berge."
+    "noOrder": "Landschaft „{name}“: die Basis hat noch keine Lernreihenfolge (Felder „Zuerst wissen“) — alles, was man nicht kann, liegt auf dem Ring, ohne Berge.",
+    "tagCircle": "Tags liegen über sich selbst (ein Kreis im Netz der Tags): {list} — der Kreis wird geschnitten; korrigiere die Felder mit \"tag\"."
   },
   "interactive": {
     "cannotCompute": "solution „{name}“: lässt sich nicht berechnen („{source}“)",
@@ -868,7 +914,8 @@
       "xor": "ENTWEDER",
       "session": "Antworten in diesem Lauf",
       "lastAnswer": "Letzte Antwort",
-      "streak": "Serie"
+      "streak": "Serie",
+      "mode": "Modus (Unterricht / allein)"
     },
     "flowCheck": {
       "started": "begonnen",
@@ -903,7 +950,9 @@
       "lastWrong": "falsch",
       "lastPartial": "teilweise richtig",
       "lastTag": "mit dem Fehler „{tag}“",
-      "lastMeasure": "{measure} {op} {than}"
+      "lastMeasure": "{measure} {op} {than}",
+      "modeSelf": "beim Lernen allein gespielt",
+      "modeLesson": "in einer Unterrichtsstunde gespielt"
     },
     "measure": {
       "wrong": "falsche Antworten",
@@ -916,6 +965,10 @@
       "unit": "seit Beginn dieses Laufs",
       "flowStart": "seit Beginn dieses Ablaufs",
       "step": "seit dem Schritt „{name}“"
+    },
+    "mode": {
+      "self": "allein lernen",
+      "lesson": "Unterricht"
     }
   },
   "rules": {
@@ -1177,5 +1230,24 @@
     "noExit": "der Hilfsschritt „{step}“ führt nie zurück auf den Hauptweg",
     "retryMax": "die Frage „{step}“ erlaubt {max} weitere Versuche — mehr als 2 helfen selten",
     "offTopic": "die Hilfsfolie „{slide}“ zu „{step}“ ist nicht mit dem Thema der Frage verbunden"
+  },
+  "modes": {
+    "useUnknown": "Schritt „{step}“: \"use\": \"{value}\" gibt es nicht — \"self\", \"lesson\" oder \"both\" (er spielt in beiden).",
+    "modeUnknown": "Schritt „{step}“: eine Bedingung \"mode\" mit \"is\": \"{value}\" — \"lesson\" oder \"self\" (die Bedingung fällt weg).",
+    "branchNever": "Schritt „{step}“: in den Zweig „{branch}“ kommt kein Modus — sein erster Schritt und seine Bedingung schliessen allein und Unterricht beide aus.",
+    "emptyIn": "im Modus {mode} wird von dieser Erzählung nichts gespielt (jeder Schritt gehört dem anderen Modus).",
+    "predictCounted": "Die Frage „{question}“ ist in {predicted} eine Vorhersage und zählt in {counted} — eine Vorhersage braucht ihre eigene Frage; die Frage zum Verstehen muss eine andere sein."
+  },
+  "feedbackImport": {
+    "onlyCourse": "Rückmeldungen erledigt nur ein Kurs-Dokument (recreatio.cogita.course) — \"feedback\" wird hier übergangen.",
+    "notList": "\"feedback\" muss eine Liste sein: [{\"id\": \"<feedback id>\", \"state\": \"done\", \"note\": \"was geändert wurde\"}] — übergangen.",
+    "noId": "Ein Eintrag in \"feedback\" ohne \"id\" — übergangen.",
+    "unknown": "Die Rückmeldung „{id}“ gibt es in dieser Baza (nicht mehr) — übergangen.",
+    "line": {
+      "one": "Rückmeldungen erledigt: {count} (wieder geöffnet: {reopened})",
+      "other": "Rückmeldungen erledigt: {count} (wieder geöffnet: {reopened})"
+    },
+    "title": "Rückmeldung „{category}“ zu „{label}“",
+    "titlePlain": "Rückmeldung"
   }
 }

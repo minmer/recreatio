@@ -48,6 +48,7 @@ const TAB_KEY: Readonly<Record<string, string>> = {
   'powtorki': 'cogitaViews.tabs.revisions',
   'przebiegi': 'cogitaViews.tabs.flows',
   'sesje': 'cogitaViews.tabs.sessions',
+  'klasy': 'cogitaViews.tabs.classes',
   'postepy': 'cogitaViews.tabs.progress',
   'karty': 'cogitaViews.tabs.templates',
   'mapa': 'cogitaViews.tabs.map',
@@ -83,7 +84,9 @@ export const KNOWLEDGE_MORE = [
 ] as const;
 /** Die Reiter der Nauka. */
 export const LEARN_TABS = [
-  tab('nauka'), tab('sciezka'), tab('powtorki'), tab('przebiegi'), tab('sesje'), tab('postepy')
+  tab('nauka'), tab('sciezka'), tab('powtorki'), tab('przebiegi'), tab('sesje'),
+  /* 2026-11-22 — Klassen dieser Baza: anlegen, QR-Code, Fortschritte (`classes/ClassesTab.tsx`). */
+  tab('klasy'), tab('postepy')
 ] as const;
 /** 2026-11-02 — „Nagrody": punkty, seria, cel dnia, poziomy, odznaki (`RewardsEditor.tsx`); auch für wer nur liest. */
 export const LEARN_MORE = [tab('karty'), tab('mapa'), tab('nagrody'), tab('ustawienia')] as const;
@@ -101,7 +104,8 @@ export const SCHEMA_PARTS = [
 export type SchemaPart = (typeof SCHEMA_PARTS)[number]['slug'];
 
 const KNOWLEDGE: ReadonlySet<string> = new Set(['wpisy', 'dodaj', 'schematy', 'schemat', 'json', 'do-zrobienia', 'propozycje', 'zaproponuj', 'stare', 'ustawienia', 'wejscia']);
-const LEARN: ReadonlySet<string> = new Set(['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty', 'nagrody']);
+/* 2026-11-22 — `klasy` (Klassen, ihre Planungen) gehört zur Nauka: `href('klasy', …)` führt dorthin. */
+const LEARN: ReadonlySet<string> = new Set(['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty', 'nagrody', 'klasy']);
 
 /** Zu welchem Teil ein Reiter gehört — `ustawienia` zu beiden (die Wiedza zuerst). */
 export const partOfTab = (tab: string | undefined): CogitaPart | null =>

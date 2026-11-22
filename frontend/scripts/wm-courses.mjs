@@ -40,7 +40,7 @@ function courseOf(name, prefix, input, opts = {}) {
     const k = e.kinds[0];
     if (questionKinds.has(k)) continue;
     const m = fields.get(k) ?? new Map();
-    for (const r of e.refs) if (!m.has(r.field)) m.set(r.field, { key: r.field, label: r.field, type: 'ref', multi: true, ...(r.prerequisite ? { prerequisite: r.prerequisite } : {}), ...(r.part ? { part: r.part } : {}), ...(r.structure ? { structure: r.structure } : {}) });
+    for (const r of e.refs) if (!m.has(r.field)) m.set(r.field, { key: r.field, label: r.field, type: 'ref', multi: true, ...(r.prerequisite ? { prerequisite: r.prerequisite } : {}), ...(r.part ? { part: r.part } : {}), ...(r.structure ? { structure: r.structure } : {}), ...(r.tag ? { tag: r.tag } : {}) });
     fields.set(k, m);
   }
   /* 2026-11-09 — ein Textfeld mit Verweisen in andere Welten („@@handle:@name"): das Portal auf der Karte. */
@@ -93,7 +93,13 @@ function courseOf(name, prefix, input, opts = {}) {
 const fx = F.boskoWorld();
 await writeFile(join(outDir, 'fixture.json'), JSON.stringify(courseOf('Świat testowy — kształt Bosko', 'wmfx', fx.input, { placeKind: 'temat', extraLine: { kind: 'temat', key: 'swiaty', values: new Map([['comollo', '@@historia:@historia/rewolucja']]) } })));
 await writeFile(join(outDir, 'gen1000.json'), JSON.stringify(courseOf('Świat 1000 miejsc', 'wmg', F.generatedWorld({ places: 1000, stories: 40, seed: 11 }), { placeKind: 'topic' })));
-console.log('fixture.json, gen1000.json');
+/* 2026-11-22 (C2) — Tags: die Bosko-Gestalt mit einem Netz (zwei Wurzeln, ein Untertag mit zwei oberen, ein Block mit Tag) und eine
+   erzeugte Welt in der Grösse der Physik (600 Orte, ~4 500 Einträge) mit sechs Działy, je vier Untertags und Brücken. */
+await writeFile(join(outDir, 'fixture-tags.json'), JSON.stringify(courseOf('Świat testowy — tagi', 'wmfx', F.withTags(fx.input, F.boskoTags()), { placeKind: 'temat' })));
+const g600 = F.withTags(F.generatedWorld({ places: 600, stories: 60, seed: 5, cards: [4, 7] }), F.generatedTags(600));
+const c600 = courseOf('Świat 600 miejsc z tagami', 'wmfx', g600, { placeKind: 'topic' });
+await writeFile(join(outDir, 'gen600t.json'), JSON.stringify(c600));
+console.log(`fixture.json, gen1000.json, fixture-tags.json, gen600t.json (${c600.entities.length} entries, ${c600.flows.length} flows)`);
 
 if (copyPath !== undefined) {
   /* Die Abschrift einer echten Baza (Kinds mit Feldern, Einträge mit Verweisen, Karten, Abläufe), nur gelesen. */

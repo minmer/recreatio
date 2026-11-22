@@ -424,6 +424,13 @@
     "linkPerson": "osoba z linku",
     "you": "Ty",
     "asOffice": "Uczysz się jako {who} — postępy widzi też prowadzący kurs.",
-    "asOwn": "Uczysz się jako {who} — postępy zostają na Twoim koncie."
+    "asOwn": "Uczysz się jako {who} — postępy zostają na Twoim koncie.",
+    "group": "Klasa",
+    "school": "Szkoła",
+    "consent": "Zgadzam się na udział: moje odpowiedzi i postępy widzi nauczyciel tej klasy.",
+    "madeTitle": "Twój osobisty link",
+    "madeText": "Zachowaj ten link — to Twój dostęp, bez hasła. Kto go ma, uczy się jako Ty (więc go nie przekazuj). Twoje postępy czekają tam na Ciebie na każdym urządzeniu.",
+    "copy": "Skopiuj link",
+    "continue": "Dalej"
   }
 }

@@ -20,7 +20,7 @@
  * dem Wissen, ohne Kopie; eine Karte führt zurück zu ihrem Eintrag.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { areaKeys } from '../chat/chat';
 import type { OpenLibrary } from '../library/library';
@@ -70,11 +70,27 @@ import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { classOfBase } from './classes/classes';
+
 import { TexText } from '../ui/tex/Tex';
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
 import { WorkBox } from './WorkBox';
 import { isWorkBase } from './store';
+
+const ClassesTab = lazy(() => import('./classes/ClassesTab').then((m) => ({ default: m.ClassesTab })));
+
+/** Die Klasse, in der ich (als Schüler) mit dieser Baza lerne — `null`: keine; `undefined`: wird nachgesehen. Autoren: keine. */
+function useClassArea(libraryId: string, writes: boolean): string | null | undefined {
+  const [area, setArea] = useState<string | null | undefined>(writes ? null : undefined);
+  useEffect(() => {
+    if (writes) { setArea(null); return undefined; }
+    let alive = true;
+    void classOfBase(libraryId).then((found) => { if (alive) setArea(found); }, () => { if (alive) setArea(null); });
+    return () => { alive = false; };
+  }, [libraryId, writes]);
+  return area;
+}
 
 export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' }: { me: Me; who: Who; library: OpenLibrary; store: LibraryStore; trail: readonly string[]; part?: CogitaPart }) {
   const lib = useCogita(store, library.writes);
@@ -102,7 +118,13 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const ctx = useCtx();
   const { lib, writes, me, href } = ctx;
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
-  const { learner, loading } = useLearner(lib, holder);
+  /*
+   * 2026-11-22 — WER IN EINER KLASSE DIESER BAZA LERNT (Schüler, nicht Autor), schickt seine Antworten in die Klasse: die
+   * Lehrerin sieht dort die Fortschritte (`classes/classes.ts`). Bis das feststeht, lernt noch niemand (keine Antwort an
+   * den falschen Ort).
+   */
+  const classArea = useClassArea(lib.libraryId, writes);
+  const { learner, loading } = useLearner(lib, classArea === undefined ? null : holder, classArea ?? undefined);
   /* 2026-10-30 — der Lernende auch für die Wiedza: Widoki mit „Filtr znajomości" sehen seine Kenntnis. */
   /* 2026-11-05 — und wie weit er lädt (der Krajobraz wartet mit einem Kreis). */
   const withLearner = useMemo<CogitaCtx>(() => ({ ...ctx, learner, learnerLoading: loading }), [ctx, learner, loading]);
@@ -163,6 +185,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
+      {tab === 'klasy' && <Suspense fallback={<Loading />}><ClassesTab trail={trail.slice(1)} /></Suspense>}
       {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...rest) => go('sesje', ...rest)} />}
       {tab === 'postepy' && (
         <div className="cg">

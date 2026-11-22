@@ -20,5 +20,6 @@
     "easy": "Too easy",
     "display": "Display",
     "other": "Other"
-  }
+  },
+  "note": "Done: {note}"
 }

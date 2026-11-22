@@ -66,6 +66,13 @@ export const PILLAR_MIN = 0.4;
 
 export const DEFAULT_SETUP: LevelsSetup = { levels: 0, rules: [], knownShare: 1, pillarWidth: DEFAULT_PILLAR, locked: false };
 
+/**
+ * 2026-11-22 (guide-good-world §1.3, I7) — DIE EMPFEHLUNG für jede neue Baza („der beste Welt"-Standard): Stufe 1 = 75 % richtig,
+ * gleich nach wie vielen Versuchen; Stufe 2 = 90 %, jede Frage darf einmal falsch und beim nächsten Mal richtig sein; die Pfade
+ * öffnen sich ab Stufe 1. Neue Bazy bekommen sie beim Anlegen (`cogita/baseDefaults.ts`); bestehende behalten ihre Einstellung.
+ */
+export const RECOMMENDED_LEVELS = { levels: 2, rules: [{ pct: 75, attempts: 'any' }, { pct: 90, attempts: 'one' }], knownShare: 1, openAt: 1 } as const;
+
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));

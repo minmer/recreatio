@@ -35,6 +35,8 @@
     "save": "Zapisz",
     "saved": "Zapisano",
     "clear": "Wróć do domyślnych (bez poziomów)",
+    "recommended": "Użyj zalecanych: 2 poziomy (75 %, potem 90 % z jedną poprawką; ścieżki od poziomu 1)",
+    "recommendedSays": "Zalecane ustawienie każdego świata wiedzy — nowe bazy zaczynają od niego.",
     "leaving": {
       "one": "Przy tym ustawieniu {count} karta wypada z regularnych powtórek, dopóki jej miejsce nie zostanie zdobyte.",
       "few": "Przy tym ustawieniu {count} karty wypadają z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte.",
@@ -750,5 +752,22 @@
     "level": "Poziom {level}",
     "star": "Mistrzowsko — wszystkie karty dobrze za pierwszym razem (wszystkie poziomy naraz)",
     "how": "Przebieg podnosi o każdy poziom, którego regułę spełni. Jedna pomyłka nie przekreśla nauki: każda odpowiedź liczy się dla twojej wiedzy."
+  },
+  "tags": {
+    "label": "Temat",
+    "all": "Wszystkie tematy",
+    "count": "{done}/{total}",
+    "countTitle": "Zdobyte wieże: {done} z {total}",
+    "tree": "Tematy tego świata",
+    "crumbs": "Wybrany temat",
+    "start": "Zacznij od:",
+    "refine": "Zawęź:",
+    "more": {
+      "one": "+{count} kolejny",
+      "few": "+{count} kolejne",
+      "many": "+{count} kolejnych",
+      "other": "+{count} kolejnych"
+    },
+    "showAll": "Pokaż wszystkie tematy (także te, w których nic nie jest jeszcze osiągalne)"
   }
 }

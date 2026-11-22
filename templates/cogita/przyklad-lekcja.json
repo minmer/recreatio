@@ -1,0 +1,111 @@
+{
+  "format": "recreatio.cogita.course",
+  "version": 1,
+  "name": "Przykład: jedna opowieść, dwie kolejności — lekcja i nauka samodzielna",
+  "description": "Ta sama opowieść gra sama i na lekcji. Samodzielnie: najpierw wyjaśnienie, potem pytanie. Na lekcji: najpierw sytuacja bez odpowiedzi i pytanie-przewidywanie (\"predict\": true — klasa głosuje, nikomu się nie liczy), potem wyjaśnienie zależne od odpowiedzi (\"wrong:<tag>\"), potem pytanie sprawdzające zrozumienie. Co gra tylko w jednym trybie, mówi \"use\" na wpisie (\"self\", \"lesson\", domyślnie oba); wybór, w którym trybowi pasuje tylko jedna gałąź, aplikacja bierze sama; warunek {\"type\": \"mode\", \"is\": \"lesson\"} dokłada na lekcji pytanie na wyjście.",
+  "kinds": [
+    {
+      "ref": "@lekcja/temat",
+      "name": "Temat",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line" },
+        { "key": "czym", "label": "Czym jest", "type": "markup" }
+      ]
+    },
+    {
+      "ref": "@lekcja/slajd",
+      "name": "Slajd",
+      "label": "{tytul}",
+      "fields": [
+        { "key": "tytul", "label": "Tytuł", "type": "line" },
+        { "key": "tekst", "label": "Tekst", "type": "markup" },
+        { "key": "o_czym", "label": "O czym", "type": "ref", "to": ["@lekcja/temat"], "multi": true }
+      ]
+    }
+  ],
+  "entities": [
+    { "ref": "@lekcja/t/spadanie", "kinds": ["@lekcja/temat"], "data": { "nazwa": "Spadanie swobodne", "czym": "Ruch ciała, które spada, gdy powietrze prawie mu nie przeszkadza." } },
+    { "ref": "@lekcja/s/sytuacja", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Dwie kule", "tekst": "Z tej samej wysokości puszczamy w tej samej chwili ciężką kulę do kręgli i lekką piłeczkę do ping-ponga. Powietrze prawie im nie przeszkadza.", "o_czym": ["@lekcja/t/spadanie"] } },
+    { "ref": "@lekcja/s/wyjasnienie", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Obie spadają razem", "tekst": "Gdy powietrze nie przeszkadza, wszystko spada tak samo szybko: przyspieszenie spadania nie zależy od masy. Cięższą kulę Ziemia przyciąga mocniej, ale też trudniej ją rozpędzić — jedno znosi drugie.", "o_czym": ["@lekcja/t/spadanie"], "use": "self" } },
+    { "ref": "@lekcja/s/dobrze", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Tak — obie razem", "tekst": "Cięższą kulę Ziemia przyciąga mocniej, ale tę samą prędkość trudniej jej nadać. Jedno znosi drugie, więc obie uderzą w podłogę w tej samej chwili.", "o_czym": ["@lekcja/t/spadanie"], "use": "lesson" } },
+    { "ref": "@lekcja/s/blad-ciezsze", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Czy cięższe spada szybciej?", "tekst": "Tak podpowiada codzienność: kartka opada wolno, kamień szybko. Ale kartkę hamuje powietrze, nie jej mała masa. Zgnieć kartkę w kulkę — spadnie razem z zeszytem.", "o_czym": ["@lekcja/t/spadanie"], "use": "lesson" } },
+    { "ref": "@lekcja/s/blad-ogolny", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Masa nie decyduje", "tekst": "O tym, jak szybko coś spada, nie decyduje masa — o ile powietrze prawie nie przeszkadza. Obie kule uderzą w podłogę w tej samej chwili.", "o_czym": ["@lekcja/t/spadanie"], "use": "lesson" } },
+    { "ref": "@lekcja/s/razem", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Sprawdźcie razem", "tekst": "Dwie osoby puszczają w tej samej chwili książkę i zgniecioną kartkę z wysokości ramion. Reszta klasy słucha: jedno uderzenie czy dwa?", "o_czym": ["@lekcja/t/spadanie"], "use": "lesson" } },
+    { "ref": "@lekcja/s/sam", "kinds": ["@lekcja/slajd"], "data": { "tytul": "Sprawdź w domu", "tekst": "Puść w tej samej chwili książkę i zgniecioną kartkę z wysokości ramion. Posłuchaj: jedno uderzenie czy dwa?", "o_czym": ["@lekcja/t/spadanie"], "use": "self" } },
+    {
+      "ref": "@lekcja/q/przewidywanie", "kinds": ["question"],
+      "data": {
+        "form": "one",
+        "prompt": "Która kula pierwsza uderzy w podłogę?",
+        "options": ["Ciężka kula do kręgli", "Lekka piłeczka do ping-ponga", "Obie w tej samej chwili"],
+        "correct": [2],
+        "tags": ["ciezsze-szybciej", "", ""],
+        "feedback": ["Tak podpowiada codzienność — ale to powietrze hamuje lekkie rzeczy, nie ich mała masa.", "Lekka piłeczka nie ma żadnej przewagi: masa nie przyspiesza spadania.", "Tak: gdy powietrze nie przeszkadza, masa nie decyduje."],
+        "about": ["@lekcja/t/spadanie"],
+        "use": "lesson"
+      }
+    },
+    {
+      "ref": "@lekcja/q/zrozumienie", "kinds": ["question"],
+      "data": {
+        "form": "one",
+        "prompt": "Dlaczego ciężka kula i lekka piłeczka spadają razem, gdy powietrze prawie nie przeszkadza?",
+        "options": ["Bo przyspieszenie spadania nie zależy od masy", "Bo Ziemia przyciąga obie kule tak samo mocno", "Bo powietrze hamuje cięższą kulę bardziej"],
+        "correct": [0],
+        "tags": ["", "ta-sama-sila", "powietrze-hamuje-ciezsze"],
+        "feedback": ["Tak: większa siła i trudniejsze rozpędzanie znoszą się.", "Nie — cięższą kulę Ziemia przyciąga mocniej; tyle samo jest przyspieszenie, nie siła.", "Nie — powietrze hamuje raczej lekkie i duże rzeczy, a tu prawie nie przeszkadza."],
+        "about": ["@lekcja/t/spadanie"]
+      }
+    },
+    {
+      "ref": "@lekcja/q/bilet", "kinds": ["question"],
+      "data": { "form": "truefalse", "prompt": "Kamień i gumka do mazania, puszczone w tej samej chwili z tej samej wysokości, uderzą w podłogę razem (powietrze prawie nie przeszkadza).", "value": true, "about": ["@lekcja/t/spadanie"] }
+    }
+  ],
+  "flows": [
+    {
+      "ref": "@lekcja/przebieg",
+      "name": "Która kula spadnie pierwsza?",
+      "look": "reading",
+      "start": "sytuacja",
+      "graph": {
+        "nodes": [
+          { "id": "sytuacja", "type": "show", "x": 0, "y": 0, "config": { "of": "@lekcja/s/sytuacja" } },
+          { "id": "wyjasnienie", "type": "show", "x": 0, "y": 100, "config": { "of": "@lekcja/s/wyjasnienie" } },
+          { "id": "przewidywanie", "type": "question", "x": 0, "y": 200, "config": { "of": "@lekcja/q/przewidywanie", "predict": true } },
+          { "id": "dobrze", "type": "show", "x": 0, "y": 300, "config": { "of": "@lekcja/s/dobrze" } },
+          { "id": "blad-ciezsze", "type": "show", "x": 200, "y": 300, "config": { "of": "@lekcja/s/blad-ciezsze" } },
+          { "id": "blad-ogolny", "type": "show", "x": 400, "y": 300, "config": { "of": "@lekcja/s/blad-ogolny" } },
+          { "id": "sprawdz", "type": "choice", "x": 0, "y": 400, "config": { "title": "Sprawdź to", "options": [{ "label": "Razem w klasie", "hint": "Dwie osoby puszczają, klasa słucha." }, { "label": "Sam w domu", "hint": "Książka i zgnieciona kartka." }] } },
+          { "id": "razem", "type": "show", "x": 0, "y": 500, "config": { "of": "@lekcja/s/razem" } },
+          { "id": "sam", "type": "show", "x": 200, "y": 500, "config": { "of": "@lekcja/s/sam" } },
+          { "id": "zrozumienie", "type": "question", "x": 0, "y": 600, "config": { "of": "@lekcja/q/zrozumienie" } },
+          { "id": "czy-lekcja", "type": "condition", "x": 0, "y": 700, "config": { "condition": { "type": "mode", "is": "lesson" } } },
+          { "id": "bilet", "type": "question", "x": 0, "y": 800, "config": { "of": "@lekcja/q/bilet", "title": "Na wyjście" } },
+          { "id": "koniec", "type": "end", "x": 0, "y": 900, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "sytuacja", "out": "next", "to": "wyjasnienie", "in": "in" },
+          { "id": "e2", "from": "wyjasnienie", "out": "next", "to": "przewidywanie", "in": "in" },
+          { "id": "e3", "from": "przewidywanie", "out": "right", "to": "dobrze", "in": "in" },
+          { "id": "e4", "from": "przewidywanie", "out": "wrong:ciezsze-szybciej", "to": "blad-ciezsze", "in": "in" },
+          { "id": "e5", "from": "przewidywanie", "out": "wrong", "to": "blad-ogolny", "in": "in" },
+          { "id": "e6", "from": "dobrze", "out": "next", "to": "sprawdz", "in": "in" },
+          { "id": "e7", "from": "blad-ciezsze", "out": "next", "to": "sprawdz", "in": "in" },
+          { "id": "e8", "from": "blad-ogolny", "out": "next", "to": "sprawdz", "in": "in" },
+          { "id": "e9", "from": "sprawdz", "out": "o0", "to": "razem", "in": "in" },
+          { "id": "e10", "from": "sprawdz", "out": "o1", "to": "sam", "in": "in" },
+          { "id": "e11", "from": "razem", "out": "next", "to": "zrozumienie", "in": "in" },
+          { "id": "e12", "from": "sam", "out": "next", "to": "zrozumienie", "in": "in" },
+          { "id": "e13", "from": "zrozumienie", "out": "right", "to": "czy-lekcja", "in": "in" },
+          { "id": "e14", "from": "zrozumienie", "out": "wrong", "to": "czy-lekcja", "in": "in" },
+          { "id": "e15", "from": "czy-lekcja", "out": "yes", "to": "bilet", "in": "in" },
+          { "id": "e16", "from": "czy-lekcja", "out": "no", "to": "koniec", "in": "in" },
+          { "id": "e17", "from": "bilet", "out": "right", "to": "koniec", "in": "in" },
+          { "id": "e18", "from": "bilet", "out": "wrong", "to": "koniec", "in": "in" }
+        ]
+      }
+    }
+  ]
+}

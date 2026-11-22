@@ -54,6 +54,7 @@ import { paletteOf, readGraph, type Graph, type GraphNode, type NodeKind, type P
 import { t, texts } from '../core/i18n';
 import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type SessionAnswer, type SessionFacts, type ValueLimit } from './logic';
 import { adaptiveOf, declareExits, decideAnswer, expandAdaptive, type AnswerDecision, type AnswerInput } from './adaptive';
+import { branchFits, modeSkips, PLAY_MODES, skipExitsOf, type PlayMode, type UseOf } from './modes';
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
@@ -119,7 +120,8 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
         ...Array.from({ length: a.picks }, (_x, i) => port(`pick:${i}`, t('cogitaEditFlow.exit.pick', { n: i + 1 })))
       ];
     }
-    case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || t('cogitaEditFlow.exit.option', { n: i + 1 })));
+    /* 2026-11-22 (I4) — ein Zweig, den der gezählte Modus nicht spielt (`_dropped`, `modes.ts` `countedGraph`), ist kein Ausgang. */
+    case 'choice': return (Array.isArray(config.options) ? config.options : []).flatMap((o, i) => (isObject(o) && o._dropped === true ? [] : [port(`o${i}`, str(isObject(o) ? o.label : o) || t('cogitaEditFlow.exit.option', { n: i + 1 }))]));
     case 'condition': return [port('yes', t('cogitaEditFlow.exit.yes')), port('no', t('cogitaEditFlow.exit.no'))];
     /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: zdany oder noch nicht. */
     case 'review': return [port('passed', t('cogitaEditFlow.exit.passed')), port('notyet', t('cogitaEditFlow.exit.notYet'))];
@@ -127,7 +129,7 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     /* 2026-11-12 — nach der Einstufung (zu Ende, auf später verschoben oder ausgelassen): weiter. */
     case 'explore': return [port('done', t('cogitaEditFlow.exit.explored'))];
     case 'detour': return config.optional === false || config.required === true ? [port('done', t('cogitaEditFlow.exit.afterStory'))] : [port('done', t('cogitaEditFlow.exit.afterStory')), port('skip', t('cogitaEditFlow.exit.skip'))];
-    case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || t('cogitaEditFlow.exit.chapter', { n: i + 1 }))), port('done', t('cogitaEditFlow.exit.allDone'))];
+    case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).flatMap((c, i) => (isObject(c) && c._dropped === true ? [] : [port(`c${i}`, str(isObject(c) ? c.title : c) || t('cogitaEditFlow.exit.chapter', { n: i + 1 }))])), port('done', t('cogitaEditFlow.exit.allDone'))];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
     case 'scene': return [
       port('next', t('cogitaEditFlow.exit.next')),
@@ -401,6 +403,11 @@ export interface PlayContext {
    * über ihren Ausgang „dobrze", ohne Antwort und ohne den Plan der Karte zu ändern (`flowAsk.ts`).
    */
   readonly skip?: (node: GraphNode, state: FlowState) => boolean;
+  /**
+   * 2026-11-22 (I4) — der Wert "use" eines Eintrags (aus seinen Daten): welcher Modus seine Folie oder Frage spielt (`modes.ts`).
+   * Der Modus selbst steht in den Fakten (`facts.mode`, Vorgabe `self`).
+   */
+  readonly useOf?: UseOf;
 }
 
 export function startFlow(flow: Flow, values: Readonly<Record<string, number>> = {}, at?: string | null): FlowState {
@@ -431,6 +438,15 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   const facts = ctx.facts(here);
   const c = node.config;
 
+  /*
+    2026-11-22 (I4) — WAS DER MODUS NICHT SPIELT (`"use": "lesson"` allein, `"self"` in einer Stunde — am Schritt oder an seinem
+    Eintrag): übersprungen wie mit skipWhen — über „dalej", eine Frage über „dobrze", ein Abstecher über „skip" (sonst „done").
+  */
+  if (modeSkips(node, facts.mode ?? 'self', ctx.useOf)) {
+    const next = skipExitsOf(node).map((x) => follow(flow, to, x)).find((x) => x !== null) ?? null;
+    return enter(flow, here, next, ctx, guard + 1);
+  }
+
   /* 2026-11-20 — nach einer richtigen Antwort übersprungen ("onRight.skip": der Schritt oder der Eintrag, den er zeigt). */
   if ((here.skipped?.length ?? 0) > 0 && (here.skipped!.includes(to) || (typeof c.of === 'string' && here.skipped!.includes(c.of)))) {
     if (SKIPPABLE.has(node.type)) return enter(flow, here, follow(flow, to, 'next'), ctx, guard + 1);
@@ -448,10 +464,17 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   if (SKIPPABLE.has(node.type) && !(node.type === 'scene' && c.question === true) && skips(c.skipWhen, facts)) {
     return enter(flow, here, follow(flow, to, 'next'), ctx, guard + 1);
   }
-  /* 2026-11-11 — eine Wahl mit eigener Folie ("of") wird immer gelesen: sie wählt nie selbst (wie "hold": true). */
-  if (node.type === 'choice' && c.hold !== true && str(c.of) === '') {
-    const only = optionsOf(node, facts);
-    if (only.length === 1) return takeOption(flow, here, node, only[0].exit, ctx, guard + 1);
+  /*
+    2026-11-11 — eine Wahl mit eigener Folie ("of") wird immer gelesen: sie wählt nie selbst (wie "hold": true).
+    2026-11-22 (I4) — AUSSER DER MODUS ENTSCHEIDET: bleibt im Modus genau ein Zweig (die anderen beginnen mit einem Schritt, den
+    der Modus nicht spielt, oder ihre Bedingung „mode" gilt nicht), nimmt die App ihn — auch mit "hold" oder "of".
+  */
+  if (node.type === 'choice') {
+    const open = openOptions(flow, node, facts, ctx);
+    if (open.length === 1) {
+      const anyMode = new Set(PLAY_MODES.flatMap((m) => openOptions(flow, node, { ...facts, mode: m }, ctx).map((o) => o.exit)));
+      if (anyMode.size > 1 || (c.hold !== true && str(c.of) === '')) return takeOption(flow, here, node, open[0].exit, ctx, guard + 1);
+    }
   }
   switch (node.type) {
     case 'condition': {
@@ -479,7 +502,14 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
     case 'chapters': {
       const all = Array.isArray(c.chapters) ? c.chapters.length : 0;
       const done = here.chapters[to] ?? [];
-      if (all > 0 && done.length >= all) return enter(flow, here, follow(flow, to, 'done'), ctx, guard + 1);
+      /* 2026-11-22 (I4) — Kapitel, die der Modus nicht spielt, zählen nicht; bleibt keines: „gotowe"; bleibt durch den Modus eines: es beginnt. */
+      const left = Array.from({ length: all }, (_x, i) => i).filter((i) => !done.includes(i));
+      const fit = left.filter((i) => chapterFits(flow, node, `c${i}`, facts.mode ?? 'self', ctx));
+      if (all > 0 && fit.length === 0) return enter(flow, here, follow(flow, to, 'done'), ctx, guard + 1);
+      if (fit.length === 1 && left.length > 1) {
+        const first = follow(flow, to, `c${fit[0]}`);
+        if (first !== null) return enter(flow, { ...here, chapter: { hub: to, index: fit[0], start: first } }, first, ctx, guard + 1);
+      }
       return here;
     }
     case 'subflow':
@@ -634,6 +664,39 @@ function takeOption(flow: Flow, state: FlowState, node: GraphNode, exit: string,
   const done = apply(isObject(option) ? actionsOf(option.actions) : [], state.values, ctx.limits);
   const to = follow(flow, node.id, exit);
   return enter(flow, { ...state, values: done.values }, done.go ?? to, ctx, guard);
+}
+
+/**
+ * 2026-11-22 (I4) — PASST EIN ZWEIG (`o<i>`, `c<i>`) ZUM MODUS? Sein erster Schritt wird im Modus gespielt, und seine Bedingung
+ * kann im Modus gelten (`modes.ts`).
+ */
+export function branchFitsMode(flow: Flow, node: GraphNode, exit: string, mode: PlayMode, ctx: Pick<PlayContext, 'useOf'>): boolean {
+  const first = nodeOf(flow, follow(flow, node.id, exit));
+  return branchFits(node, exit, first, mode, ctx.useOf);
+}
+
+const chapterFits = (flow: Flow, node: GraphNode, exit: string, mode: PlayMode, ctx: Pick<PlayContext, 'useOf'>): boolean => branchFitsMode(flow, node, exit, mode, ctx);
+
+/**
+ * 2026-11-22 (I4) — DIE ZWEIGE EINER WAHL, DIE DER MODUS SPIELT (die übrigen sieht niemand). Passt keiner, gelten alle — eine Wahl
+ * bleibt nie ohne Weg.
+ */
+export function modeOptions(flow: Flow, node: GraphNode, mode: PlayMode, ctx: Pick<PlayContext, 'useOf'>): ReadonlySet<string> {
+  const list = Array.isArray(node.config.options) ? node.config.options : [];
+  const exits = list.map((_o, i) => `o${i}`);
+  const fit = exits.filter((x) => branchFitsMode(flow, node, x, mode, ctx));
+  return new Set(fit.length === 0 ? exits : fit);
+}
+
+/** Die Möglichkeiten, die jetzt gelten UND die der Modus spielt (`optionsOf` und `modeOptions`). */
+export function openOptions(flow: Flow, node: GraphNode, facts: Facts, ctx: Pick<PlayContext, 'useOf'>): { exit: string; label: string }[] {
+  const fits = modeOptions(flow, node, facts.mode ?? 'self', ctx);
+  return optionsOf(node, facts).filter((o) => fits.has(o.exit));
+}
+
+/** Die Kapitel einer Auswahl, die noch fehlen UND die der Modus spielt [F32, I4]. */
+export function chaptersLeftIn(flow: Flow, node: GraphNode, state: FlowState, mode: PlayMode, ctx: Pick<PlayContext, 'useOf'>): { exit: string; title: string }[] {
+  return chaptersLeft(node, state).filter((ch) => chapterFits(flow, node, ch.exit, mode, ctx));
 }
 
 /** Die Möglichkeiten einer Wahl, die gerade gelten (eine Möglichkeit darf eine Bedingung tragen). */

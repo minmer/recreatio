@@ -121,3 +121,5 @@
 .cg-flow-step { position: relative; }
 .cg-flow-step .cg-fb:not(.cg-face .cg-fb) { position: absolute; top: var(--wk-space-2); right: var(--wk-space-2); z-index: 2; float: none; margin: 0; }
 .cg-flow-step:has(.cg-fb:not(.cg-face .cg-fb)) > .cg-flow-step-title { padding-right: 2.6rem; }
+/* 2026-11-22 (I3) — eine Vorhersage: vor und nach der Antwort, dass sie nicht zählt (auch auf dem Gerät eines Schülers in einer Stunde). */
+.cg-flow-predict { margin: 0 0 var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); color: var(--wk-ink); font-size: var(--wk-text-sm); font-weight: 600; }

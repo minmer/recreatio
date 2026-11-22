@@ -16,6 +16,12 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 - **How the data is used** (2026-10-30): every description has a section „Jak aplikacja używa tych danych” — where
   the imported data appears, what else reads it (other parts, pages, MCP), who can see it and what the import does not
   do. Each sentence was checked in the code; a new reader of a part's data belongs in that section.
+- **One check for every import** (2026-11-22, `src/app/importCheck/`): `checkImport(format, doc, {base?})` runs the
+  part's own planner (an adapter per MCP format id in `registry.ts` — a new import adds one line there) and returns the
+  preview's lines, the deletions, and ALL errors and warnings at once. The same bundle answers MCP `check_import` on
+  the server (MCP.md → Import check) and `check_import` of the local preview MCP. Identical messages are grouped
+  everywhere (`core/messageGroups.ts`, `ui/MessageList.tsx`: "×N" with the single ones to unfold — messages that differ
+  only in a quoted name, an `@name`, an id or a list position count as the same).
 - **Checks**: `app-json-check` (pages, modules, areas, forms, calendar schemes and plans, the MCP file) and
   `app-json-parts-check` (in `npm run app:check`), which runs every `app-json-<part>-check.mjs` — a new part's check is
   picked up by its name.
@@ -99,6 +105,21 @@ What each import may do, in short (the descriptions say it in full):
   missing axis kind and a landscape view in a base without prerequisites. How to build a base for it:
   `guide-schemes` §2.5; an example world `example-world` (`przyklad-swiat.json`) with its page `example-world-page`
   (`przyklad-swiat-strona.json`). Both can be checked before the import with `preview_knowledge` (PREVIEW-MCP.md).
+- **knowledge-base whole world and parts** (2026-11-22, A2) — `"wholeWorld": true` in the head of a course: everything
+  of the base the file does not contain is deleted in the same save (entries and the doc kinds of `WHOLE_WORLD_DOCS`
+  in `cogita/json.ts` — templates, revisions, flows, looks, rules, values, collections, views, forms, anchors, rewards,
+  paths; never kinds, settings, feedback, learner data). It runs through the ordinary removals (`plan.removals`,
+  `removalEffects`): the first preview line says how many, each is listed and can be unticked, a flow/view that still
+  points at one blocks the save. Items the file points at without containing them stay (warning). `"part": "<name>"`
+  stamps `_part` on every entry (mark) and doc (data) the file creates or changes, also unchanged ones (bookkeeping
+  save); with `wholeWorld` only that part's items are deleted, items of no part stay (counted). An export re-imported
+  as a whole world deletes nothing. Checks: `app-import-check` §7.
+- **knowledge-base size** (2026-11-22, A4) — up to 20 000 items incl. removals per save (`SAVE_ALL_MAX`), ~150 MB
+  sealed. `putEntries` splits anything above 2000 items or 16 MB of envelopes into parts: `POST …/entries/save/stage`
+  (table `app.library_save_stage`, migration 0143; parts expire after one hour) and a final `POST …/entries/save` with
+  `"stage"` that writes all parts in ONE transaction with the same checks (versions, library, removals) — all or
+  nothing; the parts are deleted with it or on failure. Each request stays under the IIS limit (30 MB). Checks:
+  `app-import-check` §8, Api.Tests `LibraryChecks` (stage), LocalDB drive (A4 session scratchpad `a4/drive.mjs`, 13).
 - **lamps** — lamps, signals, timers and the button pace; deletes only with `"remove": true`.
 - **addresses** — aliases and domains the app can set; the preview lists what remains outside (DNS, hosting, the
   service's origins).

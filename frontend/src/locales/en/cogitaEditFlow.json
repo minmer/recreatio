@@ -206,5 +206,31 @@
       "one": ", own help for {count} tag",
       "other": ", own help for {count} tags"
     }
+  },
+  "modes": {
+    "title": "Lesson or self-study",
+    "count": {
+      "one": "({count} marked)",
+      "other": "({count} marked)"
+    },
+    "hint": "One content, two orders: in self-study first explain, then ask; in a lesson first let the class predict, then explain. Mark what only one of them plays — a step the mode does not play is skipped, and a choice with only one fitting branch takes it by itself. A prediction is asked and branches, but it never counts.",
+    "left": {
+      "one": "{mode}: {count} step",
+      "other": "{mode}: {count} steps"
+    },
+    "use": "Plays in",
+    "fromEntry": "as the entry says ({use})",
+    "useOf": {
+      "both": "both",
+      "self": "self-study only",
+      "lesson": "lessons only"
+    },
+    "predict": "Prediction — does not count",
+    "plays": {
+      "self": "plays only in self-study",
+      "lesson": "plays only in lessons"
+    },
+    "tryLesson": "Try as a lesson",
+    "tryLessonSays": "The same story in the order of a lesson: steps for self-study only are skipped, predictions do not count."
   }
 }

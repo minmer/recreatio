@@ -326,6 +326,8 @@ function FieldMore({ field, targets, choices, disabled, own, onSet }: { field: F
               <option value="down">{t('cogitaEdit.kind.orderDown')}</option>
             </select>
           </label>
+          {/* 2026-11-22 (Tagi der Welt) — was dieses Feld nennt, sind Tags des Eintrags (bei einem Tag: seine oberen Tags), `tags.ts`. */}
+          <label className="pe-check"><input type="checkbox" checked={field.tag === 'up'} disabled={disabled} onChange={(e) => onSet({ tag: e.target.checked ? 'up' : undefined })} data-kind-field-tag="" /><span>{t('cogitaEdit.kind.tag')}</span></label>
         </>
       )}
       {choices.length > 0 && <WhenPick field={field} choices={choices} disabled={disabled} onSet={onSet} />}

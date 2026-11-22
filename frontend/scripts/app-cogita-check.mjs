@@ -1846,7 +1846,7 @@ check('goals and lines follow the one logic', [
   const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
   check('Wiedza: three activities first, the rest under „Więcej" (2026-10-25: Wejścia z Biblioteki)', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje', 'wejscia']]);
   /* 2026-10-27 — dazu die Ścieżka: die Reihenfolge des Lernens (`LearningPath.tsx`); 2026-11-02 unter „Więcej" die Nagrody. */
-  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'nagrody', 'ustawienia'], 'learn']);
+  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”; 2026-11-22 „Klasy” of the base', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'klasy', 'postepy'], ['karty', 'mapa', 'nagrody', 'ustawienia'], 'learn']);
   check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
   check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
     T(['schemat']), T(['schemat', 'k1']), T(['schemat', 'formularz']), T(['schemat', 'formularz', 'f1']), T(['wpisy', 'dodaj', 'f1']), T(['wpisy', 'nowy', 'k1'])

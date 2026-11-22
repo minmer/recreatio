@@ -22,6 +22,7 @@
 import type { WorldState } from './wmState';
 import { runAnswer, runCard, runDone, startRun, type Attempts, type LevelRule, type RunSession } from './wmRuns';
 import type { Lines, World } from './wmTypes';
+import { worldTags } from './wmTags';
 
 export type ExploreMode = 'adaptive' | 'target';
 
@@ -81,6 +82,9 @@ export function scopeTowers(world: World, lines: Lines, cfg: Pick<ExploreConfig,
     if (world.places.has(r)) { out.add(r); continue; }
     const block = world.blocks.get(r);
     if (block !== undefined) { for (const p of block.parts) if (world.places.has(p)) out.add(p); continue; }
+    /* 2026-11-22 (Änderungspaket C2) — ein Tag: alle Türme unter ihm, über alle Ebenen (`tags.ts`). */
+    const tags = worldTags(world);
+    if (tags.tags.has(r)) { for (const p of tags.below(r)) out.add(p); continue; }
     /* Eine Einheit: was sie verlangt (mit Grundlage), dazu die Halte ihrer Linie. */
     for (const q of world.requires(r)) {
       if (world.places.has(q)) withBase(q);

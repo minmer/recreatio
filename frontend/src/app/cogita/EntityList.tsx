@@ -105,8 +105,13 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   const dKey = draftKey(lib.libraryId, viewId, design);
   const dBase = saved === undefined ? '' : `${saved.id}:${saved.version}`;
   const [view, setView] = useState<ViewDoc>(() => readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table', ...(design ? { name: t('cogitaViews.list.newViewName') } : {}) }));
-  const [shownFor, setShownFor] = useState(viewId);
-  if (shownFor !== viewId) { setShownFor(viewId); setView(readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table' })); }
+  /*
+    2026-11-22 — neu gelesen auch, wenn der gespeicherte Widok erst NACH dem ersten Bild ankommt (die Baza lädt noch, eben
+    importiert) oder ein neuer Stand gespeichert wurde: sonst blieb die vorläufige Tabelle stehen — und wurde als Entwurf gemerkt.
+  */
+  const shownKey = `${viewId ?? ''}|${dBase}`;
+  const [shownFor, setShownFor] = useState(shownKey);
+  if (shownFor !== shownKey) { setShownFor(shownKey); setView(readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table' })); }
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }

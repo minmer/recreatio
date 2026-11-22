@@ -29,6 +29,7 @@ import { readJsonText } from '../core/jsonText';
 import { WorkspaceError } from '../core/session';
 import { samplesOf, sectionsOf, sectionText, type JsonNode, type JsonSection } from '../core/jsonTree';
 import { useT } from '../core/i18n';
+import { MessageList } from './MessageList';
 
 export interface JsonPreview {
   readonly lines: readonly string[];
@@ -265,7 +266,7 @@ export function JsonPanel({
                   <p className="wk-json-h">{t('ui.json.changes')}</p>
                   <ul>{plan.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
                   {(plan.warnings.length > 0 || repaired !== null) && (
-                    <ul className="wk-json-warn">{[...(repaired === null ? [] : [repaired]), ...plan.warnings].map((line, i) => <li key={i}>{line}</li>)}</ul>
+                    <MessageList className="wk-json-warn" lines={[...(repaired === null ? [] : [repaired]), ...plan.warnings]} />
                   )}
                   {options?.(parsed.value)}
                   {note !== undefined && note !== null && <p className="wk-hint">{note}</p>}
@@ -282,14 +283,14 @@ export function JsonPanel({
               {failed !== null && failed.includes('\n') && (
                 <div className="wk-error" role="alert" data-json-failed="">
                   <p>{failed.split('\n')[0]}</p>
-                  <ul>{failed.split('\n').slice(1).map((line, i) => <li key={i}>{line}</li>)}</ul>
+                  <MessageList lines={failed.split('\n').slice(1)} />
                 </div>
               )}
               {done !== null && (
                 <div role="status" className="wk-json-plan">
                   <p className="wk-done">{t('ui.json.imported')}</p>
                   <ul>{done.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-                  {done.warnings.length > 0 && <ul className="wk-json-warn">{done.warnings.map((line, i) => <li key={i}>{line}</li>)}</ul>}
+                  {done.warnings.length > 0 && <MessageList className="wk-json-warn" lines={done.warnings} />}
                 </div>
               )}
             </section>

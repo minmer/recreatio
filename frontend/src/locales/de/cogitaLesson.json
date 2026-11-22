@@ -1,0 +1,228 @@
+{
+  "newSays": "Eine Unterrichtsstunde: die Klasse geht diese Erzählung zusammen. Du drückst „Weiter\", alle stimmen auf ihrem Gerät ab, du siehst die Stimmen sofort.",
+  "bars": {
+    "rest": "andere Antworten",
+    "count": {
+      "one": "{count} · {pct} %",
+      "other": "{count} · {pct} %"
+    },
+    "error": "Fehler: {tag}",
+    "errors": "Fehler in der Klasse: {list}",
+    "errorN": {
+      "one": "{tag} ({count})",
+      "other": "{tag} ({count})"
+    }
+  },
+  "host": {
+    "noConfig": "Diese Stunde hat keine Erzählung — leg sie an einem Turm neu an.",
+    "loading": "Die Stunde wird vorbereitet…",
+    "panel": "Stimmen der Klasse",
+    "joined": {
+      "one": "{count} Schülerin/Schüler dabei",
+      "other": "{count} Schülerinnen und Schüler dabei"
+    },
+    "hidePanel": "Ausblenden",
+    "showPanel": {
+      "one": "Stimmen ({count})",
+      "other": "Stimmen ({count})"
+    },
+    "noVote": "Gerade keine Abstimmung — eine Frage, eine Gabelung oder Kapitel öffnen eine.",
+    "voteQuestion": "Frage · Runde {round}",
+    "voteWay": "Welcher Weg?",
+    "voteOrder": "Welches Thema zuerst?",
+    "voted": {
+      "one": "{count} von {total} hat gestimmt",
+      "other": "{count} von {total} haben gestimmt"
+    },
+    "correctIs": "Richtig ist:",
+    "share": "{pct} % richtig",
+    "classRight": "die Klasse antwortet richtig",
+    "classWrong": "die Klasse antwortet falsch",
+    "close": "Abstimmung schliessen",
+    "again": "Zweite Runde",
+    "takeAnswer": "Mit der Antwort der Klasse weiter",
+    "takeChoice": "Wie die Klasse: {name}",
+    "backToSlide": "Zurück zur Folie",
+    "nextByOrder": "Weiter nach der Reihenfolge der Klasse: {name}",
+    "nextPart": "Nächste Erzählung: {name}",
+    "finish": "Stunde beenden",
+    "settings": "Einstellungen dieser Stunde",
+    "showVotes": "Wer die Stimmen sieht",
+    "high": "Weiter ab (%)",
+    "low": "Zurück zur Folie unter (%)",
+    "thresholdsSay": "Nur ein Hinweis für dich: über dem ersten Wert erklären und weiter, dazwischen mit den Nachbarn reden und noch einmal abstimmen, unter dem zweiten zurück zur Folie."
+  },
+  "advice": {
+    "move-on": "Die meisten wissen es — kurz erklären und weiter.",
+    "discuss": "Die Klasse ist geteilt — die Nachbarn reden lassen, dann noch einmal abstimmen.",
+    "back": "Wenige wissen es — zurück zur Folie."
+  },
+  "showVotes": {
+    "after": "Die Klasse, nach dem Schliessen",
+    "live": "Die Klasse, schon beim Abstimmen",
+    "never": "Nur ich"
+  },
+  "screen": {
+    "round": "Noch einmal abstimmen · Runde {round}",
+    "vote": "Stimm auf deinem Gerät ab",
+    "voted": {
+      "one": "{count} von {total} hat gestimmt",
+      "other": "{count} von {total} haben gestimmt"
+    },
+    "answered": {
+      "one": "{count} Stimme",
+      "other": "{count} Stimmen"
+    },
+    "share": "{pct} % der Klasse haben richtig geantwortet",
+    "pollWay": "Wählt den Weg",
+    "pollOrder": "Welches Thema zuerst?",
+    "chosen": "Die Klasse hat gewählt: {name}"
+  },
+  "student": {
+    "board": "Schau an die Tafel.",
+    "sent": "Deine Stimme ist da.",
+    "typed": "Deine Antwort",
+    "send": "Senden",
+    "onlyBoard": "Diese Frage wird an der Tafel beantwortet."
+  },
+  "task": {
+    "unreadable": "Diese Aufgabe lässt sich nicht lesen.",
+    "kind": {
+      "tower": "den Turm erobern",
+      "trail": "die Erzählung gehen",
+      "review": "den Turm wiederholen"
+    },
+    "target": "Ziel: {name}",
+    "until": " · bis {date}",
+    "hostSays": "Jede und jeder sieht sie auf der eigenen Karte; sie hakt sich selbst ab, wenn der Fortschritt das Ziel erreicht.",
+    "progress": "Fortschritt der Lernenden"
+  },
+  "menu": {
+    "open": "Einstellungen der Karte",
+    "leading": "Ich leite",
+    "title": "Einstellungen der Karte",
+    "textSize": "Schriftgrösse und Aussehen",
+    "mode": "Modus",
+    "learn": "Ich lerne",
+    "lead": "Ich leite",
+    "leadSays": "Über Türmen, Pfaden und Gabelungen: „Hier leiten\" und „Aufgeben\". Deine eigenen Antworten in einer Stunde zählen nicht für deinen Fortschritt.",
+    "learnSays": "Normales Lernen — deine Antworten zählen für deinen Fortschritt.",
+    "class": "Klasse",
+    "baseArea": "{name} (der Bereich der Baza)"
+  },
+  "map": {
+    "lead": "Hier leiten",
+    "leadSays": "Hier eine Stunde beginnen: die Klasse geht diese Erzählung zusammen",
+    "assign": "Aufgeben"
+  },
+  "lead": {
+    "title": "Eine Stunde beginnen",
+    "says": "„{name}\" mit {area}: du leitest, die Klasse stimmt auf ihren Geräten ab.",
+    "trails": "Erzählungen der Stunde (nacheinander)",
+    "lessonRun": "Ablauf für den Unterricht",
+    "sequence": "Angehakte Erzählungen laufen nacheinander; jede endet an ihrem Turm.",
+    "starting": "Beginnt…",
+    "start": "Stunde beginnen"
+  },
+  "assign": {
+    "title": "Der Klasse aufgeben",
+    "done": "„{name}\" ist {area} aufgegeben.",
+    "says": "Für {area} — sie hakt sich aus dem Fortschritt jeder Schülerin, jedes Schülers selbst ab.",
+    "what": "Was",
+    "until": "Bis",
+    "giving": "Wird aufgegeben…",
+    "give": "Aufgeben"
+  },
+  "tasks": {
+    "count": {
+      "one": "{count} offene Aufgabe",
+      "other": "{count} offene Aufgaben"
+    },
+    "title": "Aufgaben",
+    "hide": "Ausblenden",
+    "until": "bis {date}",
+    "state": {
+      "done": "erledigt",
+      "open": "offen",
+      "late": "überfällig"
+    }
+  },
+  "round": {
+    "questions": {
+      "one": "{count} Frage gemeinsam",
+      "other": "{count} Fragen gemeinsam"
+    },
+    "tower": "Fragen zu „{name}“",
+    "none": "Hier gibt es keine Fragen — weiter mit dem nächsten Teil.",
+    "done": "Alle Fragen zu {name} beantwortet.",
+    "of": "Frage {n} von {all} · {name}",
+    "next": "Nächste Frage",
+    "finish": "Ende der Fragen"
+  },
+  "plan": {
+    "loading": "Der Plan wird vorbereitet…",
+    "notLead": "Nur wer diese Klasse leitet, kann ihre Stunden planen.",
+    "toClasses": "Klassen",
+    "title": "Stunden von {name}",
+    "lede": "Eine Stunde planen: wähle, wo sie beginnt und zu welchem Turm sie führt — der Weg dazwischen kommt von selbst (wie „Führe mich hierher“). Dann Teile auslassen, hinzufügen und verschieben, den Plan speichern und mit einem Klick beginnen.",
+    "new": "Neuer Plan",
+    "none": "Noch kein gespeicherter Plan.",
+    "noSuch": "Diesen Plan gibt es (nicht mehr).",
+    "newTitle": "Neuer Stundenplan · {name}",
+    "editTitle": "Plan: {title}",
+    "startLabel": "Anfang",
+    "fromHome": "Von Anfang an (Haus)",
+    "midPath": "Mitten in einem Pfad beginnen",
+    "whichPath": "Pfad",
+    "whichStep": "Schritt",
+    "targetLabel": "Zielturm",
+    "pickTarget": "Einen Turm wählen…",
+    "pickTargetSays": "Wähle den Turm, zu dem die Stunde führen soll.",
+    "routeSays": "Der Weg für eine Klasse, die hier beginnt. Abhaken, was du auslässt, hinzufügen, was fehlt, mit den Pfeilen verschieben.",
+    "alreadyKnown": "Von diesem Anfang aus hat die Klasse „{name}“ schon — wähle einen früheren Anfang oder ein anderes Ziel.",
+    "kind": {
+      "path": "Pfad",
+      "tower": "Turm",
+      "check": "Abschlussfragen"
+    },
+    "fromStep": "ab Schritt {step}",
+    "added": "hinzugefügt",
+    "towerHow": "Wie die Klasse durch den Turm geht",
+    "pathOnly": "nur Pfad",
+    "pathAndTower": {
+      "one": "Pfad + Turm ({count} Frage gemeinsam)",
+      "other": "Pfad + Turm ({count} Fragen gemeinsam)"
+    },
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "remove": "Entfernen",
+    "needsLater": "braucht „{name}“, das erst später kommt",
+    "add": "Hinzufügen",
+    "addPick": "Einen Teil hinzufügen…",
+    "addPaths": "Pfade",
+    "addDeeper": "Vertiefungen",
+    "addTowers": "Türme (ihre Fragen gemeinsam)",
+    "addQuestionPaths": "Wege zu einer Frage",
+    "defaultTitle": "Stunde: {name}",
+    "partsSays": {
+      "one": "Die Stunde spielt {count} Teil.",
+      "other": "Die Stunde spielt {count} Teile."
+    },
+    "warnSays": {
+      "one": "{count} Teil steht vor dem, was er braucht — erlaubt, aber prüfe es.",
+      "other": "{count} Teile stehen vor dem, was sie brauchen — erlaubt, aber prüfe sie."
+    },
+    "saved": "Plan gespeichert.",
+    "start": "Stunde beginnen",
+    "save": "Plan speichern",
+    "fork": "eine Gabelung",
+    "summary": "{parts} Teile · Ziel: {target}",
+    "open": "Öffnen",
+    "copy": "Kopieren",
+    "copyOf": "{title} (Kopie)",
+    "deleteAsk": "Den Plan „{title}“ löschen?",
+    "deleteSays": "Die Stunden, die mit ihm gehalten wurden, bleiben.",
+    "cardButton": "Stunde planen",
+    "fromMap": "Eine längere Stunde hierher planen"
+  }
+}

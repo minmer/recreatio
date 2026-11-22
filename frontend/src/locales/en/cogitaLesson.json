@@ -1,0 +1,228 @@
+{
+  "newSays": "A lesson: the class goes through this story together. You press “Next”, everyone votes on their own device, you see the votes at once.",
+  "bars": {
+    "rest": "other answers",
+    "count": {
+      "one": "{count} · {pct} %",
+      "other": "{count} · {pct} %"
+    },
+    "error": "error: {tag}",
+    "errors": "Errors in the class: {list}",
+    "errorN": {
+      "one": "{tag} ({count})",
+      "other": "{tag} ({count})"
+    }
+  },
+  "host": {
+    "noConfig": "This lesson has no story — create it again from a tower.",
+    "loading": "Preparing the lesson…",
+    "panel": "Votes of the class",
+    "joined": {
+      "one": "{count} student joined",
+      "other": "{count} students joined"
+    },
+    "hidePanel": "Hide",
+    "showPanel": {
+      "one": "Votes ({count})",
+      "other": "Votes ({count})"
+    },
+    "noVote": "No vote right now — a question, a fork or chapters open one.",
+    "voteQuestion": "Question · round {round}",
+    "voteWay": "Which way?",
+    "voteOrder": "Which topic first?",
+    "voted": {
+      "one": "{count} of {total} voted",
+      "other": "{count} of {total} voted"
+    },
+    "correctIs": "Correct answer:",
+    "share": "{pct} % correct",
+    "classRight": "the class answers correctly",
+    "classWrong": "the class answers wrongly",
+    "close": "Close the vote",
+    "again": "Second vote",
+    "takeAnswer": "Continue with the class answer",
+    "takeChoice": "Go with the class: {name}",
+    "backToSlide": "Back to the slide",
+    "nextByOrder": "Next by the class order: {name}",
+    "nextPart": "Next story: {name}",
+    "finish": "End the lesson",
+    "settings": "Settings of this lesson",
+    "showVotes": "Who sees the votes",
+    "high": "Move on from (%)",
+    "low": "Back to the slide below (%)",
+    "thresholdsSay": "Only a hint for you: above the first value explain and move on, between them let neighbours talk and vote again, below the second go back to the slide."
+  },
+  "advice": {
+    "move-on": "Most know it — explain briefly and move on.",
+    "discuss": "The class is split — let neighbours discuss, then vote again.",
+    "back": "Few know it — go back to the slide."
+  },
+  "showVotes": {
+    "after": "The class, after the vote closes",
+    "live": "The class, while voting",
+    "never": "Only me"
+  },
+  "screen": {
+    "round": "Vote again · round {round}",
+    "vote": "Vote on your device",
+    "voted": {
+      "one": "{count} of {total} voted",
+      "other": "{count} of {total} voted"
+    },
+    "answered": {
+      "one": "{count} vote",
+      "other": "{count} votes"
+    },
+    "share": "{pct} % of the class answered correctly",
+    "pollWay": "Choose the way",
+    "pollOrder": "Which topic first?",
+    "chosen": "The class chose: {name}"
+  },
+  "student": {
+    "board": "Look at the board.",
+    "sent": "Your vote is in.",
+    "typed": "Your answer",
+    "send": "Send",
+    "onlyBoard": "This question is answered on the board."
+  },
+  "task": {
+    "unreadable": "This assignment cannot be read.",
+    "kind": {
+      "tower": "conquer the tower",
+      "trail": "go through the story",
+      "review": "review the tower"
+    },
+    "target": "Goal: {name}",
+    "until": " · due {date}",
+    "hostSays": "Each student sees it on their map; it ticks itself off when their progress reaches the goal.",
+    "progress": "Progress of the learners"
+  },
+  "menu": {
+    "open": "Settings of the map",
+    "leading": "Leading",
+    "title": "Map settings",
+    "textSize": "Text size and appearance",
+    "mode": "Mode",
+    "learn": "I am learning",
+    "lead": "I am leading",
+    "leadSays": "Above towers, paths and forks: “Lead here” and “Assign”. Your own answers in a lesson do not count for your progress.",
+    "learnSays": "Normal learning — your answers count for your progress.",
+    "class": "Class",
+    "baseArea": "{name} (the area of the base)"
+  },
+  "map": {
+    "lead": "Lead here",
+    "leadSays": "Start a lesson here: the class goes this story together",
+    "assign": "Assign"
+  },
+  "lead": {
+    "title": "Start a lesson",
+    "says": "“{name}” with {area}: you lead, the class votes on their devices.",
+    "trails": "Stories of the lesson (one after another)",
+    "lessonRun": "lesson run",
+    "sequence": "Ticked stories run one after another; each ends at its tower.",
+    "starting": "Starting…",
+    "start": "Start the lesson"
+  },
+  "assign": {
+    "title": "Assign to the class",
+    "done": "“{name}” is assigned to {area}.",
+    "says": "For {area} — it ticks itself off from each student’s progress.",
+    "what": "What",
+    "until": "Due",
+    "giving": "Assigning…",
+    "give": "Assign"
+  },
+  "tasks": {
+    "count": {
+      "one": "{count} open assignment",
+      "other": "{count} open assignments"
+    },
+    "title": "Assignments",
+    "hide": "Hide",
+    "until": "due {date}",
+    "state": {
+      "done": "done",
+      "open": "open",
+      "late": "overdue"
+    }
+  },
+  "round": {
+    "questions": {
+      "one": "{count} question together",
+      "other": "{count} questions together"
+    },
+    "tower": "Questions of „{name}\"",
+    "none": "No questions here — continue with the next part.",
+    "done": "All questions of {name} answered.",
+    "of": "Question {n} of {all} · {name}",
+    "next": "Next question",
+    "finish": "End of the questions"
+  },
+  "plan": {
+    "loading": "Preparing the plan…",
+    "notLead": "Only someone who leads this class can plan its lessons.",
+    "toClasses": "Classes",
+    "title": "Lessons of {name}",
+    "lede": "Plan a lesson: choose where it starts and which tower it leads to — the way between comes by itself (the same as „Lead me here\"). Then leave out, add and move parts, save the plan and start it with one click.",
+    "new": "New plan",
+    "none": "No saved plan yet.",
+    "noSuch": "This plan does not exist (any more).",
+    "newTitle": "New lesson plan · {name}",
+    "editTitle": "Plan: {title}",
+    "startLabel": "Start",
+    "fromHome": "From the beginning (home)",
+    "midPath": "Start in the middle of a path",
+    "whichPath": "Path",
+    "whichStep": "Step",
+    "targetLabel": "Target tower",
+    "pickTarget": "Choose a tower…",
+    "pickTargetSays": "Choose the tower the lesson should lead to.",
+    "routeSays": "The way for a class that starts here. Untick what you leave out, add what is missing, move with the arrows.",
+    "alreadyKnown": "From this start the class already has „{name}\" — choose an earlier start or another target.",
+    "kind": {
+      "path": "Path",
+      "tower": "Tower",
+      "check": "Closing questions"
+    },
+    "fromStep": "from step {step}",
+    "added": "added",
+    "towerHow": "How the class goes through the tower",
+    "pathOnly": "path only",
+    "pathAndTower": {
+      "one": "path + tower ({count} question together)",
+      "other": "path + tower ({count} questions together)"
+    },
+    "up": "Move up",
+    "down": "Move down",
+    "remove": "Remove",
+    "needsLater": "needs „{name}\", which comes later",
+    "add": "Add",
+    "addPick": "Add a part…",
+    "addPaths": "Paths",
+    "addDeeper": "Deepenings",
+    "addTowers": "Towers (their questions together)",
+    "addQuestionPaths": "Question paths",
+    "defaultTitle": "Lesson: {name}",
+    "partsSays": {
+      "one": "The lesson plays {count} part.",
+      "other": "The lesson plays {count} parts."
+    },
+    "warnSays": {
+      "one": "{count} part stands before what it needs — allowed, but check it.",
+      "other": "{count} parts stand before what they need — allowed, but check them."
+    },
+    "saved": "Plan saved.",
+    "start": "Start lesson",
+    "save": "Save plan",
+    "fork": "a fork",
+    "summary": "{parts} parts · target: {target}",
+    "open": "Open",
+    "copy": "Copy",
+    "copyOf": "{title} (copy)",
+    "deleteAsk": "Delete the plan „{title}\"?",
+    "deleteSays": "The lessons that were held with it stay.",
+    "cardButton": "Plan a lesson",
+    "fromMap": "Plan a longer lesson to here"
+  }
+}

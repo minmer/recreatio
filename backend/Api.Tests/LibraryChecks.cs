@@ -80,5 +80,26 @@ internal static class LibraryChecks
         var goneFound = Library.RemoveManyProblems(lib, [new(Guid.Parse(a), 2), new(Guid.Parse(b), 4), new(Guid.Parse(c), 2), new(Guid.Parse(d), 2), new(Guid.NewGuid(), 1)], goneHad);
         check(goneFound.Count == 4 && goneFound[0].EntryId == b && goneFound[0].Version == 5 && goneFound[1].EntryId == c && goneFound[1].Version is null && goneFound[2].EntryId == d && goneFound[3].Version == 0,
             "batch: deleting a newer state, another library's entry, a deleted one or one that never was is refused — the first one is fine");
+
+        /* 2026-11-22 (A4) — ein grosser Zapis in Stücken (0143): jedes Stück wie ein kleiner Zapis, zusammen bis 20 000. */
+        static Library.SaveStageRequest Part(string? token, int part, List<Library.SaveManyEntry>? entries, List<Library.SaveManyRemove>? remove = null) => new(token, part, entries, remove);
+        var many = (int n) => Enumerable.Range(0, n).Select(_ => Row(Guid.NewGuid().ToString())).ToList();
+        check(Library.ReadStagePart(Part(null, 0, [Row(a)])) is null && Library.ReadStagePart(Part(Guid.NewGuid().ToString(), 7, null, [Gone(c)])) is null,
+            "stage: a first part without a token, a later one with it (also only deletions)");
+        check(Library.ReadStagePart(Part(null, 1, [Row(a)]))?.Contains("części 0") == true && Library.ReadStagePart(Part("kein-guid", 1, [Row(a)])) is not null
+            && Library.ReadStagePart(Part(null, -1, [Row(a)])) is not null && Library.ReadStagePart(Part(null, 0, [])) is not null && Library.ReadStagePart(null) is not null,
+            "stage: a new save starts at part 0, a token is readable, a part carries something");
+        check(Library.ReadStagePart(Part(null, 0, many(Library.MaxStagePartItems + 1))) is not null && Library.ReadStagePart(Part(null, 0, [Row(a), Row(a)])) is not null,
+            "stage: a part keeps the limits of a part and names each entry once");
+        var merged = Library.MergeStage([new Library.SaveManyRequest([Row(a)], [Gone(c)]), null, new Library.SaveManyRequest([Row(b, 3)])], new Library.SaveManyRequest(null, [Gone(d)], "x"));
+        check(merged.Entries is { Count: 2 } && merged.Entries[0].EntryId == a && merged.Entries[1].EntryId == b && merged.Remove is { Count: 2 } && merged.Remove[1].EntryId == d && merged.Stage is null,
+            "stage: the parts in their order, then the last request — one save as if it came at once");
+        var big = Library.MergeStage([new Library.SaveManyRequest(many(5000)), new Library.SaveManyRequest(many(5000)), new Library.SaveManyRequest(many(5000))], new Library.SaveManyRequest(many(4000)));
+        check(Library.ReadSaveMany(big, Library.MaxStagedItems, Library.MaxStagedBytes).Rows is { Count: 19000 } && Library.ReadSaveMany(big).Rows is null,
+            "stage: 19 000 entries are one save from parts, while one request still carries at most MaxSaveBatch");
+        var tooMany = Library.MergeStage([new Library.SaveManyRequest(many(Library.MaxStagedItems))], new Library.SaveManyRequest(null, [Gone(c)]));
+        check(Library.ReadSaveMany(tooMany, Library.MaxStagedItems, Library.MaxStagedBytes).Error?.Contains("20000") == true, "stage: more than MaxStagedItems (with deletions) is refused");
+        var dup = Library.MergeStage([new Library.SaveManyRequest([Row(a)]), new Library.SaveManyRequest([Row(a.ToUpperInvariant())])], null);
+        check(Library.ReadSaveMany(dup, Library.MaxStagedItems, Library.MaxStagedBytes).Error?.Contains("dwa razy") == true, "stage: an entry in two parts is still twice");
     }
 }

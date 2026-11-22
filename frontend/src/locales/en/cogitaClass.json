@@ -1,0 +1,146 @@
+{
+  "students": "Students",
+  "studentsOf": "Students: {name}",
+  "linkLabel": "Join the class {name}",
+  "err": {
+    "needName": "Give the class a name.",
+    "cannotShare": "Only someone who may let people into this base's area can open it to a class — or the base must be public. Ask whoever manages the base.",
+    "noStudents": "This class has no students role.",
+    "noBase": "This class has no knowledge base.",
+    "failed": "That did not work. Try again in a moment."
+  },
+  "page": {
+    "noClass": "This address leads to no class",
+    "scanAgain": "Scan the QR code your teacher shows once more.",
+    "aClass": "A class",
+    "checking": "Checking the class…",
+    "youLead": "You lead this class. Here you show its QR code and see how your students are doing.",
+    "toClasses": "Classes and QR code",
+    "toProgress": "Students' progress",
+    "noCode": "To join, scan the QR code your teacher shows.",
+    "codeDead": "This code no longer works. Ask your teacher for a new one.",
+    "haveAccount": "Already in this class with an account? <a>Sign in</a>.",
+    "wholeBase": "Everything in this base",
+    "liveNow": "A lesson is on now",
+    "liveJoin": "Tap to join",
+    "opening": "Opening the map…",
+    "noBase": "The knowledge base of this class cannot be opened. Ask your teacher.",
+    "noMap": "This base has no map yet.",
+    "more": "More about learning in this class",
+    "ownProgress": "Your progress"
+  },
+  "join": {
+    "title": "Join {name}",
+    "lede": "Your teacher invites you to learn together. Choose how you want to join:",
+    "newTitle": "Create an account",
+    "newSays": "A login and a password — your progress on every device.",
+    "easiest": "Easiest",
+    "inTitle": "I already have an account",
+    "inSays": "Sign in and join the class.",
+    "guestTitle": "Without an account",
+    "guestSays": "Just your name. You get a personal link — keep it safe.",
+    "otherWay": "Choose another way",
+    "given": "First name",
+    "surname": "Last name",
+    "loginHint": "At least 3 characters, e.g. anna.k — you sign in with it.",
+    "passwordHint": "At least 8 characters. Write it down somewhere safe.",
+    "consent": "I want to learn in the class „{name}”, and I agree that the teacher sees my name, my answers and my progress.",
+    "needGiven": "Write your first name.",
+    "needSurname": "Write your last name.",
+    "needConsent": "Tick that you agree — without it you cannot join.",
+    "busyAccount": "Creating your account — this can take up to half a minute…",
+    "busyJoin": "Joining the class…",
+    "newGo": "Create account and join",
+    "inGo": "Sign in and join",
+    "guestNote": "Without an account your progress is tied to a personal link. Lose the link and the progress is gone.",
+    "guestGo": "Join",
+    "asMe": "You are signed in as {login}.",
+    "join": "Join the class",
+    "joining": "Joining…",
+    "noPerson": "This account has no person to join with. Sign in again.",
+    "failed": "Joining did not work. Try again in a moment."
+  },
+  "keep": {
+    "title": "This is your personal link",
+    "lede": "It is your key to this class. Keep it — with it you continue on any device. Without it your progress is lost.",
+    "shareTitle": "My class link",
+    "sendToMe": "Send it to myself",
+    "how": "Tip: copy it into a note on your phone, or send it to yourself in a message.",
+    "done": "I have saved my link",
+    "start": "Start learning"
+  },
+  "tab": {
+    "needAccount": "Classes need an account.",
+    "lede": "A class learns this base together. Show the students the QR code — they join with an account or without one, and you see their progress here.",
+    "cannot": "You cannot open this base to a class: only someone who may let people into its area can (or the base must be public).",
+    "empty": "No class yet. Give it a name and create it — then show the QR code.",
+    "name": "New class",
+    "namePlaceholder": "e.g. 3b physics",
+    "create": "Create class",
+    "stage": {
+      "area": "Creating the class…",
+      "role": "Creating the students' key — this takes a few seconds…",
+      "intake": "Preparing the place for answers…",
+      "link": "Creating the QR code…"
+    }
+  },
+  "card": {
+    "counting": "Counting students…",
+    "students": {
+      "one": "{count} student",
+      "other": "{count} students"
+    },
+    "closed": "joining closed",
+    "more": "More about the class",
+    "renew": "New QR code",
+    "renewAsk": "Make a new QR code?",
+    "renewSays": "The old code stops working. Everyone who has joined stays in the class.",
+    "close": "Close joining",
+    "closeAsk": "Close joining?",
+    "closeSays": "Nobody new can join with the code. Everyone who has joined stays. You can make a new code later.",
+    "asStudent": "See it as a student",
+    "area": "Area of the class",
+    "showQr": "Show QR code",
+    "open": "Open joining again",
+    "progress": "Students' progress",
+    "notYours": "This code was made by someone else — only they can show it. A new code works for you too.",
+    "lessonHint": "A lesson: plan it here („Plan a lesson\": start, target, parts) or start it on the map — switch to “I'm leading” and choose “Lead here” on a tower."
+  },
+  "qr": {
+    "label": "QR code of the class {name}",
+    "fullscreen": "Full screen",
+    "scan": "Scan the code with your phone's camera to join.",
+    "joined": {
+      "one": "{count} student has joined",
+      "other": "{count} students have joined"
+    },
+    "orOpen": "Or open the link on {host}:",
+    "copy": "Copy link"
+  },
+  "home": {
+    "loading": "Loading your learning…",
+    "title": "Your learning",
+    "liveIn": "A lesson is on in {name}",
+    "classes": "Your classes",
+    "none": "You are not in a class yet. When your teacher shows a QR code, scan it with your phone's camera.",
+    "dueTitle": "Cards waiting for a review",
+    "due": {
+      "one": "{count} to review",
+      "other": "{count} to review"
+    },
+    "learn": "Learn",
+    "tasks": "Tasks",
+    "taskIn": "Task in {name}",
+    "noDeadline": "No deadline",
+    "wasDue": "Was due {date}",
+    "dueBy": "Due {date}",
+    "youLead": "Classes you lead",
+    "another": "Another class? Scan its QR code — it is added here."
+  },
+  "shell": {
+    "title": "Learning",
+    "home": "Your learning",
+    "full": "Full version of the app",
+    "onlyLearn": "Only learning (student view)"
+  }
+}

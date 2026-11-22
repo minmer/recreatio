@@ -143,4 +143,6 @@ PageSealChecks.Run(Check);
 AiAccessChecks.Run(Check);
 WorkMcpChecks.Run(Check);
 SchemeChecks.Run(Check);
+await ImportCheckChecks.RunAsync(Check);
+await WorldChecksChecks.RunAsync(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

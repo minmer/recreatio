@@ -1733,6 +1733,10 @@ ARCHITECTURE.md → Keys → AI access).
 5. **Forms:** the form step kind `learn` with its target.
 6. **Pages:** the register root `c` for modules published directly.
 7. **Knowledge bases (0110):** `app.library.kind` (`books` or `knowledge`); **Scriptoria (0124):** `writing`.
+8. **Large imports (0143, 2026-11-22):** `app.library_save_stage` — sealed parts of one save (token, part, library,
+   account, items, bytes, payload; no foreign keys, expire after one hour); the final `…/entries/save` with `"stage"`
+   writes them in one transaction (`Library.Batch.cs`). Whole-world imports and parts (`"wholeWorld"`, `"part"`):
+   JSON.md.
 
 ## 17. Build order
 
@@ -1864,6 +1868,167 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
 - **Browser drives** for the three parts (2026-10-23, outside the repository): `komentarz-api/-browser.mjs` (import `komentarz.json`, write a comment with a table, learn its thesis) and `axes-api/-browser.mjs` (Tajemnica × Obszar); for Wiedza and Nauka (2026-10-24) `parts-api/-browser.mjs`.
 
 Done on 2026-10-17: the dead `package.json` scripts (`api:types`, `rc:*`, `public:check`, `events:check`) and `_reference/` are removed.
+
+## World tags (2026-11-22, change package C2/A5)
+
+**Model.** A reference field with `"tag": "up"` (`schema.ts`, editor checkbox in `KindForm.tsx`) names an entry's tags. A tag is any entry such a field points to, plus every entry of the same kind (a new subtag without towers). A tag's own tag fields name its **parent** tags: a network with levels, a subtag may have several parents. A tower carries the tags of its entry and of its block (`"part": "up"`). Pure code: `cogita/tags.ts` (`tagNetwork`: parents, children, level = longest way from a root, `below` = all towers under a tag across levels, `cut` = edges dropped to break circles; `reachableTags`, `tagCount`, `startTag`, `tagList`, `tagSourcesOf`), `worldmap/wmTags.ts` (`worldTags(world)`, once per world; the kept slice). Mistake tags of questions (field `tags`) are a different thing.
+
+**Map.** `worldmap/WorldTags.tsx` (`TagSlicePicker`): the learner picks a tag (a tree with each subtag under each parent; chips to refine; a breadcrumb; each tag "conquered/all"). First only tags with something reachable (available, started or conquered), "+N" and "Pokaż wszystkie tematy" for the rest. The choice is kept per view and learner on the device (`cg-wm-tag:`). Only the slice is built and drawn: `sceneOf(…, {only})` keeps its towers, their blocks, home, the junctions on them and the ways whose both ends are kept; `Scene.ground` keeps the island of the whole world (same layout, empty clearings). A running navigation adds its route's towers. The list of places and "Sprawdź, co wiesz" work in the slice. Worlds with `SLICE_FROM` (400) towers or more open, without a kept choice, on `startTag` (the reachable root with the most started, then available towers, then the smallest).
+
+**Measured** (`gen600t`: 600 towers, 4 565 entries, 67 stories; headless Edge, 1440×1000): one frame of the whole world 3.4 ms, of a top tag (106 towers) 0.8 ms, of a subtag (25) 0.5 ms; with 6× CPU throttling (a phone) 29.7 / 9.3 / 3.3 ms. `sceneOf` 28.6 ms whole vs 2.3 ms for a top tag (Node). Switching a slice re-rasterizes the ground (~200 ms on a desktop); the island and trees are now one path per colour instead of one `fill` per disc.
+
+**Placement.** `scopeTowers` accepts tag ids (the towers below), so an `"explore"` step can have `"scope": ["@tag/…"]`.
+
+**Import and MCP.** Circles in the tag network are an import warning (`landscapeImport.ts`). The AI snapshot carries `setup.tags` (`wmExport.ts` `tagsForAi`); MCP `get_knowledge_setup` returns it as section `tags` (documentation/MCP.md). Guide: `templates/cogita/weltkarte-AI.md` §5b; format `cogitaDataFormat.kinds.s07Tag`.
+
+**Checks.** `scripts/app-tags-check.mjs` (43, in `app:check`), click path 18 (`wm-click-paths.mjs`, fixture `fixture-tags.json` from `wm-courses.mjs`, which also writes `gen600t.json`), `Api.Tests` (get_knowledge_setup with tags).
+
+## Good worlds: recommended levels, guide, drawing suggestions (2026-11-22, I1/I7/I8/I9)
+
+**Levels.** Every new knowledge base starts with the recommended conquest levels — `RECOMMENDED_LEVELS` (`worldmap/wmRuns.ts`):
+2 levels, 75 % `any`, 90 % `one`, `openAt` 1 — written by `createLibrary` (kind `knowledge`) through `cogita/baseDefaults.ts`;
+existing bases keep theirs. `one` counts a card right at the first ask or at the one re-ask at the end of the run; `any`
+also later (up to `MAX_ASKS` = 4). Levels are never stored (`levelOf` from the runs and the setting now in force), so a change
+loses nothing the new rules grant: `worldmap/levelsChange.ts` says which old level carries which new one, in the import
+preview (a line + a warning) and in the settings card („Użyj zalecanych", `WorldLevels.tsx`).
+
+**Guide.** `templates/cogita/dobry-swiat-AI.md` = MCP `guide-good-world` (first guide; the MCP instructions name it); the
+stories, world map and schemes guides link it and follow it (tower ≈ 4–8 min, two-level example, explanation forms after an
+error instead of three copies, review optional, hint ≤ 100 / label ≤ 32 — the import warns, `json.ts` `HINT_MAX`,
+`OPTION_LABEL_MAX`). guide-visuals §9: drawings from shapes and 12 suggestions, each read by the app's readers in
+`scripts/app-good-world-check.mjs`. Flow edges without `"id"` are kept (`graph.ts`); `explore` needs one edge (`done`, or
+`next` read as `done`).
+
+## World check and feedback resolved by import (2026-11-22, I2/I6)
+
+**World check.** `cogita/worldChecks.ts` (pure) checks a base against `guide-good-world` and returns findings with a code,
+a weight (`must` / `should` / `info`), the entity, tower and path with lasting names, the step and a fix hint; it blocks
+nothing. Writers see it in Wiedza → „Do zrobienia" → „Kontrola świata" (`WorldChecksPanel.tsx`); AI assistants get the same
+list from MCP `get_world_checks` (the bundle `importCheck/server.ts` `recreatioWorldChecks`, Jint on the base's snapshot).
+It reuses the map's model (towers from the `"style": "world"` view, lines and tickets from `linesOf`), the story path
+(`storyPath`: slides and questions in a row per part, help steps never count; the last asking part is the closing block),
+the import preview's flow messages (`flowIssues`, now exported with the flow and step), `pathWarnings`, the slide,
+generator, drawing, landscape and cross-world lints, and the map's notes for authors (`map.*`). Its own codes:
+`question.flash` (must), `question.untaught` (no slide teaches the tower or a tower in its base; info when the base has
+presentation stories, whose scenes it cannot see), `question.noTower`, `question.noFeedback`, `tower.noCore`,
+`tower.fewVote` (< 2 questions `one` with ≥ 4 options, every wrong one tagged), `tower.longestCorrect` (> 30 % of ≥ 4
+`one` questions), `tower.positions` (> half at one position), `slide.long` (> 130 words of `blocks`/`markup`),
+`path.severalTowers` (per branch), `path.slidesInRow` (> 3), `path.questionsInRow` (> 2 outside the closing block),
+`path.longClosing` (> 4), `path.noQuestions`, `line.ticket` (the unit requires a tower outside the first tower's base),
+`fork.labelLong` / `fork.hintLong` (the preview's own sentences about them are dropped), `mistakeTag.noHelp` (no
+`byTag`/`wrong:<tag>` in the path that asks it), `mistakeTag.nearDuplicate` / `mistakeTag.usedOnce`, `tag.usedOnce` /
+`tag.nearDuplicate` (map tags), `levels.standard` (info, compared with `RECOMMENDED_LEVELS`), `feedback.open`.
+Check: `scripts/app-world-checks-check.mjs` (a world built to fire every code; the server bundle finds the same).
+
+**Feedback resolved by the import (I6).** A course document may carry `"feedback": [{"id", "state": "done", "note"}]`
+(`feedbackImport.ts`, called from `planImport`): each known item becomes a change of its `feedback` document (state,
+note, `doneAt`) — listed in the review with its category and target, accepted by default (`ImportChange.resolves`), saved
+in the same all-or-nothing save; an unknown id is a warning; `"state": "open"` reopens. The note is shown at the speech
+bubble and in the snapshot (`feedbackForAi` → `get_feedback`). The server's import check restores the snapshot's feedback
+(`restoreBase`), so it sees the same ids. Check: `app-import-check.mjs` §9.
+
+## Class (2026-11-22, change package Part B)
+
+A lesson is a story played together — no parallel structure. Code: `cogita/lesson/` (`lessonTally.ts` pure, `LessonHost.tsx`,
+`MapClassTools.tsx`, `lessonApi.ts`), `FlowPlayer` prop `lesson`, `Sessions.tsx`; migration **0144** (session kinds `lesson`, `task`).
+
+- **Who leads (B1/B2):** admin of an area that holds this base (key `base-<id>`, class or course) or admin of the base's own area.
+  Only they see the ⚙ menu's switch „Prowadzę / Uczę się" (per device). In teacher mode a tower, path or fork shows
+  „Prowadź tutaj" and „Zadaj" instead of the learner's buttons; the leader plays with `learner = null` (nothing counts for them).
+- **Lesson (B0/B5/B6):** a session of kind `lesson` in the class area, config `{title, parts:[{flow, start?}], showVotes, thresholds}`
+  (several stories in sequence; a story marked `"lesson": true` is listed first). The player reports every step (`step` event with the
+  slide entity); a question opens a vote (`question`, round), a choice or chapters a poll (`poll`); students answer (`answer`, sealed for
+  the class intake); the leader sees the distribution live with the named errors (question `tags`), closes (`reveal` / `pollend`),
+  may start a second round, and continues with the class answer — it goes through the flow like a learner's answer (`wrong:<tag>`,
+  run log for `session`/`lastAnswer`). Class answer: most frequent option; typed answers right only with a majority. Hint 70 % / 30 %
+  adjustable. Who sees the distribution: leader setting, default after closing. The projector (`…/sesje/<id>/ekran`) never shows names.
+- **Students (B3/B4):** „Przedstaw się" asks first name, surname, class, school and a required consent; the seat's name carries class and
+  school; the personal link (`#/seat/…`, no password) is shown once to keep (`OwnLinkNote`). A student's first-round vote is recorded in
+  their own progress (account: learner targeted to the session's area; page/link: the page learner) — second rounds do not count again.
+- **Assignments (B7):** a session of kind `task` (target tower | trail | review + class area + `ends_at`). Students see them on the map
+  (list + pennant); done is computed from progress (`assignmentState`), never stored.
+- **Class ↔ world (B8):** the class's tools have the course's „Bazy" tool (students = the class's `students` role).
+- Checks: `scripts/app-lesson-check.mjs` (30), `Api.Tests` CogitaChecks (kinds); LocalDB drive: session scratchpad `b/drive.mjs` (38).
+
+### A class from a base, joined by QR code (2026-11-22)
+
+Whoever can let people into a base's area (or has a public base) creates a class from the base: Nauka → „Klasy" → a name → the QR
+code opens at once, full screen for the projector, with a live count of who joined. No new structure — `cogita/classes/`:
+
+- **What a class is** (`classes.ts`, pure part `classModel.ts`): an area (kind `class`, under the base's area so its data controller
+  applies) with the role „Uczniowie" (`students`, reads the class and the base), Przyjęcia read by the teacher, the base remembered as
+  `library:base-<id>` (like a course — the map's leader switch finds it) and an access link giving the students role (`link:class-join`)
+  whose aim is `#/workspace/klasa/<class>/<base>`. „Nowy kod QR" revokes the old link (who joined stays); „Zamknij dołączanie" too.
+- **Joining** (`ClassPage.tsx`, also without sign-in — `App.tsx`): three ways — „Załóż konto" (easiest: name, login, password, consent;
+  the account is created, joins and gets the small workspace), „Mam już konto" (sign in, join, keep one's workspace), „Bez konta" (name +
+  consent → a person of the link; the personal link `…/klasa/…?miejsce=` is shown to keep and reopens the class on any device).
+- **Learning** — the class page shows the base's world (the page module „Widok", Krajobraz) as the account or the person; answers go to
+  the class. In the Nauka of the base a student's answers go to the class too (`CogitaHome` `useClassArea`). „Twoje postępy" opens the
+  own progress.
+- **The small workspace** (`shell/LearnerShell.tsx`): only Nauka, the class pages and Language/Appearance/Security; a start page
+  (`LearnerHome.tsx`) with a running lesson on top, „Twoje klasy", tasks with deadlines. Chosen per account (prefs `shell`, sealed, plus
+  this device); „Pełna wersja aplikacji" ↔ „Tylko nauka (widok ucznia)" in both menus.
+- Checks: `scripts/app-class-check.mjs` (11); LocalDB drive session scratchpad `cl/drive.mjs` (22).
+
+### Planning a lesson (2026-11-22, I11)
+
+From a class card („Zaplanuj lekcję") or from the map in teacher mode („Prowadź tutaj" → „Zaplanuj dłuższą lekcję"):
+`…/klasy/<class>/plan` (saved plans), `…/plan/nowy[/<tower>]`, `…/plan/<plan>` — `cogita/lesson/LessonPlanner.tsx`, pure part
+`lessonPlan.ts`, the world as the map builds it `lessonWorld.ts`.
+
+- **Start** (home, a tower, or a step of a path) and **target** (a tower). The route is the guided route („Prowadź mnie tutaj",
+  `wmPlan.ts`) for a class at zero that already has the start tower and everything below it (`classState`, the tour's simulated
+  learner) — the real progress of the students is not read (it is sealed per student; a lesson should fit the whole class).
+  Each travelled story once (`path`, the first section from its beginning, a later one from its start step), each conquered tower
+  (`tower`); reviews fall away.
+- **Edit**: untick (stays visible), add (a path, a deepening called by a path of the plan, a tower, a question path — its guided way
+  and closing questions), move ↑↓ (a warning when something stands before what it needs — `planWarnings`, no ban), remove what was
+  added. Per tower: „tylko ścieżka" or „ścieżka + wieża" — the class answers the tower's questions (≤ 12) together.
+- **Parts of the lesson** (`lessonPartsOf`): a path → a story part `{flow, start?}`; path + tower or closing questions → a questions part
+  `{questions: [card keys], tower?|path?}` played by `QuestionsRound` in `LessonHost.tsx` with the same votes, distribution and class
+  answer (B's tallies; students' first-round votes count for their progress, B4).
+- **Storage, no new structure**: a saved plan is a lesson session in the class area without code and link, held `paused`
+  (`lessonApi.savePlan`, `isPlanSession`); its sealed `config` carries the parts and the plan (`plan`: start, target, items). „Zacznij
+  lekcję" creates a NEW lesson session with the same config — the plan stays reusable; „Kopiuj" saves a copy; plans never appear among
+  the sessions to join.
+- Checks: `scripts/app-lesson-plan-check.mjs` (28, Bosko shape); LocalDB drive session scratchpad `w4/drive.mjs` (19).
+
+## Predictions and modes (2026-11-22, I3/I4)
+
+**Predictions.** A question step with `"predict": true` is answered normally and keeps its exits (`right`, `wrong`,
+`wrong:<tag>`); in a lesson it feeds the class distribution and the class answer. It never enters card history, knowness,
+levels, conquest or reviews: FlowPlayer and `LessonPlay` don't record it, „Zostało N" (`flowAsk.ts`) doesn't count it, and
+path and map counters pass it like a help step. Before and after the answer the player shows
+`cogitaLearn.words.predictBefore` / `predictAfter` (base language, `[data-flow-predict]`); the lesson host shows the note to the
+students and on the projector (`[data-lesson-predict]`).
+
+**Mode and use.** A flow plays in a mode: `self` (default) or `lesson` (FlowPlayer prop `mode`; the lesson host passes
+`lesson`). An entry may say `"use": "self" | "lesson" | "both"` (a field of the question kind; a data key of any entry), and a
+step's config `use` overrides it (`modes.ts` `stepUse`; words `modeWords.ts`). A step that doesn't fit the mode is skipped like
+`skipWhen` (`skipExitOf`: content by `next`, a question by `right`, detour `skip`, explore `done`, review `passed` without
+setting its value). Condition `{"type": "mode", "is": "self" | "lesson"}` (`logic.ts`) works in choice options, condition steps
+and `skipWhen`; it is never a ticket or a gate on the map (`usesSession`).
+
+**Choosing by itself.** A choice or chapters branch whose first step doesn't fit the mode, or whose option condition is a mode
+that doesn't hold, isn't offered; when the mode leaves one branch, it is taken without asking, also with `of` / `hold`
+(`flow.ts` `enter`, `modeOptions`, `openOptions`, `chaptersLeftIn`). When nothing fits, everything stays (the import warns).
+
+**Counting.** `countedGraph(graph, start, {mode, useOf})` bypasses mode-skipped steps and predictions, drops branches the
+mode never enters, and bypasses a choice left with one branch. `storyPath` (options `mode`, `useOf`) and
+`linesOf(world, given, {mode})` (`wmLines.ts`) count on it. The learner's map counts in `self`; `{mode: 'lesson'}` is there
+for the planner and the teacher.
+
+**Import.** `json.ts` `flowIssues` → `modeProblems`: unknown `use` / `is` words, a branch no mode enters, a story with nothing
+left in one mode, and a question that is a prediction in one flow and counted in another (`cogitaData.modes.*`).
+
+**Editor.** `ModeEditor.tsx` (below the adaptive editor in FlowEditor): `use` per content step, „przewidywanie" per question,
+the steps each mode plays; „Wypróbuj jak na lekcji" (`[data-flow-try="lesson"]`) plays the flow in mode `lesson`.
+
+**Format and guides.** `cogitaDataFormat.course.main.s30Type` (when the app chooses by itself) and `s30Modes`;
+`templates/cogita/opowiesci-AI.md` §5 and §8h; example `templates/cogita/przyklad-lekcja.json` = MCP `example-lesson`.
+
+**Checks.** `scripts/app-adaptive-check.mjs` §11 (78 in all); LocalDB drive session scratchpad `w3/drive.mjs` (5: the example
+imports clean, plays self-study and lesson in their own orders, the prediction note before and after only there).
 
 ## Appendix A — definitions kept from the former specification
 

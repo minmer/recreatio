@@ -32,11 +32,16 @@ import { readGame } from './game';
 import { GameHost, GamePlay } from './GamePanel';
 import { intakeOf, type Learner } from './learn';
 import {
-  connect, createSession, deleteSession, deliverSessionKeys, joinLink, loadSessions, openEvent, openTitle, postEvents,
+  createSession, deleteSession, deliverSessionKeys, joinLink, loadSessions, openTitle, postEvents, rememberSecret, secretOf,
   sealForIntake, sealForSession, sessionKeyOf, SESSION_KIND_LABEL, setSessionState, stripCard,
   type Credentials, type SessionEvent, type SessionKind, type SessionRow
 } from './live';
 import { startGame } from './game';
+import { bodies, lastOf, plains, useEvents, type Opened } from './sessionEvents';
+import { createLesson, isPlanSession } from './lesson/lessonApi';
+import { LessonHost, LessonPlay, LessonScreen, type Send } from './lesson/LessonHost';
+import { readAssignConfig } from './lesson/lessonTally';
+import { holderOfMe, useLearner } from './holders';
 import { describeRules, DEFAULT_RULES, onAllAnswered, onFirstAnswer, PRESETS, readRules, roundDeadline, scoreRound, type LiveRules, type Move, type Points } from './rules';
 import { planFor } from './RevisionRun';
 import { RevisionRun } from './RevisionRun';
@@ -59,8 +64,7 @@ interface Score { readonly participant: string; readonly name: string; readonly 
 interface Join { readonly participant: string; readonly name: string; readonly team: string | null; readonly device: string }
 interface Answer { readonly participant: string; readonly device: string; readonly index: number; readonly given: unknown; readonly at: number; readonly step?: string; readonly correctness?: number; readonly attempt?: number }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const last = <T,>(list: readonly T[]): T | undefined => list[list.length - 1];
+const last = lastOf;
 
 const DEVICE = 'recreatio:cogita:device';
 const deviceId = (): string => {
@@ -79,7 +83,8 @@ export function SessionsTab({ trail, go }: { trail: readonly string[]; go: (...t
     let alive = true;
     void loadSessions(undefined, lib.libraryId).then(async (r) => {
       if (!alive) return;
-      setRows(r.sessions);
+      /* 2026-11-22 (I11) — gespeicherte Planungen sind keine Sitzungen zum Mitmachen: sie stehen unter „Klasy" (`LessonPlanner.tsx`). */
+      setRows(r.sessions.filter((s) => !isPlanSession(s)));
       if (me === null) return;
       const names = new Map<string, string>();
       for (const s of r.sessions) {
@@ -143,7 +148,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
       <summary>{t('cogitaViewsStats.sess.new')}</summary>
       <div className="cg">
         <label className="wk-field"><span>{t('cogitaViewsStats.sess.kind')}</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value as SessionKind)}>{(['live', 'async', 'sync', 'story', 'game'] as const).map((k) => <option key={k} value={k}>{SESSION_KIND_LABEL[k]}</option>)}</select>
+          <select value={kind} onChange={(e) => setKind(e.target.value as SessionKind)}>{(['live', 'lesson', 'async', 'sync', 'story', 'game'] as const).map((k) => <option key={k} value={k}>{SESSION_KIND_LABEL[k]}</option>)}</select>
         </label>
         <label className="wk-field"><span>{t('cogitaViewsStats.sess.title')}</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('cogitaViewsStats.sess.titleHint')} /></label>
         <label className="wk-field"><span>{t('cogitaViewsStats.sess.inArea')}</span>
@@ -156,7 +161,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
             <select value={revision} onChange={(e) => setRevision(e.target.value)}>{lib.docs('revision').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? t('cogitaViewsStats.sess.revisionDefault'))}</option>)}</select>
           </label>
         )}
-        {(kind === 'story' || kind === 'game') && (
+        {(kind === 'story' || kind === 'game' || kind === 'lesson') && (
           <label className="wk-field"><span>{t('cogitaViewsStats.sess.flow')}</span>
             <select value={flow} onChange={(e) => setFlow(e.target.value)}>{lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{String(e.data.name ?? t('cogitaViewsStats.sess.flow'))}</option>)}</select>
           </label>
@@ -171,6 +176,7 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
         )}
         {kind === 'live' && <p className="wk-hint">{(preset.startsWith('doc:') ? [] : PRESETS.find((p) => p.id === preset)?.says ?? '')}</p>}
         {kind === 'async' && <label className="wk-field"><span>{t('cogitaViewsStats.sess.until')}</span><input type="datetime-local" value={ends} onChange={(e) => setEnds(e.target.value)} /></label>}
+        {kind === 'lesson' && <p className="cg-muted">{t('cogitaLesson.newSays')}</p>}
         {(kind === 'live' || kind === 'story' || kind === 'game') && (
           <div className="cg-row">
             <label className="pe-check"><input type="checkbox" checked={link} onChange={(e) => setLink(e.target.checked)} /><span>{t('cogitaViewsStats.sess.qrLink')}</span></label>
@@ -178,6 +184,12 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
           </div>
         )}
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
+          /* 2026-11-22 (Part B) — eine Stunde: dieselbe Sitzung, angelegt wie vom Turm aus (`lesson/lessonApi.ts`). */
+          if (kind === 'lesson') {
+            if (flow === '') throw new Error(t('cogitaViewsStats.sess.noFlow'));
+            onMade(await createLesson(lib, me, { areaId, title: title.trim() || SESSION_KIND_LABEL.lesson, parts: [{ flow }] }));
+            return;
+          }
           const keys = await myEpochKeys(me.ring, areaId);
           const epoch = Math.max(...keys.keys());
           const areaKey = keys.get(epoch);
@@ -203,47 +215,6 @@ function NewSession({ onMade }: { onMade: (id: string) => void }) {
   );
 }
 
-const SECRETS = 'recreatio:cogita:secrets';
-function rememberSecret(sessionId: string, secret: string) {
-  try { const all = JSON.parse(localStorage.getItem(SECRETS) ?? '{}') as Record<string, string>; all[sessionId] = secret; localStorage.setItem(SECRETS, JSON.stringify(all)); } catch { /* nur jetzt */ }
-}
-function secretOf(sessionId: string): string | null {
-  try { return (JSON.parse(localStorage.getItem(SECRETS) ?? '{}') as Record<string, string>)[sessionId] ?? null; } catch { return null; }
-}
-
-/* -- Ereignisse lesen ------------------------------------------------------------------------- */
-
-interface Opened { readonly event: SessionEvent; readonly body: unknown }
-
-/** Verbunden bleiben und jedes Ereignis öffnen, das dieser Browser öffnen kann. */
-function useEvents(sessionId: string, cred: Credentials, keys: ReadonlyMap<number, Uint8Array>, intake: Uint8Array | null): { opened: readonly Opened[]; raw: readonly SessionEvent[]; poke: () => void; live: boolean; session: SessionRow | null } {
-  const [opened, setOpened] = useState<readonly Opened[]>([]);
-  const [raw, setRaw] = useState<readonly SessionEvent[]>([]);
-  const [session, setSession] = useState<SessionRow | null>(null);
-  const conn = useRef<{ poke: () => void; realtime: () => boolean } | null>(null);
-  const [live, setLive] = useState(false);
-  useEffect(() => {
-    setOpened([]);
-    setRaw([]);
-    const c = connect(sessionId, cred, {
-      onEvents: (events) => {
-        setRaw((was) => [...was, ...events]);
-        void Promise.all(events.map(async (event) => ({ event, body: await openEvent(event, { session: (e) => keys.get(e), intake }) })))
-          .then((done) => setOpened((was) => [...was, ...done].sort((a, b) => a.event.seq - b.event.seq)));
-      },
-      onState: setSession
-    });
-    conn.current = c;
-    const t = window.setInterval(() => setLive(c.realtime()), 3000);
-    return () => { c.close(); window.clearInterval(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, cred.join, cred.seat, keys.size, intake === null]);
-  return { opened, raw, poke: () => conn.current?.poke(), live, session };
-}
-
-function bodies<T>(opened: readonly Opened[], kind: string): { body: T; event: SessionEvent }[] {
-  return opened.filter((o) => o.event.kind === kind && isObject(o.body)).map((o) => ({ body: o.body as T, event: o.event }));
-}
 
 /* -- Der Gastgeber ---------------------------------------------------------------------------- */
 
@@ -284,6 +255,17 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
     poke();
   }, [key, epoch, session.sessionId, poke]);
 
+  /* 2026-11-22 (Part B) — die Stunde schickt Ereignisse mit eigener offener Hälfte (`slot` für Wahlen ohne Schlüssel). */
+  const send: Send = useCallback(async (kind, body, plain) => {
+    if (key === undefined) return;
+    const eventId = newId();
+    await postEvents(session.sessionId, [
+      { eventId, kind, epoch, sealed: await sealForSession(key, eventId, body) },
+      ...(plain === undefined ? [] : [{ eventId: newId(), kind: plain.kind, epoch, plain: JSON.stringify(plain.body) }])
+    ]);
+    poke();
+  }, [key, epoch, session.sessionId, poke]);
+
   const secret = secretOf(session.sessionId);
   const page = session.pagePath ?? lib.settings().joinPage ?? null;
   const link = secret !== null && key !== undefined && page !== null ? joinLink(page, session.sessionId, secret, key, epoch) : null;
@@ -297,7 +279,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
         <span className={`cg-tag${live ? ' is-ok' : ''}`}>{live ? t('cogitaViewsStats.sess.live') : t('cogitaViewsStats.sess.polling')}</span>
       </span>
       <span className="cg-row">
-        {session.kind === 'live' && <a className="wk-link-btn" href={href('sesje', session.sessionId, 'ekran')} target="_blank" rel="noreferrer">{t('cogitaViewsStats.sess.screen')}</a>}
+        {(session.kind === 'live' || session.kind === 'lesson') && <a className="wk-link-btn" data-lesson-screen-link="" href={href('sesje', session.sessionId, 'ekran')} target="_blank" rel="noreferrer">{t('cogitaViewsStats.sess.screen')}</a>}
         {session.state !== 'closed' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => setSessionState(session.sessionId, 'closed'))}>{t('cogitaViewsStats.sess.close')}</button>}
         <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText(t('cogitaViewsStats.sess.removeAsk'))) void run(async () => { await deleteSession(session.sessionId); onBack(); }); }}>{t('common.delete')}</button>
       </span>
@@ -319,6 +301,8 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {config === null ? <Loading label={t('cogitaViewsStats.sess.loading')} />
         : session.kind === 'live' ? <LiveHost session={session} config={config} opened={opened} post={post} screen={screen} />
+        : session.kind === 'lesson' ? (screen ? <LessonScreen opened={opened} title={title} /> : <LessonHost session={session} opened={opened} send={send} />)
+        : session.kind === 'task' ? <TaskHost session={session} config={config} />
         : session.kind === 'game' ? <GameHostPanel session={session} config={config} raw={raw} />
         : <ResultsTable session={session} opened={opened} config={config} />}
     </div>
@@ -361,6 +345,22 @@ function PlanInCalendar({ session, title, link }: { session: SessionRow; title: 
       {said !== null && <p className="wk-done" role="status">{said}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </details>
+  );
+}
+
+/** 2026-11-22 (Part B, B7) — eine Zadanie: was, für wen, bis wann; erledigt sieht jede und jeder auf der eigenen Karte, die Lehrerin in „Postępy". */
+function TaskHost({ session, config }: { session: SessionRow; config: unknown }) {
+  const t = useT();
+  const { href } = useCtx();
+  const a = readAssignConfig(config);
+  if (a === null) return <p className="wk-error">{t('cogitaLesson.task.unreadable')}</p>;
+  return (
+    <div className="cg-card" data-task-host={session.sessionId}>
+      <p><strong>{a.title || a.name}</strong> <span className="cg-tag">{t(`cogitaLesson.task.kind.${a.target.kind}`)}</span></p>
+      <p className="cg-muted">{t('cogitaLesson.task.target', { name: a.name })}{session.endsAt !== null ? t('cogitaLesson.task.until', { date: fmtDate(new Date(session.endsAt), { dateStyle: 'medium', timeStyle: 'short' }, t.lang) }) : ''}</p>
+      <p className="cg-muted">{t('cogitaLesson.task.hostSays')}</p>
+      <a className="wk-link-btn" href={href('postepy')}>{t('cogitaLesson.task.progress')}</a>
+    </div>
   );
 }
 
@@ -617,8 +617,14 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
 /** Ein Mitglied des Bereichs öffnet eine Sitzung, die es nicht führt — mit seinem Konto. */
 function SessionJoinAsMember({ session, title, onBack }: { session: SessionRow; title: string; onBack: () => void }) {
   const t = useT();
-  const { me } = useCtx();
+  const { me, lib } = useCtx();
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array> | null>(null);
+  /*
+    2026-11-22 (Part B, B4) — DIE ANTWORTEN EINES MITGLIEDS GEHEN IN SEINEN FORTSCHRITT, mit den Antworten an den Bereich der
+    Sitzung (die Klasse): dort sieht die Lehrerin sie in „Postępy". Vorher hatte ein Mitglied hier keinen Lernenden.
+  */
+  const holder = useMemo(() => (me === null ? null : holderOfMe(me, me.person.id)), [me]);
+  const { learner } = useLearner(lib, holder, session.areaId);
   useEffect(() => {
     if (me === null) return;
     void myEpochKeys(me.ring, session.areaId).then(async (area) => {
@@ -631,7 +637,7 @@ function SessionJoinAsMember({ session, title, onBack }: { session: SessionRow; 
   return (
     <div className="cg">
       <button type="button" className="wk-link-btn" onClick={onBack}>{t('cogitaViewsStats.sess.back')}</button>
-      <SessionPlay session={session} title={title} cred={{}} keys={keys} participant={me.person.id} name={me.names.get(me.person.id) ?? t('cogitaViewsStats.sess.participant')} learnerRole={me.person.id} />
+      <SessionPlay session={session} title={title} cred={{}} keys={keys} participant={me.person.id} name={me.names.get(me.person.id) ?? t('cogitaViewsStats.sess.participant')} learner={learner} learnerRole={me.person.id} />
     </div>
   );
 }
@@ -652,6 +658,8 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
 }) {
   const t = useT();
   const [name, setName] = useState(given ?? '');
+  /* 2026-11-22 — der Name kommt später (eine eben vorgestellte Person): eingesetzt, solange niemand selbst getippt hat. */
+  useEffect(() => { if (given != null && given !== '') setName((was) => (was === '' ? given : was)); }, [given]);
   const [team, setTeam] = useState('');
   const [joined, setJoined] = useState(false);
   const [intake, setIntake] = useState<Uint8Array | null>(null);
@@ -699,10 +707,11 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
   /* Das Aufgedeckte geht auch in den eigenen Fortschritt. */
   const recorded = useRef(new Set<number>());
   useEffect(() => {
-    if (reveal === null || learner == null || recorded.current.has(reveal.index) || !sent.has(reveal.index)) return;
+    /* Eine Stunde zählt selbst (`LessonPlay`: nur die erste Runde). */
+    if (session.kind === 'lesson' || reveal === null || learner == null || recorded.current.has(reveal.index) || !sent.has(reveal.index)) return;
     recorded.current.add(reveal.index);
     learner.record(reveal.card, checkCard(reveal.card, sent.get(reveal.index)).correctness, { via: session.sessionId });
-  }, [reveal, learner, sent, session.sessionId]);
+  }, [reveal, learner, sent, session.sessionId, session.kind]);
 
   if (!joined) {
     return (
@@ -714,6 +723,13 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
         {failed !== null && <p className="wk-error">{failed}</p>}
       </form>
     );
+  }
+
+  /* 2026-11-22 (Part B) — eine Stunde: Folie, Frage, Wahl; die eigene Stimme der ersten Runde in den eigenen Fortschritt. */
+  if (session.kind === 'lesson') {
+    if (finished) return <div className="cg-live-screen"><h2>{t('cogitaViewsStats.sess.theEnd')}</h2></div>;
+    return <LessonPlay sessionId={session.sessionId} opened={opened} slots={plains<{ index: number; form: string; count: number }>(raw, 'slot')} learner={learner ?? null} sent={sent}
+      onVote={(i, given2) => { setSent((m) => new Map(m).set(i, given2)); void send('answer', { participant, device, index: i, given: given2, at: Date.now() } satisfies Answer); }} />;
   }
 
   if (session.kind === 'story' || session.kind === 'game') {

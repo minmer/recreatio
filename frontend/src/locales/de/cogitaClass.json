@@ -1,0 +1,146 @@
+{
+  "students": "Schülerinnen und Schüler",
+  "studentsOf": "Schüler: {name}",
+  "linkLabel": "Der Klasse {name} beitreten",
+  "err": {
+    "needName": "Gib der Klasse einen Namen.",
+    "cannotShare": "Einer Klasse öffnen kann diese Baza nur, wer in ihren Bereich hineinlassen darf — oder die Baza ist öffentlich. Frag, wer die Baza führt.",
+    "noStudents": "Diese Klasse hat keine Rolle der Schüler.",
+    "noBase": "Diese Klasse hat keine Baza wiedzy.",
+    "failed": "Das ging nicht. Versuch es gleich noch einmal."
+  },
+  "page": {
+    "noClass": "Diese Adresse führt zu keiner Klasse",
+    "scanAgain": "Scanne den QR-Code, den die Lehrkraft zeigt, noch einmal.",
+    "aClass": "Eine Klasse",
+    "checking": "Die Klasse wird geprüft…",
+    "youLead": "Du leitest diese Klasse. Hier zeigst du ihren QR-Code und siehst, wie es deinen Schülern geht.",
+    "toClasses": "Klassen und QR-Code",
+    "toProgress": "Fortschritt der Schüler",
+    "noCode": "Zum Beitreten scanne den QR-Code, den die Lehrkraft zeigt.",
+    "codeDead": "Dieser Code gilt nicht mehr. Bitte die Lehrkraft um einen neuen.",
+    "haveAccount": "Schon mit einem Konto in dieser Klasse? <a>Melde dich an</a>.",
+    "wholeBase": "Alles in dieser Baza",
+    "liveNow": "Gerade läuft eine Stunde",
+    "liveJoin": "Tippen zum Mitmachen",
+    "opening": "Die Karte wird geöffnet…",
+    "noBase": "Die Baza wiedzy dieser Klasse lässt sich nicht öffnen. Frag die Lehrkraft.",
+    "noMap": "Diese Baza hat noch keine Karte.",
+    "more": "Mehr zum Lernen in dieser Klasse",
+    "ownProgress": "Dein Fortschritt"
+  },
+  "join": {
+    "title": "{name} beitreten",
+    "lede": "Deine Lehrkraft lädt dich zum gemeinsamen Lernen ein. Wähle, wie du beitrittst:",
+    "newTitle": "Konto anlegen",
+    "newSays": "Ein Login und ein Passwort — dein Fortschritt auf jedem Gerät.",
+    "easiest": "Am einfachsten",
+    "inTitle": "Ich habe schon ein Konto",
+    "inSays": "Anmelden und der Klasse beitreten.",
+    "guestTitle": "Ohne Konto",
+    "guestSays": "Nur dein Name. Du bekommst einen persönlichen Link — bewahre ihn gut auf.",
+    "otherWay": "Anderen Weg wählen",
+    "given": "Vorname",
+    "surname": "Nachname",
+    "loginHint": "Mindestens 3 Zeichen, z. B. anna.k — damit meldest du dich an.",
+    "passwordHint": "Mindestens 8 Zeichen. Schreib es dir an einem sicheren Ort auf.",
+    "consent": "Ich möchte in der Klasse „{name}“ lernen und bin einverstanden, dass die Lehrkraft meinen Namen, meine Antworten und meinen Fortschritt sieht.",
+    "needGiven": "Schreib deinen Vornamen.",
+    "needSurname": "Schreib deinen Nachnamen.",
+    "needConsent": "Hake das Einverständnis an — ohne es geht das Beitreten nicht.",
+    "busyAccount": "Dein Konto wird angelegt — das kann bis zu einer halben Minute dauern…",
+    "busyJoin": "Der Klasse wird beigetreten…",
+    "newGo": "Konto anlegen und beitreten",
+    "inGo": "Anmelden und beitreten",
+    "guestNote": "Ohne Konto hängt dein Fortschritt an einem persönlichen Link. Wer den Link verliert, verliert den Fortschritt.",
+    "guestGo": "Beitreten",
+    "asMe": "Du bist angemeldet als {login}.",
+    "join": "Der Klasse beitreten",
+    "joining": "Wird beigetreten…",
+    "noPerson": "Dieses Konto hat keine Person, mit der es beitreten könnte. Melde dich neu an.",
+    "failed": "Das Beitreten ging nicht. Versuch es gleich noch einmal."
+  },
+  "keep": {
+    "title": "Das ist dein persönlicher Link",
+    "lede": "Er ist dein Schlüssel zu dieser Klasse. Bewahre ihn auf — mit ihm machst du auf jedem Gerät weiter. Ohne ihn ist der Fortschritt verloren.",
+    "shareTitle": "Mein Link zur Klasse",
+    "sendToMe": "An mich senden",
+    "how": "Tipp: Kopiere ihn in eine Notiz auf deinem Handy oder schick ihn dir selbst in einer Nachricht.",
+    "done": "Ich habe meinen Link gespeichert",
+    "start": "Mit dem Lernen beginnen"
+  },
+  "tab": {
+    "needAccount": "Klassen brauchen ein Konto.",
+    "lede": "Eine Klasse lernt diese Baza gemeinsam. Zeig den Schülern den QR-Code — sie treten mit oder ohne Konto bei, und du siehst hier ihren Fortschritt.",
+    "cannot": "Du kannst diese Baza keiner Klasse öffnen: das kann nur, wer in ihren Bereich hineinlassen darf (oder die Baza ist öffentlich).",
+    "empty": "Noch keine Klasse. Gib ihr einen Namen und lege sie an — dann zeig den QR-Code.",
+    "name": "Neue Klasse",
+    "namePlaceholder": "z. B. 3b Physik",
+    "create": "Klasse anlegen",
+    "stage": {
+      "area": "Die Klasse wird angelegt…",
+      "role": "Der Schlüssel der Schüler entsteht — das dauert ein paar Sekunden…",
+      "intake": "Der Ort für die Antworten wird vorbereitet…",
+      "link": "Der QR-Code entsteht…"
+    }
+  },
+  "card": {
+    "counting": "Schüler werden gezählt…",
+    "students": {
+      "one": "{count} Schüler",
+      "other": "{count} Schüler"
+    },
+    "closed": "Beitreten geschlossen",
+    "more": "Mehr zur Klasse",
+    "renew": "Neuer QR-Code",
+    "renewAsk": "Einen neuen QR-Code machen?",
+    "renewSays": "Der alte Code gilt nicht mehr. Wer schon beigetreten ist, bleibt in der Klasse.",
+    "close": "Beitreten schliessen",
+    "closeAsk": "Beitreten schliessen?",
+    "closeSays": "Mit dem Code tritt niemand Neues mehr bei. Wer drin ist, bleibt. Einen neuen Code kannst du später machen.",
+    "asStudent": "Als Schüler ansehen",
+    "area": "Bereich der Klasse",
+    "showQr": "QR-Code zeigen",
+    "open": "Beitreten wieder öffnen",
+    "progress": "Fortschritt der Schüler",
+    "notYours": "Diesen Code hat jemand anderes gemacht — nur diese Person kann ihn zeigen. Ein neuer Code geht auch für dich.",
+    "lessonHint": "Eine Stunde: hier planen („Stunde planen“: Anfang, Ziel, Teile) oder auf der Karte beginnen — auf „Ich leite“ umschalten und an einem Turm „Hier leiten“ wählen."
+  },
+  "qr": {
+    "label": "QR-Code der Klasse {name}",
+    "fullscreen": "Vollbild",
+    "scan": "Scanne den Code mit der Kamera deines Handys, um beizutreten.",
+    "joined": {
+      "one": "{count} Schüler ist beigetreten",
+      "other": "{count} Schüler sind beigetreten"
+    },
+    "orOpen": "Oder öffne den Link auf {host}:",
+    "copy": "Link kopieren"
+  },
+  "home": {
+    "loading": "Dein Lernen wird geladen…",
+    "title": "Dein Lernen",
+    "liveIn": "Gerade läuft eine Stunde in {name}",
+    "classes": "Deine Klassen",
+    "none": "Du bist noch in keiner Klasse. Wenn deine Lehrkraft einen QR-Code zeigt, scanne ihn mit der Kamera deines Handys.",
+    "dueTitle": "Karten, die auf eine Wiederholung warten",
+    "due": {
+      "one": "{count} zu wiederholen",
+      "other": "{count} zu wiederholen"
+    },
+    "learn": "Lernen",
+    "tasks": "Aufgaben",
+    "taskIn": "Aufgabe in {name}",
+    "noDeadline": "Ohne Frist",
+    "wasDue": "War fällig am {date}",
+    "dueBy": "Bis {date}",
+    "youLead": "Klassen, die du leitest",
+    "another": "Noch eine Klasse? Scanne ihren QR-Code — sie erscheint hier."
+  },
+  "shell": {
+    "title": "Lernen",
+    "home": "Dein Lernen",
+    "full": "Ganze App",
+    "onlyLearn": "Nur Lernen (Schüleransicht)"
+  }
+}

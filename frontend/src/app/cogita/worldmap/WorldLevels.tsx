@@ -16,6 +16,7 @@ import type { CogitaLibrary } from '../store';
 import { effectiveWorldFor, leavingReviews, reportDueFor, reviewWorldOf } from './wmReview';
 import { useServerRuns } from './useServerRuns';
 import { ATTEMPTS, DEFAULT_SETUP, defaultRules, levelsSetupDoc, MAX_LEVELS, PILLAR_MIN, type Attempts, type LevelRule, type LevelsSetup } from './wmRuns';
+import { isRecommendedLevels, levelsChange, levelsChangeWords, recommendedLevels } from './levelsChange';
 import './worldmap.css';
 
 const ATTEMPT_KEY: Readonly<Record<Attempts, string>> = { any: 'cogitaWorld.settings.attemptsAny', one: 'cogitaWorld.settings.attemptsOne', first: 'cogitaWorld.settings.attemptsFirst' };
@@ -111,11 +112,22 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
   const reviewWorld = useMemo(() => (cards === null ? null : reviewWorldOf(lib, cards)), [cards, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const leaving = useMemo(() => (cards === null ? null : leavingReviews(reviewWorld, cards.map((c) => c.key), [], draft)), [cards, draft, reviewWorld]);
   const changed = JSON.stringify(levelsSetupDoc(draft)) !== areaKey;
+  /* 2026-11-22 (guide-good-world §1.3, I7) — dieselben Worte wie im Import: was eine andere Einstellung für die Lernenden heisst. */
+  const changeSaid = useMemo(() => { const c = levelsChange(area, draft); return c === null ? null : levelsChangeWords(c, t); }, [area, draft, t]);
   return (
     <section className="cg-card" data-settings-world={area === undefined ? 'none' : area.levels}>
       <h3>{t('cogitaWorld.settings.title')}</h3>
       <p className="cg-muted">{t('cogitaWorld.settings.says')}</p>
+      {/* 2026-11-22 (I7) — die Empfehlung für jede Welt: ein Klick setzt sie in den Entwurf (gespeichert wird erst mit „Zapisz"). */}
+      {!isRecommendedLevels(draft) && (
+        <p className="cg-muted">
+          <button type="button" className="wk-link-btn" disabled={busy} data-world-recommended=""
+            onClick={() => setDraft({ ...recommendedLevels(), pillarWidth: draft.pillarWidth, locked: draft.locked })}>{t('cogitaWorld.settings.recommended')}</button>
+          {' '}{t('cogitaWorld.settings.recommendedSays')}
+        </p>
+      )}
       <LevelsEditor levels={draft.levels} rules={draft.rules} disabled={busy} t={t} onChange={(v) => setDraft({ ...draft, levels: v.levels, rules: v.rules })} />
+      {changed && changeSaid !== null && <p className="wk-note" data-world-levels-change="">{changeSaid.line} {changeSaid.learners}</p>}
       {draft.levels === 0 && (
         <label className="wk-field">
           <span>{t('cogitaWorld.settings.knownShare')}</span>

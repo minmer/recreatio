@@ -31,13 +31,15 @@ import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type 
 
 import { AnswerInput, CardFace, CardPrompt, givenText, Verdict, type CardStats } from './CardFace';
 import type { Outcome } from './check';
-import { questionCard } from './cards';
+import { checkCard, questionCard } from './cards';
+import type { LessonLink, LessonStep } from './lesson/lessonStep';
 import { type Card } from './cardBasics';
 import { appLang, LangScope, rich, useT } from '../core/i18n';
 import {
-  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, previewAnswer, readFlow, resolveFlow, reviewOf, sessionOf, STEP_LABEL,
+  branchFitsMode, chaptersLeftIn, detourRefused, follow, goalsReached, linesNow, markSaid, modeOptions, openOptions, previewAnswer, readFlow, resolveFlow, reviewOf, sessionOf, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
+import { isPredict, type PlayMode, type UseOf } from './modes';
 import { detourOf, detoursIn, detourState, openDetours, requiredOpen, type DetourConfig } from './detour';
 import { DetourCard, summaryField } from './DetourCard';
 import { branchesOf, type BranchContext } from './pathBranches';
@@ -108,6 +110,8 @@ export interface FlowContent {
   readonly isQuestion?: (id: string) => boolean;
   /** 2026-11-20 — die Felder einer Frage (ihre Fehler-Tags, `adaptive.ts`). */
   readonly questionData?: (id: string) => Readonly<Record<string, unknown>> | null;
+  /** 2026-11-22 (I4) — der Wert "use" eines Eintrags (Kennung oder @name): welcher Modus ihn spielt (`modes.ts`). */
+  readonly useOf?: UseOf;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -134,7 +138,8 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     lang: baseLang(lib),
     flowRef: (ref) => { const r = ref.trim(); if (r.startsWith('@')) return lib.byImportRef(r.slice(1), 'flow')?.id ?? null; return lib.docs('flow').some((d) => d.id === r) ? r : null; },
     isQuestion: (id) => lib.entity(id)?.kinds.includes('question') === true,
-    questionData: (id) => { const e = lib.entity(id); return e === undefined || !e.kinds.includes('question') ? null : e.data; }
+    questionData: (id) => { const e = lib.entity(id); return e === undefined || !e.kinds.includes('question') ? null : e.data; },
+    useOf: (ref) => { const r = ref.trim(); const id = r.startsWith('@') ? lib.byImportRef(r.slice(1))?.id : r; return id === undefined ? undefined : lib.entity(id)?.data.use; }
   };
 }
 
@@ -163,7 +168,7 @@ export const stepEntries = (content: Pick<FlowContent, 'card'>): EntriesOfStep =
  * 2026-11-04 (Prompt 11) — WIE DIE ŚCIEŻKA EINER ERZÄHLUNG HEISST UND ZÄHLT, für jeden Gastgeber gleich: Teile in der Sprache
  * der Baza, ein Unterablauf nach seiner Erzählung (mit allem, was sie bringt), eine Frage nach ihrem Thema.
  */
-export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: GraphNode) => string | null) {
+export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: GraphNode) => string | null, mode: PlayMode = 'self') {
   const W = words(content.lang ?? appLang());
   const label = content.label ?? ((id: string) => content.entity(id)?.label ?? id);
   const base = stepWorkOf(stepEntries(content));
@@ -173,14 +178,14 @@ export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: Gr
     const name = label(about);
     return name === about ? null : name;
   };
-  const options = { words: W.partNames, flowName: (id: string) => content.flow(content.flowRef?.(id) ?? id)?.name ?? null, topicName, ...(decide === undefined ? {} : { decide }) };
+  const options = { words: W.partNames, flowName: (id: string) => content.flow(content.flowRef?.(id) ?? id)?.name ?? null, topicName, ...(decide === undefined ? {} : { decide }), mode, ...(content.useOf === undefined ? {} : { useOf: content.useOf }) };
   const inner = new Map<string, { slides: number; questions: number } | null>();
   const work: WorkOfStep = (node) => {
     if (node.type === 'subflow' || node.type === 'each') {
       const ref = typeof node.config.flow === 'string' ? node.config.flow : '';
       if (!inner.has(ref)) {
         const f = ref === '' ? undefined : content.flow(content.flowRef?.(ref) ?? ref);
-        inner.set(ref, f === undefined || f.id === flow.id ? null : storyWork(storyPath(f, base, label, { words: W.partNames })));
+        inner.set(ref, f === undefined || f.id === flow.id ? null : storyWork(storyPath(f, base, label, { words: W.partNames, mode, ...(content.useOf === undefined ? {} : { useOf: content.useOf }) })));
       }
       const w = inner.get(ref);
       if (w != null) return { slides: Math.max(1, w.slides), questions: w.questions, shown: [], asked: [] };
@@ -213,7 +218,7 @@ export function FlowPlayer(props: FlowPlayerProps) {
   return <LangScope lang={props.content.lang ?? null}><FlowPlayerIn {...props} /></LangScope>;
 }
 
-function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel, endToClose = false }: {
+function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel, endToClose = false, lesson, mode }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
@@ -236,8 +241,19 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
    * gleich zurück (`onClose`); den nächsten Schritt sagt der Weg auf der Karte.
    */
   endToClose?: boolean;
+  /**
+   * 2026-11-22 (Part B) — EINE STUNDE: der Spieler meldet jeden Schritt an die Klasse und nimmt ihre Antwort (`lesson/lessonStep.ts`).
+   * Der Leiter spielt ohne eigenen Fortschritt (`learner` null).
+   */
+  lesson?: LessonLink;
+  /**
+   * 2026-11-22 (I4) — WIE GESPIELT WIRD: allein (`self`) oder in einer Stunde (`lesson`, Vorgabe mit `lesson`). Schritte mit "use"
+   * für den anderen Modus werden übersprungen, eine Wahl mit nur einem passenden Zweig wählt sich selbst (`modes.ts`).
+   */
+  mode?: PlayMode;
 }) {
   const flow = useMemo(() => resolveFlow(given, content.flow), [given, content]);
+  const playMode: PlayMode = mode ?? (lesson !== undefined ? 'lesson' : 'self');
   /* Ein Ablauf beim Namen: der gegebene selbst (vielleicht ungespeichert), sonst der der Baza. */
   const flowOf = (id: string): Flow | undefined => (id === flow.id ? flow : content.flow(content.flowRef?.(id) ?? id));
   const cg = useContext(CogitaContext);
@@ -289,10 +305,12 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     now: new Date(),
     flow: flowFacts,
     /* 2026-11-20 — die Antworten dieses Laufs (session, lastAnswer, streak). */
-    session: sessionOf(s)
+    session: sessionOf(s),
+    /* 2026-11-22 (I4) — allein oder in einer Stunde (die Bedingung „mode", "use"). */
+    mode: playMode
   });
   /* Die Regel des Spielers: was der Lernende kann, wird nicht gefragt (still, über „dobrze"). */
-  const ctx: PlayContext = { facts, flows: flowOf, members: content.members, skip: (node) => skipStep(node, content.card, marksOf) };
+  const ctx: PlayContext = { facts, flows: flowOf, members: content.members, skip: (node) => skipStep(node, content.card, marksOf), ...(content.useOf === undefined ? {} : { useOf: content.useOf }) };
 
   /* 2026-11-04 (Prompt 13) — die Stelle eines Ablaufs, auch nach dem Neu-Einspielen (über seinen bleibenden Namen). */
   const posOf = (id: string) => (learner === null ? undefined : positionFor(learner.progress.positions, flowOf(id) ?? { id }));
@@ -512,6 +530,63 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   };
   const lines = linesNow(running, state, facts(state));
 
+  /*
+    2026-11-22 (Part B) — DIE STUNDE: jeder Schritt geht an die Klasse (eine Folie mit ihrem Eintrag, eine Frage mit ihrer Karte, eine
+    Wahl oder Kapitel mit ihren Möglichkeiten); die Antwort der Klasse geht weiter wie die eines Lernenden.
+  */
+  const lessonSig = `${state.flow}|${state.step ?? ''}|${state.ended ? 'e' : ''}|${visit}`;
+  useEffect(() => {
+    if (lesson === undefined) return;
+    const flowId = running.id;
+    if (current === undefined || state.ended || current.type === 'end') { lesson.onStep({ kind: 'end', flow: flowId }); return; }
+    const c = current.config;
+    const of = typeof c.of === 'string' && c.of !== '' ? content.entity(content.resolve?.(c.of) ?? c.of) : null;
+    const titleOf = typeof c.title === 'string' && c.title !== '' ? c.title : of?.label ?? null;
+    let step: LessonStep;
+    if (current.type === 'question') {
+      const card = askedCardOf(current, content.card);
+      step = card === null ? { kind: 'other', flow: flowId, step: current.id, type: current.type } : { kind: 'question', flow: flowId, step: current.id, card, data: content.questionData?.(card.question) ?? null, ...(isPredict(current) ? { predict: true } : {}) };
+    } else if (current.type === 'choice') {
+      /* 2026-11-22 (I4) — Zweige, die der Modus nicht spielt, sieht die Klasse nicht. */
+      const open = new Set(openOptions(running, current, facts(state), ctx).map((o) => o.exit));
+      const fits = modeOptions(running, current, playMode, ctx);
+      const list = Array.isArray(c.options) ? c.options : [];
+      step = { kind: 'choice', flow: flowId, step: current.id, title: titleOf, options: list.flatMap((o, i) => (!fits.has(`o${i}`) ? [] : [{
+        exit: `o${i}`, open: open.has(`o${i}`),
+        label: (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || t('cogitaLearnPath.flow.option', { n: i + 1 })
+      }])) };
+    } else if (current.type === 'chapters') {
+      const left = new Set(chaptersLeftIn(running, current, state, playMode, ctx).map((ch) => ch.exit));
+      const list = Array.isArray(c.chapters) ? c.chapters : [];
+      step = { kind: 'chapters', flow: flowId, step: current.id, title: titleOf, options: list.flatMap((one, i) => (!branchFitsMode(running, current, `c${i}`, playMode, ctx) ? [] : [{
+        exit: `c${i}`, open: left.has(`c${i}`),
+        label: (typeof one === 'object' && one !== null && typeof (one as { title?: unknown }).title === 'string' ? (one as { title: string }).title : typeof one === 'string' ? one : '') || t('cogitaLearnPath.flow.chapter', { n: i + 1 })
+      }])) };
+    } else if (current.type === 'show' || current.type === 'expand' || current.type === 'opening') {
+      step = { kind: 'show', flow: flowId, step: current.id, entity: of, title: titleOf };
+    } else {
+      step = { kind: 'other', flow: flowId, step: current.id, type: current.type };
+    }
+    lesson.onStep(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonSig, lesson === undefined]);
+  const decidedAt = useRef(0);
+  useEffect(() => {
+    const d = lesson?.decide;
+    if (d == null || d.at === decidedAt.current || current === undefined || current.id !== d.step) return;
+    decidedAt.current = d.at;
+    if (current.type === 'question' && d.given !== undefined) {
+      const card = askedCardOf(current, content.card);
+      if (card === null) { go('right'); return; }
+      const outcome = checkCard(card, d.given);
+      const signals = answerSignals(card, content.questionData?.(card.question) ?? null, d.given, outcome);
+      go(undefined, { score: outcome.correctness, correct: outcome.correct, hints: 0, ms: 0, tags: signals.tags, picks: signals.picks });
+      return;
+    }
+    if (d.exit !== undefined) go(d.exit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson?.decide?.at]);
+
   /* Von vorn: die laufende Erzählung (eine gerufene: in ihr, die rufende wartet weiter). */
   const restart = () => {
     moved.current = true;
@@ -576,7 +651,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   const decide = learner === null ? undefined : decideBy(facts(state));
   const decideKey = decide === undefined ? '' : running.graph.nodes.filter((n) => n.type === 'condition').map((n) => decide(n) ?? '?').join('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const sp = useMemo(() => storyPathOf(running, content, decide), [running, content, decideKey]);
+  const sp = useMemo(() => storyPathOf(running, content, decide, playMode), [running, content, decideKey, playMode]);
   const pathModelNow = sp.model;
   const chapterAt = useMemo(() => chapterOfSteps(sp), [sp]);
   const knowNow = learner === null ? undefined : (id: string) => {
@@ -599,13 +674,13 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   const hexFlow = hexFrame === null ? undefined : flowOf(hexFrame.flow);
   const inHexSegment = hexFlow !== undefined && hexFlow.unit !== undefined && hexFlow.graph.nodes.some((n) => n.id === hexFrame!.step && n.type === 'subflow');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const hexSp = useMemo(() => (inHexSegment ? storyPathOf(hexFlow!, content) : null), [inHexSegment, hexFlow?.id, content]);
+  const hexSp = useMemo(() => (inHexSegment ? storyPathOf(hexFlow!, content, undefined, playMode) : null), [inHexSegment, hexFlow?.id, content, playMode]);
   const hexNow = hexSp === null || hexFrame === null ? null : storyMarks(hexSp, { visited: run.outer[0] ?? [], step: hexFrame.step, ...(knowNow === undefined ? {} : { know: knowNow }) });
   /* Was in der Erzählung eines Abstechers wartet („7 slajdów · 16 pytań") — einmal je Erzählung. */
   const workMemo = useMemo(() => new Map<string, string>(), [content]);
   const innerWork = (f: Flow): string => {
     let w = workMemo.get(f.id);
-    if (w === undefined) { const s = storyWork(storyPathOf(f, content)); w = f.presentation !== undefined ? W.story : W.workShort(s.slides, s.questions); workMemo.set(f.id, w); }
+    if (w === undefined) { const s = storyWork(storyPathOf(f, content, undefined, playMode)); w = f.presentation !== undefined ? W.story : W.workShort(s.slides, s.questions); workMemo.set(f.id, w); }
     return w;
   };
   /* Ein Knoten der Ścieżka, der ein Abstecher ist: sein Schritt und seine Erzählung. */
@@ -638,7 +713,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   const callerFrame = state.stack.length > 0 && depths.length > 0 ? state.stack[state.stack.length - 1] : null;
   const caller = callerFrame === null ? undefined : flowOf(callerFrame.flow);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const callerSp = useMemo(() => (caller === undefined ? null : storyPathOf(caller, content)), [caller?.id, content]);
+  const callerSp = useMemo(() => (caller === undefined ? null : storyPathOf(caller, content, undefined, playMode)), [caller?.id, content, playMode]);
   const callerVisited = run.outer[run.outer.length - 1] ?? [];
   const callerMarks = callerSp === null || callerFrame === null ? null : storyMarks(callerSp, { visited: callerVisited, step: callerFrame.step, ...(knowNow === undefined ? {} : { know: knowNow }) });
   const callerBranches = callerSp === null || caller === undefined || callerFrame === null ? null : branchesOf(callerSp, caller, branchCtx, { visited: callerVisited, step: callerFrame.step });
@@ -767,7 +842,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     for (const n of [...ahead.next, ...(ahead.nearest === null ? [] : [ahead.nearest])]) {
       const found = n.kind === 'story' ? ahead.stories.get(n.id) : undefined;
       const story = found === undefined ? undefined : flowOf(found.id) ?? found;
-      const work = story !== undefined && story.presentation === undefined ? (() => { const w = storyWork(storyPathOf(story, content)); return W.workShort(w.slides, w.questions); })()
+      const work = story !== undefined && story.presentation === undefined ? (() => { const w = storyWork(storyPathOf(story, content, undefined, playMode)); return W.workShort(w.slides, w.questions); })()
         : n.kind === 'story' ? W.story : W.questions(cardsAbout(content.cards ?? [], n.id).length);
       out.set(n.id, { ...(story === undefined ? {} : { flow: story }), work });
     }
@@ -917,7 +992,9 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           ist wieder wählbar: zurück an die Wahl und in den gewählten Weg (ein gegangener bleibt gegangen, ein weiterer kommt dazu).
         */
         const again = node.type === 'choice' && entry.run.state.flow === running.id && entry.run.state.stack.length === state.stack.length;
-        const open = again ? new Set(optionsOf(node, facts(entry.run.state)).map((o) => o.exit)) : new Set<string>();
+        const open = again ? new Set(node.type === 'choice' ? openOptions(running, node, facts(entry.run.state), ctx).map((o) => o.exit) : []) : new Set<string>();
+        /* 2026-11-22 (I4) — was der Modus nicht spielt, steht nicht da. */
+        const fitsPast = node.type === 'choice' ? modeOptions(running, node, playMode, ctx) : null;
         const pastOf = node.type === 'choice' && typeof k.of === 'string' && k.of !== '';
         return (
           <>
@@ -927,6 +1004,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
             {again && <p className="cg-muted" data-flow-choose-again="">{W.chooseAgain}</p>}
             {list.map((o, i) => {
               const exit = `${prefix}${i}`;
+              if (fitsPast !== null && !fitsPast.has(exit)) return null;
+              if (node.type === 'chapters' && !branchFitsMode(running, node, exit, playMode, ctx)) return null;
               const raw = typeof o === 'object' && o !== null ? (o as { label?: unknown; title?: unknown }) : null;
               const label = (typeof raw?.label === 'string' ? raw.label : typeof raw?.title === 'string' ? raw.title : typeof o === 'string' ? o : '') || `${i + 1}`;
               const chosen = entry.exit === exit;
@@ -1147,8 +1226,14 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         };
         /* Beantwortet: „Dalej" der Karte selbst; die Tastatur (→) tut dasselbe. */
         if (answeredOn !== null) keyNext = afterAnswer;
+        /*
+          2026-11-22 (I3) — EINE VORHERSAGE ("predict": true): gefragt und ausgewertet wie jede Frage (sie wählt den Ausgang), aber sie
+          zählt nie — keine Antwort im Fortschritt, keine Kenntnis, Stufe oder Wiederholung. Das steht vor und nach der Antwort da.
+        */
+        const predicting = isPredict(current) && spacer === null;
         return (
           <>
+            {predicting && <p className="cg-flow-predict" role="note" data-flow-predict={answeredOn === null ? 'before' : 'after'}>{answeredOn === null ? W.predictBefore : W.predictAfter}</p>}
             {retrying && <p className="cg-muted cg-flow-remedial" data-flow-retry={state.tries?.[current.id] ?? 0}>{t('cogitaLearnPath.flow.retry')}</p>}
             {!retrying && isRemedialNode(current) && <p className="cg-muted cg-flow-remedial" data-flow-remedial="check">{t('cogitaLearnPath.flow.remedialCheck')}</p>}
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
@@ -1167,8 +1252,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
                 const decision = previewAnswer(running, state, input);
                 const adaptive = isAdaptive(adaptiveOf(current.config)) || isRemedialNode(current) || running.graph.edges.some((e) => e.from === current.id && e.out !== 'right' && e.out !== 'wrong');
                 const branch = adaptive && decision !== null ? `${running.id}|${current.id}|${decision.exit ?? 'retry'}` : undefined;
-                /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
-                learner?.record(card, outcome.correctness, {
+                /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). 2026-11-22 (I3) — eine Vorhersage nie. */
+                if (!predicting) learner?.record(card, outcome.correctness, {
                   via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }),
                   ms, ...(branch === undefined ? {} : { branch }), ...(signals.tags.length === 0 ? {} : { tags: signals.tags })
                 });
@@ -1176,8 +1261,10 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
                 /* 2026-11-05 (Prompt 18) — für „Wstecz": diese Antwort, wie sie war (gezeigt, nie wieder gefragt). */
                 lastAnswer.current = { card, outcome, given };
                 setAnsweredOn({ step: current.id, correct: outcome.correct });
-                setAskedHere((n) => n + 1);
-                setLastAsked({ key: card.key, wrong: !outcome.correct });
+                if (!predicting) {
+                  setAskedHere((n) => n + 1);
+                  setLastAsked({ key: card.key, wrong: !outcome.correct });
+                }
               }}
               onNext={afterAnswer} />
           </>
@@ -1189,7 +1276,9 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           5 pytań do odpowiedzi"); eine, deren Bedingung nicht gilt, steht gesperrt da und sagt, was sie öffnet. Die App
           wählt nie selbst.
         */
-        const open = new Set(optionsOf(current, facts(state)).map((o) => o.exit));
+        const open = new Set(openOptions(running, current, facts(state), ctx).map((o) => o.exit));
+        /* 2026-11-22 (I4) — ein Zweig, den der Modus nicht spielt, steht nicht da (wer leitet, sieht den Schalter nie). */
+        const fits = modeOptions(running, current, playMode, ctx);
         const list = Array.isArray(c.options) ? c.options : [];
         const fork = sp.parts[sp.partOfStep.get(current.id) ?? -1]?.fork;
         const withOf = typeof c.of === 'string' && c.of !== '';
@@ -1199,7 +1288,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           <div className="cg-choices cg-choice-list" data-flow-choice={list.length} data-flow-choice-of={withOf ? '1' : '0'}>
             {withOf && typeof c.title === 'string' && c.title !== '' && <h3 className="cg-choice-head" data-flow-choice-head=""><TexText text={c.title} /></h3>}
             <p className="cg-muted">{W.chooseRoad(list.length)}</p>
-            {list.map((o, i) => [o, i] as const).sort((a, b) => Number(pushAt.has(`o${b[1]}`)) - Number(pushAt.has(`o${a[1]}`))).map(([o, i]) => {
+            {list.map((o, i) => [o, i] as const).filter(([, i]) => fits.has(`o${i}`)).sort((a, b) => Number(pushAt.has(`o${b[1]}`)) - Number(pushAt.has(`o${a[1]}`))).map(([o, i]) => {
               const exit = `o${i}`;
               const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || t('cogitaLearnPath.flow.option', { n: i + 1 });
               const branch = fork?.branches.find((x) => x.exit === exit);
@@ -1242,15 +1331,18 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           return list.length > 0 && list.every((v) => pathNow.state[v] === 'done');
         };
         const workOf = (exit: string): string => { const b = fork?.branches.find((x) => x.exit === exit); if (b === undefined) return ''; const w = branchWork(sp, b, knownStep); return W.part({ kind: 'read', slides: w.slides, questions: w.questions }, w.ask); };
-        const left = chaptersLeft(current, state).filter((ch) => !learnedPath(ch.exit));
-        const done = all - left.length;
+        const left = chaptersLeftIn(running, current, state, playMode, ctx).filter((ch) => !learnedPath(ch.exit));
+        /* 2026-11-22 (I4) — Kapitel, die der Modus nicht spielt, zählen nicht und stehen nicht da. */
+        const shownCh = Array.from({ length: all }, (_x, i) => i).filter((i) => branchFitsMode(running, current, `c${i}`, playMode, ctx));
+        const done = shownCh.length - left.length;
         return (
           <>
-            <p className="cg-muted" data-flow-merge={`${done}/${all}`}>{left.length > 0 ? t('cogitaLearnPath.flow.mergedNext', { merged: mergeWords(done, all, t.lang) }) : t('cogitaLearnPath.flow.merged', { merged: mergeWords(done, all, t.lang) })}</p>
+            <p className="cg-muted" data-flow-merge={`${done}/${shownCh.length}`}>{left.length > 0 ? t('cogitaLearnPath.flow.mergedNext', { merged: mergeWords(done, shownCh.length, t.lang) }) : t('cogitaLearnPath.flow.merged', { merged: mergeWords(done, shownCh.length, t.lang) })}</p>
             {left.length === 0 ? next(() => go('done')) : (
               <div className="cg-choices cg-choice-list">
                 {(Array.isArray(c.chapters) ? c.chapters : []).map((one, i) => {
                   const exit = `c${i}`;
+                  if (!shownCh.includes(i)) return null;
                   const chapterTitle = (typeof one === 'object' && one !== null && typeof (one as { title?: unknown }).title === 'string' ? (one as { title: string }).title : typeof one === 'string' ? one : '') || t('cogitaLearnPath.flow.chapter', { n: i + 1 });
                   const isLeft = left.some((x) => x.exit === exit);
                   const workWords = workOf(exit);

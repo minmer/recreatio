@@ -35,9 +35,30 @@ public static partial class Library
     /// <summary>Wie gross die Anfrage sein darf (base64 und JSON um die Hüllen).</summary>
     private const long MaxSaveBatchRequest = 64L * 1024 * 1024;
 
+    /*
+     * 2026-11-22 (A4) — EIN GROSSER IMPORT IN STÜCKEN (0143): der Browser legt die versiegelten Einträge Stück für Stück
+     * ab (`…/entries/save/stage`, je Anfrage unter der Grenze des IIS von 30 MB), das letzte `…/entries/save` mit
+     * `"stage"` schreibt alle in EINER Transaktion — mit denselben Prüfungen wie ein Zapis aus einem Guss.
+     */
+    /// <summary>Höchstens so viele Einträge (mit Löschungen) in einem Zapis aus Stücken.</summary>
+    public const int MaxStagedItems = 20_000;
+    /// <summary>Höchstens so viele Bytes versiegelter Hüllen in einem Zapis aus Stücken.</summary>
+    public const long MaxStagedBytes = 160L * 1024 * 1024;
+    /// <summary>Ein Stück: so viele Einträge, so viele Bytes Hüllen (der Browser schickt höchstens 2000 und ~12 MB).</summary>
+    public const int MaxStagePartItems = 5000;
+    public const long MaxStagePartBytes = 24L * 1024 * 1024;
+    /// <summary>Ein Stück bleibt unter der Grenze des IIS (30 000 000 Bytes je Anfrage).</summary>
+    private const long MaxStageRequest = 30_000_000;
+    private const int MaxStageParts = 1000;
+    /// <summary>Was so lange liegt (ein abgebrochener Import), räumt das nächste Stück fort.</summary>
+    private static readonly TimeSpan StageLife = TimeSpan.FromHours(1);
+
     public sealed record SaveManyEntry(string? EntryId, string? Kind, int Epoch, string? Sealed, int Version);
     public sealed record SaveManyRemove(string? EntryId, int Version);
-    public sealed record SaveManyRequest(List<SaveManyEntry>? Entries, List<SaveManyRemove>? Remove = null);
+    /// <summary>2026-11-22 — `Stage`: das Zeichen der abgelegten Stücke (0143); sie kommen vor `Entries` und `Remove`.</summary>
+    public sealed record SaveManyRequest(List<SaveManyEntry>? Entries, List<SaveManyRemove>? Remove = null, string? Stage = null);
+    /// <summary>2026-11-22 — ein Stück: ohne `Token` beginnt es einen neuen Zapis (dann `Part` 0); dasselbe Stück zweimal ersetzt das erste.</summary>
+    public sealed record SaveStageRequest(string? Token, int Part, List<SaveManyEntry>? Entries, List<SaveManyRemove>? Remove = null);
 
     /// <summary>Ein geprüfter Eintrag, der in diesem Zapis gelöscht wird.</summary>
     public sealed record SaveManyGone(Guid Id, int Version);
@@ -49,6 +70,8 @@ public static partial class Library
     {
         app.MapPost("/workspace/library/{id:guid}/entries/save", SaveManyAsync)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxSaveBatchRequest));
+        app.MapPost("/workspace/library/{id:guid}/entries/save/stage", StageAsync)
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxStageRequest));
     }
 
     /// <summary>
@@ -56,11 +79,14 @@ public static partial class Library
     /// Einträge, jeder einmal, mit Art, Epoche, Hülle (48 Bytes bis 4 MB) und Stand; zusammen höchstens
     /// <see cref="MaxSaveBatchBytes"/>. Die Reihenfolge bleibt.
     /// </summary>
-    public static (List<SaveManyRow>? Rows, string? Error) ReadSaveMany(SaveManyRequest? body)
+    public static (List<SaveManyRow>? Rows, string? Error) ReadSaveMany(SaveManyRequest? body) => ReadSaveMany(body, MaxSaveBatch, MaxSaveBatchBytes);
+
+    /// <summary>2026-11-22 — dasselbe mit anderen Grenzen: ein Stück (<see cref="MaxStagePartItems"/>), ein Zapis aus Stücken (<see cref="MaxStagedItems"/>).</summary>
+    public static (List<SaveManyRow>? Rows, string? Error) ReadSaveMany(SaveManyRequest? body, int maxItems, long maxBytes)
     {
         var list = body?.Entries ?? (body?.Remove is { Count: > 0 } ? [] : null);
         var all = (list?.Count ?? 0) + (body?.Remove?.Count ?? 0);
-        if (list is null || all == 0 || all > MaxSaveBatch) return (null, $"Od 1 do {MaxSaveBatch} wpisów w jednym zapisie.");
+        if (list is null || all == 0 || all > maxItems) return (null, $"Od 1 do {maxItems} wpisów w jednym zapisie.");
         var rows = new List<SaveManyRow>(list.Count);
         var seen = new HashSet<Guid>();
         long total = 0;
@@ -75,7 +101,7 @@ public static partial class Library
             if (!Base64Url.TryDecode(one.Sealed, out var bytes) || bytes.Length is < 48 or > (int)MaxSealed)
                 return (null, $"Zapieczętowany wpis {name} musi mieć najwyżej 4 MB.");
             total += bytes.Length;
-            if (total > MaxSaveBatchBytes) return (null, $"Zapis jest za duży (więcej niż {MaxSaveBatchBytes / (1024 * 1024)} MB) — podziel go na mniejsze części.");
+            if (total > maxBytes) return (null, $"Zapis jest za duży (więcej niż {maxBytes / (1024 * 1024)} MB) — podziel go na mniejsze części.");
             rows.Add(new SaveManyRow(id, one.Kind!, one.Epoch, bytes, one.Version));
         }
         return (rows, null);
@@ -150,24 +176,61 @@ public static partial class Library
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        var (rows, error) = ReadSaveMany(body);
-        if (rows is null)
+        /* 2026-11-22 (A4) — mit "stage": erst die abgelegten Stücke dieses Kontos und dieser Bibliothek, dann der Rest dieser Anfrage. */
+        Guid? token = null;
+        if (!string.IsNullOrEmpty(body?.Stage))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {error}");
-            return;
+            if (!Guid.TryParse(body.Stage, out var parsed))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nic nie zapisano: nieczytelny znacznik części zapisu.");
+                return;
+            }
+            token = parsed;
         }
-        var (gone, goneError) = ReadSaveRemove(body, rows);
-        if (gone is null)
+
+        List<SaveManyRow>? rows = null;
+        List<SaveManyGone>? gone = null;
+        if (token is null)
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {goneError}");
-            return;
+            (rows, var error) = ReadSaveMany(body);
+            if (rows is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {error}");
+                return;
+            }
+            (gone, var goneError) = ReadSaveRemove(body, rows);
+            if (gone is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {goneError}");
+                return;
+            }
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var library = await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write);
         if (library is null) return;
+        if (token is Guid stage)
+        {
+            var parts = await StagedPartsAsync(connection, stage, id, who.Value.AccountId, ctx.RequestAborted);
+            if (parts.Count == 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Nic nie zapisano: części tego zapisu już nie ma (minęła godzina albo zapis się zakończył) — zapisz jeszcze raz.");
+                return;
+            }
+            var merged = MergeStage(parts, body);
+            (rows, var error) = ReadSaveMany(merged, MaxStagedItems, MaxStagedBytes);
+            if (rows is not null) (gone, error) = ReadSaveRemove(merged, rows);
+            if (rows is null || gone is null)
+            {
+                await DropStageAsync(connection, null, stage, ctx.RequestAborted);
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {error}");
+                return;
+            }
+        }
+        if (rows is null || gone is null) return;
         if (rows.Any(r => r.Epoch > library.Value.CurrentEpoch))
         {
+            if (token is Guid stale) await DropStageAsync(connection, null, stale, ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nic nie zapisano: nie ma takiej epoki obszaru.");
             return;
         }
@@ -196,6 +259,7 @@ public static partial class Library
         if (problems.Count > 0)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
+            if (token is Guid conflicted) await DropStageAsync(connection, null, conflicted, ctx.RequestAborted);
             ctx.Response.StatusCode = StatusCodes.Status409Conflict;
             var stale = problems.Any(p => p.Version is not null);
             await ctx.Response.WriteAsJsonAsync(new
@@ -215,6 +279,7 @@ public static partial class Library
             if ((int)(await count.ExecuteScalarAsync(ctx.RequestAborted))! + added > MaxEntries)
             {
                 await tx.RollbackAsync(ctx.RequestAborted);
+                if (token is Guid full) await DropStageAsync(connection, null, full, ctx.RequestAborted);
                 await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: biblioteka miałaby więcej niż {MaxEntries} wpisów.");
                 return;
             }
@@ -277,7 +342,150 @@ public static partial class Library
             removed.Add(new { entryId = Ids.ToText(one.Id), version = one.Version + 1, updatedAt = now });
         }
 
+        /* 2026-11-22 — die Stücke gehen mit derselben Transaktion: geschrieben ist, was sie trugen. */
+        if (token is Guid done) await DropStageAsync(connection, tx, done, ctx.RequestAborted);
+
         await tx.CommitAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { saved = saved.Count, entries = saved, removed });
+    }
+
+    /* -- 2026-11-22 (A4): die Stücke eines grossen Zapis (0143) ------------------------------------------------------- */
+
+    private static readonly System.Text.Json.JsonSerializerOptions StageJson = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// Die Stücke in ihrer Reihenfolge, dann der Rest der letzten Anfrage — ein Zapis, wie er aus einem Guss gekommen
+    /// wäre. Ohne Datenbank prüfbar (<c>Api.Tests/LibraryChecks.cs</c>).
+    /// </summary>
+    public static SaveManyRequest MergeStage(IEnumerable<SaveManyRequest?> parts, SaveManyRequest? tail)
+    {
+        var entries = new List<SaveManyEntry>();
+        var remove = new List<SaveManyRemove>();
+        foreach (var part in parts.Append(tail))
+        {
+            if (part is null) continue;
+            if (part.Entries is not null) entries.AddRange(part.Entries);
+            if (part.Remove is not null) remove.AddRange(part.Remove);
+        }
+        return new SaveManyRequest(entries, remove);
+    }
+
+    /// <summary>Ein Stück, gelesen wie ein Zapis (mit den Grenzen eines Stücks) — <c>null</c>, oder warum nicht.</summary>
+    public static string? ReadStagePart(SaveStageRequest? body)
+    {
+        if (body is null) return "Pusta część zapisu.";
+        if (body.Part < 0 || body.Part >= MaxStageParts) return $"Część zapisu musi mieć numer od 0 do {MaxStageParts - 1}.";
+        if (string.IsNullOrEmpty(body.Token) && body.Part != 0) return "Nowy zapis zaczyna się od części 0.";
+        if (!string.IsNullOrEmpty(body.Token) && !Guid.TryParse(body.Token, out _)) return "Nieczytelny znacznik części zapisu.";
+        var asBatch = new SaveManyRequest(body.Entries, body.Remove);
+        var (rows, error) = ReadSaveMany(asBatch, MaxStagePartItems, MaxStagePartBytes);
+        if (rows is null) return error;
+        var (gone, goneError) = ReadSaveRemove(asBatch, rows);
+        return gone is null ? goneError : null;
+    }
+
+    private static async Task<List<SaveManyRequest?>> StagedPartsAsync(SqlConnection connection, Guid token, Guid library, Guid account, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT payload FROM app.library_save_stage
+             WHERE token = @token AND library_id = @library AND account_id = @account AND created_at >= @since
+             ORDER BY part;
+            """, connection);
+        cmd.Parameters.AddWithValue("@token", token);
+        cmd.Parameters.AddWithValue("@library", library);
+        cmd.Parameters.AddWithValue("@account", account);
+        cmd.Parameters.AddWithValue("@since", DateTimeOffset.UtcNow - StageLife);
+        var parts = new List<SaveManyRequest?>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) parts.Add(System.Text.Json.JsonSerializer.Deserialize<SaveManyRequest>((byte[])reader[0], StageJson));
+        return parts;
+    }
+
+    private static async Task DropStageAsync(SqlConnection connection, SqlTransaction? tx, Guid token, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("DELETE FROM app.library_save_stage WHERE token = @token;", connection, tx);
+        cmd.Parameters.AddWithValue("@token", token);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// EIN STÜCK ABLEGEN. Ohne <c>token</c>: ein neuer Zapis (Teil 0), die Antwort nennt sein Zeichen. Mit: ein weiteres
+    /// Stück desselben Kontos und derselben Bibliothek; dasselbe Stück noch einmal ersetzt das erste. Was zusammen mehr
+    /// wäre als ein Zapis aus Stücken tragen darf, wird schon hier abgelehnt. Gespeichert ist damit noch nichts.
+    /// </summary>
+    private static async Task StageAsync(HttpContext ctx, Db db, Guid id, SaveStageRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        var problem = ReadStagePart(body);
+        if (problem is not null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {problem}");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var library = await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write);
+        if (library is null) return;
+
+        await using (var old = new SqlCommand("DELETE FROM app.library_save_stage WHERE created_at < @before;", connection))
+        {
+            old.Parameters.AddWithValue("@before", DateTimeOffset.UtcNow - StageLife);
+            await old.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        var items = (body.Entries?.Count ?? 0) + (body.Remove?.Count ?? 0);
+        long bytes = 0;
+        foreach (var one in body.Entries ?? []) bytes += Base64Url.TryDecode(one.Sealed, out var raw) ? raw.Length : 0;
+        var token = string.IsNullOrEmpty(body.Token) ? Guid.NewGuid() : Guid.Parse(body.Token);
+        if (!string.IsNullOrEmpty(body.Token))
+        {
+            int count, hadItems;
+            long hadBytes;
+            await using (var sum = new SqlCommand("""
+                SELECT COUNT(*), COALESCE(SUM(CASE WHEN part <> @part THEN items END), 0), COALESCE(SUM(CASE WHEN part <> @part THEN bytes END), CAST(0 AS bigint))
+                  FROM app.library_save_stage
+                 WHERE token = @token AND library_id = @library AND account_id = @account;
+                """, connection))
+            {
+                sum.Parameters.AddWithValue("@token", token);
+                sum.Parameters.AddWithValue("@part", body.Part);
+                sum.Parameters.AddWithValue("@library", id);
+                sum.Parameters.AddWithValue("@account", who.Value.AccountId);
+                await using var reader = await sum.ExecuteReaderAsync(ctx.RequestAborted);
+                await reader.ReadAsync(ctx.RequestAborted);
+                (count, hadItems, hadBytes) = (reader.GetInt32(0), reader.GetInt32(1), reader.GetInt64(2));
+            }
+            if (count == 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Nic nie zapisano: części tego zapisu już nie ma (minęła godzina) — zapisz jeszcze raz.");
+                return;
+            }
+            if (hadItems + items > MaxStagedItems || hadBytes + bytes > MaxStagedBytes)
+            {
+                await DropStageAsync(connection, null, token, ctx.RequestAborted);
+                await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: najwyżej {MaxStagedItems} wpisów i {MaxStagedBytes / (1024 * 1024)} MB w jednym zapisie.");
+                return;
+            }
+        }
+
+        var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new SaveManyRequest(body.Entries, body.Remove), StageJson);
+        await using (var put = new SqlCommand("""
+            DELETE FROM app.library_save_stage WHERE token = @token AND part = @part;
+            INSERT INTO app.library_save_stage (token, part, library_id, account_id, items, bytes, payload, created_at)
+            VALUES (@token, @part, @library, @account, @items, @bytes, @payload, @now);
+            """, connection))
+        {
+            put.Parameters.AddWithValue("@token", token);
+            put.Parameters.AddWithValue("@part", body.Part);
+            put.Parameters.AddWithValue("@library", id);
+            put.Parameters.AddWithValue("@account", who.Value.AccountId);
+            put.Parameters.AddWithValue("@items", items);
+            put.Parameters.AddWithValue("@bytes", bytes);
+            put.Parameters.AddBlob("@payload", payload);
+            put.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            await put.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+        await ctx.Response.WriteAsJsonAsync(new { token = token.ToString(), part = body.Part, items, bytes });
     }
 }

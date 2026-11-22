@@ -236,6 +236,9 @@
 .cg-verdict.is-near { background: var(--wk-held-bg); color: var(--wk-held-ink); border: 1px solid var(--wk-held-line); }
 .cg-verdict.is-wrong { background: var(--wk-shut-bg); color: var(--wk-shut-ink); border: 1px solid var(--wk-shut-line); }
 /* 2026-10-23 (Schritt 13) — warum nicht, wenn es nicht an der Zahl lag (eine Einheit einer anderen Grösse). */
+/* 2026-11-22 (Eigentümer) — teilweise richtig: die Farbe läuft stufenlos von Rot (0 %) über Orange/Gelb (50 %) zu Grün (100 %). */
+.cg-verdict.is-score { background: oklch(0.96 0.045 var(--score-h, 27)); border: 1px solid oklch(0.72 0.13 var(--score-h, 27)); color: oklch(0.42 0.13 var(--score-h, 27)); }
+:root[data-mode='dark'] .cg-verdict.is-score { background: oklch(0.3 0.06 var(--score-h, 27)); border-color: oklch(0.55 0.12 var(--score-h, 27)); color: oklch(0.88 0.09 var(--score-h, 27)); }
 .cg-verdict-note { font-size: var(--wk-text-sm); }
 .cg-diff .is-hit { color: var(--wk-ok); }
 .cg-diff .is-near { color: var(--wk-held-ink); text-decoration: underline wavy; }
@@ -1150,3 +1153,14 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-fb-text { grid-column: 1 / -1; grid-row: 2; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wk-ink-2); }
 .cg-fb-at { font-size: var(--wk-text-xs); }
 .cg-fb-item-acts { display: inline-flex; gap: var(--wk-space-1); }
+
+/* 2026-11-22 (I2) — die Kontrolle der Welt (`WorldChecksPanel.tsx`): Gewicht, Code, Befund, Abhilfe. */
+.cg-worldcheck-counts { margin: 0; font-weight: 600; }
+.cg-worldcheck-group { border-top: 1px solid var(--wk-line); padding: 0.35rem 0; }
+.cg-worldcheck-group > summary { cursor: pointer; }
+.cg-worldcheck-group ul { margin: 0.35rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.35rem; }
+.cg-worldcheck-row { display: grid; gap: 0.1rem; }
+.cg-worldcheck-fix { font-size: var(--wk-text-sm); }
+.cg-worldcheck-weight { display: inline-block; padding: 0 0.4rem; border-radius: 999px; font-size: var(--wk-text-xs); font-weight: 700; background: var(--wk-sunk); color: var(--wk-ink-2); }
+.cg-worldcheck-weight.is-must { background: color-mix(in oklab, var(--wk-danger, #b42318) 18%, transparent); color: var(--wk-danger, #b42318); }
+.cg-worldcheck-weight.is-should { background: color-mix(in oklab, var(--wk-warn) 22%, transparent); color: var(--wk-ink); }

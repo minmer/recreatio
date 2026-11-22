@@ -316,6 +316,65 @@ export function generatedWorld(o: GeneratedOptions): WorldInput {
   return { entries, cards, flows };
 }
 
+/* -- 3a. 2026-11-22 (C2) — Tags: ein Netz über eine Welt gelegt ------------------------------------------------------------------- */
+
+export interface TagPlan {
+  /** Die Tags mit ihren oberen Tags (ein Untertag darf mehrere haben). */
+  readonly tags: readonly { readonly id: string; readonly label: string; readonly parents?: readonly string[] }[];
+  /** Je Eintrag (Turm oder Block) seine Tags. */
+  readonly assign: ReadonlyMap<string, readonly string[]>;
+}
+
+/** Die Welt mit Tag-Einträgen (Rodzaj `tag`, Feld `nad`) und den Tag-Feldern (`tagi`) der genannten Einträge. */
+export function withTags(input: WorldInput, plan: TagPlan): WorldInput {
+  const tagEntries: WmEntry[] = plan.tags.map((tg) => ({ id: tg.id, kinds: ['tag'], label: tg.label, refs: (tg.parents ?? []).map((p) => ref('nad', p, { tag: 'up' })) }));
+  const entries = input.entries.map((e) => {
+    const add = plan.assign.get(e.id);
+    return add === undefined || add.length === 0 ? e : { ...e, refs: [...e.refs, ...add.map((t) => ref('tagi', t, { tag: 'up' }))] };
+  });
+  return { ...input, entries: [...entries, ...tagEntries] };
+}
+
+/** Die Tags der Bosko-Gestalt: zwei Wurzeln, Untertags, einer mit zwei oberen, ein Block mit Tag (seine Teile tragen ihn). */
+export function boskoTags(): TagPlan {
+  const tags = [
+    { id: 'tg/okresy', label: 'Okresy życia' },
+    { id: 'tg/ludzie', label: 'Ludzie' },
+    { id: 'tg/mlodosc', label: 'Młodość', parents: ['tg/okresy'] },
+    { id: 'tg/turyn', label: 'Turyn i oratorium', parents: ['tg/okresy'] },
+    { id: 'tg/misje', label: 'Misje', parents: ['tg/okresy'] },
+    { id: 'tg/przyjaciele', label: 'Przyjaciele i uczniowie', parents: ['tg/ludzie', 'tg/turyn'] },
+    { id: 'tg/zgrom', label: 'Zgromadzenie', parents: ['tg/ludzie'] }
+  ];
+  const assign = new Map<string, string[]>();
+  const put = (tag: string, ids: readonly string[]) => { for (const id of ids) assign.set(id, [...(assign.get(id) ?? []), tag]); };
+  put('tg/mlodosc', ['becchi', 'sen', 'kuglarz', 'antoni', 'przyj', 'semch', 'comollo', 'swiec']);
+  put('tg/turyn', ['konwikt', 'narodz', 'barolo', 'wedr', 'murarze', 'choroba', 'goracz', 'polityka', 'sierota', 'ciern', 'domkos', 'warsz', 's1854', 's1855']);
+  put('tg/przyjaciele', ['savio', 'magone', 'cagrua', 'comollo']);
+  put('tg/misje', ['pomoc', 'isc', 'patag', 'franc', 'cagbis']);
+  put('tg/zgrom', ['s1859']);
+  return { tags, assign };
+}
+
+/** Ein Netz für eine erzeugte Welt: je `per` Orte eine Wurzel, darin vier Untertags (Rest der Nummer), dazu je zwei Wurzeln ein gemeinsamer. */
+export function generatedTags(places: number, per = 100): TagPlan {
+  const tags: { id: string; label: string; parents?: string[] }[] = [];
+  const assign = new Map<string, string[]>();
+  const roots = Math.max(1, Math.ceil(places / per));
+  for (let r = 0; r < roots; r += 1) {
+    tags.push({ id: `tg/d${r}`, label: `Dział ${r + 1}` });
+    for (let k = 0; k < 4; k += 1) tags.push({ id: `tg/d${r}/${k}`, label: `Dział ${r + 1}.${k + 1}`, parents: [`tg/d${r}`] });
+    if (r > 0) tags.push({ id: `tg/x${r}`, label: `Most ${r}–${r + 1}`, parents: [`tg/d${r - 1}`, `tg/d${r}`] });
+  }
+  for (let i = 0; i < places; i += 1) {
+    const r = Math.min(roots - 1, Math.floor(i / per));
+    const own = [`tg/d${r}/${i % 4}`];
+    if (r > 0 && i % per < 6) own.push(`tg/x${r}`);
+    assign.set(`p${i}`, own);
+  }
+  return { tags, assign };
+}
+
 /* -- 4. Die kaputte Welt ---------------------------------------------------------------------------------------------------------- */
 
 export function brokenWorld(): WorldInput {

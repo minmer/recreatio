@@ -754,6 +754,26 @@
           "says": "Kluczowe dla tematów z „O czym”: „Sprawdź, co wiesz” pyta o nie raz, a ich znajomość mówi, czy temat to „luka” (warunek z rel \"core\")"
         },
         {
+          "key": "use",
+          "label": "Gdzie gra",
+          "type": "choice",
+          "options": [
+            {
+              "value": "both",
+              "label": "oba"
+            },
+            {
+              "value": "self",
+              "label": "tylko samodzielnie"
+            },
+            {
+              "value": "lesson",
+              "label": "tylko na lekcji"
+            }
+          ],
+          "says": "Kiedy pytanie się pojawia: w nauce samodzielnej i na lekcji (domyślnie), tylko w nauce samodzielnej albo tylko na lekcji. Krok przebiegu może to zmienić polem \"use\"."
+        },
+        {
           "key": "about",
           "label": "O czym",
           "type": "ref",

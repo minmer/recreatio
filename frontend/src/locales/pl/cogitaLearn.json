@@ -281,7 +281,9 @@
       "few": "{count} kroki pomocy",
       "many": "{count} kroków pomocy",
       "other": "{count} kroku pomocy"
-    }
+    },
+    "predictBefore": "Najpierw przewiduj. To pytanie się nie liczy — to przewidywanie.",
+    "predictAfter": "To pytanie się nie liczy — to przewidywanie. Teraz zobacz, jak jest naprawdę."
   },
   "spacing": {
     "title": "Odstępy powtórek",

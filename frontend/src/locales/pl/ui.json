@@ -89,6 +89,7 @@
     "sample": "Wstaw przykład",
     "loadFile": "Wczytaj plik…",
     "clear": "Wyczyść",
+    "times": "×{count}",
     "invalid": "Nieprawidłowy JSON: {error}",
     "changes": "Co się zmieni",
     "imported": "Zaimportowano.",

@@ -2,6 +2,8 @@
 
 Mapa świata to inny wygląd widoku „Krajobraz”: **miejsca** (tematy) stoją jako okrągłe filary, **opowieści** jeżdżą między nimi jak linie kolei, a uczący się widzi, co już umie, czego mu brakuje i jak tam dojść. Mapa powstaje wyłącznie z danych — z tematów, pytań, wymagań i przebiegów. Ten przewodnik mówi, jak je przygotować. Formaty: **knowledge-base** (rodzaje, wpisy, pytania, "flows", "views", "settings"), opowieści: **guide-stories** (templates/cogita/opowiesci-AI.md), schemat: **guide-schemes** (templates/cogita/schematy-AI.md).
 
+> **Najpierw przeczytaj „guide-good-world”** — co to jest dobry świat; ten przewodnik mówi, jak go zapisać, żeby mapa była czytelna.
+
 ## 0. Jak włączyć mapę świata
 
 Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z kroku "source.kind":
@@ -18,7 +20,7 @@ Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z krok
 
 ## 1. Miejsca: jeden temat = jedno miejsce
 
-- **Jeden temat, 10–15 pytań**, których "about" wskazuje ten temat. Wysokość filaru = karty, których jeszcze brakuje do tego miejsca (jego własne i całej jego podstawy); zdobyte miejsce jest płaskie.
+- **Jeden temat = ok. 4–8 minut nauki**: liczba pytań zależy od czasu jednego pytania, zwykle 10–15; ich "about" wskazuje ten temat. Wysokość filaru = karty, których jeszcze brakuje do tego miejsca (jego własne i całej jego podstawy); zdobyte miejsce jest płaskie.
 - **Nie są miejscami**: jednostka opowieści ("unit" przebiegu), slajdy (pokazuje je krok "show"), pytania, węzły obszarów mapy ("nest").
 - **Większy temat jako blok z częściami** — tylko wtedy, gdy schemat mówi to wprost: pole-odwołanie z `"part": "up"` w rodzaju części wskazuje blok, do którego część należy (czytane jak `"prerequisite": "up"`); `"part": "down"` w rodzaju bloku wskazuje jego części. Na mapie blok to płaski dysk tuż nad ziemią, a części stoją na nim jako stykające się filary.
 
@@ -40,6 +42,7 @@ Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z krok
 
 ## 3. Opowieści to linie
 
+- **Jedna opowieść prowadzi do jednej wieży** (albo kończy się rozwidleniem do kilku wież), nigdy przez kilka wież.
 - **Jeden przebieg = jedna linia**; nazwa przebiegu to nazwa linii („Z Ruą”). Linie nie mają własnych kolorów — kolor znaczy tylko stan i wybraną drogę. Tor jest rysowany na trzy sposoby: **gruby** — już przebyty, **cienki ciągły** — można nim iść, ale nie przynosi nic nowego (karty są już znane skądinąd), **przerywany** — przynosi nową wiedzę (im mniej nowego, tym gęstsze kreski). Każdy tor ma strzałkę kierunku.
 - **Gdzie stoi krok**: slajd pokazuje miejsce (krok "show" z "of" — wprost temat, albo slajd, który polem-odwołaniem wskazuje temat, np. „O czym”, albo przez pytania, które go objaśniają, "explain"); pytanie stoi tam, o czym jest ("about"). Dlatego **łącz każdą scenę i każde pytanie z właściwym tematem**.
 - **Przystanki** powstają tylko z tego, co pokazane. Pytanie „pożyczone” (o innym temacie) wprowadza swoją kartę na tym odcinku, ale nie robi przystanku. Krok "review" (Przegląd) nie robi przystanku i niczego nie wprowadza; **to, co przychodzi po nim** (slajd na zakończenie, rozwidlenie), jest rysowane jak wszystko inne. Przebieg, który nie pokazuje żadnego miejsca, staje w miejscach swoich pytań.
@@ -52,11 +55,11 @@ Widok w trybie "landscape" z `"style": "world"`; miejsca to wpisy rodzaju z krok
 
 - Krok "choice", "chapters" albo scena z kilkoma przyciskami: **każde wyjście to gałąź linii** (także `choice → subflow`).
 - **Rozwidlenie** — wybór, którego gałęzie prowadzą do różnych wież — jest **własnym węzłem na drodze**, nie wieżą: droga przychodzi od wieży przez slajdy drogi do węzła, a z węzła do każdej wieży gałęzi biegnie osobny tor. Węzeł mówi, ile slajdów leży przed nim i ile dróg z niego wychodzi („1 slajd, potem rozwidlenie: 2 drogi”). Leży między wieżą a celami gałęzi, blisko wieży: tym dalej, im więcej slajdów jest przed nim w stosunku do długości gałęzi (10–45 % wolnej drogi do najbliższego celu). Gałąź nosi nazwę swojego celu. Wybór z `"hold": true` czeka zawsze na decyzję uczącego się.
-- **Te same karty w innym opakowaniu** (wyjaśnienie dla dzieci, dla szkoły, dla dorosłych): wybór, którego gałęzie prowadzą do **tej samej** wieży i schodzą się przed wspólnymi pytaniami — to nie rozwidlenie; mapa rysuje jedną drogę i pozostałe opakowania jako małą pętlę obok niej.
+- **Formy wyjaśnienia, nie kopie** (guide-good-world §1.6): wybór formy („Z przykładem”, „Krok po kroku”, „Krótko”) dopiero po błędzie — `wrong:<znacznik>` → "choice" z "of" i "hint", gałęzie to kroki pomocy (`"remedial": true`), które wracają na drogę do **tej samej** wieży. To nie rozwidlenie: mapa rysuje jedną drogę, pomoc — małą pętlę przy wieży. Nie trzy kopie drogi (dzieci, szkoła, dorośli) wybierane na początku.
 - Jeśli gałęzie rozwidlenia się później schodzą, kończą się na najbliższym wspólnym przystanku.
 - Miejsce, w którym zatrzymuje się kilka linii, to **węzeł przesiadkowy** (pierścień wokół filaru). Panel wieży i panel rozwidlenia wymieniają wszystkie kierunki: linia, gałąź, cel, liczba slajdów i pytań, bilet. Uczący się wybiera na mapie, a opowieść otwiera się od razu w wybranej gałęzi.
-- Etykieta opcji wyboru jest nazwą gałęzi („Do warsztatów”, „Z Dominikiem Savio”) — pisz ją krótko.
-- **Opis rozwidlenia (2026-11-11)**: co czeka na drogach, opisz w samym wyborze — `"of"` (slajd nad możliwościami) i `"hint"` przy możliwości (jedna linia). Etykiety zostają nazwami linii; węzeł przesiadkowy pokazuje w swoim panelu przy każdej drodze jej "hint". Nie dodawaj osobnego slajdu przed wyborem tylko do opisu — slajd drogi przed rozwidleniem leży na torze do węzła i liczyłby się jak każdy inny slajd.
+- Etykieta opcji wyboru jest nazwą gałęzi („Do warsztatów”, „Z Dominikiem Savio”) — najwyżej 32 znaki.
+- **Opis rozwidlenia (2026-11-11)**: co czeka na drogach, opisz w samym wyborze — `"of"` (slajd nad możliwościami) i `"hint"` przy możliwości (jedna linia, najwyżej 100 znaków). Etykiety zostają nazwami linii; węzeł przesiadkowy pokazuje w swoim panelu przy każdej drodze jej "hint". Nie dodawaj osobnego slajdu przed wyborem tylko do opisu — slajd drogi przed rozwidleniem leży na torze do węzła i liczyłby się jak każdy inny slajd.
 
 ## 5. Bilety: kiedy odcinek jest otwarty
 
@@ -83,7 +86,32 @@ Bilet odcinka powstaje tylko z trzech źródeł:
 
 ## 5a. Pomoc po złej odpowiedzi to nie linia (2026-11-20)
 
-Przebieg adaptacyjny (guide-stories §8g: "onWrong", "retry", "wrong:<znacznik>", "partial", "rightOnRetry", kroki z `"remedial": true`) nie rysuje nowych torów ani rozwidleń: pomoc to **mała przerywana pętla przy wieży pytania**, a panel wieży mówi „N kroków pomocy po złych odpowiedziach (nie liczą się)”. Kroki pomocy nie robią przystanków, nie wprowadzają kart i nie liczą się do postępu ani do liczników dróg. Kroki "condition" z warunkami na odpowiedzi przejścia (`"session"`, `"lastAnswer"`, `"streak"`) — tak jak "set" — są niewidoczne: nie są bramkami ani biletami (rozstrzygają się dopiero w drodze). Slajdy pomocy łącz z tematem pytania, żeby pętla stała przy właściwej wieży.
+Przebieg adaptacyjny (guide-stories §8g: "onWrong", "retry", "wrong:<znacznik>", "partial", "rightOnRetry", kroki z `"remedial": true`) nie rysuje nowych torów ani rozwidleń: pomoc to **mała przerywana pętla przy wieży pytania**, a panel wieży mówi „N kroków pomocy po złych odpowiedziach (nie liczą się)”. Kroki pomocy nie robią przystanków, nie wprowadzają kart i nie liczą się do postępu ani do liczników dróg. Kroki "condition" z warunkami na odpowiedzi przejścia (`"session"`, `"lastAnswer"`, `"streak"`) — tak jak "set" — są niewidoczne: nie są bramkami ani biletami (rozstrzygają się dopiero w drodze). Slajdy pomocy łącz z tematem pytania, żeby pętla stała przy właściwej wieży. Kroki z `"use": "lesson"` i przewidywania (`"predict": true`) nie są krokami linii ucznia (guide-stories §8h).
+
+## 5b. Tagi: sieć tematów do filtrowania mapy (2026-11-22)
+
+Duży świat uczący się ogląda **po kawałku**: wybiera tag, mapa rysuje tylko wieże pod nim (wyspa i położenia te same). Tagi wybierają autorzy.
+
+- **Jak:** pole odwołania z `"tag": "up"` — to, na co wskazuje, to tagi wpisu. Tag to dowolny wpis, zwykle rodzaju „Tag”; jego pola tagu wskazują tagi **nadrzędne** (sieć z poziomami; podtag może mieć **kilku** rodziców).
+- **Wieża** nosi tagi swojego wpisu i tagi swojego bloku (`"part": "up"`).
+- **Tag nadrzędny pokazuje wszystkie wieże pod sobą** (wszystkie poziomy); uczący się zawęża podtagiem; przy tagu: zdobyte / wszystkie.
+- **Bez kół** (tag nie leży nad samym sobą) — import ostrzega, aplikacja tnie koło.
+- Krok `"explore"` z tagiem w `"scope"` i „Sprawdź, co wiesz” przy wybranym tagu sprawdzają tylko wieże pod nim.
+- **Najpierw przeczytaj tagi świata:** `get_knowledge_setup`, sekcja `"tags"` (`ref, name, parents, level, towers, towersBelow`) — używaj istniejących.
+- To nie **znaczniki błędów** pytania (pole `"tags"`, guide-stories §8g).
+
+```json
+{"kinds": [
+  {"ref": "@k/tag", "name": "Tag", "label": "{name}", "fields": [{"key": "name", "label": "Nazwa", "type": "line"}, {"key": "nad", "label": "Należy do", "type": "ref", "multi": true, "tag": "up", "to": ["@k/tag"]}]},
+  {"ref": "@k/temat", "name": "Temat", "label": "{name}", "fields": [{"key": "name", "label": "Nazwa", "type": "line"}, {"key": "tagi", "label": "Tagi", "type": "ref", "multi": true, "tag": "up", "to": ["@k/tag"]}]}
+ ],
+ "entities": [
+  {"ref": "@tag/mechanika", "kinds": ["@k/tag"], "data": {"name": "Mechanika"}},
+  {"ref": "@tag/energia", "kinds": ["@k/tag"], "data": {"name": "Energia"}},
+  {"ref": "@tag/energia-mechaniczna", "kinds": ["@k/tag"], "data": {"name": "Energia mechaniczna", "nad": ["@tag/mechanika", "@tag/energia"]}},
+  {"ref": "@temat/hustawka", "kinds": ["@k/temat"], "data": {"name": "Huśtawka", "tagi": ["@tag/energia-mechaniczna"]}}
+ ]}
+```
 
 ## 6. Karty bez slajdu
 
@@ -96,15 +124,15 @@ Nie zapisuj w imporcie współrzędnych, kolorów ani wysokości. Położenie li
 ## 8. Poziomy: zdobywanie miejsc (ustawienie bazy)
 
 ```json
-{"settings": {"levelsSetup": {"levels": 3, "rules": [
+{"settings": {"levelsSetup": {"levels": 2, "rules": [
   {"pct": 75, "attempts": "any"},
-  {"pct": 85, "attempts": "one"},
-  {"pct": 95, "attempts": "first"}], "knownShare": 1, "pillarWidth": 1, "openAt": 2}}}
+  {"pct": 90, "attempts": "one"}], "knownShare": 1, "openAt": 1}}}
 ```
 
-- **Domyślnie 0 poziomów**: nic się nie zmienia, miejsce jest osiągnięte, gdy jego karty są umiane ("knownShare" — jaka część, domyślnie wszystkie). Wysokość samej wieży (nad krążkami) liczy wtedy jej karty jeszcze nieumiane, a nie wszystkie karty: wieża maleje z każdą umianą kartą.
+- **Zalecane (guide-good-world §1.3)**, każda nowa baza zaczyna od tego. Inne ustawienie (np. 3 poziomy 75/85/95) zostaje, dopóki właściciel nie zdecyduje; zmianę (3 → 2) objaśnia podgląd importu — nic, co dają nowe reguły, nie przepada (poziomy liczy się z przebiegów).
+- **Bez ustawienia — 0 poziomów**: nic się nie zmienia, miejsce jest osiągnięte, gdy jego karty są umiane ("knownShare" — jaka część, domyślnie wszystkie). Wysokość samej wieży (nad krążkami) liczy wtedy jej karty jeszcze nieumiane, a nie wszystkie karty: wieża maleje z każdą umianą kartą.
 - **1–5 poziomów**: zdobyć miejsce = odpowiedzieć na jego karty w jednym **przebiegu**; poziom na próg ("pct"), co się liczy ("attempts": "any" — w ogóle dobrze, "one" — po jednej poprawce, "first" — za pierwszym razem) — bez odstępu między poziomami: jeden przebieg podnosi o każdy poziom, którego próg spełnia; **wszystko dobrze za pierwszym razem** daje od razu wszystkie poziomy i wyróżnienie „Mistrzowsko”. Wtedy **powtarzane są tylko zdobyte miejsca** — strona ustawień pokazuje przed zapisem, ile kart wyjdzie z powtórek.
-- **"openAt" — kiedy otwierają się ścieżki wieży** (ustawienie autora; uczący się go nie zmieniają): pominięte = dopiero gdy wieża jest **całkiem zdobyta** (domyślnie); `0` = **od razu**, bez zdobywania (ścieżki wychodzące z wieży są otwarte, choć wieża nie jest zdobyta); `1`…(liczba poziomów − 1) = **od tego poziomu** (np. `2` przy 3 poziomach: ścieżki otwierają się po poziomie 2, a wieża jest zdobyta dopiero po 3). Wartość równa liczbie poziomów albo większa oznacza zdobycie (jak pominięta). Przy 0 poziomów ma sens tylko `0`. Ścieżki wychodzące z „Startu” są zawsze otwarte. **Ten sam próg obowiązuje wieże, które jej wymagają**: wieża „przejezdna” (zdobyta albo z poziomem "openAt") nie jest już krążkiem pod nimi, nie blokuje ich przebiegu ani bram i droga nie wraca, by ją dokończyć.
+- **"openAt" — kiedy otwierają się ścieżki wieży** (ustawienie autora; uczący się go nie zmieniają): pominięte = dopiero gdy wieża jest **całkiem zdobyta** (domyślnie); `0` = **od razu**, bez zdobywania (ścieżki wychodzące z wieży są otwarte, choć wieża nie jest zdobyta); `1`…(liczba poziomów − 1) = **od tego poziomu** (np. `1` przy 2 poziomach: ścieżki otwierają się po poziomie 1, a wieża jest zdobyta dopiero po 2). Wartość równa liczbie poziomów albo większa oznacza zdobycie (jak pominięta). Przy 0 poziomów ma sens tylko `0`. Ścieżki wychodzące z „Startu” są zawsze otwarte. **Ten sam próg obowiązuje wieże, które jej wymagają**: wieża „przejezdna” (zdobyta albo z poziomem "openAt") nie jest już krążkiem pod nimi, nie blokuje ich przebiegu ani bram i droga nie wraca, by ją dokończyć.
 - **Wieżę wolno zdobywać zawsze**, gdy zdobyte są jej wymagania (nie trzeba najpierw zobaczyć wszystkich kart). Panel daje **dwie drogi**: „Zdobywaj teraz” — przebieg po wszystkich kartach, z informacją, ile z nich nigdy jeszcze nie padło — albo „Najpierw powtórz (N)” — tylko karty już wyjaśnione, które jeszcze nie siedzą (i te, których nie wyjaśnia żadna opowieść). Jeśli opowieść wyjaśnia jeszcze nieznane karty, trzecia droga: „Najpierw odkryj drogę”.
 - "pillarWidth" (0,4–1) to domyślna szerokość filarów; uczący się zmienia ją i poziomy dla siebie („Moje ustawienia”), chyba że `"locked": true`.
 
@@ -197,7 +225,7 @@ Szeroka droga ze Startu:
 
 ## 9. Jak aplikacja używa tych danych
 
-Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy nie widziane, częściowo, pełne) na krążkach brakujących wymagań, wysokość wieży = jej brakujące karty, łuki poziomów na krawędzi i pierścień wiedzy na zdobytych, chorągiewka przy zdobytych z kartami do powtórki; linie na torach (równolegle, ze strzałką kierunku; gruby — przebyty, cienki — nic nowego, przerywany — nowa wiedza), pierścienie węzłów, dom „Start”. Kliknięcie wieży lub toru pokazuje drogę do niej: reszta mapy szarzeje, zrobione części cienkie, otwarte wyraźne, bieżący krok najwyraźniejszy. Dymek pokazuje nazwę, „jeszcze N kart” i drogę z domu. Panele: miejsce (poziom, przebieg, brakujące wieże ze stanem, kolejność zdobywania, źródła kart, linie tutaj), odcinek (bilet ze źródłami), rozwidlenie (drogi z celem, slajdami i pytaniami), węzeł (wybór kierunku). „Prowadź mnie tutaj” prowadzi tylko w tej sesji (podwójne kliknięcie wieży otwiera najpierw przegląd całej drogi: kroki po kolei z zawartością, na początku potrzebna powtórka), **łańcuchem**: do pierwszej brakującej wieży, potem do następnej (w porządku wymagań), na końcu do celu — każda wzdłuż swojego toru, przez każde rozwidlenie, bez skoków; przejechane tory zostają w drodze (są tańsze, wolno po nich też wracać). Cała droga świeci jako jedna linia; dymek i panel liczą z tego samego planu. Rozkład jazdy (2 kroki zrobione, bieżący, 4 następne), „Tu możesz też skręcić” z innymi drogami do tej samej wieży, chorągiewka „Zacznij tutaj” i flaga celu. Autorzy (kto pisze w bazie) widzą pod mapą listę uwag do danych. Przez MCP (`get_knowledge_setup`, sekcja "landscapes") widok mapy świata ma postać `{"style": "world", "places": [[x, y, "@temat", "@blok" | null], …], "home": [x, y], "lines": [{"flow", "name", "stops", "deepening", "branches"}], "stations"}` — współrzędne w jednostkach ziemi (promień filaru 28), takie, jakie widzi każdy; do wglądu, nie do importu.
+Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy nie widziane, częściowo, pełne) na krążkach brakujących wymagań, wysokość wieży = jej brakujące karty, łuki poziomów i pierścień wiedzy na zdobytych, chorągiewka przy zdobytych z kartami do powtórki; linie na torach (gruby — przebyty, cienki — nic nowego, przerywany — nowa wiedza), pierścienie węzłów, dom „Start”. Kliknięcie wieży lub toru pokazuje drogę do niej (reszta szarzeje). Panele: miejsce (poziom, brakujące wieże, kolejność zdobywania, źródła kart, linie), odcinek (bilet), rozwidlenie (drogi z celem), węzeł. „Prowadź mnie tutaj” (w tej sesji) prowadzi **łańcuchem**: do pierwszej brakującej wieży, potem do następnej (w porządku wymagań), na końcu do celu — wzdłuż torów, przez każde rozwidlenie, bez skoków; przy rozwidleniu sama wybiera gałąź, która prowadzi do celu. Autorzy (kto pisze w bazie) widzą pod mapą listę uwag do danych. Przez MCP (`get_knowledge_setup`, sekcja "landscapes") widok mapy świata ma postać `{"style": "world", "places": [[x, y, "@temat", "@blok" | null], …], "home": [x, y], "lines": [{"flow", "name", "stops", "deepening", "branches"}], "stations"}` — współrzędne w jednostkach ziemi (promień filaru 28), do wglądu, nie do importu.
 
 ## 10. Lista kontrolna (to samo, co lista dla autorów)
 
@@ -212,3 +240,5 @@ Widok `"style": "world"` rysuje mapę: filary w kolorze tematu (nasycenie: nigdy
 - [ ] Miejsca bez linii i karty bez slajdu są zamierzone (uczy się ich bezpośrednio).
 - [ ] Obszary kolorów mają sensowne nazwy (obszar nazwany od innego tematu niż jego środek — nazwij go w widoku).
 - [ ] Bez współrzędnych, kolorów i wysokości w imporcie.
+- [ ] Poziomy: 2 zalecane (75 % "any", 90 % "one", "openAt": 1) albo inne z decyzji właściciela.
+- [ ] Tagi (jeśli są): pole z `"tag": "up"`; istniejące tagi z `get_knowledge_setup` → "tags" użyte ponownie; bez kół; podtag może mieć kilku rodziców.

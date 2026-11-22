@@ -259,7 +259,9 @@
       "sync": "Kilka osób przy jednym urządzeniu",
       "story": "Opowieść z kodem",
       "game": "Gra w terenie",
-      "shared": "Otwarty link"
+      "shared": "Otwarty link",
+      "lesson": "Lekcja",
+      "task": "Zadanie"
     },
     "connectFailed": "Nie udało się połączyć z sesją."
   },

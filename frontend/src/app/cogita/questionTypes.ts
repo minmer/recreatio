@@ -71,7 +71,7 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
  * Was jede Frage hat, gleich welcher Art. 2026-11-01 — dazu Podpowiedzi (vor der Antwort), das Wyjaśnienie als Text
  * (nach ihr) und Parameter (neue Zahlen je Versuch).
  */
-export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require', 'share', 'fact', 'core'] as const;
+export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require', 'share', 'fact', 'core', 'use'] as const;
 
 export const questionType = (form: unknown): QuestionType =>
   QUESTION_TYPES.find((t) => t.form === form) ?? QUESTION_TYPES[0];

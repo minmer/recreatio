@@ -30,7 +30,7 @@ import { useWho } from '../../core/me';
 import { viewPath } from '../../routes';
 import { usePageBase } from '../../cogita/pageBase';
 import { useLocalLearner } from '../../cogita/PublicRun';
-import { IntroduceToLearn, LearnerLine, usePageLearner } from '../../cogita/pageLearner';
+import { IntroduceToLearn, LearnerLine, OwnLinkNote, usePageLearner } from '../../cogita/pageLearner';
 import { levelsOf, readPlan } from '../../cogita/revision';
 import { planFor, RevisionRun } from '../../cogita/RevisionRun';
 import { seatCtx, useSeatLearner, useSeatLibrary } from '../../cogita/seatLearn';
@@ -167,6 +167,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
     return (
       <CogitaContext.Provider value={cg}>
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <OwnLinkNote />
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
         <RevisionRun key={`${who.as ?? ''}:${doc.id}`} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setView(null)}
           onOpenRevision={(id) => { setCurrent(id); setView('run'); }} rewards={rewards} />
@@ -185,6 +186,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
       {/* 2026-11-02 — eigens genannte Nagrody: die Zeile schon vor dem Start. */}
       {config.rewards !== '' && rewards !== null && learner !== null && <RewardBoard learner={learner} rules={rewards} {...(rename === undefined ? {} : { rename })} shape="compact" hidden={NO_FEED} />}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <OwnLinkNote />
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('run')}>{levels !== null && levels.known + levels.learning > 0 ? t('moduleDataCogita.v.repeat') : t('moduleDataCogita.s.start')}</button>
         {who.ready && <StatsButton onOpen={() => setView('stats')} />}
@@ -222,6 +224,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
       <CogitaContext.Provider value={cg}>
         {!isTall(ctx) && <Head title={title} />}
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <OwnLinkNote />
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
         <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} backLabel={t('moduleDataCogita.v.page')} presentationAs="link" />
       </CogitaContext.Provider>
@@ -235,6 +238,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
       <p className="wk-card-muted">{LOOK_LABEL[flow.look]} · {t('moduleDataCogita.v.steps', { count: flow.graph.nodes.length })}{questions > 0 ? ` · ${t('moduleDataCogita.v.questions', { count: questions })}` : ''}</p>
       {flow.goals.length > 0 && ctx.size.width !== 'narrow' && <p className="wk-card-muted">{t('moduleDataCogita.v.goals', { goals: flow.goals.map((g) => g.title).join(' · ') })}</p>}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <OwnLinkNote />
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('play')}>{saved !== null ? t('moduleDataCogita.v.resume') : t('moduleDataCogita.s.start')}</button>
         {who.ready && <StatsButton onOpen={() => setView('stats')} />}
@@ -277,7 +281,15 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
   const [joined, setJoined] = useState<Joined | null>(null);
   const [code, setCode] = useState('');
   const { busy, failed, run } = useBusy();
-  const learner = useLocalLearner(joined?.session.libraryId ?? '');
+  /*
+    2026-11-22 (Part B, B4) — DIE ANTWORTEN GEHEN IN DEN EIGENEN FORTSCHRITT: wer angemeldet ist, eine Person aus einem Link (ein
+    Platz) oder sich hier vorstellt, lernt als dieser Mensch — die Antworten an den Bereich der Sitzung (die Klasse), wo die Lehrerin
+    sie sieht. Nur wer die Baza nicht lesen kann (nur der Code), lernt wie bisher im Browser.
+  */
+  const { lib: liveLib } = usePageBase(joined?.session.libraryId ?? '');
+  const who = usePageLearner(liveLib, joined?.session.areaId ?? null);
+  const local = useLocalLearner(joined?.session.libraryId ?? '');
+  const learner = who.as !== null && who.as !== 'local' ? who.learner : local;
   const title = config.title || t('moduleDataCogita.live.label');
 
   useEffect(() => {
@@ -310,8 +322,12 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
     }
     if (joined.session.state === 'finished' || joined.session.state === 'closed') return <><Head title={joined.title} /><p className="wk-card-muted">{t('moduleDataCogita.v.sessionOver')}</p></>;
     return (
-      <SessionPlay session={joined.session} title={joined.title} cred={joined.cred} keys={joined.keys}
-        participant={participantId(joined.session.sessionId)} name={null} learner={learner} />
+      <>
+        {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <OwnLinkNote />
+        <SessionPlay session={joined.session} title={joined.title} cred={joined.cred} keys={joined.keys}
+          participant={participantId(joined.session.sessionId)} name={who.as !== 'local' ? who.name : null} learner={learner} />
+      </>
     );
   }
 

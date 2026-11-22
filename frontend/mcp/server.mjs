@@ -32,6 +32,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 
 import { Previewer, UserError, VIEWPORTS } from './preview.mjs';
+import { checkImportText } from './importCheck.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const frontend = resolve(here, '..');
@@ -224,6 +225,24 @@ function buildServer() {
     },
     annotations: READ_ONLY
   }, guarded(async (args) => answer(await previewer(args.renderer).knowledge(args))));
+
+  /* 2026-11-22 (A1) — jeder Import, ohne Browser: dasselbe Bündel wie check_import des Recreatio-MCP (gegen einen leeren Stand). */
+  server.registerTool('check_import', {
+    title: 'Check any import document',
+    description: 'Check a JSON document of ANY Recreatio import format (knowledge-base, page, form, area, community, library, work-with-text, source-text, quotes, liturgy, scriptorium, calendar, calendar-scheme, calendar-plan, tasks, masses, bookings, registry, form-entries, contacts, roles, chat, lamps, persons, addresses, workspace-view, learn-progress, knowledge-forms) with the app’s own import planner: what it would create and change, what it would delete, and ALL errors and warnings at once (identical ones grouped). Without rendering, without the service, nothing saved; checked against an empty state — the Recreatio MCP tool check_import checks a knowledge-base document against the real base.',
+    inputSchema: {
+      format: z.string().describe('Format id as in list_import_formats of the Recreatio MCP, e.g. "knowledge-base", "page", "calendar".'),
+      json: z.union([z.string(), z.record(z.string(), z.any())]).optional().describe('The document — as a JSON object or as JSON text. Give this or "file".'),
+      file: docArgs.file.describe('Path to a .json file with the document (absolute, or relative to the repository root) — instead of "json".'),
+      language: z.enum(['pl', 'en', 'de']).optional().describe('Language of the messages (default pl).')
+    },
+    annotations: READ_ONLY
+  }, guarded(async ({ format, json, file, language }) => {
+    if (json === undefined && file === undefined) throw new UserError('Give the document as "json" or "file".');
+    const doc = json !== undefined ? json : await import('node:fs/promises').then((fs) => fs.readFile(resolve(repo, file), 'utf8'));
+    const done = await checkImportText(repo, { format, doc, lang: language });
+    return { content: [{ type: 'text', text: done.text }] };
+  }));
 
   return server;
 }

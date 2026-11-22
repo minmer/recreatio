@@ -222,6 +222,8 @@ function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
         { label: t('shell.account.security'), icon: 'shield', onSelect: () => { window.location.hash = viewPath('account', 'bezpieczenstwo').slice(1); } },
         { label: t('shell.account.transfer'), icon: 'refresh', onSelect: () => { window.location.hash = viewPath('account', 'przeniesienie').slice(1); } },
         { label: t('shell.account.aiAccess'), icon: 'key', onSelect: () => { window.location.hash = viewPath('account', 'dostep-ai').slice(1); } },
+        /* 2026-11-22 — nur die Nauka (die kleine Werkstatt der Klassen, `LearnerShell.tsx`); zurück über ihr Menü. */
+        { label: t('cogitaClass.shell.onlyLearn'), icon: 'cap', onSelect: () => { void import('../cogita/classes/shellChoice').then((m) => m.chooseShell(who.accountId, 'learn')).then(() => { window.location.hash = viewPath('learn').slice(1); }); } },
         onSignOut !== undefined && { label: t('shell.account.signOut'), icon: 'logout', onSelect: onSignOut }
       ]}
     />

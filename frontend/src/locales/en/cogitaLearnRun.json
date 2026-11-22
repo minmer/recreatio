@@ -384,6 +384,13 @@
     "linkPerson": "the person from the link",
     "you": "you",
     "asOffice": "You are learning as {who} — the course leader sees your progress too.",
-    "asOwn": "You are learning as {who} — progress stays in your account."
+    "asOwn": "You are learning as {who} — progress stays in your account.",
+    "group": "Class",
+    "school": "School",
+    "consent": "I agree to take part: my answers and progress are visible to the teacher of this class.",
+    "madeTitle": "Your personal link",
+    "madeText": "Keep this link — it is your access, without a password. Whoever has it learns as you (so do not pass it on). Your progress waits for you there on any device.",
+    "copy": "Copy the link",
+    "continue": "Continue"
   }
 }

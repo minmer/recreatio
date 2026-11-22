@@ -2,6 +2,8 @@
 
 Ten przewodnik mówi, jak zbudować kurs w formie opowieści tak, żeby każda odpowiedź liczyła się w bazie wiedzy: w krajobrazie, na ścieżce, w powtórkach i w postępach. Kompletny przykład do zaimportowania: **example-story** (baza wiedzy) i **example-story-page** (strona). Formaty: **knowledge-base** (sekcja "flows") i **page** (prezentacja, "story", moduły "question" i "path").
 
+> **Najpierw przeczytaj „guide-good-world”** (`get_import_format guide-good-world`) — co to jest dobry świat: jedna opowieść prowadzi do jednej wieży, krótka główna droga z pomocą po błędach, pytania oceniane tylko przez komputer, samodzielna nauka i lekcja z tej samej treści. Ten przewodnik mówi, jak to zapisać.
+
 ## 1. Jedna opowieść = jedna jednostka + jeden przebieg (+ ewentualnie strona)
 
 - **Jednostka** (np. rodzaj „Lekcja”): jeden wpis na opowieść, z polem-odwołaniem `"prerequisite": "up"` (np. „Wymaga”) wskazującym tematy, które trzeba znać PRZED opowieścią. Dopóki ich nie umiesz, opowieść jest zamknięta: w krajobrazie stoi jako góra z ponumerowaną drogą, a odtwarzacz pokazuje, czego brakuje.
@@ -40,8 +42,8 @@ Ten przewodnik mówi, jak zbudować kurs w formie opowieści tak, żeby każda o
 Slajd, na którym nie ma już nic do rozstrzygnięcia, się pomija — warunkiem, nie przyciskiem:
 
 - **Prezentacja**: bramka przed slajdem — `{"key": "czy", "type": "condition", "when": {…}, "yes": "dalej", "no": "slajd"}` — i cel `gate:czy` w "go" poprzedniej sceny. "yes" prowadzi od razu dalej, "no" na slajd.
-- **Własny graf przebiegu**: każdy krok "show", "opening", "line" i "scene" (bez pytania) przyjmuje `"skipWhen": {warunek}` — gdy warunek jest spełniony, opowieść idzie od razu dalej. Krok "choice", któremu zostaje dokładnie JEDNA obowiązująca możliwość (pozostałe mają "condition", który nie jest spełniony), sam ją wybiera (z jej "actions"); `"hold": true` zatrzymuje wybór mimo to.
-- **Wybór z opisem w nim samym (2026-11-11)**: rozwidlenie to JEDEN krok — jego opis w `"of"` (wpis-slajd, jak w "show": tytuł, tekst ze wszystkimi znacznikami, przypisy, linki, także "@@świat:", wzory, `::: details`, "drawing"), a pod nazwą każdej możliwości jedna linia w `"hint"`. **Nie stawiaj osobnego slajdu przed wyborem tylko po to, żeby opisać możliwości** — uczący się czytałby je dwa razy na dwóch ekranach, a licznik liczyłby dwa kroki. To samo przy wyborze opakowania po slajdzie-haczyku wieży („Dla dzieci / Jak w szkole / Dla dorosłych”): opis w `"of"` wyboru. Wybór z `"of"` nigdy nie wybiera sam (jak `"hold": true`). Przykład: `{"id": "jak", "type": "choice", "config": {"of": "@kurs/s/jak-opowiedziec", "title": "Jak mam to opowiedzieć?", "options": [{"label": "Dla dzieci", "hint": "krótko, obrazami"}, {"label": "Jak w szkole", "hint": "z definicjami i przykładami"}, {"label": "Dla dorosłych", "hint": "pełny wywód ze źródłami"}]}}`
+- **Własny graf przebiegu**: każdy krok "show", "opening", "line" i "scene" (bez pytania) przyjmuje `"skipWhen": {warunek}` — gdy warunek jest spełniony, opowieść idzie od razu dalej. Krok "choice", któremu zostaje dokładnie JEDNA obowiązująca możliwość (pozostałe mają "condition", który nie jest spełniony), sam ją wybiera (z jej "actions"); `"hold": true` zatrzymuje wybór mimo to. **Kiedy aplikacja wybiera sama** (2026-11-22) — tylko gdy wybór jest jasny: (a) jak wyżej, bez "of" i bez "hold"; (b) na prowadzonej drodze do celu („Prowadź mnie tutaj” na mapie świata, sprawdzanie, co już umiesz) na każdym rozwidleniu bierze gałąź, która prowadzi do celu; (c) gdy w aktywnym trybie (nauka samodzielna albo lekcja, §8h) pasuje tylko JEDNA gałąź — wtedy także z "of" i "hold", a ani uczący się, ani nauczyciel nie widzą wyboru.
+- **Wybór z opisem w nim samym (2026-11-11)**: rozwidlenie to JEDEN krok — jego opis w `"of"` (wpis-slajd, jak w "show": tytuł, tekst ze wszystkimi znacznikami, przypisy, linki, także "@@świat:", wzory, `::: details`, "drawing"), a pod nazwą każdej możliwości jedna linia w `"hint"`. **Nie stawiaj osobnego slajdu przed wyborem tylko po to, żeby opisać możliwości** — uczący się czytałby je dwa razy na dwóch ekranach, a licznik liczyłby dwa kroki. Nazwa możliwości ("label") to nazwa linii na mapie — najwyżej 32 znaki; "hint" — najwyżej 100. Wybór z `"of"` nie wybiera sam (jak `"hold": true`) — chyba że rozstrzyga tryb (§8h). Przykład (rozwidlenie do dwóch wież): `{"id": "dokad", "type": "choice", "config": {"of": "@kurs/s/rozstaje", "title": "Dokąd teraz?", "options": [{"label": "Do warsztatów", "hint": "jak ksiądz Bosko uczył chłopców zawodu"}, {"label": "Do szkoły", "hint": "lekcje wieczorowe i pierwsi nauczyciele"}]}}`. **Nie pytaj na początku „Jak mam to opowiedzieć?”** i nie buduj trzech kopii drogi (dla dzieci, dla szkoły, dla dorosłych): formę wyjaśnienia uczący się wybiera dopiero po błędzie (§8g, „Formy wyjaśnienia”).
 - **Warunki** (te same wszędzie): znajomość — `{"type": "knowness", "of": "@kurs/t/start", "band": "learned"}`; **niedawna powtórka** — `{"type": "answered", "of": "<pytanie>", "correct": true, "within": 7}` (dobrze odpowiedziano w ciągu ostatnich 7 dni; bez "within" czas nie gra roli); złożone "and", "or", "not". Warunek, którego nie da się odczytać, nigdy nie pomija kroku.
 
 ## 6. Ukończona opowieść i warunek „Przebieg”
@@ -50,9 +52,9 @@ Slajd, na którym nie ma już nic do rozstrzygnięcia, się pomija — warunkiem
 - Warunek `{"type": "flow", "flow": "@kurs/opowiesc", "state": "done"}` ("started", "goal" z "goal": "id") działa w widokach ("filter.when"), powtórkach i krokach widoku krajobrazu.
 - Postęp uczącego się jest prywatny: nie ma go w eksporcie ani w MCP.
 
-## 7. Przegląd na końcu — dopiero zdany zalicza opowieść
+## 7. Przegląd na końcu (nieobowiązkowy) — zdany zalicza opowieść
 
-Opowieść kończy się krótkim przeglądem tego, czego uczyła — W TYM SAMYM przebiegu, z TYMI SAMYMI pytaniami co w opowieści (ta sama historia kart). Przebieg z celami opuszcza jednostkę do doliny dopiero, gdy jest ukończony **i** każdy cel osiągnięty; bez celów — gdy ukończony.
+**Zalecane zakończenie** (guide-good-world §1.6): 2–4 pytania, które łączą kroki, i podsumowanie; po podsumowaniu nic — powtórki prowadzi wieża. Krok "review" jest **nieobowiązkowy**: użyj go, gdy opowieść ma się zaliczać przeglądem (np. jednostka w krajobrazie). Wtedy opowieść kończy się krótkim przeglądem tego, czego uczyła — W TYM SAMYM przebiegu, z TYMI SAMYMI pytaniami co w opowieści (ta sama historia kart). Przebieg z celami opuszcza jednostkę do doliny dopiero, gdy jest ukończony **i** każdy cel osiągnięty; bez celów — gdy ukończony.
 
 **Najprościej (od 2026-11-05): jeden krok "review".** Zamiast kilku kroków na każde pytanie wstaw na końcu jeden krok:
 
@@ -102,7 +104,7 @@ Po „Koniec” ścieżka i ekran zamknięcia same pokazują, co dalej: tematy i
 
 Przy wyborze opowieść się zatrzymuje: uczący się widzi wszystkie drogi z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”), zamknięte z powodem (warunek "condition" możliwości; "not" — „Zamknięte, bo: …”), i sam wybiera. Nadaj możliwościom nazwy, które mówią, dokąd prowadzą („Droga A: młodość”), a wyborowi "title".
 
-**Opis i wybór na jednym ekranie (2026-11-11).** Wybór z `"of"` pokazuje swój slajd (tytuł, tekst, rysunek obok tekstu — na telefonie pod nim) NAD możliwościami; "title" wyboru jest wtedy nagłówkiem możliwości (bez "title" — bez osobnego nagłówka). Każda możliwość może mieć `"hint"`: jedną krótką linię pod nazwą (zwykły tekst ze znacznikami w linii, najwyżej ok. 120 znaków — dłuższy daje ostrzeżenie przy imporcie); stoi nad tym, co czeka za możliwością, i nad powodem zamknięcia. "label" zostaje krótką nazwą drogi — to nazwa linii na mapie świata. Na ścieżce taki wybór jest JEDNYM krokiem (węzeł rozwidlenia), jego slajd nie jest osobną częścią „slajdy do przeczytania”; licznik postępu liczy go raz; slajd liczy się jako pokazany (jego temat, jak przy "show"). W trybie przeglądania („Już za Tobą — tylko do przejrzenia”) widać tekst i możliwości z zaznaczoną wybraną; można też wybrać inną drogę.
+**Opis i wybór na jednym ekranie (2026-11-11).** Wybór z `"of"` pokazuje swój slajd (tytuł, tekst, rysunek obok tekstu — na telefonie pod nim) NAD możliwościami; "title" wyboru jest wtedy nagłówkiem możliwości (bez "title" — bez osobnego nagłówka). Każda możliwość może mieć `"hint"`: jedną krótką linię pod nazwą (zwykły tekst ze znacznikami w linii, najwyżej 100 znaków — dłuższy daje ostrzeżenie przy imporcie); stoi nad tym, co czeka za możliwością, i nad powodem zamknięcia. "label" zostaje krótką nazwą drogi (najwyżej 32 znaki) — to nazwa linii na mapie świata. Na ścieżce taki wybór jest JEDNYM krokiem (węzeł rozwidlenia), jego slajd nie jest osobną częścią „slajdy do przeczytania”; licznik postępu liczy go raz; slajd liczy się jako pokazany (jego temat, jak przy "show"). W trybie przeglądania („Już za Tobą — tylko do przejrzenia”) widać tekst i możliwości z zaznaczoną wybraną; można też wybrać inną drogę.
 
 ## 8b. Drabina opowieści i zagłębienia (2026-11-04)
 
@@ -196,9 +198,54 @@ Pytanie ma dziś nie tylko „dobrze” i „źle”. Każde nowe wyjście bez k
   - `{"type": "streak", "right": 3}` — ostatnie 3 odpowiedzi dobre (skrót dla pewnych siebie).
   Typowo: na końcu `condition` z `"session"` ≥ 3 błędów → slajd podsumowania.
 - **Pomoc się nie liczy**: kroki pomocy (wygenerowane, z `"remedial": true` albo osiągalne tylko przez "wrong:<znacznik>", "partial", "rightOnRetry") nie wchodzą do postępu, liczników przy wyborach ani linii na mapie — ścieżka i mapa pokazują je jako małą pętlę przy tej samej części/wieży („3 kroki pomocy”). Własny slajd pomocy za "wrong:<znacznik>" oznacz `"remedial": true`.
+- **Formy wyjaśnienia po błędzie, nie kopie drogi** (guide-good-world §1.6): jedna krótka główna droga; dopiero gdy pojawi się trudność, `wrong:<znacznik>` prowadzi do wyboru formy (`"choice"` z `"of"` i `"hint"`), a jego gałęzie to kroki pomocy (`"remedial": true`), które wracają na drogę. Formy różnią się naprawdę (narracja, długość, przykłady), ale wszystkie używają tych samych faktów i pytań; ich liczbę i nazwy wybiera autor:
+
+```json
+{"nodes": [
+  {"id": "q", "type": "question", "config": {"of": "@kurs/q/hustawka"}},
+  {"id": "jak", "type": "choice", "config": {"of": "@kurs/s/jak-wyjasnic", "title": "Jak to wyjaśnić?", "remedial": true, "options": [
+    {"label": "Z przykładem", "hint": "brat i siostra na huśtawce"}, {"label": "Ze wzorem — pomyślę sam", "hint": "jeden wzór, jedno pytanie"},
+    {"label": "Krok po kroku", "hint": "trzy krótkie slajdy"}, {"label": "Krótko", "hint": "jedno zdanie"}]}},
+  {"id": "f1", "type": "show", "config": {"of": "@kurs/s/hustawka-przyklad", "remedial": true}},
+  {"id": "f2", "type": "show", "config": {"of": "@kurs/s/hustawka-wzor", "remedial": true}},
+  {"id": "f3", "type": "show", "config": {"of": "@kurs/s/hustawka-kroki", "remedial": true}},
+  {"id": "f4", "type": "show", "config": {"of": "@kurs/s/hustawka-krotko", "remedial": true}},
+  {"id": "check", "type": "question", "config": {"of": "@kurs/q/hustawka-latwe", "remedial": true}},
+  {"id": "dalej", "type": "show", "config": {"of": "@kurs/s/rownowaga"}},
+  {"id": "koniec", "type": "end"}],
+ "edges": [
+  {"from": "q", "out": "right", "to": "dalej"}, {"from": "q", "out": "wrong", "to": "dalej"},
+  {"from": "q", "out": "wrong:myli-mase-z-ramieniem", "to": "jak"},
+  {"from": "jak", "out": "o0", "to": "f1"}, {"from": "jak", "out": "o1", "to": "f2"}, {"from": "jak", "out": "o2", "to": "f3"}, {"from": "jak", "out": "o3", "to": "f4"},
+  {"from": "f1", "out": "next", "to": "check"}, {"from": "f2", "out": "next", "to": "check"}, {"from": "f3", "out": "next", "to": "check"}, {"from": "f4", "out": "next", "to": "check"},
+  {"from": "check", "out": "right", "to": "dalej"}, {"from": "check", "out": "wrong", "to": "dalej"}, {"from": "dalej", "out": "next", "to": "koniec"}]}
+```
 - **Slajdy pomocy przy temacie**: niech wskazują ten sam temat co pytanie ("about" pytania ↔ pole-odwołanie slajdu, np. "o_czym") — inaczej import ostrzega.
 - **Podgląd importu** wymienia przy każdym pytaniu jego drogi i ostrzega: znacznik bez krawędzi, krawędź do znacznika, którego pytanie nie ma, pomoc bez powrotu, "max" > 2, slajd pomocy poza tematem. Autorzy widzą później (zsumowane, nigdy dla jednej osoby), jak często wybrano każdą drogę, ile następnych sprawdzeń było dobrych i które znaczniki są najczęstsze — tam warto poprawić wyjaśnienie.
 - Pełny przykład: „example-adaptive” (templates/cogita/przyklad-adaptacyjny.json).
+
+## 8h. Lekcja i nauka samodzielna: przewidywania i tryby (2026-11-22)
+
+Ta sama opowieść gra sama i na lekcji — **jedna treść, dwie kolejności** (guide-good-world §1.7). Samodzielnie: najpierw wyjaśnienie, potem pytanie, które sprawdza, czy dotarło. Na lekcji: najpierw sytuacja **bez** odpowiedzi i pytanie-przewidywanie (wszyscy głosują, rozkład pokazuje, jakie błędy siedzą w klasie), potem wyjaśnienie zależne od odpowiedzi, potem pytanie sprawdzające zrozumienie. Nie buduj dwóch opowieści.
+
+- **Przewidywanie**: `"predict": true` na kroku "question", np. `{"id": "p", "type": "question", "config": {"of": "@kurs/q/ktora-kula", "predict": true}}`. Pytanie pokazuje się i ma wyjścia jak każde (`"right"` → krótkie potwierdzenie dlaczego, `"wrong:<znacznik>"` → wyjaśnienie dokładnie tego błędu, `"wrong"`), na lekcji otwiera głosowanie i rozkład — ale **nigdy się nie liczy**: nie trafia do historii karty, znajomości, poziomów, zdobycia ani powtórek (także uczniom klasy). Odtwarzacz mówi przed odpowiedzią i po niej „To pytanie się nie liczy — to przewidywanie”. Na ścieżce i mapie świata liczy się jak krok pomocy. Pytanie-przewidywanie patrzy w przód („Co się stanie, gdy…?”, „Która kula spadnie pierwsza?”), a jego złe możliwości to typowe przedsądy klasy, każda ze znacznikiem. **Nigdy to samo pytanie jako przewidywanie i jako pytanie sprawdzające zrozumienie** — import ostrzega.
+- **Kto gra krok — `"use"`**: `"self"` (tylko samodzielnie), `"lesson"` (tylko na lekcji), `"both"` (domyślnie). Na wpisie — klucz w jego "data" (`{"tytul": …, "tekst": …, "use": "lesson"}`; pytanie ma też pole "use") — albo w "config" kroku (wygrywa; ten sam slajd może służyć inaczej w dwóch opowieściach). Krok, którego tryb nie gra, jest pomijany jak przy "skipWhen" (slajd przez "next", pytanie przez "right", objazd przez "skip").
+- **Gałęzie według trybu**: gałąź "choice" albo "chapters", której PIERWSZY krok nie pasuje do trybu, w tym trybie nie obowiązuje i nikt jej nie widzi. Gdy pasuje tylko jedna, aplikacja bierze ją sama (§5, (c)) — nauczyciel nigdy nie widzi przełącznika, a opowieść idzie za trybem.
+- **Warunek trybu**: `{"type": "mode", "is": "lesson"}` (albo `"self"`) w krokach "condition", w "condition" możliwości wyboru i w "skipWhen" — na to, czego nie pokrywają oznaczenia, np. pytanie na wyjście tylko na lekcji. Nigdy bilet na mapie.
+- **Tryb** to nie znacznik: "self" ma każdy, kto uczy się sam; "lesson" — lekcja prowadzona przez nauczyciela (tryb „Prowadzę”, tylko z rolą nauczyciela albo administratora w obszarze klasy). Ścieżka, mapa i liczniki pokazują tylko to, co gra aktywny tryb; kroki pominięte przez tryb nigdy nie „brakują”.
+- **Projektor**: każdy krok da się pokazać na ekranie klasy — slajd zrozumiały bez klikania, pytanie mieści się na ekranie; lekcja kończy się trzema pytaniami indywidualnymi (bilet na wyjście).
+- **Import** ostrzega przed nieznanym "use" albo "is", gałęzią, do której żaden tryb nie wchodzi, i opowieścią, z której w jednym trybie nic nie zostaje.
+
+Wzór drogi (zwykle tak):
+
+```
+sytuacja (both) → wyjaśnienie (use: self) → przewidywanie (predict, use: lesson)
+   right → „tak — dlaczego” (lesson)      wrong:<znacznik> → wyjaśnienie tego błędu (lesson)
+→ doświadczenie: wybór „Razem w klasie” (lesson) / „Sam w domu” (self) — aplikacja bierze sama
+→ pytanie sprawdzające zrozumienie (both, liczy się) → {"type": "mode", "is": "lesson"} → bilet na wyjście
+```
+
+Pełny przykład: „example-lesson” (templates/cogita/przyklad-lekcja.json).
 
 ## 9. Kolejność importu
 
@@ -225,6 +272,21 @@ Jeden dokument może też zmieniać i usuwać to, co już jest — wszystko w je
 - Usunięcie: `{"ref": "<id>", "remove": true}`; podgląd wymienia każde z nazwą (można odznaczyć). Odwołania w polach innych wpisów ("about" pytań, "wymaga") znikają w tym samym zapisie; jeśli na wpis wskazuje przebieg ("unit", krok), zapis nie przejdzie — usuń albo popraw przebieg w tym samym dokumencie.
 - Odpowiedzi uczących się zostają; karty usuniętego pytania przestają się liczyć (postępy, przegląd, krajobraz).
 
+### Cały świat w jednym pliku ("wholeWorld", "part", 2026-11-22)
+
+Gdy plik opisuje CAŁY świat (całą bazę), nie trzeba wypisywać usunięć: w nagłówku kursu `"wholeWorld": true` — to, co jest w pliku, zachowuje identyfikatory, a wszystko inne z bazy (wpisy i struktury: przebiegi, widoki, powtórki, szablony, zbiory, formularze, wejścia, nagrody, drogi, wyglądy, reguły, wartości) jest usuwane w tym samym zapisie. Nigdy: rodzaje, ustawienia, uwagi, odpowiedzi i postępy.
+
+```json
+{"format": "recreatio.cogita.course", "version": 1, "name": "Fizyka — mechanika",
+ "wholeWorld": true, "part": "mechanika",
+ "kinds": [ … ], "entities": [ … ], "flows": [ … ], "views": [ … ]}
+```
+
+- Podgląd zaczyna się od wiersza „CAŁY ŚWIAT: … zostanie usunięte” i wymienia każde usunięcie (można odznaczyć); serwerowe sprawdzenie importu (MCP) pokazuje to samo, zanim cokolwiek się zapisze.
+- `"part"`: wszystko, co plik tworzy albo zmienia, należy do tej części; z `"wholeWorld": true` usuwane jest tylko to, co należy do TEJ części. To, co nigdy nie przyszło z częścią, zostaje (podgląd je liczy) — zaimportuj część raz z `"part"`, żeby jej istniejące elementy do niej należały. Duży świat (fizyka) dziel tak na części, jedna część = jeden plik.
+- To, czego nie ma w pliku, ale plik na to wskazuje (id albo trwała nazwa), zostaje — z ostrzeżeniem. Odwołania jak przy `"remove": true`: przebieg innej części, który wskazuje na usuwany wpis, zatrzymuje zapis.
+- Eksport bazy zaimportowany z `"wholeWorld": true` niczego nie usuwa. Do 20 000 elementów w jednym zapisie (duży idzie w częściach, ale zapisuje się w jednej transakcji).
+
 ### Kolor w tekście slajdu (2026-11-21)
 
 Słowa na slajdzie można pokolorować: `[te słowa]{.red}` (kolory `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, `gray`, a `mark` — zakreślacz). Stała paleta, czytelna w jasnym i ciemnym wyglądzie; nieznany kolor — tekst bez koloru i ostrzeżenie w imporcie. Szczegóły: „guide-visuals” §6a.
@@ -235,7 +297,10 @@ Słowa na slajdzie można pokolorować: `[te słowa]{.red}` (kolory `red`, `oran
 - Licznik bez nazwy opowieści ("przeglad") — dwie opowieści dzielą jeden licznik.
 - Przegląd bez zerowania na początku — „Powtórz przegląd” liczy dalej od starego wyniku.
 - Cel z innym warunkiem niż bramka wyniku — opowieść idzie do końca, a pole nie opada (albo odwrotnie).
-- Brak "review" — „Powtórz przegląd” zaczyna całą opowieść od początku.
+- Przegląd bez kroku "review" (gdy opowieść ma się nim zaliczać) — „Powtórz przegląd” zaczyna całą opowieść od początku.
+- Trzy kopie drogi (dla dzieci, dla szkoły, dla dorosłych) wybierane przed jakąkolwiek trudnością — zamiast nich formy wyjaśnienia po błędzie (§8g).
+- Pytanie `"flash"` (samoocena) — w świecie wiedzy każdą odpowiedź ocenia komputer.
+- Blok 10+ pytań na końcu albo linia przez kilka wież — zamknięcie to 2–4 pytania łączące kroki, a jedna opowieść prowadzi do jednej wieży.
 - Strona bez "story.base" — odpowiedzi zostają w przeglądarce, Nauka ich nie widzi.
 - "unit" wskazuje temat zamiast jednostki.
 - Bramka z "band": "known" zaraz po jednej odpowiedzi — "known" wymaga powtórek; do „przeszedł drogę” użyj "learned".

@@ -26,6 +26,12 @@ internal static class CogitaChecks
             new("clock", "every", null, null, 60, false, null, [new Cogita.GameAction("add", "pts", 1, null, null, "each")])
         ]);
 
+        /* 2026-11-22 (0144) — die Klasse: eine Stunde und eine Zadanie sind Sitzungen; Teilnehmer stimmen nur ab (answer), Schritte und Abstimmungen schickt der Gastgeber. */
+        check(Cogita.IsSessionKind("lesson") && Cogita.IsSessionKind("task") && Cogita.IsSessionKind("live"), "session: lesson and task are kinds of a session");
+        check(!Cogita.IsSessionKind("lekcja") && !Cogita.IsSessionKind(""), "session: an unknown kind is refused");
+        check(Cogita.IsParticipantKind("answer") && Cogita.IsParticipantKind("join"), "session: a participant joins and votes");
+        check(!Cogita.IsParticipantKind("step") && !Cogita.IsParticipantKind("poll") && !Cogita.IsParticipantKind("reveal") && !Cogita.IsParticipantKind("pollend") && !Cogita.IsParticipantKind("tally"), "session: steps, votes and results come only from the host");
+
         check(Cogita.RulesProblem(rules) is null, "game: good rules pass");
         check(Cogita.RulesProblem(rules with { Triggers = [On("x", "enter", "nowhere")] }) is not null, "game: a trigger needs its zone");
         check(Cogita.RulesProblem(rules with { Triggers = [On("x", "enter", "rynek", new Cogita.GameAction("add", "gold", 1, null, null, null))] }) is not null, "game: an action needs its value");

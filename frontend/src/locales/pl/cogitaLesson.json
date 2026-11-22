@@ -1,0 +1,252 @@
+{
+  "newSays": "Lekcja: klasa przechodzi tę opowieść razem. Ty naciskasz „Dalej”, każdy głosuje na swoim urządzeniu, głosy widzisz od razu.",
+  "bars": {
+    "rest": "inne odpowiedzi",
+    "count": {
+      "one": "{count} · {pct} %",
+      "few": "{count} · {pct} %",
+      "many": "{count} · {pct} %",
+      "other": "{count} · {pct} %"
+    },
+    "error": "błąd: {tag}",
+    "errors": "Błędy w klasie: {list}",
+    "errorN": {
+      "one": "{tag} ({count})",
+      "few": "{tag} ({count})",
+      "many": "{tag} ({count})",
+      "other": "{tag} ({count})"
+    }
+  },
+  "host": {
+    "noConfig": "Ta lekcja nie ma opowieści — utwórz ją od nowa przy wieży.",
+    "loading": "Przygotowuję lekcję…",
+    "panel": "Głosy klasy",
+    "joined": {
+      "one": "{count} uczeń dołączył",
+      "few": "{count} uczniów dołączyło",
+      "many": "{count} uczniów dołączyło",
+      "other": "{count} ucznia dołączyło"
+    },
+    "hidePanel": "Ukryj",
+    "showPanel": {
+      "one": "Głosy ({count})",
+      "few": "Głosy ({count})",
+      "many": "Głosy ({count})",
+      "other": "Głosy ({count})"
+    },
+    "noVote": "Teraz nie ma głosowania — otwiera je pytanie, rozwidlenie albo rozdziały.",
+    "voteQuestion": "Pytanie · runda {round}",
+    "voteWay": "Którędy?",
+    "voteOrder": "Który temat najpierw?",
+    "voted": {
+      "one": "Zagłosował {count} z {total}",
+      "few": "Zagłosowało {count} z {total}",
+      "many": "Zagłosowało {count} z {total}",
+      "other": "Zagłosowało {count} z {total}"
+    },
+    "correctIs": "Poprawna odpowiedź:",
+    "share": "{pct} % poprawnie",
+    "classRight": "klasa odpowiada poprawnie",
+    "classWrong": "klasa odpowiada błędnie",
+    "close": "Zamknij głosowanie",
+    "again": "Druga runda",
+    "takeAnswer": "Dalej z odpowiedzią klasy",
+    "takeChoice": "Jak klasa: {name}",
+    "backToSlide": "Wróć do slajdu",
+    "nextByOrder": "Dalej według kolejności klasy: {name}",
+    "nextPart": "Następna opowieść: {name}",
+    "finish": "Zakończ lekcję",
+    "settings": "Ustawienia tej lekcji",
+    "showVotes": "Kto widzi głosy",
+    "high": "Dalej od (%)",
+    "low": "Wróć do slajdu poniżej (%)",
+    "thresholdsSay": "To tylko podpowiedź dla Ciebie: powyżej pierwszej wartości wyjaśnij i idź dalej, pomiędzy niech sąsiedzi porozmawiają i zagłosują jeszcze raz, poniżej drugiej wróć do slajdu."
+  },
+  "advice": {
+    "move-on": "Większość wie — krótko wyjaśnij i idź dalej.",
+    "discuss": "Klasa jest podzielona — niech sąsiedzi porozmawiają, potem drugie głosowanie.",
+    "back": "Niewielu wie — wróć do slajdu."
+  },
+  "showVotes": {
+    "after": "Klasa, po zamknięciu głosowania",
+    "live": "Klasa, już w trakcie",
+    "never": "Tylko ja"
+  },
+  "screen": {
+    "round": "Głosujcie jeszcze raz · runda {round}",
+    "vote": "Głosuj na swoim urządzeniu",
+    "voted": {
+      "one": "Zagłosował {count} z {total}",
+      "few": "Zagłosowało {count} z {total}",
+      "many": "Zagłosowało {count} z {total}",
+      "other": "Zagłosowało {count} z {total}"
+    },
+    "answered": {
+      "one": "{count} głos",
+      "few": "{count} głosy",
+      "many": "{count} głosów",
+      "other": "{count} głosu"
+    },
+    "share": "{pct} % klasy odpowiedziało poprawnie",
+    "pollWay": "Wybierzcie drogę",
+    "pollOrder": "Który temat najpierw?",
+    "chosen": "Klasa wybrała: {name}"
+  },
+  "student": {
+    "board": "Spójrz na tablicę.",
+    "sent": "Twój głos dotarł.",
+    "typed": "Twoja odpowiedź",
+    "send": "Wyślij",
+    "onlyBoard": "Na to pytanie odpowiada się przy tablicy."
+  },
+  "task": {
+    "unreadable": "Tego zadania nie da się odczytać.",
+    "kind": {
+      "tower": "zdobyć wieżę",
+      "trail": "przejść opowieść",
+      "review": "powtórzyć wieżę"
+    },
+    "target": "Cel: {name}",
+    "until": " · do {date}",
+    "hostSays": "Każdy widzi je na swojej mapie; odhacza się samo, gdy postęp osiągnie cel.",
+    "progress": "Postępy uczących się"
+  },
+  "menu": {
+    "open": "Ustawienia mapy",
+    "leading": "Prowadzę",
+    "title": "Ustawienia mapy",
+    "textSize": "Wielkość tekstu i wygląd",
+    "mode": "Tryb",
+    "learn": "Uczę się",
+    "lead": "Prowadzę",
+    "leadSays": "Nad wieżami, ścieżkami i rozwidleniami: „Prowadź tutaj” i „Zadaj”. Twoje odpowiedzi na lekcji nie liczą się do Twoich postępów.",
+    "learnSays": "Zwykła nauka — Twoje odpowiedzi liczą się do Twoich postępów.",
+    "class": "Klasa",
+    "baseArea": "{name} (obszar bazy)"
+  },
+  "map": {
+    "lead": "Prowadź tutaj",
+    "leadSays": "Zacznij tu lekcję: klasa przejdzie tę opowieść razem",
+    "assign": "Zadaj"
+  },
+  "lead": {
+    "title": "Zacznij lekcję",
+    "says": "„{name}” z {area}: Ty prowadzisz, klasa głosuje na swoich urządzeniach.",
+    "trails": "Opowieści lekcji (jedna po drugiej)",
+    "lessonRun": "przebieg na lekcję",
+    "sequence": "Zaznaczone opowieści idą jedna po drugiej; każda kończy się przy swojej wieży.",
+    "starting": "Zaczynam…",
+    "start": "Zacznij lekcję"
+  },
+  "assign": {
+    "title": "Zadaj klasie",
+    "done": "„{name}” jest zadane: {area}.",
+    "says": "Dla: {area} — odhacza się samo z postępów każdego ucznia.",
+    "what": "Co",
+    "until": "Termin",
+    "giving": "Zadaję…",
+    "give": "Zadaj"
+  },
+  "tasks": {
+    "count": {
+      "one": "{count} otwarte zadanie",
+      "few": "{count} otwarte zadania",
+      "many": "{count} otwartych zadań",
+      "other": "{count} otwartego zadania"
+    },
+    "title": "Zadania",
+    "hide": "Ukryj",
+    "until": "do {date}",
+    "state": {
+      "done": "zrobione",
+      "open": "otwarte",
+      "late": "po terminie"
+    }
+  },
+  "round": {
+    "questions": {
+      "one": "{count} pytanie wspólnie",
+      "few": "{count} pytania wspólnie",
+      "many": "{count} pytań wspólnie",
+      "other": "{count} pytania wspólnie"
+    },
+    "tower": "Pytania wieży „{name}”",
+    "none": "Tu nie ma pytań — przejdź do następnej części.",
+    "done": "Wszystkie pytania wieży {name} odpowiedziane.",
+    "of": "Pytanie {n} z {all} · {name}",
+    "next": "Następne pytanie",
+    "finish": "Koniec pytań"
+  },
+  "plan": {
+    "loading": "Przygotowuję plan…",
+    "notLead": "Lekcje tej klasy może planować tylko ktoś, kto ją prowadzi.",
+    "toClasses": "Klasy",
+    "title": "Lekcje klasy {name}",
+    "lede": "Zaplanuj lekcję: wybierz, gdzie się zaczyna i do której wieży prowadzi — droga pomiędzy pojawi się sama (tak jak „Prowadź mnie tutaj”). Potem pomijaj, dodawaj i przesuwaj części, zapisz plan i zacznij go jednym kliknięciem.",
+    "new": "Nowy plan",
+    "none": "Nie ma jeszcze zapisanego planu.",
+    "noSuch": "Takiego planu nie ma (już).",
+    "newTitle": "Nowy plan lekcji · {name}",
+    "editTitle": "Plan: {title}",
+    "startLabel": "Początek",
+    "fromHome": "Od początku (dom)",
+    "midPath": "Zacznij w środku ścieżki",
+    "whichPath": "Ścieżka",
+    "whichStep": "Krok",
+    "targetLabel": "Wieża docelowa",
+    "pickTarget": "Wybierz wieżę…",
+    "pickTargetSays": "Wybierz wieżę, do której ma prowadzić lekcja.",
+    "routeSays": "Droga dla klasy, która zaczyna tutaj. Odznacz, co pomijasz, dodaj, czego brakuje, przesuwaj strzałkami.",
+    "alreadyKnown": "Od tego początku klasa ma już „{name}” — wybierz wcześniejszy początek albo inny cel.",
+    "kind": {
+      "path": "Ścieżka",
+      "tower": "Wieża",
+      "check": "Pytania na koniec"
+    },
+    "fromStep": "od kroku {step}",
+    "added": "dodane",
+    "towerHow": "Jak klasa przechodzi przez wieżę",
+    "pathOnly": "tylko ścieżka",
+    "pathAndTower": {
+      "one": "ścieżka + wieża ({count} pytanie wspólnie)",
+      "few": "ścieżka + wieża ({count} pytania wspólnie)",
+      "many": "ścieżka + wieża ({count} pytań wspólnie)",
+      "other": "ścieżka + wieża ({count} pytania wspólnie)"
+    },
+    "up": "W górę",
+    "down": "W dół",
+    "remove": "Usuń",
+    "needsLater": "potrzebuje „{name}”, które przychodzi później",
+    "add": "Dodaj",
+    "addPick": "Dodaj część…",
+    "addPaths": "Ścieżki",
+    "addDeeper": "Pogłębienia",
+    "addTowers": "Wieże (ich pytania wspólnie)",
+    "addQuestionPaths": "Drogi do pytania",
+    "defaultTitle": "Lekcja: {name}",
+    "partsSays": {
+      "one": "Lekcja ma {count} część.",
+      "few": "Lekcja ma {count} części.",
+      "many": "Lekcja ma {count} części.",
+      "other": "Lekcja ma {count} części."
+    },
+    "warnSays": {
+      "one": "{count} część stoi przed tym, czego potrzebuje — wolno, ale sprawdź.",
+      "few": "{count} części stoją przed tym, czego potrzebują — wolno, ale sprawdź.",
+      "many": "{count} części stoi przed tym, czego potrzebują — wolno, ale sprawdź.",
+      "other": "{count} części stoi przed tym, czego potrzebują — wolno, ale sprawdź."
+    },
+    "saved": "Plan zapisany.",
+    "start": "Zacznij lekcję",
+    "save": "Zapisz plan",
+    "fork": "rozwidlenie",
+    "summary": "części: {parts} · cel: {target}",
+    "open": "Otwórz",
+    "copy": "Kopiuj",
+    "copyOf": "{title} (kopia)",
+    "deleteAsk": "Usunąć plan „{title}”?",
+    "deleteSays": "Lekcje przeprowadzone według niego zostają.",
+    "cardButton": "Zaplanuj lekcję",
+    "fromMap": "Zaplanuj dłuższą lekcję do tego miejsca"
+  }
+}

@@ -41,6 +41,12 @@
       mitgebrachte.
     -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+
+    <!--
+      2026-11-22 (A1) — Jint führt die Prüfung der Importe aus (ImportCheck.cs, MCP check_import): dasselbe gebündelte
+      TypeScript wie die Vorschau der App, in einer abgeschlossenen Maschine ohne Zugriff auf .NET.
+    -->
+    <PackageReference Include="Jint" Version="4.18.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,6 +64,30 @@
     <EmbeddedResource Include="Library\ImportFormats.json" LogicalName="Api.ImportFormats.json" />
     <!-- Nur eingebettet: das Web-SDK nähme jede .json sonst auch als Datei in die Veröffentlichung. -->
     <Content Remove="Library\ImportFormats.json" />
+    <!-- 2026-11-22 (A1) — die Prüfung der Importe (ImportCheck.cs) und ihre Texte, aus der App gebündelt: frontend/scripts/import-check-bundle.mjs. -->
+    <EmbeddedResource Include="Library\ImportCheck.js" LogicalName="Api.ImportCheck.js" />
+    <EmbeddedResource Include="Library\ImportCheck.locales.json" LogicalName="Api.ImportCheck.locales.json" />
+    <Content Remove="Library\ImportCheck.locales.json" />
   </ItemGroup>
+
+  <!--
+    2026-11-22 (A1) — DAS BÜNDEL DER PRÜFUNG FRISCH HALTEN: vor jedem Bau (auch `dotnet publish -p:PublishProfile=Webio`)
+    bündelt Node die Planer der App neu, wenn frontend/node_modules da ist und sich etwas unter frontend/src geändert hat.
+    Ohne Node (oder wenn das Bündeln scheitert) bleibt die eingecheckte Datei und der Bau geht weiter — mit einem Hinweis.
+    Abschalten: -p:SkipImportCheckBundle=true.
+  -->
+  <PropertyGroup>
+    <ImportCheckFrontend>$(MSBuildProjectDirectory)\..\..\frontend</ImportCheckFrontend>
+  </PropertyGroup>
+  <ItemGroup>
+    <ImportCheckSources Include="$(ImportCheckFrontend)\src\**\*.ts;$(ImportCheckFrontend)\src\**\*.tsx;$(ImportCheckFrontend)\src\locales\**\*.json;$(ImportCheckFrontend)\scripts\import-check-bundle.mjs" />
+  </ItemGroup>
+  <Target Name="ImportCheckBundle" BeforeTargets="BeforeBuild" Inputs="@(ImportCheckSources)" Outputs="Library\ImportCheck.js"
+          Condition="'$(SkipImportCheckBundle)' != 'true' And Exists('$(ImportCheckFrontend)\node_modules\esbuild')">
+    <Exec Command="node scripts/import-check-bundle.mjs" WorkingDirectory="$(ImportCheckFrontend)" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="normal">
+      <Output TaskParameter="ExitCode" PropertyName="ImportCheckBundleExit" />
+    </Exec>
+    <Message Condition="'$(ImportCheckBundleExit)' != '0'" Importance="high" Text="ImportCheck.js: Bündeln fehlgeschlagen (Exit $(ImportCheckBundleExit)) — die vorhandene Datei bleibt." />
+  </Target>
 
 </Project>

@@ -24,6 +24,8 @@ import { readGame, type GameRules } from './game';
 import { graphJson, type Graph } from './graph';
 import { adaptiveProblems, checkContext, declareExits, expandAdaptive } from './adaptive';
 import { AdaptiveEditor } from './AdaptiveEditor';
+import { ModeEditor } from './ModeEditor';
+import type { PlayMode } from './modes';
 import { GraphEditor } from './GraphEditor';
 import { FLOW_PRESETS } from './presets';
 import { pageUrl, publishModule } from './publish';
@@ -90,7 +92,8 @@ function FlowForm({ id }: { id: string }) {
   const [flow, setFlow] = useState<Flow>(() => readFlow(entry.id, entry.data, { authored: true }));
   const [game, setGame] = useState<GameRules>(() => readGame(entry.data.game));
   const [dirty, setDirty] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  /* 2026-11-22 (I4) — ausprobieren wie allein (`self`) oder wie in einer Stunde (`lesson`): dieselbe Erzählung, die andere Reihenfolge. */
+  const [playing, setPlaying] = useState<false | PlayMode>(false);
   const { busy, failed, run } = useBusy();
   const [said, setSaid] = useState<string | null>(null);
   useEffect(() => { if (!dirty) { setFlow(readFlow(entry.id, entry.data, { authored: true })); setGame(readGame(entry.data.game)); } }, [entry.version, dirty, entry.id, entry.data]);
@@ -114,8 +117,8 @@ function FlowForm({ id }: { id: string }) {
     setDirty(false);
   });
 
-  if (playing && cards !== undefined) {
-    return <FlowPlayer flow={resolved} content={contentOfLibrary(lib, cards ?? [])} learner={null} onClose={() => setPlaying(false)} backLabel={t('cogitaEditFlow.editor.backLabel')} />;
+  if (playing !== false && cards !== undefined) {
+    return <FlowPlayer flow={resolved} content={contentOfLibrary(lib, cards ?? [])} learner={null} mode={playing} onClose={() => setPlaying(false)} backLabel={t('cogitaEditFlow.editor.backLabel')} />;
   }
 
   const templates = lib.docs('flow').filter((e) => e.id !== id && Array.isArray(e.data.slots) && e.data.slots.length > 0);
@@ -128,7 +131,8 @@ function FlowForm({ id }: { id: string }) {
         <label className="wk-field"><span>{t('cogitaEditFlow.editor.look')}</span>
           <select value={flow.look} disabled={!writes || flow.presentation !== undefined} onChange={(e) => set({ look: e.target.value as LookType })}>{LOOK_TYPES.map((l) => <option key={l} value={l}>{LOOK_LABEL[l]}</option>)}</select>
         </label>
-        <button type="button" className="wk-btn" onClick={() => setPlaying(true)}>{t('cogitaEditFlow.editor.try')}</button>
+        <button type="button" className="wk-btn" onClick={() => setPlaying('self')} data-flow-try="self">{t('cogitaEditFlow.editor.try')}</button>
+        <button type="button" className="wk-btn wk-btn-line" onClick={() => setPlaying('lesson')} title={t('cogitaEditFlow.modes.tryLessonSays')} data-flow-try="lesson">{t('cogitaEditFlow.modes.tryLesson')}</button>
       </div>
 
       {/* 2026-10-22 (Schritt 12) — ein Storyboard: die Karte kommt aus der Präsentation. */}
@@ -168,6 +172,8 @@ function FlowForm({ id }: { id: string }) {
       )}
       {/* 2026-11-20 — „Dodaj pomoc po złej odpowiedzi" an jedem Schritt „question" (adaptive Abläufe). */}
       {flow.template === undefined && <AdaptiveEditor graph={flow.graph} lib={lib} writes={writes} onChange={(g) => set({ graph: declareExits(g) })} />}
+      {/* 2026-11-22 (I3/I4) — allein oder in einer Stunde: "use" je Schritt, Vorhersagen (`modes.ts`). */}
+      {flow.template === undefined && <ModeEditor graph={flow.graph} start={flow.start} lib={lib} writes={writes} onChange={(g) => set({ graph: g })} />}
       </>)}
 
       <details open={flow.narrators.length > 0}>

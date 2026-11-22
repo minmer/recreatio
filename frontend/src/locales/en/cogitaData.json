@@ -48,6 +48,19 @@
     "summaryEntries": "Entries: {fresh} new, {changed} to change.",
     "summaryDocs": "{doc}: {fresh} new, {changed} to change.",
     "summaryRemove": "To delete: {count}.",
+    "wholeWorldLine": "WHOLE WORLD: everything the file does not contain will be deleted — entries: {entries}, structures (flows, views, revisions, …): {docs}. Each is listed below and can be unticked.",
+    "wholeWorldPartLine": "WHOLE WORLD, part “{part}”: everything of this part the file does not contain will be deleted — entries: {entries}, structures (flows, views, revisions, …): {docs}. Each is listed below and can be unticked.",
+    "wholeWorldNotBool": "\"wholeWorld\" must be true or false — this file does not delete anything.",
+    "partEmpty": "\"part\" is empty — the file belongs to no part.",
+    "wholeWorldCourseOnly": "\"wholeWorld\" and \"part\" are read only in a course document (\"format\": \"{course}\") — ignored here.",
+    "wholeWorldKept": {
+      "one": "{count} item is not in the file, but the file points at it — it stays: {list}. Add it to the file, or remove the reference, if it should go.",
+      "other": "{count} items are not in the file, but the file points at them — they stay: {list}. Add them to the file, or remove the references, if they should go."
+    },
+    "partLoose": {
+      "one": "{count} item of this base belongs to no part (it never came with \"part\") — it stays. Import it once with \"part\": \"{part}\" to make it part of it.",
+      "other": "{count} items of this base belong to no part (they never came with \"part\") — they stay. Import them once with \"part\": \"{part}\" to make them part of it."
+    },
     "nothingToImport": "There is nothing to import in the document.",
     "anchorDefault": "Entry point",
     "anchorNoEntry": "Entry point “{name}”: the entry “{entry}” does not exist — the entry point will lead to the view without an entry.",
@@ -106,6 +119,7 @@
       "other": "Saving {count} items and deleting {removed} in one save…"
     },
     "sealing": "Sealing {done} of {total}…",
+    "sendingPart": "Sending part {done} of {total} (nothing is saved until the last one)…",
     "serviceRejected": "Nothing was saved — the service did not accept these items (the others waited together with them):",
     "saveFailed": "the save failed",
     "nothingSaved": "Nothing was saved",
@@ -124,6 +138,30 @@
     "aiFailed": "The copy for AI (MCP) could not be refreshed — it will refresh with the next change.",
     "aiFailedBecause": "The copy for AI (MCP) could not be refreshed: {reason} — it will refresh with the next change.",
     "hintLong": "the option \"{label}\" has a hint of {count} characters — keep it to one short line (at most {max})",
+    "labelLong": "the option \"{label}\" has a name of {count} characters — it is the name of the line on the world map, keep it short (at most {max})",
+    "levels": {
+      "none": "no levels (a tower is reached when its cards are known)",
+      "rule": "{pct} % {attempts}",
+      "any": "with any number of attempts",
+      "one": "with one correction (a question may be wrong once, then right)",
+      "first": "at the first attempt",
+      "openConquered": "paths open when the tower is conquered",
+      "openNow": "paths open at once",
+      "openAt": "paths open at level {level}",
+      "count": {
+        "one": "{count} level ({rules}; {open})",
+        "other": "{count} levels ({rules}; {open})"
+      },
+      "line": "Conquest levels change: {from} → {to}.",
+      "computed": "Learners lose nothing they earned: levels are not stored but computed from their runs under the rules in force — each tower gets at once every level an earlier run reaches under the new rules, and “Mistrzowsko” (everything right at the first attempt) stays.",
+      "keeps": "New level {level}: everyone who had level {from} before.",
+      "needsRun": "New level {level} ({rule}): certain only with a run that reaches it — a learner whose runs did not reach it is one level lower until the next run.",
+      "conquestKept": "Whoever had conquered a tower stays conquered.",
+      "conquestRun": "Whoever had conquered a tower may need one more run for the new top level.",
+      "toRuns": "Until now a tower counted as reached when its cards were known; from now on it is conquered in a run (all its questions in one go). Answers and knowledge stay, but every tower starts at level 0 until its first run, and only conquered towers come back in reviews.",
+      "toCards": "Levels are switched off: a tower counts as reached when its cards are known. The runs stay stored and count again if levels come back.",
+      "own": "Learners who set their own levels keep them, unless the setting is locked."
+    },
     "exploreRange": "the placement step: \"{field}\" is {value} — it must be a whole number from 1 to 10 (it is clamped)",
     "exploreLevels": "the placement step: the target levels {list} are not levels of this base (it has {levels})",
     "exploreEmpty": "the placement step: its scope names nothing that exists here — nothing can ever be open",
@@ -334,7 +372,8 @@
       "about": "About",
       "needs": "Must know first",
       "form": "Question type",
-      "tags": "Mistake tags"
+      "tags": "Mistake tags",
+      "use": "Used in"
     },
     "says": {
       "prompt": "The question text; for “True or false” — the statement, for a flashcard — its front, for a gap — the text with the gap [[word]] (several gaps: each on its own). Formulas: $…$ inline, $$…$$ on their own",
@@ -385,7 +424,8 @@
       "about": "Entries this question checks: its result counts towards how well they are known, and the question itself waits until you master what must be known before them",
       "needs": "Entries or questions that must be mastered before this question comes (e.g. “What is an atom?” before “What is an orbital?”)",
       "form": "How it is asked and answered — this decides which fields below are filled in: {list}",
-      "tags": "One mistake tag for each option (one, many), pair (match), gap (gap) or position (order, build), in the same order (empty: no tag) — a flow can branch on it with the exit “wrong:<tag>”"
+      "tags": "One mistake tag for each option (one, many), pair (match), gap (gap) or position (order, build), in the same order (empty: no tag) — a flow can branch on it with the exit “wrong:<tag>”",
+      "use": "When the question is played: in self-study and in lessons (default), only in self-study, or only in lessons. A step of a flow can say it differently with \"use\"."
     },
     "inverse": {
       "about": "questions",
@@ -404,6 +444,11 @@
       "check": {
         "live": "goal visible while trying",
         "submit": "only after “Check”"
+      },
+      "use": {
+        "both": "both",
+        "self": "self-study only",
+        "lesson": "lessons only"
       }
     },
     "name": "Question"
@@ -686,7 +731,8 @@
   "landscape": {
     "circle": "The learning order (“Must know first”) closes a circle: {list} — in the landscape the circle counts as one step, and the path and levels skip one link. Fix it.",
     "noAxis": "Landscape “{name}”: there is no axis kind “{kind}” — the direction will come from neighbourhood in the learning order.",
-    "noOrder": "Landscape “{name}”: the base has no learning order yet (fields “Must know first”) — everything not known lies on the ring, without mountains."
+    "noOrder": "Landscape “{name}”: the base has no learning order yet (fields “Must know first”) — everything not known lies on the ring, without mountains.",
+    "tagCircle": "Tags lie above themselves (a circle in the tag network): {list} — the circle is cut; fix the \"tag\" fields."
   },
   "interactive": {
     "cannotCompute": "solution “{name}”: cannot be computed (“{source}”)",
@@ -868,7 +914,8 @@
       "xor": "EITHER",
       "session": "Answers in this run",
       "lastAnswer": "Last answer",
-      "streak": "Streak"
+      "streak": "Streak",
+      "mode": "Mode (lesson / self-study)"
     },
     "flowCheck": {
       "started": "started",
@@ -903,7 +950,9 @@
       "lastWrong": "wrong",
       "lastPartial": "partly right",
       "lastTag": "with the mistake “{tag}”",
-      "lastMeasure": "{measure} {op} {than}"
+      "lastMeasure": "{measure} {op} {than}",
+      "modeSelf": "played in self-study",
+      "modeLesson": "played in a lesson"
     },
     "measure": {
       "wrong": "wrong answers",
@@ -916,6 +965,10 @@
       "unit": "since the start of this run",
       "flowStart": "since the start of this flow",
       "step": "since the step “{name}”"
+    },
+    "mode": {
+      "self": "self-study",
+      "lesson": "lesson"
     }
   },
   "rules": {
@@ -1177,5 +1230,24 @@
     "noExit": "the help step “{step}” never leads back to the main path",
     "retryMax": "the question “{step}” allows {max} retries — more than 2 rarely helps",
     "offTopic": "the help slide “{slide}” for “{step}” is not linked to the topic of the question"
+  },
+  "modes": {
+    "useUnknown": "step “{step}”: \"use\": \"{value}\" is unknown — use \"self\", \"lesson\" or \"both\" (it plays in both).",
+    "modeUnknown": "step “{step}”: a \"mode\" condition with \"is\": \"{value}\" — use \"lesson\" or \"self\" (the condition is ignored).",
+    "branchNever": "step “{step}”: no mode ever enters the branch “{branch}” — its first step and its condition rule out both self-study and lessons.",
+    "emptyIn": "in {mode} nothing of this story is played (every step is for the other mode).",
+    "predictCounted": "The question “{question}” is a prediction in {predicted} and counts in {counted} — a prediction needs its own question; the understanding question must be a different one."
+  },
+  "feedbackImport": {
+    "onlyCourse": "Feedback is resolved only by a course document (recreatio.cogita.course) — \"feedback\" is ignored here.",
+    "notList": "\"feedback\" must be a list: [{\"id\": \"<feedback id>\", \"state\": \"done\", \"note\": \"what was changed\"}] — ignored.",
+    "noId": "A \"feedback\" item without \"id\" — ignored.",
+    "unknown": "Feedback \"{id}\" does not exist in this knowledge base (anymore) — ignored.",
+    "line": {
+      "one": "Feedback marked done: {count} (reopened: {reopened})",
+      "other": "Feedback marked done: {count} (reopened: {reopened})"
+    },
+    "title": "Feedback “{category}” on “{label}”",
+    "titlePlain": "Feedback"
   }
 }

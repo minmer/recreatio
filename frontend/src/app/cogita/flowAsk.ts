@@ -19,6 +19,7 @@
 import type { Card } from './cardBasics';
 import { follow, type Flow } from './flow';
 import type { GraphNode } from './graph';
+import { isPredict } from './modes';
 import { average, knownessOf, levelOfKnowness, type Mark, type Spacing } from './knowness';
 import { cardEntities } from './prerequisites';
 
@@ -75,8 +76,8 @@ export function questionsLeft(flow: Flow, from: string | null, cardOf: (id: stri
     seen.add(id);
     const n = nodes.get(id);
     if (n === undefined) continue;
-    /* 2026-11-20 — eine Frage der Nachhilfe zählt nicht (sie kommt nur nach einer falschen Antwort). */
-    const card = n.config.remedial === true ? null : askedCardOf(n, cardOf);
+    /* 2026-11-20 — eine Frage der Nachhilfe zählt nicht (sie kommt nur nach einer falschen Antwort); 2026-11-22 (I3) — eine Vorhersage auch nicht. */
+    const card = n.config.remedial === true || isPredict(n) ? null : askedCardOf(n, cardOf);
     if (card !== null && (marks === null || !isKnown(card, marks, now))) keys.add(card.key);
     for (const e of flow.graph.edges) if (e.from === id) stack.push(e.to);
   }
@@ -96,10 +97,10 @@ export function pickSpacer(previous: Card, inFlow: readonly Card[], all: readonl
     ?? null;
 }
 
-/** Die Fragen eines Ablaufs (je Schritt seine Karte). */
+/** Die Fragen eines Ablaufs (je Schritt seine Karte) — 2026-11-22 (I3): ohne Vorhersagen (sie zählen nie, auch nicht im Przegląd). */
 export const cardsInFlow = (flow: Flow, cardOf: (id: string) => Card | null): Card[] => {
   const out = new Map<string, Card>();
-  for (const n of flow.graph.nodes) { const c = askedCardOf(n, cardOf); if (c !== null) out.set(c.key, c); }
+  for (const n of flow.graph.nodes) { if (isPredict(n)) continue; const c = askedCardOf(n, cardOf); if (c !== null) out.set(c.key, c); }
   return [...out.values()];
 };
 

@@ -26,9 +26,12 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { adaptiveProblems, branchSummaries, branchWords, checkContext } from './adaptive';
+import { isPredict, modeProblems } from './modes';
 import { flowProblems } from './flowCheck';
 import { pathProblems, readPath, type PathCheckCtx } from './worldmap/wmPaths';
 import { effectiveWorldFor } from './worldmap/wmReview';
+import { levelsChange, levelsChangeWords } from './worldmap/levelsChange';
+import { readLevelsSetup } from './worldmap/wmRuns';
 import { detourProblems } from './detour';
 import { mountainProblems, type MountainContext } from './mountain';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
@@ -46,6 +49,7 @@ import { generatorImportWarnings } from './generatorImport';
 import { slideImportWarnings } from './slideLint';
 import { interactiveImportWarnings } from './interactiveCheck';
 import { crossImportWarnings } from './worldsImport';
+import { feedbackResolutions } from './feedbackImport';
 import { isCross } from './worlds';
 import { quantitiesDescription } from '../core/quantities';
 import { generatorExprDescription } from '../pages/motion/expr';
@@ -466,6 +470,94 @@ const PREFER: Readonly<Record<string, DocKind>> = {
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
 const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint', 'promise', 'why']);
+
+/**
+ * 2026-11-22 (A2) — WELCHE DOKUMENTE „DIE GANZE WELT" MITLÖSCHT: genau die, die ein Kurs trägt und `exportCourse`
+ * hinausgibt — ohne die Ustawienia (eines je Baza, sie werden ergänzt, nie gelöscht). Nie: Rodzaje, Zusammenführungen,
+ * Vorschläge, die Lage der Weltkarte (gerechnet), Uwagi (`feedback`) — und nie, was Lernende tun (das liegt nicht in der Baza).
+ * Ein Export, als ganze Welt wieder eingelesen, löscht darum nichts.
+ */
+export const WHOLE_WORLD_DOCS: readonly DocKind[] = ['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'addform', 'anchor', 'reward', 'qpath'];
+/** Wie lang der Name eines Teils höchstens ist. */
+const PART_MAX = 100;
+
+/**
+ * 2026-11-22 (A2) — DIE GANZE WELT IN EINER DATEI (`"wholeWorld": true` im Kopf eines Kurses): was die Datei enthält,
+ * behält seine Kennung (wie immer); jeder andere eigene Eintrag und jedes Dokument der Arten `WHOLE_WORLD_DOCS` wird im
+ * selben Zapis gelöscht (alle oder keiner, über `removals` — die Vorschau nennt jedes, abwählbar).
+ *
+ * Mit `"part": "<name>"` (auch ohne „wholeWorld") bekommt alles, was die Datei anlegt oder ändert, den Teil `_part`;
+ * „wholeWorld" löscht dann nur, was zu DIESEM Teil gehört. Was nie mit einem Teil kam, gehört keinem und bleibt — die
+ * Vorschau sagt, wie viele das sind. So ist die Zuordnung eindeutig: ein Eintrag gehört dem Teil, mit dem er zuletzt kam.
+ *
+ * Bleibt, mit Hinweis: was die Datei nicht enthält, aber nennt (eine Kennung oder ein bleibender Name in einem Wert) —
+ * sonst verlöre die Datei still, worauf sie selbst zeigt.
+ */
+function wholeWorldOf(
+  lib: CogitaLibrary, doc: Readonly<Record<string, unknown>>, format: string,
+  plan: { readonly entities: ImportPlan['entities']; readonly docs: ImportPlan['docs']; readonly removals: readonly ImportRemoval[] },
+  warnings: string[]
+): { part: string; removals: ImportRemoval[]; line: string } {
+  const wanted = doc.wholeWorld === true;
+  const rawPart = typeof doc.part === 'string' ? doc.part.trim() : '';
+  if (doc.wholeWorld !== undefined && typeof doc.wholeWorld !== 'boolean') warnings.push(t('cogitaData.import.wholeWorldNotBool'));
+  if (doc.part !== undefined && rawPart === '') warnings.push(t('cogitaData.import.partEmpty'));
+  if (format !== COURSE_FORMAT) {
+    if (wanted || rawPart !== '') warnings.push(t('cogitaData.import.wholeWorldCourseOnly', { course: COURSE_FORMAT }));
+    return { part: '', removals: [], line: '' };
+  }
+  const part = rawPart.slice(0, PART_MAX);
+  if (!wanted) return { part, removals: [], line: '' };
+  const named = new Set([...plan.entities.map((e) => e.id), ...plan.docs.map((d) => d.id), ...plan.removals.map((r) => r.id)]);
+  /* Nur, was die DATEI nennt (nicht, was ein ergänzter Eintrag schon trug): eine Kennung oder ein bleibender Name. */
+  const pointed = new Set<string>();
+  const scan = (v: unknown): void => {
+    if (typeof v === 'string') {
+      const r = v.trim().replace(/^@/, '');
+      if (r === '') return;
+      if (lib.entry(r) !== undefined) pointed.add(r);
+      else if (lasting(r)) { const hit = lib.byImportRef(r.toLowerCase(), 'entity') ?? lib.byImportRef(r.toLowerCase()); if (hit !== undefined) pointed.add(hit.id); }
+      return;
+    }
+    if (Array.isArray(v)) { for (const x of v) scan(x); return; }
+    if (isObject(v)) for (const [k, x] of Object.entries(v)) if (!k.startsWith('_')) scan(x);
+  };
+  scan(doc);
+  const out: ImportRemoval[] = [];
+  const kept: string[] = [];
+  let loose = 0;
+  /* Gehört es zu dem, was hier gelöscht werden darf? Ohne Teil: alles Eigene. Mit Teil: nur, was diesen Teil trägt. */
+  const belongs = (data: Readonly<Record<string, unknown>> | undefined): boolean => {
+    if (part === '') return true;
+    if (typeof data?._part !== 'string' || data._part === '') { loose += 1; return false; }
+    return data._part === part;
+  };
+  for (const e of lib.entities()) {
+    if (!lib.isOwn(e.id) || named.has(e.id) || !belongs(lib.entry(e.id)?.data ?? e.data)) continue;
+    const title = lib.label(e) || e.id;
+    if (pointed.has(e.id)) { kept.push(title); continue; }
+    out.push({ id: e.id, target: 'entity', title });
+  }
+  for (const kind of WHOLE_WORLD_DOCS) {
+    for (const d of lib.docs(kind)) {
+      if (!lib.isOwn(d.id) || named.has(d.id) || !belongs(d.data)) continue;
+      const title = t('cogitaData.import.docTitle', { doc: DOC_LABEL[kind], name: str(d.data.name) || '—' });
+      if (pointed.has(d.id)) { kept.push(title); continue; }
+      out.push({ id: d.id, target: 'doc', kind, title });
+    }
+  }
+  if (kept.length > 0) {
+    const list = kept.slice(0, 5).map((l) => t('cogitaData.import.quoted', { name: l.slice(0, 60) })).join(', ');
+    warnings.push(t('cogitaData.import.wholeWorldKept', { count: kept.length, list: kept.length > 5 ? t('cogitaData.import.listedMore', { list, count: kept.length - 5 }) : list }));
+  }
+  if (loose > 0) warnings.push(t('cogitaData.import.partLoose', { count: loose, part }));
+  const entries = out.filter((r) => r.target === 'entity').length;
+  const structures = out.length - entries;
+  return {
+    part, removals: out,
+    line: part === '' ? t('cogitaData.import.wholeWorldLine', { entries, docs: structures }) : t('cogitaData.import.wholeWorldPartLine', { part, entries, docs: structures })
+  };
+}
 
 /**
  * EIN DOKUMENT PLANEN — was angelegt, was geändert würde, und was nicht geht.
@@ -938,6 +1030,19 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     }
   }
 
+  /* 2026-11-22 (A2) — „part": was dieses Dokument anlegt oder ändert, gehört zu diesem Teil; „wholeWorld": der Rest geht. */
+  const whole = wholeWorldOf(lib, doc, format, { entities, docs, removals }, warnings);
+  for (const r of whole.removals) { removing.add(r.id); removals.push(r); }
+  if (whole.part !== '') {
+    entities.forEach((e, i) => { entities[i] = { ...e, marks: { ...(e.marks ?? {}), _part: whole.part } }; });
+    docs.forEach((d, i) => { if (d.kind !== 'settings') docs[i] = { ...d, data: { ...d.data, _part: whole.part } }; });
+  }
+
+  /* 2026-11-22 (I6) — Uwagi erledigen: "feedback": [{id, state, note}] (`feedbackImport.ts`) — im selben Zapis, nach dem Teil (eine Uwaga gehört keinem). */
+  const resolved = feedbackResolutions(lib, doc, format === COURSE_FORMAT);
+  docs.push(...resolved.docs);
+  warnings.push(...resolved.warnings);
+
   /* 2026-10-25 — fremde Namen: ein anderes Dokument hat diese Einträge angelegt. */
   for (const [owner, names] of foreign) {
     warnings.push(t('cogitaData.import.namesOwned', { count: names.length, owner, example: names[0] ?? '' }));
@@ -968,8 +1073,20 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   warnings.push(...interactiveImportWarnings({ entities }));
   /* 2026-11-05 (Prompt 24) — Verweise in andere Bazy: angenommen; hier nur ein "@@…" in einem Verweisfeld ohne "external": true (der Rest nach dem Öffnen jener Bazy, `crossCheckFor`). */
   warnings.push(...crossImportWarnings(lib, { kinds, entities, docs }));
+  /*
+    2026-11-22 (guide-good-world §1.3, I7) — ANDERE STUFEN DER EROBERUNG (z. B. 3 → 2): klar gesagt, und was das für die Lernenden
+    heisst (`levelsChange.ts`: Stufen werden aus den Durchgängen gerechnet — was die neuen Regeln geben, geht nie verloren).
+  */
+  const settingsPlanned = docs.find((d) => d.kind === 'settings');
+  const levelsChanged = settingsPlanned === undefined ? null : levelsChange(lib.settings().levelsSetup, readLevelsSetup(settingsPlanned.data.levelsSetup));
+  const levelsSaid = levelsChanged === null ? null : levelsChangeWords(levelsChanged, t);
+  if (levelsSaid !== null) warnings.push(levelsSaid.learners);
 
   const lines = [
+    /* 2026-11-22 (A2) — zuerst, unübersehbar: was die ganze Welt löscht. */
+    whole.line,
+    resolved.line,
+    levelsSaid?.line ?? '',
     kinds.length === 0 ? '' : t('cogitaData.import.summaryKinds', { fresh: kinds.filter((k) => k.isNew).length, changed: kinds.filter((k) => !k.isNew).length }),
     entities.length === 0 ? '' : t('cogitaData.import.summaryEntries', { fresh: entities.filter((e) => e.isNew).length, changed: entities.filter((e) => !e.isNew).length }),
     ...DOC_KINDS.map((k) => {
@@ -1183,10 +1300,15 @@ export class ImportBlocked extends Error {
 }
 
 /** 2026-11-04 — die Probleme der Ścieżka jedes Ablaufs eines Plans, beim Namen des Ablaufs und des Schrittes. */
-/** 2026-11-11 — wie lang der Hinweis einer Möglichkeit sein darf, bevor der Import warnt. */
-const HINT_MAX = 120;
+/**
+ * 2026-11-11 — wie lang der Hinweis einer Möglichkeit sein darf, bevor der Import warnt. 2026-11-22 (guide-good-world §1.6): 100
+ * Zeichen (vorher 120), und der Name einer Möglichkeit — der Name der Linie auf der Weltkarte — höchstens 32.
+ */
+export const HINT_MAX = 100;
+export const OPTION_LABEL_MAX = 32;
 
-function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): { level: 'error' | 'warning'; text: string }[] {
+/* 2026-11-22 (I2) — auch für die Kontrolle der Welt (`worldChecks.ts`): je Meldung der Ablauf (und der Schritt, wo bekannt). */
+export function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): { level: 'error' | 'warning'; text: string; flow?: string; step?: string }[] {
   const planTitle = (id: string): string | undefined => { const d = entities.find((e) => e.id === id)?.data; if (d === undefined) return undefined; for (const v of Object.values(d)) if (typeof v === 'string' && v.trim() !== '') return v.trim().slice(0, 80); return undefined; };
   const label = (id: string) => { const e = lib.entity(id); return e === undefined ? planTitle(id) ?? id : lib.label(e); };
   /*
@@ -1228,13 +1350,40 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
     },
     label
   };
-  return docs.filter((d) => d.kind === 'flow').flatMap((d) => {
+  /* 2026-11-22 (I4) — der Wert "use" eines Eintrags (aus dem Plan oder der Baza; Kennung oder @name). */
+  const useOf = (ref: string): unknown => { const id = entityOf(ref); return id === null ? undefined : (entities.find((e) => e.id === id)?.data ?? lib.entry(id)?.data ?? {}).use; };
+  /*
+    2026-11-22 (I3) — EINE FRAGE, DIE IRGENDWO VORHERSAGE IST UND ANDERSWO ZÄHLT: so zählt die Vorhersage doch (dieselbe Karte) —
+    eine Vorhersage braucht ihre eigene Frage, die Prüfung des Verstehens eine andere. Einmal je Frage, nur wenn der Plan beteiligt ist.
+  */
+  const plannedIds = new Set(planned.map((f) => f.id));
+  const predicted = new Map<string, Set<string>>();
+  const counted = new Map<string, Set<string>>();
+  for (const f of all) for (const n of f.graph.nodes) {
+    if (n.type !== 'question') continue;
+    const q = str(n.config.of) || str(n.config.card);
+    if (q === '') continue;
+    const id = entityOf(q) ?? q;
+    const into = isPredict(n) ? predicted : counted;
+    into.set(id, new Set([...(into.get(id) ?? []), f.id]));
+  }
+  const predictWarnings = [...predicted].flatMap(([q, where]) => {
+    const also = counted.get(q);
+    if (also === undefined || ![...where, ...also].some((f) => plannedIds.has(f))) return [];
+    const names = (ids: ReadonlySet<string>) => [...ids].map((f) => all.find((x) => x.id === f)?.name ?? f).join(', ');
+    return [{ level: 'warning' as const, text: t('cogitaData.modes.predictCounted', { question: label(q), predicted: names(where), counted: names(also) }) }];
+  });
+  return [...docs.filter((d) => d.kind === 'flow').flatMap((d) => {
     const flow = readFlow(d.id, d.data);
     const detours = detourProblems(flow, all, resolve).filter((p) => { if (p.step !== undefined) return true; if (said.has(p.text)) return false; said.add(p.text); return true; });
-    /* 2026-11-11 — "hint" einer Möglichkeit: eine kurze Zeile (über 120 Zeichen: Warnung). */
+    /* 2026-11-11 — "hint" einer Möglichkeit: eine kurze Zeile (über HINT_MAX Zeichen: Warnung); 2026-11-22 — ihr Name höchstens OPTION_LABEL_MAX. */
     const hints = flow.graph.nodes.filter((n) => n.type === 'choice').flatMap((n) => (Array.isArray(n.config.options) ? n.config.options : []).flatMap((o) => {
       const h = isObject(o) && typeof o.hint === 'string' ? o.hint.trim() : '';
-      return h.length > HINT_MAX ? [{ level: 'warning' as const, text: t('cogitaData.import.hintLong', { label: isObject(o) ? str(o.label) : '', count: h.length, max: HINT_MAX }) }] : [];
+      const name = isObject(o) ? str(o.label) : '';
+      return [
+        ...(h.length > HINT_MAX ? [{ level: 'warning' as const, text: t('cogitaData.import.hintLong', { label: name, count: h.length, max: HINT_MAX }), step: n.id }] : []),
+        ...(name.length > OPTION_LABEL_MAX ? [{ level: 'warning' as const, text: t('cogitaData.import.labelLong', { label: name, count: name.length, max: OPTION_LABEL_MAX }), step: n.id }] : [])
+      ];
     }));
     /*
       2026-11-12 (Einstufung) — ein Schritt "explore": "streak", "errors", "recheck" zwischen 1 und 10; "targetLevels" innerhalb der
@@ -1261,15 +1410,30 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: Impo
     const authored = readFlow(d.id, d.data, { authored: true });
     const stepLabel = (id: string) => { const n = flow.graph.nodes.find((x) => x.id === id); const of = str(n?.config.of); return str(n?.config.title) || (of === '' ? id : label(of)); };
     const adaptive = adaptiveProblems(authored.graph, flow.graph, checkContext(dataOf, isQuestion)).map((p) => ({ level: 'warning' as const, text: t(`cogitaData.adaptive.${p.key}`, { ...p.params, step: stepLabel(p.step), ...(p.params.slide === undefined ? {} : { slide: label(String(p.params.slide)) }) }) }));
-    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores, ...adaptive].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
-  });
+    /* 2026-11-22 (I4) — die Modi: ein unbekannter Wert "use" oder "is", ein Zweig, in den kein Modus kommt, ein Modus, in dem nichts bleibt. */
+    const branchName = (step: string, exit: string): string => {
+      const n = flow.graph.nodes.find((x) => x.id === step);
+      const list = n === undefined ? [] : Array.isArray(n.config.options) ? n.config.options : Array.isArray(n.config.chapters) ? n.config.chapters : [];
+      const one: unknown = list[Number(exit.slice(1))];
+      return (isObject(one) ? str(one.label) || str(one.title) : str(one)) || exit;
+    };
+    const modes = modeProblems(flow.graph, flow.start, useOf).map((p) => ({ level: 'warning' as const, ...(p.step === undefined ? {} : { step: p.step }), text: t(`cogitaData.modes.${p.key}`, {
+      step: p.step === undefined ? '' : stepLabel(p.step), value: p.params.value ?? '',
+      branch: p.step === undefined || p.params.exit === undefined ? '' : branchName(p.step, p.params.exit),
+      mode: p.params.mode === undefined ? '' : t(`cogitaData.logic.mode.${p.params.mode}`)
+    }) }));
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores, ...adaptive, ...modes].map((p) => {
+      const step = (p as { step?: unknown }).step;
+      return { level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }), flow: d.id, ...(typeof step === 'string' && step !== '' ? { step } : {}) };
+    });
+  }), ...predictWarnings];
 }
 /**
  * 2026-11-12 (Prompt 25) — DIE WEGE ZU EINER FRAGE prüfen (`wmPaths.ts` `pathProblems`): gegen die Einträge, Abläufe und Wege
  * nach dem Zapis (die des Dokuments ersetzen die der Baza) — ein unbekannter Ort, ein unbekannter Ablauf oder Schritt, ein Anker,
  * den es nicht gibt, eine Schleife über "deeper", zu viele Abschlussfragen. Warnungen; gespeichert wird trotzdem.
  */
-function pathWarnings(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] {
+export function pathWarnings(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] {
   const planned = docs.filter((d) => d.kind === 'qpath');
   if (planned.length === 0) return [];
   const paths = new Map([...lib.docs('qpath').map((e) => [e.id, readPath(e.id, e.data)] as const), ...planned.map((d) => [d.id, readPath(d.id, d.data)] as const)]);
@@ -1565,7 +1729,8 @@ export async function applyImport(lib: CogitaLibrary, planIn: ImportPlan, stage:
 
   stage(gone.length === 0 ? t('cogitaData.import.saving', { count: items.length }) : t('cogitaData.import.savingRemoving', { count: items.length, removed: gone.length }));
   try {
-    await lib.saveBatch(items, (done, total) => { if (done === total || done % 50 === 0) stage(t('cogitaData.import.sealing', { done, total })); }, gone);
+    await lib.saveBatch(items, (done, total) => { if (done === total || done % 50 === 0) stage(t('cogitaData.import.sealing', { done, total })); }, gone,
+      (done, total) => stage(t('cogitaData.import.sendingPart', { done, total })));
   } catch (e) {
     const detail = (e as { detail?: unknown }).detail;
     const listed = isObject(detail) && Array.isArray(detail.problems) ? detail.problems.filter(isObject).map((p) => `${nameOf(str(p.entryId))}: ${str(p.error)}`) : [];
@@ -1667,6 +1832,7 @@ ${t('cogitaDataFormat.kinds.s05Fields')}
 ${t('cogitaDataFormat.kinds.s06Structure')}
 ${t('cogitaDataFormat.kinds.s07Prerequisite')}
 ${t('cogitaDataFormat.kinds.s07Part')}
+${t('cogitaDataFormat.kinds.s07Tag')}
 ${t('cogitaDataFormat.kinds.s08External')}
 ${t('cogitaDataFormat.kinds.s09When')}
 ${t('cogitaDataFormat.kinds.s10Quantity')}
@@ -1717,6 +1883,8 @@ ${t('cogitaDataFormat.course.head.s09Ref')}
 ${t('cogitaDataFormat.course.head.s10Pole')}
 ${t('cogitaDataFormat.course.head.s11Ref')}
 ${t('cogitaDataFormat.course.head.s12Ref')}
+${t('cogitaDataFormat.course.head.s12Whole')}
+${t('cogitaDataFormat.course.head.s12Feedback')}
 ${t('cogitaDataFormat.course.head.s13')}
 ${t('cogitaDataFormat.course.head.s14')}
 ${t('cogitaDataFormat.course.head.s15To')}
@@ -1771,6 +1939,7 @@ ${t('cogitaDataFormat.course.main.s28Graph')}
 ${t('cogitaDataFormat.course.main.s29End')}
 ${t('cogitaDataFormat.course.main.s30Type')}
 ${t('cogitaDataFormat.course.main.s30Adaptive')}
+${t('cogitaDataFormat.course.main.s30Modes')}
 ${t('cogitaDataFormat.course.main.s31Goals')}
 ${t('cogitaDataFormat.course.main.s32Id')}
 ${t('cogitaDataFormat.course.main.s33DeszczPrzeglad')}

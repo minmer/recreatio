@@ -83,6 +83,7 @@
     "sample": "Beispiel einsetzen",
     "loadFile": "Datei laden…",
     "clear": "Leeren",
+    "times": "×{count}",
     "invalid": "Ungültiges JSON: {error}",
     "changes": "Was sich ändert",
     "imported": "Importiert.",

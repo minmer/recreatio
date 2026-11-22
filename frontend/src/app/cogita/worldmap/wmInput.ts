@@ -9,6 +9,7 @@
 
 import type { Card } from '../cardBasics';
 import { readFlow, resolveFlow, type Flow } from '../flow';
+import { readUse } from '../modeWords';
 import { fieldsOf, labelOf, valuesOf } from '../schema';
 import type { CogitaLibrary } from '../store';
 import type { ViewDoc } from '../views';
@@ -59,11 +60,14 @@ export function worldInputOf(lib: CogitaLibrary, cards: readonly Card[], opts: I
           field: f.key, to: v.value,
           ...(f.prerequisite === undefined ? {} : { prerequisite: f.prerequisite }),
           ...(f.part === undefined ? {} : { part: f.part }),
-          ...(f.structure === undefined ? {} : { structure: f.structure })
+          ...(f.structure === undefined ? {} : { structure: f.structure }),
+          ...(f.tag === undefined ? {} : { tag: f.tag })
         });
       }
     }
-    entries.push({ id: e.id, kinds: e.kinds, label: labelOf(e, look), refs });
+    /* 2026-11-22 (I4) — für wen die Folie oder Frage spielt (die Linien zählen nur, was der Modus spielt). */
+    const use = readUse(e.data.use);
+    entries.push({ id: e.id, kinds: e.kinds, label: labelOf(e, look), refs, ...(use === 'self' || use === 'lesson' ? { use } : {}) });
   }
   const byId = new Map(entries.map((e) => [e.id, e] as const));
   const wmCards: WmCardInput[] = [];

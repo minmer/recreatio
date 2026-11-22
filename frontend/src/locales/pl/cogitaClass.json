@@ -1,0 +1,152 @@
+{
+  "students": "Uczniowie",
+  "studentsOf": "Uczniowie: {name}",
+  "linkLabel": "Dołącz do klasy {name}",
+  "err": {
+    "needName": "Nadaj klasie nazwę.",
+    "cannotShare": "Udostępnić tę bazę klasie może tylko ktoś, kto może wpuszczać do jej obszaru — albo baza musi być publiczna. Zapytaj osobę, która prowadzi bazę.",
+    "noStudents": "Ta klasa nie ma roli uczniów.",
+    "noBase": "Ta klasa nie ma bazy wiedzy.",
+    "failed": "Nie udało się. Spróbuj za chwilę."
+  },
+  "page": {
+    "noClass": "Ten adres nie prowadzi do żadnej klasy",
+    "scanAgain": "Zeskanuj jeszcze raz kod QR, który pokazuje nauczyciel.",
+    "aClass": "Klasa",
+    "checking": "Sprawdzam klasę…",
+    "youLead": "Prowadzisz tę klasę. Tu pokazujesz jej kod QR i widzisz, jak idzie uczniom.",
+    "toClasses": "Klasy i kod QR",
+    "toProgress": "Postępy uczniów",
+    "noCode": "Aby dołączyć, zeskanuj kod QR, który pokazuje nauczyciel.",
+    "codeDead": "Ten kod już nie działa. Poproś nauczyciela o nowy.",
+    "haveAccount": "Masz już konto w tej klasie? <a>Zaloguj się</a>.",
+    "wholeBase": "Wszystko w tej bazie",
+    "liveNow": "Trwa lekcja",
+    "liveJoin": "Dotknij, aby dołączyć",
+    "opening": "Otwieram mapę…",
+    "noBase": "Nie da się otworzyć bazy wiedzy tej klasy. Zapytaj nauczyciela.",
+    "noMap": "Ta baza nie ma jeszcze mapy.",
+    "more": "Więcej o nauce w tej klasie",
+    "ownProgress": "Twoje postępy"
+  },
+  "join": {
+    "title": "Dołącz do: {name}",
+    "lede": "Nauczyciel zaprasza Cię do wspólnej nauki. Wybierz, jak chcesz dołączyć:",
+    "newTitle": "Załóż konto",
+    "newSays": "Login i hasło — Twoje postępy na każdym urządzeniu.",
+    "easiest": "Najprościej",
+    "inTitle": "Mam już konto",
+    "inSays": "Zaloguj się i dołącz do klasy.",
+    "guestTitle": "Bez konta",
+    "guestSays": "Tylko imię i nazwisko. Dostaniesz osobisty link — zachowaj go.",
+    "otherWay": "Wybierz inny sposób",
+    "given": "Imię",
+    "surname": "Nazwisko",
+    "loginHint": "Co najmniej 3 znaki, np. anna.k — tym się logujesz.",
+    "passwordHint": "Co najmniej 8 znaków. Zapisz je w bezpiecznym miejscu.",
+    "consent": "Chcę uczyć się w klasie „{name}” i zgadzam się, że nauczyciel widzi moje imię i nazwisko, moje odpowiedzi i postępy.",
+    "needGiven": "Wpisz swoje imię.",
+    "needSurname": "Wpisz swoje nazwisko.",
+    "needConsent": "Zaznacz zgodę — bez niej nie można dołączyć.",
+    "busyAccount": "Zakładam Twoje konto — to może potrwać do pół minuty…",
+    "busyJoin": "Dołączam do klasy…",
+    "newGo": "Załóż konto i dołącz",
+    "inGo": "Zaloguj się i dołącz",
+    "guestNote": "Bez konta Twoje postępy są związane z osobistym linkiem. Kto zgubi link, traci postępy.",
+    "guestGo": "Dołącz",
+    "asMe": "Jesteś zalogowany jako {login}.",
+    "join": "Dołącz do klasy",
+    "joining": "Dołączam…",
+    "noPerson": "To konto nie ma osoby, którą można dołączyć. Zaloguj się ponownie.",
+    "failed": "Nie udało się dołączyć. Spróbuj za chwilę."
+  },
+  "keep": {
+    "title": "To jest Twój osobisty link",
+    "lede": "To Twój klucz do tej klasy. Zachowaj go — z nim wrócisz na każdym urządzeniu. Bez niego postępy przepadną.",
+    "shareTitle": "Mój link do klasy",
+    "sendToMe": "Wyślij go sobie",
+    "how": "Wskazówka: skopiuj go do notatki w telefonie albo wyślij sobie w wiadomości.",
+    "done": "Zapisałem/zapisałam swój link",
+    "start": "Zacznij naukę"
+  },
+  "tab": {
+    "needAccount": "Klasy wymagają konta.",
+    "lede": "Klasa uczy się tej bazy razem. Pokaż uczniom kod QR — dołączają z kontem albo bez, a Ty widzisz tu ich postępy.",
+    "cannot": "Nie możesz udostępnić tej bazy klasie: może to tylko ktoś, kto wpuszcza do jej obszaru (albo baza musi być publiczna).",
+    "empty": "Nie ma jeszcze klasy. Nadaj jej nazwę i utwórz — potem pokaż kod QR.",
+    "name": "Nowa klasa",
+    "namePlaceholder": "np. 3b fizyka",
+    "create": "Utwórz klasę",
+    "stage": {
+      "area": "Tworzę klasę…",
+      "role": "Tworzę klucz uczniów — to potrwa kilka sekund…",
+      "intake": "Przygotowuję miejsce na odpowiedzi…",
+      "link": "Tworzę kod QR…"
+    }
+  },
+  "card": {
+    "counting": "Liczę uczniów…",
+    "students": {
+      "one": "{count} uczeń",
+      "few": "{count} uczniów",
+      "many": "{count} uczniów",
+      "other": "{count} uczniów"
+    },
+    "closed": "dołączanie zamknięte",
+    "more": "Więcej o klasie",
+    "renew": "Nowy kod QR",
+    "renewAsk": "Utworzyć nowy kod QR?",
+    "renewSays": "Stary kod przestanie działać. Wszyscy, którzy już dołączyli, zostają w klasie.",
+    "close": "Zamknij dołączanie",
+    "closeAsk": "Zamknąć dołączanie?",
+    "closeSays": "Nikt nowy nie dołączy z tym kodem. Wszyscy, którzy już dołączyli, zostają. Nowy kod możesz utworzyć później.",
+    "asStudent": "Zobacz jako uczeń",
+    "area": "Obszar klasy",
+    "showQr": "Pokaż kod QR",
+    "open": "Otwórz znowu dołączanie",
+    "progress": "Postępy uczniów",
+    "notYours": "Ten kod utworzył ktoś inny — tylko ta osoba może go pokazać. Nowy kod zadziała też dla Ciebie.",
+    "lessonHint": "Lekcja: zaplanuj ją tutaj („Zaplanuj lekcję”: początek, cel, części) albo zacznij na mapie — przełącz na „Prowadzę” i wybierz „Prowadź tutaj” przy wieży."
+  },
+  "qr": {
+    "label": "Kod QR klasy {name}",
+    "fullscreen": "Pełny ekran",
+    "scan": "Zeskanuj kod aparatem telefonu, aby dołączyć.",
+    "joined": {
+      "one": "Dołączył {count} uczeń",
+      "few": "Dołączyło {count} uczniów",
+      "many": "Dołączyło {count} uczniów",
+      "other": "Dołączyło {count} uczniów"
+    },
+    "orOpen": "Albo otwórz link na {host}:",
+    "copy": "Kopiuj link"
+  },
+  "home": {
+    "loading": "Wczytuję Twoją naukę…",
+    "title": "Twoja nauka",
+    "liveIn": "Trwa lekcja w klasie {name}",
+    "classes": "Twoje klasy",
+    "none": "Nie należysz jeszcze do żadnej klasy. Gdy nauczyciel pokaże kod QR, zeskanuj go aparatem telefonu.",
+    "dueTitle": "Karty czekające na powtórkę",
+    "due": {
+      "one": "{count} do powtórki",
+      "few": "{count} do powtórki",
+      "many": "{count} do powtórki",
+      "other": "{count} do powtórki"
+    },
+    "learn": "Ucz się",
+    "tasks": "Zadania",
+    "taskIn": "Zadanie w klasie {name}",
+    "noDeadline": "Bez terminu",
+    "wasDue": "Termin minął {date}",
+    "dueBy": "Do {date}",
+    "youLead": "Klasy, które prowadzisz",
+    "another": "Kolejna klasa? Zeskanuj jej kod QR — pojawi się tutaj."
+  },
+  "shell": {
+    "title": "Nauka",
+    "home": "Twoja nauka",
+    "full": "Pełna wersja aplikacji",
+    "onlyLearn": "Tylko nauka (widok ucznia)"
+  }
+}

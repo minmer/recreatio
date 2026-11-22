@@ -20,5 +20,6 @@
     "easy": "Za łatwe",
     "display": "Wyświetlanie",
     "other": "Inne"
-  }
+  },
+  "note": "Załatwione: {note}"
 }
