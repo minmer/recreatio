@@ -86,6 +86,8 @@ const keyAad = (id: string) => aad('ai', 'access', id, Field.AiAccessKey, 1);
 const wrapAad = (id: string) => aad('ai', 'access', id, Field.AiAccessWrap, 1);
 const linkAad = (id: string) => aad('ai', 'access', id, Field.AiAccessLink, 1);
 export const snapshotAad = (libraryId: string) => aad('ai', 'snapshot', libraryId, Field.AiSnapshot, 1);
+/** 2026-11-22 (0145) — ein Stück eines vollständigen Textes, gebunden an seinen Behälter (der Dienst prüft dazu den Hash). */
+export const textAad = (libraryId: string) => aad('ai', 'text', libraryId, Field.AiText, 1);
 
 /** Der Schlüssel aus dem Link — wie `AiAccess.LinkKey`: HKDF über die UTF-8-Bytes des Geheimnisses. */
 export const linkKey = (token: string, accessId: string): Promise<Uint8Array> =>
@@ -113,6 +115,14 @@ export const deleteAiAccess = (areaId: string, id: string): Promise<{ deleted: b
 
 const uploadSnapshot = (areaId: string, accessId: string, libraryId: string, mark: string, entries: number, sealed: Uint8Array): Promise<{ madeAt: string }> =>
   call(`${base(areaId)}/${enc(accessId)}/part/${enc(libraryId)}?mark=${enc(mark)}&entries=${entries}`, { method: 'PUT', body: sealed as BodyInit });
+
+/* 2026-11-22 (0145) — die Stücke der Texte: welche schon da sind, eines hinauf, die nicht mehr genannten fort. */
+const listTextObjects = (areaId: string, accessId: string, libraryId: string): Promise<{ hashes: readonly string[]; max: number }> =>
+  call(`${base(areaId)}/${enc(accessId)}/part/${enc(libraryId)}/texts`);
+const uploadTextObject = (areaId: string, accessId: string, libraryId: string, hash: string, sealed: Uint8Array): Promise<unknown> =>
+  call(`${base(areaId)}/${enc(accessId)}/part/${enc(libraryId)}/text/${enc(hash)}`, { method: 'PUT', body: sealed as BodyInit });
+const keepTextObjects = (areaId: string, accessId: string, libraryId: string, hashes: readonly string[]): Promise<unknown> =>
+  call(`${base(areaId)}/${enc(accessId)}/part/${enc(libraryId)}/texts/keep`, { method: 'POST', body: JSON.stringify({ hashes }) });
 
 /* -- Anlegen ----------------------------------------------------------------------------------- */
 
@@ -361,7 +371,7 @@ export async function refreshAiAccess(
   const total = jobs.reduce((sum, job) => sum + job.parts.length, 0);
   if (total === 0) return { refreshed: 0, failed: 0 };
 
-  const { gzip, snapshotDoc, snapshotSetup } = await import('./aiSnapshot');
+  const { gzip, snapshotDoc, snapshotSetup, snapshotTextObjects, withTextStates, MAX_TEXT_OBJECT } = await import('./aiSnapshot');
   const scopes = new Map<string, ScopePart[]>();
   let refreshed = 0;
   let failed = 0;
@@ -381,7 +391,28 @@ export async function refreshAiAccess(
         const madeAt = new Date().toISOString();
         /* 2026-10-30 — eine Baza wiedzy: dazu, was ihr Lernen steuert (`get_knowledge_setup`). */
         const setup = await snapshotSetup(scope, part.libraryId);
-        let doc = snapshotDoc(scope, part.libraryId, madeAt, true, setup);
+        /*
+          2026-11-22 (0145) — DIE TEXTE JE TEXT: erst die Stücke, die der Dienst noch nicht hat (nur geänderte Texte), dann das
+          Verzeichnis, zuletzt fort, was es nicht mehr nennt. Ein Stück, das zu gross ist oder nicht ankommt, betrifft nur seinen Text.
+        */
+        const texts = scope.find((p) => p.store.libraryId === part.libraryId)?.texts;
+        let index: Awaited<ReturnType<typeof snapshotTextObjects>>['texts'] | undefined;
+        let keep: string[] = [];
+        if (texts !== undefined && texts.length > 0) {
+          const objects = await snapshotTextObjects(scope, part.libraryId);
+          const have = new Set((await listTextObjects(areaId, job.access.id, part.libraryId)).hashes);
+          const bad = new Map<string, 'too_large' | 'not_uploaded'>();
+          for (const [hash, json] of objects.chunks) {
+            if (have.has(hash)) continue;
+            const sealedText = await seal(key, textAad(part.libraryId), await gzip(json));
+            if (sealedText.length > MAX_TEXT_OBJECT) { bad.set(hash, 'too_large'); continue; }
+            try { await uploadTextObject(areaId, job.access.id, part.libraryId, hash, sealedText); have.add(hash); }
+            catch { bad.set(hash, 'not_uploaded'); }
+          }
+          index = withTextStates(objects.texts, bad);
+          keep = [...objects.chunks.keys()].filter((h) => have.has(h));
+        }
+        let doc = snapshotDoc(scope, part.libraryId, madeAt, true, setup, index);
         let packed = await gzip(JSON.stringify(doc));
         if (packed.length > MAX_PACKED && doc.texts !== undefined) {
           doc = snapshotDoc(scope, part.libraryId, madeAt, false, setup);
@@ -389,6 +420,7 @@ export async function refreshAiAccess(
         }
         const sealed = await seal(key, snapshotAad(part.libraryId), packed);
         await uploadSnapshot(areaId, job.access.id, part.libraryId, part.mark, doc.entries.length, sealed);
+        if (index !== undefined) await keepTextObjects(areaId, job.access.id, part.libraryId, keep).catch(() => undefined);
         refreshed += 1;
       } catch (e) {
         failed += 1;

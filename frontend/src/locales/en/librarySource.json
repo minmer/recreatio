@@ -200,7 +200,9 @@
     "withWorkSummary": "Work with full text",
     "withWorkLead": "One document: the description of the work (a book, article, chapter, document), its authors and — when needed — the periodical or book it is in, and its text in parts. The work goes to “{name}”; one with an existing key is completed, not duplicated. Beside it are the format description and the prompt for AI.",
     "withWorkFile": "work-with-text",
-    "withWorkImport": "Import work with text"
+    "withWorkImport": "Import work with text",
+    "ai": "available to AI (MCP)",
+    "aiSays": "Off: the text stays in the Library but is left out of the snapshot for AI assistants. Every text is stored for AI on its own — a large one never hides the others — so switch it off only for huge reference works you do not want read."
   },
   "reader": {
     "noWork": "This work does not exist (or you have no access to it).",

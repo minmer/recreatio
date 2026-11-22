@@ -503,7 +503,13 @@ public enum Field
     /// Hauptschlüssels, auf dem Telefon unter dem Geräteschlüssel versiegelt. Nur der Browser
     /// benutzt es, wie <see cref="AccountKeptKey"/>; der Eintrag steht hier, weil 3.13 ihn verlangt.
     /// </summary>
-    AwayAccount
+    AwayAccount,
+
+    /// <summary>
+    /// 0145 — ein Stück eines vollständigen Textes einer AI-Abschrift (Format 2): gzip-JSON seiner Blöcke unter dem
+    /// Schlüssel C des Zugangs, gebunden an den Behälter; der Dienst prüft nach dem Öffnen den SHA-256 (die Adresse).
+    /// </summary>
+    AiText
 }
 
 /// <summary>
@@ -718,6 +724,7 @@ public readonly record struct Aad
         Field.AreaProfileCard         => "area_profile_card",
         Field.AreaSetup               => "area_setup",
         Field.AwayAccount             => "away_account",
+        Field.AiText                  => "ai_text",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

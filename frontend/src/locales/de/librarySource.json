@@ -200,7 +200,9 @@
     "withWorkSummary": "Werk mit vollem Text",
     "withWorkLead": "Ein Dokument: die Beschreibung des Werks (Buch, Artikel, Kapitel, Dokument), seine Autoren und — wenn nötig — die Zeitschrift oder das Buch, in dem es steht, sowie sein Text in Teilen. Das Werk kommt nach „{name}“; eines mit vorhandenem Schlüssel wird ergänzt, nicht verdoppelt. Daneben die Beschreibung des Formats und der Auftrag für die KI.",
     "withWorkFile": "werk-mit-text",
-    "withWorkImport": "Werk mit Text importieren"
+    "withWorkImport": "Werk mit Text importieren",
+    "ai": "für KI verfügbar (MCP)",
+    "aiSays": "Aus: Der Text bleibt in der Bibliothek, fehlt aber in der Abschrift für KI-Assistenten. Jeder Text wird für KI für sich gespeichert — ein grosser verdeckt nie die anderen —, darum nur für riesige Nachschlagewerke ausschalten, die nicht gelesen werden sollen."
   },
   "reader": {
     "noWork": "Dieses Werk gibt es nicht (oder du hast keinen Zugang).",

@@ -134,8 +134,19 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
   hold never appears, not even its title. Blocks are rendered readably: `[s. 46]` a page break, `[^3]` a footnote
   reference, `word[?]` an uncertain reading, `[…]` a gap. Places are matched as written in the text (case, spaces,
   ":" for "," and the kind of dash do not matter); a place that is not in the text is not guessed — the answer names
-  the parts with their first and last places. A collection whose texts are too large for its snapshot (over ~30 MB
-  packed) is read without them, and `list_texts` says so.
+  the parts with their first and last places. **2026-11-22 (0145) — each text stands on its own:** the collection snapshot
+  (format 2) holds only the INDEX of its texts (work, scheme, parts with first/last place and pages, blocks, words, bytes,
+  state); the blocks of every part are separate content-addressed pieces (`app.ai_access_text`, SHA-256 of the piece JSON,
+  gzip, sealed under the access key C with AAD `ai:text:<collection>:ai_text:1`, at most 8 MB each — `AiAccess.MaxTextObject`;
+  the browser cuts parts at block boundaries into pieces of at most 1.5 M JSON characters, `CHUNK_JSON`). The server loads
+  a piece only when a tool needs its blocks (`AiAccess.EnsureAsync`, budget 96 MB per call), checks its hash, and a piece
+  that fails affects only its text. `list_texts` lists every text with `readable`, `reason` (`too_large`, `excluded` = the
+  owner switched it off in the Library, `not_uploaded`), `bytes`, `limit`; `list_collections` counts readable texts and
+  `textsNotReadable`; `read_text` on such a text answers `unreadable: …` with words, bytes and the limit, never `not_found`;
+  `search_text` goes text by text (`notReadable`, and `fromText` / `ContinueFromText` when one call's budget is reached).
+  Rebuilding uploads only pieces whose hash is new, then the index, then deletes pieces no index names (older than 30
+  min). Format-1 snapshots (texts inside; `textsOmitted` when they were too large) stay readable and are converted by
+  their next rebuild (any change in the collection, or „Odśwież" in Dostęp dla AI).
 - **URLs** point into the app (`https://recreatio.pl/#/workspace/…`), which opens the entry only for someone who reads
   its area. No secret ever appears in a result.
 - **Errors** say what happened: `not_found` (no such entry or collection in this authorization — the same answer

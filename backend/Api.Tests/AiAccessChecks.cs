@@ -70,7 +70,7 @@ internal static class AiAccessChecks
             "a snapshot: its name, when, notes; entries without an id are dropped, ids in lower case");
         using (var other = JsonDocument.Parse(json.Replace(library.ToString(), Guid.NewGuid().ToString())))
             check(AiAccess.ReadSnapshot(library, "writing", other.RootElement) is null, "a snapshot naming another collection is refused");
-        using (var newer = JsonDocument.Parse("""{"v":2,"entries":[]}"""))
+        using (var newer = JsonDocument.Parse("""{"v":3,"entries":[]}"""))
             check(AiAccess.ReadSnapshot(library, "writing", newer.RootElement) is null, "an unknown format is refused");
 
         var plain = snap!.Items[0].Plain;

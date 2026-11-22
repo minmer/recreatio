@@ -172,6 +172,8 @@ export const Field = {
   AiAccessWrap: 'ai_access_wrap',
   AiAccessLink: 'ai_access_link',
   AiSnapshot: 'ai_snapshot',
+  /* 0145 — ein Stück eines vollständigen Textes einer Abschrift (Format 2), gebunden an den Behälter. */
+  AiText: 'ai_text',
 
   /*
    * 0065 — die beiden Schlüssel einer Linkrolle, versiegelt unter dem

@@ -96,8 +96,14 @@ public static partial class AiAccess
         public List<Item> Items { get; } = [];
         /// <summary>2026-10-24 — die vollständigen Texte der Werke, die in diesem Behälter liegen (AiAccess.Texts.cs).</summary>
         public List<TextDoc> Texts { get; } = [];
-        /// <summary>Der Behälter hat Texte, aber sie waren zu gross für die Abschrift.</summary>
+        /// <summary>Der Behälter hat Texte, aber sie waren zu gross für die Abschrift (nur Format 1).</summary>
         public bool TextsOmitted { get; set; }
+        /// <summary>2026-11-22 (0145) — das Format der Abschrift: 1 (Texte darin) oder 2 (Verzeichnis, Texte in Stücken).</summary>
+        public int Version { get; set; } = 1;
+        /// <summary>2026-11-22 (0145) — ein Stück holen und öffnen (Hash, erster Block) — nur im Aufruf, der den Link trägt.</summary>
+        public Func<string, int, CancellationToken, Task<List<TextBlock>?>>? LoadText { get; set; }
+        /// <summary>Was der Aufruf schon an Stücken gelesen hat (gemeinsam für alle Behälter eines Aufrufs).</summary>
+        public LoadBudget? Budget { get; set; }
         /// <summary>Der Bereich des Links, durch den die Abschrift geöffnet wurde (offen wie in der Liste der Bereiche).</summary>
         public Guid AreaId { get; set; }
         public string AreaName { get; set; } = "";
@@ -178,7 +184,8 @@ public static partial class AiAccess
     public static Snapshot? ReadSnapshot(Guid libraryId, string part, JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object) return null;
-        if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number || !v.TryGetInt32(out var version) || version != 1) return null;
+        /* 2026-11-22 (0145) — Format 2: die Texte als Verzeichnis, ihre Blöcke in Stücken; Format 1 bleibt lesbar. */
+        if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number || !v.TryGetInt32(out var version) || version is not (1 or 2)) return null;
         if (Str(root, "library") is string named && !string.Equals(named, Ids.ToText(libraryId), StringComparison.OrdinalIgnoreCase)) return null;
 
         var snap = new Snapshot
@@ -191,7 +198,8 @@ public static partial class AiAccess
             Kinds = root.TryGetProperty("kinds", out var kinds) && kinds.ValueKind == JsonValueKind.Array ? kinds : default,
             Setup = part == "knowledge" && root.TryGetProperty("setup", out var setup) && setup.ValueKind == JsonValueKind.Object ? setup : default,
             /* 2026-11-15 — nur ein Skryptorium: seine Werke (scriptorium/work/workBrief.ts) — get_work_briefing, get_work_context, get_work_checks. */
-            Works = part == "writing" && root.TryGetProperty("works", out var works) && works.ValueKind == JsonValueKind.Array ? works : default
+            Works = part == "writing" && root.TryGetProperty("works", out var works) && works.ValueKind == JsonValueKind.Array ? works : default,
+            Version = version
         };
 
         if (root.TryGetProperty("entries", out var entries) && entries.ValueKind == JsonValueKind.Array)
@@ -452,6 +460,8 @@ public static partial class AiAccess
         /// <summary>Behälter dieses Links ohne (lesbare) Abschrift — noch nicht gebaut.</summary>
         public List<(Guid Library, string Part, string Area)> Missing { get; } = [];
         public List<JsonDocument> Docs { get; } = [];
+        /// <summary>2026-11-22 (0145) — die Schlüssel, mit denen Stücke der Texte geöffnet werden; beim Ende des Aufrufs genullt.</summary>
+        public List<byte[]> Keys { get; } = [];
         /// <summary>Wohin ein Eintrag zeigt, wenn nicht über den Link.</summary>
         public Func<Item, string>? UrlOf { get; set; }
 
@@ -528,13 +538,20 @@ public static partial class AiAccess
                 foreach (var m in o.Missing) if (!one.Missing.Contains(m)) one.Missing.Add(m);
                 one.Docs.AddRange(o.Docs);
                 o.Docs.Clear();
+                one.Keys.AddRange(o.Keys);
+                o.Keys.Clear();
             }
+            /* Ein Budget für den ganzen Aufruf, über alle Links. */
+            var budget = new LoadBudget();
+            foreach (var p in one.Parts) p.Budget = budget;
             return one;
         }
 
         public void Dispose()
         {
             foreach (var doc in Docs) doc.Dispose();
+            foreach (var key in Keys) CryptographicOperations.ZeroMemory(key);
+            Keys.Clear();
         }
     }
 
@@ -1025,6 +1042,8 @@ public static partial class AiAccess
 
         var linkKey = LinkKey(secret, id);
         byte[]? key = null;
+        byte[]? textKey = null;
+        var budget = new LoadBudget();
         try
         {
             try
@@ -1065,6 +1084,13 @@ public static partial class AiAccess
                     snap.AreaName = areaName;
                     snap.Current = !reader.IsDBNull(3) && reader.GetString(3) == reader.GetString(4);
                     snap.ChangedAt = reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5).ToString("O");
+                    /* 2026-11-22 (0145) — Format 2: die Stücke der Texte erst, wenn ein Werkzeug sie braucht (mit einer Kopie von C, genullt am Ende). */
+                    if (snap.Version >= 2)
+                    {
+                        if (textKey is null) { textKey = (byte[])key.Clone(); opened.Keys.Add(textKey); }
+                        snap.LoadText = TextLoader(db, id, library, textKey);
+                        snap.Budget = budget;
+                    }
                     opened.Parts.Add(snap);
                 }
                 catch (Exception e) when (e is DecryptException or InvalidDataException or JsonException)

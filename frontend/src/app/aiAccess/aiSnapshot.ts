@@ -63,7 +63,18 @@ import type { LibraryStore } from '../library/libraryStore';
 import { workBriefs, type WorkBrief } from '../scriptorium/work/workBrief';
 import { knowledgeFrom, knowledgeOf, type WorkEntity } from '../scriptorium/work/workKnowledge';
 
-export const SNAPSHOT_VERSION = 1;
+/**
+ * 2026-11-22 (0145) — FORMAT 2: die Abschrift trägt nur das VERZEICHNIS der Texte (`IndexText`: Werk, Regel der Stellen, Teile
+ * mit erster/letzter Stelle und Seiten, Blöcke, Wörter, Bytes, Stand); die Blöcke jedes Teils liegen in eigenen Stücken
+ * (`snapshotTextObjects`), inhaltlich adressiert (SHA-256 des JSON), je höchstens `CHUNK_JSON` Zeichen. So macht ein grosses
+ * Buch nie ein anderes unlesbar, und ein Neubau lädt nur, was sich geändert hat (`aiAccess.ts`). Der Dienst liest Format 1
+ * (Texte darin) weiter.
+ */
+export const SNAPSHOT_VERSION = 2;
+/** So viele Zeichen JSON trägt ein Stück höchstens (ein Teil wird an Blockgrenzen geschnitten). */
+export const CHUNK_JSON = 1_500_000;
+/** So gross darf ein Stück versiegelt sein — wie `AiAccess.MaxTextObject` im Dienst. */
+export const MAX_TEXT_OBJECT = 8 * 1024 * 1024;
 
 /** Ein Behälter des Links: sein Speicher, seine Art, sein Name — und (2026-10-24) die Texte, die in ihm liegen, geöffnet. */
 export interface ScopePart {
@@ -165,7 +176,7 @@ export interface SnapshotDoc {
   readonly notes: string;
   readonly kinds: readonly SnapshotKind[];
   readonly entries: readonly SnapshotEntry[];
-  readonly texts?: readonly SnapshotText[];
+  readonly texts?: readonly (SnapshotText | IndexText)[];
   /** 2026-10-30 — nur eine Baza wiedzy: was ihr Lernen steuert. */
   readonly setup?: SnapshotSetup;
   /** Die Texte waren zu gross für eine Abschrift und fehlen (die Einträge sind da). */
@@ -432,6 +443,101 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
   return out;
 }
 
+/* -- 2026-11-22 (0145): Verzeichnis und Stücke ------------------------------------------------------------------------- */
+
+export type TextState = 'readable' | 'too_large' | 'excluded' | 'not_uploaded';
+export interface IndexChunk { readonly hash: string; readonly from: number; readonly count: number; readonly bytes: number }
+export interface IndexPart {
+  readonly key: string; readonly label: string; readonly order: number;
+  readonly first?: string; readonly last?: string; readonly pages?: readonly [number, number];
+  readonly blocks: number; readonly words: number; readonly chunks: readonly IndexChunk[];
+}
+export interface IndexText extends Omit<SnapshotText, 'parts'> {
+  readonly state: TextState;
+  readonly words: number;
+  readonly bytes: number;
+  readonly limit: number;
+  readonly parts: readonly IndexPart[];
+}
+export interface TextObjects {
+  readonly texts: readonly IndexText[];
+  /** Je Hash das JSON des Stücks (`{"blocks": […]}`) — genau die Bytes, deren SHA-256 der Hash ist. */
+  readonly chunks: ReadonlyMap<string, string>;
+}
+
+/** Wörter wie der Dienst sie zählt (an Leerzeichen, Zeilenumbrüchen, Tabs). */
+const wordsIn = (text: string): number => text.split(/[ \n\t]+/).filter((w) => w !== '').length;
+const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
+
+/** SHA-256 als Kleinbuchstaben-Hex (im Browser und in Node). */
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Ein Teil in Stücke an Blockgrenzen, je höchstens `max` Zeichen JSON (ein einzelner grösserer Block bleibt allein). */
+export function chunkBlocks(blocks: readonly SnapshotBlock[], max = CHUNK_JSON): { readonly from: number; readonly blocks: readonly SnapshotBlock[] }[] {
+  const out: { from: number; blocks: SnapshotBlock[] }[] = [];
+  let current: SnapshotBlock[] = [];
+  let from = 0;
+  let size = 0;
+  blocks.forEach((b, i) => {
+    const one = JSON.stringify(b).length + 1;
+    if (current.length > 0 && size + one > max) { out.push({ from, blocks: current }); current = []; from = i; size = 0; }
+    current.push(b);
+    size += one;
+  });
+  if (current.length > 0) out.push({ from, blocks: current });
+  return out;
+}
+
+/**
+ * DIE TEXTE ALS VERZEICHNIS UND STÜCKE: dieselben Blöcke wie Format 1 (`snapshotTexts`), je Teil in Stücke geschnitten. Ein
+ * Text, den sein Besitzer für AI ausgeschaltet hat (`ai: false` am Text), steht mit `excluded` im Verzeichnis, ohne Stücke.
+ */
+export async function snapshotTextObjects(scope: readonly ScopePart[], libraryId: string, hash: (json: string) => Promise<string> = sha256Hex): Promise<TextObjects> {
+  const texts = scope.find((p) => p.store.libraryId === libraryId)?.texts ?? [];
+  const full = snapshotTexts(texts, scopeLookup(scope, basesOf(scope)));
+  const chunks = new Map<string, string>();
+  const index: IndexText[] = [];
+  for (const [i, t] of full.entries()) {
+    const excluded = texts[i]?.entry.data.ai === false;
+    const parts: IndexPart[] = [];
+    for (const p of t.parts) {
+      const pieces: IndexChunk[] = [];
+      if (!excluded) {
+        for (const c of chunkBlocks(p.blocks)) {
+          const json = JSON.stringify({ blocks: c.blocks });
+          const h = await hash(json);
+          chunks.set(h, json);
+          pieces.push({ hash: h, from: c.from, count: c.blocks.length, bytes: utf8Length(json) });
+        }
+      }
+      const { blocks, ...meta } = p;
+      parts.push({ ...meta, blocks: blocks.length, words: blocks.reduce((n, b) => n + wordsIn(b.text), 0), chunks: pieces });
+    }
+    const { parts: _drop, ...head } = t;
+    index.push({
+      ...head,
+      state: excluded ? 'excluded' : 'readable',
+      words: parts.reduce((n, p) => n + p.words, 0),
+      bytes: parts.reduce((n, p) => n + p.chunks.reduce((m, c) => m + c.bytes, 0), 0),
+      limit: MAX_TEXT_OBJECT,
+      parts
+    });
+  }
+  return { texts: index, chunks };
+}
+
+/** Nach dem Hinaufladen: ein Text mit einem Stück, das zu gross war oder nicht ankam, sagt es — nur er. */
+export function withTextStates(texts: readonly IndexText[], bad: ReadonlyMap<string, 'too_large' | 'not_uploaded'>): IndexText[] {
+  return texts.map((t) => {
+    if (t.state !== 'readable') return t;
+    const states = t.parts.flatMap((p) => p.chunks.map((c) => bad.get(c.hash))).filter((x): x is 'too_large' | 'not_uploaded' => x !== undefined);
+    return states.length === 0 ? t : { ...t, state: states.includes('too_large') ? 'too_large' : 'not_uploaded' };
+  });
+}
+
 /** Die Arten, die ein Teil braucht, um gelesen zu werden — mit der Bedeutung jedes Feldes. */
 function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: readonly SnapshotEntry[]): SnapshotKind[] {
   if (part.kind === 'knowledge' && lib !== undefined) return lib.kinds.map((k) => cogitaKind(k));
@@ -450,7 +556,7 @@ function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: read
  * (`scripts/app-library-check.mjs`). Holen, packen und versiegeln:
  * `aiAccess.ts`.
  */
-export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true, setup?: SnapshotSetup): SnapshotDoc {
+export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true, setup?: SnapshotSetup, textIndex?: readonly IndexText[]): SnapshotDoc {
   const part = parts.find((p) => p.store.libraryId === libraryId);
   if (part === undefined) throw new Error(t('aiAccess.snap.notInAccess'));
   const bases = basesOf(parts);
@@ -468,7 +574,9 @@ export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, made
     kinds: kindsFor(part, lib, entries),
     entries,
     ...(setup === undefined || part.kind !== 'knowledge' ? {} : { setup }),
-    ...(part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const }),
+    /* 2026-11-22 (0145) — mit Verzeichnis (Format 2: die Blöcke in Stücken), sonst die Texte darin wie in Format 1. */
+    ...(textIndex !== undefined ? (textIndex.length === 0 ? {} : { texts: textIndex })
+      : part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const }),
     ...(works.length === 0 ? {} : { works })
   };
 }

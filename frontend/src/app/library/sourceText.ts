@@ -120,6 +120,8 @@ export interface TextManifest {
   readonly scheme: SchemeId;
   readonly edition: Edition;
   readonly parts: readonly ManifestPart[];
+  /** 2026-11-22 (0145) — `false`: der Besitzer nahm den Text aus der Abschrift für AI (MCP) — er bleibt in der Bibliothek. */
+  readonly ai?: false;
 }
 
 export interface PartData {
@@ -162,7 +164,8 @@ export function readManifest(data: EntryData): TextManifest {
       blocks: typeof p.blocks === 'number' ? p.blocks : 0, words: typeof p.words === 'number' ? p.words : 0,
       ...(typeof p.formulas === 'number' && p.formulas > 0 ? { formulas: p.formulas } : {}),
       ...(Array.isArray(p.labels) && p.labels.length > 0 ? { labels: p.labels.filter((x): x is string => typeof x === 'string').slice(0, 5000) } : {})
-    })).filter((p) => p.id !== '').sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'))
+    })).filter((p) => p.id !== '').sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl')),
+    ...(data.ai === false ? { ai: false as const } : {})
   };
   /* Die Serien der Seiten bekannt — dann schreibt das Verzeichnis „s. 12*–20*", auch bevor ein Teil geladen ist. */
   rememberSeries(manifest.parts.flatMap((p) => p.series ?? []));
@@ -1155,7 +1158,7 @@ export function nextManifest(before: TextManifest | undefined, work: string, pla
   };
   const parts = [...(before?.parts ?? []).filter((p) => p.key !== plan.portion.key && p.id !== partId), part]
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'));
-  return { work, scheme: plan.scheme, ...(Object.keys(plan.edition).length === 0 ? {} : { edition: plan.edition }), parts };
+  return { work, scheme: plan.scheme, ...(Object.keys(plan.edition).length === 0 ? {} : { edition: plan.edition }), parts, ...(before?.ai === false ? { ai: false } : {}) };
 }
 
 /** Die Hülle eines Teils. */

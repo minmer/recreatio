@@ -48,6 +48,11 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
   const [open, setOpen] = useState(false);
   const t = useT();
   const nameOf = (libraryId: string) => (targets?.libraries ?? [library]).find((l) => l.libraryId === libraryId)?.name ?? t('library.kindList.otherLibrary');
+  /* Der Speicher der Bibliothek des Textes, wenn man dort schreibt — sonst `null`. */
+  const homeOf = (libraryId: string): LibraryStore | null => {
+    const row = writable.find((l) => l.libraryId === libraryId);
+    return row === undefined ? null : row.libraryId === library.libraryId ? store : (targets?.storeFor ?? (() => store))(row);
+  };
 
   return (
     <section className="lib-box" data-source-box="">
@@ -65,6 +70,14 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
                   <a className="wk-btn" href={viewPath('library', lib, work.id, 'tekst')}>{t('librarySource.box.read')}</a>{' '}
                   <span>{t('librarySource.box.parts', { count: manifest.parts.length })}, {t('librarySource.preview.words', { count: words })}{formulas > 0 ? `, ${t('librarySource.preview.formulas', { count: formulas })}` : ''}</span>
                   <span className="lib-row-meta"> · {t(lib !== library.libraryId ? 'librarySource.box.inLibraryApart' : 'librarySource.box.inLibrary', { name: nameOf(lib) })}</span>
+                  {/* 2026-11-22 (0145) — wer hier schreibt, nimmt einen (riesigen) Text aus der Abschrift für AI; er bleibt in der Bibliothek. */}
+                  {homeOf(lib) !== null && (
+                    <label className="lib-row-meta src-ai" title={t('librarySource.box.aiSays')}>
+                      <input type="checkbox" checked={manifest.ai !== false} data-source-ai={entry.id}
+                        onChange={(e) => { const home = homeOf(lib)!; const on = e.currentTarget.checked; const { ai: _ai, ...rest } = entry.data as Record<string, unknown>; void home.save({ id: entry.id, kind: entry.kind, data: on ? rest : { ...rest, ai: false } }); }} />
+                      {' '}{t('librarySource.box.ai')}
+                    </label>
+                  )}
                 </li>
               );
             })}

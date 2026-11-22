@@ -57,8 +57,20 @@ public static partial class AiAccess
         public string? Last { get; init; }
         public int[]? Pages { get; init; }
         public List<TextBlock> Blocks { get; } = [];
-        public int Words => Blocks.Sum(b => b.Text.Split((char[])[' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Length);
+        /// <summary>2026-11-22 (0145) — die Blöcke sind da (Format 1 immer; Format 2 nach `EnsureAsync`).</summary>
+        public bool Loaded { get; set; } = true;
+        /// <summary>Format 2: die Stücke dieses Teils (Hash, erster Block, wie viele, Bytes des JSON).</summary>
+        public List<TextChunk> Chunks { get; } = [];
+        /// <summary>Format 2: aus dem Verzeichnis — wie viele Blöcke und Wörter.</summary>
+        public int? IndexBlocks { get; init; }
+        public int? IndexWords { get; init; }
+        public long Bytes => Chunks.Sum(c => (long)c.Bytes);
+        public int BlockCount => Loaded ? Blocks.Count : IndexBlocks ?? 0;
+        public int Words => !Loaded && IndexWords is int w ? w : Blocks.Sum(b => b.Text.Split((char[])[' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Length);
     }
+
+    /// <summary>2026-11-22 (0145) — ein Stück eines Teils: seine Adresse, ab welchem Block, wie viele, wie gross (JSON).</summary>
+    public sealed record TextChunk(string Hash, int From, int Count, int Bytes);
 
     public sealed class TextDoc
     {
@@ -70,6 +82,16 @@ public static partial class AiAccess
         public required string Scheme { get; init; }
         public JsonElement Edition { get; init; }
         public List<TextPart> Parts { get; } = [];
+        /// <summary>2026-11-22 (0145) — lesbar oder nicht: `readable`, sonst `too_large`, `excluded`, `not_uploaded`.</summary>
+        public string State { get; init; } = "readable";
+        public string? Reason => State == "readable" ? null : State;
+        public int Words => IndexWords ?? Parts.Sum(p => p.Words);
+        public int? IndexWords { get; init; }
+        /// <summary>Wie gross die Blöcke des Textes sind (JSON), und die Grenze je Stück.</summary>
+        public long Bytes => IndexBytes ?? Parts.Sum(p => p.Bytes);
+        public long? IndexBytes { get; init; }
+        public long Limit { get; init; } = MaxTextObject;
+        public bool Readable => State == "readable";
     }
 
     private static List<string> Strings(JsonElement e, string name) =>
@@ -84,6 +106,8 @@ public static partial class AiAccess
     internal static void ReadTexts(Snapshot snap, JsonElement root)
     {
         if (root.TryGetProperty("textsOmitted", out var omitted) && omitted.ValueKind == JsonValueKind.True) snap.TextsOmitted = true;
+        static int? IntOf(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : null;
+        static long? LongOf(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var n) ? n : null;
         if (!root.TryGetProperty("texts", out var texts) || texts.ValueKind != JsonValueKind.Array) return;
         foreach (var t in texts.EnumerateArray())
         {
@@ -96,7 +120,12 @@ public static partial class AiAccess
                 WorkTitle = Str(t, "workTitle"),
                 WorkKey = Str(t, "workKey"),
                 Scheme = Str(t, "scheme") ?? "pages",
-                Edition = t.TryGetProperty("edition", out var edition) ? edition : default
+                Edition = t.TryGetProperty("edition", out var edition) ? edition : default,
+                /* 2026-11-22 (0145) — Format 2: Stand und Grössen aus dem Verzeichnis. */
+                State = Str(t, "state") is string st && st is "readable" or "too_large" or "excluded" or "not_uploaded" ? st : "readable",
+                IndexWords = IntOf(t, "words"),
+                IndexBytes = LongOf(t, "bytes"),
+                Limit = LongOf(t, "limit") ?? MaxTextObject
             };
             /* 2026-10-27 — die Muster der Seiten-Serien dieses Textes: so werden seine Seiten wieder geschrieben, wie sie gedruckt sind. */
             if (t.TryGetProperty("pageSeries", out var series) && series.ValueKind == JsonValueKind.Array)
@@ -113,37 +142,53 @@ public static partial class AiAccess
                         Order = p.TryGetProperty("order", out var order) && order.ValueKind == JsonValueKind.Number ? order.GetDouble() : 0,
                         First = Str(p, "first"),
                         Last = Str(p, "last"),
-                        Pages = p.TryGetProperty("pages", out var pp) && IntAt(pp, 0) is int a && IntAt(pp, 1) is int b ? [a, b] : null
+                        Pages = p.TryGetProperty("pages", out var pp) && IntAt(pp, 0) is int a && IntAt(pp, 1) is int b ? [a, b] : null,
+                        IndexBlocks = IntOf(p, "blocks"),
+                        IndexWords = IntOf(p, "words")
                     };
-                    if (p.TryGetProperty("blocks", out var blocks) && blocks.ValueKind == JsonValueKind.Array)
+                    /* 2026-11-22 (0145) — Format 2: statt der Blöcke ihre Stücke; geholt erst, wenn sie gebraucht werden. */
+                    if (p.TryGetProperty("chunks", out var chunks) && chunks.ValueKind == JsonValueKind.Array)
                     {
-                        var i = 0;
-                        foreach (var bl in blocks.EnumerateArray())
-                        {
-                            var pages = bl.TryGetProperty("pages", out var bp) ? bp : default;
-                            part.Blocks.Add(new TextBlock
-                            {
-                                Index = i++,
-                                Type = Str(bl, "type") ?? "paragraph",
-                                Level = bl.TryGetProperty("level", out var lv) && lv.ValueKind == JsonValueKind.Number && lv.TryGetInt32(out var level) ? level : null,
-                                Loc = Str(bl, "loc"),
-                                At = Str(bl, "at"),
-                                PageFrom = IntAt(pages, 0),
-                                PageTo = IntAt(pages, 1),
-                                Text = Str(bl, "text") ?? "",
-                                Labels = Strings(bl, "labels"),
-                                End = bl.TryGetProperty("end", out var end) && end.ValueKind == JsonValueKind.Number && end.TryGetInt32(out var last) ? last : null,
-                                Within = Strings(bl, "within"),
-                                Search = Str(bl, "search")
-                            });
-                        }
+                        foreach (var c in chunks.EnumerateArray())
+                            if (Str(c, "hash") is string h) part.Chunks.Add(new TextChunk(h.ToLowerInvariant(), IntOf(c, "from") ?? 0, IntOf(c, "count") ?? 0, IntOf(c, "bytes") ?? 0));
+                        part.Loaded = false;
                     }
+                    if (p.TryGetProperty("blocks", out var blocks) && blocks.ValueKind == JsonValueKind.Array) part.Blocks.AddRange(BlocksOf(blocks, 0));
                     doc.Parts.Add(part);
                 }
             }
             doc.Parts.Sort((x, y) => x.Order.CompareTo(y.Order));
             snap.Texts.Add(doc);
         }
+    }
+
+
+    /// <summary>Blöcke aus JSON (Format 1: in der Abschrift; Format 2: in einem Stück) — `first` ist der Index des ersten im Teil.</summary>
+    internal static List<TextBlock> BlocksOf(JsonElement blocks, int first)
+    {
+        var list = new List<TextBlock>();
+        if (blocks.ValueKind != JsonValueKind.Array) return list;
+        var i = first;
+        foreach (var bl in blocks.EnumerateArray())
+        {
+            var pages = bl.TryGetProperty("pages", out var bp) ? bp : default;
+            list.Add(new TextBlock
+            {
+                Index = i++,
+                Type = Str(bl, "type") ?? "paragraph",
+                Level = bl.TryGetProperty("level", out var lv) && lv.ValueKind == JsonValueKind.Number && lv.TryGetInt32(out var level) ? level : null,
+                Loc = Str(bl, "loc"),
+                At = Str(bl, "at"),
+                PageFrom = IntAt(pages, 0),
+                PageTo = IntAt(pages, 1),
+                Text = Str(bl, "text") ?? "",
+                Labels = Strings(bl, "labels"),
+                End = bl.TryGetProperty("end", out var end) && end.ValueKind == JsonValueKind.Number && end.TryGetInt32(out var last) ? last : null,
+                Within = Strings(bl, "within"),
+                Search = Str(bl, "search")
+            });
+        }
+        return list;
     }
 
     /* -- Eine Stelle finden --------------------------------------------------------------------------- */

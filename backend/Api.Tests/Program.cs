@@ -141,6 +141,7 @@ PhoneChecks.Run(Check);
 VirtualAreaChecks.Run(Check);
 PageSealChecks.Run(Check);
 AiAccessChecks.Run(Check);
+await TextObjectChecks.RunAsync(Check);
 WorkMcpChecks.Run(Check);
 SchemeChecks.Run(Check);
 await ImportCheckChecks.RunAsync(Check);

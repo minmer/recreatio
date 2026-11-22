@@ -59,6 +59,8 @@ public static partial class AiAccess
         app.MapPost("/workspace/area/{areaId:guid}/ai-access/{id:guid}", ChangeAsync);
         app.MapDelete("/workspace/area/{areaId:guid}/ai-access/{id:guid}", DeleteAsync);
         app.MapPut("/workspace/area/{areaId:guid}/ai-access/{id:guid}/part/{libraryId:guid}", UploadAsync);
+        /* 2026-11-22 (0145) — die Stücke der vollständigen Texte (AiAccess.TextObjects.cs). */
+        MapTextObjects(app);
 
         /* Der Assistent — mit dem Link statt einer Sitzung, nur GET (AiAccess.Read.cs). */
         MapRead(app);
