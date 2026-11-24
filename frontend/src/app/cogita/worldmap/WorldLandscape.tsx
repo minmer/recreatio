@@ -206,7 +206,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     aus dem Stand der Welt, der Abschluss als Wert `~qpath.<weg>`.
   */
   /* 2026-11-24 — Wegweiser, die die Teilwelt ausblendet (`hideSigns`), fehlen der Klasse. */
-  const paths = useMemo(() => lib.docs('qpath').map((e) => readPath(e.id, e.data)).filter((p) => !(onlyNow?.hideSigns ?? []).includes(p.id)), [lib, lib.revision, onlyKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const paths = useMemo(() => lib.docs('qpath').map((e) => readPath(e.id, e.data)).filter((p) => (onlyNow?.optIn === true ? (onlyNow.showSigns ?? []).includes(p.id) : !(onlyNow?.hideSigns ?? []).includes(p.id))), [lib, lib.revision, onlyKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const pathById = useMemo(() => new Map(paths.map((p) => [p.id, p] as const)), [paths]);
   const pctx = useMemo((): PathCtx => ({
     state, lines,

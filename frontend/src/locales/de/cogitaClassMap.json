@@ -18,5 +18,6 @@
   "saveFailed": "Speichern fehlgeschlagen.",
   "tabSays": "Klicke auf der Karte Türme, Wegabschnitte, Gabelungen und Wegweiser an, um sie der Klasse {name} zu zeigen oder zu verbergen. Graues sieht nur die Lehrkraft. Zum Schluss „Für die Klasse speichern“.",
   "tabRead": "So sieht die Klasse {name} die Welt.",
-  "again": "Auswahl ändern"
+  "again": "Auswahl ändern",
+  "saved": "Gespeichert — die Klasse sieht jetzt nur, was farbig ist."
 }

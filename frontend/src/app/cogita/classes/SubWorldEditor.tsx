@@ -6,7 +6,7 @@
  * neu. Wer die Baza nicht schreibt, sieht die Karte der Klasse, wie die Schüler sie sehen.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useT } from '../../core/i18n';
 import { Loading } from '../../ui/Loading';
@@ -20,7 +20,11 @@ import './classes.css';
 export function SubWorldEditor({ klass }: { klass: ClassOf }) {
   const t = useT();
   const { lib, writes } = useCtx();
-  const cards = useAsync(() => lib.cards().then((r) => r.cards), [lib, lib.revision]);
+  const fresh = useAsync(() => lib.cards().then((r) => r.cards), [lib, lib.revision]);
+  /* Nach dem Speichern lädt die Baza neu — die Karte bleibt dabei stehen (sonst wäre die offene Wahl weg). */
+  const last = useRef(fresh);
+  if (fresh !== undefined) last.current = fresh;
+  const cards = fresh ?? last.current;
   /* Wer schreibt, wählt: die Karte öffnet sich im Wahl-Modus für diese Klasse; „Zmień wybór" baut sie neu auf (wieder im Wahl-Modus). */
   const [round, setRound] = useState(0);
   const again = () => setRound((n) => n + 1);

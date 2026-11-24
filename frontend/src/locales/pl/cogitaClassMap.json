@@ -18,5 +18,6 @@
   "saveFailed": "Nie udało się zapisać.",
   "tabSays": "Kliknij na mapie wieże, odcinki dróg, rozwidlenia i drogowskazy, żeby je pokazać albo ukryć klasie {name}. Szare widzi tylko nauczyciel. Na koniec „Zapisz dla klasy”.",
   "tabRead": "Tak klasa {name} widzi świat.",
-  "again": "Zmień wybór"
+  "again": "Zmień wybór",
+  "saved": "Zapisano — klasa widzi teraz tylko to, co jest kolorowe."
 }

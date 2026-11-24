@@ -32,6 +32,8 @@ export const CLASS_VIEW_FIELD = 'forClass';
  */
 export function subWorldPlaces(world: World, net: TagNetwork, only: LandscapeOnly | null | undefined): ReadonlySet<string> | null {
   if (only === null || only === undefined) return null;
+  /* 2026-11-25 — nur das Gewählte: genau diese Türme (ohne Voraussetzungen von selbst — die Lehrerin hat sie gewählt oder nicht). */
+  if (only.optIn === true) return new Set((only.showPlaces ?? []).filter((id) => world.places.has(id)));
   /* 2026-11-24 — nichts eingeschlossen: die ganze Welt ohne die ausgeblendeten Türme (ohne solche: keine Einschränkung der Türme). */
   const hidden = new Set(only.hidePlaces ?? []);
   if (only.tags.length === 0 && only.places.length === 0) return hidden.size === 0 ? null : new Set([...world.places.keys()].filter((id) => !hidden.has(id)));
@@ -148,6 +150,17 @@ export function classWorldInput(input: WorldInput, world: World, net: TagNetwork
   const steps = new Map<string, Set<string>>();
   const hideStep = (flow: string, step: string) => { const set = steps.get(flow) ?? new Set<string>(); set.add(step); steps.set(flow, set); };
   for (const h of only.hideSections ?? []) { const id = idOf(h.flow); if (id !== undefined) hideStep(id, h.step); }
+  /* 2026-11-25 — nur das Gewählte: jeder Abschnitt, der nicht gewählt ist, fällt weg; eine Erzählung ohne gewählten Abschnitt ganz. */
+  if (only.optIn === true) {
+    const shown = new Set((only.showSections ?? []).map((h) => `${idOf(h.flow) ?? h.flow}#${h.step}`));
+    const anyShown = new Set<string>();
+    for (const sec of lines.sections.values()) {
+      const step = sectionStep(sec);
+      if (step === null) continue;
+      if (shown.has(`${sec.line}#${step}`)) anyShown.add(sec.line); else hideStep(sec.line, step);
+    }
+    for (const f of input.flows) if (!anyShown.has(f.id)) hiddenFlows.add(f.id);
+  }
   if (allowed !== null) {
     for (const sec of lines.sections.values()) {
       if (!world.places.has(sec.to) || allowed.has(sec.to)) continue;
@@ -170,8 +183,43 @@ export function classWorldInput(input: WorldInput, world: World, net: TagNetwork
   return allowed === null ? pruned : restrictWorldInput(pruned, world, linesOf(world, flows), allowed);
 }
 
+/**
+ * 2026-11-25 — NUR DAS GEWÄHLTE, FÜR DIE WAHL AUF DER KARTE: die Wahl als Ausnahmen (die Karte schaltet in dieser Form um) — alle
+ * Türme, Abschnitte und Wegweiser, die nicht gewählt sind, ausgeblendet. Ohne Wahl: nichts gewählt (alles grau).
+ */
+export function hideFormOf(only: LandscapeOnly | null, world: World, lines: Lines, signs: readonly string[]): LandscapeOnly {
+  const o: LandscapeOnly = only ?? { tags: [], places: [], withBase: false, optIn: true };
+  if (o.optIn !== true) return o;
+  const places = new Set(o.showPlaces ?? []);
+  const shown = new Set((o.showSections ?? []).map(hiddenKey));
+  const hideSections: HiddenSection[] = [];
+  for (const sec of lines.sections.values()) { const step = sectionStep(sec); if (step !== null && !shown.has(`${sec.line}#${step}`)) hideSections.push({ flow: sec.line, step }); }
+  const keep = new Set(o.showSigns ?? []);
+  return {
+    tags: [], places: [], withBase: false,
+    hidePlaces: [...world.places.keys()].filter((id) => !places.has(id)),
+    hideSections,
+    hideSigns: signs.filter((s) => !keep.has(s))
+  };
+}
+
+/** Und zurück: was mit dieser Wahl sichtbar ist, als „nur das Gewählte" (so wird gespeichert — Neues bleibt aussen vor). */
+export function optInOf(places: ReadonlySet<string>, sectionKeys: ReadonlySet<string> | null, lines: Lines, signs: readonly string[], hideSigns: readonly string[]): LandscapeOnly {
+  const showSections: HiddenSection[] = [];
+  for (const sec of lines.sections.values()) {
+    const step = sectionStep(sec);
+    if (step === null) continue;
+    if (sectionKeys === null || sectionKeys.has(`${sec.line}#${step}`)) showSections.push({ flow: sec.line, step });
+  }
+  const off = new Set(hideSigns);
+  return { tags: [], places: [], withBase: false, optIn: true, showPlaces: [...places], showSections, showSigns: signs.filter((s) => !off.has(s)) };
+}
+
 /** `only` für den Widok, ohne leere Listen. */
 export function onlyJson(only: LandscapeOnly): Record<string, unknown> {
+  if (only.optIn === true) {
+    return { optIn: true, showPlaces: [...(only.showPlaces ?? [])], showSections: (only.showSections ?? []).map((h) => ({ flow: h.flow, step: h.step })), showSigns: [...(only.showSigns ?? [])] };
+  }
   return {
     tags: [...only.tags], places: [...only.places], withBase: only.withBase,
     ...((only.hidePlaces ?? []).length === 0 ? {} : { hidePlaces: [...only.hidePlaces!] }),
@@ -182,7 +230,7 @@ export function onlyJson(only: LandscapeOnly): Record<string, unknown> {
 }
 
 /** Ist die Wahl leer (keine Einschränkung)? */
-export const onlyEmpty = (only: LandscapeOnly | null | undefined): boolean => only === null || only === undefined || (only.tags.length === 0 && only.places.length === 0
+export const onlyEmpty = (only: LandscapeOnly | null | undefined): boolean => only === null || only === undefined || (only.optIn !== true && only.tags.length === 0 && only.places.length === 0
   && (only.hidePlaces ?? []).length === 0 && (only.hideFlows ?? []).length === 0 && (only.hideSections ?? []).length === 0 && (only.hideSigns ?? []).length === 0);
 
 /**

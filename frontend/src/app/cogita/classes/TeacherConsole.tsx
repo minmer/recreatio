@@ -39,6 +39,7 @@ import { classAim, type ClassOf } from './classModel';
 import { classJoinLink, classOpening, closeJoining, createClass, moveClassUnderBase, myClasses, renewJoinLink, type ClassStage } from './classes';
 import { FollowBar } from '../follow/FollowBar';
 import { startFollow, stopFollow, useFollowLive } from '../follow/followHost';
+import { baseWorldViewOf, setClassView } from './subWorld';
 import './classes.css';
 
 const OfficeProgress = lazy(() => import('../Progress').then((m) => ({ default: m.OfficeProgress })));
@@ -102,7 +103,7 @@ export function TeacherConsole({ slots = {} }: { slots?: ConsoleSlots }) {
 
 function NewClass({ base, onMade }: { base: { libraryId: string; areaId: string; name: string }; onMade: (klass: ClassOf, url: string) => void }) {
   const t = useT();
-  const { me } = useCtx();
+  const { me, lib, writes } = useCtx();
   const [name, setName] = useState('');
   const [stage, setStage] = useState<ClassStage | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -112,7 +113,12 @@ function NewClass({ base, onMade }: { base: { libraryId: string; areaId: string;
     if (name.trim() === '') { setFailed(t('cogitaClass.err.needName')); return; }
     setFailed(null);
     setStage('area');
-    void createClass(me, base, name, setStage).then((made) => {
+    void createClass(me, base, name, setStage).then(async (made) => {
+      /*
+        2026-11-25 (Eigentümer: „was ich nicht gewählt habe, gibt es für die Schüler nicht") — eine neue Klasse sieht zuerst NICHTS:
+        ihr Widok ist „nur das Gewählte" ohne Wahl; die Lehrerin wählt unter „Świat klasy" auf der Karte.
+      */
+      if (writes) await setClassView(lib, made.klass, { tags: [], places: [], withBase: false, optIn: true, showPlaces: [], showSections: [], showSigns: [] }, t('cogitaSubWorld.viewName', { name: made.klass.name }), baseWorldViewOf(lib)).catch(() => undefined);
       setName('');
       onMade(made.klass, made.url);
     }, (err: unknown) => setFailed(err instanceof WorkspaceError ? err.message : t('cogitaClass.err.failed'))).finally(() => setStage(null));

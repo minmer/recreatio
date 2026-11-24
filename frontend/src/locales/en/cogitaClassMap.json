@@ -18,5 +18,6 @@
   "saveFailed": "Saving failed.",
   "tabSays": "Click towers, path sections, forks and signposts on the map to show or hide them for {name}. Grey ones only the teacher sees. Finish with “Save for the class”.",
   "tabRead": "This is how {name} sees the world.",
-  "again": "Change the selection"
+  "again": "Change the selection",
+  "saved": "Saved — the class now sees only what is in colour."
 }

@@ -19,7 +19,7 @@ import type { T } from '../../core/i18n';
 import type { Me } from '../../core/me';
 import type { CogitaLibrary } from '../store';
 import { myClasses } from '../classes/classes';
-import { classOnly, classWorldInput, sectionKey, sectionStep, setClassView, subWorldPlaces } from '../classes/subWorld';
+import { classOnly, classWorldInput, hideFormOf, optInOf, sectionKey, sectionStep, setClassView, subWorldPlaces } from '../classes/subWorld';
 import type { HiddenSection, LandscapeOnly } from '../views';
 import { readWorld } from './wmGraph';
 import { linesOf } from './wmLines';
@@ -81,9 +81,12 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
     return () => { alive = false; };
   }, [me, writes, lib.libraryId]);
 
+  /* Die Wegweiser der Baza (Wege zu einer Frage) — „nur das Gewählte" nennt die sichtbaren. */
+  const signIds = useMemo(() => lib.docs('qpath').map((d) => d.id), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = (klass: Target) => {
     setTarget(klass);
-    setDraft(classOnly(lib, klass.areaId) ?? EMPTY);
+    /* 2026-11-25 — ohne Wahl: nichts sichtbar (die Lehrerin wählt, was es für die Klasse gibt); eine alte Wahl (Ausnahmen) bleibt, wie sie war. */
+    setDraft(hideFormOf(classOnly(lib, klass.areaId), world, linesOf(world, input.flows), signIds));
     setUndo([]);
     setLastLine(null);
     setNote(null);
@@ -235,8 +238,12 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
     if (target === null) return;
     setBusy(true);
     try {
-      await setClassView(lib, target, draft, t('cogitaSubWorld.viewName', { name: target.name }), viewKey);
-      setTarget(null);
+      /* Gespeichert wird „nur das Gewählte": was später in die Welt kommt, sieht die Klasse erst, wenn es gewählt ist. */
+      const saved = seen === null || fullLines === null ? draft : optInOf(seen.places, seen.keys, fullLines, signIds, draft.hideSigns ?? []);
+      await setClassView(lib, target, saved, t('cogitaSubWorld.viewName', { name: target.name }), viewKey);
+      /* Im Reiter „Świat klasy" bleibt die Wahl offen (dort gibt es nichts anderes); aus dem Menü endet sie. */
+      if (selectFor != null && selectFor.areaId === target.areaId) { setUndo([]); setNote(t('cogitaClassMap.saved')); }
+      else setTarget(null);
     } catch (e) {
       setNote(e instanceof Error ? e.message : t('cogitaClassMap.saveFailed'));
     } finally {
@@ -268,10 +275,10 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
       {note !== null && <p className="wk-note cg-wm-selnote" role="status" data-class-select-note="">{note}</p>}
       <div className="wk-actions cg-wm-selacts">
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()} data-class-select-save="">{t('cogitaClassMap.save')}</button>
-        <button type="button" className="wk-btn wk-btn-line" disabled={busy} onClick={() => setTarget(null)} data-class-select-cancel="">{t('cogitaClassMap.cancel')}</button>
+        <button type="button" className="wk-btn wk-btn-line" disabled={busy} onClick={() => (selectFor != null && target !== null && selectFor.areaId === target.areaId ? start(target) : setTarget(null))} data-class-select-cancel="">{t('cogitaClassMap.cancel')}</button>
         <button type="button" className="wk-link-btn" disabled={undo.length === 0} onClick={() => { const last = undo[undo.length - 1]; if (last !== undefined) { setDraft(last); setUndo((u) => u.slice(0, -1)); setNote(null); } }} data-class-select-undo="">↶ {t('cogitaClassMap.undo')}</button>
         <button type="button" className="wk-link-btn" onClick={() => change(EMPTY)} data-class-select-all="">{t('cogitaClassMap.all')}</button>
-        <button type="button" className="wk-link-btn" onClick={() => change({ ...EMPTY, hidePlaces: [...world.places.keys()] })} data-class-select-none="">{t('cogitaClassMap.none')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => change(hideFormOf(null, world, fullLines ?? linesOf(world, input.flows), signIds))} data-class-select-none="">{t('cogitaClassMap.none')}</button>
       </div>
     </section>
   );

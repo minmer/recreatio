@@ -133,6 +133,15 @@ export interface LandscapeOnly {
   readonly hideFlows?: readonly string[];
   readonly hideSections?: readonly HiddenSection[];
   readonly hideSigns?: readonly string[];
+  /**
+   * 2026-11-25 (Eigentümer: „was ich nicht gewählt habe, gibt es für die Schüler nicht") — NUR DAS GEWÄHLTE: Türme, Abschnitte
+   * (Ablauf + erster Schritt) und Wegweiser, die die Klasse sieht; alles andere — auch, was später dazukommt — gibt es für sie
+   * nicht. Mit `optIn` zählen nur diese Listen (tags, places, hide… nicht).
+   */
+  readonly optIn?: true;
+  readonly showPlaces?: readonly string[];
+  readonly showSections?: readonly HiddenSection[];
+  readonly showSigns?: readonly string[];
 }
 
 /** Ein ausgeblendeter Abschnitt: von diesem Schritt an fällt der Weg weg (ein Zweig einer Gabelung, der Rest eines Weges). */
@@ -150,14 +159,20 @@ export function readLandscapeOnly(raw: unknown): LandscapeOnly | null {
   const hidePlaces = ids(raw.hidePlaces);
   const hideFlows = ids(raw.hideFlows);
   const hideSigns = ids(raw.hideSigns);
-  const seen = new Set<string>();
-  const hideSections = (Array.isArray(raw.hideSections) ? raw.hideSections : []).flatMap((x): HiddenSection[] => {
-    if (!isObject(x) || typeof x.flow !== "string" || typeof x.step !== "string" || x.flow.trim() === "" || x.step.trim() === "") return [];
-    const key = `${x.flow.trim()}#${x.step.trim()}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    return [{ flow: x.flow.trim(), step: x.step.trim() }];
-  });
+  const sectionsOf = (v: unknown): HiddenSection[] => {
+    const seen = new Set<string>();
+    return (Array.isArray(v) ? v : []).flatMap((x): HiddenSection[] => {
+      if (!isObject(x) || typeof x.flow !== "string" || typeof x.step !== "string" || x.flow.trim() === "" || x.step.trim() === "") return [];
+      const key = `${x.flow.trim()}#${x.step.trim()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ flow: x.flow.trim(), step: x.step.trim() }];
+    });
+  };
+  const hideSections = sectionsOf(raw.hideSections);
+  if (raw.optIn === true) {
+    return { tags: [], places: [], withBase: false, optIn: true, showPlaces: ids(raw.showPlaces), showSections: sectionsOf(raw.showSections), showSigns: ids(raw.showSigns) };
+  }
   if (tags.length === 0 && places.length === 0 && hidePlaces.length === 0 && hideFlows.length === 0 && hideSections.length === 0 && hideSigns.length === 0) return null;
   return {
     tags, places, withBase: raw.withBase !== false,
