@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { tFor, useT } from '../../core/i18n';
 import { useMe, useWho } from '../../core/me';
+import { usePerson } from '../../pages/pagePerson';
 import { useDark } from '../../core/theme';
 import type { Card } from '../cardBasics';
 import { readFlow, resolveFlow, type Flow } from '../flow';
@@ -121,7 +122,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const { lib, writes, name: baseName, me } = useCtx();
   /* 2026-11-24 (Tryb prowadzony) — auf einer Seite ohne Person im Zusammenhang (die Klassenseite der Lehrerin): das eigene Konto. */
   const ownMe = useMe(useWho());
-  const leadMe = me ?? ownMe ?? null;
+  /* 2026-11-25 — als Schüler über dessen eigenen Link (auch im Browser der Lehrerin): nie führen — sonst schickte diese Seite ihre Kamera an die Klasse. */
+  const asSeat = usePerson()?.chosen?.kind === 'seat';
+  const leadMe = asSeat ? null : me ?? ownMe ?? null;
   /*
     2026-11-24 (Tryb prowadzony) — GEFÜHRT (die Karte der Schüler und der Leinwand, `follow/FollowScreen.tsx`): Kamera, Gewähltes,
     Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
