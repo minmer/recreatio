@@ -679,5 +679,11 @@
       "other": "+{count} more"
     },
     "showAll": "Show all topics (also those with nothing reachable yet)"
+  },
+  "menu": {
+    "open": "Map menu",
+    "title": "Map menu",
+    "show": "What the map shows",
+    "view": "View"
   }
 }

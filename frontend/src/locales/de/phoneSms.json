@@ -165,7 +165,13 @@
     "downloading": "Wird geladen…",
     "resend": "Erneut senden",
     "photoLoading": "📷 Foto…",
-    "photo": "Foto"
+    "photo": "Foto",
+    "save": "Speichern",
+    "savePhoto": "Foto speichern",
+    "saved": "Gespeichert.",
+    "saveFailed": "Die Datei ließ sich nicht speichern.",
+    "group": "Gruppennachricht",
+    "groupAlso": "Ging auch an: {who}"
   },
   "compose2": {
     "opening": "Gespräch wird geöffnet…",

@@ -62,6 +62,11 @@ export interface NativeMessage {
   readonly status: 'none' | 'pending' | 'complete' | 'failed';
   readonly subId: number | null;
   readonly parts: readonly NativePart[];
+  /**
+   * 2026-11-24 — eine eingehende GRUPPEN-MMS: an wen sie noch ging (ohne Absender, ohne die
+   * eigene Nummer, soweit das Telefon sie kennt). Sie steht trotzdem nur beim Absender.
+   */
+  readonly also?: readonly string[];
   /** Eine MMS, die noch nicht geladen ist. */
   readonly pending: boolean;
 }

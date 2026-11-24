@@ -87,8 +87,8 @@ export interface MapTarget {
 /* -- Das Menü und die Knöpfe -------------------------------------------------------------------------------------------- */
 
 export interface ClassTools {
-  /** Das ⚙ in der Leiste der Karte. */
-  readonly menu: ReactNode;
+  /** 2026-11-24 — der Teil der Klasse im Menü der Karte (☰ oben links). */
+  readonly menuBody: ReactNode;
   /** Im Modus „Prowadzę" (nur wer leiten darf). */
   readonly teaching: boolean;
   /** Statt der Knöpfe eines Lernenden: „Prowadź tutaj", „Zadaj" (und was die Karte sonst noch klein anhängt). */
@@ -113,7 +113,6 @@ export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow
   const canLead = areas !== null && areas.length > 0;
   const [mode, setModeRaw] = useState<'lead' | 'learn'>(() => (kept(MODE(lib.libraryId)) === 'lead' ? 'lead' : 'learn'));
   const [areaId, setAreaRaw] = useState<string | null>(() => kept(AREA(lib.libraryId)));
-  const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<{ readonly kind: 'lead' | 'assign'; readonly target: MapTarget } | null>(null);
   const teaching = canLead && mode === 'lead';
   const area = areas?.find((a) => a.areaId === areaId) ?? areas?.[0] ?? null;
@@ -121,31 +120,29 @@ export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow
   const setArea = (id: string) => { setAreaRaw(id); keep(AREA(lib.libraryId), id); };
   const tasks = useAssignments(lib, me, learner, facts);
 
-  const menu = (
-    <div className="cg-class-menu">
-      <button type="button" className={`cg-wm-mode${teaching ? ' is-on' : ''}`} aria-expanded={open} aria-label={t('cogitaLesson.menu.open')} title={t('cogitaLesson.menu.open')}
-        onClick={() => setOpen((v) => !v)} data-class-menu="">⚙{teaching ? ` ${t('cogitaLesson.menu.leading')}` : ''}</button>
-      {open && (
-        <div className="cg-class-pop" role="dialog" aria-label={t('cogitaLesson.menu.title')} data-class-pop="">
-          <p><a className="wk-link" href="#/workspace/account/wyglad">{t('cogitaLesson.menu.textSize')}</a></p>
-          {canLead && (
-            <fieldset className="cg-class-mode" data-class-mode={mode}>
-              <legend>{t('cogitaLesson.menu.mode')}</legend>
-              <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'learn'} onChange={() => setMode('learn')} data-class-mode-learn="" /><span>{t('cogitaLesson.menu.learn')}</span></label>
-              <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'lead'} onChange={() => setMode('lead')} data-class-mode-lead="" /><span>{t('cogitaLesson.menu.lead')}</span></label>
-              <p className="cg-muted">{mode === 'lead' ? t('cogitaLesson.menu.leadSays') : t('cogitaLesson.menu.learnSays')}</p>
-              {mode === 'lead' && areas !== null && areas.length > 1 && (
-                <label className="wk-field"><span>{t('cogitaLesson.menu.class')}</span>
-                  <select value={area?.areaId ?? ''} onChange={(e) => setArea(e.target.value)} data-class-area="">
-                    {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.own ? t('cogitaLesson.menu.baseArea', { name: a.name }) : a.name}</option>)}
-                  </select>
-                </label>
-              )}
-            </fieldset>
+  /*
+    2026-11-24 — der Teil der Klasse im Menü der Karte (☰ oben links, `worldmap/MapMenu.tsx`): Textgrösse, „Prowadzę / Uczę się",
+    die Klasse, offene Zadania. Kein eigener Knopf mehr.
+  */
+  const menuBody = (
+    <div className="cg-class-menubody">
+      <p><a className="wk-link" href="#/workspace/account/wyglad">{t('cogitaLesson.menu.textSize')}</a></p>
+      {canLead && (
+        <fieldset className="cg-class-mode" data-class-mode={mode}>
+          <legend>{t('cogitaLesson.menu.mode')}</legend>
+          <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'learn'} onChange={() => setMode('learn')} data-class-mode-learn="" /><span>{t('cogitaLesson.menu.learn')}</span></label>
+          <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'lead'} onChange={() => setMode('lead')} data-class-mode-lead="" /><span>{t('cogitaLesson.menu.lead')}</span></label>
+          <p className="cg-muted">{mode === 'lead' ? t('cogitaLesson.menu.leadSays') : t('cogitaLesson.menu.learnSays')}</p>
+          {mode === 'lead' && areas !== null && areas.length > 1 && (
+            <label className="wk-field"><span>{t('cogitaLesson.menu.class')}</span>
+              <select value={area?.areaId ?? ''} onChange={(e) => setArea(e.target.value)} data-class-area="">
+                {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.own ? t('cogitaLesson.menu.baseArea', { name: a.name }) : a.name}</option>)}
+              </select>
+            </label>
           )}
-          {tasks.length > 0 && <p className="cg-muted">{t('cogitaLesson.tasks.count', { count: tasks.filter((x) => x.state !== 'done').length })}</p>}
-        </div>
+        </fieldset>
       )}
+      {tasks.length > 0 && <p className="cg-muted">{t('cogitaLesson.tasks.count', { count: tasks.filter((x) => x.state !== 'done').length })}</p>}
     </div>
   );
 
@@ -169,7 +166,7 @@ export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow
   /* Fest, solange sich nichts ändert (die Karte zeichnet neu, wenn sich die Menge ändert). */
   const markKey = [...new Set(tasks.filter((x) => x.state !== 'done' && x.target.kind !== 'trail').map((x) => x.target.id))].sort().join('|');
   const marked = useMemo(() => new Set(markKey === '' ? [] : markKey.split('|')), [markKey]);
-  return { menu, teaching, buttons, overlay, marked };
+  return { menuBody, teaching, buttons, overlay, marked };
 }
 
 /* -- Eine Stunde beginnen -------------------------------------------------------------------------------------------- */

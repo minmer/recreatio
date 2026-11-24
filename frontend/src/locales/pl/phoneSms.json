@@ -173,7 +173,13 @@
     "downloading": "Pobieranie…",
     "resend": "Wyślij ponownie",
     "photoLoading": "📷 Zdjęcie…",
-    "photo": "Zdjęcie"
+    "photo": "Zdjęcie",
+    "save": "Zapisz",
+    "savePhoto": "Zapisz zdjęcie",
+    "saved": "Zapisano.",
+    "saveFailed": "Nie udało się zapisać pliku.",
+    "group": "Wiadomość grupowa",
+    "groupAlso": "Wysłana też do: {who}"
   },
   "compose2": {
     "opening": "Otwieranie rozmowy…",

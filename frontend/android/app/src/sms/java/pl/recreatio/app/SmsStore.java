@@ -114,6 +114,8 @@ final class SmsStore {
     }
 
     static JSONArray threads(Context context, int limit) throws JSONException {
+        /* 2026-11-24 — eingehende MMS aus „Gruppen" zu ihren Absendern (einmal, dann ist dort nichts mehr). */
+        if (ungroup(context) > 0) PhonePlugin.changed(-1);
         Map<Long, String> canonical = canonical(context);
         Map<Long, Integer> unread = unread(context);
         Map<String, String> names = ContactIndex.names(context, canonical.values());
@@ -216,12 +218,37 @@ final class SmsStore {
         }
 
         String from = null;
-        try (Cursor a = cr.query(Uri.parse("content://mms/" + id + "/addr"), new String[] { "address", "type" }, "type = " + ADDR_FROM, null, null)) {
-            if (a != null && a.moveToFirst()) from = a.getString(0);
+        List<String> others = new ArrayList<>();
+        try (Cursor a = cr.query(Uri.parse("content://mms/" + id + "/addr"), new String[] { "address", "type" }, null, null, null)) {
+            while (a != null && a.moveToNext()) {
+                String address = a.getString(0);
+                if (address == null || address.isEmpty() || "insert-address-token".equals(address)) continue;
+                if (a.getInt(1) == ADDR_FROM) from = address;
+                else if (a.getInt(1) == ADDR_TO || a.getInt(1) == ADDR_CC) others.add(address);
+            }
         } catch (RuntimeException ignored) {
             // ohne Absender
         }
-        if ("insert-address-token".equals(from)) from = null;
+        /*
+         * 2026-11-24 — EINE GRUPPEN-MMS (eingehend): an wen sie noch ging — ohne den Absender und
+         * ohne die eigene Nummer. Ging sie an genau eine Nummer, war das die eigene (keine Gruppe),
+         * auch wenn das Telefon sie nicht kennt.
+         */
+        JSONArray also = new JSONArray();
+        if (msgBox == 1) {
+            Set<String> mine = ownNumbers(context);
+            Set<String> seen = new HashSet<>();
+            List<String> rest = new ArrayList<>();
+            int addressed = 0;
+            for (String o : others) {
+                if (from != null && MmsReceiver.same(o, Collections.singleton(from))) continue;
+                if (MmsReceiver.same(o, seen)) continue;
+                seen.add(o);
+                addressed++;
+                if (!MmsReceiver.same(o, mine)) rest.add(o);
+            }
+            if (addressed > 1) for (String o : rest) also.put(o);
+        }
 
         String subject = c.getString(6);
         boolean pending = mType == 130;
@@ -243,7 +270,199 @@ final class SmsStore {
                 .put("status", state)
                 .put("subId", c.isNull(8) ? JSONObject.NULL : c.getInt(8))
                 .put("parts", parts)
+                .put("also", also)
                 .put("pending", pending);
+    }
+
+    /* -- Keine Gruppen aus eingehenden MMS (2026-11-24) ----------------------------------------- */
+
+    /**
+     * Jede EINGEHENDE MMS, die in einem Gespräch mit mehreren Nummern steht (so legten frühere
+     * Fassungen und andere SMS-Apps sie ab), in das Gespräch ihres Absenders verschieben. Was
+     * man selbst an eine Gruppe schickte, bleibt dort. Ein Gespräch, das dabei leer wird, geht.
+     * Nur als SMS-App des Telefons (sonst darf sie nicht schreiben). Gibt zurück, wie viele gingen.
+     */
+    static int ungroup(Context context) {
+        if (!context.getPackageName().equals(Telephony.Sms.getDefaultSmsPackage(context))) return 0;
+        ContentResolver cr = context.getContentResolver();
+        List<Long> groups = new ArrayList<>();
+        try (Cursor c = cr.query(CONVERSATIONS, new String[] { "_id", "recipient_ids" }, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                String ids = c.getString(1);
+                if (ids != null && ids.trim().contains(" ")) groups.add(c.getLong(0));
+            }
+        } catch (RuntimeException e) {
+            return 0;
+        }
+        int moved = 0;
+        for (long thread : groups) {
+            List<Long> incoming = new ArrayList<>();
+            try (Cursor c = cr.query(MMS, new String[] { "_id" }, "thread_id = ? AND msg_box = 1", new String[] { String.valueOf(thread) }, null)) {
+                while (c != null && c.moveToNext()) incoming.add(c.getLong(0));
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            int here = 0;
+            for (long id : incoming) {
+                if (unmovable.contains(id)) continue;
+                String from = fromOf(cr, id);
+                if (from == null) continue;
+                long target;
+                try {
+                    target = threadFor(context, Collections.singleton(from));
+                } catch (RuntimeException e) {
+                    continue;
+                }
+                if (target == thread || target <= 0) continue;
+                if (moveMms(context, id, target)) here++;
+                else unmovable.add(id);
+            }
+            moved += here;
+            if (here > 0 && countIn(cr, thread) == 0) {
+                try { deleteThread(context, thread); } catch (RuntimeException ignored) { /* bleibt leer stehen */ }
+            }
+        }
+        return moved;
+    }
+
+    private static String fromOf(ContentResolver cr, long id) {
+        try (Cursor a = cr.query(Uri.parse("content://mms/" + id + "/addr"), new String[] { "address" }, "type = " + ADDR_FROM, null, null)) {
+            if (a != null && a.moveToFirst()) {
+                String from = a.getString(0);
+                return from == null || from.isEmpty() || "insert-address-token".equals(from) ? null : from;
+            }
+        } catch (RuntimeException ignored) {
+            // ohne Absender
+        }
+        return null;
+    }
+
+    private static long threadIdOf(ContentResolver cr, long id) {
+        try (Cursor c = cr.query(Uri.withAppendedPath(MMS, String.valueOf(id)), new String[] { "thread_id" }, null, null, null)) {
+            if (c != null && c.moveToFirst()) return c.getLong(0);
+        } catch (RuntimeException ignored) {
+            // fort
+        }
+        return -1;
+    }
+
+    private static int countIn(ContentResolver cr, long thread) {
+        int n = 0;
+        String[] args = { String.valueOf(thread) };
+        try (Cursor c = cr.query(SMS, new String[] { "_id" }, "thread_id = ?", args, null)) { if (c != null) n += c.getCount(); } catch (RuntimeException ignored) { n++; }
+        try (Cursor c = cr.query(MMS, new String[] { "_id" }, "thread_id = ?", args, null)) { if (c != null) n += c.getCount(); } catch (RuntimeException ignored) { n++; }
+        return n;
+    }
+
+    /** Spalten einer MMS-Zeile, die eine Kopie mitnimmt. */
+    private static final String[] MMS_COPY = {
+            "date", "date_sent", "read", "seen", "m_type", "v", "m_id", "tr_id", "ct_t", "ct_l", "sub", "sub_cs",
+            "m_cls", "pri", "text_only", "sub_id", "m_size", "exp", "st", "locked", "rr", "d_rpt", "resp_st", "retr_st", "retr_txt", "retr_txt_cs"
+    };
+    private static final String[] PART_COPY = { "seq", "ct", "name", "fn", "cid", "cl", "chset", "cd", "ctt_s", "ctt_t", "text" };
+
+    /**
+     * Eine MMS in ein anderes Gespräch: zuerst `thread_id` umschreiben; nimmt der Speicher das
+     * nicht an, eine Kopie dort (Zeile, Adressen, Teile mit ihren Bytes) und das Original fort.
+     */
+    private static boolean moveMms(Context context, long id, long target) {
+        ContentResolver cr = context.getContentResolver();
+        Uri row = Uri.withAppendedPath(MMS, String.valueOf(id));
+        try {
+            ContentValues v = new ContentValues();
+            v.put("thread_id", target);
+            cr.update(row, v, null, null);
+        } catch (RuntimeException ignored) {
+            // dann die Kopie
+        }
+        if (threadIdOf(cr, id) == target) return true;
+
+        ContentValues v = new ContentValues();
+        try (Cursor c = cr.query(row, null, null, null, null)) {
+            if (c == null || !c.moveToFirst()) return false;
+            for (String name : MMS_COPY) copyColumn(c, name, v);
+        } catch (RuntimeException e) {
+            return false;
+        }
+        v.put("thread_id", target);
+        v.put("msg_box", 1);
+        Uri copy;
+        try {
+            copy = cr.insert(Telephony.Mms.Inbox.CONTENT_URI, v);
+        } catch (RuntimeException e) {
+            return false;
+        }
+        if (copy == null) return false;
+        String newId = copy.getLastPathSegment();
+        boolean whole = true;
+        try (Cursor a = cr.query(Uri.parse("content://mms/" + id + "/addr"), new String[] { "address", "type", "charset" }, null, null, null)) {
+            while (a != null && a.moveToNext()) {
+                ContentValues av = new ContentValues();
+                av.put("address", a.getString(0));
+                av.put("type", a.getInt(1));
+                av.put("charset", a.isNull(2) ? 106 : a.getInt(2));
+                cr.insert(Uri.parse("content://mms/" + newId + "/addr"), av);
+            }
+        } catch (RuntimeException e) {
+            whole = false;
+        }
+        try (Cursor p = cr.query(MMS_PART, null, "mid = ?", new String[] { String.valueOf(id) }, null)) {
+            while (whole && p != null && p.moveToNext()) {
+                ContentValues pv = new ContentValues();
+                for (String name : PART_COPY) copyColumn(p, name, pv);
+                Uri written = cr.insert(Uri.parse("content://mms/" + newId + "/part"), pv);
+                if (written == null) { whole = false; break; }
+                int data = p.getColumnIndex("_data");
+                if (data < 0 || p.isNull(data)) continue;
+                Uri old = Uri.withAppendedPath(MMS_PART, String.valueOf(p.getLong(p.getColumnIndexOrThrow("_id"))));
+                try (InputStream in = cr.openInputStream(old); OutputStream out = cr.openOutputStream(written)) {
+                    if (in == null || out == null) { whole = false; break; }
+                    byte[] buffer = new byte[65536];
+                    int read;
+                    while ((read = in.read(buffer)) > 0) out.write(buffer, 0, read);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            whole = false;
+        }
+        boolean gone = false;
+        if (whole) {
+            try { gone = cr.delete(row, null, null) > 0; } catch (RuntimeException ignored) { gone = false; }
+        }
+        if (!gone) {
+            /* Lieber dort, wo sie war, als doppelt — und nicht bei jedem Öffnen noch einmal. */
+            try { cr.delete(copy, null, null); } catch (RuntimeException ignored) { /* dann doppelt */ }
+            unmovable.add(id);
+        }
+        return gone;
+    }
+
+    /** Was sich nicht verschieben liess — in diesem Lauf der App nicht noch einmal versuchen. */
+    private static final Set<Long> unmovable = Collections.synchronizedSet(new HashSet<>());
+
+    private static void copyColumn(Cursor c, String name, ContentValues v) {
+        int i = c.getColumnIndex(name);
+        if (i < 0 || c.isNull(i)) return;
+        switch (c.getType(i)) {
+            case Cursor.FIELD_TYPE_INTEGER: v.put(name, c.getLong(i)); break;
+            case Cursor.FIELD_TYPE_FLOAT: v.put(name, c.getDouble(i)); break;
+            case Cursor.FIELD_TYPE_BLOB: v.put(name, c.getBlob(i)); break;
+            default: v.put(name, c.getString(i)); break;
+        }
+    }
+
+    /* -- Die eigenen Nummern, kurz gemerkt (jede MMS fragt) ---------------------------------- */
+
+    private static Set<String> ownCache = null;
+    private static long ownAt = 0;
+
+    static synchronized Set<String> ownNumbers(Context context) {
+        long now = System.currentTimeMillis();
+        if (ownCache == null || now - ownAt > 60_000L) {
+            ownCache = MmsReceiver.ownNumbers(context);
+            ownAt = now;
+        }
+        return ownCache;
     }
 
     private static String readText(Context context, long partId) {

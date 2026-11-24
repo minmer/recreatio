@@ -22,6 +22,26 @@
 /* Über der Karte (wie im Krajobraz): was sie zeigt, „Sprawdź, co wiesz", der Zähler der Punkte; das Ziel, eine Eroberung. */
 .cg-wm-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2); min-width: 0; }
 .cg-wm-top .cg-wm-modes { margin-bottom: 0; }
+/* 2026-11-24 — das Menü der Karte: ☰ oben links, darin Modi, „Sprawdź, co wiesz", Ansicht, Klasse (MapMenu.tsx). */
+.cg-wm-menuhost { position: relative; order: -1; margin-right: auto; }
+.cg-wm-menubtn { display: inline-flex; align-items: center; gap: var(--wk-space-2); min-height: 2.5rem; padding: 0.3rem 0.8rem 0.3rem 0.6rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop); }
+.cg-wm-menubtn:hover { border-color: var(--wk-line-strong); }
+.cg-wm-menubtn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-wm-menubtn.is-teaching { border-color: var(--wk-accent); }
+.cg-wm-burger { display: inline-grid; gap: 3px; width: 1.1rem; }
+.cg-wm-burger > span { display: block; height: 2px; background: currentColor; }
+.cg-wm-menunow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
+.cg-wm-menu { position: absolute; left: 0; top: calc(100% + 0.35rem); z-index: 8; display: grid; gap: var(--wk-space-3); width: min(22rem, calc(100vw - 2rem)); max-height: min(75vh, 36rem); overflow-y: auto; padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
+.cg-wm-menusec { display: grid; gap: var(--wk-space-1); }
+.cg-wm-menusec + .cg-wm-menusec { padding-top: var(--wk-space-3); border-top: 1px solid var(--wk-line); }
+.cg-wm-menusec h3 { margin: 0; font-size: var(--wk-text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--wk-muted); }
+.cg-wm-menulist { display: grid; gap: 2px; }
+.cg-wm-menuitem { display: block; width: 100%; padding: 0.45rem 0.6rem; border: 0; border-radius: var(--wk-radius-sm); background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wm-menuitem:hover, .cg-wm-menuitem:focus-visible { background: var(--wk-accent-soft); }
+.cg-wm-menuitem.is-on { background: var(--wk-accent-soft); font-weight: 600; }
+.cg-wm-menucheck { justify-self: start; }
+.cg-class-menubody { display: grid; gap: var(--wk-space-2); }
+.cg-class-menubody > p { margin: 0; }
 /* Der Streifen der Punkte: ein Container mit eigener Breite (sonst fiele er in einer Flex-Zeile auf 0 und läge über dem Feld). */
 .cg-wm-top .cg-rw.is-strip { container-type: normal; flex: 0 1 auto; min-width: 0; }
 

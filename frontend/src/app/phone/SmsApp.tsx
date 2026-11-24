@@ -27,6 +27,7 @@ import { viewPath } from '../routes';
 import { rich, t, useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
+import { saveBlob } from '../core/platform';
 import { ask, toast } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import { Modal } from '../ui/Modal';
@@ -38,7 +39,7 @@ import { contactMatches, phoneLabelText, type Contact } from './contactStore';
 import { chooseLine, contactsOf, lineKeyOf, lineName, lineText, useContactIndex, useLineRules, usePhoneLines, whyIcon, whyText, type LineChoice } from './lines';
 import { LinesView } from './LinesView';
 import { Phone, phoneHere, pluginSource, type Line, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
-import { phoneKey, phoneShown } from './numbers';
+import { phoneKey, phoneShown, samePhone } from './numbers';
 import { openArea } from './phoneContext';
 import { archiveNow } from './phoneJobs';
 import { SharesView } from './Shares';
@@ -769,6 +770,8 @@ function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boo
   const failed = m.box === 'failed' || m.status === 'failed';
   const sending = m.box === 'outbox' || m.box === 'queued' || m.status === 'pending';
   /* Noch einmal senden (über dieselbe Karte) ersetzt die nicht gesendete. */
+  /* Eine Gruppen-MMS: wer sie noch bekam — ohne die eigenen Nummern der Karten. */
+  const also = m.box === 'in' ? (m.also ?? []).filter((a) => !lines.some((l) => l.number !== null && l.number !== '' && samePhone(l.number, a))) : [];
   const resend = () => { void Phone.send({ to: m.peers, body: m.body, subId: m.subId }).then(() => Phone.remove({ id: m.id })).then(onChanged); };
   return {
     ...simOf(m, lines),
@@ -789,7 +792,7 @@ function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boo
     ) : undefined,
     tools: failed && m.kind === 'sms'
       ? <button type="button" className="wk-link-btn" onClick={(e) => { e.stopPropagation(); resend(); }}>{t('phoneSms.mms.resend')}</button>
-      : undefined
+      : also.length > 0 ? <GroupNote also={also} names={names} /> : undefined
   };
 }
 
@@ -821,13 +824,77 @@ function MediaPart({ part }: { part: NativePart }) {
     return () => { alive = false; seen.disconnect(); };
   }, [part.partId, visual]);
 
-  if (!visual) return <span className="ph-media-file">📎 {part.name ?? part.type}</span>;
+  /* 2026-11-24 — ZAPISZ: das Bild (den Film, die Datei) einer MMS auf das Gerät. */
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      let found = parts.get(part.partId);
+      if (found === undefined) {
+        found = Phone.part({ partId: part.partId, maxBytes: 25 * 1024 * 1024 }).then((r) => `data:${r.type};base64,${r.data}`).catch(() => null);
+        parts.set(part.partId, found);
+      }
+      const data = await found;
+      if (data === null) throw new Error('unreadable');
+      const blob = await (await fetch(data)).blob();
+      const said = await saveBlob(blob, mediaName(part));
+      if (said === 'saved') toast(t('phoneSms.mms.saved'));
+    } catch {
+      toast(t('phoneSms.mms.saveFailed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveButton = (
+    <button type="button" className="wk-link-btn ph-media-save" disabled={saving}
+      onClick={(e) => { e.stopPropagation(); void save(); }}>
+      <Icon name="download" />{part.type.startsWith('image/') ? t('phoneSms.mms.savePhoto') : t('phoneSms.mms.save')}
+    </button>
+  );
+
+  if (!visual) return <span className="ph-media-file">📎 {part.name ?? part.type} {saveButton}</span>;
   return (
     <div ref={box} className="ph-media">
       {url === null ? <span className="ph-media-file">{part.type.startsWith('image/') ? t('phoneSms.mms.photoLoading') : '🎞 …'}</span>
         : part.type.startsWith('image/') ? <img src={url} alt={part.name ?? t('phoneSms.mms.photo')} loading="lazy" />
         : part.type.startsWith('video/') ? <video src={url} controls preload="metadata" />
         : <audio src={url} controls preload="metadata" />}
+      {url !== null && saveButton}
+    </div>
+  );
+}
+
+/** Wie die gespeicherte Datei heisst: ihr Name aus der MMS, sonst „mms-<Datum>.<Endung>". */
+function mediaName(part: NativePart): string {
+  const named = (part.name ?? '').trim();
+  if (named !== '' && /\.[a-z0-9]{2,5}$/i.test(named)) return named;
+  const sub = part.type.split('/')[1]?.split(';')[0]?.trim() ?? '';
+  const ext = sub === 'jpeg' ? 'jpg' : sub === 'quicktime' ? 'mov' : sub === '3gpp' ? '3gp' : /^[a-z0-9]{2,5}$/.test(sub) ? sub : 'bin';
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+  return `${named !== '' ? named : `mms-${stamp}`}.${ext}`;
+}
+
+/**
+ * 2026-11-24 — EINE GRUPPEN-MMS steht nur beim Absender; dass sie auch an andere ging, sagt
+ * diese Zeile unter der Blase — aufgeklappt mit wem (Namen aus dem Adressbuch, wo es sie gibt).
+ */
+function GroupNote({ also, names }: { also: readonly string[]; names: ReadonlyMap<string, string> }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [found, setFound] = useState<Readonly<Record<string, string>>>({});
+  useEffect(() => {
+    if (!open) return undefined;
+    let alive = true;
+    void Phone.lookup({ numbers: also }).then((r) => { if (alive) setFound(r.names); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [open, also]);
+  const who = also.map((a) => found[a] ?? names.get(a) ?? phoneShown(a)).join(', ');
+  return (
+    <div className="ph-group-note">
+      <button type="button" className="wk-link-btn" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}>
+        <Icon name="users" />{t('phoneSms.mms.group')}
+      </button>
+      {open && <span className="ph-group-who">{t('phoneSms.mms.groupAlso', { who })}</span>}
     </div>
   );
 }

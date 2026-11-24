@@ -165,7 +165,13 @@
     "downloading": "Downloading…",
     "resend": "Send again",
     "photoLoading": "📷 Photo…",
-    "photo": "Photo"
+    "photo": "Photo",
+    "save": "Save",
+    "savePhoto": "Save photo",
+    "saved": "Saved.",
+    "saveFailed": "Could not save the file.",
+    "group": "Group message",
+    "groupAlso": "Also sent to: {who}"
   },
   "compose2": {
     "opening": "Opening the conversation…",

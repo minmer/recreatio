@@ -679,5 +679,11 @@
       "other": "+{count} weitere"
     },
     "showAll": "Alle Themen zeigen (auch solche, in denen noch nichts erreichbar ist)"
+  },
+  "menu": {
+    "open": "Menü der Karte",
+    "title": "Menü der Karte",
+    "show": "Was die Karte zeigt",
+    "view": "Ansicht"
   }
 }

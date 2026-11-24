@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -198,12 +199,16 @@ public class MmsReceiver extends BroadcastReceiver {
             return;
         }
 
-        /* Wer im Gespräch ist: der Absender und die anderen Empfänger — ohne die eigenen Nummern. */
-        Set<String> mine = ownNumbers(context);
+        /*
+         * 2026-11-24 — NUR DAS GESPRÄCH DES ABSENDERS. Eine MMS nennt neben dem Absender alle
+         * Empfänger, die eigene Nummer eingeschlossen — das Telefon kennt sie oft nicht, und so
+         * entstand aus jeder MMS ein „Gruppengespräch" mit sich selbst. Jetzt steht eine
+         * eingehende MMS immer allein beim Absender; die anderen Empfänger bleiben in ihren
+         * Adressen (`also` in {@link SmsStore#messages}) und stehen nur in den Angaben der Nachricht.
+         */
+        learnOwn(context, m, subId);
         Set<String> people = new HashSet<>();
         if (m.from != null) people.add(m.from);
-        for (String to : m.to) if (!same(to, mine)) people.add(to);
-        for (String cc : m.cc) if (!same(cc, mine)) people.add(cc);
         if (m.date == 0) m.date = System.currentTimeMillis() / 1000L;
 
         Uri row = SmsStore.insertMms(context, m, 1, subId, people, false);
@@ -269,7 +274,29 @@ public class MmsReceiver extends BroadcastReceiver {
         } catch (RuntimeException ignored) {
             // Ohne Erlaubnis (SecurityException): keine.
         }
+        out.addAll(context.getSharedPreferences(OWN, Context.MODE_PRIVATE).getStringSet("numbers", Collections.emptySet()));
         return out;
+    }
+
+    private static final String OWN = "recreatio.mms.own";
+
+    /**
+     * Die eigene Nummer lernen: geht eine MMS an GENAU EINE Nummer (die nicht die des Absenders
+     * ist), ist es die eigene — viele Karten sagen dem Telefon ihre Nummer nicht.
+     */
+    private static void learnOwn(Context context, MmsPdu.Message m, int subId) {
+        Set<String> to = new HashSet<>();
+        for (String a : m.to) if (a != null && !a.isEmpty() && !"insert-address-token".equals(a)) to.add(a);
+        for (String a : m.cc) if (a != null && !a.isEmpty() && !"insert-address-token".equals(a)) to.add(a);
+        if (to.size() != 1) return;
+        String one = to.iterator().next();
+        if (m.from != null && tail(one).equals(tail(m.from))) return;
+        if (tail(one).length() < 6) return;
+        SharedPreferences prefs = context.getSharedPreferences(OWN, Context.MODE_PRIVATE);
+        Set<String> known = new HashSet<>(prefs.getStringSet("numbers", Collections.emptySet()));
+        if (same(one, known)) return;
+        known.add(one);
+        prefs.edit().putStringSet("numbers", known).apply();
     }
 
     /** Dieselbe Nummer? Die letzten neun Ziffern entscheiden (Vorwahl mit oder ohne). */

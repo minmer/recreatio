@@ -104,7 +104,11 @@ try {
     if (at === null) { await writeFile(join(outDir, "timeout.webp"), await page.screenshot({ format: "webp", quality: 82 })).catch(() => undefined); throw new Error(`not on the map: ${kind} ${id}`); }
     await clickAt(at[0], at[1]);
   };
+  /* 2026-11-24 — Modi, „Sprawdź, co wiesz" und die Ansicht stehen im Menü der Karte (☰ oben links): erst öffnen. */
+  const IN_MENU = /data-world-mode|data-world-selfcheck|data-world-menu-full/;
+  const openMenu = () => ev(`(() => { const b = document.querySelector('[data-world-menu="closed"]'); if (b) b.click(); return true; })()`).then(() => sleep(60));
   const click = async (selector) => {
+    if (IN_MENU.test(selector)) await openMenu();
     const ok = await ev(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.scrollIntoView({ block: 'center' }); el.click(); return true; })()`);
     if (!ok) throw new Error(`no element ${selector}`);
   };
@@ -437,6 +441,7 @@ try {
     const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
     await open();
     check(P, 'the first visit plays the columns rising', await canvas('wmPlayedKind') === 'first');
+    await openMenu();
     const modes = await ev(`[...document.querySelectorAll('[data-world-mode]')].map((b) => b.dataset.worldMode)`);
     check(P, 'the mode bar: Ogólny, Co umiem, Do odkrycia, Do powtórki, Luki — and "Sprawdź, co wiesz"', modes.join() === 'all,known,discover,due,gaps' && await ev(`document.querySelector('[data-world-selfcheck]') !== null`), modes);
     const litOf = async (m) => { await click(`[data-world-mode="${m}"]`); await sleep(250); return canvas('wmLit'); };

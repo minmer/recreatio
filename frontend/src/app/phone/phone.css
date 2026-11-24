@@ -385,3 +385,7 @@
 .ph-group-name small { color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-group-edit { display: grid; gap: var(--wk-space-3); }
 .ph-group-line { max-width: 32rem; margin-bottom: var(--wk-space-3); }
+/* 2026-11-24 — Zapisz unter einem Bild einer MMS; „Wiadomość grupowa" unter der Blase. */
+.ph-media-save { justify-self: start; display: inline-flex; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.ph-group-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.ph-group-note .wk-link-btn { display: inline-flex; align-items: center; gap: var(--wk-space-1); }

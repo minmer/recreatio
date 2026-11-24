@@ -769,5 +769,11 @@
       "other": "+{count} kolejnych"
     },
     "showAll": "Pokaż wszystkie tematy (także te, w których nic nie jest jeszcze osiągalne)"
+  },
+  "menu": {
+    "open": "Menu mapy",
+    "title": "Menu mapy",
+    "show": "Co pokazuje mapa",
+    "view": "Widok"
   }
 }

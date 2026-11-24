@@ -78,6 +78,7 @@ import { diffPlaces, dueOf, keepMode, keptMode, litPlaces, packPlace, readyNow, 
 import { keepSlice, keptSlice, SLICE_FROM, validSlice, worldTags } from './wmTags';
 import { reachableTags, startTag, tagCount } from '../tags';
 import { TagSlicePicker } from './WorldTags';
+import { MapMenu } from './MapMenu';
 import './worldmap.css';
 
 /* Wie im Krajobraz: was der Zähler der Punkte über der Karte nicht zeigt (gross / klein). */
@@ -1329,16 +1330,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       <div className="cg-wm-main">
         {/* Wie im Krajobraz: was die Karte zeigt (gemerkt mit dem Blick), „Sprawdź, co wiesz", der Zähler der Punkte. */}
         <div className="cg-wm-top">
-          <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-world-modes={shownMode}>
-            {modes.map((m) => (
-              <button key={m} type="button" className={`cg-wm-mode${shownMode === m ? ' is-on' : ''}`} aria-pressed={shownMode === m} onClick={() => setMode(m)} data-world-mode={m}>
-                {m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}{m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}
-              </button>
-            ))}
-            {learner !== null && <button type="button" className="cg-wm-mode is-check" onClick={checkAll} data-world-selfcheck="">{SC.check}</button>}
-          </div>
+          {/* 2026-11-24 (Eigentümer) — alles, was man an der Karte einstellt, in EINEM Menü: ☰ oben links. */}
+          <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={cls.teaching} classBody={cls.menuBody}
+            modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
+            onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={full === null && !tourOn ? enterFull : null} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
-          {cls.menu}
         </div>
         {cls.overlay}
         {/* 2026-11-22 (C2) — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */}
