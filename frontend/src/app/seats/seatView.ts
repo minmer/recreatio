@@ -66,6 +66,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
   const [seatKey, setSeatKey] = useState<Uint8Array | null>(null);
   const [shared, setShared] = useState<readonly Shared[]>([]);
   const [sharedNames, setSharedNames] = useState<readonly string[]>([]);
+  const [sharedAreas, setSharedAreas] = useState<readonly { areaId: string; name: string }[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
   const [mine, setMine] = useState<readonly OwnAnswer[]>([]);
@@ -96,6 +97,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
       setPortal(found);
       setFailed(null);
       setSharedNames(found.grants.map((g) => g.areaName));
+      setSharedAreas(found.grants.map((g) => ({ areaId: g.areaId, name: g.areaName })));
 
       /*
        * AUS DEM LINK ODER AUS DEM BROWSER — in dieser Reihenfolge.
@@ -211,7 +213,10 @@ export function useSeat(token: string, keyText: string | null): Opened {
        */
       const viaRoles = await openSeatRoles(found.seatId, key, found.roles).catch(() => null);
       const fromRoles = (viaRoles?.areas ?? []).filter((a) => !found.grants.some((g) => g.areaId === a.areaId));
-      if (fromRoles.length > 0) setSharedNames([...found.grants.map((g) => g.areaName), ...fromRoles.map((a) => a.name)]);
+      if (fromRoles.length > 0) {
+        setSharedNames([...found.grants.map((g) => g.areaName), ...fromRoles.map((a) => a.name)]);
+        setSharedAreas([...found.grants.map((g) => ({ areaId: g.areaId, name: g.areaName })), ...fromRoles.map((a) => ({ areaId: a.areaId, name: a.name }))]);
+      }
 
       const from = new Date();
       from.setHours(0, 0, 0, 0);
@@ -279,6 +284,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
     forms,
     shared,
     sharedNames,
+    sharedAreas,
     expiresAt: portal.expiresAt,
     reload
   };

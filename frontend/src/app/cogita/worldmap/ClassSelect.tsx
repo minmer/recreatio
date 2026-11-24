@@ -19,7 +19,7 @@ import type { T } from '../../core/i18n';
 import type { Me } from '../../core/me';
 import type { CogitaLibrary } from '../store';
 import { myClasses } from '../classes/classes';
-import { classOnly, classWorldInput, hideFormOf, optInOf, sectionKey, sectionStep, setClassView, subWorldPlaces } from '../classes/subWorld';
+import { classOnly, classWorldInput, hideFormOf, optInOf, removePreset, savePreset, sectionKey, sectionStep, setClassView, subWorldPlaces, worldPresets, type WorldPreset } from '../classes/subWorld';
 import type { HiddenSection, LandscapeOnly } from '../views';
 import { readWorld } from './wmGraph';
 import { linesOf } from './wmLines';
@@ -234,6 +234,42 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
     change(hidden ? { ...draft, hideFlows: without(draft.hideFlows, (x) => x === line), hideSections: without(draft.hideSections, (h) => h.flow === line) } : { ...draft, hideFlows: [...(draft.hideFlows ?? []), line] });
   };
 
+  /* -- Zestawy (2026-11-25) --------------------------------------------------------------------------------------------------- */
+  const inTab = selectFor != null && target !== null && selectFor.areaId === target.areaId;
+  const presets = useMemo(() => (inTab ? worldPresets(lib) : []), [inTab, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [naming, setNaming] = useState<string | null>(null);
+  const chosenNow = (): LandscapeOnly => (seen === null || fullLines === null ? draft : optInOf(seen.places, seen.keys, fullLines, signIds, draft.hideSigns ?? []));
+  const keepPreset = async () => {
+    const name = (naming ?? '').trim();
+    if (name === '' || busy) return;
+    setBusy(true);
+    try {
+      await savePreset(lib, name, chosenNow(), t('cogitaClassMap.presetView', { name }), viewKey);
+      setNaming(null);
+      setNote(t('cogitaClassMap.presetSaved', { name }));
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : t('cogitaClassMap.saveFailed'));
+    } finally { setBusy(false); }
+  };
+  /** Ein Klick auf einen Zestaw: er IST danach die Welt der Klasse (gespeichert), und die Karte zeigt ihn. */
+  const givePreset = async (p: WorldPreset) => {
+    if (target === null || busy) return;
+    setBusy(true);
+    try {
+      await setClassView(lib, target, p.only, t('cogitaSubWorld.viewName', { name: target.name }), viewKey);
+      setUndo([]);
+      setDraft(hideFormOf(p.only, world, fullLines ?? linesOf(world, input.flows), signIds));
+      setNote(t('cogitaClassMap.presetGiven', { name: p.name, klass: target.name }));
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : t('cogitaClassMap.saveFailed'));
+    } finally { setBusy(false); }
+  };
+  const dropPreset = async (p: WorldPreset) => {
+    if (busy || !window.confirm(t('cogitaClassMap.presetDropAsk', { name: p.name }))) return;
+    setBusy(true);
+    try { await removePreset(lib, p.id); setNote(null); } catch { setNote(t('cogitaClassMap.saveFailed')); } finally { setBusy(false); }
+  };
+
   const save = async () => {
     if (target === null) return;
     setBusy(true);
@@ -280,6 +316,30 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
         <button type="button" className="wk-link-btn" onClick={() => change(EMPTY)} data-class-select-all="">{t('cogitaClassMap.all')}</button>
         <button type="button" className="wk-link-btn" onClick={() => change(hideFormOf(null, world, fullLines ?? linesOf(world, input.flows), signIds))} data-class-select-none="">{t('cogitaClassMap.none')}</button>
       </div>
+      {inTab && (
+        <div className="cg-wm-presets" data-class-presets="">
+          <p className="cg-muted cg-wm-presethead">{presets.length === 0 ? t('cogitaClassMap.presetsNone') : t('cogitaClassMap.presets')}</p>
+          {presets.length > 0 && (
+            <ul className="cg-wm-presetlist">
+              {presets.map((p) => (
+                <li key={p.id}>
+                  <button type="button" className="wk-btn wk-btn-line is-small" disabled={busy} title={t('cogitaClassMap.presetGive', { klass: target.name })} onClick={() => void givePreset(p)} data-class-preset={p.id}>{p.name}</button>
+                  <button type="button" className="wk-link-btn cg-wm-presetdrop" disabled={busy} aria-label={t('cogitaClassMap.presetDrop', { name: p.name })} onClick={() => void dropPreset(p)} data-class-preset-drop={p.id}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {naming === null
+            ? <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setNaming('')} data-class-preset-new="">+ {t('cogitaClassMap.presetNew')}</button>
+            : (
+              <form className="cg-wm-presetform" onSubmit={(e) => { e.preventDefault(); void keepPreset(); }}>
+                <input value={naming} onChange={(e) => setNaming(e.target.value)} placeholder={t('cogitaClassMap.presetName')} aria-label={t('cogitaClassMap.presetName')} autoFocus data-class-preset-name="" />
+                <button type="submit" className="wk-btn is-small" disabled={busy || naming.trim() === ''} data-class-preset-keep="">{t('cogitaClassMap.presetKeep')}</button>
+                <button type="button" className="wk-link-btn" onClick={() => setNaming(null)}>{t('cogitaClassMap.cancel')}</button>
+              </form>
+            )}
+        </div>
+      )}
     </section>
   );
 

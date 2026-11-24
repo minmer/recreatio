@@ -24,12 +24,13 @@ import { linkSecrets, redeemLink, showLink, type LinkInfo } from '../../links/li
 import { createLinkPerson } from '../../links/linkPerson';
 import { LinkClauses } from '../../links/JoinLink';
 import { partSize } from '../../pages/part';
-import { PersonProvider } from '../../pages/pagePerson';
+import { PersonProvider, usePerson } from '../../pages/pagePerson';
 import { personsOf } from '../../roles/roles';
 import { myRoleNames } from '../../roles/roleNames';
 import { areaKeys, setMemberName } from '../../chat/chat';
 import { viewPath } from '../../routes';
-import { pageLink, seatsExactly, SEATS_EVENT } from '../../seats/seatKeep';
+import { freshSeat, pageLink, seatsExactly, SEATS_EVENT } from '../../seats/seatKeep';
+import { WithSeat } from '../../seats/WithSeat';
 import { createAccount } from '../../shell/accountCreate';
 import { Icon } from '../../ui/icons';
 import { Loading } from '../../ui/Loading';
@@ -136,13 +137,22 @@ function ClassHere({ where, who, onWho }: { where: Where; who: Who | null; onWho
   const member = useMembership(who, where, tick);
   const className = member?.name ?? link?.info.areas.find((a) => a.areaId.toLowerCase() === where.areaId)?.name ?? null;
   const title = className ?? t('cogitaClass.page.aClass');
-
-  /* Ohne Konto, als Person dieser Klasse: gleich lernen. */
-  if (who === null && seatHere && !keeping) return <ClassLearn where={where} title={title} who={null} />;
+  /*
+    2026-11-25 (Eigentümer: „mit dem Link eines Schülers — kein Zeichen, dass ich der Schüler bin, nichts über die Klasse"; in Edge, wo
+    die Lehrerin angemeldet ist) — DER EIGENE LINK EINES SCHÜLERS GEHT VOR: kam er eben über die Adresse herein, lernt man als dieser
+    Schüler, auch angemeldet (mit einem Knopf zurück zum eigenen Konto); ebenso, wer angemeldet ist, aber nicht in der Klasse.
+  */
+  const [asMe, setAsMe] = useState(false);
+  const aim = classAim(where.areaId, where.libraryId);
+  const fresh = freshSeat();
+  const viaLink = fresh !== null && !fresh.keyless && (fresh.under ?? '').toLowerCase() === aim;
+  if (seatHere && !keeping && !asMe && (who === null || viaLink || member?.role === 'none')) {
+    return <ClassLearn where={where} title={className} who={null} asSeat onAsMe={who !== null ? () => setAsMe(true) : undefined} />;
+  }
 
   if (who !== null) {
     if (member === undefined) return <Loading label={t('cogitaClass.page.checking')} />;
-    if (member.role === 'member') return <ClassLearn where={where} title={title} who={who} />;
+    if (member.role === 'member') return <ClassLearn where={where} title={className} who={who} />;
     if (member.role === 'lead') return <ClassLead where={where} title={title} />;
   }
 
@@ -470,8 +480,30 @@ function KeepLink({ url, onStart }: { url: string; onStart: () => void }) {
 /** Der Widok, den die Klasse zeigt: die Weltkarte der Baza, sonst ein Krajobraz, sonst der erste Widok. */
 export const worldViewOf = (lib: CogitaLibrary): string | null => baseWorldViewOf(lib);
 
-function ClassLearn({ where, title, who }: { where: Where; title: string; who: Who | null }) {
+function ClassLearn({ where, title, who, asSeat = false, onAsMe }: { where: Where; title: string | null; who: Who | null; asSeat?: boolean; onAsMe?: () => void }) {
+  const aim = classAim(where.areaId, where.libraryId);
+  /* Als Schüler über den eigenen Link: sein Platz ist offen (`WithSeat`) — so lernt man als er, und die Seite kennt seinen Namen und die Klasse. */
+  const body = (
+    <PersonProvider path={aim}>
+      <ClassLearnBody where={where} title={title} who={who} asSeat={asSeat} onAsMe={onAsMe} />
+    </PersonProvider>
+  );
+  return asSeat ? <WithSeat path={aim}>{body}</WithSeat> : body;
+}
+
+/** Als wer man hier lernt — der Schüler des Links (mit Namen), sonst nichts. */
+function useSeatHereNow(asSeat: boolean, areaId: string): { readonly name: string; readonly klass: string | null; readonly loading: boolean } | null {
+  const person = usePerson();
+  if (!asSeat) return null;
+  const chosen = person?.chosen ?? null;
+  if (chosen?.kind !== 'seat') return { name: '', klass: null, loading: true };
+  return { name: chosen.name, klass: chosen.seat.sharedAreas.find((a) => a.areaId.toLowerCase() === areaId)?.name ?? null, loading: false };
+}
+
+function ClassLearnBody({ where, title: known, who, asSeat, onAsMe }: { where: Where; title: string | null; who: Who | null; asSeat: boolean; onAsMe?: () => void }) {
   const t = useT();
+  const seat = useSeatHereNow(asSeat, where.areaId);
+  const title = known ?? seat?.klass ?? t('cogitaClass.page.aClass');
   const { lib } = usePageBase(where.libraryId);
   /* 2026-11-24 — die Teilwelt der Klasse (`subWorld.ts`), sonst die Weltkarte der Baza. */
   const view = useMemo(() => (lib == null ? null : classViewOf(lib, where.areaId)), [lib, lib?.revision, where.areaId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -481,7 +513,13 @@ function ClassLearn({ where, title, who }: { where: Where; title: string; who: W
   return (
     <div className="cl-learn" data-class-learn="">
       <header className="cl-learn-head">
-        <h1 className="wk-h1">{title}</h1>
+        <h1 className="wk-h1" data-class-title="">{title}</h1>
+        {seat !== null && (
+          <p className="cl-as" data-class-as-seat={seat.loading ? '' : seat.name}>
+            {seat.loading ? t('cogitaClass.page.asSeatLoading') : rich(t('cogitaClass.page.asSeat', { name: seat.name }), { b: (s) => <strong>{s}</strong> })}
+            {onAsMe !== undefined && <button type="button" className="wk-link-btn" onClick={onAsMe} data-class-as-me="">{t('cogitaClass.page.asMe')}</button>}
+          </p>
+        )}
         {who !== null && (
           <nav className="cl-learn-links" aria-label={t('cogitaClass.page.more')}>
             {/* Die eigenen Fortschritte — dieselbe Ansicht wie in der Nauka (Postępy), mit den Antworten dieser Klasse. */}
@@ -501,14 +539,14 @@ function ClassLearn({ where, title, who }: { where: Where; title: string; who: W
         : lib === null ? <p className="wk-error">{t('cogitaClass.page.noBase')}</p>
         : view === null ? <p className="wk-lede">{t('cogitaClass.page.noMap')}</p>
         : (
-          <PersonProvider path={aim}>
+          <>
             {/* 2026-11-24 (Tryb prowadzony) — führt die Lehrerin gerade, liegt ihre Ansicht über der Seite. */}
             <FollowGate libraryId={where.libraryId} who={who} aim={aim} />
             <Suspense fallback={<Loading />}>
               <ViewView config={{ title: '', library: where.libraryId, view, mode: 'krajobraz', answers: where.areaId, rewards: '', switching: false }}
                 ctx={{ moduleId: `class-${where.areaId}`, size, whole: true }} />
             </Suspense>
-          </PersonProvider>
+          </>
         )}
     </div>
   );

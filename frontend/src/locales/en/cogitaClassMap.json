@@ -19,5 +19,16 @@
   "tabSays": "Click towers, path sections, forks and signposts on the map to show or hide them for {name}. Grey ones only the teacher sees. Finish with “Save for the class”.",
   "tabRead": "This is how {name} sees the world.",
   "again": "Change the selection",
-  "saved": "Saved — the class now sees only what is in colour."
+  "saved": "Saved — the class now sees only what is in colour.",
+  "presets": "Presets — click one to give this world to the class:",
+  "presetsNone": "No presets yet. Save what is in colour as a preset to give it to a class later with one click.",
+  "presetNew": "Save the selection as a preset",
+  "presetName": "Preset name",
+  "presetKeep": "Save preset",
+  "presetView": "Preset — {name}",
+  "presetSaved": "Preset “{name}” saved.",
+  "presetGiven": "“{klass}” now sees the preset “{name}”.",
+  "presetGive": "Give this world to class {klass}",
+  "presetDrop": "Delete preset “{name}”",
+  "presetDropAsk": "Delete the preset “{name}”? Classes that were given it keep their world."
 }

@@ -27,7 +27,10 @@
     "noBase": "The knowledge base of this class cannot be opened. Ask your teacher.",
     "noMap": "This base has no map yet.",
     "more": "More about learning in this class",
-    "ownProgress": "Your progress"
+    "ownProgress": "Your progress",
+    "asSeat": "You are learning as <b>{name}</b>.",
+    "asSeatLoading": "Opening your link…",
+    "asMe": "Use my account instead"
   },
   "join": {
     "title": "Join {name}",

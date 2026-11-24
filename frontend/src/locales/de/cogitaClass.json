@@ -27,7 +27,10 @@
     "noBase": "Die Baza wiedzy dieser Klasse lässt sich nicht öffnen. Frag die Lehrkraft.",
     "noMap": "Diese Baza hat noch keine Karte.",
     "more": "Mehr zum Lernen in dieser Klasse",
-    "ownProgress": "Dein Fortschritt"
+    "ownProgress": "Dein Fortschritt",
+    "asSeat": "Du lernst als <b>{name}</b>.",
+    "asSeatLoading": "Dein Link wird geöffnet…",
+    "asMe": "Stattdessen mein Konto verwenden"
   },
   "join": {
     "title": "{name} beitreten",

@@ -50,6 +50,8 @@ export interface SeatView {
   /** Was dieser Platz ausserdem aufschliesst — Termine der Gruppe. */
   readonly shared: readonly { name: string; when: string; what: string | null }[];
   readonly sharedNames: readonly string[];
+  /** 2026-11-25 — dieselben Bereiche mit Kennung (die Seite einer Klasse nennt so ihren Namen). */
+  readonly sharedAreas: readonly { readonly areaId: string; readonly name: string }[];
 
   readonly expiresAt: string | null;
 

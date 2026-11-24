@@ -83,7 +83,7 @@ export interface ViewDoc {
 }
 
 /** Ist dieser Widok die Teilwelt einer Klasse? (Dann wählt ihn keine Suche nach „der Weltkarte" der Baza.) */
-export const isClassView = (data: unknown): boolean => isObject(data) && typeof data.forClass === "string" && data.forClass !== "";
+export const isClassView = (data: unknown): boolean => isObject(data) && ((typeof data.forClass === "string" && data.forClass !== "") || (typeof data.worldPreset === "string" && data.worldPreset !== ""));
 
 /**
  * 2026-11-03 — DIE GESTALT DES KRAJOBRAZ: höchstens so viele einzelne Felder (6–400, Vorgabe 60) — und wie sie sich auf

@@ -19,5 +19,16 @@
   "tabSays": "Kliknij na mapie wieże, odcinki dróg, rozwidlenia i drogowskazy, żeby je pokazać albo ukryć klasie {name}. Szare widzi tylko nauczyciel. Na koniec „Zapisz dla klasy”.",
   "tabRead": "Tak klasa {name} widzi świat.",
   "again": "Zmień wybór",
-  "saved": "Zapisano — klasa widzi teraz tylko to, co jest kolorowe."
+  "saved": "Zapisano — klasa widzi teraz tylko to, co jest kolorowe.",
+  "presets": "Zestawy — kliknij, aby dać klasie ten świat:",
+  "presetsNone": "Nie masz jeszcze zestawów. Zapisz to, co jest kolorowe, jako zestaw, aby potem dać go klasie jednym kliknięciem.",
+  "presetNew": "Zapisz wybór jako zestaw",
+  "presetName": "Nazwa zestawu",
+  "presetKeep": "Zapisz zestaw",
+  "presetView": "Zestaw — {name}",
+  "presetSaved": "Zapisano zestaw „{name}”.",
+  "presetGiven": "„{klass}” widzi teraz zestaw „{name}”.",
+  "presetGive": "Daj ten świat klasie {klass}",
+  "presetDrop": "Usuń zestaw „{name}”",
+  "presetDropAsk": "Usunąć zestaw „{name}”? Klasy, którym go dano, zachowają swój świat."
 }

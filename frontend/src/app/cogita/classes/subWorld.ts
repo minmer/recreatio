@@ -298,6 +298,38 @@ export function classViewDoc(lib: CogitaLibrary, areaId: string): ViewEntry | nu
 export const classViewOf = (lib: CogitaLibrary, klass: { readonly areaId: string } | string): string | null =>
   classViewDoc(lib, typeof klass === 'string' ? klass : klass.areaId)?.id ?? baseWorldViewOf(lib);
 
+/*
+  2026-11-25 (Eigentümer: „eine gewählte Welt speichern und mit einem Klick einer Klasse geben — Vorlagen") — EIN ZESTAW: ein Widok
+  in der Baza wie die Teilwelt einer Klasse, nur mit `worldPreset` (sein Name) statt `forClass`. Ein Klick darauf schreibt seine
+  Wahl als Teilwelt der Klasse (eine Abschrift — ändert man den Zestaw später, bleibt die Klasse, wie sie war).
+*/
+export const PRESET_FIELD = 'worldPreset';
+
+export interface WorldPreset { readonly id: string; readonly name: string; readonly only: LandscapeOnly }
+
+export function worldPresets(lib: CogitaLibrary): readonly WorldPreset[] {
+  return lib.docs('view').flatMap((d): WorldPreset[] => {
+    const name = (d.data as Record<string, unknown>)[PRESET_FIELD];
+    const only = readView(d.data).landscape?.only ?? null;
+    return typeof name === 'string' && name.trim() !== '' && only !== null ? [{ id: d.id, name: name.trim(), only }] : [];
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Einen Zestaw anlegen (oder einen gleichnamigen ersetzen). */
+export async function savePreset(lib: CogitaLibrary, name: string, only: LandscapeOnly, title: string, fromView: string | null): Promise<string> {
+  const clean = name.trim().slice(0, 120);
+  const had = worldPresets(lib).find((p) => p.name.toLowerCase() === clean.toLowerCase()) ?? null;
+  const chosen = fromView === null ? null : lib.docs('view').find((d) => d.id === fromView && !isClassView(d.data)) ?? null;
+  const baseId = chosen?.id ?? baseWorldViewOf(lib);
+  const base = baseId === null ? null : lib.docs('view').find((d) => d.id === baseId) ?? null;
+  const from = (base?.data ?? { mode: 'landscape', steps: [] }) as Record<string, unknown>;
+  const landscape = { ...((from.landscape ?? {}) as Record<string, unknown>), style: 'world', only: onlyJson(only) };
+  const saved = await lib.saveDoc('view', { ...from, name: title, mode: 'landscape', landscape, [PRESET_FIELD]: clean }, had?.id);
+  return saved.id;
+}
+
+export const removePreset = (lib: CogitaLibrary, id: string): Promise<unknown> => lib.remove(id);
+
 /** Die Wahl einer Klasse, wie der Editor sie zeigt: `null` — die ganze Welt. */
 export function classOnly(lib: CogitaLibrary, areaId: string): LandscapeOnly | null {
   const doc = classViewDoc(lib, areaId);

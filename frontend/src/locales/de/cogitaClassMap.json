@@ -19,5 +19,16 @@
   "tabSays": "Klicke auf der Karte Türme, Wegabschnitte, Gabelungen und Wegweiser an, um sie der Klasse {name} zu zeigen oder zu verbergen. Graues sieht nur die Lehrkraft. Zum Schluss „Für die Klasse speichern“.",
   "tabRead": "So sieht die Klasse {name} die Welt.",
   "again": "Auswahl ändern",
-  "saved": "Gespeichert — die Klasse sieht jetzt nur, was farbig ist."
+  "saved": "Gespeichert — die Klasse sieht jetzt nur, was farbig ist.",
+  "presets": "Vorlagen — klicke eine an, um der Klasse diese Welt zu geben:",
+  "presetsNone": "Noch keine Vorlagen. Speichere, was farbig ist, als Vorlage, um sie später mit einem Klick einer Klasse zu geben.",
+  "presetNew": "Auswahl als Vorlage speichern",
+  "presetName": "Name der Vorlage",
+  "presetKeep": "Vorlage speichern",
+  "presetView": "Vorlage — {name}",
+  "presetSaved": "Vorlage „{name}“ gespeichert.",
+  "presetGiven": "„{klass}“ sieht jetzt die Vorlage „{name}“.",
+  "presetGive": "Diese Welt der Klasse {klass} geben",
+  "presetDrop": "Vorlage „{name}“ löschen",
+  "presetDropAsk": "Vorlage „{name}“ löschen? Klassen, die sie bekommen haben, behalten ihre Welt."
 }

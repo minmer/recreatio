@@ -27,7 +27,10 @@
     "noBase": "Nie da się otworzyć bazy wiedzy tej klasy. Zapytaj nauczyciela.",
     "noMap": "Ta baza nie ma jeszcze mapy.",
     "more": "Więcej o nauce w tej klasie",
-    "ownProgress": "Twoje postępy"
+    "ownProgress": "Twoje postępy",
+    "asSeat": "Uczysz się jako <b>{name}</b>.",
+    "asSeatLoading": "Otwieram twój link…",
+    "asMe": "Użyj mojego konta"
   },
   "join": {
     "title": "Dołącz do: {name}",
