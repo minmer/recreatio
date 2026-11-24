@@ -78,6 +78,7 @@ import { isOldInBase, oldInBaseLabel } from './oldInBase';
 import { WorkBox } from './WorkBox';
 import { isWorkBase } from './store';
 import { consoleSlots } from './classes/consoleSlots';
+import { FollowGate } from './follow/FollowScreen';
 
 const ClassesTab = lazy(() => import('./classes/ClassesTab').then((m) => ({ default: m.ClassesTab })));
 /* 2026-11-24 — der Przegląd: alle Folien und Fragen zum Durchgehen (`explore/Explore.tsx`). */
@@ -119,7 +120,7 @@ export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' 
 function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const t = useT();
   const ctx = useCtx();
-  const { lib, writes, me, href } = ctx;
+  const { lib, writes, me, href, who } = ctx;
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
   /*
    * 2026-11-22 — WER IN EINER KLASSE DIESER BAZA LERNT (Schüler, nicht Autor), schickt seine Antworten in die Klasse: die
@@ -156,6 +157,8 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
 
   return (
     <CogitaContext.Provider value={withLearner}>
+    {/* 2026-11-24 (Tryb prowadzony) — wer hier als Schüler einer Klasse lernt: führt die Lehrerin, liegt ihre Ansicht darüber. */}
+    {typeof classArea === 'string' && <FollowGate libraryId={lib.libraryId} who={who} />}
     <div className="cg" data-cogita-part={part}>
       <nav className="cg-subtabs cg-parttabs" aria-label={part === 'knowledge' ? t('cogitaViews.home.knowledge') : t('cogitaViews.home.learning')}>
         {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} aria-current={slug === tab ? 'page' : undefined} href={href(slug)}>{tabLabel(slug, label, t)}</a>)}

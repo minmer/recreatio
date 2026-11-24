@@ -1,0 +1,40 @@
+{
+  "name": "Group {n}",
+  "status": {
+    "idle": "nothing yet",
+    "thinking": "thinking",
+    "disagree": "disagree",
+    "agreed": "agreed",
+    "closed": "closed by the teacher"
+  },
+  "host": {
+    "title": "Groups ({count}, of {size})",
+    "shuffle": "Shuffle again",
+    "none": "Groups are formed as soon as someone joins.",
+    "tally": "agreed: {agreed} · correct: {correct}",
+    "moveTo": "Move: {name}",
+    "newGroup": "new group",
+    "question": "Question {n}",
+    "close": "Close (majority)",
+    "groupsN": "groups: {count}",
+    "says": "Everyone answers on their own phone; the group sees its members’ answers and has to agree. Your console passes their answers to the groups — keep it open. Every answer also counts in the student’s own progress."
+  },
+  "play": {
+    "waitGroups": "The teacher is forming the groups — you will see yours in a moment.",
+    "inGroup": "Group {n}",
+    "board": "Answers in your group",
+    "me": "You",
+    "relay": "Waiting for the teacher to pass on the group’s answers…",
+    "thinking": "Not everyone has answered yet.",
+    "disagree": "You do not agree — talk and settle on one answer (everyone can change theirs).",
+    "change": "Change my answer",
+    "closed": "The teacher closed the question. The group’s answer:",
+    "agreed": "Agreed! The group’s answer:",
+    "right": "Right!",
+    "wrong": "Sorry, wrong.",
+    "finish": "Done"
+  },
+  "screen": {
+    "agreed": "agreed answers: {count}"
+  }
+}

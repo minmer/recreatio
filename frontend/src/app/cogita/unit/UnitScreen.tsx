@@ -15,6 +15,7 @@ import { useAsync, useCtx } from '../ui';
 import type { SessionRow } from '../live';
 import type { Opened } from '../sessionEvents';
 import { PollBarsView } from './UnitHost';
+import { GroupsScreen } from './UnitGroups';
 import { finishedBy, itemKey, unitNow } from './unitModel';
 import { hostEvents, itemNow, participantsOf, pollOf, progressOf, wallOf, type UnitConfig } from './unitSession';
 import './unit.css';
@@ -89,6 +90,8 @@ export function UnitScreen({ session, config, opened, link, code }: { session: S
           <p className="cg-unit-screen-count" data-unit-screen-ready={`${ready}/${people}`}>{t('cogitaUnit.host.ready', { done: ready, all: people })}</p>
           <p className="cg-muted">{t('cogitaUnit.screen.onPhones')}</p>
           {card !== undefined && heat !== null && heat.length > 0 && <div className="cg-unit-heat" data-unit-heat={latest.size}><LinesHeat card={card} counts={heat} /></div>}
+          {/* 2026-11-24 — in Gruppen: nur Nummern und Stand, nie Namen. */}
+          {stage.work === 'groups' && <GroupsScreen stage={stage} opened={opened} />}
         </div>
       );
     }

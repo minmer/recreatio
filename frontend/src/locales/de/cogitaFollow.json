@@ -1,0 +1,33 @@
+{
+  "bar": {
+    "label": "Die Klasse live führen",
+    "live": "Live",
+    "joined": "Schüler: {count}",
+    "frozenSays": "Bild angehalten — die Schüler sehen, was du zuletzt gezeigt hast.",
+    "resume": "Fortsetzen",
+    "freeze": "Bild anhalten",
+    "showNow": "Den Schülern zeigen",
+    "screen": "Leinwand",
+    "end": "Beenden",
+    "endAsk": "Das Führen der Klasse beenden?",
+    "endSays": "Die Schüler kehren dorthin zurück, wo sie waren.",
+    "votes": "Antworten: {count} von {total}",
+    "reveal": "Ergebnisse zeigen",
+    "revealed": "Ergebnisse gezeigt"
+  },
+  "menu": {
+    "title": "Live führen",
+    "start": "Die Klasse live führen: {name}",
+    "stop": "Führen beenden"
+  },
+  "screen": {
+    "banner": "Die Lehrkraft führt",
+    "wait": "Die Lehrkraft zeigt gleich etwas."
+  },
+  "console": {
+    "start": "Die Klasse live führen",
+    "stop": "Führen beenden",
+    "live": "Du führst diese Klasse live",
+    "startSays": "Auf allen Geräten der Klasse ist zu sehen, was du zeigst: die Karte, eine Folie oder eine Frage. Deine eigenen Werkzeuge (der QR-Code, diese Konsole) werden nicht gezeigt."
+  }
+}

@@ -194,7 +194,10 @@
       "skipNowhere": "stage “{stage}”: “skipIf” names stage “{ref}”, which does not exist.",
       "pollAfter": "stage “{stage}”: “after” names item “{ref}”, which does not exist.",
       "noClose": "lesson {lesson} has no closing stage (“type”: “close”, exit ticket).",
-      "coreLong": "the core stages of lesson {lesson} take up to {minutes} min — plan about 40 at most."
+      "coreLong": "the core stages of lesson {lesson} take up to {minutes} min — plan about 40 at most.",
+      "workUnknown": "stage “{stage}”: unknown way of working “{work}” (together, alone, groups) — the default is used",
+      "groupsNoQuestions": "stage “{stage}”: group work without questions — groups only agree on questions, the rest is done individually",
+      "groupSize": "stage “{stage}”: group size {size} outside 2–6 — the nearest is used"
     }
   },
   "progress": {

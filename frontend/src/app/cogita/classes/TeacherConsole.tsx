@@ -37,6 +37,8 @@ import { loadSessions, type SessionRow } from '../live';
 import { useAsync, useCtx } from '../ui';
 import { classAim, type ClassOf } from './classModel';
 import { classJoinLink, classOpening, closeJoining, createClass, moveClassUnderBase, myClasses, renewJoinLink, type ClassStage } from './classes';
+import { FollowBar } from '../follow/FollowBar';
+import { startFollow, stopFollow, useFollowLive } from '../follow/followHost';
 import './classes.css';
 
 const OfficeProgress = lazy(() => import('../Progress').then((m) => ({ default: m.OfficeProgress })));
@@ -169,6 +171,7 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
   const close = () => {
     void ask({ title: t('cogitaClass.card.closeAsk'), body: t('cogitaClass.card.closeSays'), confirm: t('cogitaClass.card.close'), danger: true }).then((yes) => { if (yes) act(() => closeJoining(klass)); });
   };
+  const { live: followLive } = useFollowLive();
   const tabs = TABS.filter((x) => (x !== 'world' || slots.world !== undefined) && (x !== 'explore' || slots.explore !== undefined));
   /*
     2026-11-24 (0129) — wer steht für die Daten der Klasse ein? Ohne Administrator danych (auch keinen geerbten) kann niemand beitreten:
@@ -209,6 +212,7 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
           </div>
         </div>
       )}
+      {followLive?.areaId === klass.areaId && <FollowBar me={me} />}
       <div className="wk-actions">
         <button type="button" className={open ? 'wk-btn' : 'wk-btn wk-btn-line'} aria-expanded={open} onClick={() => onOpen(!open)} data-class-manage={klass.areaId}>
           <Icon name="settings" />{open ? t('cogitaClass.console.hide') : t('cogitaClass.console.manage')}
@@ -219,6 +223,10 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
           </button>
         )}
         {klass.joinInvitationId === null && <button type="button" className="wk-btn wk-btn-line" disabled={busy} onClick={renew}>{t('cogitaClass.card.open')}</button>}
+        {/* 2026-11-24 (Tryb prowadzony) — die Klasse sieht, was ich zeige, bis ich es beende (der QR-Code hier wird nicht gezeigt). */}
+        {me !== null && (followLive?.areaId === klass.areaId
+          ? <button type="button" className="wk-btn" onClick={() => { void stopFollow(); }} data-follow-console-stop={klass.areaId}><Icon name="pause" />{t('cogitaFollow.console.stop')}</button>
+          : <button type="button" className="wk-btn wk-btn-line" disabled={busy} title={t('cogitaFollow.console.startSays')} onClick={() => act(() => startFollow(lib, me, { areaId: klass.areaId, name: klass.name }))} data-follow-console-start={klass.areaId}><Icon name="eye" />{t('cogitaFollow.console.start')}</button>)}
         <a className="wk-btn wk-btn-line" href={href('postepy', klass.areaId)} data-class-progress={klass.areaId}><Icon name="list" />{t('cogitaClass.card.progress')}</a>
         <a className="wk-btn wk-btn-line" href={href('klasy', klass.areaId, 'plan')} data-class-plan={klass.areaId}><Icon name="flow" />{t('cogitaLesson.plan.cardButton')}</a>
         {lib.docs('unit').length > 0 && <a className="wk-btn wk-btn-line" href={href('klasy', klass.areaId, 'jednostki')} data-class-units={klass.areaId}><Icon name="list" />{t('cogitaUnit.start.cardButton')}</a>}

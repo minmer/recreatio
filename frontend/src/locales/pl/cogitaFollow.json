@@ -1,0 +1,33 @@
+{
+  "bar": {
+    "label": "Prowadzenie klasy na żywo",
+    "live": "Na żywo",
+    "joined": "Uczniów: {count}",
+    "frozenSays": "Obraz zatrzymany — uczniowie widzą to, co ostatnio pokazałeś.",
+    "resume": "Wznów",
+    "freeze": "Zatrzymaj obraz",
+    "showNow": "Pokaż uczniom",
+    "screen": "Ekran",
+    "end": "Zakończ",
+    "endAsk": "Zakończyć prowadzenie klasy?",
+    "endSays": "Uczniowie wrócą tam, gdzie byli.",
+    "votes": "Odpowiedzi: {count} z {total}",
+    "reveal": "Pokaż wyniki",
+    "revealed": "Wyniki pokazane"
+  },
+  "menu": {
+    "title": "Prowadzenie na żywo",
+    "start": "Prowadź klasę na żywo: {name}",
+    "stop": "Zakończ prowadzenie"
+  },
+  "screen": {
+    "banner": "Prowadzi nauczyciel",
+    "wait": "Za chwilę nauczyciel coś pokaże."
+  },
+  "console": {
+    "start": "Prowadź klasę na żywo",
+    "stop": "Zakończ prowadzenie",
+    "live": "Prowadzisz tę klasę na żywo",
+    "startSays": "Na wszystkich urządzeniach klasy widać to, co pokazujesz: mapę, slajd albo pytanie. Twoje własne narzędzia (kod QR, ta konsola) nie są pokazywane."
+  }
+}

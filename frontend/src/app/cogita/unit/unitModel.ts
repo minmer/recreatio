@@ -6,7 +6,8 @@
  * <code>
  *   unit     {name, lessons: [{title}], stages: [Stage], settings?: {stuckWrong, stuckMinutes, resumeShare}}
  *   Stage    {id, lesson (1…), title, type core|flex|close, minutes [min,max], modes ["P","V","R","I","O","Q","X"],
- *             led (die Klasse folgt dem Lehrer; Vorgabe: P/V/Q ohne I/R/X), order fixed|free, items, bonus, skipIf {stage, above}}
+ *             led (die Klasse folgt dem Lehrer; Vorgabe: P/V/Q ohne I/R/X), order fixed|free, items, bonus, skipIf {stage, above},
+ *             work together|alone|groups (2026-11-24; Vorgabe: together, wenn led, sonst alone), groupSize 2–6 (Vorgabe 3)}
  *   Item     {flow, start?}            eine Erzählung (Lehrer: gemeinsam; Telefon: allein)
  *            {questions: [Frage]}      Fragen nacheinander (Lehrer: Abstimmung je Frage; Telefon: allein, zählt)
  *            {prompt, max?, anonymous?} eine offene Frage, ≤ 80 Zeichen, nie bewertet, eine Wand
@@ -14,6 +15,8 @@
  *            jedes Item darf eine `id` tragen (für `after`)
  * </code>
  */
+
+import { clampGroupSize, type StageWork } from './groupsModel';
 
 export type StageType = 'core' | 'flex' | 'close';
 export type StageMode = 'P' | 'V' | 'R' | 'I' | 'O' | 'Q' | 'X';
@@ -37,6 +40,9 @@ export interface UnitStage {
   readonly items: readonly UnitItem[];
   readonly bonus: readonly UnitItem[];
   readonly skipIf?: { readonly stage: string; readonly above: number };
+  /** 2026-11-24 — gemeinsam (folgt dem Lehrer), allein, oder in Gruppen (`groupsModel.ts`): jede und jeder antwortet, die Gruppe einigt sich. */
+  readonly work: StageWork;
+  readonly groupSize: number;
 }
 
 export interface UnitSettings {
@@ -113,9 +119,13 @@ export function readUnit(id: string, data: Readonly<Record<string, unknown>>): U
     const lo = Math.max(0, mins[0] ?? 5);
     const hi = Math.max(lo, mins[1] ?? lo);
     const skip = isObject(raw.skipIf) && str(raw.skipIf.stage) !== '' ? { stage: str(raw.skipIf.stage), above: Math.max(0, Math.min(1, num(raw.skipIf.above, 0.8))) } : undefined;
+    /* 2026-11-24 — `work` sagt, wie gearbeitet wird; in Gruppen arbeitet die Klasse auf den Telefonen (nie gemeinsam am Lehrer). */
+    const ledRaw = typeof raw.led === 'boolean' ? raw.led : ledByModes(modes);
+    const work: StageWork = raw.work === 'groups' || raw.work === 'alone' || raw.work === 'together' ? raw.work : ledRaw ? 'together' : 'alone';
+    const led = work === 'together';
     stages.push({
       id: sid, lesson: Math.max(1, Math.round(num(raw.lesson, 1))), title: str(raw.title) || sid, type, minutes: [lo, hi], modes,
-      led: typeof raw.led === 'boolean' ? raw.led : ledByModes(modes), order: raw.order === 'free' ? 'free' : 'fixed', items, bonus,
+      led, work, groupSize: clampGroupSize(raw.groupSize), order: raw.order === 'free' ? 'free' : 'fixed', items, bonus,
       ...(skip === undefined ? {} : { skipIf: skip })
     });
   }
@@ -156,6 +166,10 @@ export function unitProblems(data: Readonly<Record<string, unknown>>, has: { flo
       if (item.kind === 'questions') for (const q of item.questions) if (!has.question(q)) out.push({ key: 'itemQuestion', vars: { name, stage: sid, ref: q }, error: true });
       if (item.kind === 'prompt' && isObject(one) && typeof one.max === 'number' && one.max > PROMPT_MAX) out.push({ key: 'promptLong', vars: { name, stage: sid, max: PROMPT_MAX }, error: false });
     }
+    /* 2026-11-24 — Gruppen: nur Fragen werden gemeinsam entschieden; eine Grösse ausserhalb 2–6 wird angepasst. */
+    if (raw.work !== undefined && raw.work !== 'together' && raw.work !== 'alone' && raw.work !== 'groups') out.push({ key: 'workUnknown', vars: { name, stage: sid, work: String(raw.work) }, error: false });
+    if (raw.work === 'groups' && !(Array.isArray(raw.items) ? raw.items : []).some((one) => readItem(one)?.kind === 'questions')) out.push({ key: 'groupsNoQuestions', vars: { name, stage: sid }, error: false });
+    if (raw.groupSize !== undefined && (typeof raw.groupSize !== 'number' || raw.groupSize < 2 || raw.groupSize > 6)) out.push({ key: 'groupSize', vars: { name, stage: sid, size: String(raw.groupSize) }, error: false });
   }
   for (const raw of raws) {
     if (!isObject(raw)) continue;
@@ -205,7 +219,7 @@ export function plannedStages(unit: Unit, plan: Extract<HostEvent, { kind: 'plan
 
 /** Der Recap als Etap (gemeinsam, Fragen), wenn „Wznów" welche nennt. */
 export const recapStage = (lesson: number, questions: readonly string[], title: string): UnitStage => ({
-  id: `R${lesson}`, lesson, title, type: 'core', minutes: [3, 5], modes: ['V'], led: true, order: 'fixed', items: [{ kind: 'questions', questions }], bonus: []
+  id: `R${lesson}`, lesson, title, type: 'core', minutes: [3, 5], modes: ['V'], led: true, work: 'together', groupSize: 3, order: 'fixed', items: [{ kind: 'questions', questions }], bonus: []
 });
 
 export type Phase = 'lobby' | 'lesson' | 'closing' | 'between' | 'closed';

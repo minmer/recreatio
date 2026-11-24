@@ -1,0 +1,40 @@
+{
+  "name": "Grupa {n}",
+  "status": {
+    "idle": "jeszcze nic",
+    "thinking": "myśli",
+    "disagree": "niezgodni",
+    "agreed": "zgodni",
+    "closed": "zamknięte przez nauczyciela"
+  },
+  "host": {
+    "title": "Grupy ({count}, po {size})",
+    "shuffle": "Wymieszaj ponownie",
+    "none": "Grupy powstaną, gdy ktoś dołączy.",
+    "tally": "zgodne: {agreed} · poprawne: {correct}",
+    "moveTo": "Przenieś: {name}",
+    "newGroup": "nowa grupa",
+    "question": "Pytanie {n}",
+    "close": "Zamknij (większość)",
+    "groupsN": "grup: {count}",
+    "says": "Każdy odpowiada na swoim telefonie; grupa widzi odpowiedzi swoich członków i musi się zgodzić. Twoja konsola przekazuje grupom ich odpowiedzi — zostaw ją otwartą. Każda odpowiedź liczy się też w postępie ucznia."
+  },
+  "play": {
+    "waitGroups": "Nauczyciel dzieli klasę na grupy — za chwilę zobaczysz swoją.",
+    "inGroup": "Grupa {n}",
+    "board": "Odpowiedzi w grupie",
+    "me": "Ty",
+    "relay": "Czekamy, aż nauczyciel przekaże odpowiedzi grupy…",
+    "thinking": "Nie wszyscy jeszcze odpowiedzieli.",
+    "disagree": "Nie jesteście zgodni — porozmawiajcie i ustalcie jedną odpowiedź (każdy może zmienić swoją).",
+    "change": "Zmień odpowiedź",
+    "closed": "Nauczyciel zamknął pytanie. Odpowiedź grupy:",
+    "agreed": "Zgoda! Odpowiedź grupy:",
+    "right": "Dobrze!",
+    "wrong": "Niestety źle.",
+    "finish": "Gotowe"
+  },
+  "screen": {
+    "agreed": "zgodne odpowiedzi: {count}"
+  }
+}

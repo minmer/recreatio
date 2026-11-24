@@ -29,6 +29,7 @@ import type { Opened } from '../sessionEvents';
 import type { CogitaLibrary } from '../store';
 import { CogitaContext, useAsync } from '../ui';
 import { ItemRun } from './UnitItems';
+import type { GroupRun } from './UnitGroups';
 import { doneFromValues, doneValueKey, homeworkOf, itemKey, unitNow, type Progress, type UnitItem, type UnitStage } from './unitModel';
 import { hostEvents, itemNow, type UnitConfig } from './unitSession';
 import './unit.css';
@@ -183,8 +184,12 @@ export function UnitPlay({ session, config, opened, cred, seal, participant, lea
       : <LessonPlay sessionId={session.sessionId} opened={opened} slots={slots} learner={learner} sent={sent} onVote={onVote} />;
     return shell(<><p className="cg-muted cg-unit-stage-title">{stage.title}</p>{body}</>);
   }
+  /* 2026-11-24 — in Gruppen: die eigene Antwort geht an den Lehrer (versiegelt), seine Konsole gibt der Gruppe zurück, was sie geantwortet hat. */
+  const group: GroupRun | undefined = stage.work === 'groups'
+    ? { participant, stage: stage.id, opened, send: (item, q, given, label) => put('prompt', { participant, stage: stage.id, item, group: { q, given, label }, at: Date.now() }) }
+    : undefined;
   return shell(
-    <StageRun key={stage.id} stage={stage} r={runner} done={done} markDone={markDone} report={report} prompt={prompt} />,
+    <StageRun key={stage.id} stage={stage} r={runner} done={done} markDone={markDone} report={report} prompt={prompt} {...(group === undefined ? {} : { group })} />,
     <div className="cg-unit-help">
       <button type="button" className={help ? 'wk-btn' : 'wk-btn wk-btn-line'} aria-pressed={help} onClick={() => askHelp(!help)} data-unit-help="">
         {help ? t('cogitaUnit.play.helpOn') : t('cogitaUnit.play.help')}
@@ -200,8 +205,10 @@ type PromptFn = (stage: string, key: string) => (a: { text?: string; choice?: nu
 /**
  * EIN ETAP ALLEIN: fest geordnet das nächste offene Item, frei geordnet eine Auswahl; „2 z 3"; danach warten und die Bonus-Items.
  */
-function StageRun({ stage, r, done, markDone, report, prompt, onLeave }: {
+function StageRun({ stage, r, done, markDone, report, prompt, onLeave, group }: {
   stage: UnitStage; r: Runner; done: ReadonlySet<string>; markDone: (keys: readonly string[]) => void; report: ReportFn; prompt: PromptFn; onLeave?: () => void;
+  /** 2026-11-24 — nur im offenen Etap „w grupach" (Hausaufgaben arbeitet jede und jeder allein). */
+  group?: GroupRun;
 }) {
   const t = useT();
   const keys = stage.items.map((_, i) => itemKey(stage.id, i));
@@ -226,7 +233,7 @@ function StageRun({ stage, r, done, markDone, report, prompt, onLeave }: {
       <div className="cg-unit-stage" data-unit-item={current}>
         <p className="cg-muted cg-unit-stage-title">{stage.title}</p>
         {ofN}
-        <ItemRun key={current} item={it} {...r(stage)} report={(p) => report(stage.id, current, p)} onDone={() => finish(current)} onPrompt={prompt(stage.id, current)} />
+        <ItemRun key={current} item={it} {...r(stage)} report={(p) => report(stage.id, current, p)} onDone={() => finish(current)} onPrompt={prompt(stage.id, current)} {...(group === undefined ? {} : { group: { run: group, key: current } })} />
       </div>
     );
   }

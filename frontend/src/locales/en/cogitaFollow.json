@@ -1,0 +1,33 @@
+{
+  "bar": {
+    "label": "Leading the class live",
+    "live": "Live",
+    "joined": "Students: {count}",
+    "frozenSays": "Picture paused — the students see what you showed last.",
+    "resume": "Resume",
+    "freeze": "Pause picture",
+    "showNow": "Show to students",
+    "screen": "Screen",
+    "end": "End",
+    "endAsk": "End leading the class?",
+    "endSays": "The students go back to where they were.",
+    "votes": "Answers: {count} of {total}",
+    "reveal": "Show results",
+    "revealed": "Results shown"
+  },
+  "menu": {
+    "title": "Leading live",
+    "start": "Lead the class live: {name}",
+    "stop": "Stop leading"
+  },
+  "screen": {
+    "banner": "The teacher is leading",
+    "wait": "The teacher will show something in a moment."
+  },
+  "console": {
+    "start": "Lead the class live",
+    "stop": "Stop leading",
+    "live": "You are leading this class live",
+    "startSays": "Every device of the class shows what you show: the map, a slide or a question. Your own tools (the QR code, this console) are not shown."
+  }
+}

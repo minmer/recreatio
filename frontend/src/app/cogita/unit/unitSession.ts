@@ -16,10 +16,13 @@
  *     unit-plan    {order, skipped, added, extend, at}   umgestellt, ausgelassen, ergänzt, verlängert
  *     unit-wall    {stage, item, texts}           die Antworten, die der Lehrer zeigt — ohne Namen
  *     unit-poll    {stage, item, counts, votes, before?}  die Balken einer Umfrage (vorher/nachher)
+ *     unit-groups  {stage, groups, seed, at}      2026-11-24: die Gruppen eines Etaps „w grupach"
+ *     unit-gstate  {stage, item, groups, at}      was jede Gruppe von ihren Antworten sieht (Initialen, Antwort als Wort)
+ *     unit-gclose  {stage, item, q, group, at}    der Lehrer schliesst eine Frage einer Gruppe (Mehrheit)
  *   Schüler (versiegelt für die Przyjęcia — nur der Lehrer öffnet):
  *     progress     {participant, stage, item, what start|answer|done, step?, result?, tag?, lines?, predict?, at}
  *     help         {participant, stage, on, at}
- *     prompt       {participant, stage, item, text? | choice?, at}
+ *     prompt       {participant, stage, item, text? | choice? | group {q, given, label}, at}
  *   Abstimmungen gemeinsamer Etapy bleiben `question`/`answer`/`reveal` (LessonHost).
  * </code>
  */
@@ -29,11 +32,14 @@ import type { CogitaLibrary } from '../store';
 import { newSession } from '../lesson/lessonApi';
 import { DEFAULT_THRESHOLDS } from '../lesson/lessonTally';
 import { bodies, type Opened } from '../sessionEvents';
+import { groupAnswersOf, type GroupAnswer, type GroupCloseEvent, type GroupsEvent, type GroupStateEvent } from './groupsModel';
 import { readUnit, type HelpSignal, type HostEvent, type Progress, type PromptAnswer, type Unit } from './unitModel';
 
 export const HOST_KINDS = {
   stage: 'unit-stage', item: 'unit-item', look: 'unit-look', results: 'unit-results', end: 'unit-end', pause: 'unit-pause',
-  resume: 'unit-resume', plan: 'unit-plan', wall: 'unit-wall', poll: 'unit-poll'
+  resume: 'unit-resume', plan: 'unit-plan', wall: 'unit-wall', poll: 'unit-poll',
+  /* 2026-11-24 — Gruppenarbeit (`groupsModel.ts`). */
+  groups: 'unit-groups', gstate: 'unit-gstate', gclose: 'unit-gclose'
 } as const;
 
 export interface UnitConfig {
@@ -81,7 +87,20 @@ export const pollOf = (opened: readonly Opened[], stage: string, item: string): 
 /** Die Meldungen der Schüler (nur der Lehrer kann sie öffnen). */
 export const progressOf = (opened: readonly Opened[]): Progress[] => bodies<Progress>(opened, 'progress').map((x) => x.body).filter((p) => typeof p.participant === 'string' && typeof p.stage === 'string');
 export const helpOf = (opened: readonly Opened[]): HelpSignal[] => bodies<HelpSignal>(opened, 'help').map((x) => x.body).filter((p) => typeof p.participant === 'string');
-export const promptsOf = (opened: readonly Opened[]): PromptAnswer[] => bodies<PromptAnswer>(opened, 'prompt').map((x) => x.body).filter((p) => typeof p.participant === 'string');
+export const promptsOf = (opened: readonly Opened[]): PromptAnswer[] => bodies<PromptAnswer & { group?: unknown }>(opened, 'prompt').map((x) => x.body).filter((p) => typeof p.participant === 'string' && p.group === undefined);
+
+/* -- 2026-11-24: Gruppenarbeit ------------------------------------------------------------------------------------------------ */
+
+/** Die Antworten der Gruppen-Mitglieder (Meldungen `prompt` mit `group` — nur der Lehrer liest sie). */
+export const groupAnswersIn = (opened: readonly Opened[]): GroupAnswer[] => groupAnswersOf(bodies<unknown>(opened, 'prompt').map((x) => x.body));
+/** Die Gruppen eines Etaps (das letzte Ereignis gilt) — `null`: noch keine gebildet. */
+export const groupsIn = (opened: readonly Opened[], stage: string): GroupsEvent | null =>
+  bodies<GroupsEvent>(opened, HOST_KINDS.groups).map((x) => x.body).filter((g) => g.stage === stage && Array.isArray(g.groups)).pop() ?? null;
+/** Was die Gruppen bei einem Item sehen (vom Lehrer zurückgegeben). */
+export const groupStateIn = (opened: readonly Opened[], stage: string, item: string): GroupStateEvent | null =>
+  bodies<GroupStateEvent>(opened, HOST_KINDS.gstate).map((x) => x.body).filter((g) => g.stage === stage && g.item === item && Array.isArray(g.groups)).pop() ?? null;
+export const groupClosesIn = (opened: readonly Opened[], stage: string): GroupCloseEvent[] =>
+  bodies<GroupCloseEvent>(opened, HOST_KINDS.gclose).map((x) => x.body).filter((g) => g.stage === stage);
 
 /** Wer beigetreten ist, mit Namen (der letzte Name gilt). */
 export function participantsOf(opened: readonly Opened[]): Map<string, string> {

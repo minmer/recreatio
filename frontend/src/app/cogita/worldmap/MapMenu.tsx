@@ -14,7 +14,7 @@ export interface MapMenuMode {
   readonly label: string;
 }
 
-export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, classes = [], t }: {
+export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, classes = [], live = null, t }: {
   modes: readonly MapMenuMode[];
   shown: string;
   onMode: (key: string) => void;
@@ -28,6 +28,8 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
   onExit?: () => void;
   /** 2026-11-24 — „Widoczne dla klasy…": je Klasse, die ich leite, die Wahl auf der Karte (`ClassSelect.tsx`). */
   classes?: readonly { readonly key: string; readonly label: string; readonly onPick: () => void }[];
+  /** 2026-11-24 (Tryb prowadzony) — „Prowadź klasę na żywo" je Klasse, oder, läuft es schon, „Zakończ prowadzenie". */
+  live?: { readonly on: boolean; readonly onStop: () => void; readonly classes: readonly { readonly key: string; readonly label: string; readonly onPick: () => void }[] } | null;
   /** Der Teil der Klasse (Textgrösse, Prowadzę / Uczę się, Klasse). */
   classBody: ReactNode;
   teaching: boolean;
@@ -85,6 +87,16 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
               <h3>{t('cogitaClassMap.menu')}</h3>
               <div className="cg-wm-menulist">
                 {classes.map((c) => <button key={c.key} type="button" className="cg-wm-menuitem" onClick={pick(c.onPick)} data-world-menu-class={c.key}>{c.label}</button>)}
+              </div>
+            </section>
+          )}
+          {live !== null && (live.on || live.classes.length > 0) && (
+            <section className="cg-wm-menusec" data-world-menu-live={live.on ? 'on' : live.classes.length}>
+              <h3>{t('cogitaFollow.menu.title')}</h3>
+              <div className="cg-wm-menulist">
+                {live.on
+                  ? <button type="button" className="cg-wm-menuitem" onClick={pick(live.onStop)} data-follow-menu-stop="">■ {t('cogitaFollow.menu.stop')}</button>
+                  : live.classes.map((c) => <button key={c.key} type="button" className="cg-wm-menuitem" onClick={pick(c.onPick)} data-follow-menu-start={c.key}>● {t('cogitaFollow.menu.start', { name: c.label })}</button>)}
               </div>
             </section>
           )}

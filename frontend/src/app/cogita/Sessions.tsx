@@ -55,6 +55,10 @@ import { CogitaContext, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
+import { FollowScreen } from './follow/FollowScreen';
+import { followNow } from './follow/followModel';
+
+const NO_SENT: ReadonlyMap<number, unknown> = new Map();
 
 /** 2026-11-01 — die Frage einer Karte als eine Zeile, ihre Wzory gesetzt (`$…$` bleibt in `prompt` stehen, `cards.ts`). */
 const PromptLine = ({ card }: { card: Card | undefined }) => <TexText text={card === undefined ? '' : card.prompt.map((p) => p.text).join(' ')} />;
@@ -247,6 +251,8 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
   const { opened, raw, poke, live, session: fresh } = useEvents(session.sessionId, cred, keys, intakeKey);
   /* 2026-11-22 (Homer) — eine Einheit über mehrere Stunden: ihre Konsole, ihre Leinwand (`unit/`). */
   const unit = session.kind === 'lesson' ? unitConfigOf(opened) : null;
+  /* 2026-11-24 (Tryb prowadzony) — eine Folge-Stunde: die Leinwand (und diese Seite) zeigen, was die Klasse sieht. */
+  const followCfg = session.kind === 'lesson' ? followNow(opened).config : null;
   const config = last(bodies<Config>(opened, 'config'))?.body ?? null;
   const epoch = Math.max(0, ...keys.keys());
   const key = keys.get(epoch);
@@ -308,6 +314,7 @@ function SessionHost({ session, title, screen, onBack }: { session: SessionRow; 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {config === null ? <Loading label={t('cogitaViewsStats.sess.loading')} />
         : session.kind === 'live' ? <LiveHost session={session} config={config} opened={opened} post={post} screen={screen} />
+        : followCfg !== null ? <FollowScreen session={fresh ?? session} opened={opened} slots={plains<{ index: number; form: string; count: number }>(raw, 'slot')} sent={NO_SENT} onVote={null} projector={screen} />
         : unit !== null ? (screen ? <UnitScreen session={fresh ?? session} config={unit} opened={opened} link={link} code={session.joinCode} /> : <UnitHost session={fresh ?? session} config={unit} opened={opened} send={send} />)
         : session.kind === 'lesson' ? (screen ? <LessonScreen opened={opened} title={title} /> : <LessonHost session={session} opened={opened} send={send} />)
         : session.kind === 'task' ? <TaskHost session={session} config={config} />

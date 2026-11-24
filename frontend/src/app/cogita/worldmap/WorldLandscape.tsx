@@ -81,6 +81,12 @@ import { TagSlicePicker } from './WorldTags';
 import { MapMenu } from './MapMenu';
 import { classWorldInput } from '../classes/subWorld';
 import { useClassSelect } from './ClassSelect';
+import { useFollowView } from '../follow/followView';
+import { FollowBar } from '../follow/FollowBar';
+import { reportMap, reportMapShown, reportStep, resumeFollow, startFollow, stopFollow, useFollowLive } from '../follow/followHost';
+import type { SharedCam } from '../follow/followModel';
+import { myClasses } from '../classes/classes';
+import type { LessonLink } from '../lesson/lessonStep';
 import './worldmap.css';
 
 /* Wie im Krajobraz: was der Zähler der Punkte über der Karte nicht zeigt (gross / klein). */
@@ -106,6 +112,9 @@ type Running =
 /* 2026-11-12 (Prompt 25) — dazu ein Wegweiser (mehrere Fragen an einer Stelle) und ein Weg zu einer Frage. */
 type Chosen = { readonly kind: 'place' | 'section' | 'home' | 'junction' | 'sign' | 'qpath'; readonly id: string };
 
+/** 2026-11-24 (Tryb prowadzony) — der Spieler der Lehrerin meldet jeden Schritt an die Klasse (die Antwort nimmt er von ihr selbst). */
+const FOLLOW_LINK: LessonLink = { onStep: reportStep, decide: null };
+
 export interface WorldLandscapeProps {
   readonly view: ViewDoc;
   readonly cards: readonly Card[];
@@ -126,6 +135,15 @@ const CLOCK_MS = 10 * 60 * 1000;
 
 export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null }: WorldLandscapeProps) {
   const { lib, writes, name: baseName, me } = useCtx();
+  /*
+    2026-11-24 (Tryb prowadzony) — GEFÜHRT (die Karte der Schüler und der Leinwand, `follow/FollowScreen.tsx`): Kamera, Gewähltes,
+    Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
+    Karte meldet ihren Stand, ein gespielter Weg seine Schritte.
+  */
+  const followView = useFollowView();
+  const following = followView !== null;
+  const { live: followLive } = useFollowLive();
+  const leading = !following && followLive !== null && followLive.libraryId.toLowerCase() === lib.libraryId.toLowerCase();
   const lang = baseLang(lib);
   const t = tFor(lang);
   const dark = useDark();
@@ -644,9 +662,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [full, setFull] = useState<FullMode | null>(null);
   /* 2026-11-12 — beim Laden die Frage: Vollbild, ganze Seite oder als Teil der Seite (WorldInvite.tsx). */
-  const [invite, setInvite] = useState(inviteWanted);
+  const [invite, setInvite] = useState(() => (following ? false : inviteWanted()));
   /* Im Wahlmodus für eine Klasse (auch über „Wybierz na mapie" geöffnet) steht die Frage nicht über der Karte. */
-  useEffect(() => { if (sel.active) { setInvite(false); setTour(null); } }, [sel.active]);
+  useEffect(() => { if (sel.active || following) { setInvite(false); setTour(null); } }, [sel.active, following]);
   /* Ein Teil im Vollbild füllt den Platz und steht still (wmRunFit.ts). */
   const runViewRef = useRef<HTMLDivElement | null>(null);
   /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
@@ -912,7 +930,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* Nach „Odkryj" im Rundgang: die ganze Karte mit dem ganzen Weg. */
   useEffect(() => { if (tourWay && tourStep?.action?.kind === 'explore') pillars.current?.fit(); }, [tourWay]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (tour !== null || learner === null || scene === null || invite || sel.active || running !== null || !tourWanted() || tourSeen(scope)) return;
+    if (tour !== null || learner === null || scene === null || invite || sel.active || following || running !== null || !tourWanted() || tourSeen(scope)) return;
     keepTourSeen(scope);
     setTour(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- einmal, sobald die Karte steht
@@ -1253,8 +1271,42 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       paused={tt !== null && finStats.just.length === 0 && (finStats.kind === 'story' || finStats.kind === 'cards')} tower={null} />
   ) : null;
   const inviteOn = invite && full === null && running === null && scene !== null;
+  /*
+    -- 2026-11-24 (Tryb prowadzony) --------------------------------------------------------------------------------------------------
+    FÜHREND: die Klassen, die ich leite (für „Prowadź klasę na żywo"); eine laufende Folge-Stunde wieder aufnehmen; der Stand der Karte
+    (Kamera nach jeder Änderung, das Gewählte, der Modus, der Ausschnitt) geht an `followHost` — hinaus nur, wenn er sich geändert hat.
+  */
+  const [liveClasses, setLiveClasses] = useState<readonly { readonly areaId: string; readonly name: string }[]>([]);
+  useEffect(() => {
+    if (me === null || following) { setLiveClasses([]); return undefined; }
+    let alive = true;
+    void myClasses(true, lib.libraryId).then((list) => {
+      if (!alive) return;
+      setLiveClasses(list.map((c) => ({ areaId: c.areaId, name: c.name })));
+      if (list.length > 0) void resumeFollow(me, lib.libraryId).catch(() => undefined);
+    }, () => undefined);
+    return () => { alive = false; };
+  }, [me, following, lib.libraryId]);
+  const leadCam = useRef<SharedCam | null>(null);
+  const leadState = useRef({ chosen, shownMode, slicePath });
+  leadState.current = { chosen, shownMode, slicePath };
+  const reportLead = useCallback(() => {
+    const st = leadState.current;
+    reportMap({ view: viewKey, cam: leadCam.current, chosen: st.chosen === null ? null : { kind: st.chosen.kind, id: st.chosen.id }, mode: st.shownMode, slice: [...st.slicePath], at: Date.now() });
+  }, [viewKey]);
+  const onLeadCam = useCallback((c: SharedCam) => { leadCam.current = c; reportLead(); }, [reportLead]);
+  useEffect(() => { if (leading) reportLead(); }, [leading, chosen?.kind, chosen?.id, shownMode, slicePath.join('|'), reportLead]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* GEFÜHRT: Modus, Gewähltes und Ausschnitt von der Lehrerin (nichts davon wird hier gemerkt). */
+  const followMap = followView?.map ?? null;
+  useEffect(() => {
+    if (followMap === null) return;
+    if ((WORLD_MODES as readonly string[]).includes(followMap.mode)) setModeNow(followMap.mode as WorldMode);
+    setChosen(followMap.chosen === null ? null : { kind: followMap.chosen.kind as Chosen['kind'], id: followMap.chosen.id });
+    setSlicePathKept([...followMap.slice]);
+  }, [followMap?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const host = (body: ReactNode) => (
-    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}`} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
+    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${following ? ' is-follow' : ''}`} data-world-following={following ? '1' : undefined} data-world-leading={leading ? '1' : undefined} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
       data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
       {body}
       {more}
@@ -1269,12 +1321,12 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
 
   /* Was gerade läuft (eine Erzählung, ein Durchgang, Karten): ohne Vollbild statt der Karte, im Vollbild als eigener Teil. */
   /* Mit Navigation gleich der Weg (im selben Zug, sonst blitzte die Karte einen Augenblick auf). */
-  const backToMap = () => { if (tt !== null) setAskNext(true); setRunning(null); };
+  const backToMap = () => { if (tt !== null) setAskNext(true); setRunning(null); if (leading) reportMapShown(); };
   const runNode: ReactNode = running === null ? null
     : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
       <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
-        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose />
+        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose {...(leading ? { lesson: FOLLOW_LINK } : {})} />
       </div>
     ) : running.kind === 'run' && learner !== null ? (
       <div className="cg-ls-run" data-world-running="run">
@@ -1350,6 +1402,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           2026-11-24 (Eigentümer: „auch im Vollbild und als Seite alles wählbar") — Menü, Tag-Filter und die Zadania der Klasse als
           EIN Block: über der Karte, im Vollbild oben links über ihr schwebend.
         */}
+        {leading && !sel.active && <FollowBar me={me} />}
         <div className="cg-wm-controls" data-world-controls="">
         {sel.bar}
         <div className="cg-wm-top">
@@ -1357,7 +1410,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={cls.teaching} classBody={cls.menuBody}
             modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
             onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={tourOn ? null : enterFull} full={full} onExit={exitFull}
-            classes={tourOn || sel.active ? [] : sel.classes.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { setChosen(null); setGoal(null); sel.start(c); } }))} />
+            classes={tourOn || sel.active ? [] : sel.classes.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { setChosen(null); setGoal(null); sel.start(c); } }))}
+            live={tourOn || sel.active || following ? null : {
+              on: leading, onStop: () => { void stopFollow(); },
+              classes: liveClasses.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { void startFollow(lib, me!, c).catch(() => undefined); } }))
+            }} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>
         {cls.overlay}
@@ -1392,6 +1449,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               memoryKey={scope}
               route={sel.active ? null : tourStep !== undefined ? tourStep.route ?? (tourFocus === null ? null : [...tourFocus.remaining]) : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn || sel.active ? null : peek !== null && lines.sections.has(peek) ? route : faint}
               hiddenLanes={sel.hiddenLanes}
+              following={following} follow={followView?.map?.cam ?? null} {...(leading ? { onCamera: onLeadCam } : {})}
               chosen={sel.active ? null : tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={sel.active ? null : tourStep !== undefined ? (tourFocus ?? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node))) : focus}
               marks={tourOn || sel.active || marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
               lit={sel.active ? sel.lit : tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || sel.active || (goal !== null && isPathTarget(goal)) ? null : goal} tasks={tourOn || sel.active || cls.teaching ? null : cls.marked} playback={tourOn || sel.active ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && !sel.active && playHeld} playAfter={PLAY_AFTER_MS}

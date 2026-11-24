@@ -51,3 +51,31 @@
 .cg-unit-qr { position: absolute; right: var(--wk-space-3); bottom: var(--wk-space-3); display: flex; flex-direction: column; align-items: center; gap: var(--wk-space-1); padding: var(--wk-space-2); border-radius: var(--wk-radius-sm); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-unit-wall ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-3); justify-content: center; }
 .cg-unit-wall li { padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
+
+/* 2026-11-24 — Gruppenarbeit (UnitGroups.tsx): die Konsole je Gruppe, das Telefon mit den Antworten der Gruppe, die Leinwand nur Nummern. */
+.cg-unit-groups { display: grid; gap: var(--wk-space-3); margin-top: var(--wk-space-4); }
+.cg-unit-grouplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--wk-space-3); margin: 0; padding: 0; list-style: none; }
+.cg-unit-group { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-left: 4px solid var(--wk-line-strong); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.cg-unit-group.is-agreed, .cg-unit-group.is-closed { border-left-color: var(--wk-ok); }
+.cg-unit-group.is-disagree { border-left-color: var(--wk-warn); }
+.cg-unit-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); margin: 0; }
+.cg-unit-group-members { display: grid; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; }
+.cg-unit-group-members li { display: flex; justify-content: space-between; align-items: center; gap: var(--wk-space-2); }
+.cg-unit-group-q { display: grid; gap: 2px; margin: 0; padding-top: var(--wk-space-1); border-top: 1px dashed var(--wk-line); font-size: var(--wk-text-sm); }
+.cg-unit-group-q.is-disagree > span:nth-child(2) { color: var(--wk-warn); font-weight: 600; }
+.cg-unit-group-q.is-agreed > span:nth-child(2), .cg-unit-group-q.is-closed > span:nth-child(2) { color: var(--wk-ok); font-weight: 600; }
+.cg-unit-group-dist ul { margin: 0; padding-left: var(--wk-space-4); }
+.cg-unit-group-dist .is-right { color: var(--wk-ok); }
+.cg-unit-group-dist .is-wrong { color: var(--wk-danger, var(--wk-warn)); }
+.cg-unit-groupq { display: grid; gap: var(--wk-space-3); }
+.cg-unit-groupboard { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.cg-unit-groupboard ul { display: grid; gap: var(--wk-space-1); margin: 0; padding: 0; list-style: none; }
+.cg-unit-groupboard li { display: flex; align-items: center; gap: var(--wk-space-2); }
+.cg-unit-groupboard li.is-me { font-weight: 600; }
+.cg-unit-groupboard li > strong { margin-left: auto; }
+.cg-unit-ini { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--wk-accent-soft); font-size: var(--wk-text-xs); font-weight: 700; }
+.cg-unit-group-result { display: grid; gap: var(--wk-space-2); }
+.cg-unit-screen-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--wk-space-3); margin: var(--wk-space-4) 0 0; padding: 0; list-style: none; text-align: center; }
+.cg-unit-screen-groups li { display: grid; gap: var(--wk-space-1); padding: var(--wk-space-3); border: 2px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); font-size: var(--wk-text-lg); }
+.cg-unit-screen-groups li.is-agreed, .cg-unit-screen-groups li.is-closed { border-color: var(--wk-ok); }
+.cg-unit-screen-groups li.is-disagree { border-color: var(--wk-warn); }

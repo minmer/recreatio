@@ -42,6 +42,7 @@ import { baseWorldViewOf, classViewOf } from './subWorld';
 import { forgetClasses, myClasses } from './classes';
 import { chooseShell } from './shellChoice';
 import './classes.css';
+import { FollowGate } from '../follow/FollowScreen';
 
 const ViewView = lazy(() => import('../../pages/parts/viewViews').then((m) => ({ default: m.ViewView })));
 
@@ -512,6 +513,8 @@ function ClassLearn({ where, title, who }: { where: Where; title: string; who: W
         : view === null ? <p className="wk-lede">{t('cogitaClass.page.noMap')}</p>
         : (
           <PersonProvider path={aim}>
+            {/* 2026-11-24 (Tryb prowadzony) — führt die Lehrerin gerade, liegt ihre Ansicht über der Seite. */}
+            <FollowGate libraryId={where.libraryId} who={who} />
             <Suspense fallback={<Loading />}>
               <ViewView config={{ title: '', library: where.libraryId, view, mode: 'krajobraz', answers: where.areaId, rewards: '', switching: false }}
                 ctx={{ moduleId: `class-${where.areaId}`, size, whole: true }} />

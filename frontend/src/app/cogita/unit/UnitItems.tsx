@@ -18,6 +18,7 @@ import type { Learner } from '../learn';
 import { isPredict } from '../modes';
 import type { CogitaLibrary } from '../store';
 import type { Progress, ProgressResult, UnitItem } from './unitModel';
+import { GroupQuestions, type GroupRun } from './UnitGroups';
 
 export type Report = (p: Omit<Progress, 'participant' | 'stage' | 'item' | 'at'>) => void;
 
@@ -35,7 +36,7 @@ export function answerReport(card: Card, data: Readonly<Record<string, unknown>>
   return { what: 'answer', step, result: resultOf(correctness), ...(tag === undefined || tag === '' ? {} : { tag }), ...(lines === undefined ? {} : { lines, card: card.key }), ...(predict ? { predict: true } : {}) };
 }
 
-export function ItemRun({ item, lib, content, cards, learner, via, report, onDone, onPrompt }: {
+export function ItemRun({ item, lib, content, cards, learner, via, report, onDone, onPrompt, group }: {
   item: UnitItem;
   lib: CogitaLibrary;
   content: FlowContent;
@@ -45,7 +46,10 @@ export function ItemRun({ item, lib, content, cards, learner, via, report, onDon
   report: Report;
   onDone: () => void;
   onPrompt: (answer: { text?: string; choice?: number }) => void;
+  /** 2026-11-24 — ein Etap „w grupach": Fragen entscheidet die Gruppe gemeinsam (`UnitGroups.tsx`). */
+  group?: { readonly run: GroupRun; readonly key: string };
 }) {
+  if (item.kind === 'questions' && group !== undefined) return <GroupQuestions itemKeyOf={group.key} questions={item.questions} lib={lib} cards={cards} learner={learner} via={via} report={report} onDone={onDone} group={group.run} />;
   if (item.kind === 'flow') {
     const flow = content.flow(item.flow);
     if (flow === undefined) return <MissingItem onDone={onDone} />;

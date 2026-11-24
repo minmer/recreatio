@@ -194,7 +194,10 @@
       "skipNowhere": "Abschnitt „{stage}“: „skipIf“ nennt Abschnitt „{ref}“, den es nicht gibt.",
       "pollAfter": "Abschnitt „{stage}“: „after“ nennt Element „{ref}“, das es nicht gibt.",
       "noClose": "Stunde {lesson} hat keinen Abschluss („type“: „close“, Exit Ticket).",
-      "coreLong": "die Kernabschnitte der Stunde {lesson} dauern bis zu {minutes} Min. — plane höchstens etwa 40."
+      "coreLong": "die Kernabschnitte der Stunde {lesson} dauern bis zu {minutes} Min. — plane höchstens etwa 40.",
+      "workUnknown": "Etappe „{stage}“: unbekannte Arbeitsweise „{work}“ (together, alone, groups) — die Vorgabe gilt",
+      "groupsNoQuestions": "Etappe „{stage}“: Gruppenarbeit ohne Fragen — Gruppen einigen sich nur über Fragen, der Rest geschieht einzeln",
+      "groupSize": "Etappe „{stage}“: Gruppengrösse {size} ausserhalb 2–6 — die nächste gilt"
     }
   },
   "progress": {

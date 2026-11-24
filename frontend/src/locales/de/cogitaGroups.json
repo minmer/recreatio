@@ -1,0 +1,40 @@
+{
+  "name": "Gruppe {n}",
+  "status": {
+    "idle": "noch nichts",
+    "thinking": "denkt nach",
+    "disagree": "uneinig",
+    "agreed": "einig",
+    "closed": "von der Lehrkraft geschlossen"
+  },
+  "host": {
+    "title": "Gruppen ({count}, je {size})",
+    "shuffle": "Neu mischen",
+    "none": "Die Gruppen entstehen, sobald jemand beitritt.",
+    "tally": "einig: {agreed} · richtig: {correct}",
+    "moveTo": "Verschieben: {name}",
+    "newGroup": "neue Gruppe",
+    "question": "Frage {n}",
+    "close": "Schliessen (Mehrheit)",
+    "groupsN": "Gruppen: {count}",
+    "says": "Alle antworten auf dem eigenen Telefon; die Gruppe sieht die Antworten ihrer Mitglieder und muss sich einigen. Deine Konsole gibt den Gruppen ihre Antworten weiter — lass sie offen. Jede Antwort zählt auch im eigenen Fortschritt."
+  },
+  "play": {
+    "waitGroups": "Die Lehrkraft teilt die Klasse in Gruppen — gleich siehst du deine.",
+    "inGroup": "Gruppe {n}",
+    "board": "Antworten in deiner Gruppe",
+    "me": "Du",
+    "relay": "Warte, bis die Lehrkraft die Antworten der Gruppe weitergibt…",
+    "thinking": "Noch haben nicht alle geantwortet.",
+    "disagree": "Ihr seid euch nicht einig — sprecht miteinander und einigt euch auf eine Antwort (jede und jeder kann die eigene ändern).",
+    "change": "Antwort ändern",
+    "closed": "Die Lehrkraft hat die Frage geschlossen. Die Antwort der Gruppe:",
+    "agreed": "Einig! Die Antwort der Gruppe:",
+    "right": "Richtig!",
+    "wrong": "Leider falsch.",
+    "finish": "Fertig"
+  },
+  "screen": {
+    "agreed": "einige Antworten: {count}"
+  }
+}

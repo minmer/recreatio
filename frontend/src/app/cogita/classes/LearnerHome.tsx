@@ -16,6 +16,7 @@ import { loadSessions, type SessionRow } from '../live';
 import { classAim, type ClassOf } from './classModel';
 import { myClasses } from './classes';
 import './classes.css';
+import { FollowGate } from '../follow/FollowScreen';
 
 interface Home {
   readonly classes: readonly ClassOf[];
@@ -65,6 +66,8 @@ export function LearnerHome({ who }: { who: Who }) {
 
   return (
     <div className="cl-home wk-narrow" data-learner-home="">
+      {/* 2026-11-24 (Tryb prowadzony) — führt eine Lehrerin eine meiner Klassen, liegt ihre Ansicht über der Seite. */}
+      {[...new Set(home.classes.flatMap((c) => c.bases.map((b) => b.libraryId.toLowerCase())))].map((id) => <FollowGate key={id} libraryId={id} who={who} />)}
       <h1 className="wk-h1">{t('cogitaClass.home.title')}</h1>
 
       {home.live.map((s) => {

@@ -30,6 +30,7 @@ import { pillarHeight } from './wmState';
 import { scoreColour, scoreHue } from '../scoreColour';
 import { hourOf, keepLight, keptLight, mapPalette, MAP_LIGHTS, type MapLight, type MapPalette } from './wmDaylight';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
+import { zoomFor, type SharedCam } from '../follow/followModel';
 
 export { FORE_HIGH, FORE_LOW } from './wmCamera';
 const FORE_FIRST = Math.sin((50 * Math.PI) / 180);
@@ -266,6 +267,13 @@ export interface PillarsProps {
    * einschalten). Eine Spur ist grau, wenn alle ihre Abschnitte darin sind.
    */
   readonly hiddenLanes?: ReadonlySet<string> | null;
+  /**
+   * 2026-11-24 (Tryb prowadzony) — die Kamera als Ausschnitt nach jeder Änderung (die Lehrerin führt: ihr Gerät schickt sie), und
+   * GEFÜHRT: die Kamera kommt von aussen (`follow`), keine Eingabe, keine Knöpfe — die Karte der Schüler und der Leinwand.
+   */
+  readonly onCamera?: (cam: SharedCam) => void;
+  readonly follow?: SharedCam | null;
+  readonly following?: boolean;
 }
 
 export interface MapSign {
@@ -474,7 +482,11 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, towerActions = null, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, tasks = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign, hiddenLanes = null } = props;
+    lit = null, portals = null, goal = null, tasks = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign, hiddenLanes = null, onCamera, follow = null, following = false } = props;
+  const onCameraRef = useRef(onCamera);
+  onCameraRef.current = onCamera;
+  const followingRef = useRef(following);
+  followingRef.current = following;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -523,6 +535,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const raf = useRef(0);
   const settle = useRef(0);
   const [cam, setCamState] = useState<WorldCam | null>(camRef.current);
+  const followRaf = useRef(0);
 
   /* Grösse und Farben (hell / dunkel). */
   useEffect(() => {
@@ -550,13 +563,35 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', vis); };
   }, [light]);
 
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
   const setCam = useCallback((c: WorldCam) => {
     const next = { ...c, fore: Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore)), s: Math.max(0.01, Math.min(zoomMax.current, c.s)) };
     camRef.current = next;
     setCamState(next);
+    /* Geführt: die eigene gemerkte Kamera bleibt, wie sie war (nach der Stunde ist man, wo man war). */
+    if (followingRef.current) return;
     window.clearTimeout(settle.current);
     settle.current = window.setTimeout(() => keepCam(memoryKey, next), 300);
+    const sz = sizeRef.current;
+    if (onCameraRef.current !== undefined && sz.w > 0 && sz.h > 0) onCameraRef.current({ cx: next.cx, cy: next.cy, rot: next.rot, fore: next.fore, spanW: sz.w / next.s, spanH: sz.h / next.s });
   }, [memoryKey]);
+  /* 2026-11-24 (Tryb prowadzony) — die Kamera von aussen: derselbe Ausschnitt wie bei der Lehrerin, so gross wie dieses Bild erlaubt. */
+  useEffect(() => {
+    if (follow === null || size.w === 0 || size.h === 0) return;
+    const was = camRef.current;
+    const want = { cx: follow.cx, cy: follow.cy, rot: follow.rot, fore: follow.fore, s: zoomFor(follow, size.w, size.h) };
+    if (was === null || motion !== 'full') { setCam(want); return; }
+    cancelAnimationFrame(followRaf.current);
+    const t0 = performance.now();
+    const tick = () => {
+      const k = easeInOut(Math.min(1, (performance.now() - t0) / 450));
+      setCam({ cx: was.cx + (want.cx - was.cx) * k, cy: was.cy + (want.cy - was.cy) * k, rot: was.rot + (want.rot - was.rot) * k, fore: was.fore + (want.fore - was.fore) * k, s: was.s * Math.pow(want.s / was.s, k) });
+      if (k < 1) followRaf.current = requestAnimationFrame(tick);
+    };
+    followRaf.current = requestAnimationFrame(tick);
+  }, [follow, size.w, size.h]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => cancelAnimationFrame(followRaf.current), []);
 
   useEffect(() => {
     if (size.w === 0 || camRef.current !== null) return;
@@ -1456,6 +1491,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     frames.current.ms.push(performance.now() - t0);
     if (frames.current.ms.length > 600) frames.current.ms.splice(0, frames.current.ms.length - 600);
     canvas.dataset.wmFrame = String(frames.current.count);
+    /* 2026-11-24 — für Prüfungen: wohin die Kamera schaut (geführt: dieselbe Mitte wie bei der Lehrerin). */
+    canvas.dataset.wmCam = `${c.cx.toFixed(1)},${c.cy.toFixed(1)},${c.rot.toFixed(0)}`;
     /* Der fliegende Knopf über dem Ort des jetzigen Schrittes: an seine Stelle (ausserhalb des Bildes: verborgen). */
     const tb = towerBox.current;
     if (tb !== null) {
@@ -1651,7 +1688,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   useEffect(() => {
     const el = canvasRef.current;
     if (el === null) return undefined;
-    const wheel = (e: WheelEvent) => { e.preventDefault(); const r = el.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); };
+    const wheel = (e: WheelEvent) => { e.preventDefault(); if (followingRef.current) return; const r = el.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
   });
@@ -1789,6 +1826,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   useEffect(() => {
     type Hooked = HTMLCanvasElement & {
       wmLocate?: (kind: string, id: string) => [number, number] | null;
+      wmPlaces?: () => string[];
       wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
       wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
       wmDiscs?: () => { id: string; discs: readonly string[] }[];
@@ -1800,6 +1838,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const label = (id: string) => (id === HOME_MARK ? HOME_MARK : scene.byId.get(id)?.label ?? id);
     el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
     el.wmJunctionList = () => scene.junctions.map((j) => ({ id: j.id, kind: j.kind, ways: j.ways.length, before: j.before.slides, open: j.open }));
+    el.wmPlaces = () => scene.places.map((p) => p.id);
     el.wmDiscs = () => scene.places.filter((p) => p.discs.length > 0).map((p) => ({ id: p.id, discs: p.discs }));
     /* Für Prüfungen: die Kamera auf einen Turm, mit diesem Zoom (die Grenzen gelten wie sonst). */
     el.wmLookAt = (place, zoom) => { const p = scene.byId.get(place); const c = camRef.current; if (p === undefined || c === null) return false; setCam({ ...c, cx: p.x, cy: p.y, s: zoom }); return true; };
@@ -1854,7 +1893,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       return null;
     };
     el.wmTurn = (deg) => { const c = camRef.current; if (c !== null) setCam({ ...c, rot: c.rot + deg }); };
-    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; delete el.wmTurn; };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmPlaces; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; delete el.wmTurn; };
   });
 
   /*
@@ -1921,7 +1960,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
           onPointerLeave={() => { onHover?.(null, null); setHoverLane(null); setHoverMark(null); onHoverLane?.(null, null); }} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
         {/* 2026-11-11 (Eigentümer: „die Leiste unter der Karte ist nicht nötig") — nur „ganze Welt" als kleines Zeichen auf der Karte (auch: Doppelklick auf freien Boden). */}
-        {c !== null && (
+        {/* 2026-11-24 — geführt: nichts lässt sich bewegen oder anklicken (ein Schild über dem Bild). */}
+        {following && <div className="cg-wm-followshield" aria-hidden="true" data-world-follow-shield="" />}
+        {c !== null && !following && (
           <button type="button" className="cg-wm-fitbtn" onClick={() => setCam(fitCam(size.w, size.h, c.rot, c.fore))} aria-label={t('cogitaWorld.map.whole')} title={t('cogitaWorld.map.whole')} data-world-fit="">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
           </button>
@@ -1937,7 +1978,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             ))}
           </div>
         )}
-        {c !== null && palette !== null && (
+        {c !== null && palette !== null && !following && (
           <button type="button" className="cg-wm-fitbtn cg-wm-lightbtn" onClick={() => setLightMenu((v) => !v)} aria-haspopup="menu" aria-expanded={lightMenu}
             aria-label={`${t('cogitaWorld.map.lightLabel')}: ${t(`cogitaWorld.map.light.${light === 'light' || light === 'dark' ? light : 'day'}`)}`}
             title={`${t('cogitaWorld.map.lightLabel')}: ${light === 'light' || light === 'dark' ? t(`cogitaWorld.map.light.${light}`) : `${t('cogitaWorld.map.light.day')}${palette.phase === null ? '' : ` — ${t(`cogitaWorld.map.phase.${palette.phase}`)}`}`}`}
@@ -1947,7 +1988,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
                 : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11.5h12M4.5 11.5a3.5 3.5 0 0 1 7 0M8 4v1.5M3.6 6.6l1 1M12.4 6.6l-1 1" /></svg>}
           </button>
         )}
-        {trail.length > 0 && (
+        {trail.length > 0 && !following && (
           <nav className="cg-wm-trail" aria-label={t('cogitaWorld.map.trail')} data-world-trail={trail.length}>
             {trail.map((id, i) => (
               <button key={id} type="button" className="cg-wm-trailbtn" onClick={() => { setTrail(trail.slice(0, i)); glidePlace(id); onPick?.(id); }} data-world-trail-to={id}>
@@ -1957,7 +1998,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             <button type="button" className="cg-wm-trailbtn is-close" onClick={() => setTrail([])} aria-label={t('cogitaWorld.map.trailClose')} title={t('cogitaWorld.map.trailClose')}>×</button>
           </nav>
         )}
-        {towerActions !== null && (
+        {towerActions !== null && !following && (
           <div ref={towerBox} className="cg-wm-towerbtns" hidden data-world-tower-actions={towerActions.place}>
             {towerActions.buttons.map((b) => (
               <button key={b.key} type="button" className={b.arrow === true ? 'cg-wm-tourarrow' : `wk-btn${b.line === true ? ' wk-btn-line' : ''}${b.small === true ? ' is-small cg-wm-towermore' : ''}${b.pulse === true ? ' cg-wm-pulse' : ''}${b.score !== undefined ? ' cg-wm-need is-score' : b.tone === undefined ? '' : ` cg-wm-need is-${b.tone}`}`} title={b.title}
@@ -1966,7 +2007,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             ))}
           </div>
         )}
-        {startAction !== null && (
+        {startAction !== null && !following && (
           <button ref={startBtn} type="button" className="cg-wm-startbtn" hidden onClick={startAction.onClick} data-world-start-btn="">
             <span aria-hidden="true">▶</span> {startAction.label}
           </button>

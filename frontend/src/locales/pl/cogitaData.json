@@ -210,7 +210,10 @@
       "skipNowhere": "etap „{stage}”: „skipIf” wskazuje etap „{ref}”, którego nie ma.",
       "pollAfter": "etap „{stage}”: „after” wskazuje element „{ref}”, którego nie ma.",
       "noClose": "lekcja {lesson} nie ma etapu zamykającego („type”: „close”, exit ticket).",
-      "coreLong": "etapy core lekcji {lesson} trwają do {minutes} min — zaplanuj najwyżej ok. 40."
+      "coreLong": "etapy core lekcji {lesson} trwają do {minutes} min — zaplanuj najwyżej ok. 40.",
+      "workUnknown": "etap „{stage}”: nieznany sposób pracy „{work}” (together, alone, groups) — przyjęto domyślny",
+      "groupsNoQuestions": "etap „{stage}”: praca w grupach bez pytań — grupy uzgadniają tylko pytania, reszta idzie indywidualnie",
+      "groupSize": "etap „{stage}”: wielkość grupy {size} poza 2–6 — przyjęto najbliższą"
     }
   },
   "progress": {

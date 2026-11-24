@@ -18,6 +18,7 @@ import type { LessonPart } from '../lesson/lessonTally';
 import { bodies, type Opened } from '../sessionEvents';
 import { useBusy, useCtx } from '../ui';
 import { itemLabel } from './UnitPlay';
+import { GroupsHost } from './UnitGroups';
 import {
   closeStageOf, finishedBy, itemKey, latestAnswers, nextStage, pollCounts, recapQuestions, remainingCore, resumeTarget, stageReport, studentRows,
   timeState, topTags, unitNow, type HostEvent, type StudentStatus, type UnitItem, type UnitSettings, type UnitStage
@@ -151,7 +152,11 @@ export function UnitHost({ session, config, opened, send }: { session: SessionRo
       )}
 
       {stage !== null && !stage.led && (now.phase === 'lesson' || now.phase === 'closing') && (
-        <StageGrid stage={stage} settings={settings} ids={ids} nameOf={nameOf} progress={progress} help={help} clock={clock} prompts={prompts} opened={opened} send={send} />
+        <>
+          <StageGrid stage={stage} settings={settings} ids={ids} nameOf={nameOf} progress={progress} help={help} clock={clock} prompts={prompts} opened={opened} send={send} />
+          {/* 2026-11-24 — Gruppenarbeit: Gruppen bilden, umsetzen, schliessen, und jeder Gruppe zurückgeben, was sie geantwortet hat. */}
+          {stage.work === 'groups' && <GroupsHost stage={stage} opened={opened} ids={ids} nameOf={nameOf} send={send} sessionId={session.sessionId} />}
+        </>
       )}
 
       {now.phase === 'lobby' && <p className="wk-lede">{t('cogitaUnit.host.lobby', { count: ids.length })}</p>}
