@@ -366,6 +366,59 @@ public static partial class Chat
         });
     }
 
+    /// <summary>
+    /// 2026-11-25 — DIE HUELLE NEU, DIE SCHLUESSEL BLEIBEN: eine Identitaet, deren privater Teil unter dem falschen Schluessel lag
+    /// (bis 2026-11-25 hat die Klassenseite ohne Konto den Schluessel des LINKS statt des Platzes genommen). Der Browser, der sie
+    /// noch aufbekommt, verpackt denselben privaten Teil unter dem Platzschluessel neu. Nur wenn die oeffentlichen Schluessel
+    /// gleich sind — so laesst sich nichts umleiten; wer den Link hat, durfte sie ohnehin anlegen.
+    /// </summary>
+    private static async Task SeatIdentityResealAsync(HttpContext ctx, Db db, string token, IdentityRequest body)
+    {
+        byte[] wrap, sign, sealedPrivate;
+        try
+        {
+            wrap = Base64Url.Decode(body.WrapPublicKey ?? string.Empty);
+            sign = Base64Url.Decode(body.SignPublicKey ?? string.Empty);
+            sealedPrivate = Base64Url.Decode(body.PrivateSealed ?? string.Empty);
+        }
+        catch (FormatException)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz.");
+            return;
+        }
+
+        if (wrap.Length is 0 or > 256 || sign.Length is 0 or > 256 || sealedPrivate.Length is 0 or > MaxIdentity)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        await using var update = new SqlCommand("""
+            UPDATE app.seat_identity SET private_sealed = @private
+            WHERE access_id = @seat AND wrap_public_key = @wrap AND sign_public_key = @sign;
+            """, connection);
+        update.Parameters.AddWithValue("@seat", seat.Value.Id);
+        update.Parameters.AddWithValue("@wrap", wrap);
+        update.Parameters.AddWithValue("@sign", sign);
+        update.Parameters.AddWithValue("@private", sealedPrivate);
+        if (await update.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "To nie jest tożsamość tego miejsca.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(seat.Value.Id), identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted) });
+    }
+
     private static async Task SeatMessagesAsync(
         HttpContext ctx, Db db, string token, Guid id, string? before, string? after, int? limit, string? changed, Guid? beforeId, Guid? afterId, Guid? topic)
     {

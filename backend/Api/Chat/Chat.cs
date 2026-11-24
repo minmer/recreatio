@@ -89,6 +89,7 @@ public static partial class Chat
          */
         app.MapGet("/seat/{token}/chats", SeatChatsAsync);
         app.MapPost("/seat/{token}/identity", SeatIdentityAsync);
+        app.MapPost("/seat/{token}/identity/reseal", SeatIdentityResealAsync);
         app.MapGet("/seat/{token}/chat/{id:guid}/messages", SeatMessagesAsync);
         app.MapPost("/seat/{token}/chat/{id:guid}/messages", SeatPostAsync);
         app.MapPost("/seat/{token}/chat/message/{id:guid}/delete", SeatDeleteAsync);

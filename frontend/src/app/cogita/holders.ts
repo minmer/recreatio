@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadAreas } from '../areas/area';
 import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
-import { isChallenge, loadPortal, openGrants } from '../seats/seat';
+import { isChallenge, loadPortal, openGrants, openPortal } from '../seats/seat';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
 import { recall } from '../seats/seatKeep';
 import type { SeatView } from '../seats/seatContext';
@@ -31,7 +31,8 @@ export function holderOfMe(me: Me, roleId?: string | null): Holder {
 export async function holderOfSeat(seat: SeatView): Promise<Holder | null> {
   if (seat.seatKey === null) return null;
   let found = (await loadSeatChats(seat.token)).identity;
-  const opened = await seatIdentity(seat.token, seat.seatId, seat.seatKey, found);
+  const linkKey = recall(seat.token);
+  const opened = await seatIdentity(seat.token, seat.seatId, seat.seatKey, found, linkKey === null ? [] : [linkKey]);
   if (found === null) found = (await loadSeatChats(seat.token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token: seat.token, seatId: seat.seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey: seat.seatKey };
@@ -39,10 +40,14 @@ export async function holderOfSeat(seat: SeatView): Promise<Holder | null> {
 
 /** 2026-11-24 — ein Platz, den dieser Browser nur als Link hält (die Klassenseite ohne Konto): Kennung und Identität vom Dienst. */
 export async function holderOfKeptSeat(token: string): Promise<Holder | null> {
-  const seatKey = recall(token);
-  if (seatKey === null) return null;
+  /* 2026-11-25 — im Browser liegt der Schlüssel des LINKS; der Platzschlüssel liegt unter ihm im Portal (vorher fälschlich gleichgesetzt). */
+  const linkKey = recall(token);
+  if (linkKey === null) return null;
+  const portal = await loadPortal(token);
+  if (isChallenge(portal)) return null;
+  const seatKey = await openPortal(portal, linkKey);
   const { seatId, identity } = await loadSeatChats(token);
-  const opened = await seatIdentity(token, seatId, seatKey, identity);
+  const opened = await seatIdentity(token, seatId, seatKey, identity, [linkKey]);
   const found = identity ?? (await loadSeatChats(token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token, seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey };

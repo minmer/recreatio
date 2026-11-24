@@ -94,7 +94,9 @@ export const loadSeatChats = (token: string): Promise<{
  * immer, was ER zurückgibt, nicht was hier eben entstand.
  */
 export async function seatIdentity(
-  token: string, seatId: string, seatKey: Uint8Array, found: SeatIdentitySealed | null
+  token: string, seatId: string, seatKey: Uint8Array, found: SeatIdentitySealed | null,
+  /** 2026-11-25 — Schlüssel, unter denen eine alte Identität fälschlich liegen kann (der des Links). */
+  olderKeys: readonly Uint8Array[] = []
 ): Promise<SeatIdentity> {
   let identity = found;
 
@@ -116,9 +118,29 @@ export async function seatIdentity(
     identity = done.identity;
   }
 
-  const plain = JSON.parse(await openText(seatKey, identityAad(seatId), fromBase64Url(identity.privateSealed))) as {
-    wrap: string; sign: string;
-  };
+  type Plain = { wrap: string; sign: string };
+  const sealedPrivate = fromBase64Url(identity.privateSealed);
+  let plain: Plain;
+  try {
+    plain = JSON.parse(await openText(seatKey, identityAad(seatId), sealedPrivate)) as Plain;
+  } catch (wrong) {
+    /*
+      2026-11-25 — EINE IDENTITÄT UNTER DEM FALSCHEN SCHLÜSSEL: bis heute hat die Klassenseite ohne Konto den Schlüssel des LINKS
+      als Platzschlüssel genommen. Geht sie mit einem der Schlüssel auf, die dieser Browser für den Platz hält, wird derselbe
+      private Teil unter dem Platzschlüssel neu verpackt (die öffentlichen Schlüssel bleiben — nichts geht verloren).
+    */
+    let found: Plain | null = null;
+    for (const k of olderKeys) {
+      try { found = JSON.parse(await openText(k, identityAad(seatId), sealedPrivate)) as Plain; break; } catch { /* der nächste */ }
+    }
+    if (found === null) throw wrong;
+    plain = found;
+    const resealed = await sealText(seatKey, identityAad(seatId), JSON.stringify({ wrap: plain.wrap, sign: plain.sign }));
+    await call(`${seatPath(token)}/identity/reseal`, {
+      method: 'POST',
+      body: JSON.stringify({ wrapPublicKey: identity.wrapPublicKey, signPublicKey: identity.signPublicKey, privateSealed: toBase64Url(resealed) })
+    }).catch(() => undefined);
+  }
   return { wrapPrivateKey: fromBase64Url(plain.wrap), signPrivateKey: fromBase64Url(plain.sign) };
 }
 
