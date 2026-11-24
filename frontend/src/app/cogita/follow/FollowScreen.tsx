@@ -82,12 +82,22 @@ interface Found {
 }
 
 /** Eine laufende Folge-Stunde dieser Baza, die ich (Konto) oder mein Platz lesen darf — alle 8 s neu gesucht. */
-function useFollowSession(libraryId: string, me: Me | null | undefined, holder: Holder | null, seatName: string): Found | null {
+/**
+ * 2026-11-25 (Eigentümer: „mit dem eigenen Link während der Stunde — nicht gezählt") — WORAN ES HÄNGT, sichtbar auf der Seite des
+ * Schülers: eine Folge-Stunde läuft, aber der Schlüssel fehlt noch; die Suche selbst schlägt fehl. Sonst (keine Stunde) nichts.
+ */
+type Snag = { readonly code: 'nokey' | 'search'; readonly why: string } | null;
+
+function useFollowSession(libraryId: string, me: Me | null | undefined, holder: Holder | null, seatName: string, onSnag: (s: Snag) => void): Found | null {
   const [found, setFound] = useState<Found | null>(null);
+  const snagRef = useRef(onSnag);
+  snagRef.current = onSnag;
   const holderSig = holder?.kind === 'seat' ? holder.token : '';
   useEffect(() => {
     let alive = true;
+    let waiting = false;
     const look = async (): Promise<Found | null> => {
+      waiting = false;
       if (holder?.kind === 'seat') {
         const { sessions } = await seatSessions(holder.token);
         for (const one of sessions) {
@@ -96,7 +106,7 @@ function useFollowSession(libraryId: string, me: Me | null | undefined, holder: 
           if (!(await followMetaOf(s.sessionId, { seat: holder.token })).follow) continue;
           const keys = new Map<number, Uint8Array>();
           for (const k of one.keys) { const key = await unwrapForSeat(s.sessionId, holder.seatId, k.epoch, holder.wrapPrivate, k.keySealed); if (key !== null) keys.set(k.epoch, key); }
-          if (!keys.has(s.epoch)) continue;
+          if (!keys.has(s.epoch)) { waiting = true; continue; }
           return { row: s, cred: { seat: holder.token }, keys, participant: holder.seatId, name: seatName };
         }
         return null;
@@ -108,12 +118,21 @@ function useFollowSession(libraryId: string, me: Me | null | undefined, holder: 
         const area = await myEpochKeys(me.ring, s.areaId).catch(() => new Map<number, Uint8Array>());
         const keys = new Map<number, Uint8Array>();
         for (const [e, k] of area) keys.set(e, await sessionKeyOf(k, s.sessionId, e));
-        if (!keys.has(s.epoch)) continue;
+        if (!keys.has(s.epoch)) { waiting = true; continue; }
         return { row: s, cred: {}, keys, participant: me.person.id, name: me.names.get(me.person.id) ?? '' };
       }
       return null;
     };
-    const tick = () => { void look().then((f) => { if (alive) setFound((was) => (was !== null && f !== null && was.row.sessionId === f.row.sessionId ? was : f)); }, () => undefined); };
+    const tick = () => {
+      void look().then((f) => {
+        if (!alive) return;
+        snagRef.current(f === null && waiting ? { code: 'nokey', why: '' } : null);
+        setFound((was) => (was !== null && f !== null && was.row.sessionId === f.row.sessionId ? was : f));
+      }, (e: unknown) => {
+        console.warn('follow: search failed', e);
+        if (alive) snagRef.current({ code: 'search', why: e instanceof Error ? e.message : String(e) });
+      });
+    };
     tick();
     const id = window.setInterval(tick, 8000);
     return () => { alive = false; window.clearInterval(id); };
@@ -182,14 +201,31 @@ export function FollowGate({ libraryId, who, aim }: { libraryId: string; who: Wh
   const person = usePerson();
   const seat = person?.chosen?.kind === 'seat' ? person.chosen.seat : null;
   const kept = seat === null && who === null && aim !== undefined ? seatsExactly(aim)[0] ?? null : null;
+  const t = useT();
   const [holder, setHolder] = useState<Holder | null>(null);
+  const [holderProblem, setHolderProblem] = useState<string | null>(null);
+  const [snag, setSnag] = useState<Snag>(null);
   useEffect(() => {
     let alive = true;
+    setHolderProblem(null);
     const making = seat !== null ? holderOfSeat(seat) : kept !== null ? holderOfKeptSeat(kept) : null;
     if (making === null) { setHolder(null); return undefined; }
-    void making.then((h) => { if (alive) setHolder(h); }, () => undefined);
+    void making.then((h) => {
+      if (!alive) return;
+      setHolder(h);
+      if (h === null) setHolderProblem(t('cogitaFollow.screen.noSeatKey'));
+    }, (e: unknown) => {
+      console.warn('follow: the seat could not be opened', e);
+      if (alive) setHolderProblem(e instanceof Error ? e.message : String(e));
+    });
     return () => { alive = false; };
   }, [seat?.token, kept]); // eslint-disable-line react-hooks/exhaustive-deps
-  const found = useFollowSession(libraryId, seat === null && kept === null ? me : null, holder, person?.chosen?.name ?? '');
-  return found === null ? null : <FollowLive key={found.row.sessionId} found={found} />;
+  const found = useFollowSession(libraryId, seat === null && kept === null ? me : null, holder, person?.chosen?.name ?? '', setSnag);
+  if (found !== null) return <FollowLive key={found.row.sessionId} found={found} />;
+  /* Woran es hängt — nur, wenn etwas hängt. */
+  const said = holderProblem !== null ? { code: 'holder', text: t('cogitaFollow.screen.problemHolder', { why: holderProblem }) }
+    : snag?.code === 'nokey' ? { code: 'nokey', text: t('cogitaFollow.screen.problemKey') }
+    : snag?.code === 'search' ? { code: 'search', text: t('cogitaFollow.screen.problemSearch', { why: snag.why }) }
+    : null;
+  return said === null ? null : <p className="wk-note cg-follow-problem" role="status" data-follow-problem={said.code}>{said.text}</p>;
 }

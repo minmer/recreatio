@@ -23,7 +23,11 @@
   },
   "screen": {
     "banner": "The teacher is leading",
-    "wait": "The teacher will show something in a moment."
+    "wait": "The teacher will show something in a moment.",
+    "noSeatKey": "the key from the link is missing in this browser",
+    "problemHolder": "Your link could not be opened for the lesson: {why}",
+    "problemKey": "The teacher is leading, but your key for the lesson has not arrived yet — it comes within 15 seconds while the teacher’s page is open.",
+    "problemSearch": "Checking for a running lesson failed: {why}"
   },
   "console": {
     "start": "Lead the class live",

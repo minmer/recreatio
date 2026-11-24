@@ -23,7 +23,11 @@
   },
   "screen": {
     "banner": "Prowadzi nauczyciel",
-    "wait": "Za chwilę nauczyciel coś pokaże."
+    "wait": "Za chwilę nauczyciel coś pokaże.",
+    "noSeatKey": "w tej przeglądarce brakuje klucza z linku",
+    "problemHolder": "Nie udało się otworzyć twojego linku do lekcji: {why}",
+    "problemKey": "Nauczyciel prowadzi lekcję, ale twój klucz do niej jeszcze nie dotarł — przychodzi w ciągu 15 sekund, gdy strona nauczyciela jest otwarta.",
+    "problemSearch": "Nie udało się sprawdzić, czy trwa lekcja: {why}"
   },
   "console": {
     "start": "Prowadź klasę na żywo",

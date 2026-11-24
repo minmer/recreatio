@@ -23,7 +23,11 @@
   },
   "screen": {
     "banner": "Die Lehrkraft führt",
-    "wait": "Die Lehrkraft zeigt gleich etwas."
+    "wait": "Die Lehrkraft zeigt gleich etwas.",
+    "noSeatKey": "in diesem Browser fehlt der Schlüssel aus dem Link",
+    "problemHolder": "Dein Link konnte für die Stunde nicht geöffnet werden: {why}",
+    "problemKey": "Die Lehrkraft führt, aber dein Schlüssel für die Stunde ist noch nicht da — er kommt innerhalb von 15 Sekunden, solange die Seite der Lehrkraft offen ist.",
+    "problemSearch": "Die Suche nach einer laufenden Stunde ist fehlgeschlagen: {why}"
   },
   "console": {
     "start": "Die Klasse live führen",
