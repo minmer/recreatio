@@ -1832,6 +1832,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     type Hooked = HTMLCanvasElement & {
       wmLocate?: (kind: string, id: string) => [number, number] | null;
       wmPlaces?: () => string[];
+      wmCamNow?: () => WorldCam | null;
       wmLanes?: () => { section: string; line: string; state: string; symbol: string | null; from: string; to: string }[];
       wmJunctionList?: () => { id: string; kind: string; ways: number; before: number; open: boolean }[];
       wmDiscs?: () => { id: string; discs: readonly string[] }[];
@@ -1844,6 +1845,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, symbol: l.symbol, from: label(l.fromId), to: label(l.toId) }));
     el.wmJunctionList = () => scene.junctions.map((j) => ({ id: j.id, kind: j.kind, ways: j.ways.length, before: j.before.slides, open: j.open }));
     el.wmPlaces = () => scene.places.map((p) => p.id);
+    el.wmCamNow = () => camRef.current;
     el.wmDiscs = () => scene.places.filter((p) => p.discs.length > 0).map((p) => ({ id: p.id, discs: p.discs }));
     /* Für Prüfungen: die Kamera auf einen Turm, mit diesem Zoom (die Grenzen gelten wie sonst). */
     el.wmLookAt = (place, zoom) => { const p = scene.byId.get(place); const c = camRef.current; if (p === undefined || c === null) return false; setCam({ ...c, cx: p.x, cy: p.y, s: zoom }); return true; };
@@ -1898,7 +1900,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       return null;
     };
     el.wmTurn = (deg) => { const c = camRef.current; if (c !== null) setCam({ ...c, rot: c.rot + deg }); };
-    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmPlaces; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; delete el.wmTurn; };
+    return () => { delete el.wmLocate; delete el.wmLanes; delete el.wmPlaces; delete el.wmCamNow; delete el.wmJunctionList; delete el.wmDiscs; delete el.wmLookAt; delete el.wmTurn; };
   });
 
   /*

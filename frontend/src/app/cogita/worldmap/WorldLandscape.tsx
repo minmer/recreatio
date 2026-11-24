@@ -1330,6 +1330,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
       <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
+        {/* 2026-11-24 (Tryb prowadzony) — auch während einer Erzählung: wie viele geantwortet haben, „Pokaż wyniki". */}
+        {leading && <FollowBar me={leadMe} onMap />}
         <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose {...(leading ? { lesson: FOLLOW_LINK } : {})} />
       </div>
     ) : running.kind === 'run' && learner !== null ? (

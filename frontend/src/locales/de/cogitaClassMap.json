@@ -16,7 +16,7 @@
   "all": "Alles",
   "none": "Nichts",
   "saveFailed": "Speichern fehlgeschlagen.",
-  "onMap": "Auf der Karte wählen",
-  "onMapSays": "Die Weltkarte öffnet sich im Wahlmodus: du klickst Türme, Wege und Gabelungen.",
-  "editorHides": "Auf der Karte ausserdem ausgeblendet: Türme {places}, Teile von Geschichten {parts}, Wegweiser {signs}."
+  "tabSays": "Klicke auf der Karte Türme, Wegabschnitte, Gabelungen und Wegweiser an, um sie der Klasse {name} zu zeigen oder zu verbergen. Graues sieht nur die Lehrkraft. Zum Schluss „Für die Klasse speichern“.",
+  "tabRead": "So sieht die Klasse {name} die Welt.",
+  "again": "Auswahl ändern"
 }

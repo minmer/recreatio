@@ -16,7 +16,7 @@
   "all": "Everything",
   "none": "Nothing",
   "saveFailed": "Saving failed.",
-  "onMap": "Choose on the map",
-  "onMapSays": "The world map opens in selection mode: you click towers, paths and forks.",
-  "editorHides": "Also hidden on the map: towers {places}, parts of stories {parts}, signposts {signs}."
+  "tabSays": "Click towers, path sections, forks and signposts on the map to show or hide them for {name}. Grey ones only the teacher sees. Finish with “Save for the class”.",
+  "tabRead": "This is how {name} sees the world.",
+  "again": "Change the selection"
 }

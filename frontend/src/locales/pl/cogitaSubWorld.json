@@ -1,23 +1,5 @@
 {
   "loading": "Wczytuję świat…",
-  "lead": "Co widzi klasa na mapie: cały świat albo tylko jego część. Uczniowie widzą wtedy tylko te wieże — drogi, cele, powtórki i liczby zostają w tej części.",
-  "what": "Co widzi klasa",
-  "whole": "Cały świat",
-  "part": "Tylko część świata",
-  "count": "{count} z {total} wież",
-  "towersN": "wież: {count}",
-  "withBase": "Dołącz to, co trzeba umieć wcześniej",
-  "withBaseSays": "Do wybranych wież dochodzi wszystko, czego wymagają — bez tego część dróg może się nie otworzyć.",
-  "tags": "Tematy (tagi)",
-  "towers": "Wieże",
-  "search": "Szukaj wieży",
-  "noTag": "Bez tematu",
-  "included": "dołączona jako podstawa",
-  "save": "Zapisz dla klasy",
-  "pickSomething": "Wybierz co najmniej jeden temat albo wieżę — albo „Cały świat\".",
-  "saved": "Zapisano: klasa widzi {count} z {total} wież.",
-  "savedWhole": "Zapisano: klasa widzi cały świat.",
   "viewName": "{name} — świat",
-  "readOnly": "Tylko autor bazy może to zmienić.",
-  "byTopic": "przez temat"
+  "noWorld": "Ta baza nie ma jeszcze mapy świata (widoku w stylu „świat”)."
 }

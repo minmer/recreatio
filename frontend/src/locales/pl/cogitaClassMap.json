@@ -16,7 +16,7 @@
   "all": "Wszystko",
   "none": "Nic",
   "saveFailed": "Nie udało się zapisać.",
-  "onMap": "Wybierz na mapie",
-  "onMapSays": "Mapa świata otworzy się w trybie wyboru: klikasz wieże, drogi i rozwidlenia.",
-  "editorHides": "Na mapie ukryto też: wieże {places}, części opowieści {parts}, drogowskazy {signs}."
+  "tabSays": "Kliknij na mapie wieże, odcinki dróg, rozwidlenia i drogowskazy, żeby je pokazać albo ukryć klasie {name}. Szare widzi tylko nauczyciel. Na koniec „Zapisz dla klasy”.",
+  "tabRead": "Tak klasa {name} widzi świat.",
+  "again": "Zmień wybór"
 }
