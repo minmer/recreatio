@@ -295,6 +295,7 @@ final class SmsStore {
             return 0;
         }
         int moved = 0;
+        Set<Long> touched = new HashSet<>();
         for (long thread : groups) {
             List<Long> incoming = new ArrayList<>();
             try (Cursor c = cr.query(MMS, new String[] { "_id" }, "thread_id = ? AND msg_box = 1", new String[] { String.valueOf(thread) }, null)) {
@@ -314,15 +315,101 @@ final class SmsStore {
                     continue;
                 }
                 if (target == thread || target <= 0) continue;
-                if (moveMms(context, id, target)) here++;
+                if (moveMms(context, id, target)) { here++; touched.add(target); }
                 else unmovable.add(id);
             }
             moved += here;
-            if (here > 0 && countIn(cr, thread) == 0) {
-                try { deleteThread(context, thread); } catch (RuntimeException ignored) { /* bleibt leer stehen */ }
+            /*
+             * 2026-11-24 — Auch ein Gespräch, das schon früher leer wurde (eine erste Fassung
+             * verschob, ohne dass die Liste es merkte): fort. Sonst nachzählen lassen.
+             */
+            if (countIn(cr, thread) == 0) {
+                try { deleteThread(context, thread); } catch (RuntimeException ignored) { /* siehe obsolete */ }
+                /* Nur einmal melden — bleibt es stehen, lädt die Liste nicht immer wieder neu. */
+                if (emptied.add(thread)) moved++;
+            } else if (here > 0) {
+                refresh(cr, thread);
             }
         }
+        for (long t : touched) refresh(cr, t);
+        if (moved > 0) {
+            try { cr.delete(Uri.parse("content://mms-sms/conversations/obsolete"), null, null); } catch (RuntimeException ignored) { /* nicht unterstützt */ }
+        }
+        moved += repairCounts(context);
         return moved;
+    }
+
+    /**
+     * Die Liste der Gespräche (Zahl, Datum, Vorschau) neu rechnen lassen. Der Speicher des
+     * Telefons rechnet sie in Triggern — beim Einfügen, Löschen und beim Ändern von {@code date},
+     * nicht beim Umschreiben von {@code thread_id}. Darum: das Datum der neuesten Nachricht noch
+     * einmal auf denselben Wert setzen.
+     */
+    private static void refresh(ContentResolver cr, long thread) {
+        String[] args = { String.valueOf(thread) };
+        long mmsId = -1, mmsDate = 0, smsId = -1, smsDate = 0;
+        try (Cursor c = cr.query(MMS, new String[] { "_id", "date" }, "thread_id = ?", args, "date DESC")) {
+            if (c != null && c.moveToFirst()) { mmsId = c.getLong(0); mmsDate = c.getLong(1); }
+        } catch (RuntimeException ignored) {
+            // keine MMS
+        }
+        try (Cursor c = cr.query(SMS, new String[] { "_id", "date" }, "thread_id = ?", args, "date DESC")) {
+            if (c != null && c.moveToFirst()) { smsId = c.getLong(0); smsDate = c.getLong(1); }
+        } catch (RuntimeException ignored) {
+            // keine SMS
+        }
+        try {
+            if (mmsId >= 0) {
+                ContentValues v = new ContentValues();
+                v.put("date", mmsDate);
+                cr.update(Uri.withAppendedPath(MMS, String.valueOf(mmsId)), v, null, null);
+            }
+            /* Die neueste zuletzt: sie bestimmt Datum und Vorschau. */
+            if (smsId >= 0) {
+                ContentValues v = new ContentValues();
+                v.put("date", smsDate);
+                cr.update(Uri.withAppendedPath(SMS, String.valueOf(smsId)), v, null, null);
+            }
+            if (mmsId >= 0 && smsId >= 0 && mmsDate * 1000L > smsDate) {
+                ContentValues v = new ContentValues();
+                v.put("date", mmsDate);
+                cr.update(Uri.withAppendedPath(MMS, String.valueOf(mmsId)), v, null, null);
+            }
+        } catch (RuntimeException ignored) {
+            // dann bleibt die Liste, wie sie war
+        }
+    }
+
+    /**
+     * Einmal: jedes Gespräch, dessen Zahl in der Liste nicht zu seinen Nachrichten passt
+     * (eine erste Fassung des Verschiebens rechnete nicht nach), neu rechnen lassen;
+     * leere fort. Gibt zurück, wie viele sich änderten.
+     */
+    private static int repairCounts(Context context) {
+        android.content.SharedPreferences prefs = context.getSharedPreferences("recreatio.mms.own", Context.MODE_PRIVATE);
+        if (prefs.getBoolean("countsRepaired", false)) return 0;
+        ContentResolver cr = context.getContentResolver();
+        int changed = 0;
+        try (Cursor c = cr.query(CONVERSATIONS, new String[] { "_id", "message_count" }, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                long thread = c.getLong(0);
+                int real = countIn(cr, thread);
+                if (real == c.getInt(1)) continue;
+                if (real == 0) {
+                    try { deleteThread(context, thread); } catch (RuntimeException ignored) { /* obsolete */ }
+                } else {
+                    refresh(cr, thread);
+                }
+                changed++;
+            }
+        } catch (RuntimeException e) {
+            return changed;
+        }
+        if (changed > 0) {
+            try { cr.delete(Uri.parse("content://mms-sms/conversations/obsolete"), null, null); } catch (RuntimeException ignored) { /* nicht unterstützt */ }
+        }
+        prefs.edit().putBoolean("countsRepaired", true).apply();
+        return changed;
     }
 
     private static String fromOf(ContentResolver cr, long id) {
@@ -439,6 +526,8 @@ final class SmsStore {
 
     /** Was sich nicht verschieben liess — in diesem Lauf der App nicht noch einmal versuchen. */
     private static final Set<Long> unmovable = Collections.synchronizedSet(new HashSet<>());
+    /** Leere Gruppen-Gespräche, die schon fortgeschickt wurden. */
+    private static final Set<Long> emptied = Collections.synchronizedSet(new HashSet<>());
 
     private static void copyColumn(Cursor c, String name, ContentValues v) {
         int i = c.getColumnIndex(name);
