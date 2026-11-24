@@ -22,12 +22,10 @@ import { KNOWN } from '../knowness';
 import { baseLang, words } from '../lang';
 import { holderKey, positionFor, renamer, type Learner } from '../learn';
 import type { Facts } from '../logic';
-import { landscapeClient } from '../landscapeClient';
 import { keepShown, pointsSince, readShown, shortId, shownKey, type ShownState } from '../landscapeShown';
 import { landscapeWords } from '../landscapeWords';
 import { keepMapMeasures } from '../mapMeasures';
 import { motionWords } from '../motionWords';
-import type { RegionTree } from '../regions';
 import { readPlan } from '../revision';
 import { RevisionRun, type RunSource } from '../RevisionRun';
 import { awardsOf, cleanDays, freshAwards, rewardsFor, type RewardRules } from '../rewards';
@@ -37,7 +35,6 @@ import { selfCheckWords } from '../selfCheckWords';
 import { stackFor } from '../spacing';
 import { learnerGauge } from '../storyLock';
 import { useCtx } from '../ui';
-import { useMapClassTools, type MapTarget } from '../lesson/MapClassTools';
 import type { ViewDoc } from '../views';
 import { useWorlds, WorldsSection } from '../WorldLinks';
 import { FlagIcon } from '../WorldMap';
@@ -46,48 +43,42 @@ import { crossRefsIn, resolveCross } from '../worlds';
 import { OwnWorldSettings, PillarSlider, FullConquerSheet } from './WorldLevels';
 import { FinishShow } from './WorldFinish';
 import { PathList, PathPanel } from './WorldPaths';
-import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathProblems, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
+import { isPathTarget, PATH_DONE, PATH_TARGET, pathOfTarget, pathPlan, pathCards, pathStatus, readPath, signsOf, stepsDone, flowSections, type PathCtx, type QPath } from './wmPaths';
 import { flightsOf, PLAY_AFTER_MS, WorldFlight, type Flight } from './WorldFlight';
 import { inviteWanted, WorldInvite } from './WorldInvite';
-import { keepTourSeen, TourCard, tourInput, tourSeen, tourSteps, tourWanted, type TourAction } from './WorldTour';
 import { useRunFit } from './wmRunFit';
-import { AuthorList, HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx, homeRepeatBelow, homeRepeatPool, keepRepeatAt, keptRepeatAt, REPEAT_AT } from './WorldPanels';
-import { WorldPillars, type TowerButton, type PillarsHandle, type PlayEvent } from './WorldPillars';
+import { HomePanel, JunctionPanel, NavPanel, PanelTop, PlacePanel, requiredTowers, SectionPanel, stepText, type PanelActions, type PanelCtx, homeRepeatPool, keptRepeatAt } from './WorldPanels';
+import { WorldPillars, type PillarsHandle, type PlayEvent } from './WorldPillars';
 import { WorldRun } from './WorldRun';
 import { NextView, PartIcon, StepSheet } from './WorldWay';
-import { authorIssues } from './wmAuthors';
-import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
-import { lineColours, oklch, type Rgb } from './wmColors';
-import { geometryInputOf, type Geometry } from './wmGeometry';
-import { geometryFor } from './wmGeometryClient';
-import { readWorld } from './wmGraph';
-import { worldInputOf } from './wmInput';
-import { linesOf, outerStep } from './wmLines';
+import { oklch } from './wmColors';
+import { outerStep } from './wmLines';
 import { finishStats, RIGHT, type FinishSnap } from './wmFinish';
 import { followPlan, keepNav, keepQuiet, keepRefreshed, keptNav, keptQuiet, keptRefreshed, navMarks, refreshedNow, REVIEW_QUIET, stepKey, withoutSkipped, type NavSession, type Timetable } from './wmNav';
-import { freshRoads, nodeFocus, routeFocus, sectionFocus } from './wmFocus';
+import { nodeFocus, routeFocus, sectionFocus } from './wmFocus';
 import { PLACED_PREFIX } from './wmPlacement';
 import { plan as planRoute, type Plan, type PlanStep } from './wmPlan';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
-import { reviewable, type WorldState, stateOf, type LearnerInput } from './wmState';
+import { reviewable, stateOf, type LearnerInput } from './wmState';
 import { useServerRuns } from './useServerRuns';
-import { layoutPass } from './wmStore';
 import { HOME } from './wmTypes';
 import { diffPlaces, dueOf, keepMode, keptMode, litPlaces, packPlace, readyNow, shownOfPlace, WORLD_MODES, type WorldMode, type WorldPlayback } from './wmViews';
 import { keepSlice, keptSlice, SLICE_FROM, validSlice, worldTags } from './wmTags';
 import { reachableTags, startTag, tagCount } from '../tags';
 import { TagSlicePicker } from './WorldTags';
 import { MapMenu } from './MapMenu';
-import { classWorldInput } from '../classes/subWorld';
 import { useClassSelect } from './ClassSelect';
-import { useFollowView } from '../follow/followView';
-import { FollowBar } from '../follow/FollowBar';
-import { reportMap, reportMapShown, reportStep, resumeFollow, startFollow, stopFollow, useFollowLive } from '../follow/followHost';
-import type { SharedCam } from '../follow/followModel';
-import { myClasses } from '../classes/classes';
-import type { LessonLink } from '../lesson/lessonStep';
+import { useFullScreen, useFullWorld, useMapLook, useShownWorld } from './mapCore';
+import { composeModes } from './mapMode';
+import { useAuthorMode } from './modes/authorMode';
+import { classSelectMode } from './modes/classSelectMode';
+import { useFollowHostMode } from './modes/followHostMode';
+import { useFollowing, useFollowViewMode } from './modes/followViewMode';
+import { learnerButtons, learnerMode } from './modes/learnerMode';
+import { useTeacherMode } from './modes/teacherMode';
+import { tourMode, useTour } from './modes/tourMode';
 import './worldmap.css';
 
 /* Wie im Krajobraz: was der Zähler der Punkte über der Karte nicht zeigt (gross / klein). */
@@ -95,14 +86,6 @@ const POINTS_HIDDEN: ReadonlySet<string> = new Set(['streak', 'goal', 'feed']);
 const POINTS_HIDDEN_SMALL: ReadonlySet<string> = new Set(['streak', 'goal', 'feed', 'level', 'badges']);
 /* „Pokaż zmiany" bleibt so lange nach der Rückkehr. */
 const REPLAY_MS = 20_000;
-
-/** Die Farben der Themen: wie im Krajobraz die acht des Bereichs, reihum (hell und dunkel). */
-const TOPIC = {
-  light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
-  dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
-} as const;
-const NONE = { light: '#8d8a82', dark: '#6f6b62' } as const;
-const hex = (h: string): Rgb => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 
 /** Was an Stelle der Karte läuft: eine Erzählung, Karten (lernen, wiederholen) oder ein Durchgang. */
 type Running =
@@ -113,8 +96,6 @@ type Running =
 /* 2026-11-12 (Prompt 25) — dazu ein Wegweiser (mehrere Fragen an einer Stelle) und ein Weg zu einer Frage. */
 type Chosen = { readonly kind: 'place' | 'section' | 'home' | 'junction' | 'sign' | 'qpath'; readonly id: string };
 
-/** 2026-11-24 (Tryb prowadzony) — der Spieler der Lehrerin meldet jeden Schritt an die Klasse (die Antwort nimmt er von ihr selbst). */
-const FOLLOW_LINK: LessonLink = { onStep: reportStep, decide: null };
 
 export interface WorldLandscapeProps {
   readonly view: ViewDoc;
@@ -144,22 +125,14 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
     Karte meldet ihren Stand, ein gespielter Weg seine Schritte.
   */
-  const followView = useFollowView();
-  const following = followView !== null;
-  const { live: followLive } = useFollowLive();
-  const leading = !following && followLive !== null && followLive.libraryId.toLowerCase() === lib.libraryId.toLowerCase();
+  const following = useFollowing();
   const lang = baseLang(lib);
   const t = tFor(lang);
   const dark = useDark();
 
-  /* -- Das Modell (einmal je Stand der Baza) ------------------------------------------------------------------------- */
-  const placeKinds = useMemo(() => placeKindsOf(view), [view]);
-  const fullInput = useMemo(() => worldInputOf(lib, cards, { placeKinds }), [lib, lib.revision, cards, placeKinds]); // eslint-disable-line react-hooks/exhaustive-deps
-  const fullWorld = useMemo(() => readWorld(fullInput), [fullInput]);
-  /*
-    2026-11-24 — DIE TEILWELT (`landscape.only`, etwa die einer Klasse): die Welt aus einem beschnittenen Eingang noch einmal —
-    Türme ausserhalb fehlen im Modell, darum führt kein Weg, Ziel, keine Wiederholung und keine Zahl hinaus (`classes/subWorld.ts`).
-  */
+  /* -- Das Modell (einmal je Stand der Baza; der Kern der Karte, `mapCore.ts`) ------------------------------------------ */
+  const fullModel = useFullWorld(lib, view, cards);
+  const { input: fullInput, world: fullWorld } = fullModel;
   /*
     2026-11-24 (Eigentümer) — DIE LEHRERIN WÄHLT AUF DER KARTE, WAS DIE KLASSE SIEHT (`ClassSelect.tsx`): solange sie wählt, zeigt die
     Karte die ganze Welt (das Ausgeblendete grau). Sonst gilt die Teilwelt des Widoku — mit Türmen, Erzählungen, Abschnitten.
@@ -167,9 +140,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const sel = useClassSelect({ lib, me, writes, input: fullInput, world: fullWorld, viewKey, t });
   const onlyNow = sel.active ? null : view.landscape?.only ?? null;
   const onlyKey = JSON.stringify(onlyNow);
-  const input = useMemo(() => classWorldInput(fullInput, fullWorld, worldTags(fullWorld), onlyNow) ?? fullInput, [fullInput, fullWorld, onlyKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const world = useMemo(() => (input === fullInput ? fullWorld : readWorld(input)), [fullInput, fullWorld, input]);
-  const lines = useMemo(() => linesOf(world, input.flows), [world, input]);
+  /* Die Teilwelt (`landscape.only`, etwa die einer Klasse): Türme ausserhalb fehlen im Modell (`useShownWorld`). */
+  const { input, world, lines } = useShownWorld(fullModel, onlyNow);
   const flowById = useMemo(() => new Map(input.flows.map((f) => [f.id, f] as const)), [input]);
 
   /* -- Der Lernende ---------------------------------------------------------------------------------------------------- */
@@ -281,86 +253,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goal, state]);
 
-  /* -- Farben ------------------------------------------------------------------------------------------------------------ */
-  /* Ohne Knoten des Widoku: die Gebiete aus den Voraussetzungen (im Worker des Krajobraz, einmal je Welt). */
-  const [regions, setRegions] = useState<RegionTree | null>(null);
-  const [regionsDone, setRegionsDone] = useState(view.landscape?.nest !== undefined);
-  useEffect(() => {
-    if (view.landscape?.nest !== undefined) { setRegionsDone(true); return undefined; }
-    setRegionsDone(false);
-    let alive = true;
-    const client = landscapeClient();
-    const graph = regionGraphOf(world);
-    void client.regions({ key: `wm:${graph.ids.length}:${graph.ids[0] ?? ''}`, graph, lang }).then((tree) => { if (alive) { setRegions(tree); setRegionsDone(true); } }, () => { if (alive) setRegionsDone(true); });
-    return () => { alive = false; client.dispose(); };
-  }, [world, view, lang]);
-  const keys = useMemo(() => colourKeys(lib, world, view, regions), [lib, world, view, regions]);
-  const placeColour = useMemo(() => {
-    const order: string[] = [];
-    for (const id of world.order) { const k = keys.get(id) ?? id; if (!order.includes(k)) order.push(k); }
-    const pal = dark ? TOPIC.dark : TOPIC.light;
-    const index = new Map(order.map((k, i) => [k, i] as const));
-    /* Wie im Krajobraz (spec §4.2 „wie heute"): die acht Farben reihum über die obersten Gebiete; grau nur ohne Gebiet. */
-    return (id: string): Rgb => { const i = index.get(keys.get(id) ?? id); return hex(i === undefined ? (dark ? NONE.dark : NONE.light) : pal[i % pal.length]); };
-  }, [world, keys, dark]);
-  const colours = useMemo(() => lineColours(lines, dark ? 'dark' : 'light'), [lines, dark]);
-
-  /* -- Die Gestalt: im Worker, gemerkt; Schreibende legen die Lage ab ------------------------------------------------- */
-  const [geometry, setGeometry] = useState<Geometry | null>(null);
-  const [geometryRuns, setGeometryRuns] = useState(0);
-  const [relay, setRelay] = useState(0);
-  useEffect(() => {
-    /* Erst, wenn die Farben feststehen (Orte ohne Verbindung stehen am Rand bei ihresgleichen). */
-    if (!regionsDone) return undefined;
-    let alive = true;
-    /* Step 3 · 8 — die Neulage gilt für diese eine Rechnung: gelegt und gespeichert, gilt wieder die gespeicherte Lage. */
-    const asked = relay;
-    void layoutPass(lib, { full: asked > 0, save: writes }, (previous, full) =>
-      geometryFor(geometryInputOf(world, lines, { ...(previous === undefined ? {} : { previous }), ...(full ? { mode: 'full' as const } : {}), color: (id) => keys.get(id) }))
-    ).then(({ geometry: g, saved }) => {
-      if (alive) { setGeometry(g); setGeometryRuns((n) => n + 1); }
-      void saved.then((done) => { if (done) setRelay((r) => (r === asked ? 0 : r)); });
-    });
-    return () => { alive = false; };
-  }, [world, lines, keys, relay, regionsDone]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /*
-    2026-11-14 (Eigentümer) — DER RUNDGANG (`WorldTour.tsx`): auf dieser Karte, mit erfundenem Fortschritt. Er zeichnet ein eigenes Bild
-    (`tourScene`) aus einem erfundenen Stand — alles andere (Weg, Ziel, Punkte, das Gemerkte) rechnet weiter mit dem echten Stand.
-  */
-  const [tour, setTour] = useState<number | null>(null);
-  /* Der erste Wegweiser (aus dem letzten Bild — die Wegweiser werden weiter unten gerechnet). */
+  /* -- Farben und Gestalt (der Kern der Karte, `mapCore.ts`) -------------------------------------------------------------- */
+  const look = useMapLook(lib, view, world, lines, lang, dark, writes);
+  const { keys, placeColour, colours, geometry, geometryRuns } = look;
+  /* Der erste Wegweiser für den Rundgang (aus dem letzten Bild — die Wegweiser werden weiter unten gerechnet). */
   const signKeyRef = useRef<string | null>(null);
-  const tourList = useMemo(() => (tour === null ? [] : tourSteps(state, lines, world, eff.levels, signKeyRef.current)), [tour === null, world, lines]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tourStep = tour === null ? undefined : tourList[tour];
-  const tourState = useMemo(() => (tourStep === undefined ? null : stateOf(world, lines, tourInput(world, lines, tourStep.sim, clock), { levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt })),
-    [tourStep, world, lines, clock, eff.levels, eff.knownShare, eff.openAt]);
-  const tourScene = useMemo(() => (tourState === null || geometry === null ? null : sceneOf(world, lines, tourState, geometry, { placeColour, lineColour: colours, fallback: oklch(0.5, 0.05, 250) })),
-    [tourState, geometry, world, lines, placeColour, colours]);
-  const tourOn = tourStep !== undefined;
-  /* 2026-11-14 — der Rundgang wartet auf den Klick auf das Gezeigte (je Schritt neu). */
-  const [tourDone, setTourDone] = useState(false);
-  /* 2026-11-21 — „Odkryj" im Rundgang: erst den Turm anklicken (seine Knöpfe erscheinen), dann „Odkryj". */
-  const [tourPicked, setTourPicked] = useState(false);
-  useEffect(() => { setTourDone(false); setTourPicked(false); }, [tour]);
-  /* Die Leiste zum Ausprobieren: übersprungene (nur im Rundgang). */
-  const [demoSkipped, setDemoSkipped] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => { setDemoSkipped(new Set()); }, [tour]);
-  /* Der Weg zum gewählten Turm (Rundgang): erst nach „Odkryj" (oder in einem Schritt ohne diese Aufgabe) gezeichnet, mit seiner Leiste. */
-  const tourWay = tourStep?.explore !== undefined && (tourStep.action?.kind !== 'explore' || tourDone);
-  const demoPlan = useMemo(() => (tourStep?.demo === undefined || (tourStep.explore !== undefined && !tourWay) ? null : planRoute(tourState ?? state, tourStep.demo)), [tourStep, tourWay, tourState, state]);
-  const tourFocus = useMemo(() => (tourWay && demoPlan !== null && tourState !== null ? routeFocus(demoPlan, tourState, lines) : null), [tourWay, demoPlan, tourState, lines]);
-  const tourHit = (kind: TourAction, id: string): boolean => {
-    const want = tourStep?.action;
-    if (want === undefined || tourDone) return false;
-    if (want.kind === 'explore') {
-      if (kind === 'place' && id === want.id) { setTourPicked(true); return true; }
-      if (kind !== 'explore' || !tourPicked) return false;
-    }
-    const ok = want.kind === kind && (want.id === id || kind === 'step' || (kind === 'section' && (tourStep?.route ?? []).includes(id)));
-    if (ok) setTourDone(true);
-    return ok;
-  };
 
   /* -- Namen ------------------------------------------------------------------------------------------------------------- */
   const nameOf = useCallback((id: string): string => {
@@ -604,8 +501,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   };
   /* 2026-11-22 (Part B) — die Klasse: ⚙, „Prowadzę / Uczę się", „Prowadź tutaj" / „Zadaj", die Zadania (`lesson/MapClassTools.tsx`). */
   const classCtx = useCtx();
-  const cls = useMapClassTools({
-    lib, me: classCtx.me, learner, nameOf, href: classCtx.href, onShow: (kind, id) => act.show(kind, id),
+  const teacher = useTeacherMode({
+    lib, me: classCtx.me, learner, lines, nameOf, href: classCtx.href, onShow: (kind, id) => act.show(kind, id),
     facts: {
       conquered: (id) => state.places.get(id)?.conquered === true,
       flowDone: (f) => learnerInput.progress(f)?.done === true,
@@ -613,24 +510,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       answeredSince: (id, at) => (state.places.get(id)?.cards ?? []).some((k) => (learner?.marks(k) ?? []).some((m) => m.at >= at))
     }
   });
-  const classTarget = (kind: string, id: string): MapTarget | null => {
-    const flowOf = (line: string, start?: { readonly step: string; readonly exit?: string }) => ({
-      flow: line, name: lines.lines.get(line)?.name ?? line, lesson: lib.docs('flow').some((e) => e.id === line && e.data.lesson === true), ...(start === undefined ? {} : { start })
-    });
-    if (kind === 'place') {
-      const via = [...lines.lines.values()].filter((l) => l.unit === id || l.sections.some((s) => lines.sections.get(s)?.to === id)).map((l) => flowOf(l.id));
-      return { kind: 'place', id, name: nameOf(id), flows: via };
-    }
-    if (kind === 'section') {
-      const sec = lines.sections.get(id);
-      return sec === undefined ? null : { kind: 'section', id, name: nameOf(sec.to), flows: [flowOf(sec.line, sec.start)] };
-    }
-    if (kind === 'junction') {
-      const j = lines.junctions.get(id);
-      return j === undefined ? null : { kind: 'junction', id, name: nameOf(id), flows: [flowOf(j.line, j.step === undefined ? undefined : { step: j.step })] };
-    }
-    return null;
-  };
   /* 2026-11-10 — am Turm der zweite Weg: erst wiederholen, was man gesehen hat und noch nicht kann (und was keine Erzählung erreicht). */
   const prepareStep = (step: PlanStep) => { if (step.kind === 'run' && step.prepare.length > 0) startCards(step.prepare, nameOf(step.place), false); };
   const go = (step: PlanStep) => {
@@ -664,11 +543,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     Karte spielt erst, wenn man sie sieht, jeder Teil des Weges trägt oben „Teil n von m".
   */
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [full, setFull] = useState<FullMode | null>(null);
+  const { full, enter: enterFull, exit: exitFull } = useFullScreen();
   /* 2026-11-12 — beim Laden die Frage: Vollbild, ganze Seite oder als Teil der Seite (WorldInvite.tsx). */
   const [invite, setInvite] = useState(() => (following ? false : inviteWanted()));
-  /* Im Wahlmodus für eine Klasse (auch über „Wybierz na mapie" geöffnet) steht die Frage nicht über der Karte. */
-  useEffect(() => { if (sel.active || following || leading) { setInvite(false); setTour(null); } }, [sel.active, following, leading]);
   /* Ein Teil im Vollbild füllt den Platz und steht still (wmRunFit.ts). */
   const runViewRef = useRef<HTMLDivElement | null>(null);
   /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
@@ -756,143 +633,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nur beim Wechsel dessen, was läuft
   }, [running]);
   useEffect(() => { if (full === null) setFinished(null); }, [full]);
-  /*
-    Das ganze Dokument geht ins Vollbild, die Karte liegt darüber (fest, über der Seite, unter Dialogen): so bleiben Erzählungen,
-    Fragen und Dialoge, die in einem Portal oder selbst im Vollbild laufen, sichtbar (2026-11-10, Eigentümer).
-  */
-  const askedFull = useRef(false);
-  useEffect(() => {
-    /* Der Browser verliess das Vollbild (Esc): eine Stufe zurück — die ganze Seite bleibt. */
-    const sync = () => { if (document.fullscreenElement === null && askedFull.current) { askedFull.current = false; setFull((m) => (m === 'screen' ? 'page' : m)); } };
-    document.addEventListener('fullscreenchange', sync);
-    return () => document.removeEventListener('fullscreenchange', sync);
-  }, []);
-  const enterFull = (m: FullMode) => {
-    if (m === 'page') {
-      askedFull.current = false;
-      if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
-      setFull('page');
-      return;
-    }
-    setFull('screen');
-    const root = document.documentElement;
-    /* Ohne die Schnittstelle (manche Telefone): das ganze Fenster, ohne den Rest der Seite. */
-    if (typeof root.requestFullscreen === 'function') void root.requestFullscreen().then(() => { askedFull.current = true; }, () => undefined);
-  };
-  const exitFull = () => {
-    askedFull.current = false;
-    setFull(null);
-    if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
-  };
-  /* Die ganze Seite: Esc schliesst sie (nicht in einem Feld oder Dialog); die Seite darunter rollt nicht mit. */
-  useEffect(() => {
-    if (full === null) return undefined;
-    const html = document.documentElement;
-    html.classList.add('cg-wm-locked');
-    const onKey = (e: KeyboardEvent) => {
-      if (full !== 'page' || e.key !== 'Escape' || e.defaultPrevented) return;
-      const el = e.target instanceof Element ? e.target : null;
-      if (el !== null && el.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]') !== null) return;
-      askedFull.current = false;
-      setFull(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => { html.classList.remove('cg-wm-locked'); window.removeEventListener('keydown', onKey); };
-  }, [full]);
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
-  const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);
-  /*
-    2026-11-14 (Eigentümer: „ein Klick auf einen Turm: Knöpfe über ihm, das Feld daneben ist für die Statistik") — DIE KNÖPFE ÜBER EINEM
-    TURM. Noch nicht erobert: „Odkryj" (voll, das Wichtigere) und „Zdobądź od razu" (umrandet). Erobert: jeder Weg weiter
-    (`onwardRoads`, gegangen umrandet; unter dem Zeiger leuchtet er) — steht ein Wegweiser am Turm, zuerst seine Fragen; „Powtórz" nur,
-    wenn etwas fällig ist (in der Farbe, wie nötig). Gibt es nichts davon, kein Knopf. Immer klein „⋯": das Feld mit den Zahlen.
-  */
-  /*
-    2026-11-14 (Eigentümer: „ein Klick auf das Haus öffnet nur, was von dort direkt geht, und die Wiederholung — über ihm, nicht im
-    Feld") — AM HAUS: die Fragen, die hier beginnen, die Wege, die von hier etwas Neues bringen, und „Powtórz (N)" mit der Schwelle
-    (ein Klick auf „< 100 %" wechselt sie: 90 · 100 · 115 · 130 %).
-  */
-  /* 2026-11-14 — die Knöpfe zeigen den Stand, den die Karte zeigt (im Rundgang den erfundenen). */
-  const bs: WorldState = tourState ?? state;
-  const homeButtons = (): TowerButton[] => {
-    const out: TowerButton[] = [];
-    for (const qp of pathsAt('home')) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
-    for (const r of freshRoads(bs, lines, HOME)) {
-      const last = r.sections[r.sections.length - 1]!;
-      out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }),
-        onClick: () => (bs.places.get(r.to)?.conquered !== true ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
-        data: { 'world-onward-to': r.to, 'world-onward-road': r.sections.join(' '), 'world-onward-done': '0' } });
-    }
-    const list = homeRepeatBelow(state, homePool, repeatAt);
-    const pct = Math.round(repeatAt * 100);
-    if (list.length > 0) out.push({ key: 'repeat', label: t('cogitaWorld.home.repeatN', { count: list.length }), title: t('cogitaWorld.home.repeatSays'), onClick: () => act.repeat(list, t('cogitaWorld.home.repeatRun', { pct })), data: { 'world-repeat-go': String(list.length) } });
-    /* Die Schwelle nur, wenn es überhaupt etwas zu wiederholen gibt. */
-    if (homePool.length > 0) out.push({ key: 'at', label: t('cogitaWorld.home.below', { pct }), small: true, line: true, title: t('cogitaWorld.home.repeatTitle'),
-      onClick: () => { const i = REPEAT_AT.indexOf(repeatAt as (typeof REPEAT_AT)[number]); const v = REPEAT_AT[(i + 1) % REPEAT_AT.length]!; setRepeatAt(v); keepRepeatAt(v); }, data: { 'world-repeat-at': String(repeatAt) } });
-    /* 2026-11-14 (Eigentümer) — vom Haus aus der Rundgang über die Karte, jederzeit von vorn. */
-    out.push({ key: 'tour', label: t('cogitaWorld.tour.start'), line: true, onClick: () => { setChosen(null); setTour(0); }, data: { 'world-tour-start': '' } });
-    out.push({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': HOME } });
-    return out;
-  };
-  const moreButton = (id: string): TowerButton => ({ key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } });
-  /* Ein Pfad: ein Knopf — offen „Odkryj" (gegangen: umrandet), sonst „Prowadź mnie tutaj" zu seinem Turm. */
-  const laneButtons = (id: string): TowerButton[] => {
-    const sec = lines.sections.get(id), st = bs.sections.get(id);
-    if (sec === undefined || st === undefined) return [moreButton(id)];
-    const out: TowerButton[] = [];
-    if (st.ticket.met && st.open) out.push({ key: 'go', label: st.travelled ? t('cogitaWorld.panel.travelAgain') : t('cogitaWorld.panel.travel'), line: st.travelled, onClick: () => travel(id), data: { 'world-travel': id } });
-    else if (bs.places.get(sec.to)?.conquered !== true) out.push({ key: 'lead', label: t('cogitaWorld.panel.leadMe'), onClick: () => act.lead(sec.to, id), data: { 'world-lead': sec.to } });
-    return [...out, moreButton(id)];
-  };
-  /* Eine Gabelung: jeder Weg ein Knopf (offen voll, gegangen umrandet; was noch nicht geht, führt hin). */
-  const forkButtons = (id: string): TowerButton[] => {
-    const out: TowerButton[] = [];
-    for (const sid of lines.junctions.get(id)?.out ?? []) {
-      const sec = lines.sections.get(sid), st = bs.sections.get(sid);
-      if (sec === undefined || st === undefined) continue;
-      const go = st.ticket.met && st.open;
-      out.push({ key: sid, label: t('cogitaWorld.panel.roadButton', { name: nameOf(sec.to) }), line: st.travelled || !go,
-        onClick: () => (go ? travel(sid) : bs.places.get(sec.to)?.conquered === false ? act.lead(sec.to, sid) : act.show('section', sid)), peek: (on) => setPeekRoad(on ? [sid] : null),
-        data: go ? { 'world-choose': sid } : { 'world-lead': sec.to } });
-    }
-    return [...out, moreButton(id)];
-  };
-  /* Ein Wegweiser: seine Fragen, jede ein Knopf (gleich geführt). */
-  const signButtons = (key: string): TowerButton[] => [
-    ...pathsAt(key).map((qp): TowerButton => ({ key: qp.id, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-path-lead': qp.id } })),
-    moreButton(key)
-  ];
-  const towerButtons = (id: string): TowerButton[] => {
-    if (id === HOME) return homeButtons();
-    const ps = bs.places.get(id);
-    const more: TowerButton = { key: 'more', label: '⋯', small: true, line: true, title: t('cogitaWorld.panel.more'), onClick: () => setPlaceMore((v) => !v), data: { 'world-tower-more': id } };
-    if (ps === undefined) return [more];
-    if (!ps.conquered) {
-      const unseen = ps.cards.filter((k) => bs.band(k) === 'unseen').length;
-      return [
-        { key: 'explore', label: t('cogitaWorld.panel.explore'), onClick: () => act.lead(id), data: { 'world-lead': id } },
-        { key: 'conquer', label: t('cogitaWorld.panel.conquerDirect'), line: true,
-          title: unseen > 0 ? t('cogitaWorld.panel.conquerUnseen', { count: unseen, all: ps.cards.length }) : t('cogitaWorld.panel.conquerSays', { count: ps.cards.length }),
-          onClick: () => (eff.levels > 0 ? act.run(id) : act.learn(ps.cards.filter((k) => bs.band(k) !== 'known'), nameOf(id))),
-          data: { 'world-run-for': String(eff.levels > 0 ? Math.min(eff.levels, ps.level + 1) : 0), 'world-run-unseen': String(unseen) } },
-        more
-      ];
-    }
-    const out: TowerButton[] = [];
-    for (const qp of pathsAt(`p:${id}`)) out.push({ key: `q:${qp.id}`, label: t('cogitaWorld.panel.askButton', { name: qp.title }), onClick: () => leadPath(qp.id), data: { 'world-tower-path': qp.id } });
-    for (const r of freshRoads(bs, lines, id)) {
-      const last = r.sections[r.sections.length - 1]!;
-      const toConquer = bs.places.get(r.to)?.conquered !== true;
-      out.push({ key: `r:${r.sections.join('>')}`, label: t('cogitaWorld.panel.roadButton', { name: nameOf(r.to) }), line: r.travelled,
-        onClick: () => (toConquer ? act.lead(r.to, last) : act.show('place', r.to)), peek: (on) => setPeekRoad(on ? r.sections : null),
-        data: { 'world-onward-to': r.to, 'world-onward-road': r.sections.join(' '), 'world-onward-done': r.travelled ? '1' : '0' } });
-    }
-    /* 2026-11-14 (Eigentümer) — erobert, aber nicht „Mistrzowsko": „Zdobądź w pełni" (erst die Stufen mit Erklärung, dann Start). */
-    if (eff.levels > 0 && levels.get(id)?.perfect !== true) out.push({ key: 'full', label: t('cogitaWorld.panel.conquerFully'), line: true, onClick: () => setFullOf(id), data: { 'world-conquer-full': id } });
-    const due = dueOf(bs, id);
-    if (due.length > 0) out.push({ key: 'review', label: t('cogitaWorld.panel.reviewN', { count: due.length }), score: ps.share, onClick: () => act.review(due, nameOf(id)), data: { 'world-review': String(due.length) } });
-    return [...out, more];
-  };
 
   /* -- „Sprawdź, co wiesz" und „Uzupełnij luki" (wie im Krajobraz, `selfCheck.ts`): jede Kernfrage der Orte genau einmal ------- */
   const placeIds = useMemo(() => new Set(world.places.keys()), [world]);
@@ -925,20 +666,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     (`pendingFin`) — kein Aufblitzen der Karte davor.
   */
   const pendingFin = running === null && finSnap.current !== null;
-  /* Der Rundgang: die Kamera gleitet zu seinem Teil; beim ersten Mal (je Baza und Widok auf diesem Gerät) beginnt er von selbst. */
-  useEffect(() => {
-    if (tourStep === undefined) return;
-    const f = tourStep.focus;
-    if (f.kind === 'all') pillars.current?.fit(); else if (f.kind === 'place' && tourStep.zoom !== undefined) pillars.current?.lookAt(f.id, tourStep.zoom); else pillars.current?.glide(f.kind, f.id);
-  }, [tourStep]);
-  /* Nach „Odkryj" im Rundgang: die ganze Karte mit dem ganzen Weg. */
-  useEffect(() => { if (tourWay && tourStep?.action?.kind === 'explore') pillars.current?.fit(); }, [tourWay]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (tour !== null || learner === null || scene === null || invite || sel.active || following || leading || running !== null || !tourWanted() || tourSeen(scope)) return;
-    keepTourSeen(scope);
-    setTour(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- einmal, sobald die Karte steht
-  }, [learner, scene === null, invite, sel.active, running, scope]);
   /*
     2026-11-14 (Eigentümer: „am Ziel soll von selbst eine Animation kommen und der Weg zu Ende sein") — IST DER WEG AM ZIEL (nichts
     mehr zu tun, keine Tafel mehr offen), endet er von selbst: über der Karte steigt die Fahne mit dem Namen des Ziels auf, die
@@ -1128,12 +855,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     /* 2026-11-12 (Eigentümer) — ein Wegweiser zeigt nur die Fragen, die man hier wählen kann (auch eine einzige), jede ein Knopf. */
     setChosen({ kind: 'sign', id: key });
   };
-  const pathIssues = useMemo(() => (!writes ? [] : paths.flatMap((p) => pathProblems(p, lib.docs('qpath').find((e) => e.id === p.id)?.data ?? {}, {
-    entity: (id) => lib.entity(id) !== undefined,
-    flowSteps: (id) => { const f = flowById.get(id) ?? findFlow(id); return f === undefined ? undefined : new Set(f.graph.nodes.map((n) => n.id)); },
-    path: (id) => pathById.get(id),
-    onMap: { place: (id) => world.places.has(id), flow: (id) => lines.lines.has(id) || [...lines.sections.values()].some((x) => x.line === id) }
-  }))), [writes, paths, lib, lib.revision, flowById, pathById, world, lines]); // eslint-disable-line react-hooks/exhaustive-deps
   const pathsAt = (key: string) => (signs.find((x) => x.key === key)?.paths ?? []).map((id) => pathById.get(id)).filter((p): p is QPath => p !== undefined);
 
   /* -- Zeigen: die Blase, der Weg, die Navigation ---------------------------------------------------------------------- */
@@ -1276,63 +997,40 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   ) : null;
   const inviteOn = invite && full === null && running === null && scene !== null;
   /*
-    -- 2026-11-24 (Tryb prowadzony) --------------------------------------------------------------------------------------------------
-    FÜHREND: die Klassen, die ich leite (für „Prowadź klasę na żywo"); eine laufende Folge-Stunde wieder aufnehmen; der Stand der Karte
-    (Kamera nach jeder Änderung, das Gewählte, der Modus, der Ausschnitt) geht an `followHost` — hinaus nur, wenn er sich geändert hat.
+    -- 2026-11-24 — DIE MODI DER KARTE (`mapMode.ts`, `modes/`): wer gerade bestimmt, was die Karte zeigt und was ein Klick tut. -----
+    Der Stand des Lernenden lebt hier; was davon auf die Karte geht, sagt `learnerMode`. Jede andere Lage ist ein eigener Modus.
   */
-  const [liveClasses, setLiveClasses] = useState<readonly { readonly areaId: string; readonly name: string }[]>([]);
-  useEffect(() => {
-    if (leadMe === null || following) { setLiveClasses([]); return undefined; }
-    let alive = true;
-    void myClasses(true, lib.libraryId).then((list) => {
-      if (!alive) return;
-      setLiveClasses(list.map((c) => ({ areaId: c.areaId, name: c.name })));
-      if (list.length > 0) void resumeFollow(leadMe, lib.libraryId).catch(() => undefined);
-    }, () => undefined);
-    return () => { alive = false; };
-  }, [leadMe, following, lib.libraryId]);
-  const leadCam = useRef<SharedCam | null>(null);
-  const leadState = useRef({ chosen, shownMode, slicePath });
-  leadState.current = { chosen, shownMode, slicePath };
-  const reportLead = useCallback(() => {
-    const st = leadState.current;
-    reportMap({ view: viewKey, cam: leadCam.current, chosen: st.chosen === null ? null : { kind: st.chosen.kind, id: st.chosen.id }, mode: st.shownMode, slice: [...st.slicePath], at: Date.now() });
-  }, [viewKey]);
-  const onLeadCam = useCallback((c: SharedCam) => { leadCam.current = c; reportLead(); }, [reportLead]);
-  useEffect(() => { if (leading) reportLead(); }, [leading, chosen?.kind, chosen?.id, shownMode, slicePath.join('|'), reportLead]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* FÜHREND (Tryb prowadzony, die Lehrerin): die Klassen im Menü, der Stand der Karte geht hinaus, die Leiste „Na żywo". */
+  const followHost = useFollowHostMode({ lib, me: leadMe, following, viewKey, state: { chosen, mode: shownMode, slice: slicePath }, quiet: sel.active });
+  const leading = followHost.leading;
   /* GEFÜHRT: Modus, Gewähltes und Ausschnitt von der Lehrerin (nichts davon wird hier gemerkt). */
-  const followMap = followView?.map ?? null;
-  useEffect(() => {
-    if (followMap === null) return;
-    if ((WORLD_MODES as readonly string[]).includes(followMap.mode)) setModeNow(followMap.mode as WorldMode);
-    setChosen(followMap.chosen === null ? null : { kind: followMap.chosen.kind as Chosen['kind'], id: followMap.chosen.id });
-    setSlicePathKept([...followMap.slice]);
-  }, [followMap?.at]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const host = (body: ReactNode) => (
-    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${following ? ' is-follow' : ''}`} data-world-following={following ? '1' : undefined} data-world-leading={leading ? '1' : undefined} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
-      data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
-      {body}
-      {more}
-      {finSlide}
-      {finSlide === null && pendingFin && <div className="cg-wm-fin is-pending" aria-hidden="true" data-world-finish-pending="" />}
-      {inviteOn && <WorldInvite t={t} compact={compact} onScreen={() => { setInvite(false); enterFull('screen'); }} onPage={() => { setInvite(false); enterFull('page'); }} onStay={() => setInvite(false)} />}
-      {flights !== null && <WorldFlight key={flights.id} flights={flights.list} locate={(kind, id) => pillars.current?.spot(kind, id) ?? null} onDone={() => setFlights(null)} />}
-    </div>
-  );
-
-  if (world.places.size === 0) return <p className="cg-muted" data-world-empty="">{t('cogitaWorld.map.empty')}</p>;
+  const followViewM = useFollowViewMode((map) => {
+    if ((WORLD_MODES as readonly string[]).includes(map.mode)) setModeNow(map.mode as WorldMode);
+    setChosen(map.chosen === null ? null : { kind: map.chosen.kind as Chosen['kind'], id: map.chosen.id });
+    setSlicePathKept([...map.slice]);
+  });
+  /* Der Rundgang (`WorldTour.tsx`): von selbst beim ersten Mal, wenn nichts anderes die Karte hat. */
+  const tour = useTour({
+    state, world, lines, levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt, clock, geometry, placeColour, colours, signKey: signKeyRef, pillars, scope,
+    autoStart: { ready: learner !== null && scene !== null, blocked: invite || sel.active || following || leading || running !== null, wake: [learner, scene === null, invite, sel.active, running] }
+  });
+  const author = useAuthorMode({ writes, lib, world, lines, geometry, regions: look.regions, paths, pathById, flowById, findFlow, nameOf, relayout: look.relayout, t });
+  /* Die Knöpfe über einem gewählten Ding — sie zeigen den Stand, den die Karte zeigt (im Rundgang den erfundenen). */
+  const buttons = learnerButtons({
+    bs: tour.state ?? state, state, lines, t, nameOf, act, levelsCount: eff.levels, levels, pathsAt, leadPath, travel, peekRoad: setPeekRoad,
+    toggleMore: () => setPlaceMore((v) => !v), conquerFully: setFullOf, homePool, repeatAt, setRepeatAt, startTour: () => { setChosen(null); tour.start(); }
+  });
 
   /* Was gerade läuft (eine Erzählung, ein Durchgang, Karten): ohne Vollbild statt der Karte, im Vollbild als eigener Teil. */
   /* Mit Navigation gleich der Weg (im selben Zug, sonst blitzte die Karte einen Augenblick auf). */
-  const backToMap = () => { if (tt !== null) setAskNext(true); setRunning(null); if (leading) reportMapShown(); };
+  const backToMap = () => { if (tt !== null) setAskNext(true); setRunning(null); followHost.backOnMap(); };
   const runNode: ReactNode = running === null ? null
     : running.kind === 'story' ? (
       /* Die Karte hat die Fahrkarte geprüft: der Spieler sperrt nicht noch einmal (an Umsteigeorten steigt man mitten ein). */
       <div className="cg-ls-run" data-world-running="story" data-world-running-flow={running.flow.id}>
         {/* 2026-11-24 (Tryb prowadzony) — auch während einer Erzählung: wie viele geantwortet haben, „Pokaż wyniki". */}
-        {leading && <FollowBar me={leadMe} onMap />}
-        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose {...(leading ? { lesson: FOLLOW_LINK } : {})} />
+        {followHost.runBar}
+        <FlowPlayer key={running.key} flow={running.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={backToMap} backLabel={t('cogitaWorld.panel.mapShort')} jumpTo={running.jump} gate={false} endToClose {...(followHost.lessonLink === null ? {} : { lesson: followHost.lessonLink })} />
       </div>
     ) : running.kind === 'run' && learner !== null ? (
       <div className="cg-ls-run" data-world-running="run">
@@ -1360,7 +1058,6 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       <span className="cg-wm-partbar" ref={(el) => { if (el !== null) el.style.setProperty('--done', String(wayPart.all === 0 ? 0 : (wayPart.n - 1) / wayPart.all)); }} aria-hidden="true" />
     </p>
   );
-  if (full === null && runNode !== null) return host(<>{partBanner}{runNode}</>);
   const doneKeys = tt === null ? [] : tt.done.map(stepKey);
   const just = new Set(lastDone === null ? [] : doneKeys.filter((k) => !lastDone.has(k)));
   const closeWay = () => { setAskNext(false); setOverview(false); setPeek(null); };
@@ -1394,7 +1091,51 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     </button>
   );
 
-  const hasSide = !tourOn && !sel.active && ((chosen !== null && !towerPlain) || note !== null);
+
+  const learnerM = learnerMode({
+    hasLearner: learner !== null, world, lines, t, chosen, peek, route, faint, focus, marks, lit, goal, signs, floatKind, buttons, wayCard,
+    next: floatKind === null && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
+      ? { tt, step: tt.upcoming[0], open: (s) => setSheet(s) } : null,
+    pick: {
+      place: (id) => setChosen(id === null ? null : { kind: 'place', id }),
+      section: (id) => setChosen({ kind: 'section', id }),
+      home: () => setChosen({ kind: 'home', id: HOME }),
+      junction: (id) => setChosen({ kind: 'junction', id }),
+      sign: pickSign,
+      lead: (id) => { setGoal(id); lead(id); },
+      plain: () => { setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }
+    }
+  });
+  /* Nach Vorrang (der erste zuerst): die Wahl für eine Klasse, der Rundgang, geführt, führend, die Klasse, Schreibende, der Lernende. */
+  const mm = composeModes([
+    classSelectMode(sel, { signPaths: (key) => signs.find((x) => x.key === key)?.paths ?? [], beforeStart: () => { setChosen(null); setGoal(null); } }),
+    tourMode(tour, { t, panel, rules, showStep, buttons: buttons.forThing }),
+    followViewM,
+    followHost.mode,
+    teacher,
+    author,
+    learnerM
+  ]);
+  /* Was ein Modus unterdrückt, endet: die Frage nach Vollbild oder Seite und ein laufender Rundgang. */
+  useEffect(() => { if (mm.suppress.invite) setInvite(false); if (mm.suppress.tour) tour.stop(); }, [mm.suppress.invite, mm.suppress.tour]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const host = (body: ReactNode) => (
+    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${mm.hostClass === '' ? '' : ` ${mm.hostClass}`}`} {...mm.hostData} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
+      data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
+      {body}
+      {more}
+      {finSlide}
+      {finSlide === null && pendingFin && <div className="cg-wm-fin is-pending" aria-hidden="true" data-world-finish-pending="" />}
+      {inviteOn && <WorldInvite t={t} compact={compact} onScreen={() => { setInvite(false); enterFull('screen'); }} onPage={() => { setInvite(false); enterFull('page'); }} onStay={() => setInvite(false)} />}
+      {flights !== null && <WorldFlight key={flights.id} flights={flights.list} locate={(kind, id) => pillars.current?.spot(kind, id) ?? null} onDone={() => setFlights(null)} />}
+    </div>
+  );
+
+
+  if (world.places.size === 0) return <p className="cg-muted" data-world-empty="">{t('cogitaWorld.map.empty')}</p>;
+
+  if (full === null && runNode !== null) return host(<>{partBanner}{runNode}</>);
+  const hasSide = !mm.suppress.side && ((chosen !== null && !towerPlain) || note !== null);
   const modes = WORLD_MODES.filter((m) => m !== 'gaps' || learner !== null);
   const goalPath = goal !== null && isPathTarget(goal) ? pathById.get(pathOfTarget(goal)) ?? null : null;
   const goalSteps = goal === null ? 0 : goalPath !== null ? pathPlan(pctx, goalPath).steps.length : state.conquestOrder(goal).length;
@@ -1408,22 +1149,18 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           2026-11-24 (Eigentümer: „auch im Vollbild und als Seite alles wählbar") — Menü, Tag-Filter und die Zadania der Klasse als
           EIN Block: über der Karte, im Vollbild oben links über ihr schwebend.
         */}
-        {leading && !sel.active && <FollowBar me={leadMe} onMap />}
+        {mm.banner}
         <div className="cg-wm-controls" data-world-controls="">
-        {sel.bar}
+        {mm.bar}
         <div className="cg-wm-top">
           {/* 2026-11-24 (Eigentümer) — alles, was man an der Karte einstellt, in EINEM Menü: ☰ oben links. */}
-          <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={cls.teaching} classBody={cls.menuBody}
+          <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={mm.menu.teaching} classBody={mm.menu.classBody}
             modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
-            onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={tourOn ? null : enterFull} full={full} onExit={exitFull}
-            classes={tourOn || sel.active ? [] : sel.classes.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { setChosen(null); setGoal(null); sel.start(c); } }))}
-            live={tourOn || sel.active || following ? null : {
-              on: leading, onStop: () => { void stopFollow(); },
-              classes: liveClasses.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { void startFollow(lib, leadMe!, c).catch(() => undefined); } }))
-            }} />
+            onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={mm.suppress.full ? null : enterFull} full={full} onExit={exitFull}
+            classes={mm.menu.classes} live={mm.menu.live} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>
-        {cls.overlay}
+        {mm.overlay}
         {/* 2026-11-22 (C2) — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */}
         <TagSlicePicker net={tagNet} path={slicePath} reachable={reachTags} count={countOfTag} onPath={setSlicePath} t={t} />
         </div>
@@ -1451,52 +1188,17 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         <div className="cg-wm-mapwrap">
           {scene === null
             ? <p className="cg-ls-busy" role="status" data-world-computing="">{t('cogitaWorld.map.computing')}</p>
-            : <WorldPillars ref={pillars} scene={tourOn && tourScene !== null ? tourScene : scene} pillarWidth={pillarWidth} heightScale={heightScale} t={t} compact={compact}
+            : <WorldPillars ref={pillars} scene={mm.draw.scene ?? scene} pillarWidth={pillarWidth} heightScale={heightScale} t={t} compact={compact}
               memoryKey={scope}
-              route={sel.active ? null : tourStep !== undefined ? tourStep.route ?? (tourFocus === null ? null : [...tourFocus.remaining]) : peek !== null && lines.sections.has(peek) ? [peek] : route} faint={tourOn || sel.active ? null : peek !== null && lines.sections.has(peek) ? route : faint}
-              hiddenLanes={sel.hiddenLanes}
-              following={following} follow={followView?.map?.cam ?? null} {...(leading ? { onCamera: onLeadCam } : {})}
-              chosen={sel.active ? null : tourStep !== undefined ? tourStep.chosen ?? null : peek !== null && world.places.has(peek) ? peek : chosen?.kind === 'place' || chosen?.kind === 'junction' ? chosen.id : null} focus={sel.active ? null : tourStep !== undefined ? (tourFocus ?? (tourStep.node === undefined || tourState === null ? null : nodeFocus(tourState, lines, tourStep.node))) : focus}
-              marks={tourOn || sel.active || marks === null ? null : { start: marks.start, target: marks.target, forks: marks.forks }}
-              lit={sel.active ? sel.lit : tourStep !== undefined ? (tourStep.lit === undefined ? null : new Set(tourStep.lit)) : lit} portals={portals} goal={tourOn || sel.active || (goal !== null && isPathTarget(goal)) ? null : goal} tasks={tourOn || sel.active || cls.teaching ? null : cls.marked} playback={tourOn || sel.active ? null : lastPlay.current} onPlayback={onPlayback} hold={!tourOn && !sel.active && playHeld} playAfter={PLAY_AFTER_MS}
-              signs={signs} chosenSign={sel.active ? null : tourStep !== undefined ? tourStep.sign ?? null : chosen?.kind === 'sign' ? chosen.id : chosen?.kind === 'qpath' ? signs.find((x) => x.paths.includes(chosen.id))?.key ?? null : null} onPickSign={(key) => { if (sel.active) { sel.pickSign(signs.find((x) => x.key === key)?.paths ?? []); return; } if (tourOn) tourHit('sign', key); else pickSign(key); }}
-              onHover={(id, at) => setHover(tourOn || id === null || at === null ? null : { id, x: at.x, y: at.y })}
-              onHoverLane={(id, at) => setHoverLane((was) => (tourOn || id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
-              onPick={(id) => { if (sel.active) { if (id !== null) sel.pickPlace(id); return; } if (tourOn) { if (id !== null) tourHit('place', id); return; } setChosen(id === null ? null : { kind: 'place', id }); }}
-              onPickLane={(id) => { if (sel.active) { sel.pickLane(id); return; } if (tourOn) { tourHit('section', id); return; } setChosen({ kind: 'section', id }); }}
-              onPickHome={() => { if (sel.active) return; if (tourOn) { tourHit('home', HOME); return; } setChosen({ kind: 'home', id: HOME }); }}
-              onPickJunction={(id) => { if (sel.active) { sel.pickJunction(id); return; } if (tourOn) { tourHit('junction', id); return; } setChosen({ kind: 'junction', id }); }}
-              onLead={(id) => { if (sel.active) return; if (tourOn) { if (tourStep?.action?.kind === 'explore' && tourStep.action.id === id && !tourDone) setTourDone(true); return; } setGoal(id); lead(id); }} onPlain={() => { if (tourOn || sel.active) return; setChosen(null); setHover(null); setSheet(null); setOverview(false); setAskNext(false); setPeek(null); pauseNav(); }}
-              full={full !== null} squeeze={hasSide} under={sel.active ? null : tourOn ? (demoPlan === null || tourStep?.demo === undefined ? null : (
-                <div className="cg-wm-waycard" data-world-tour-demo="">
-                  <NextView tt={{ target: tourStep.demo, done: [], upcoming: demoPlan.steps.filter((x) => !demoSkipped.has(stepKey(x))), cards: demoPlan.cards, route: demoPlan.route }}
-                    order={demoPlan.steps} skipped={demoSkipped} ctx={panel} rules={rules} just={new Set()} card
-                    onShow={(x) => { showStep(x); tourHit('step', stepKey(x)); }} onGo={() => undefined} onMap={() => undefined} onEnd={() => undefined}
-                    onSkip={(x) => setDemoSkipped((was) => new Set([...was, stepKey(x)]))} onRestore={(x) => setDemoSkipped((was) => { const n = new Set(was); n.delete(stepKey(x)); return n; })} />
-                </div>
-              )) : wayCard}
-              towerActions={sel.active ? null : tourStep?.action !== undefined && tourStep.action.kind !== 'step'
-                ? (() => {
-                  const ac = tourStep.action;
-                  const kind = ac.kind === 'section' ? 'section' as const : ac.kind === 'sign' ? 'sign' as const : 'place' as const;
-                  if (ac.kind === 'explore') {
-                    /* Der Weg ist gezeichnet: keine Knöpfe über ihm. Sonst: ein Pfeil auf den Turm, dann seine Knöpfe — „Odkryj" pulsiert und wirkt. */
-                    if (tourDone) return null;
-                    if (!tourPicked) return { place: ac.id, kind, buttons: [{ key: 'tap', label: '▼', arrow: true, title: t('cogitaWorld.tour.tapHere'), onClick: () => setTourPicked(true), data: { 'world-tour-tap': ac.id } }] };
-                    const go = { pulse: true, onClick: () => { tourHit('explore', ac.id); }, data: { 'world-tour-explore': ac.id } };
-                    const real = towerButtons(ac.id).filter((b) => b.key !== 'tour');
-                    const has = real.some((b) => b.key === 'explore');
-                    return { place: ac.id, kind, buttons: [...(has ? [] : [{ key: 'explore', label: t('cogitaWorld.panel.explore'), ...go }]), ...real.map((b) => (b.key === 'explore' ? { ...b, ...go } : { ...b, onClick: () => undefined }))] };
-                  }
-                  /* Vor dem Klick ein Pfeil auf das, was zu klicken ist; danach die Knöpfe, die dort wirklich stehen (im Rundgang ohne Wirkung). */
-                  if (!tourDone) return { place: ac.id, kind, buttons: [{ key: 'tap', label: '▼', arrow: true, title: t('cogitaWorld.tour.tapHere'), onClick: () => setTourDone(true), data: { 'world-tour-tap': ac.id } }] };
-                  const real = ac.kind === 'section' ? laneButtons(ac.id) : ac.kind === 'sign' ? signButtons(ac.id) : ac.kind === 'junction' ? forkButtons(ac.id) : towerButtons(ac.id);
-                  return { place: ac.id, kind, buttons: real.filter((b) => b.key !== 'tour').map((b) => ({ ...b, onClick: () => undefined })) };
-                })()
-                : !tourOn && floatKind !== null && chosen !== null && learner !== null ? { place: chosen.id, kind: floatKind, buttons: cls.buttons(classTarget(chosen.kind, chosen.id), chosen.kind === 'section' ? laneButtons(chosen.id) : chosen.kind === 'sign' ? signButtons(chosen.id) : chosen.kind === 'junction' ? forkButtons(chosen.id) : towerButtons(chosen.id)) } : null}
-              startAction={!tourOn && !sel.active && floatKind === null && tt !== null && learner !== null && running === null && finished === null && !plain && sheet === null && tt.upcoming[0] !== undefined
-                /* 2026-11-14 (Eigentümer: „Zacznij tutaj führt in die Irre — mal beginnt es, mal geht es weiter“) — allgemein: welcher Schritt, welche Art. */
-                ? { label: t('cogitaWorld.way.stepButton', { n: tt.done.length + 1, kind: t(`cogitaWorld.way.kind.${tt.upcoming[0].kind}`) }), onClick: () => setSheet(tt.upcoming[0] ?? null), at: nowStep === undefined || nowStep.kind !== 'travel' ? { kind: 'place' as const, id: nowStep?.place ?? tt.target } : { kind: 'section' as const, id: nowStep.section } } : null} />}
+              route={mm.draw.route ?? null} faint={mm.draw.faint ?? null} hiddenLanes={mm.draw.hiddenLanes ?? null}
+              following={mm.camera.following} follow={mm.camera.follow} {...(mm.camera.onCamera === undefined ? {} : { onCamera: mm.camera.onCamera })}
+              chosen={mm.draw.chosen ?? null} focus={mm.draw.focus ?? null} marks={mm.draw.marks ?? null}
+              lit={mm.draw.lit ?? null} portals={portals} goal={mm.draw.goal ?? null} tasks={mm.draw.tasks ?? null} playback={mm.suppress.playback ? null : lastPlay.current} onPlayback={onPlayback} hold={!mm.suppress.playback && playHeld} playAfter={PLAY_AFTER_MS}
+              signs={signs} chosenSign={mm.draw.chosenSign ?? null} onPickSign={mm.pick.sign}
+              onHover={(id, at) => setHover(mm.suppress.hover || id === null || at === null ? null : { id, x: at.x, y: at.y })}
+              onHoverLane={(id, at) => setHoverLane((was) => (mm.suppress.hover || id === null || at === null ? (was === null ? was : null) : { id, x: at.x, y: at.y }))}
+              onPick={mm.pick.place} onPickLane={mm.pick.section} onPickHome={() => mm.pick.home(HOME)} onPickJunction={mm.pick.junction} onLead={mm.pick.lead} onPlain={mm.pick.plain}
+              full={full !== null} squeeze={hasSide} under={mm.draw.under ?? null} towerActions={mm.draw.towerActions ?? null} startAction={mm.draw.startAction ?? null} />}
           {scene !== null && full === null && (
             <div className="cg-wm-fullbtns" role="group" aria-label={t('cogitaWorld.map.fullOn')}>
               <button type="button" className="cg-wm-fullbtn" onClick={() => enterFull('screen')} title={t('cogitaWorld.map.fullSays')} data-world-full="screen">⛶ <span>{t('cogitaWorld.map.fullOn')}</span></button>
@@ -1509,9 +1211,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             <FullConquerSheet name={nameOf(fullOf)} levels={eff.levels} rules={rules} reached={levels.get(fullOf)?.level ?? 0} perfect={levels.get(fullOf)?.perfect === true} t={t}
               onClose={() => setFullOf(null)} onStart={() => { const id = fullOf; setFullOf(null); act.run(id); }} />
           )}
-          {tourStep !== undefined && tour !== null && (
-            <TourCard steps={tourList} at={tour} levels={eff.levels} t={t} onAt={setTour} onClose={() => { keepTourSeen(scope); setTour(null); }} done={tourDone} onDone={() => setTourDone(true)} />
-          )}
+          {mm.onMap}
           {arrival !== null && (
             /* Kein Knopf: der zweite Klick eines Doppelklicks fiele sonst gleich auf ihn; sie vergeht von selbst. */
             <div key={arrival.id} className="cg-wm-arrive" role="status" aria-live="polite" data-world-arrived={arrival.name}>
@@ -1552,7 +1252,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           </label>
           <PillarSlider value={pillarWidth} t={t} onLive={setPillarLive} onCommit={(w) => { setPillarLive(w); if (learner !== null) void learner.keepPillar(w).catch(() => undefined); }} />
           {/* Entscheidung 11 — nur Schreibende: die ganze Lage neu (sonst bleiben alte Orte stehen). */}
-          {writes && <button type="button" className="wk-link-btn" onClick={() => setRelay((n) => n + 1)} data-world-relay="">{t('cogitaWorld.map.relay')}</button>}
+          {mm.tools}
         </div>
         {/* Alle Orte als Liste (für die Tastatur; in der Ansicht nur die farbigen): ein Ort wählt sich wie mit der Maus. */}
         <details className="cg-wm-list" onToggle={(e) => setListOpen(e.currentTarget.open)} data-world-list={world.places.size}>
@@ -1571,13 +1271,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             </ol>
           )}
         </details>
-        {writes && <AuthorList issues={issues} nameOf={nameOf} t={t} />}
-        {/* 2026-11-12 (Prompt 25) — für Schreibende: was an den Wegen zu einer Frage nicht stimmt (auch: ein Schritt, der nicht auf dieser Karte liegt). */}
-        {writes && pathIssues.length > 0 && (
-          <ul className="cg-wm-qissues" data-world-path-issues={pathIssues.length}>
-            {pathIssues.map((p, i) => <li key={i}>{t('cogitaData.import.pathIssue', { name: pathById.get(p.path)?.title || p.path, text: t(`cogitaData.import.${p.key}`, p.params) })}</li>)}
-          </ul>
-        )}
+        {mm.below}
       </div>
       {sideShown && (
         <div className="cg-wm-side" data-world-side="">
@@ -1653,7 +1347,5 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
 /** Die Teile des Vollbilds (in der Reihenfolge der Leiste). */
 type FullTab = 'map' | 'points' | 'run';
 const FULL_ORDER: readonly FullTab[] = ['map', 'points', 'run'];
-/** Die zwei Arten: der ganze Bildschirm oder die ganze Seite im Browser. */
-type FullMode = 'screen' | 'page';
 /** Ein Teil des Weges, wie er oben im laufenden Teil steht. */
 interface WayPart { readonly n: number; readonly all: number; readonly kind: PlanStep['kind']; readonly text: string; readonly key: string }

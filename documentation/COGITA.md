@@ -2097,12 +2097,70 @@ Its plain `meta` holds `{library, lesson: true, follow: true, className}`, and i
 - **Students** (`FollowScreen.tsx`, `FollowGate`): accounts and seats (a no-account seat kept for the class page) on the class page,
   LearnerHome and Nauka. They poll every 8 s for a running follow session of the base. The teacher's view then lies over the page
   (`.cg-follow-overlay`). The followed map is `WorldLandscape` inside `FollowViewContext`: no controls, a shield over the canvas, no tour or
-  invite, and the camera is not stored. When the session closes the overlay disappears, and the student is where they were.
+  invite, and the camera is not stored. Only the teacher moves the camera (`setCam(…, 'follow')`). The student's own glides and fits
+  are ignored while following. Besides the hub, a follower pulls new events every 3 s while its tab is visible, so a missed push costs
+  at most 3 s. When the session closes the overlay disappears, and the student is where they were. While leading, the teacher gets no
+  tour or invite.
 - **Projector.** `…/sesje/<id>/ekran` shows the same screen, without names.
 - **Teacher's class page.** For the leader it now shows the class map (its sub-world) above the console links. This is where „Otwórz
   mapę" leads.
 - **Checks.** `scripts/app-follow-check.mjs` (pure: content order, pinned, paused, closed, camera window). LocalDB drive in the session
   scratchpad `gd/drive.mjs` (teacher + account student + seat student + projector).
+
+### The world map: one core, several modes (2026-11-24, `worldmap/mapCore.ts`, `mapMode.ts`, `modes/`)
+
+The world map is one map used in several situations. Each situation is a **mode**. The map itself knows nothing about learners,
+classes, tours, lessons or following. `WorldLandscape` keeps its export and props, so every caller works unchanged: EntityList /
+LandscapeView, the page modules Widok and Krajobraz, ClassPage, SubWorldEditor, the preview and FollowScreen.
+
+- **Core** (`mapCore.ts` + `WorldPillars`):
+  - the model: `useFullWorld` and `useShownWorld`, including the sub-world `landscape.only`;
+  - the look: `useMapLook`, which covers regions in the worker, topic and line colours, and geometry (stored, relayout);
+  - full screen or page: `useFullScreen`;
+  - in `WorldPillars`: drawing, the camera (zoom, rotate, tilt, fit, focus, external camera plus a change observer), picking,
+    hover and daylight.
+- **A mode** (`MapMode` in `mapMode.ts`) is a plain object. It can contribute:
+  - `draw`: the scene and every drawing input of `WorldPillars`, such as route, faint, chosen, focus, marks, lit, goal, tasks,
+    chosenSign, under, towerActions, startAction and hiddenLanes;
+  - `pick`: what a click does on a tower, path, home, fork or sign, plus double click and plain ground;
+  - `buttons`: rebuilds the buttons of a thing that a mode below it draws;
+  - slots: `banner` (above the controls), `bar` (before the ☰ menu), `overlay` (after it), `tools` (by the sliders), `below` (under
+    the map) and `onMap` (over the picture);
+  - `menu`: classes to pick, „Prowadź na żywo", and the class part;
+  - `camera`: `follow` (controlled from outside) or `onCamera` (broadcast);
+  - `suppress`: tour, invite, side panel, playback, hover, full screen;
+  - `exclusive`, `menuLocked`, `hostClass` and `hostData`.
+- **Composition** (`composeModes`, checked by `scripts/app-mapmode-check.mjs`). The modes are listed by priority, and inactive ones do
+  not count.
+  - `draw`: for each key, the first mode that sets it wins (`null` counts).
+  - Clicks: the first mode with a handler takes the click. An exclusive mode swallows kinds it has no handler for.
+  - Tower buttons that a mode draws with `of` are rebuilt by the modes above it, the nearest first.
+  - Slots appear in list order.
+  - `suppress`: if any mode suppresses something, it is suppressed.
+  - The camera follows the first mode that gives one. Every sender gets camera changes.
+  - Menu entries that start a mode come from every mode. When a mode locks the menu, only its own entries remain. `live` comes from
+    the first mode that sets it, and the class part stays.
+- **The modes, by priority** (`WorldLandscape`):
+
+  | Mode | Who | What it owns |
+  |---|---|---|
+  | `classSelectMode` | the teacher picks what a class sees | exclusive while picking: everything clickable, hidden parts grey, its bar; menu locked; no tour, invite, side panel or playback. Off: the classes in the menu |
+  | `tourMode` (`useTour` + `tourMode`) | the tour | exclusive: its own scene from an invented state, clicks only on what it shows, the demo way strip, its tower buttons (real ones, without effect), the TourCard, camera glides, auto start once; menu locked; no hover, side panel, playback or full screen |
+  | `followViewMode` | students and the projector follow | camera from outside (nothing operable), mode, chosen and slice from the teacher; no tour, invite or „Na żywo" |
+  | `followHostMode` | the teacher leads live | menu „Prowadź klasę na żywo", resumes a running session, broadcasts camera and state; banner „Na żywo"; `runBar`, `lessonLink` and `backOnMap` for stories; no tour or invite |
+  | `teacherMode` | „Prowadzę" | the class part in the menu, „Prowadź tutaj" / „Zadaj" before the learner's buttons, Zadania as overlay, task marks |
+  | `authorMode` | whoever writes the base | map hints and question-path problems below the map, „Lage neu" by the sliders |
+  | `learnerMode` | the learner (base) | route and focus, navigation marks, view, goal, chosen sign, the way strip, the buttons over a chosen thing (`learnerButtons`, also used by the tour), „Schritt n", clicks |
+
+  The learner's state (navigation, what runs, panels, playback, finish slide) stays in `WorldLandscape`. `learnerMode` only says what
+  of it goes on the map.
+- **A new use of the map** (for example planning a lesson) is one file in `modes/`:
+  1. Export a hook or builder that returns a `MapMode`, with `active: false` when it does not apply.
+  2. Set only the keys and slots it owns.
+  3. Make it `exclusive` (and `menuLocked`) if nothing below may react while it runs.
+  4. Insert it into the `composeModes([...])` list in `WorldLandscape` at its priority.
+
+  The core does not change.
 
 ## Predictions and modes (2026-11-22, I3/I4)
 
