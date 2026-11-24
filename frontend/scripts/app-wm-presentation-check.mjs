@@ -11,7 +11,7 @@
 import { useLocale } from './i18n-node.mjs';
 await useLocale('en');
 import { build } from 'esbuild';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -154,11 +154,12 @@ for (const theme of ['light', 'dark']) {
   check('trees: upright near (trunk and crown, sorted with the pillars), flat far — larger', [has(src, 'treesUpTo(dp)'), has(src, 'treesUpTo(Infinity)'), has(src, 'layer.flat !== '), has(src, 'const TREE_SIZE = 12;')], [true, true, true, true]);
   check('phone: two fingers moved up or down together tilt the map', has(src, 'const fore = two.current.cam.fore + ((a.y + b.y) / 2 - two.current.my) * 0.004;'), true);
   check('narrow: a panel never covers the map — the map gets lower and the panel stands below', [has(src, 'squeeze && size.w > 0 && size.w < 800'), /position: sticky/.test(await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8'))], [true, false]);
-  const ls = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
+  /* 2026-11-24 — die Karte: ein Kern und Modi (`mapCore.ts`, `mapMode.ts`, `modes/`) neben dem Wirt `WorldLandscape.tsx`. */
+  const ls = (await Promise.all(['WorldLandscape.tsx', 'mapCore.ts', 'mapMode.ts', ...(await readdir('src/app/cogita/worldmap/modes')).map((f) => `modes/${f}`)].map((f) => readFile(`src/app/cogita/worldmap/${f}`, 'utf8')))).join('\n');
   /* 2026-11-10 (Eigentümer): der Doppelklick öffnet den Überblick über den Weg (Vollbild), von dort beginnt man; der Knopf beginnt gleich. */
   /* 2026-11-10 (Eigentümer, später): Doppelklick macht den Turm zum Ziel und zeigt den Weg als Karte unten über der Karte; Doppelklick auf freien Boden: die Karte ohne Weg. */
   /* 2026-11-14 (Eigentümer): erst die Ansage (so viele Schritte, Schritt 1 — beginnen oder überspringen), dann der Schritt; Übersprungenes mit ↷. */
-  check('"take me there": the way card first (how many steps, step 1 announced, start or skip — also mid-step); the tower becomes the goal; a double click on free ground only ends the navigation (the camera stays)', [has(ls, 'setOverview(true);') && !has(ls, 'startNav'), has(ls, 'onSkip={() => { const k = stepKey(sheet); setSheet(null); skipStep(k); }}') && has(ls, 'data-world-part-skip={wayPart.key}'), /onLead=\{\(id\) => \{ if \(tourOn\) \{[^}]*\} setGoal\(id\); lead\(id\); \}\}/.test(ls) && has(ls, 'if (world.places.has(target)) setGoal(target);'), has(ls, 'setPeek(null); pauseNav(); }}')], [true, true, true, true]);
+  check('"take me there": the way card first (how many steps, step 1 announced, start or skip — also mid-step); the tower becomes the goal; a double click on free ground only ends the navigation (the camera stays)', [has(ls, 'setOverview(true);') && !has(ls, 'startNav'), has(ls, 'onSkip={() => { const k = stepKey(sheet); setSheet(null); skipStep(k); }}') && has(ls, 'data-world-part-skip={wayPart.key}'), /lead: \(id\) => \{ setGoal\(id\); lead\(id\); \}/.test(ls) && has(ls, 'if (world.places.has(target)) setGoal(target);'), has(ls, 'setPeek(null); pauseNav(); }')], [true, true, true, true]);
   const css = await readFile('src/app/cogita/worldmap/worldmap.css', 'utf8');
   check('full screen: the whole document; every part full size, a bar at the bottom switches map / route / points / slide-questions', [has(ls, 'root.requestFullscreen()'), has(ls, "const tabs: FullTab[] = ['map'"), has(ls, "setFullTab('run');"), has(css, '.cg-wm-fullbar {'), has(css, '.cg-wm-fullview.is-page {')], [true, true, true, true, true]);
   const pn = await readFile('src/app/cogita/worldmap/WorldPanels.tsx', 'utf8');
@@ -168,7 +169,7 @@ for (const theme of ['light', 'dark']) {
   const fin = await readFile('src/app/cogita/worldmap/WorldFinish.tsx', 'utf8');
   /* 2026-11-11 (Eigentümer): keine Namen der Pfade auf der Karte — beim Überfahren eine Blase, der Pfad leuchtet dezent. */
   check('2026-11-11: path names are not printed on the map; hovering a path shows its description and highlights it softly; a run can be started over after a mistake', [has(pl, "canvas.dataset.wmPathNames = '0';"), has(ls, 'data-world-lane-bubble={s.id}') && has(pl, 'if (hoverLane !== null) {'), has(run, 'const restart = () =>'), has(run, 'data-world-run-restart-hint')], [true, true, true, true]);
-  check('2026-11-14: buttons above a tower (Odkryj filled, Zdobądź od razu outlined; conquered: the roads on and Powtórz when due); the side panel shows numbers; the paths of a tower open by the setting openAt of the author (settings select)', [has(ls, 'const towerButtons = (id: string): TowerButton[] =>') && has(ls, "t('cogitaWorld.panel.conquerDirect')"), has(pn, 'data-world-place-numbers'), has(pn, "state.settings.openAt"), has(await readFile('src/app/cogita/worldmap/WorldLevels.tsx', 'utf8'), 'data-world-open-at=""')], [true, true, true, true]);
+  check('2026-11-14: buttons above a tower (Odkryj filled, Zdobądź od razu outlined; conquered: the roads on and Powtórz when due); the side panel shows numbers; the paths of a tower open by the setting openAt of the author (settings select)', [has(ls, 'const tower = (id: string): TowerButton[] =>') && has(ls, "t('cogitaWorld.panel.conquerDirect')"), has(pn, 'data-world-place-numbers'), has(pn, "state.settings.openAt"), has(await readFile('src/app/cogita/worldmap/WorldLevels.tsx', 'utf8'), 'data-world-open-at=""')], [true, true, true, true]);
   check('2026-11-10: the steps of a path stand on it as marks (dot per slide, diamond per question, filled when seen; only on chosen paths); a chosen tower keeps its way shown', [has(pl, 'canvas.dataset.wmPathMarks = String(markCount);'), has(pl, "l.marks[i] === 'question'"), has(pl, 'if (!stroke.dots) continue;'), has(ls, 'if (pl !== null) return { next: [...new Set(pl.route)], later: [] };')], [true, true, true, true]);
   /* 2026-11-10 (Eigentümer): Punkte, Ring und ↻ nur auf gewählten Spuren; das Zeichen „Abzweig" fiel weg — die Gabelung ist ein eigener Knoten. */
   check('2026-11-10: the inner path in short on a chosen path — dots only there, a ring on the next unseen step, ↻ where the story ends with a review', [has(pl, 'if (!stroke.dots) continue;'), has(pl, 'l.seen.slice(0, i).every(Boolean)'), has(pl, 'if (l.review && len >= 44)'), has(await readFile('src/app/cogita/worldmap/wmScene.ts', 'utf8'), 'forkStart: s.start?.exit !== undefined')], [true, true, true, true]);

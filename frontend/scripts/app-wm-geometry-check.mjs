@@ -193,7 +193,8 @@ for (const entry of ['src/app/cogita/worldmap/wmGeometry.worker.ts', 'src/app/co
     check('Step 3 · 8: a full pass whose save fails keeps the request', await (await ST.layoutPass(failing, { full: true, save: true }, compute)).saved, false);
   }
   const { readFile } = await import('node:fs/promises');
-  const src = await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8');
+  /* 2026-11-24 — die Gestalt liegt im Kern der Karte (`mapCore.ts`, `useMapLook`). */
+  const src = await readFile('src/app/cogita/worldmap/mapCore.ts', 'utf8');
   check('Step 3 · 8: the map resets the request once the pass is laid and saved', /layoutPass\(/.test(src) && /setRelay\(\(r\) => \(r === asked \? 0 : r\)\)/.test(src), true);
 }
 

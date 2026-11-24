@@ -65,12 +65,13 @@ export function useFollowHostMode(input: {
   const onCamera = useCallback((c: SharedCam) => { cam.current = c; report(); }, [report]);
   useEffect(() => { if (leading) report(); }, [leading, input.state.chosen?.kind, input.state.chosen?.id, input.state.mode, input.state.slice.join('|'), report]); // eslint-disable-line react-hooks/exhaustive-deps
   const live2 = { on: leading, onStop: () => { void stopFollow(); }, classes: classes.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { if (me !== null) void startFollow(lib, me, c).catch(() => undefined); } })) };
+  const followBar = (): ReactNode => <FollowBar me={me} onMap />;
   const mode: MapMode = {
     id: 'followHost',
     active: true,
     menu: { live: live2 },
     ...(leading ? {
-      banner: input.quiet ? null : <FollowBar me={me} onMap />,
+      banner: input.quiet ? null : followBar(),
       camera: { onCamera },
       suppress: { tour: true, invite: true },
       hostData: { 'data-world-leading': '1' }
@@ -79,7 +80,7 @@ export function useFollowHostMode(input: {
   return {
     mode,
     leading,
-    runBar: leading ? <FollowBar me={me} onMap /> : null,
+    runBar: leading ? followBar() : null,
     lessonLink: leading ? FOLLOW_LINK : null,
     backOnMap: () => { if (leading) reportMapShown(); }
   };
