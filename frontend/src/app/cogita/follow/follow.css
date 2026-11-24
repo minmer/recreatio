@@ -20,7 +20,9 @@
 .cg-follow-banner { flex: none; display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border-bottom: 1px solid var(--wk-line); background: var(--wk-accent-soft); font-weight: 600; }
 .cg-follow-body { position: relative; flex: 1 1 auto; min-height: 0; }
 .cg-follow-map { position: absolute; inset: 0; overflow: hidden; }
-.cg-follow-map .cg-wm-stage { height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.cg-follow-map .cg-wm-stage { height: calc(100dvh - 2.75rem); min-height: 0; border: 0; border-radius: 0; }
+.cg-follow.is-projector .cg-follow-map .cg-wm-stage { height: 80vh; }
+.cg-follow-map .wk-card-title { display: none; }
 .cg-follow-map .cg-wm-host, .cg-follow-map .cg-wm-body, .cg-follow-map .cg-wm-main, .cg-follow-map .cg-wm-mapwrap, .cg-follow-map .cg-wm { height: 100%; }
 .cg-follow-map.is-under { visibility: hidden; }
 .cg-follow-content { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; }
@@ -30,6 +32,7 @@
 /* Die geführte Karte: nur das Bild — nichts zum Bedienen. */
 .cg-wm-host.is-follow .cg-wm-controls, .cg-wm-host.is-follow .cg-ls-goal, .cg-wm-host.is-follow .cg-ls-conquered, .cg-wm-host.is-follow .cg-wm-side,
 .cg-wm-host.is-follow .cg-wm-tools, .cg-wm-host.is-follow .cg-wm-fullbtns, .cg-wm-host.is-follow .cg-wm-nextview, .cg-wm-host.is-follow .cg-wm-waybar,
-.cg-wm-host.is-follow .cg-wm-tour, .cg-wm-host.is-follow .cg-wm-bubble { display: none; }
+.cg-wm-host.is-follow .cg-wm-tour, .cg-wm-host.is-follow .cg-wm-bubble, .cg-wm-host.is-follow .cg-wm-sliders, .cg-wm-host.is-follow .cg-wm-list,
+.cg-wm-host.is-follow .cg-wm-qissues, .cg-wm-host.is-follow .cg-wm-partbanner { display: none; }
 .cg-wm-host.is-follow .cg-wm-body { display: block; }
 .cg-wm-followshield { position: absolute; inset: 0; z-index: 5; cursor: default; }

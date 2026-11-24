@@ -13,7 +13,8 @@
     "endSays": "The students go back to where they were.",
     "votes": "Answers: {count} of {total}",
     "reveal": "Show results",
-    "revealed": "Results shown"
+    "revealed": "Results shown",
+    "map": "Open the map"
   },
   "menu": {
     "title": "Leading live",

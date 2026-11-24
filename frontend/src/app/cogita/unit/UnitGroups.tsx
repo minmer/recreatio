@@ -220,7 +220,7 @@ export function GroupQuestions({ itemKeyOf, questions, lib, cards, learner, via,
               const l = s?.answers[m.p];
               return <li key={m.p} className={m.p === group.participant ? 'is-me' : ''} data-unit-group-member={m.p === group.participant ? 'me' : 'other'}>
                 <span className="cg-unit-ini" aria-hidden="true">{m.ini}</span>
-                <span>{m.p === group.participant ? t('cogitaGroups.play.me') : m.ini}</span>
+                <span>{m.p === group.participant ? t('cogitaGroups.play.me') : ''}</span>
                 <strong>{l ?? (m.p === group.participant && myGiven !== undefined ? givenText(card, myGiven) : '…')}</strong>
               </li>;
             })}

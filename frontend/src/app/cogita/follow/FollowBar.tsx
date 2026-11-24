@@ -14,17 +14,19 @@ import { ask } from '../../ui/dialogs';
 import { bodies, useEvents } from '../sessionEvents';
 import { TallyBars, type LessonRevealEvent, type TallyLite } from '../lesson/LessonHost';
 import { tallyQuestion, type Vote } from '../lesson/lessonTally';
+import { classAim } from '../classes/classModel';
 import { clearFollowVote, deliverFollowKeys, followSend, setFollowFrozen, showNow, stopFollow, useFollowLive } from './followHost';
 import './follow.css';
 
 const NO_CRED = {};
 
-export function FollowBar({ me }: { me: Me | null }) {
+/** `onMap`: die Leiste liegt auf der geführten Karte; sonst (Konsole, Klassenseite) führt ein Knopf zu ihr. */
+export function FollowBar({ me, onMap = false }: { me: Me | null; onMap?: boolean }) {
   const { live } = useFollowLive();
-  return live === null ? null : <FollowBarIn key={live.sessionId} me={me} />;
+  return live === null ? null : <FollowBarIn key={live.sessionId} me={me} onMap={onMap} />;
 }
 
-function FollowBarIn({ me }: { me: Me | null }) {
+function FollowBarIn({ me, onMap }: { me: Me | null; onMap: boolean }) {
   const t = useT();
   const { live, vote } = useFollowLive();
   const [intake, setIntake] = useState<Uint8Array | null>(null);
@@ -35,11 +37,11 @@ function FollowBarIn({ me }: { me: Me | null }) {
     void loadIntake(live.areaId).then((i) => openIntakeKey(i, me.ring)).then((k) => { if (alive) setIntake(k); }, () => undefined);
     return () => { alive = false; };
   }, [live?.areaId, me]); // eslint-disable-line react-hooks/exhaustive-deps
-  /* Wer neu (ohne Konto) dazukommt, bekommt den Schlüssel — alle 30 s. */
+  /* Wer neu (ohne Konto) dazukommt, bekommt den Schlüssel — alle 15 s. */
   useEffect(() => {
     if (live === null) return undefined;
     void deliverFollowKeys();
-    const id = window.setInterval(() => { void deliverFollowKeys(); }, 30_000);
+    const id = window.setInterval(() => { void deliverFollowKeys(); }, 15_000);
     return () => window.clearInterval(id);
   }, [live?.sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
   const { opened } = useEvents(live?.sessionId ?? 'none', NO_CRED, live?.keys ?? new Map(), intake);
@@ -64,11 +66,12 @@ function FollowBarIn({ me }: { me: Me | null }) {
       <span className="cg-follow-n" data-follow-joined={joined}>{t('cogitaFollow.bar.joined', { count: joined })}</span>
       {live.frozen && <span className="cg-follow-frozen" role="status">{t('cogitaFollow.bar.frozenSays')}</span>}
       <span className="cg-follow-actions">
+        {!onMap && <a className="wk-btn is-small" href={`#/${classAim(live.areaId, live.libraryId)}`} data-follow-map="">{t('cogitaFollow.bar.map')}</a>}
         <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => setFollowFrozen(!live.frozen)} data-follow-freeze={live.frozen ? 'on' : 'off'}>
           {live.frozen ? t('cogitaFollow.bar.resume') : t('cogitaFollow.bar.freeze')}
         </button>
         <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => { void showNow(); }} data-follow-show="">{t('cogitaFollow.bar.showNow')}</button>
-        <a className="wk-btn wk-btn-line is-small" href={viewPath('learn', live.libraryId, 'sesje', live.sessionId, 'ekran')} target="_blank" rel="noreferrer" data-follow-screen="">{t('cogitaFollow.bar.screen')}</a>
+        <a className="wk-btn wk-btn-line is-small" href={viewPath('learn', live.libraryId, 'sesje', live.sessionId, 'ekran')} target="_blank" rel="noreferrer" data-follow-projector="">{t('cogitaFollow.bar.screen')}</a>
         <button type="button" className="wk-btn is-small" onClick={end} data-follow-end="">{t('cogitaFollow.bar.end')}</button>
       </span>
       {vote !== null && tally !== null && (

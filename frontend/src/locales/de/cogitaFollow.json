@@ -13,7 +13,8 @@
     "endSays": "Die Schüler kehren dorthin zurück, wo sie waren.",
     "votes": "Antworten: {count} von {total}",
     "reveal": "Ergebnisse zeigen",
-    "revealed": "Ergebnisse gezeigt"
+    "revealed": "Ergebnisse gezeigt",
+    "map": "Karte öffnen"
   },
   "menu": {
     "title": "Live führen",

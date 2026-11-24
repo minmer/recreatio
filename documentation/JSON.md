@@ -135,7 +135,9 @@ What each import may do, in short (the descriptions say it in full):
   `app-import-check` §8, Api.Tests `LibraryChecks` (stage), LocalDB drive (A4 session scratchpad `a4/drive.mjs`, 13).
 - **knowledge-base `units`** (2026-11-22, Homer) — lesson units: several lessons as one list of stages
   (`cogita/unit/unitModel.ts`): `{ref, name, lessons: [{title}], stages: [{id, lesson, title, type core|flex|close,
-  minutes [min,max], modes ["P","V","R","I","O","Q","X"], led?, order fixed|free, items, bonus?, skipIf?}], settings?}`;
+  minutes [min,max], modes ["P","V","R","I","O","Q","X"], led?, order fixed|free, items, bonus?, skipIf?, work?, groupSize?}], settings?}`;
+  2026-11-24: `work` together|alone|groups (default: together when led, else alone), `groupSize` 2–6 (default 3; outside → nearest,
+  a warning), group work without questions warns;
   items `{flow, start?}` · `{questions: [@q…]}` · `{prompt, max ≤ 80, anonymous}` · `{poll, options, id?, after?}`.
   Refs resolve like every doc (`flow` a flow, `questions` entries); an unknown flow/question, an unreadable item or a
   stage id twice blocks the save (`unitIssues`), a lesson without `close` or a core over ~40 min warns. Part of

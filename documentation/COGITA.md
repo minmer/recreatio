@@ -2052,7 +2052,57 @@ close, minute range, modes P V R I O Q X, led or individual, fixed or free order
   (`.cg-projector`, no workspace frame, text from ~28 px at 1080p).
 - Not built here: ranking in a quiz (off), deleting single prompt answers (they go
   with the session: „Usuń" removes the session and its events; answers to questions stay in the learners' progress).
-- Checks: `scripts/app-unit-check.mjs`; Api.Tests CogitaChecks (participant kinds); LocalDB drive session scratchpad `unit/drive.mjs`.
+- **Group work** (2026-11-24, `unit/groupsModel.ts` pure, `unit/UnitGroups.tsx`): a stage with `work: "groups"` and `groupSize` 2–6 runs on the
+  phones. The console forms the groups when the stage opens (`unit-groups`, seeded per session and stage), puts late joiners into the smallest
+  group, „Wymieszaj ponownie", moves a student, and closes a question for a group (`unit-gclose`, the majority counts). Every member answers on
+  their own phone (`prompt` with `group {q, given, label}`, sealed for the class intake — only the teacher opens it; the own answer is also
+  recorded in the own progress and reported as `progress`). The console relays per group what its members answered (`unit-gstate`: initials
+  and the answer as a word, status thinking / disagree / agreed / closed, right or wrong) sealed with the session key — every participant
+  holds that key, a phone SHOWS only its own group. Agreed = all members gave the same answer (latest counts; order of a multiple choice and
+  case of a text do not matter). Console: per group status per question, agreed/correct, the distribution of group answers; projector: group
+  numbers and their state only. The relay needs the teacher’s console open; without it students still answer and it still counts.
+- Checks: `scripts/app-unit-check.mjs`, `scripts/app-groups-check.mjs`; Api.Tests CogitaChecks (participant kinds); LocalDB drives session scratchpad `unit/drive.mjs`, `grp/drive.mjs`.
+
+### Guided mode — „Prowadź klasę na żywo" (2026-11-24, `follow/`)
+
+The teacher leads a class live: every device of the class shows what the teacher's map shows, and students cannot navigate.
+It is no new structure. It is a lesson session (`kind: lesson`) in the class area, with config `{title, follow: true, classArea, library}`.
+Its plain `meta` holds `{library, lesson: true, follow: true, className}`, and it has no join code. It runs until „Zakończ" (state `closed`).
+
+- **Turning it on and off.** Use the class card in „Klasy" (`TeacherConsole`) or the map menu (section „Prowadzenie na żywo"). The teacher's
+  state is a module store (`followHost.ts`) kept in `sessionStorage`. After a reload, the map finds it again (`resumeFollow`, otherwise a
+  scan of the teacher's running lesson sessions with `follow` meta).
+- **Teacher bar** (`FollowBar.tsx`): „Na żywo · class · Uczniów: N" with these controls:
+  - „Zatrzymaj obraz" / „Wznów": while paused, nothing goes out.
+  - „Pokaż uczniom": sends the current state once, even while paused.
+  - „Ekran": opens the projector.
+  - „Zakończ": asks first, then closes the session.
+  - „Otwórz mapę": shown only off the map.
+  - During a question: „Odpowiedzi: n z N" (the distribution only for the teacher) and „Pokaż wyniki".
+
+  The bar delivers the session key to seats every 15 s.
+- **What goes out (events, sealed with the session key):**
+  - `follow-map {view, cam:{cx,cy,rot,fore,spanW,spanH}, chosen, mode, slice, at}`. It is sent after the map stops (350 ms) and only
+    when something changed. The camera is a ground window, so each device fits the same ground (`zoomFor`).
+  - `follow-show {kind:'map', at}`: back to the map.
+  - Story steps reuse the lesson events through FlowPlayer's `lesson` link:
+    - `step` for a slide;
+    - a question becomes `question` (a vote that `LessonPlay` renders; `slot` is plain) and is answered with `answer`, sealed for the
+      class intake;
+    - `reveal` carries the tally;
+    - a choice becomes `poll`.
+  - What students see = `followNow(events)`: the newest of map / slide / question / choice wins.
+- **Pinned.** Only content is published, never the teacher's tools. When the teacher opens the QR code, the console or a menu, nothing
+  is sent, so students keep the last slide, question or map.
+- **Students** (`FollowScreen.tsx`, `FollowGate`): accounts and seats (a no-account seat kept for the class page) on the class page,
+  LearnerHome and Nauka. They poll every 8 s for a running follow session of the base. The teacher's view then lies over the page
+  (`.cg-follow-overlay`). The followed map is `WorldLandscape` inside `FollowViewContext`: no controls, a shield over the canvas, no tour or
+  invite, and the camera is not stored. When the session closes the overlay disappears, and the student is where they were.
+- **Projector.** `…/sesje/<id>/ekran` shows the same screen, without names.
+- **Teacher's class page.** For the leader it now shows the class map (its sub-world) above the console links. This is where „Otwórz
+  mapę" leads.
+- **Checks.** `scripts/app-follow-check.mjs` (pure: content order, pinned, paused, closed, camera window). LocalDB drive in the session
+  scratchpad `gd/drive.mjs` (teacher + account student + seat student + projector).
 
 ## Predictions and modes (2026-11-22, I3/I4)
 

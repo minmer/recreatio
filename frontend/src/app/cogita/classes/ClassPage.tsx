@@ -143,18 +143,7 @@ function ClassHere({ where, who, onWho }: { where: Where; who: Who | null; onWho
   if (who !== null) {
     if (member === undefined) return <Loading label={t('cogitaClass.page.checking')} />;
     if (member.role === 'member') return <ClassLearn where={where} title={title} who={who} />;
-    if (member.role === 'lead') {
-      return (
-        <div className="cl-page wk-narrow">
-          <h1 className="wk-h1">{title}</h1>
-          <p className="wk-lede">{t('cogitaClass.page.youLead')}</p>
-          <div className="wk-actions">
-            <a className="wk-btn" href={viewPath('learn', where.libraryId, 'klasy')}><Icon name="users" />{t('cogitaClass.page.toClasses')}</a>
-            <a className="wk-btn wk-btn-line" href={viewPath('learn', where.libraryId, 'postepy', where.areaId)}>{t('cogitaClass.page.toProgress')}</a>
-          </div>
-        </div>
-      );
-    }
+    if (member.role === 'lead') return <ClassLead where={where} title={title} />;
   }
 
   if (link === undefined) return <Loading label={t('cogitaClass.page.checking')} />;
@@ -514,12 +503,44 @@ function ClassLearn({ where, title, who }: { where: Where; title: string; who: W
         : (
           <PersonProvider path={aim}>
             {/* 2026-11-24 (Tryb prowadzony) — führt die Lehrerin gerade, liegt ihre Ansicht über der Seite. */}
-            <FollowGate libraryId={where.libraryId} who={who} />
+            <FollowGate libraryId={where.libraryId} who={who} aim={aim} />
             <Suspense fallback={<Loading />}>
               <ViewView config={{ title: '', library: where.libraryId, view, mode: 'krajobraz', answers: where.areaId, rewards: '', switching: false }}
                 ctx={{ moduleId: `class-${where.areaId}`, size, whole: true }} />
             </Suspense>
           </PersonProvider>
+        )}
+    </div>
+  );
+}
+
+/*
+  2026-11-24 (Tryb prowadzony) — die Lehrerin auf der Seite ihrer Klasse: dieselbe Karte, die die Klasse sieht (ihre Teilwelt),
+  mit ihrem eigenen Fortschritt. Führt sie die Klasse gerade, steht die Leiste auf dieser Karte, und was sie hier tut, sieht die Klasse.
+*/
+function ClassLead({ where, title }: { where: Where; title: string }) {
+  const t = useT();
+  const { lib } = usePageBase(where.libraryId);
+  const view = useMemo(() => (lib == null ? null : classViewOf(lib, where.areaId)), [lib, lib?.revision, where.areaId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const size = useMemo(() => partSize({ colSpan: 6, rowSpan: 5 }), []);
+  return (
+    <div className="cl-learn" data-class-lead="">
+      <header className="cl-learn-head">
+        <h1 className="wk-h1">{title}</h1>
+        <p className="wk-lede">{t('cogitaClass.page.youLead')}</p>
+        <nav className="cl-learn-links wk-actions" aria-label={t('cogitaClass.page.more')}>
+          <a className="wk-btn" href={viewPath('learn', where.libraryId, 'klasy')}><Icon name="users" />{t('cogitaClass.page.toClasses')}</a>
+          <a className="wk-btn wk-btn-line" href={viewPath('learn', where.libraryId, 'postepy', where.areaId)}>{t('cogitaClass.page.toProgress')}</a>
+        </nav>
+      </header>
+      {lib === undefined ? <Loading label={t('cogitaClass.page.opening')} />
+        : lib === null ? <p className="wk-error">{t('cogitaClass.page.noBase')}</p>
+        : view === null ? <p className="wk-lede">{t('cogitaClass.page.noMap')}</p>
+        : (
+          <Suspense fallback={<Loading />}>
+            <ViewView config={{ title: '', library: where.libraryId, view, mode: 'krajobraz', answers: '', rewards: '', switching: false }}
+              ctx={{ moduleId: `class-lead-${where.areaId}`, size, whole: true }} />
+          </Suspense>
         )}
     </div>
   );

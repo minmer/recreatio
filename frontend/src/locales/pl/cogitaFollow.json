@@ -13,7 +13,8 @@
     "endSays": "Uczniowie wrócą tam, gdzie byli.",
     "votes": "Odpowiedzi: {count} z {total}",
     "reveal": "Pokaż wyniki",
-    "revealed": "Wyniki pokazane"
+    "revealed": "Wyniki pokazane",
+    "map": "Otwórz mapę"
   },
   "menu": {
     "title": "Prowadzenie na żywo",

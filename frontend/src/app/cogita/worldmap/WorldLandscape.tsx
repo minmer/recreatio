@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { tFor, useT } from '../../core/i18n';
+import { useMe, useWho } from '../../core/me';
 import { useDark } from '../../core/theme';
 import type { Card } from '../cardBasics';
 import { readFlow, resolveFlow, type Flow } from '../flow';
@@ -135,6 +136,9 @@ const CLOCK_MS = 10 * 60 * 1000;
 
 export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null }: WorldLandscapeProps) {
   const { lib, writes, name: baseName, me } = useCtx();
+  /* 2026-11-24 (Tryb prowadzony) — auf einer Seite ohne Person im Zusammenhang (die Klassenseite der Lehrerin): das eigene Konto. */
+  const ownMe = useMe(useWho());
+  const leadMe = me ?? ownMe ?? null;
   /*
     2026-11-24 (Tryb prowadzony) — GEFÜHRT (die Karte der Schüler und der Leinwand, `follow/FollowScreen.tsx`): Kamera, Gewähltes,
     Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
@@ -664,7 +668,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* 2026-11-12 — beim Laden die Frage: Vollbild, ganze Seite oder als Teil der Seite (WorldInvite.tsx). */
   const [invite, setInvite] = useState(() => (following ? false : inviteWanted()));
   /* Im Wahlmodus für eine Klasse (auch über „Wybierz na mapie" geöffnet) steht die Frage nicht über der Karte. */
-  useEffect(() => { if (sel.active || following) { setInvite(false); setTour(null); } }, [sel.active, following]);
+  useEffect(() => { if (sel.active || following || leading) { setInvite(false); setTour(null); } }, [sel.active, following, leading]);
   /* Ein Teil im Vollbild füllt den Platz und steht still (wmRunFit.ts). */
   const runViewRef = useRef<HTMLDivElement | null>(null);
   /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
@@ -930,7 +934,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* Nach „Odkryj" im Rundgang: die ganze Karte mit dem ganzen Weg. */
   useEffect(() => { if (tourWay && tourStep?.action?.kind === 'explore') pillars.current?.fit(); }, [tourWay]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (tour !== null || learner === null || scene === null || invite || sel.active || following || running !== null || !tourWanted() || tourSeen(scope)) return;
+    if (tour !== null || learner === null || scene === null || invite || sel.active || following || leading || running !== null || !tourWanted() || tourSeen(scope)) return;
     keepTourSeen(scope);
     setTour(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- einmal, sobald die Karte steht
@@ -1278,15 +1282,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   */
   const [liveClasses, setLiveClasses] = useState<readonly { readonly areaId: string; readonly name: string }[]>([]);
   useEffect(() => {
-    if (me === null || following) { setLiveClasses([]); return undefined; }
+    if (leadMe === null || following) { setLiveClasses([]); return undefined; }
     let alive = true;
     void myClasses(true, lib.libraryId).then((list) => {
       if (!alive) return;
       setLiveClasses(list.map((c) => ({ areaId: c.areaId, name: c.name })));
-      if (list.length > 0) void resumeFollow(me, lib.libraryId).catch(() => undefined);
+      if (list.length > 0) void resumeFollow(leadMe, lib.libraryId).catch(() => undefined);
     }, () => undefined);
     return () => { alive = false; };
-  }, [me, following, lib.libraryId]);
+  }, [leadMe, following, lib.libraryId]);
   const leadCam = useRef<SharedCam | null>(null);
   const leadState = useRef({ chosen, shownMode, slicePath });
   leadState.current = { chosen, shownMode, slicePath };
@@ -1402,7 +1406,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           2026-11-24 (Eigentümer: „auch im Vollbild und als Seite alles wählbar") — Menü, Tag-Filter und die Zadania der Klasse als
           EIN Block: über der Karte, im Vollbild oben links über ihr schwebend.
         */}
-        {leading && !sel.active && <FollowBar me={me} />}
+        {leading && !sel.active && <FollowBar me={leadMe} onMap />}
         <div className="cg-wm-controls" data-world-controls="">
         {sel.bar}
         <div className="cg-wm-top">
@@ -1413,7 +1417,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             classes={tourOn || sel.active ? [] : sel.classes.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { setChosen(null); setGoal(null); sel.start(c); } }))}
             live={tourOn || sel.active || following ? null : {
               on: leading, onStop: () => { void stopFollow(); },
-              classes: liveClasses.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { void startFollow(lib, me!, c).catch(() => undefined); } }))
+              classes: liveClasses.map((c) => ({ key: c.areaId, label: c.name, onPick: () => { void startFollow(lib, leadMe!, c).catch(() => undefined); } }))
             }} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>

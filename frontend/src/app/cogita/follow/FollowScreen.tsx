@@ -17,7 +17,8 @@ import type { Who } from '../../core/session';
 import { partSize } from '../../pages/part';
 import { usePerson } from '../../pages/pagePerson';
 import { TexText } from '../../ui/tex/Tex';
-import { holderOfSeat } from '../holders';
+import { seatsExactly } from '../../seats/seatKeep';
+import { holderOfKeptSeat, holderOfSeat } from '../holders';
 import { LessonPlay } from '../lesson/LessonHost';
 import { intakeOf, type Holder } from '../learn';
 import { loadSessions, postEvents, sealForIntake, seatSessions, sessionKeyOf, unwrapForSeat, type Credentials, type SessionRow } from '../live';
@@ -50,7 +51,7 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
       <p className="cg-follow-banner" role="status"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.screen.banner')}{now.config !== null && now.config.title !== '' && <> · <TexText text={now.config.title} /></>}</p>
       <div className="cg-follow-body">
         {now.config !== null && map !== null && view !== null && (
-          <div className={`cg-follow-map${overlay ? ' is-under' : ''}`} data-follow-map={map.view} aria-hidden={overlay ? true : undefined}>
+          <div className={`cg-follow-map${overlay ? ' is-under' : ''}`} data-follow-map={map.view} data-follow-cam={map.cam === null ? '' : `${map.cam.cx.toFixed(1)},${map.cam.cy.toFixed(1)},${map.cam.rot.toFixed(0)}`} aria-hidden={overlay ? true : undefined}>
             <FollowViewContext.Provider value={view}>
               <Suspense fallback={null}>
                 <ViewView config={{ title: '', library: now.config.library, view: map.view, mode: 'krajobraz', answers: now.config.classArea, rewards: '', switching: false }}
@@ -132,6 +133,14 @@ function FollowLive({ found }: { found: Found }) {
   const joined = useRef(false);
   const device = useMemo(deviceOf, []);
   useEffect(() => { void intakeOf(found.row.areaId).then(setIntake, () => undefined); }, [found.row.areaId]);
+  /* Die Klasse sieht mit, also kurz nachfragen (ein Abruf nur des Neuen): kommt ein Ereignis über die Verbindung nicht an, wartete
+     man sonst bis zum nächsten Abruf (15 s). Nur, solange dieser Tab sichtbar ist. */
+  const pokeRef = useRef(poke);
+  pokeRef.current = poke;
+  useEffect(() => {
+    const id = window.setInterval(() => { if (document.visibilityState === 'visible') pokeRef.current(); }, 3000);
+    return () => window.clearInterval(id);
+  }, []);
   const post = async (kind: 'join' | 'answer', body: unknown) => {
     if (intake === null) return;
     const eventId = newId();
@@ -155,19 +164,22 @@ function FollowLive({ found }: { found: Found }) {
 
 /**
  * IN DER KLASSE: führt die Lehrerin gerade (eine laufende Folge-Stunde dieser Baza), liegt ihre Ansicht über der Seite. Unter einem
- * `PersonProvider` (die Klassenseite) gilt die gewählte Person ohne Konto, sonst das Konto.
+ * `PersonProvider` gilt die gewählte Person ohne Konto; ohne Konto auf der Klassenseite (`aim`) der Platz, den dieser Browser für
+ * sie hält (der eigene Link); sonst das Konto.
  */
-export function FollowGate({ libraryId, who }: { libraryId: string; who: Who | null }) {
+export function FollowGate({ libraryId, who, aim }: { libraryId: string; who: Who | null; aim?: string }) {
   const me = useMe(who);
   const person = usePerson();
   const seat = person?.chosen?.kind === 'seat' ? person.chosen.seat : null;
+  const kept = seat === null && who === null && aim !== undefined ? seatsExactly(aim)[0] ?? null : null;
   const [holder, setHolder] = useState<Holder | null>(null);
   useEffect(() => {
     let alive = true;
-    if (seat === null) { setHolder(null); return undefined; }
-    void holderOfSeat(seat).then((h) => { if (alive) setHolder(h); }, () => undefined);
+    const making = seat !== null ? holderOfSeat(seat) : kept !== null ? holderOfKeptSeat(kept) : null;
+    if (making === null) { setHolder(null); return undefined; }
+    void making.then((h) => { if (alive) setHolder(h); }, () => undefined);
     return () => { alive = false; };
-  }, [seat?.token]); // eslint-disable-line react-hooks/exhaustive-deps
-  const found = useFollowSession(libraryId, seat === null ? me : null, holder, person?.chosen?.name ?? '');
+  }, [seat?.token, kept]); // eslint-disable-line react-hooks/exhaustive-deps
+  const found = useFollowSession(libraryId, seat === null && kept === null ? me : null, holder, person?.chosen?.name ?? '');
   return found === null ? null : <FollowLive key={found.row.sessionId} found={found} />;
 }

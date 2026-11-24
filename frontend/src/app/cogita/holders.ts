@@ -15,6 +15,7 @@ import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
 import { isChallenge, loadPortal, openGrants } from '../seats/seat';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
+import { recall } from '../seats/seatKeep';
 import type { SeatView } from '../seats/seatContext';
 import { answersArea, placeFor } from './answersTo';
 import { Learner, targetOf, type Holder, type Target } from './learn';
@@ -34,6 +35,17 @@ export async function holderOfSeat(seat: SeatView): Promise<Holder | null> {
   if (found === null) found = (await loadSeatChats(seat.token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token: seat.token, seatId: seat.seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey: seat.seatKey };
+}
+
+/** 2026-11-24 — ein Platz, den dieser Browser nur als Link hält (die Klassenseite ohne Konto): Kennung und Identität vom Dienst. */
+export async function holderOfKeptSeat(token: string): Promise<Holder | null> {
+  const seatKey = recall(token);
+  if (seatKey === null) return null;
+  const { seatId, identity } = await loadSeatChats(token);
+  const opened = await seatIdentity(token, seatId, seatKey, identity);
+  const found = identity ?? (await loadSeatChats(token)).identity;
+  if (found === null) return null;
+  return { kind: 'seat', token, seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey };
 }
 
 const LOCAL = 'recreatio:cogita:local';

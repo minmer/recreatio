@@ -514,8 +514,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   /* Step 3 §2.8 — eingepasst nach der gedrehten, geneigten Gestalt (nicht nach einem Kreis). */
   const fitCam = useCallback((w: number, h: number, rot = -20, fore = FORE_FIRST): WorldCam => fitView(disks, w, h, rot, fore), [disks]);
   /* Auf einem schmalen Schirm folgt die Höhe des Bildes der Gestalt der Welt (sonst bliebe es halb leer). */
-  const narrow = !full && size.w > 0 && size.w < 640;
-  const stageH = !full && squeeze && size.w > 0 && size.w < 800 ? Math.max(220, Math.round(window.innerHeight * 0.42))
+  /* 2026-11-24 (Tryb prowadzony) — geführt füllt das Bild die Ansicht der Klasse (follow.css). */
+  const narrow = !full && !following && size.w > 0 && size.w < 640;
+  const stageH = !full && !following && squeeze && size.w > 0 && size.w < 800 ? Math.max(220, Math.round(window.innerHeight * 0.42))
     : narrow ? stageHeightFor(disks, size.w, -20, FORE_FIRST, 260, Math.round(window.innerHeight * 0.75)) : null;
   const zoomMax = useRef(40);
   zoomMax.current = size.w === 0 ? 40 : maxZoom(disks, pillarWidth, size.w, size.h);
@@ -536,6 +537,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const settle = useRef(0);
   const [cam, setCamState] = useState<WorldCam | null>(camRef.current);
   const followRaf = useRef(0);
+  const followCamRef = useRef(follow);
+  followCamRef.current = follow;
 
   /* Grösse und Farben (hell / dunkel). */
   useEffect(() => {
@@ -565,7 +568,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
 
   const sizeRef = useRef(size);
   sizeRef.current = size;
-  const setCam = useCallback((c: WorldCam) => {
+  const setCam = useCallback((c: WorldCam, by?: 'follow') => {
+    /* Geführt bestimmt nur die Lehrerin die Kamera (kein Einpassen, kein Gleiten zum eigenen nächsten Schritt). */
+    if (followingRef.current && by !== 'follow' && camRef.current !== null && followCamRef.current !== null) return;
     const next = { ...c, fore: Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore)), s: Math.max(0.01, Math.min(zoomMax.current, c.s)) };
     camRef.current = next;
     setCamState(next);
@@ -581,12 +586,12 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (follow === null || size.w === 0 || size.h === 0) return;
     const was = camRef.current;
     const want = { cx: follow.cx, cy: follow.cy, rot: follow.rot, fore: follow.fore, s: zoomFor(follow, size.w, size.h) };
-    if (was === null || motion !== 'full') { setCam(want); return; }
+    if (was === null || motion !== 'full') { setCam(want, 'follow'); return; }
     cancelAnimationFrame(followRaf.current);
     const t0 = performance.now();
     const tick = () => {
       const k = easeInOut(Math.min(1, (performance.now() - t0) / 450));
-      setCam({ cx: was.cx + (want.cx - was.cx) * k, cy: was.cy + (want.cy - was.cy) * k, rot: was.rot + (want.rot - was.rot) * k, fore: was.fore + (want.fore - was.fore) * k, s: was.s * Math.pow(want.s / was.s, k) });
+      setCam({ cx: was.cx + (want.cx - was.cx) * k, cy: was.cy + (want.cy - was.cy) * k, rot: was.rot + (want.rot - was.rot) * k, fore: was.fore + (want.fore - was.fore) * k, s: was.s * Math.pow(want.s / was.s, k) }, 'follow');
       if (k < 1) followRaf.current = requestAnimationFrame(tick);
     };
     followRaf.current = requestAnimationFrame(tick);
