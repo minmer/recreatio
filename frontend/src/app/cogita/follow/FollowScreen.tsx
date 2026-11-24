@@ -131,8 +131,18 @@ function FollowLive({ found }: { found: Found }) {
   const [intake, setIntake] = useState<Uint8Array | null>(null);
   const [sent, setSent] = useState<ReadonlyMap<number, unknown>>(new Map());
   const joined = useRef(false);
+  const intakeRef = useRef<Uint8Array | null>(null);
+  intakeRef.current = intake;
+  const [retry, setRetry] = useState(0);
   const device = useMemo(deviceOf, []);
-  useEffect(() => { void intakeOf(found.row.areaId).then(setIntake, () => undefined); }, [found.row.areaId]);
+  /* 2026-11-25 — bis die Przyjęcia der Klasse da ist, alle 10 s noch einmal (sonst meldet man sich nie an: die Lehrerin sähe „0"). */
+  useEffect(() => {
+    let alive = true;
+    const look = () => void intakeOf(found.row.areaId).then((k) => { if (alive && k !== null) setIntake((was) => was ?? k); }, () => undefined);
+    look();
+    const id = window.setInterval(() => { if (intakeRef.current === null) look(); }, 10_000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, [found.row.areaId]);
   /* Die Klasse sieht mit, also kurz nachfragen (ein Abruf nur des Neuen): kommt ein Ereignis über die Verbindung nicht an, wartete
      man sonst bis zum nächsten Abruf (15 s). Nur, solange dieser Tab sichtbar ist. */
   const pokeRef = useRef(poke);
@@ -150,8 +160,8 @@ function FollowLive({ found }: { found: Found }) {
   useEffect(() => {
     if (intake === null || joined.current) return;
     joined.current = true;
-    void post('join', { participant: found.participant, name: found.name || found.participant.slice(-4), team: null, device }).catch(() => { joined.current = false; });
-  }, [intake]); // eslint-disable-line react-hooks/exhaustive-deps
+    void post('join', { participant: found.participant, name: found.name || found.participant.slice(-4), team: null, device }).catch(() => { joined.current = false; window.setTimeout(() => setRetry((n) => n + 1), 10_000); });
+  }, [intake, retry]); // eslint-disable-line react-hooks/exhaustive-deps
   const row = session ?? found.row;
   if (row.state === 'closed' || row.state === 'finished') return null;
   return (

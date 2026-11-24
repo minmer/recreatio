@@ -93,6 +93,8 @@ export function followMetaOf(sessionId: string, cred: { seat?: string } = {}): P
       catch { return { follow: false, className: '' }; }
     }, () => ({ follow: false, className: '' }));
     followMeta.set(sessionId, found);
+    /* 2026-11-25 — ein „nein" nicht behalten: eben erst angelegt, noch ohne Zugang oder ohne Netz — beim nächsten Suchen noch einmal fragen. */
+    void found.then((m) => { if (!m.follow) followMeta.delete(sessionId); });
   }
   return found;
 }
