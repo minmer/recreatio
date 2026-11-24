@@ -1,0 +1,22 @@
+{
+  "menu": "Für eine Klasse sichtbar…",
+  "title": "Du wählst, was die Klasse {name} sieht",
+  "counts": "Türme: {places} von {total} · Wegabschnitte: {lanes} von {lanesTotal}",
+  "hint": "Klicke einen Turm, einen Wegabschnitt, eine Gabelung oder einen Wegweiser, um ihn aus- oder einzublenden. Grau und gestrichelt — die Klasse sieht es nicht.",
+  "hideStory": "Die ganze Geschichte „{name}“ ausblenden",
+  "showStory": "Die ganze Geschichte „{name}“ zeigen",
+  "addedBase": "Auch die Türme hinzugefügt, die dieser Turm voraussetzt: {count}.",
+  "wholeStoryHidden": "Dieser Abschnitt hat keine eigenen Schritte — die ganze Geschichte ist ausgeblendet.",
+  "storyReopened": "Dieser Abschnitt lag hinter einem ausgeblendeten Teil — die ganze Geschichte ist wieder sichtbar.",
+  "forkHidden": "Wege ab dieser Gabelung ausgeblendet: {count}.",
+  "forkShown": "Wege ab dieser Gabelung gezeigt: {count}.",
+  "save": "Für die Klasse speichern",
+  "cancel": "Abbrechen",
+  "undo": "Rückgängig",
+  "all": "Alles",
+  "none": "Nichts",
+  "saveFailed": "Speichern fehlgeschlagen.",
+  "onMap": "Auf der Karte wählen",
+  "onMapSays": "Die Weltkarte öffnet sich im Wahlmodus: du klickst Türme, Wege und Gabelungen.",
+  "editorHides": "Auf der Karte ausserdem ausgeblendet: Türme {places}, Teile von Geschichten {parts}, Wegweiser {signs}."
+}

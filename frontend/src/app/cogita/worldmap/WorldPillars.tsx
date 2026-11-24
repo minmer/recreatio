@@ -261,6 +261,11 @@ export interface PillarsProps {
   readonly signs?: readonly MapSign[];
   readonly chosenSign?: string | null;
   readonly onPickSign?: (key: string) => void;
+  /**
+   * 2026-11-24 (Klasse wählen) — Abschnitte, die die Klasse nicht sieht: grau und gestrichelt (die Lehrerin kann sie wieder
+   * einschalten). Eine Spur ist grau, wenn alle ihre Abschnitte darin sind.
+   */
+  readonly hiddenLanes?: ReadonlySet<string> | null;
 }
 
 export interface MapSign {
@@ -269,10 +274,15 @@ export interface MapSign {
   readonly ready?: boolean;
   /** Ein Weg hier ist das Ziel oder wird gerade geführt: laut (gefüllt und hell). */
   readonly loud?: boolean;
+  /** 2026-11-24 — die Klasse sieht ihn nicht (beim Wählen): blass. */
+  readonly off?: boolean;
 }
 
 /** 2026-11-12 (Prompt 27) — unter dieser Nähe sind Knoten nur ein umrandeter Punkt und Wegweiser ein kleines Quadrat mit „?". */
 const MARKS_FULL = DEEP_FROM;
+
+/** Was `laneStroke` als Weg zum Ziel nimmt (oder null). */
+type LaneFocus = Parameters<typeof laneStroke>[1];
 
 /** Der Stand eines Knotens aus seinen Spuren: wartet (erreicht, keine Wahl getroffen), unterwegs, gegangen, neu, gesperrt. */
 type MarkState = 'locked' | 'new' | 'going' | 'done' | 'waiting';
@@ -464,7 +474,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
   const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onPickJunction, onHoverLane, onLead, onPlain, under = null, startAction = null, towerActions = null, compact = false, full = false, squeeze = false,
-    lit = null, portals = null, goal = null, tasks = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign } = props;
+    lit = null, portals = null, goal = null, tasks = null, playback = null, onPlayback, focus = null, hold = false, playAfter = 0, signs = [], chosenSign = null, onPickSign, hiddenLanes = null } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
   /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
@@ -595,7 +605,20 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
     return h.toString(36);
   }, [focus]);
-  const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}:${focusKey}`, [scene, pillarWidth, focusKey]);
+  /* 2026-11-24 — die ausgeblendeten Abschnitte (beim Wählen für eine Klasse) zeichnet der Boden mit. */
+  const hiddenKey = useMemo(() => {
+    if (hiddenLanes == null || hiddenLanes.size === 0) return '';
+    const text = [...hiddenLanes].sort().join(',');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36);
+  }, [hiddenLanes]);
+  const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}:${focusKey}:${hiddenKey}`, [scene, pillarWidth, focusKey, hiddenKey]);
+  const strokeOf = (l: SceneLane, f: LaneFocus, shown?: ReadonlySet<string>): LaneStroke =>
+    hiddenLanes == null ? laneStroke(l, f, shown)
+      /* Im Wahlmodus für eine Klasse: sichtbar = kräftig und durchgezogen, ausgeblendet = dünn, grau, gestrichelt — klar zu unterscheiden. */
+      : l.sections.length > 0 && l.sections.every((id) => hiddenLanes.has(id)) ? { width: 1.2, dash: [2, 3.5], tone: 'grey', dots: false }
+        : { width: 3, dash: [], tone: 'walked', dots: false };
   /* Die Insel und ihre Bäume: einmal je Gestalt — immer die der ganzen Welt (2026-11-22: auch, wenn nur ein Ausschnitt gezeichnet ist). */
   const island = useMemo(() => islandOf(scene.ground), [scene.ground]);
   const sceneId = useRef(0);
@@ -680,7 +703,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     };
     const toneColour = (tone: LaneStroke['tone']): Rgb => laneColour(tone, pal, land);
     const RANK: Readonly<Record<LaneStroke['tone'], number>> = { grey: 0, done: 1, locked: 1, known: 2, new: 3, walked: 3, route: 4, current: 5 };
-    const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: laneStroke(l, fx), pts: withRims(l, pillarWidth) }))
+    const strokes = scene.lanes.filter((l) => !(l.deep && !deep)).map((l) => ({ l, k: strokeOf(l, fx), pts: withRims(l, pillarWidth) }))
       .sort((x, y) => RANK[x.k.tone] - RANK[y.k.tone]);
     for (const { l, k, pts } of strokes) {
       const lead = k.tone === 'route' || k.tone === 'current';
@@ -1206,7 +1229,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         Punkte, Zeichen der Art und Przegląd nur auf gewählten Spuren (dem Weg); was in der Erzählung auseinandergeht und wieder
         zusammenkommt (Verpackungen, Abstecher), als Linien ohne Punkte — erst nah oder gewählt.
       */
-      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || laneOn(l, focus.remaining) || laneOn(l, focus.done))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: laneOn(l, shown), k: laneStroke(l, focus, shown) }; }).filter((x) => x.len >= 14);
+      const every = scene.lanes.filter((l) => !(l.deep && !deepNow) && (focus === null || laneOn(l, focus.remaining) || laneOn(l, focus.done))).map((l) => { const sp = screenOf(l); return { l, sp, len: lenOf(sp), on: laneOn(l, shown), k: strokeOf(l, focus, shown) }; }).filter((x) => x.len >= 14);
       let markCount = 0;
       let variantCount = 0;
       let progressCount = 0;
@@ -1391,7 +1414,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const loud = chosenSign === sg.key || sg.loud === true || hoverMark === `s:${sg.key}`;
         const far = !loud && v.s < MARKS_FULL;
         const st: MarkState = sg.status === 'done' ? 'done' : sg.status;
-        const col = loud ? pal.lit : sg.ready === true ? pal.goal : mix(pal.ink, pal.land, st === 'done' ? 0.45 : 0.25);
+        const col = loud ? pal.lit : sg.off === true ? mix(pal.ink, pal.land, 0.72) : sg.ready === true ? pal.goal : mix(pal.ink, pal.land, st === 'done' ? 0.45 : 0.25);
         const w = sg.ready === true ? 2.2 : 1.5;
         /* Ein Schild: ein Rechteck mit Spitze in seine Richtung (dir 1: rechts, -1: links), am Pfosten beginnend. */
         const board = (top: number, dir: 1 | -1, len: number, hgt: number) => {
@@ -1494,7 +1517,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmHeld = play !== null && play.t0 === Infinity ? String(play.pb.id) : '';
     canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, tasks, focus, hoverLane, signs, chosenSign, hoverMark, markStates]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal, tasks, focus, hoverLane, signs, chosenSign, hoverMark, markStates, hiddenLanes]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);

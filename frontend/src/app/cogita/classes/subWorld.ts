@@ -17,8 +17,11 @@
 
 import type { TagNetwork } from '../tags';
 import type { CogitaLibrary } from '../store';
-import { isClassView, readView, type LandscapeOnly } from '../views';
-import type { Lines, World, WorldInput } from '../worldmap/wmTypes';
+import type { Flow } from '../flow';
+import type { GraphEdge, GraphNode } from '../graph';
+import { isClassView, readView, type HiddenSection, type LandscapeOnly } from '../views';
+import { linesOf } from '../worldmap/wmLines';
+import type { Lines, Section, World, WorldInput } from '../worldmap/wmTypes';
 
 /** Unter diesem Feld nennt ein Widok die Klasse, deren Teilwelt er ist. */
 export const CLASS_VIEW_FIELD = 'forClass';
@@ -29,17 +32,158 @@ export const CLASS_VIEW_FIELD = 'forClass';
  */
 export function subWorldPlaces(world: World, net: TagNetwork, only: LandscapeOnly | null | undefined): ReadonlySet<string> | null {
   if (only === null || only === undefined) return null;
+  /* 2026-11-24 — nichts eingeschlossen: die ganze Welt ohne die ausgeblendeten Türme (ohne solche: keine Einschränkung der Türme). */
+  const hidden = new Set(only.hidePlaces ?? []);
+  if (only.tags.length === 0 && only.places.length === 0) return hidden.size === 0 ? null : new Set([...world.places.keys()].filter((id) => !hidden.has(id)));
+  const keep = (set: Set<string>): ReadonlySet<string> => { for (const id of hidden) set.delete(id); return set; };
   const chosen = new Set<string>();
   for (const tag of only.tags) {
     if (net.tags.has(tag)) for (const id of net.below(tag)) if (world.places.has(id)) chosen.add(id);
     if (world.places.has(tag)) chosen.add(tag);
   }
   for (const id of only.places) if (world.places.has(id)) chosen.add(id);
-  if (!only.withBase) return chosen;
+  if (!only.withBase) return keep(chosen);
   const out = new Set(chosen);
   for (const id of chosen) for (const b of world.base(id)) if (world.places.has(b)) out.add(b);
-  return out;
+  return keep(out);
 }
+
+/* -- 2026-11-24: Abschnitte, Erzählungen, Wegweiser — auf der Karte gewählt -------------------------------------------------- */
+
+/**
+ * DER BLEIBENDE NAME EINES ABSCHNITTS: sein erster Schritt (ein eingebetteter Schritt `a>b` heisst nach `a`, dem Schritt im
+ * Ablauf selbst). Ohne Schritte (ein Tor, ein Rückweg): `null` — er folgt seiner Erzählung und seinen Türmen.
+ */
+export function sectionStep(s: Pick<Section, 'steps'>): string | null {
+  const first = s.steps[0];
+  return first === undefined || first === '' ? null : first.split('>')[0]!;
+}
+
+export const sectionKey = (s: Pick<Section, 'line' | 'steps'>): string | null => { const step = sectionStep(s); return step === null ? null : `${s.line}#${step}`; };
+export const hiddenKey = (h: HiddenSection): string => `${h.flow}#${h.step}`;
+
+const END: GraphNode = { id: '~end', type: 'end', x: 0, y: 0, config: {} };
+const isDropped = (o: unknown): boolean => typeof o === 'object' && o !== null && (o as { _dropped?: unknown })._dropped === true;
+
+/**
+ * EINEN ABLAUF BESCHNEIDEN: von den Schritten in `hide` an fällt der Weg weg. Eine Wahl verliert die Möglichkeit, die dorthin
+ * führt (`_dropped` — die Nummern der übrigen bleiben), ein anderer Schritt endet dort (der Ablauf hört an diesem Turm auf).
+ * Ein Abstecher in eine Erzählung, die es nicht mehr gibt (`gone`), wird übersprungen. Was nicht mehr erreichbar ist, fällt
+ * weg. `null`: vom Ablauf bleibt nichts (sein Anfang ist ausgeblendet).
+ */
+export function pruneFlow(flow: Flow, hide: ReadonlySet<string>, gone: (ref: string) => boolean = () => false): Flow | null {
+  const nodes = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
+  if (flow.start !== null && hide.has(flow.start)) return null;
+  /* Abstecher ins Nichts: wer zu ihm führt, geht gleich dorthin, wohin er nach dem Abstecher ginge. */
+  const skip = new Map<string, string | null>();
+  for (const n of flow.graph.nodes) {
+    if (n.type !== 'detour' && n.type !== 'handoff') continue;
+    if (!gone(typeof n.config.flow === 'string' ? n.config.flow : '')) continue;
+    const after = flow.graph.edges.find((e) => e.from === n.id && (e.out === 'done' || e.out === 'skip' || e.out === 'next'));
+    skip.set(n.id, after?.to ?? null);
+  }
+  if (hide.size === 0 && skip.size === 0) return flow;
+  const target = (to: string, seen: Set<string> = new Set()): string | null => {
+    if (!skip.has(to) || seen.has(to)) return to;
+    seen.add(to);
+    const next = skip.get(to) ?? null;
+    return next === null ? null : target(next, seen);
+  };
+  let needEnd = false;
+  const edges: GraphEdge[] = [];
+  const dropped = new Map<string, Set<string>>();
+  for (const e of flow.graph.edges) {
+    if (skip.has(e.from)) continue;
+    const to = target(e.to);
+    if (to !== null && !hide.has(to)) { edges.push(to === e.to ? e : { ...e, to }); continue; }
+    const from = nodes.get(e.from);
+    if (from?.type === 'choice' && /^o\d+$/.test(e.out)) { const set = dropped.get(e.from) ?? new Set<string>(); set.add(e.out); dropped.set(e.from, set); continue; }
+    needEnd = true;
+    edges.push({ ...e, to: END.id });
+  }
+  /* Eine Wahl ohne übrige Möglichkeit wird selbst ein Ende. */
+  const deadChoices = new Set<string>();
+  const outNodes = [...nodes.values()].map((n): GraphNode => {
+    const drop = dropped.get(n.id);
+    if (drop === undefined || n.type !== 'choice') return n;
+    const options = (Array.isArray(n.config.options) ? n.config.options : []).map((o, i) => (drop.has(`o${i}`) ? { ...(typeof o === 'object' && o !== null ? o : { label: String(o) }), _dropped: true } : o));
+    if (options.every(isDropped)) deadChoices.add(n.id);
+    return { ...n, config: { ...n.config, options } };
+  });
+  const kept: GraphEdge[] = [];
+  for (const e of edges) {
+    if (deadChoices.has(e.from)) continue;
+    if (deadChoices.has(e.to)) { needEnd = true; kept.push({ ...e, to: END.id }); } else kept.push(e);
+  }
+  const all = [...outNodes.filter((n) => !skip.has(n.id) && !deadChoices.has(n.id)), ...(needEnd && !nodes.has(END.id) ? [END] : [])];
+  const start = flow.start === null ? null : target(flow.start);
+  if (flow.start !== null && (start === null || deadChoices.has(start))) return null;
+  /* Nur, was vom Anfang her erreichbar ist (ohne Anfang: alles, was übrig ist). */
+  const reach = new Set<string>();
+  if (start === null) for (const n of all) reach.add(n.id);
+  else {
+    const todo = [start];
+    while (todo.length > 0) { const id = todo.pop()!; if (reach.has(id)) continue; reach.add(id); for (const e of kept) if (e.from === id) todo.push(e.to); }
+  }
+  return {
+    ...flow,
+    ...(start === flow.start ? {} : { start }),
+    graph: { nodes: all.filter((n) => reach.has(n.id)), edges: kept.filter((e) => reach.has(e.from) && reach.has(e.to)) }
+  };
+}
+
+/**
+ * DER EINGANG DER KLASSE: Türme ausserhalb (`subWorldPlaces`), ausgeblendete Erzählungen, Abschnitte und — von selbst — jeder
+ * Abschnitt, der zu einem Turm ausserhalb führt, sind weg; eine Erzählung behält ihre übrigen Zweige. `null`: keine Teilwelt.
+ * Dieselbe Rechnung zeigt der Lehrerin beim Wählen, was die Klasse sieht.
+ */
+export function classWorldInput(input: WorldInput, world: World, net: TagNetwork, only: LandscapeOnly | null | undefined, fullLines?: Lines): WorldInput | null {
+  if (only === null || only === undefined) return null;
+  const allowed = subWorldPlaces(world, net, only);
+  const lines = fullLines ?? linesOf(world, input.flows);
+  const refOf = new Map<string, string>();
+  for (const f of input.flows) { refOf.set(f.id, f.id); if (f.ref !== undefined) { refOf.set(f.ref, f.id); refOf.set(f.ref.replace(/^@/, ''), f.id); } }
+  const idOf = (ref: string): string | undefined => refOf.get(ref) ?? refOf.get(ref.replace(/^@/, ''));
+  const hiddenFlows = new Set((only.hideFlows ?? []).map(idOf).filter((x): x is string => x !== undefined));
+  const steps = new Map<string, Set<string>>();
+  const hideStep = (flow: string, step: string) => { const set = steps.get(flow) ?? new Set<string>(); set.add(step); steps.set(flow, set); };
+  for (const h of only.hideSections ?? []) { const id = idOf(h.flow); if (id !== undefined) hideStep(id, h.step); }
+  if (allowed !== null) {
+    for (const sec of lines.sections.values()) {
+      if (!world.places.has(sec.to) || allowed.has(sec.to)) continue;
+      const step = sectionStep(sec);
+      if (step !== null) hideStep(sec.line, step);
+    }
+  }
+  /* Bis nichts mehr dazukommt: was ganz wegfällt, nimmt Abstechern dorthin den Weg. */
+  let flows: Flow[] = [];
+  let gone = new Set(hiddenFlows);
+  for (let round = 0; round < 4; round += 1) {
+    const isGone = (ref: string) => { const id = idOf(ref); return id !== undefined && gone.has(id); };
+    flows = input.flows.filter((f) => !gone.has(f.id)).map((f) => pruneFlow(f, steps.get(f.id) ?? new Set(), isGone)).filter((f): f is Flow => f !== null);
+    const kept = new Set(flows.map((f) => f.id));
+    const now = new Set([...hiddenFlows, ...input.flows.filter((f) => !kept.has(f.id)).map((f) => f.id)]);
+    if (now.size === gone.size) break;
+    gone = now;
+  }
+  const pruned: WorldInput = { ...input, flows };
+  return allowed === null ? pruned : restrictWorldInput(pruned, world, linesOf(world, flows), allowed);
+}
+
+/** `only` für den Widok, ohne leere Listen. */
+export function onlyJson(only: LandscapeOnly): Record<string, unknown> {
+  return {
+    tags: [...only.tags], places: [...only.places], withBase: only.withBase,
+    ...((only.hidePlaces ?? []).length === 0 ? {} : { hidePlaces: [...only.hidePlaces!] }),
+    ...((only.hideFlows ?? []).length === 0 ? {} : { hideFlows: [...only.hideFlows!] }),
+    ...((only.hideSections ?? []).length === 0 ? {} : { hideSections: only.hideSections!.map((h) => ({ flow: h.flow, step: h.step })) }),
+    ...((only.hideSigns ?? []).length === 0 ? {} : { hideSigns: [...only.hideSigns!] })
+  };
+}
+
+/** Ist die Wahl leer (keine Einschränkung)? */
+export const onlyEmpty = (only: LandscapeOnly | null | undefined): boolean => only === null || only === undefined || (only.tags.length === 0 && only.places.length === 0
+  && (only.hidePlaces ?? []).length === 0 && (only.hideFlows ?? []).length === 0 && (only.hideSections ?? []).length === 0 && (only.hideSigns ?? []).length === 0);
 
 /**
  * DER BESCHNITTENE EINGANG: Türme ausserhalb fallen weg (ihre Einträge — Verweise auf sie bleiben baumelnd und werden beim
@@ -115,17 +259,19 @@ export function classOnly(lib: CogitaLibrary, areaId: string): LandscapeOnly | n
 /**
  * DIE TEILWELT SETZEN: ein Widok „<Klasse> — <Name>" als Abschrift der Weltkarte der Baza mit `only` und `forClass` (angelegt
  * oder ersetzt); `only = null` nimmt ihn weg (die Klasse sieht wieder die ganze Welt). Gibt die Kennung des Widoku zurück.
+ * `fromView`: auf dieser Karte gewählt (2026-11-24) — ihre Abschrift, wenn sie ein Widok der Baza ist; sonst die Weltkarte der Baza.
  */
-export async function setClassView(lib: CogitaLibrary, klass: { readonly areaId: string; readonly name: string }, only: LandscapeOnly | null, name: string): Promise<string | null> {
+export async function setClassView(lib: CogitaLibrary, klass: { readonly areaId: string; readonly name: string }, only: LandscapeOnly | null, name: string, fromView: string | null = null): Promise<string | null> {
   const had = classViewDoc(lib, klass.areaId);
-  if (only === null) {
+  if (only === null || onlyEmpty(only)) {
     if (had !== null) await lib.remove(had.id);
     return baseWorldViewOf(lib);
   }
-  const baseId = baseWorldViewOf(lib);
+  const chosen = fromView === null ? null : lib.docs('view').find((d) => d.id === fromView && !isClassView(d.data)) ?? null;
+  const baseId = chosen?.id ?? baseWorldViewOf(lib);
   const base = baseId === null ? null : lib.docs('view').find((d) => d.id === baseId) ?? null;
   const from = (base?.data ?? { mode: 'landscape', steps: [] }) as Record<string, unknown>;
-  const landscape = { ...((from.landscape ?? {}) as Record<string, unknown>), style: 'world', only: { tags: [...only.tags], places: [...only.places], withBase: only.withBase } };
+  const landscape = { ...((from.landscape ?? {}) as Record<string, unknown>), style: 'world', only: onlyJson(only) };
   const saved = await lib.saveDoc('view', { ...from, name, mode: 'landscape', landscape, [CLASS_VIEW_FIELD]: klass.areaId.toLowerCase() }, had?.id);
   return saved.id;
 }

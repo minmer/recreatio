@@ -14,6 +14,7 @@
  * lesen) — oder die Baza ist öffentlich lesbar.
  */
 
+import { setParent } from '../../communities/communityStore';
 import { createArea, loadAreas, type AreaRow } from '../../areas/area';
 import { baseKey } from '../../areas/courseBases';
 import { loadImportKeys, saveImportKeys, saveProfile, type ImportKey } from '../../areas/profile';
@@ -46,6 +47,9 @@ export async function classOpening(me: Me, base: ClassBase): Promise<'share' | '
   if (row !== undefined && row.publicLevel !== 'none') return 'public';
   return (await issuerIn(me.ring, base.areaId).catch(() => null)) === null ? null : 'share';
 }
+
+/** 2026-11-24 — eine Klasse, die ausserhalb des Bereichs der Baza liegt, dorthin umhängen: sie erbt dessen Administrator danych. */
+export const moveClassUnderBase = (klass: ClassOf, baseAreaId: string): Promise<unknown> => setParent(klass.areaId, baseAreaId);
 
 /* -- Welche Klassen ------------------------------------------------------------------------------------------------- */
 
@@ -105,7 +109,13 @@ export async function createClass(me: Me, base: ClassBase, name: string, stage: 
   if (opening === null) throw new WorkspaceError(t('cogitaClass.err.cannotShare'));
 
   stage('area');
-  const area = await createArea(me.ring, me.person, title.slice(0, 200), opening === 'share' ? base.areaId : undefined);
+  /*
+    2026-11-24 (Eigentümer: „der Bereich der Welt hat einen Verantwortlichen, trotzdem die Meldung") — die Klasse liegt IMMER unter dem
+    Bereich der Baza, wenn ich dort hineinlassen darf — auch bei einer öffentlichen Baza (vorher: dann ganz aussen, ohne geerbten
+    Administrator danych). Nur wer dort nicht prowadzi, legt sie aussen an; dann braucht die Klasse einen eigenen.
+  */
+  const nest = opening === 'share' || (await issuerIn(me.ring, base.areaId).catch(() => null)) !== null;
+  const area = await createArea(me.ring, me.person, title.slice(0, 200), nest ? base.areaId : undefined);
   await saveProfile(area.areaId, { kind: 'class' }).catch(() => undefined);
 
   stage('role');

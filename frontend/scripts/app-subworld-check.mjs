@@ -4,7 +4,10 @@
  *   2. der beschnittene Eingang: nur diese Türme im Modell; ein Ablauf, der einen Turm ausserhalb erreicht, fällt weg;
  *   3. `only` im Widok: gelesen, über Export (`@name`) und Import (Kennungen) unverändert;
  *   4. Klasse ↔ Widok: setClassView legt „<Klasse> — świat" mit `forClass` an, classViewOf findet ihn, „Cały świat" nimmt ihn weg;
- *      die Weltkarte der Baza bleibt die Weltkarte (Klassen-Widoki zählen nicht).
+ *      die Weltkarte der Baza bleibt die Weltkarte (Klassen-Widoki zählen nicht);
+ *   5. 2026-11-24 — auf der Karte gewählt: ein Zweig einer Gabelung allein (der andere bleibt), eine Gabelung ganz (die Erzählung
+ *      endet dort), ein ausgeblendeter Turm schneidet nur den Zweig zu ihm (die Erzählung bleibt), eine ganze Erzählung, Wegweiser;
+ *      Ausnahmen über Export/Import unverändert (Ablauf als @name, Schritt bleibt).
  *
  *   node scripts/app-subworld-check.mjs
  */
@@ -21,8 +24,8 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-subworld-'));
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(join(workspace, 'entry.ts'), `
 export { memoryBase } from '${app}cogita/memoryBase';
-export { subWorldPlaces, restrictWorldInput, classViewOf, classOnly, setClassView, baseWorldViewOf } from '${app}cogita/classes/subWorld';
-export { readView, isClassView } from '${app}cogita/views';
+export { subWorldPlaces, restrictWorldInput, classViewOf, classOnly, setClassView, baseWorldViewOf, classWorldInput, pruneFlow, sectionStep, sectionKey, onlyJson, onlyEmpty } from '${app}cogita/classes/subWorld';
+export { readView, isClassView, readLandscapeOnly } from '${app}cogita/views';
 export { exportCourse } from '${app}cogita/json';
 export { readWorld } from '${app}cogita/worldmap/wmGraph';
 export { worldInputOf, placeKindsOf } from '${app}cogita/worldmap/wmInput';
@@ -50,12 +53,14 @@ const course = {
   format: 'recreatio.cogita.course', version: 1, name: 'Teilwelt',
   kinds: [
     { ref: '@sw/tag', name: 'Tag', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'nad', label: 'Nad', type: 'ref', to: ['@sw/tag'], multi: true, tag: 'up' }] },
+    { ref: '@sw/czesc', name: 'Część', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'wymaga', label: 'Wymaga', type: 'ref', to: ['@sw/temat', '@sw/czesc'], multi: true, prerequisite: 'up' }] },
     { ref: '@sw/temat', name: 'Temat', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'wymaga', label: 'Wymaga', type: 'ref', to: ['@sw/temat'], multi: true, prerequisite: 'up' }, { key: 'tagi', label: 'Tagi', type: 'ref', to: ['@sw/tag'], multi: true, tag: 'up' }] }
   ],
   entities: [
     { ref: '@sw/tag/homer', kinds: ['@sw/tag'], data: { nazwa: 'Homer' } },
     { ref: '@sw/tag/iliada', kinds: ['@sw/tag'], data: { nazwa: 'Iliada', nad: ['@sw/tag/homer'] } },
     { ref: '@sw/tag/odyseja', kinds: ['@sw/tag'], data: { nazwa: 'Odyseja', nad: ['@sw/tag/homer'] } },
+    { ref: '@sw/u/gabel', kinds: ['@sw/czesc'], data: { nazwa: 'Gabel' } },
     T('@sw/a', 'A', { tagi: ['@sw/tag/iliada'] }),
     T('@sw/b', 'B', { wymaga: ['@sw/a'], tagi: ['@sw/tag/iliada'] }),
     T('@sw/c', 'C', { wymaga: ['@sw/b'], tagi: ['@sw/tag/iliada'] }),
@@ -63,10 +68,18 @@ const course = {
     T('@sw/e', 'E', { wymaga: ['@sw/c'] }),
     ...['a', 'b', 'c', 'd', 'e'].map((x) => ({ ref: `@sw/q/${x}`, kinds: ['question'], data: { form: 'one', prompt: `${x}?`, options: ['T', 'N'], correct: [0], about: [`@sw/${x}`] } }))
   ],
-  flows: ['b', 'd'].map((x) => ({
+  flows: [{
+    ref: '@sw/f/gabel', name: 'Gabel', look: 'reading', start: 'qa', unit: '@sw/u/gabel',
+    graph: {
+      nodes: [{ id: 'qa', type: 'question', config: { of: '@sw/q/a' } }, { id: 'ch', type: 'choice', config: { options: [{ label: 'Do B' }, { label: 'Do D' }] } },
+        { id: 'qb', type: 'question', config: { of: '@sw/q/b' } }, { id: 'qd', type: 'question', config: { of: '@sw/q/d' } }, { id: 'k', type: 'end', config: {} }],
+      edges: [['qa', 'right', 'ch'], ['qa', 'wrong', 'ch'], ['ch', 'o0', 'qb'], ['ch', 'o1', 'qd'], ['qb', 'right', 'k'], ['qb', 'wrong', 'k'], ['qd', 'right', 'k'], ['qd', 'wrong', 'k']]
+        .map(([from, out, to], i) => ({ id: `g${i}`, from, out, to, in: 'in' }))
+    }
+  }, ...['b', 'd'].map((x) => ({
     ref: `@sw/f/${x}`, name: `Do ${x}`, look: 'reading', start: 's',
     graph: { nodes: [{ id: 's', type: 'question', config: { of: `@sw/q/${x}` } }, { id: 'k', type: 'end', config: {} }], edges: [{ id: 'e1', from: 's', out: 'right', to: 'k', in: 'in' }, { id: 'e2', from: 's', out: 'wrong', to: 'k', in: 'in' }] }
-  })),
+  }))],
   views: [
     { ref: '@sw/mapa', name: 'Mapa', mode: 'landscape', steps: [{ type: 'source.kind', config: { kind: '@sw/temat' } }], landscape: { style: 'world' } },
     { ref: '@sw/iliada', name: 'Iliada', mode: 'landscape', steps: [{ type: 'source.kind', config: { kind: '@sw/temat' } }], landscape: { style: 'world', only: { tags: ['@sw/tag/iliada'], places: [], withBase: true } } }
@@ -97,6 +110,63 @@ try {
     assert.deepEqual(label(m.subWorldPlaces(world, net, only({ places: [id('sw/e')], withBase: false }))), ['E']);
     assert.deepEqual(label(m.subWorldPlaces(world, net, only({ places: [id('sw/d')], tags: ['nie-ma'] }))), ['A', 'D']);
   });
+  /* -- 5. Auf der Karte gewählt ---------------------------------------------------------------------------------------------- */
+  const L = m.linesOf(world, input.flows);
+  const gabel = input.flows.find((f) => f.name === 'Gabel');
+  const student = (o) => { const cut = m.classWorldInput(input, world, net, o, L); const w = m.readWorld(cut); return { cut, w, lines: m.linesOf(w, cut.flows) }; };
+  const towersOf = (lines, flowId) => { const ln = lines.lines.get(flowId); return ln === undefined ? null : label(new Set([...ln.sections].map((sid) => lines.sections.get(sid)?.to).filter((x) => world.places.has(x)))); };
+  await check('5. the fork flow reaches A, then B or D; a section is named by its flow and first step (stable)', () => {
+    assert.deepEqual(towersOf(L, gabel.id), ['A', 'B', 'D']);
+    const toD = [...L.sections.values()].find((x) => x.line === gabel.id && x.to === id('sw/d'));
+    assert.equal(m.sectionStep(toD), 'qd');
+    assert.equal(m.sectionKey(toD), `${gabel.id}#qd`);
+  });
+  await check('5. hiding ONE branch (to D): the story keeps A and B; the choice keeps its numbering (o1 dropped, not removed)', () => {
+    const { cut, lines } = student(only({ hideSections: [{ flow: gabel.id, step: 'qd' }] }));
+    assert.deepEqual(towersOf(lines, gabel.id), ['A', 'B']);
+    const ch = cut.flows.find((f) => f.id === gabel.id).graph.nodes.find((n) => n.id === 'ch');
+    assert.deepEqual(ch.config.options.map((o) => o._dropped === true), [false, true]);
+    assert.ok(!cut.flows.find((f) => f.id === gabel.id).graph.nodes.some((n) => n.id === 'qd'), 'the hidden branch is gone');
+  });
+  await check('5. hiding the whole fork (both branches): the story ends after A (the choice becomes an end)', () => {
+    const { cut, lines } = student(only({ hideSections: [{ flow: gabel.id, step: 'qb' }, { flow: gabel.id, step: 'qd' }] }));
+    assert.deepEqual(towersOf(lines, gabel.id), ['A']);
+    const f = cut.flows.find((x) => x.id === gabel.id);
+    assert.ok(!f.graph.nodes.some((n) => n.id === 'ch') && f.graph.edges.some((e) => e.from === 'qa' && e.to === '~end'));
+  });
+  await check('5. a hidden tower (D) cuts only the branch to it — the story stays with A and B (before: dropped whole)', () => {
+    const { w, lines } = student(only({ hidePlaces: [id('sw/d')] }));
+    assert.deepEqual(label(w.places.keys()), ['A', 'B', 'C', 'E']);
+    assert.deepEqual(towersOf(lines, gabel.id), ['A', 'B']);
+    assert.equal(lines.lines.has(input.flows.find((f) => f.name === 'Do d').id), false, 'the story only to D is gone');
+  });
+  await check('5. hiding a whole story (hideFlows) removes it; nothing hidden: no restriction at all', () => {
+    const { lines } = student(only({ hideFlows: [gabel.id] }));
+    assert.equal(lines.lines.has(gabel.id), false);
+    assert.equal(m.classWorldInput(input, world, net, null, L), null);
+    assert.ok(m.onlyEmpty(only({})) && !m.onlyEmpty(only({ hideSigns: ['x'] })));
+  });
+  await check('5. "only" with exceptions only is read; empty lists are left out of the JSON', () => {
+    const o = m.readLandscapeOnly({ hideSections: [{ flow: 'F', step: 's1' }, { flow: 'F', step: 's1' }, { flow: '', step: 'x' }], hideSigns: ['p1'] });
+    assert.deepEqual(o, { tags: [], places: [], withBase: true, hideSections: [{ flow: 'F', step: 's1' }], hideSigns: ['p1'] });
+    assert.deepEqual(m.onlyJson(o), { tags: [], places: [], withBase: true, hideSections: [{ flow: 'F', step: 's1' }], hideSigns: ['p1'] });
+    assert.equal(m.readLandscapeOnly({ tags: [], hideFlows: [] }), null);
+  });
+  await check('5. exceptions survive export (flow as @name, step kept) and a second import (back to ids)', async () => {
+    await m.setClassView(lib, { areaId: 'klasa-x', name: 'x' }, only({ hidePlaces: [id('sw/e')], hideFlows: [input.flows.find((f) => f.name === 'Do d').id], hideSections: [{ flow: gabel.id, step: 'qd' }] }), 'x — świat');
+    const out = m.exportCourse(lib, 'Teilwelt');
+    const v = out.views.find((x) => x.name === 'x — świat');
+    assert.deepEqual(v.landscape.only.hideSections, [{ flow: '@sw/f/gabel', step: 'qd' }]);
+    assert.deepEqual([v.landscape.only.hidePlaces, v.landscape.only.hideFlows], [['@sw/e'], ['@sw/f/d']]);
+    const again = await m.memoryBase(out, { libraryId: 'sw-lib3', areaId: 'sw-area3' });
+    assert.ok(!('error' in again), again.error);
+    const v2 = m.readView(again.writer.docs('view').find((d) => d.data.name === 'x — świat').data).landscape.only;
+    const g2 = again.writer.docs('flow').find((d) => d.data.name === 'Gabel').id;
+    assert.deepEqual(v2.hideSections, [{ flow: g2, step: 'qd' }]);
+    assert.deepEqual(v2.hidePlaces, [again.writer.byImportRef('sw/e', 'entity').id]);
+    await m.setClassView(lib, { areaId: 'klasa-x', name: 'x' }, null, 'x');
+  });
+
   await check('2. the cut input: only the chosen towers in the model; the flow to D (outside) is gone, the flow to B stays', () => {
     const allowed = m.subWorldPlaces(world, net, only({ tags: [id('sw/tag/iliada')] }));
     const L = m.linesOf(world, input.flows);

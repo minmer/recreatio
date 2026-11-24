@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useT } from '../../core/i18n';
+import { viewPath } from '../../routes';
+import { handOffSelect } from '../worldmap/ClassSelect';
 import { Loading } from '../../ui/Loading';
 import { useAsync, useBusy, useCtx } from '../ui';
 import type { LandscapeOnly } from '../views';
@@ -15,7 +17,7 @@ import { readWorld } from '../worldmap/wmGraph';
 import { placeKindsOf, worldInputOf } from '../worldmap/wmInput';
 import { worldTags } from '../worldmap/wmTags';
 import type { ClassOf } from './classModel';
-import { baseWorldViewOf, classOnly, setClassView, subWorldPlaces } from './subWorld';
+import { baseWorldViewOf, classOnly, onlyEmpty, setClassView, subWorldPlaces } from './subWorld';
 import './classes.css';
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -49,7 +51,21 @@ export function SubWorldEditor({ klass }: { klass: ClassOf }) {
     setWithBase(saved?.withBase ?? true);
   }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const only: LandscapeOnly | null = whole || (tags.size === 0 && places.size === 0) ? null : { tags: [...tags], places: [...places], withBase };
+  /* 2026-11-24 — was auf der Karte ausgeblendet ist (Türme, Erzählungen, Abschnitte, Wegweiser), bleibt beim Speichern der Liste. */
+  const hides = saved === null ? {} : {
+    ...(saved.hidePlaces === undefined ? {} : { hidePlaces: saved.hidePlaces }), ...(saved.hideFlows === undefined ? {} : { hideFlows: saved.hideFlows }),
+    ...(saved.hideSections === undefined ? {} : { hideSections: saved.hideSections }), ...(saved.hideSigns === undefined ? {} : { hideSigns: saved.hideSigns })
+  };
+  const raw: LandscapeOnly = { tags: [...tags], places: [...places], withBase, ...hides };
+  const only: LandscapeOnly | null = whole || onlyEmpty(raw) ? null : raw;
+  const hideCount = { places: saved?.hidePlaces?.length ?? 0, parts: (saved?.hideSections?.length ?? 0) + (saved?.hideFlows?.length ?? 0), signs: saved?.hideSigns?.length ?? 0 };
+  /* Auf der Karte wählen: die Weltkarte der Baza öffnet sich gleich im Wahl-Modus für diese Klasse. */
+  const onMap = () => {
+    const id = baseWorldViewOf(lib);
+    if (id === null) return;
+    handOffSelect(lib.libraryId, klass);
+    window.location.hash = viewPath('knowledge', lib.libraryId, 'wpisy', 'widok', id);
+  };
   const shown = useMemo(() => (world === null || net === null ? null : subWorldPlaces(world, net, only)), [world, net, JSON.stringify(only)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Was über einen Tag hineinkommt (und nicht nur als Voraussetzung). */
@@ -100,6 +116,12 @@ export function SubWorldEditor({ klass }: { klass: ClassOf }) {
         <label className="wk-check"><input type="radio" name={`sw-${klass.areaId}`} checked={!whole} onChange={() => { setWhole(false); setNote(null); }} data-subworld-part="" /><span>{t('cogitaSubWorld.part')}</span></label>
       </div>
       <p className="cl-sw-count" role="status" data-subworld-shown={count}><strong>{t('cogitaSubWorld.count', { count, total })}</strong></p>
+      {writes && baseWorldViewOf(lib) !== null && (
+        <p><button type="button" className="wk-btn wk-btn-line" onClick={onMap} data-subworld-on-map="">{t('cogitaClassMap.onMap')}</button> <span className="cg-muted">{t('cogitaClassMap.onMapSays')}</span></p>
+      )}
+      {(hideCount.places + hideCount.parts + hideCount.signs) > 0 && !whole && (
+        <p className="cg-muted" data-subworld-hides="">{t('cogitaClassMap.editorHides', hideCount)}</p>
+      )}
       {!whole && (
         <>
           <label className="wk-check"><input type="checkbox" checked={withBase} onChange={(e) => { setWithBase(e.currentTarget.checked); setNote(null); }} data-subworld-base="" /><span>{t('cogitaSubWorld.withBase')}</span></label>

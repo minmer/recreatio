@@ -80,6 +80,8 @@ import { isWorkBase } from './store';
 import { consoleSlots } from './classes/consoleSlots';
 
 const ClassesTab = lazy(() => import('./classes/ClassesTab').then((m) => ({ default: m.ClassesTab })));
+/* 2026-11-24 — der Przegląd: alle Folien und Fragen zum Durchgehen (`explore/Explore.tsx`). */
+const Explore = lazy(() => import('./explore/Explore').then((m) => ({ default: m.Explore })));
 
 /** Die Klasse, in der ich (als Schüler) mit dieser Baza lerne — `null`: keine; `undefined`: wird nachgesehen. Autoren: keine. */
 function useClassArea(libraryId: string, writes: boolean): string | null | undefined {
@@ -187,6 +189,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
       {tab === 'klasy' && <Suspense fallback={<Loading />}><ClassesTab trail={trail.slice(1)} slots={consoleSlots} /></Suspense>}
+      {tab === 'przeglad' && <Suspense fallback={<Loading />}><Explore /></Suspense>}
       {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...rest) => go('sesje', ...rest)} />}
       {tab === 'postepy' && (
         <div className="cg">

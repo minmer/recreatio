@@ -14,7 +14,7 @@ export interface MapMenuMode {
   readonly label: string;
 }
 
-export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, t }: {
+export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, classes = [], t }: {
   modes: readonly MapMenuMode[];
   shown: string;
   onMode: (key: string) => void;
@@ -26,6 +26,8 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
   /** 2026-11-24 — die Karte steht im Vollbild (`screen`) oder als Seite (`page`): dann auch „Zamknij". */
   full?: 'screen' | 'page' | null;
   onExit?: () => void;
+  /** 2026-11-24 — „Widoczne dla klasy…": je Klasse, die ich leite, die Wahl auf der Karte (`ClassSelect.tsx`). */
+  classes?: readonly { readonly key: string; readonly label: string; readonly onPick: () => void }[];
   /** Der Teil der Klasse (Textgrösse, Prowadzę / Uczę się, Klasse). */
   classBody: ReactNode;
   teaching: boolean;
@@ -75,6 +77,14 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
                 {full !== 'screen' && <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('screen'))} title={t('cogitaWorld.map.fullSays')} data-world-menu-full="screen">⛶ {t('cogitaWorld.map.fullOn')}</button>}
                 {full !== 'page' && <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('page'))} title={t('cogitaWorld.map.pageSays')} data-world-menu-full="page">▣ {t('cogitaWorld.map.pageOn')}</button>}
                 {full !== null && onExit !== undefined && <button type="button" className="cg-wm-menuitem" onClick={pick(onExit)} title={t('cogitaWorld.map.fullOff')} data-world-menu-full="exit">× {t('cogitaWorld.map.fullOff')}</button>}
+              </div>
+            </section>
+          )}
+          {classes.length > 0 && (
+            <section className="cg-wm-menusec" data-world-menu-classes={classes.length}>
+              <h3>{t('cogitaClassMap.menu')}</h3>
+              <div className="cg-wm-menulist">
+                {classes.map((c) => <button key={c.key} type="button" className="cg-wm-menuitem" onClick={pick(c.onPick)} data-world-menu-class={c.key}>{c.label}</button>)}
               </div>
             </section>
           )}

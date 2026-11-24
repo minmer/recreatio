@@ -407,7 +407,8 @@
     "schemaAddSays": "How knowledge is entered — also several linked entries of different kinds at once.",
     "schemaViews": "Displays",
     "schemaViewsSays": "What to show and how — also information from entries that references lead to.",
-    "classes": "Classes"
+    "classes": "Classes",
+    "explore": "Overview"
   },
   "home": {
     "oldEntries": "Old entries ({count})",

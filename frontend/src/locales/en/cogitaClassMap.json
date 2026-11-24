@@ -1,0 +1,22 @@
+{
+  "menu": "Visible to a class…",
+  "title": "You are choosing what class {name} sees",
+  "counts": "Towers: {places} of {total} · Path sections: {lanes} of {lanesTotal}",
+  "hint": "Click a tower, a path section, a fork or a signpost to hide or show it. Grey and dashed — the class does not see it.",
+  "hideStory": "Hide the whole story “{name}”",
+  "showStory": "Show the whole story “{name}”",
+  "addedBase": "Also added the towers this tower requires: {count}.",
+  "wholeStoryHidden": "This section has no steps of its own — the whole story is hidden.",
+  "storyReopened": "This section lay behind a hidden part — the whole story is shown again.",
+  "forkHidden": "Hid the paths leaving this fork: {count}.",
+  "forkShown": "Showed the paths leaving this fork: {count}.",
+  "save": "Save for the class",
+  "cancel": "Cancel",
+  "undo": "Undo",
+  "all": "Everything",
+  "none": "Nothing",
+  "saveFailed": "Saving failed.",
+  "onMap": "Choose on the map",
+  "onMapSays": "The world map opens in selection mode: you click towers, paths and forks.",
+  "editorHides": "Also hidden on the map: towers {places}, parts of stories {parts}, signposts {signs}."
+}

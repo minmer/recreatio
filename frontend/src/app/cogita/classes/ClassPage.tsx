@@ -170,7 +170,13 @@ function ClassHere({ where, who, onWho }: { where: Where; who: Who | null; onWho
   return (
     <div className="cl-page wk-narrow">
       <h1 className="wk-h1">{t('cogitaClass.join.title', { name: className ?? link.info.label ?? '' })}</h1>
-      {who === null
+      {/*
+        2026-11-24 (0129: nichts sammeln ohne Administrator danych) — wer beitritt, gibt der Lehrerin Namen, Antworten und Fortschritt. Steht
+        für die Bereiche des Links niemand dafür ein, gibt es keinen Weg hinein — nur, wer es nachholen muss.
+      */}
+      {link.info.areas.some((a) => a.controller === null)
+        ? <p className="wk-note cl-nocontroller" role="status" data-class-no-controller="">{t('cogitaClass.join.noController')}</p>
+        : who === null
         ? <JoinChoices where={where} link={link} className={className ?? ''} hold={setKeeping} onWho={(made) => { forgetClasses(); setTick((n) => n + 1); onWho?.(made); }} />
         : <JoinAsMe who={who} where={where} link={link} onJoined={() => { forgetClasses(); setTick((n) => n + 1); }} />}
       <LinkClauses areas={link.info.areas} invitationId={link.info.invitationId} />

@@ -120,9 +120,25 @@ export interface LandscapeDisplay {
 }
 
 export interface LandscapeOnly {
+  /** Was hinein soll (leer beides: die ganze Welt, dann zählen nur die Ausnahmen). */
   readonly tags: readonly string[];
   readonly places: readonly string[];
   readonly withBase: boolean;
+  /**
+   * 2026-11-24 (Eigentümer: „auf der Karte wählen, was die Klasse sieht") — AUSNAHMEN, auf der Karte angeklickt: Türme, ganze
+   * Erzählungen (Abläufe), einzelne Abschnitte (ein Abschnitt heisst nach seinem Ablauf und dem ersten Schritt — bleibende
+   * Kennungen, auch nach einem neuen Import), Wegweiser (Wege zu einer Frage). Ausgeblendet gewinnt über eingeschlossen.
+   */
+  readonly hidePlaces?: readonly string[];
+  readonly hideFlows?: readonly string[];
+  readonly hideSections?: readonly HiddenSection[];
+  readonly hideSigns?: readonly string[];
+}
+
+/** Ein ausgeblendeter Abschnitt: von diesem Schritt an fällt der Weg weg (ein Zweig einer Gabelung, der Rest eines Weges). */
+export interface HiddenSection {
+  readonly flow: string;
+  readonly step: string;
 }
 
 /** `only` lesen — `null`: keine Teilwelt (nichts gewählt). */
@@ -131,8 +147,23 @@ export function readLandscapeOnly(raw: unknown): LandscapeOnly | null {
   const ids = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))] : []);
   const tags = ids(raw.tags);
   const places = ids(raw.places);
-  if (tags.length === 0 && places.length === 0) return null;
-  return { tags, places, withBase: raw.withBase !== false };
+  const hidePlaces = ids(raw.hidePlaces);
+  const hideFlows = ids(raw.hideFlows);
+  const hideSigns = ids(raw.hideSigns);
+  const seen = new Set<string>();
+  const hideSections = (Array.isArray(raw.hideSections) ? raw.hideSections : []).flatMap((x): HiddenSection[] => {
+    if (!isObject(x) || typeof x.flow !== "string" || typeof x.step !== "string" || x.flow.trim() === "" || x.step.trim() === "") return [];
+    const key = `${x.flow.trim()}#${x.step.trim()}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ flow: x.flow.trim(), step: x.step.trim() }];
+  });
+  if (tags.length === 0 && places.length === 0 && hidePlaces.length === 0 && hideFlows.length === 0 && hideSections.length === 0 && hideSigns.length === 0) return null;
+  return {
+    tags, places, withBase: raw.withBase !== false,
+    ...(hidePlaces.length === 0 ? {} : { hidePlaces }), ...(hideFlows.length === 0 ? {} : { hideFlows }),
+    ...(hideSections.length === 0 ? {} : { hideSections }), ...(hideSigns.length === 0 ? {} : { hideSigns })
+  };
 }
 
 export interface LandscapeRegionEdits {

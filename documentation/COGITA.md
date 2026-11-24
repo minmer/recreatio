@@ -1977,6 +1977,16 @@ code opens at once, full screen for the projector, with a live count of who join
   twice — whole (to know tags and prerequisites), then from a cut input (`restrictWorldInput`): towers outside are not in the model,
   flows reaching one are dropped, so the guided way, goals, reviews, signs and counts never point outside. It orders what the class
   sees; it locks nothing (the base stays readable in the Nauka). Checks: `scripts/app-subworld-check.mjs`.
+- **Chosen on the map** (2026-11-24, `worldmap/ClassSelect.tsx`): ☰ → „Widoczne dla klasy…" (who writes the base and leads classes of it)
+  or „Wybierz na mapie" in the editor (hand-off via sessionStorage `cg-wm-select`) opens selection mode on the whole world, in every
+  view mode (normal, full screen, page): a click toggles a tower, a path section (one branch of a fork alone), a fork (all its
+  branches), a signpost; „Ukryj całą opowieść" the last story; Wszystko / Nic / Cofnij / Zapisz / Anuluj. Hidden things stay drawn —
+  towers grey (`lit`), sections grey dashed (`hiddenLanes` in WorldPillars), signposts pale (`off`). Showing a tower adds its
+  missing prerequisites (said in a note). The model is `landscape.only` with `hidePlaces`, `hideFlows`, `hideSections`
+  (`{flow, step}` — the section's first step) and `hideSigns`; `classWorldInput` is the ONE computation for the class page and for
+  the preview while choosing: `pruneFlow` drops everything from a hidden step on (a choice keeps its numbering via `_dropped`, a
+  choice without options or a cut trunk becomes an end, a detour into a vanished story is skipped), a tower outside cuts only the
+  sections to it, then `restrictWorldInput` as before. The list editor keeps the map's exceptions.
 
 ### Planning a lesson (2026-11-22, I11)
 
@@ -2150,3 +2160,18 @@ Knowness propagation MUST implement `parentKnowness += childKnowness * impact`. 
 ### A.4 Role-oriented live wall (former II.18)
 
 Host wall endpoints MUST allow a control mode, an analytics mode and a presentation-safe output mode. Participant wall endpoints MUST be answer-centric and fairness-safe.
+
+### Przegląd — the teacher goes through the content (2026-11-24)
+
+`cogita/explore/` — `exploreModel.ts` (pure) and `Explore.tsx`; one implementation in the class console (tab „Przegląd", limited to the
+class sub-world, switchable to the whole base) and in Nauka → Więcej → „Przegląd" (`…/przeglad`).
+
+- **Stream**: towers in world order (tag roots as groups), per tower its paths with their steps in story order (`storyPath`, each branch
+  once), help steps after them (marked „pomoc"), then what hangs at the tower outside paths; selections: everything, group, tower, path,
+  all slides, all questions, question paths. Slides render with `SlideBody`; questions with options (✓ correct), tags, feedback per
+  option, hints, explanation, about/needs, „Spróbuj odpowiedzieć" (AnswerInput → Verdict).
+- **Bar**: Oba / Slajdy / Pytania, „Tylko z uwagami" (world-check findings by entity + open feedback), counter with ↑ ↓ and j/k / arrows,
+  print (renders all, then `window.print()` with print CSS). 50 items per page, more on scroll. Phone: the menu is a drawer.
+- **AI stays outside**: per item the feedback speech bubble (`FeedbackButton`) and „Kopiuj dla AI"; „Polecenie dla AI" copies a prompt
+  (`aiPrompt`) with the base, handle, lasting names (@…), notes, findings and the MCP way (get_feedback, get_world_checks, check_import).
+- Checks: `scripts/app-explore-check.mjs` (13); LocalDB drive session scratchpad `ex/drive.mjs` (19).

@@ -407,7 +407,8 @@
     "schemaAddSays": "Wie Wissen eingetragen wird — auch mehrere verbundene Einträge verschiedener Arten auf einmal.",
     "schemaViews": "Darstellungen",
     "schemaViewsSays": "Was gezeigt wird und wie — auch Angaben aus Einträgen, zu denen Verweise führen.",
-    "classes": "Klassen"
+    "classes": "Klassen",
+    "explore": "Übersicht"
   },
   "home": {
     "oldEntries": "Alte Einträge ({count})",

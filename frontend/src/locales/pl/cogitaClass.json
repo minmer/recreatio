@@ -58,7 +58,8 @@
     "join": "Dołącz do klasy",
     "joining": "Dołączam…",
     "noPerson": "To konto nie ma osoby, którą można dołączyć. Zaloguj się ponownie.",
-    "failed": "Nie udało się dołączyć. Spróbuj za chwilę."
+    "failed": "Nie udało się dołączyć. Spróbuj za chwilę.",
+    "noController": "Do tej klasy nie można jeszcze dołączyć: nikt nie odpowiada tu za dane osobowe (administrator danych). Nauczyciel musi go najpierw ustawić — wtedy ten sam kod zadziała."
   },
   "keep": {
     "title": "To jest Twój osobisty link",
@@ -157,7 +158,8 @@
       "join": "Dołączanie",
       "world": "Świat klasy",
       "lessons": "Lekcje",
-      "progress": "Postępy"
+      "progress": "Postępy",
+      "explore": "Przegląd"
     },
     "joinOpen": "Dołączanie jest otwarte. W klasie: {count}.",
     "joinClosed": "Dołączanie jest zamknięte — nikt nowy nie dołączy. Możesz je otworzyć nowym kodem.",
@@ -172,7 +174,11 @@
       "paused": "między lekcjami",
       "finished": "zakończona",
       "closed": "zamknięta"
-    }
+    },
+    "noController": "Nikt nie odpowiada za dane tej klasy (administrator danych) — dlatego nikt nie może do niej dołączyć. Ustaw go w ustawieniach obszaru klasy albo raz w obszarze bazy wiedzy (klasy go dziedziczą).",
+    "setController": "Ustaw administratora danych",
+    "noControllerMove": "Ta klasa leży poza obszarem bazy wiedzy, więc nie przejmuje jego administratora danych — dlatego nikt nie może do niej dołączyć. Przenieś ją do obszaru bazy (jednym kliknięciem) albo ustaw administratora w samej klasie.",
+    "moveUnder": "Przenieś klasę do obszaru bazy"
   },
   "roster": {
     "lede": "Wszyscy w klasie. Kto nie ma konta, wchodzi swoim własnym linkiem — gdy go zgubi, pokaż mu go jeszcze raz albo daj nowy.",

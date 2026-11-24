@@ -9,7 +9,10 @@ import { Loading } from '../../ui/Loading';
 import type { ConsoleSlots } from './TeacherConsole';
 
 const SubWorldEditor = lazy(() => import('./SubWorldEditor').then((m) => ({ default: m.SubWorldEditor })));
+/* 2026-11-24 — der Przegląd (Folien und Fragen zum Durchgehen), auf die Teilwelt der Klasse beschränkt. */
+const Explore = lazy(() => import('../explore/Explore').then((m) => ({ default: m.Explore })));
 
 export const consoleSlots: ConsoleSlots = {
-  world: (klass) => <Suspense fallback={<Loading />}><SubWorldEditor klass={klass} /></Suspense>
+  world: (klass) => <Suspense fallback={<Loading />}><SubWorldEditor klass={klass} /></Suspense>,
+  explore: (klass) => <Suspense fallback={<Loading />}><Explore klass={klass} /></Suspense>
 };

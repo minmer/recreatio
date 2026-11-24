@@ -1,0 +1,22 @@
+{
+  "menu": "Widoczne dla klasy…",
+  "title": "Wybierasz, co widzi klasa {name}",
+  "counts": "Wieże: {places} z {total} · Odcinki dróg: {lanes} z {lanesTotal}",
+  "hint": "Kliknij wieżę, odcinek drogi, rozwidlenie albo drogowskaz, aby go ukryć lub pokazać. Szare i przerywane — klasa tego nie widzi.",
+  "hideStory": "Ukryj całą opowieść „{name}”",
+  "showStory": "Pokaż całą opowieść „{name}”",
+  "addedBase": "Dodano też wieże, których ta wieża wymaga: {count}.",
+  "wholeStoryHidden": "Ten odcinek nie ma własnych kroków — ukryto całą opowieść.",
+  "storyReopened": "Ten odcinek leżał za ukrytą częścią — pokazano całą opowieść.",
+  "forkHidden": "Ukryto drogi z tego rozwidlenia: {count}.",
+  "forkShown": "Pokazano drogi z tego rozwidlenia: {count}.",
+  "save": "Zapisz dla klasy",
+  "cancel": "Anuluj",
+  "undo": "Cofnij",
+  "all": "Wszystko",
+  "none": "Nic",
+  "saveFailed": "Nie udało się zapisać.",
+  "onMap": "Wybierz na mapie",
+  "onMapSays": "Mapa świata otworzy się w trybie wyboru: klikasz wieże, drogi i rozwidlenia.",
+  "editorHides": "Na mapie ukryto też: wieże {places}, części opowieści {parts}, drogowskazy {signs}."
+}

@@ -58,7 +58,8 @@
     "join": "Der Klasse beitreten",
     "joining": "Wird beigetreten…",
     "noPerson": "Dieses Konto hat keine Person, mit der es beitreten könnte. Melde dich neu an.",
-    "failed": "Das Beitreten ging nicht. Versuch es gleich noch einmal."
+    "failed": "Das Beitreten ging nicht. Versuch es gleich noch einmal.",
+    "noController": "Dieser Klasse kann man noch nicht beitreten: niemand ist hier für personenbezogene Daten verantwortlich (Verantwortlicher). Die Lehrkraft muss ihn zuerst festlegen — dann funktioniert derselbe Code."
   },
   "keep": {
     "title": "Das ist dein persönlicher Link",
@@ -151,7 +152,8 @@
       "join": "Beitreten",
       "world": "Welt der Klasse",
       "lessons": "Stunden",
-      "progress": "Fortschritte"
+      "progress": "Fortschritte",
+      "explore": "Übersicht"
     },
     "joinOpen": "Beitreten ist offen. In der Klasse: {count}.",
     "joinClosed": "Beitreten ist geschlossen — niemand Neues kann beitreten. Mit einem neuen Code öffnest du es wieder.",
@@ -166,7 +168,11 @@
       "paused": "zwischen den Stunden",
       "finished": "beendet",
       "closed": "geschlossen"
-    }
+    },
+    "noController": "Niemand ist für die Daten dieser Klasse verantwortlich (Verantwortlicher) — darum kann niemand beitreten. Lege ihn in den Einstellungen des Klassenbereichs fest oder einmal im Bereich der Wissensbasis (Klassen erben ihn).",
+    "setController": "Verantwortlichen festlegen",
+    "noControllerMove": "Diese Klasse liegt ausserhalb des Bereichs der Wissensbasis und erbt darum nicht deren Verantwortlichen — deshalb kann niemand beitreten. Verschiebe sie in den Bereich der Basis (ein Klick) oder lege in der Klasse selbst einen fest.",
+    "moveUnder": "Klasse in den Bereich der Basis verschieben"
   },
   "roster": {
     "lede": "Alle in der Klasse. Wer kein Konto hat, kommt mit dem eigenen Link herein — geht er verloren, zeig ihn noch einmal oder gib einen neuen.",

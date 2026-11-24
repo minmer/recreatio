@@ -123,7 +123,10 @@ What each import may do, in short (the descriptions say it in full):
 - **knowledge-base view: part of the world** (2026-11-24) — a world view (`"landscape": {"style": "world"}`) may carry
   `"only": {"tags": ["@…"], "places": ["@…"], "withBase": true}`: the map shows only those towers (tags with their subtags, plus,
   by default, every prerequisite); refs go out as `@name` and come back resolved (unknown ones are reported). A view with
-  `"forClass": "<class area id>"` is the part of the world a teacher set for a class (`classes/subWorld.ts`).
+  `"forClass": "<class area id>"` is the part of the world a teacher set for a class (`classes/subWorld.ts`). Exceptions chosen on the
+  map (also without tags/places — the whole world minus them): `"hidePlaces": ["@…"]` (wins over chosen), `"hideFlows": ["@…"]` (whole
+  stories), `"hideSections": [{"flow": "@…", "step": "<step id>"}]` (from that step on — a fork's branch, or the rest of a trunk; the
+  first step of the section, stable across re-imports), `"hideSigns": ["@…qpath"]`. A hidden tower cuts only the sections to it.
 - **knowledge-base size** (2026-11-22, A4) — up to 20 000 items incl. removals per save (`SAVE_ALL_MAX`), ~150 MB
   sealed. `putEntries` splits anything above 2000 items or 16 MB of envelopes into parts: `POST …/entries/save/stage`
   (table `app.library_save_stage`, migration 0143; parts expire after one hour) and a final `POST …/entries/save` with

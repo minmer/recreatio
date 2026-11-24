@@ -433,7 +433,8 @@
     "schemaAddSays": "Jak się wpisuje wiedzę — także kilka połączonych wpisów naraz, różnych rodzajów.",
     "schemaViews": "Sposoby wyświetlania",
     "schemaViewsSays": "Co pokazać i jak — także informacje z wpisów, do których prowadzą odwołania.",
-    "classes": "Klasy"
+    "classes": "Klasy",
+    "explore": "Przegląd"
   },
   "home": {
     "oldEntries": "Stare wpisy ({count})",

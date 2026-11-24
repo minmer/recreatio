@@ -58,7 +58,8 @@
     "join": "Join the class",
     "joining": "Joining…",
     "noPerson": "This account has no person to join with. Sign in again.",
-    "failed": "Joining did not work. Try again in a moment."
+    "failed": "Joining did not work. Try again in a moment.",
+    "noController": "You cannot join this class yet: nobody is responsible for personal data here (data controller). The teacher has to set one first — then the same code will work."
   },
   "keep": {
     "title": "This is your personal link",
@@ -151,7 +152,8 @@
       "join": "Joining",
       "world": "Class world",
       "lessons": "Lessons",
-      "progress": "Progress"
+      "progress": "Progress",
+      "explore": "Overview"
     },
     "joinOpen": "Joining is open. In the class: {count}.",
     "joinClosed": "Joining is closed — nobody new can join. You can open it again with a new code.",
@@ -166,7 +168,11 @@
       "paused": "between lessons",
       "finished": "finished",
       "closed": "closed"
-    }
+    },
+    "noController": "Nobody is responsible for the data of this class (data controller) — so nobody can join it. Set one in the settings of the class area, or once in the knowledge base’s area (classes inherit it).",
+    "setController": "Set the data controller",
+    "noControllerMove": "This class lies outside the knowledge base’s area, so it does not inherit its data controller — that is why nobody can join. Move it into the base’s area (one click) or set a controller in the class itself.",
+    "moveUnder": "Move the class into the base’s area"
   },
   "roster": {
     "lede": "Everyone in the class. Someone without an account comes in with their own link — if they lose it, show it to them again or give them a new one.",

@@ -19,6 +19,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEven
 import { QRCodeSVG } from 'qrcode.react';
 
 import { myEpochKeys } from '../../areas/area';
+import { loadAreaControllerState } from '../../areas/controllers';
 import { areaKeys, loadAreaNames, openNames } from '../../chat/chat';
 import { fmtDate, useT } from '../../core/i18n';
 import { WorkspaceError } from '../../core/session';
@@ -35,7 +36,7 @@ import type { Card } from '../cardBasics';
 import { loadSessions, type SessionRow } from '../live';
 import { useAsync, useCtx } from '../ui';
 import { classAim, type ClassOf } from './classModel';
-import { classJoinLink, classOpening, closeJoining, createClass, myClasses, renewJoinLink, type ClassStage } from './classes';
+import { classJoinLink, classOpening, closeJoining, createClass, moveClassUnderBase, myClasses, renewJoinLink, type ClassStage } from './classes';
 import './classes.css';
 
 const OfficeProgress = lazy(() => import('../Progress').then((m) => ({ default: m.OfficeProgress })));
@@ -43,6 +44,8 @@ const OfficeProgress = lazy(() => import('../Progress').then((m) => ({ default: 
 /** Was die Konsole von aussen bekommt: der Reiter „Świat klasy" (die Teilwelt), wenn es ihn gibt. */
 export interface ConsoleSlots {
   readonly world?: (klass: ClassOf) => ReactNode;
+  /** 2026-11-24 — „Przegląd": alles zum Durchgehen (Folien, Fragen, Befunde, Uwagi, Polecenie für die KI), `explore/Explore.tsx`. */
+  readonly explore?: (klass: ClassOf) => ReactNode;
 }
 
 /** Wie viele in einer Klasse sind: Konten, die den Code eingelöst haben, und Personen ohne Konto (Plätze der Klasse). */
@@ -125,8 +128,8 @@ function NewClass({ base, onMade }: { base: { libraryId: string; areaId: string;
   );
 }
 
-type Tab = 'students' | 'join' | 'world' | 'lessons' | 'progress';
-const TABS: readonly Tab[] = ['students', 'join', 'world', 'lessons', 'progress'];
+type Tab = 'students' | 'join' | 'world' | 'explore' | 'lessons' | 'progress';
+const TABS: readonly Tab[] = ['students', 'join', 'world', 'explore', 'lessons', 'progress'];
 
 function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
   klass: ClassOf; open: boolean; onOpen: (yes: boolean) => void; onShow: (url: string) => void; onChanged: () => void; slots: ConsoleSlots;
@@ -166,7 +169,22 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
   const close = () => {
     void ask({ title: t('cogitaClass.card.closeAsk'), body: t('cogitaClass.card.closeSays'), confirm: t('cogitaClass.card.close'), danger: true }).then((yes) => { if (yes) act(() => closeJoining(klass)); });
   };
-  const tabs = TABS.filter((x) => x !== 'world' || slots.world !== undefined);
+  const tabs = TABS.filter((x) => (x !== 'world' || slots.world !== undefined) && (x !== 'explore' || slots.explore !== undefined));
+  /*
+    2026-11-24 (0129) — wer steht für die Daten der Klasse ein? Ohne Administrator danych (auch keinen geerbten) kann niemand beitreten:
+    die Lehrerin sieht es hier, mit dem Weg zur Einstellung.
+  */
+  const [controller, setController] = useState<'yes' | 'none' | 'unknown'>('unknown');
+  /* Hat der Bereich der Baza einen? Dann genügt es, die Klasse dorthin umzuhängen (alte Klassen einer öffentlichen Baza lagen aussen). */
+  const [baseHas, setBaseHas] = useState(false);
+  const [checked, setChecked] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void loadAreaControllerState(klass.areaId).then((s) => { if (alive) setController(s.controller === null ? 'none' : 'yes'); }, () => undefined);
+    void loadAreaControllerState(lib.areaId).then((s) => { if (alive) setBaseHas(s.controller !== null); }, () => undefined);
+    return () => { alive = false; };
+  }, [klass.areaId, lib.areaId, again, checked]);
+  const moveUnder = () => act(async () => { await moveClassUnderBase(klass, lib.areaId); setChecked((n) => n + 1); });
   return (
     <li className={`cl-card${open ? ' is-open' : ''}`} data-class-card={klass.areaId}>
       <div className="cl-card-head">
@@ -182,6 +200,15 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
           { label: t('cogitaClass.card.area'), icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', klass.areaId).slice(1); } }
         ]} />
       </div>
+      {controller === 'none' && (
+        <div className="wk-warn cl-nocontroller" role="alert" data-class-no-controller={klass.areaId}>
+          <p>{baseHas ? t('cogitaClass.console.noControllerMove') : t('cogitaClass.console.noController')}</p>
+          <div className="wk-actions">
+            {baseHas && <button type="button" className="wk-btn" disabled={busy} onClick={moveUnder} data-class-move-under="">{t('cogitaClass.console.moveUnder')}</button>}
+            <a className="wk-btn wk-btn-line" href={viewPath('areas', klass.areaId, 'ustawienia')} data-class-set-controller="">{t('cogitaClass.console.setController')}</a>
+          </div>
+        </div>
+      )}
       <div className="wk-actions">
         <button type="button" className={open ? 'wk-btn' : 'wk-btn wk-btn-line'} aria-expanded={open} onClick={() => onOpen(!open)} data-class-manage={klass.areaId}>
           <Icon name="settings" />{open ? t('cogitaClass.console.hide') : t('cogitaClass.console.manage')}
@@ -211,6 +238,7 @@ function ClassCard({ klass, open, onOpen, onShow, onChanged, slots }: {
             {tab === 'students' && <ClassStudents klass={klass} onChanged={onChanged} />}
             {tab === 'join' && <ClassJoin klass={klass} url={url} count={count} busy={busy} onShow={onShow} onRenew={renew} onClose={close} />}
             {tab === 'world' && slots.world?.(klass)}
+            {tab === 'explore' && slots.explore?.(klass)}
             {tab === 'lessons' && <ClassLessons klass={klass} />}
             {tab === 'progress' && <ClassProgress klass={klass} />}
           </div>
