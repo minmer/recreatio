@@ -15,7 +15,7 @@ import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
 import { isChallenge, loadPortal, openGrants, openPortal } from '../seats/seat';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
-import { recall } from '../seats/seatKeep';
+import { heldSeats, keyTextOf, recall } from '../seats/seatKeep';
 import type { SeatView } from '../seats/seatContext';
 import { answersArea, placeFor } from './answersTo';
 import { Learner, targetOf, type Holder, type Target } from './learn';
@@ -31,8 +31,7 @@ export function holderOfMe(me: Me, roleId?: string | null): Holder {
 export async function holderOfSeat(seat: SeatView): Promise<Holder | null> {
   if (seat.seatKey === null) return null;
   let found = (await loadSeatChats(seat.token)).identity;
-  const linkKey = recall(seat.token);
-  const opened = await seatIdentity(seat.token, seat.seatId, seat.seatKey, found, linkKey === null ? [] : [linkKey]);
+  const opened = await seatIdentity(seat.token, seat.seatId, seat.seatKey, found, linkKeysHere(seat.token));
   if (found === null) found = (await loadSeatChats(seat.token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token: seat.token, seatId: seat.seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey: seat.seatKey };
@@ -47,10 +46,21 @@ export async function holderOfKeptSeat(token: string): Promise<Holder | null> {
   if (isChallenge(portal)) return null;
   const seatKey = await openPortal(portal, linkKey);
   const { seatId, identity } = await loadSeatChats(token);
-  const opened = await seatIdentity(token, seatId, seatKey, identity, [linkKey]);
+  const opened = await seatIdentity(token, seatId, seatKey, identity, linkKeysHere(token));
   const found = identity ?? (await loadSeatChats(token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token, seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey };
+}
+
+/** 2026-11-25 — die Link-Schlüssel dieses Browsers (der des Platzes zuerst): unter einem davon kann eine alte Identität liegen. */
+function linkKeysHere(token: string): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  for (const one of [token, ...heldSeats().filter((x) => x !== token)].slice(0, 20)) {
+    const text = keyTextOf(one);
+    if (text === null) continue;
+    try { out.push(fromBase64Url(text)); } catch { /* unlesbar */ }
+  }
+  return out;
 }
 
 const LOCAL = 'recreatio:cogita:local';
