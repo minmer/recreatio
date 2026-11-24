@@ -13,7 +13,7 @@
  * im Editor der Teilwelt (über `sessionStorage`: die Karte der Baza öffnet sich gleich im Wahl-Modus).
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { T } from '../../core/i18n';
 import type { Me } from '../../core/me';
@@ -52,7 +52,7 @@ export interface ClassSelect {
   readonly pickSign: (paths: readonly string[]) => void;
 }
 
-export function useClassSelect({ lib, me, writes, input, world, viewKey, t }: {
+export function useClassSelect({ lib, me, writes, input, world, viewKey, t, selectFor }: {
   lib: CogitaLibrary;
   /** Die Karte, auf der gewählt wird (ein Widok der Baza: seine Abschrift wird der Widok der Klasse). */
   viewKey: string;
@@ -62,6 +62,8 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t }: {
   input: WorldInput;
   world: World;
   t: T;
+  /** 2026-11-25 — „Świat klasy": die Karte steht gleich im Wahl-Modus für diese Klasse (ohne Umweg über den Speicher des Tabs). */
+  selectFor?: Target | null;
 }): ClassSelect {
   const [target, setTarget] = useState<Target | null>(null);
   const [draft, setDraft] = useState<LandscapeOnly>(EMPTY);
@@ -86,6 +88,13 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t }: {
     setLastLine(null);
     setNote(null);
   };
+  /* 2026-11-25 — „Świat klasy": direkt, einmal je Aufbau der Karte. */
+  const startedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!writes || selectFor == null || startedFor.current === selectFor.areaId) return;
+    startedFor.current = selectFor.areaId;
+    start(selectFor);
+  }, [writes, selectFor?.areaId]); // eslint-disable-line react-hooks/exhaustive-deps
   /* „Wybierz na mapie" im Editor der Teilwelt: gleich im Wahl-Modus. */
   useEffect(() => {
     if (!writes) return;

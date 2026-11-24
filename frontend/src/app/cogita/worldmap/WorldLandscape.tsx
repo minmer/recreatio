@@ -107,6 +107,8 @@ export interface WorldLandscapeProps {
   readonly more?: ReactNode;
   /** Die Regeln der Nagrody, wo die Läufe hier Punkte zeigen (wie im Krajobraz): der Zähler und die Punkte beim Abspielen. */
   readonly rewards?: RewardRules | null;
+  /** 2026-11-25 — die Karte öffnet sich im Wahl-Modus für diese Klasse („Świat klasy", `classes/SubWorldEditor.tsx`). */
+  readonly selectFor?: { readonly areaId: string; readonly name: string } | null;
 }
 
 /** 2026-11-12 (Einstufung) — so viele nie gefragte Karten gutgeschriebener Türme kommen höchstens in eine Wiederholung. */
@@ -115,7 +117,7 @@ export const PLACED_PER_RUN = 20;
 /** Wie oft „jetzt" neu gilt, solange die Karte offen ist. */
 const CLOCK_MS = 10 * 60 * 1000;
 
-export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null }: WorldLandscapeProps) {
+export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null, selectFor = null }: WorldLandscapeProps) {
   const { lib, writes, name: baseName, me } = useCtx();
   /* 2026-11-24 (Tryb prowadzony) — auf einer Seite ohne Person im Zusammenhang (die Klassenseite der Lehrerin): das eigene Konto. */
   const ownMe = useMe(useWho());
@@ -137,7 +139,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     2026-11-24 (Eigentümer) — DIE LEHRERIN WÄHLT AUF DER KARTE, WAS DIE KLASSE SIEHT (`ClassSelect.tsx`): solange sie wählt, zeigt die
     Karte die ganze Welt (das Ausgeblendete grau). Sonst gilt die Teilwelt des Widoku — mit Türmen, Erzählungen, Abschnitten.
   */
-  const sel = useClassSelect({ lib, me, writes, input: fullInput, world: fullWorld, viewKey, t });
+  const sel = useClassSelect({ lib, me, writes, input: fullInput, world: fullWorld, viewKey, t, selectFor });
   const onlyNow = sel.active ? null : view.landscape?.only ?? null;
   const onlyKey = JSON.stringify(onlyNow);
   /* Die Teilwelt (`landscape.only`, etwa die einer Klasse): Türme ausserhalb fehlen im Modell (`useShownWorld`). */

@@ -27,6 +27,7 @@ import { feedbackOf, type Feedback } from '../feedback';
 import { FeedbackButton } from '../FeedbackButton';
 import { choicesOf } from '../questionTypes';
 import { SlideBody } from '../SlideView';
+import { EntityReading } from '../EntityReading';
 import { Markup, useAsync, useCtx } from '../ui';
 import { worldChecks, type WorldFinding } from '../worldChecks';
 import { classOnly } from '../classes/subWorld';
@@ -146,7 +147,7 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
           <MenuItem on={sel.kind === 'questions'} onClick={() => pick({ kind: 'questions' })} data="questions">{t('cogitaExplore.allQuestions')} <span className="cg-ex-n">{model.questions.size}</span></MenuItem>
         </ul>
         {model.groups.map((g) => (
-          <details key={g.key} className="cg-ex-group" open={model.groups.length === 1 || (sel.kind === 'group' && sel.key === g.key)}>
+          <details key={g.key} className="cg-ex-group" open>
             <summary><button type="button" className={`cg-ex-link${sel.kind === 'group' && sel.key === g.key ? ' is-on' : ''}`} onClick={(e) => { e.preventDefault(); pick({ kind: 'group', key: g.key }); }} data-explore-group={g.key}>{g.label}</button></summary>
             <ul className="cg-ex-tree">
               {g.towers.map((id) => {
@@ -155,7 +156,7 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
                 const open = (sel.kind === 'tower' && sel.id === id) || (sel.kind === 'path' && tw.paths.some((p) => p.flow === sel.flow));
                 return (
                   <li key={id}>
-                    <button type="button" className={`cg-ex-link is-tower${sel.kind === 'tower' && sel.id === id ? ' is-on' : ''}`} onClick={() => pick({ kind: 'tower', id })} data-explore-tower={id}><TexText text={tw.label} /></button>
+                    <button type="button" className={`cg-ex-link is-tower${sel.kind === 'tower' && sel.id === id ? ' is-on' : ''}`} onClick={() => pick({ kind: 'tower', id })} data-explore-tower={id}><TexText text={tw.label} />{tw.paths.length > 0 && <span className="cg-ex-n">{t('cogitaExplore.pathsN', { count: tw.paths.length })}</span>}</button>
                     {open && tw.paths.length > 0 && (
                       <ul className="cg-ex-tree is-paths">
                         {tw.paths.map((p) => (
@@ -205,6 +206,7 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
           </span>
         </div>
         {promptOpen && <PromptPanel make={(note, all) => aiPrompt({ base: baseName, handle, items: promptItems(items, all), note })} count={items.filter(hasProblem).length} />}
+        {sel.kind === 'tower' && model.towers.has(sel.id) && <TowerOverview id={sel.id} model={model} items={items} onPath={(flow) => pick({ kind: 'path', flow })} />}
         {items.length === 0 ? <p className="cg-muted" data-explore-empty="">{problems ? t('cogitaExplore.noProblems') : t('cogitaExplore.empty')}</p> : null}
         {sections.map((s) => {
           if (shown >= limit) return null;
@@ -222,6 +224,31 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
         {shown < items.length && <div ref={sentinel} className="cg-ex-more"><button type="button" className="wk-btn wk-btn-line" onClick={() => setLimit((n) => n + PAGE)} data-explore-more="">{t('cogitaExplore.more', { count: items.length - shown })}</button></div>}
       </section>
     </div>
+  );
+}
+
+/**
+ * 2026-11-25 (Eigentümer: „im Überblick einen Turm wählen und seinen Überblick sehen") — DER ÜBERBLICK EINES TURMS über seinem
+ * Strom: was er ist (sein Text, gekürzt), wie viele Pfade, Folien und Fragen, und seine Pfade zum Hineinspringen.
+ */
+function TowerOverview({ id, model, items, onPath }: { id: string; model: ExploreModel; items: readonly ExploreItem[]; onPath: (flow: string) => void }) {
+  const t = useT();
+  const { lib } = useCtx();
+  const tw = model.towers.get(id)!;
+  const entity = lib.entity(id);
+  const slides = items.filter((x) => x.kind === 'slide').length;
+  const questions = items.filter((x) => x.kind === 'question').length;
+  return (
+    <section className="cg-ex-tower" data-explore-tower-overview={id}>
+      <h2><TexText text={tw.label} /></h2>
+      {entity !== undefined && <EntityReading lib={lib} entity={entity} variant="preview" />}
+      <p className="cg-muted">{t('cogitaExplore.towerCounts', { paths: tw.paths.length, slides, questions })}</p>
+      {tw.paths.length > 0 && (
+        <div className="cg-ex-towerpaths">
+          {tw.paths.map((p) => <button key={p.flow} type="button" className="wk-btn wk-btn-line is-small" onClick={() => onPath(p.flow)} data-explore-tower-path={p.flow}>{p.name}</button>)}
+        </div>
+      )}
+    </section>
   );
 }
 

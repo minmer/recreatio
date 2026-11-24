@@ -69,5 +69,7 @@
     "noteLine": "uwaga: {text}",
     "findingLine": "kontrola świata: {text}",
     "how": "Jak: przeczytaj guide-good-world, potem get_feedback i get_world_checks dla tej bazy oraz get_entry dla każdej nazwy @…; przygotuj jeden dokument importu „knowledge-base” z poprawkami (te same nazwy @…, otwarte uwagi zamknij przez \"feedback\": [{\"id\", \"state\": \"done\", \"note\"}]), sprawdź go check_import do zera błędów i oddaj mi do zaimportowania."
-  }
+  },
+  "pathsN": "· dróg: {count}",
+  "towerCounts": "Drogi: {paths} · slajdy: {slides} · pytania: {questions}"
 }
