@@ -252,5 +252,28 @@
     "pointsLater": "Punkte erscheinen hier, sobald du zu lernen beginnst.",
     "pointsLocal": "Ohne Konto werden die Punkte in diesem Browser gezählt.",
     "statsLater": "Statistiken erscheinen hier, sobald du zu lernen beginnst."
+  },
+  "teacher": {
+    "label": "Lehrer — meine Klassen",
+    "use": "Die Konsole der Lehrerin auf einer Seite: die Klassen dieser Basis, wer drin ist (mit dem eigenen Link jeder Person ohne Konto — geht er verloren, zeigst du ihn noch einmal oder gibst einen neuen), der QR-Code zum Beitreten, die Welt der Klasse, Stunden und Fortschritte. Nur eine angemeldete Lehrerin sieht sie.",
+    "exTitle": "Meine Klassen",
+    "titleHint": "Überschrift über der Konsole (darf leer bleiben).",
+    "showsStrip": "Eine Zeile: öffnet die Konsole im Vollbild.",
+    "showsBlock": "Klassen als Karten; die Konsole einer Klasse darin.",
+    "showsTall": "Die ganze Konsole: Klassen, Schüler, Beitreten, Welt der Klasse, Stunden, Fortschritte.",
+    "signIn": "Dieser Teil ist für die Lehrerin — melde dich an, um deine Klassen zu sehen.",
+    "noBase": "Mit diesem Konto kann ich diese Wissensbasis nicht öffnen."
+  },
+  "klass": {
+    "label": "Klasse",
+    "use": "Eine Klasse auf einer Seite: wer den Code der Klasse hat, tritt bei (Konto, Anmelden oder ohne Konto); wer in der Klasse ist — mit Konto oder eigenem Link —, lernt in der Welt der Klasse. Antworten gehen an die Klasse.",
+    "exTitle": "Unsere Klasse",
+    "titleHint": "Überschrift über der Klasse (darf leer bleiben).",
+    "area": "Klasse",
+    "areaHint": "Der Bereich der Klasse (angelegt unter Lernen → „Klassen\").",
+    "missingArea": "Wähle die Klasse.",
+    "showsStrip": "Eine Zeile: öffnet die Klasse im Vollbild.",
+    "showsBlock": "Beitreten oder die Karte der Klasse.",
+    "showsTall": "Beitreten oder die ganze Karte der Klasse mit dem Lernen."
   }
 }

@@ -1969,6 +1969,14 @@ code opens at once, full screen for the projector, with a live count of who join
   (`LearnerHome.tsx`) with a running lesson on top, „Twoje klasy", tasks with deadlines. Chosen per account (prefs `shell`, sealed, plus
   this device); „Pełna wersja aplikacji" ↔ „Tylko nauka (widok ucznia)" in both menus.
 - Checks: `scripts/app-class-check.mjs` (11); LocalDB drive session scratchpad `cl/drive.mjs` (22).
+- **Part of the world** (2026-11-24, `classes/subWorld.ts`, editor `SubWorldEditor.tsx`): what the class sees on its map — the whole
+  world or a part: tags (with subtags), single towers and, by default, everything they require. Stored as a view in the BASE (every
+  student reads the base, also without an account; the class area's keys they do not): a copy of the base's world view with
+  `landscape.only = {tags, places, withBase}` and `forClass: <class area>`, named „<class> — świat"; „Cały świat" removes it.
+  `ClassLearn` shows `classViewOf`; lookups of "the" world view skip class views (`isClassView`). WorldLandscape builds the world
+  twice — whole (to know tags and prerequisites), then from a cut input (`restrictWorldInput`): towers outside are not in the model,
+  flows reaching one are dropped, so the guided way, goals, reviews, signs and counts never point outside. It orders what the class
+  sees; it locks nothing (the base stays readable in the Nauka). Checks: `scripts/app-subworld-check.mjs`.
 
 ### Planning a lesson (2026-11-22, I11)
 

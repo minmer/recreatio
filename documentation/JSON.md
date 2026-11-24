@@ -120,6 +120,10 @@ What each import may do, in short (the descriptions say it in full):
   stamps `_part` on every entry (mark) and doc (data) the file creates or changes, also unchanged ones (bookkeeping
   save); with `wholeWorld` only that part's items are deleted, items of no part stay (counted). An export re-imported
   as a whole world deletes nothing. Checks: `app-import-check` §7.
+- **knowledge-base view: part of the world** (2026-11-24) — a world view (`"landscape": {"style": "world"}`) may carry
+  `"only": {"tags": ["@…"], "places": ["@…"], "withBase": true}`: the map shows only those towers (tags with their subtags, plus,
+  by default, every prerequisite); refs go out as `@name` and come back resolved (unknown ones are reported). A view with
+  `"forClass": "<class area id>"` is the part of the world a teacher set for a class (`classes/subWorld.ts`).
 - **knowledge-base size** (2026-11-22, A4) — up to 20 000 items incl. removals per save (`SAVE_ALL_MAX`), ~150 MB
   sealed. `putEntries` splits anything above 2000 items or 16 MB of envelopes into parts: `POST …/entries/save/stage`
   (table `app.library_save_stage`, migration 0143; parts expire after one hour) and a final `POST …/entries/save` with

@@ -107,7 +107,7 @@ export interface TagRowForAi {
 export function tagsForAi(lib: CogitaLibrary, cards: readonly Card[]): TagRowForAi[] {
   const name = nameIn(lib);
   const ref = (id: string): string => `@${name(id)}`;
-  const view = lib.docs('view').map((d) => readView(d.data)).find((v) => v.mode === 'landscape' && v.landscape?.style === 'world');
+  const view = lib.docs('view').map((d) => readView(d.data)).find((v) => v.mode === 'landscape' && v.landscape?.style === 'world' && v.forClass === undefined);
   const world = readWorld(worldInputOf(lib, cards, { placeKinds: view === undefined ? [] : placeKindsOf(view) }));
   return tagList(worldTags(world)).map((row) => ({ ref: ref(row.id), name: row.name, parents: row.parents.map(ref), level: row.level, towers: row.towers, towersBelow: row.towersBelow }));
 }

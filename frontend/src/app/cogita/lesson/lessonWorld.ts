@@ -24,7 +24,7 @@ export interface PlanWorld {
 
 export function planWorld(lib: CogitaLibrary, cards: readonly Card[]): PlanWorld {
   const views = lib.docs('view').map((d) => readView(d.data));
-  const view = views.find((v) => v.mode === 'landscape' && v.landscape?.style === 'world') ?? views.find((v) => v.mode === 'landscape');
+  const view = views.find((v) => v.mode === 'landscape' && v.landscape?.style === 'world' && v.forClass === undefined) ?? views.find((v) => v.mode === 'landscape' && v.forClass === undefined);
   const input = worldInputOf(lib, cards, { placeKinds: view === undefined ? [] : placeKindsOf(view) });
   const world = readWorld(input);
   const lines = linesOf(world, input.flows);

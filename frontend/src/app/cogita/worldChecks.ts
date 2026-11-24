@@ -33,6 +33,7 @@ import { fieldsOf } from './schema';
 import { slideImportWarnings } from './slideLint';
 import type { CogitaLibrary } from './store';
 import { storyPath, type WorkOfStep } from './storyPath';
+import { isClassView } from './views';
 import { DIMENSIONS_FROM, worldDimensions } from './worldDimensions';
 import { crossImportWarnings } from './worldsImport';
 import { readWorld } from './worldmap/wmGraph';
@@ -176,7 +177,7 @@ export interface WorldCheckInput {
 function worldView(lib: CogitaLibrary): { id: string; kinds: string[] } | null {
   for (const d of lib.docs('view')) {
     const data = d.data as { landscape?: { style?: unknown }; steps?: unknown };
-    if (data.landscape?.style === 'world' && Array.isArray(data.steps)) return { id: d.id, kinds: placeKindsOf(data as never) };
+    if (data.landscape?.style === 'world' && Array.isArray(data.steps) && !isClassView(data)) return { id: d.id, kinds: placeKindsOf(data as never) };
   }
   return null;
 }

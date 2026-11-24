@@ -14,15 +14,18 @@ export interface MapMenuMode {
   readonly label: string;
 }
 
-export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, classBody, teaching, t }: {
+export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, t }: {
   modes: readonly MapMenuMode[];
   shown: string;
   onMode: (key: string) => void;
   /** „Sprawdź, co wiesz" — nur für einen Lernenden. */
   onCheck: (() => void) | null;
   checkLabel: string;
-  /** Vollbild / als Seite — nicht, wenn die Karte schon im Vollbild ist. */
+  /** Vollbild / als Seite (im Vollbild: in die andere Art wechseln). */
   onFull: ((how: 'screen' | 'page') => void) | null;
+  /** 2026-11-24 — die Karte steht im Vollbild (`screen`) oder als Seite (`page`): dann auch „Zamknij". */
+  full?: 'screen' | 'page' | null;
+  onExit?: () => void;
   /** Der Teil der Klasse (Textgrösse, Prowadzę / Uczę się, Klasse). */
   classBody: ReactNode;
   teaching: boolean;
@@ -69,8 +72,9 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, cla
             <section className="cg-wm-menusec">
               <h3>{t('cogitaWorld.menu.view')}</h3>
               <div className="cg-wm-menulist">
-                <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('screen'))} title={t('cogitaWorld.map.fullSays')} data-world-menu-full="screen">⛶ {t('cogitaWorld.map.fullOn')}</button>
-                <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('page'))} title={t('cogitaWorld.map.pageSays')} data-world-menu-full="page">▣ {t('cogitaWorld.map.pageOn')}</button>
+                {full !== 'screen' && <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('screen'))} title={t('cogitaWorld.map.fullSays')} data-world-menu-full="screen">⛶ {t('cogitaWorld.map.fullOn')}</button>}
+                {full !== 'page' && <button type="button" className="cg-wm-menuitem" onClick={pick(() => onFull('page'))} title={t('cogitaWorld.map.pageSays')} data-world-menu-full="page">▣ {t('cogitaWorld.map.pageOn')}</button>}
+                {full !== null && onExit !== undefined && <button type="button" className="cg-wm-menuitem" onClick={pick(onExit)} title={t('cogitaWorld.map.fullOff')} data-world-menu-full="exit">× {t('cogitaWorld.map.fullOff')}</button>}
               </div>
             </section>
           )}

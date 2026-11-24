@@ -11,6 +11,7 @@ import { positionFor } from '../learn';
 import type { Facts } from '../logic';
 import { learnerGauge } from '../storyLock';
 import type { CogitaLibrary } from '../store';
+import { isClassView } from '../views';
 import { readWorld } from './wmGraph';
 import { placeKindsOf, worldInputOf } from './wmInput';
 import { linesOf } from './wmLines';
@@ -32,7 +33,7 @@ export interface PlacementWorld {
 function worldKinds(lib: CogitaLibrary): string[] {
   for (const d of lib.docs('view')) {
     const data = d.data as { landscape?: { style?: unknown }; steps?: unknown };
-    if (data.landscape?.style === 'world' && Array.isArray(data.steps)) return placeKindsOf(data as never);
+    if (data.landscape?.style === 'world' && Array.isArray(data.steps) && !isClassView(data)) return placeKindsOf(data as never);
   }
   return [];
 }

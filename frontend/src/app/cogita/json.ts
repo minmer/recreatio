@@ -168,7 +168,9 @@ const docJson = (lib: CogitaLibrary, kind: DocKind, id: string, data: Readonly<R
       ...(v.group === undefined ? {} : { group: walk(v.group) }),
       ...(v.matrix === undefined ? {} : { matrix: walk(v.matrix) }),
       columns: (v.columns as unknown[]).map(axis),
-      ...(isObject(v.sort) ? { sort: { ...v.sort, key: axis(v.sort.key) } } : {})
+      ...(isObject(v.sort) ? { sort: { ...v.sort, key: axis(v.sort.key) } } : {}),
+      /* 2026-11-24 — die Teilwelt (`landscape.only`): Tags und Türme mit `@name`. */
+      ...(isObject(v.landscape) && isObject(v.landscape.only) ? { landscape: { ...v.landscape, only: walk(v.landscape.only) } } : {})
     };
   }
   /* 2026-10-30 — eine Powtórka mit dem alten Knoten „Najpierw podstawy" geht in der neuen Gestalt hinaus (`migrateRevision`). */

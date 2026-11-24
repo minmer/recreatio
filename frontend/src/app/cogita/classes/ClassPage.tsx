@@ -26,6 +26,8 @@ import { LinkClauses } from '../../links/JoinLink';
 import { partSize } from '../../pages/part';
 import { PersonProvider } from '../../pages/pagePerson';
 import { personsOf } from '../../roles/roles';
+import { myRoleNames } from '../../roles/roleNames';
+import { areaKeys, setMemberName } from '../../chat/chat';
 import { viewPath } from '../../routes';
 import { pageLink, seatsExactly, SEATS_EVENT } from '../../seats/seatKeep';
 import { createAccount } from '../../shell/accountCreate';
@@ -36,6 +38,7 @@ import { usePageBase } from '../pageBase';
 import type { CogitaLibrary } from '../store';
 import { loadSessions, type SessionRow } from '../live';
 import { classAim, classIdOf } from './classModel';
+import { baseWorldViewOf, classViewOf } from './subWorld';
 import { forgetClasses, myClasses } from './classes';
 import { chooseShell } from './shellChoice';
 import './classes.css';
@@ -186,6 +189,18 @@ async function joinAs(who: Who, link: HeldClassLink, noPerson: string): Promise<
   await redeemLink(ring, person, link.token, link.info);
   forgetKeys();
   forgetClasses();
+  /*
+    2026-11-24 — der eigene Name in der Klasse (lesbar für ihre Mitglieder, also für die Lehrerin): so steht man in „Uczniowie"
+    mit Namen da, wie eine Person ohne Konto. Geht es nicht, bleibt man trotzdem in der Klasse.
+  */
+  await (async () => {
+    const name = (await myRoleNames(who)).get(person.id);
+    const classArea = link.info.areas.find((a) => link.info.aim?.toLowerCase().includes(a.areaId.toLowerCase()))?.areaId ?? link.info.areas[0]?.areaId;
+    if (name === undefined || name.trim() === '' || classArea === undefined) return;
+    const fresh = await keysFor(who);
+    if (fresh.ring === null) return;
+    await setMemberName(classArea, await areaKeys(fresh.ring, classArea, true), person.id, name, person.id);
+  })().catch(() => undefined);
 }
 
 function JoinAsMe({ who, where, link, onJoined }: { who: Who; where: Where; link: HeldClassLink; onJoined: () => void }) {
@@ -457,16 +472,13 @@ function KeepLink({ url, onStart }: { url: string; onStart: () => void }) {
 /* -- Lernen in der Klasse ----------------------------------------------------------------------------------------- */
 
 /** Der Widok, den die Klasse zeigt: die Weltkarte der Baza, sonst ein Krajobraz, sonst der erste Widok. */
-export function worldViewOf(lib: CogitaLibrary): string | null {
-  const views = lib.docs('view');
-  const data = (d: (typeof views)[number]) => d.data as { landscape?: { style?: unknown }; mode?: unknown };
-  return (views.find((d) => data(d).landscape?.style === 'world') ?? views.find((d) => data(d).landscape !== undefined || data(d).mode === 'landscape') ?? views[0])?.id ?? null;
-}
+export const worldViewOf = (lib: CogitaLibrary): string | null => baseWorldViewOf(lib);
 
 function ClassLearn({ where, title, who }: { where: Where; title: string; who: Who | null }) {
   const t = useT();
   const { lib } = usePageBase(where.libraryId);
-  const view = useMemo(() => (lib == null ? null : worldViewOf(lib)), [lib, lib?.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 2026-11-24 — die Teilwelt der Klasse (`subWorld.ts`), sonst die Weltkarte der Baza. */
+  const view = useMemo(() => (lib == null ? null : classViewOf(lib, where.areaId)), [lib, lib?.revision, where.areaId]); // eslint-disable-line react-hooks/exhaustive-deps
   const aim = classAim(where.areaId, where.libraryId);
   const live = useLiveLessons(who, where);
   const size = useMemo(() => partSize({ colSpan: 6, rowSpan: 5 }), []);

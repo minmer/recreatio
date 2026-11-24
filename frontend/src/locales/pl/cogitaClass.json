@@ -148,5 +148,53 @@
     "home": "Twoja nauka",
     "full": "Pełna wersja aplikacji",
     "onlyLearn": "Tylko nauka (widok ucznia)"
+  },
+  "console": {
+    "manage": "Zarządzaj klasą",
+    "hide": "Zwiń",
+    "tab": {
+      "students": "Uczniowie",
+      "join": "Dołączanie",
+      "world": "Świat klasy",
+      "lessons": "Lekcje",
+      "progress": "Postępy"
+    },
+    "joinOpen": "Dołączanie jest otwarte. W klasie: {count}.",
+    "joinClosed": "Dołączanie jest zamknięte — nikt nowy nie dołączy. Możesz je otworzyć nowym kodem.",
+    "noLessons": "Ta klasa nie ma jeszcze lekcji ani zadań.",
+    "session": {
+      "lesson": "Lekcja z {date}",
+      "task": "Zadanie z {date}"
+    },
+    "state": {
+      "lobby": "czeka na start",
+      "running": "trwa",
+      "paused": "między lekcjami",
+      "finished": "zakończona",
+      "closed": "zamknięta"
+    }
+  },
+  "roster": {
+    "lede": "Wszyscy w klasie. Kto nie ma konta, wchodzi swoim własnym linkiem — gdy go zgubi, pokaż mu go jeszcze raz albo daj nowy.",
+    "loading": "Wczytuję uczniów…",
+    "none": "Nikt jeszcze nie dołączył. Pokaż kod QR w zakładce „Dołączanie”.",
+    "unnamed": "Osoba bez imienia",
+    "account": "Konto …{id}",
+    "kindSeat": "bez konta (własny link)",
+    "kindAccount": "konto",
+    "joined": "dołączył(a) {date}",
+    "show": "Pokaż link",
+    "relink": "Nowy link",
+    "remove": "Usuń z klasy",
+    "showSays": "Link osoby {name}. Niech zeskanuje kod albo otworzy link na swoim urządzeniu — wróci do swoich postępów.",
+    "freshSays": "Nowy link osoby {name}. Stary już nie działa; postępy zostały. Niech zeskanuje kod albo otworzy link.",
+    "copy": "Kopiuj link",
+    "relinkAsk": "Dać osobie {name} nowy link?",
+    "relinkSays": "Stary link przestanie działać (na każdym urządzeniu). Jej postępy zostają — nowy link prowadzi do nich.",
+    "removeAsk": "Usunąć osobę {name} z klasy?",
+    "removeSays": "Jej link przestanie działać. Jej dotychczasowe odpowiedzi zostają w postępach klasy.",
+    "accountSays": "Ma konto — wchodzi, logując się. Link nie jest potrzebny.",
+    "noKey": "Nie mogę otworzyć klucza tej osoby (brak klucza obszaru klasy na tym urządzeniu).",
+    "noOldLink": "Tego linku nie da się już odczytać — daj nowy link."
   }
 }

@@ -1,0 +1,23 @@
+{
+  "loading": "Loading the world…",
+  "lead": "What the class sees on the map: the whole world or only part of it. Students then see only those towers — ways, goals, reviews and counts stay inside that part.",
+  "what": "What the class sees",
+  "whole": "The whole world",
+  "part": "Only part of the world",
+  "count": "{count} of {total} towers",
+  "towersN": "towers: {count}",
+  "withBase": "Include what must be known first",
+  "withBaseSays": "Everything the chosen towers require is added — without it some ways may never open.",
+  "tags": "Topics (tags)",
+  "towers": "Towers",
+  "search": "Search a tower",
+  "noTag": "Without a topic",
+  "included": "included as a prerequisite",
+  "save": "Save for the class",
+  "pickSomething": "Choose at least one topic or tower — or “The whole world”.",
+  "saved": "Saved: the class sees {count} of {total} towers.",
+  "savedWhole": "Saved: the class sees the whole world.",
+  "viewName": "{name} — world",
+  "readOnly": "Only an author of the base can change this.",
+  "byTopic": "through its topic"
+}

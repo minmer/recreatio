@@ -78,7 +78,12 @@ export interface ViewDoc {
   readonly outline: OutlineDisplay | null;
   /** 2026-11-03 — der Krajobraz: wie viele Felder einzeln (der Rest sammelt sich zu Bereichen). */
   readonly landscape: LandscapeDisplay | null;
+  /** 2026-11-24 — die Teilwelt einer Klasse: der Bereich der Klasse (`classes/subWorld.ts`); solche Widoki sind nie „der" Widok der Welt. */
+  readonly forClass?: string;
 }
+
+/** Ist dieser Widok die Teilwelt einer Klasse? (Dann wählt ihn keine Suche nach „der Weltkarte" der Baza.) */
+export const isClassView = (data: unknown): boolean => isObject(data) && typeof data.forClass === "string" && data.forClass !== "";
 
 /**
  * 2026-11-03 — DIE GESTALT DES KRAJOBRAZ: höchstens so viele einzelne Felder (6–400, Vorgabe 60) — und wie sie sich auf
@@ -106,6 +111,28 @@ export interface LandscapeDisplay {
    * wird) und Themen, die er in ein anderes Gebiet gelegt hat.
    */
   readonly regions?: LandscapeRegionEdits;
+  /**
+   * 2026-11-24 (Klassen) — EINE TEILWELT (nur `style: "world"`): die Karte zeigt nur diese Türme — die der Tags (mit allen
+   * Untertags), die genannten, und (`withBase`, Vorgabe ja) alles, was sie voraussetzen. Wege, Ziele, Wiederholungen und Zahlen
+   * bleiben darin (`classes/subWorld.ts`). Ohne `only`: die ganze Welt.
+   */
+  readonly only?: LandscapeOnly;
+}
+
+export interface LandscapeOnly {
+  readonly tags: readonly string[];
+  readonly places: readonly string[];
+  readonly withBase: boolean;
+}
+
+/** `only` lesen — `null`: keine Teilwelt (nichts gewählt). */
+export function readLandscapeOnly(raw: unknown): LandscapeOnly | null {
+  if (!isObject(raw)) return null;
+  const ids = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))] : []);
+  const tags = ids(raw.tags);
+  const places = ids(raw.places);
+  if (tags.length === 0 && places.length === 0) return null;
+  return { tags, places, withBase: raw.withBase !== false };
 }
 
 export interface LandscapeRegionEdits {
@@ -146,13 +173,15 @@ export function readLandscape(raw: unknown): LandscapeDisplay | null {
   const nestSort = typeof raw.nestSort === 'string' ? raw.nestSort.trim() : '';
   const regions = readRegionEdits(raw.regions);
   const style = raw.style === 'world' ? 'world' : undefined;
+  const only = style === 'world' ? readLandscapeOnly(raw.only) : null;
   return {
     budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET,
     ...(Object.keys(bands).length > 0 ? { bands } : {}),
     ...(nest === '' ? {} : { nest }),
     ...(nestSort === '' ? {} : { nestSort }),
     ...(regions === null ? {} : { regions }),
-    ...(style === undefined ? {} : { style })
+    ...(style === undefined ? {} : { style }),
+    ...(only === null ? {} : { only })
   };
 }
 
@@ -213,7 +242,8 @@ export function readView(raw: unknown): ViewDoc {
     matrix: readMatrix(d.matrix),
     retired,
     outline: readOutlineDisplay(d.outline),
-    landscape: readLandscape(d.landscape)
+    landscape: readLandscape(d.landscape),
+    ...(typeof d.forClass === 'string' && d.forClass !== '' ? { forClass: d.forClass } : {})
   };
 }
 
@@ -236,7 +266,8 @@ export function viewJson(view: ViewDoc): Record<string, unknown> {
     positions: view.positions,
     ...(view.matrix === null ? {} : { matrix: view.matrix }),
     ...(view.outline === null ? {} : { outline: view.outline }),
-    ...(view.landscape === null ? {} : { landscape: view.landscape })
+    ...(view.landscape === null ? {} : { landscape: view.landscape }),
+    ...(view.forClass === undefined ? {} : { forClass: view.forClass })
   };
 }
 

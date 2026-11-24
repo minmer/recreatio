@@ -252,5 +252,28 @@
     "pointsLater": "Points will appear here once you start learning.",
     "pointsLocal": "Without an account, points are counted in this browser.",
     "statsLater": "Statistics will appear here once you start learning."
+  },
+  "teacher": {
+    "label": "Teacher — my classes",
+    "use": "The teacher console on a page: the classes of this base, who is in them (with the own link of every person without an account — if they lose it, you show it again or give a new one), the QR code for joining, the class world, lessons and progress. Only a signed-in teacher sees it.",
+    "exTitle": "My classes",
+    "titleHint": "Heading above the console (may stay empty).",
+    "showsStrip": "One line: opens the console full screen.",
+    "showsBlock": "Classes as cards; the console of a class inside.",
+    "showsTall": "The full console: classes, students, joining, class world, lessons, progress.",
+    "signIn": "This part is for the teacher — sign in to see your classes.",
+    "noBase": "I cannot open this knowledge base with this account."
+  },
+  "klass": {
+    "label": "Class",
+    "use": "One class on a page: whoever holds the class code joins (account, sign-in or no account); whoever is in the class — with an account or their own link — learns in the class world. Answers go to the class.",
+    "exTitle": "Our class",
+    "titleHint": "Heading above the class (may stay empty).",
+    "area": "Class",
+    "areaHint": "The area of the class (created in Learning → „Classes”).",
+    "missingArea": "Choose the class.",
+    "showsStrip": "One line: opens the class full screen.",
+    "showsBlock": "Joining or the class map.",
+    "showsTall": "Joining or the whole class map with learning."
   }
 }

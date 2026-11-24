@@ -266,5 +266,28 @@
     "pointsLater": "Punkty pojawią się tutaj, gdy zaczniesz się uczyć.",
     "pointsLocal": "Bez konta punkty liczą się w tej przeglądarce.",
     "statsLater": "Statystyki pojawią się tutaj, gdy zaczniesz się uczyć."
+  },
+  "teacher": {
+    "label": "Nauczyciel — moje klasy",
+    "use": "Konsola nauczyciela na stronie: klasy tej bazy, kto w nich jest (z własnym linkiem każdej osoby bez konta — gdy go zgubi, pokażesz go ponownie albo dasz nowy), kod QR do dołączania, świat klasy, lekcje i postępy. Widzi ją tylko zalogowany nauczyciel.",
+    "exTitle": "Moje klasy",
+    "titleHint": "Nagłówek nad konsolą (może zostać pusty).",
+    "showsStrip": "Jedna linia: otwiera konsolę na całym ekranie.",
+    "showsBlock": "Klasy z kartami; konsola klasy w środku.",
+    "showsTall": "Pełna konsola: klasy, uczniowie, dołączanie, świat klasy, lekcje, postępy.",
+    "signIn": "Ta część jest dla nauczyciela — zaloguj się, aby zobaczyć swoje klasy.",
+    "noBase": "Nie mogę otworzyć tej bazy wiedzy na tym koncie."
+  },
+  "klass": {
+    "label": "Klasa",
+    "use": "Jedna klasa na stronie: kto ma kod klasy, dołącza (konto, logowanie albo bez konta); kto jest w klasie — z kontem albo własnym linkiem — uczy się w świecie klasy. Odpowiedzi trafiają do klasy.",
+    "exTitle": "Nasza klasa",
+    "titleHint": "Nagłówek nad klasą (może zostać pusty).",
+    "area": "Klasa",
+    "areaHint": "Obszar klasy (utworzony w Nauka → „Klasy”).",
+    "missingArea": "Wybierz klasę.",
+    "showsStrip": "Jedna linia: otwiera klasę na całym ekranie.",
+    "showsBlock": "Dołączanie albo mapa klasy.",
+    "showsTall": "Dołączanie albo cała mapa klasy z nauką."
   }
 }

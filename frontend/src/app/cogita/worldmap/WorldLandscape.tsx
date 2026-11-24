@@ -79,6 +79,7 @@ import { keepSlice, keptSlice, SLICE_FROM, validSlice, worldTags } from './wmTag
 import { reachableTags, startTag, tagCount } from '../tags';
 import { TagSlicePicker } from './WorldTags';
 import { MapMenu } from './MapMenu';
+import { restrictWorldInput, subWorldPlaces } from '../classes/subWorld';
 import './worldmap.css';
 
 /* Wie im Krajobraz: was der Zähler der Punkte über der Karte nicht zeigt (gross / klein). */
@@ -130,8 +131,16 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
 
   /* -- Das Modell (einmal je Stand der Baza) ------------------------------------------------------------------------- */
   const placeKinds = useMemo(() => placeKindsOf(view), [view]);
-  const input = useMemo(() => worldInputOf(lib, cards, { placeKinds }), [lib, lib.revision, cards, placeKinds]); // eslint-disable-line react-hooks/exhaustive-deps
-  const world = useMemo(() => readWorld(input), [input]);
+  const fullInput = useMemo(() => worldInputOf(lib, cards, { placeKinds }), [lib, lib.revision, cards, placeKinds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fullWorld = useMemo(() => readWorld(fullInput), [fullInput]);
+  /*
+    2026-11-24 — DIE TEILWELT (`landscape.only`, etwa die einer Klasse): die Welt aus einem beschnittenen Eingang noch einmal —
+    Türme ausserhalb fehlen im Modell, darum führt kein Weg, Ziel, keine Wiederholung und keine Zahl hinaus (`classes/subWorld.ts`).
+  */
+  const onlyKey = JSON.stringify(view.landscape?.only ?? null);
+  const allowed = useMemo(() => subWorldPlaces(fullWorld, worldTags(fullWorld), view.landscape?.only), [fullWorld, onlyKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const input = useMemo(() => (allowed === null ? fullInput : restrictWorldInput(fullInput, fullWorld, linesOf(fullWorld, fullInput.flows), allowed)), [fullInput, fullWorld, allowed]);
+  const world = useMemo(() => (allowed === null ? fullWorld : readWorld(input)), [allowed, fullWorld, input]);
   const lines = useMemo(() => linesOf(world, input.flows), [world, input]);
   const flowById = useMemo(() => new Map(input.flows.map((f) => [f.id, f] as const)), [input]);
 
@@ -1328,17 +1337,22 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const mapBody = (
     <div className={`cg-wm-body${sideShown ? ' has-side' : ''}`}>
       <div className="cg-wm-main">
-        {/* Wie im Krajobraz: was die Karte zeigt (gemerkt mit dem Blick), „Sprawdź, co wiesz", der Zähler der Punkte. */}
+        {/*
+          2026-11-24 (Eigentümer: „auch im Vollbild und als Seite alles wählbar") — Menü, Tag-Filter und die Zadania der Klasse als
+          EIN Block: über der Karte, im Vollbild oben links über ihr schwebend.
+        */}
+        <div className="cg-wm-controls" data-world-controls="">
         <div className="cg-wm-top">
           {/* 2026-11-24 (Eigentümer) — alles, was man an der Karte einstellt, in EINEM Menü: ☰ oben links. */}
           <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={cls.teaching} classBody={cls.menuBody}
             modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
-            onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={full === null && !tourOn ? enterFull : null} />
+            onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={tourOn ? null : enterFull} full={full} onExit={exitFull} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>
         {cls.overlay}
         {/* 2026-11-22 (C2) — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */}
         <TagSlicePicker net={tagNet} path={slicePath} reachable={reachTags} count={countOfTag} onPath={setSlicePath} t={t} />
+        </div>
         {won !== null && (
           <p className="wk-note cg-ls-conquered" role="status" data-world-won={won.names.join('|')} data-world-won-points={won.points}>
             <FlagIcon /> {t('cogitaWorld.map.conqueredNow', { names: wonNames })}{won.points > 0 ? ` · ${MW.points(won.points)}` : ''}

@@ -26,7 +26,8 @@ import { fromBase64Url } from '../core/crypto';
 import { carryLinks, whoIsThere } from '../core/session';
 import { heldProofs } from '../links/linkAccess';
 import { heldLinks } from '../links/linkKeep';
-import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, type LibraryRow, type OpenRead } from './library';
+import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, loadSeatEntries, loadSeatLibrary, type LibraryRow, type OpenRead } from './library';
+import { seatsToTry, unlockSeat } from '../seats/seatUnlock';
 import { fieldRefs, type LibEntry } from './libraryKinds';
 import { refsOf } from './refIndex';
 import { readOnlyStore, type LibraryStore } from './libraryStore';
@@ -86,8 +87,17 @@ async function openOne(libraryId: string): Promise<LibraryStore | null> {
   } else {
     /* Der Weg eines Mitglieds (oder eines Links): die Liste der Bibliotheken nennt den Bereich — 2026-10-22 auch einer Baza wiedzy. */
     const row = await memberRow(libraryId);
-    if (row === undefined) return null;
-    store = readOnlyStore(row, (since, ids) => loadEntries(libraryId, since, ids), keysOf);
+    if (row !== undefined) store = readOnlyStore(row, (since, ids) => loadEntries(libraryId, since, ids), keysOf);
+    else {
+      /*
+        2026-11-24 — DER WEG EINES PLATZES (eine Person ohne Konto, etwa einer Klasse, auf einem neuen Gerät mit nur ihrem
+        eigenen Link): der Platz dieser Seite zuerst, dann die anderen, die dieser Browser hält. Er schliesst auf, was er lesen
+        darf (`seatUnlock.ts`), und liest über seinen eigenen Weg.
+      */
+      const seat = await seatRowOf(libraryId);
+      if (seat === null) return null;
+      store = readOnlyStore(seat.row, (since, ids) => loadSeatEntries(seat.token, libraryId, since, ids), keysOf);
+    }
   }
 
   store.setPeers(pagePeers);
@@ -113,6 +123,16 @@ async function memberRow(libraryId: string): Promise<LibraryRow | undefined> {
   if (found !== undefined || heldLinks().length === 0 || (await whoIsThere()) !== null) return found;
   carryLinks(heldProofs);
   return find();
+}
+
+/** 2026-11-24 — die Zeile einer Bibliothek über einen behaltenen Platz (der dieser Seite zuerst) — `null`: keiner liest sie. */
+async function seatRowOf(libraryId: string): Promise<{ token: string; row: LibraryRow } | null> {
+  for (const token of seatsToTry().slice(0, 6)) {
+    if (!(await unlockSeat(token))) continue;
+    const row = await loadSeatLibrary(token, libraryId).catch(() => null);
+    if (row !== null) return { token, row };
+  }
+  return null;
 }
 
 /** Ziele, die schon gefragt wurden — eine Kennung wird nur einmal gesucht. */

@@ -142,5 +142,53 @@
     "home": "Dein Lernen",
     "full": "Ganze App",
     "onlyLearn": "Nur Lernen (Schüleransicht)"
+  },
+  "console": {
+    "manage": "Klasse verwalten",
+    "hide": "Einklappen",
+    "tab": {
+      "students": "Schüler",
+      "join": "Beitreten",
+      "world": "Welt der Klasse",
+      "lessons": "Stunden",
+      "progress": "Fortschritte"
+    },
+    "joinOpen": "Beitreten ist offen. In der Klasse: {count}.",
+    "joinClosed": "Beitreten ist geschlossen — niemand Neues kann beitreten. Mit einem neuen Code öffnest du es wieder.",
+    "noLessons": "Diese Klasse hat noch keine Stunden und Aufgaben.",
+    "session": {
+      "lesson": "Stunde vom {date}",
+      "task": "Aufgabe vom {date}"
+    },
+    "state": {
+      "lobby": "wartet auf den Start",
+      "running": "läuft",
+      "paused": "zwischen den Stunden",
+      "finished": "beendet",
+      "closed": "geschlossen"
+    }
+  },
+  "roster": {
+    "lede": "Alle in der Klasse. Wer kein Konto hat, kommt mit dem eigenen Link herein — geht er verloren, zeig ihn noch einmal oder gib einen neuen.",
+    "loading": "Lade die Schüler…",
+    "none": "Noch ist niemand beigetreten. Zeig den QR-Code unter „Beitreten\".",
+    "unnamed": "Person ohne Namen",
+    "account": "Konto …{id}",
+    "kindSeat": "ohne Konto (eigener Link)",
+    "kindAccount": "Konto",
+    "joined": "beigetreten am {date}",
+    "show": "Link zeigen",
+    "relink": "Neuer Link",
+    "remove": "Aus der Klasse entfernen",
+    "showSays": "Der Link von {name}. Den Code scannen oder den Link auf dem eigenen Gerät öffnen — die Fortschritte sind wieder da.",
+    "freshSays": "Der neue Link von {name}. Der alte gilt nicht mehr; die Fortschritte bleiben. Den Code scannen oder den Link öffnen.",
+    "copy": "Link kopieren",
+    "relinkAsk": "{name} einen neuen Link geben?",
+    "relinkSays": "Der alte Link hört auf zu gelten (auf jedem Gerät). Die Fortschritte bleiben — der neue Link führt zu ihnen.",
+    "removeAsk": "{name} aus der Klasse entfernen?",
+    "removeSays": "Der Link hört auf zu gelten. Die bisherigen Antworten bleiben in den Fortschritten der Klasse.",
+    "accountSays": "Hat ein Konto — kommt mit der Anmeldung herein. Kein Link nötig.",
+    "noKey": "Ich kann den Schlüssel dieser Person nicht öffnen (dieses Gerät hält keinen Schlüssel des Bereichs der Klasse).",
+    "noOldLink": "Dieser Link lässt sich nicht mehr lesen — gib einen neuen."
   }
 }

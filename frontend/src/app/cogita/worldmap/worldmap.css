@@ -91,7 +91,15 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-host.is-full .cg-wm-fullbtn { display: none; }
 .cg-wm-host.is-full .cg-wm-body { display: block; position: relative; height: 100%; }
 .cg-wm-host.is-full .cg-wm-main { display: block; height: 100%; }
-.cg-wm-host.is-full .cg-wm-main > :not(.cg-wm-mapwrap) { display: none; }
+.cg-wm-host.is-full .cg-wm-main > :not(.cg-wm-mapwrap):not(.cg-wm-controls) { display: none; }
+/* 2026-11-24 — im Vollbild und als Seite: Menü, Tag-Filter und Zadania schweben oben links über der Karte (die Punkte haben ihren Reiter). */
+.cg-wm-host.is-full .cg-wm-controls { position: absolute; top: var(--wk-space-3); left: var(--wk-space-3); z-index: 6; display: grid; justify-items: start; gap: var(--wk-space-2); max-width: min(30rem, calc(100% - 2 * var(--wk-space-3))); max-height: calc(100% - 2 * var(--wk-space-3)); pointer-events: none; }
+.cg-wm-host.is-full .cg-wm-controls > * { pointer-events: auto; }
+.cg-wm-host.is-full .cg-wm-controls .cg-wm-top .cg-rw { display: none; }
+/* Oben links steht das Menü — der Knopf „Ganze Karte" und die Spur wandern im Vollbild nach rechts oben. */
+.cg-wm-host.is-full .cg-wm-fitbtn { left: auto; right: var(--wk-space-3); top: var(--wk-space-3); }
+.cg-wm-host.is-full .cg-wm-trail { left: auto; right: calc(var(--wk-space-3) + 2.5rem); top: var(--wk-space-3); justify-content: flex-end; }
+.cg-wm-host.is-full .cg-wm-controls .cg-wm-tagbar { padding: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-host.is-full .cg-wm-mapwrap, .cg-wm-host.is-full .cg-wm { height: 100%; }
 .cg-wm-host.is-full .cg-wm-stage { height: calc(100vh - var(--cg-wm-bar)); height: calc(100dvh - var(--cg-wm-bar)); min-height: 0; border: 0; border-radius: 0; }
 .cg-wm-host.is-full .cg-wm-tools { position: absolute; left: var(--wk-space-3); bottom: var(--wk-space-3); z-index: 4; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }

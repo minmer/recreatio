@@ -176,7 +176,8 @@ export interface SeatRow {
    */
   readonly seatKeyForArea: string | null;
   readonly seatKeyForIntake: string | null;
-  readonly origin: 'office' | 'self';
+  /** 2026-11-24 — `link`: eine Person eines Links (`/links/person`, etwa einer Klasse) — wie `office` unter dem Bereich versiegelt. */
+  readonly origin: 'office' | 'self' | 'link';
 
   /** Die Seite, unter der dieser Platz hängt — für die Adresse eines neuen Links. */
   readonly under: string | null;

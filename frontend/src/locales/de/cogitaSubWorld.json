@@ -1,0 +1,23 @@
+{
+  "loading": "Lade die Welt…",
+  "lead": "Was die Klasse auf der Karte sieht: die ganze Welt oder nur einen Teil. Die Schüler sehen dann nur diese Türme — Wege, Ziele, Wiederholungen und Zahlen bleiben in diesem Teil.",
+  "what": "Was die Klasse sieht",
+  "whole": "Die ganze Welt",
+  "part": "Nur ein Teil der Welt",
+  "count": "{count} von {total} Türmen",
+  "towersN": "Türme: {count}",
+  "withBase": "Einschliessen, was vorher gekonnt sein muss",
+  "withBaseSays": "Alles, was die gewählten Türme voraussetzen, kommt dazu — sonst öffnen sich manche Wege nie.",
+  "tags": "Themen (Tags)",
+  "towers": "Türme",
+  "search": "Turm suchen",
+  "noTag": "Ohne Thema",
+  "included": "als Grundlage dabei",
+  "save": "Für die Klasse speichern",
+  "pickSomething": "Wähle mindestens ein Thema oder einen Turm — oder „Die ganze Welt\".",
+  "saved": "Gespeichert: die Klasse sieht {count} von {total} Türmen.",
+  "savedWhole": "Gespeichert: die Klasse sieht die ganze Welt.",
+  "viewName": "{name} — Welt",
+  "readOnly": "Nur wer in der Baza schreibt, kann das ändern.",
+  "byTopic": "über das Thema"
+}

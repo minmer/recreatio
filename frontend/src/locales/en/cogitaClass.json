@@ -142,5 +142,53 @@
     "home": "Your learning",
     "full": "Full version of the app",
     "onlyLearn": "Only learning (student view)"
+  },
+  "console": {
+    "manage": "Manage class",
+    "hide": "Collapse",
+    "tab": {
+      "students": "Students",
+      "join": "Joining",
+      "world": "Class world",
+      "lessons": "Lessons",
+      "progress": "Progress"
+    },
+    "joinOpen": "Joining is open. In the class: {count}.",
+    "joinClosed": "Joining is closed — nobody new can join. You can open it again with a new code.",
+    "noLessons": "This class has no lessons or assignments yet.",
+    "session": {
+      "lesson": "Lesson of {date}",
+      "task": "Assignment of {date}"
+    },
+    "state": {
+      "lobby": "waiting to start",
+      "running": "running",
+      "paused": "between lessons",
+      "finished": "finished",
+      "closed": "closed"
+    }
+  },
+  "roster": {
+    "lede": "Everyone in the class. Someone without an account comes in with their own link — if they lose it, show it to them again or give them a new one.",
+    "loading": "Loading students…",
+    "none": "Nobody has joined yet. Show the QR code under „Joining”.",
+    "unnamed": "Person without a name",
+    "account": "Account …{id}",
+    "kindSeat": "no account (own link)",
+    "kindAccount": "account",
+    "joined": "joined {date}",
+    "show": "Show link",
+    "relink": "New link",
+    "remove": "Remove from class",
+    "showSays": "The link of {name}. Let them scan the code or open the link on their device — they come back to their progress.",
+    "freshSays": "The new link of {name}. The old one no longer works; the progress stays. Let them scan the code or open the link.",
+    "copy": "Copy link",
+    "relinkAsk": "Give {name} a new link?",
+    "relinkSays": "The old link stops working (on every device). Their progress stays — the new link leads to it.",
+    "removeAsk": "Remove {name} from the class?",
+    "removeSays": "Their link stops working. Their answers so far stay in the class progress.",
+    "accountSays": "Has an account — comes in by signing in. No link needed.",
+    "noKey": "I cannot open this person’s key (this device holds no key of the class area).",
+    "noOldLink": "This link can no longer be read — give a new link."
   }
 }

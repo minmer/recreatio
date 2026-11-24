@@ -313,6 +313,67 @@ export const seatLearnPart = defineTextPart<SeatLearnConfig>({
   View: later(() => import('./cogitaViews').then((m) => ({ default: m.SeatLearnView })))
 }, texts({ label: 'moduleDataCogita.seat.label', use: 'moduleDataCogita.seat.use' }));
 
+/* == 2026-11-24: Nauczyciel — moje klasy (die Konsole der Lehrerin) und Klasa (eine Klasse auf einer Seite) ============== */
+
+export interface TeacherConfig {
+  readonly title: string;
+  readonly library: string;
+}
+
+/**
+ * „Nauczyciel — moje klasy": die Konsole der Lehrerin (`cogita/classes/TeacherConsole.tsx`) auf einer Seite — ihre Klassen dieser
+ * Baza, wer drin ist (mit dem eigenen Link jeder Person ohne Konto), der QR-Code, die Welt der Klasse, Stunden, Fortschritte.
+ * Wer nicht angemeldet ist oder keine Klasse führt, sieht nur einen Satz.
+ */
+export const cogitaTeacherPart = defineTextPart<TeacherConfig>({
+  kind: 'cogita-teacher',
+  example: example({}, { library: 'base' }, texts({ title: 'moduleDataCogita.teacher.exTitle' })),
+  box: { colSpan: 6, rowSpan: 5 },
+  fields: [
+    field(TITLE, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataCogita.teacher.titleHint' })),
+    FROM_BASE
+  ],
+  read: (raw: RawConfig): TeacherConfig => ({ title: text(raw, 'title'), library: text(raw, 'library') }),
+  hasContent: (c) => c.library !== '',
+  missing: (c) => (c.library === '' ? pickBase() : null),
+  strip: texts({ title: 'moduleDataCogita.teacher.exTitle', open: 'moduleDataCogita.s.open' }),
+  fullscreen: true,
+  shows: (_c, size) => size.height === 'strip' ? t('moduleDataCogita.teacher.showsStrip')
+    : size.height === 'tall' ? t('moduleDataCogita.teacher.showsTall')
+    : t('moduleDataCogita.teacher.showsBlock'),
+  View: later(() => import('./classViews').then((m) => ({ default: m.TeacherModuleView })))
+}, texts({ label: 'moduleDataCogita.teacher.label', use: 'moduleDataCogita.teacher.use' }));
+
+export interface ClassConfig {
+  readonly title: string;
+  readonly library: string;
+  readonly area: string;
+}
+
+/**
+ * „Klasa": eine Klasse auf einer Seite (`cogita/classes/ClassPage.tsx`) — wer den Code der Klasse hält, tritt bei (Konto, Anmelden
+ * oder ohne Konto); wer drin ist (Konto oder der eigene Link), lernt in der Welt der Klasse. Antworten gehen in die Klasse.
+ */
+export const cogitaClassPart = defineTextPart<ClassConfig>({
+  kind: 'cogita-class',
+  example: example({}, { library: 'base', area: 'area' }, texts({ title: 'moduleDataCogita.klass.exTitle' })),
+  box: { colSpan: 6, rowSpan: 5 },
+  fields: [
+    field(TITLE, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataCogita.klass.titleHint' })),
+    FROM_BASE,
+    field({ key: 'area', kind: 'area' }, texts({ label: 'moduleDataCogita.klass.area', hint: 'moduleDataCogita.klass.areaHint' }))
+  ],
+  read: (raw: RawConfig): ClassConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), area: text(raw, 'area') }),
+  hasContent: (c) => c.library !== '' && c.area !== '',
+  missing: (c) => (c.library === '' ? pickBase() : c.area === '' ? t('moduleDataCogita.klass.missingArea') : null),
+  strip: texts({ title: 'moduleDataCogita.klass.exTitle', open: 'moduleDataCogita.s.open' }),
+  fullscreen: true,
+  shows: (_c, size) => size.height === 'strip' ? t('moduleDataCogita.klass.showsStrip')
+    : size.height === 'tall' ? t('moduleDataCogita.klass.showsTall')
+    : t('moduleDataCogita.klass.showsBlock'),
+  View: later(() => import('./classViews').then((m) => ({ default: m.ClassModuleView })))
+}, texts({ label: 'moduleDataCogita.klass.label', use: 'moduleDataCogita.klass.use' }));
+
 /* == 2026-11-02: Nagrody — punkty, seria, cel dnia, poziomy, odznaki ============================= */
 
 /** „Co pokazuje" — was die Tafel weglassen darf (dieselben Wörter wie `REWARD_PIECES` in `cogita/RewardViews.tsx`). */

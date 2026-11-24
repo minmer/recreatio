@@ -77,6 +77,7 @@ import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
 import { WorkBox } from './WorkBox';
 import { isWorkBase } from './store';
+import { consoleSlots } from './classes/consoleSlots';
 
 const ClassesTab = lazy(() => import('./classes/ClassesTab').then((m) => ({ default: m.ClassesTab })));
 
@@ -185,7 +186,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
-      {tab === 'klasy' && <Suspense fallback={<Loading />}><ClassesTab trail={trail.slice(1)} /></Suspense>}
+      {tab === 'klasy' && <Suspense fallback={<Loading />}><ClassesTab trail={trail.slice(1)} slots={consoleSlots} /></Suspense>}
       {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...rest) => go('sesje', ...rest)} />}
       {tab === 'postepy' && (
         <div className="cg">

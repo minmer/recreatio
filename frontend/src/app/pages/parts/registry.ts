@@ -32,7 +32,7 @@ import type { FieldDef, PartJson, PartModule } from '../part';
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
-import { cogitaFlowPart, cogitaLandscapePart, cogitaSettingsPart, cogitaLivePart, cogitaLiveStatsPart, cogitaRevisionPart, cogitaRewardsPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
+import { cogitaClassPart, cogitaFlowPart, cogitaLandscapePart, cogitaSettingsPart, cogitaLivePart, cogitaLiveStatsPart, cogitaRevisionPart, cogitaRewardsPart, cogitaTeacherPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
 import { entryListPart, entryPanelPart } from './entries';
@@ -217,7 +217,10 @@ export const PARTS: readonly PartModule[] = ([
   seatChatPart,
   seatAskPart,
   /* 0109 — die Powtórki eines Kurses für den Menschen hinter dem Link. */
-  seatLearnPart
+  seatLearnPart,
+  /* 2026-11-24 — die Konsole der Lehrerin und eine Klasse auf einer Seite (`cogita/classes/`). */
+  cogitaTeacherPart,
+  cogitaClassPart
 ] as readonly PartModule[]).map(localized);
 
 const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));
