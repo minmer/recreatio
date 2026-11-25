@@ -71,5 +71,15 @@
     "how": "How: read guide-good-world, then get_feedback and get_world_checks for this base and get_entry for every @… name; prepare one “knowledge-base” import document with the fixes (the same @… names; close the open notes with \"feedback\": [{\"id\", \"state\": \"done\", \"note\"}]), check it with check_import until it has zero errors and give it to me to import."
   },
   "pathsN": "· {count} paths",
-  "towerCounts": "Paths: {paths} · slides: {slides} · questions: {questions}"
+  "towerCounts": "Paths: {paths} · slides: {slides} · questions: {questions}",
+  "mapLabel": "The world map as contents",
+  "mapHint": "Click a tower or a path on the map — all its slides and questions appear below.",
+  "toMap": "Map",
+  "navLabel": "Contents as",
+  "nav": {
+    "map": "Map",
+    "list": "List"
+  },
+  "tilesLabel": "All slides and questions at once",
+  "tilesCount": "{slides} slides · {questions} questions"
 }

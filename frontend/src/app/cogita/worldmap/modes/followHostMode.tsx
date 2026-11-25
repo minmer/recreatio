@@ -42,7 +42,8 @@ export function useFollowHostMode(input: {
 }): FollowHost {
   const { lib, me, following, viewKey } = input;
   const { live } = useFollowLive();
-  const leading = !following && live !== null && live.libraryId.toLowerCase() === lib.libraryId.toLowerCase();
+  /* 2026-11-25 — nur mit einer Person, die führt: eine Karte ohne (Schüler über den eigenen Link, das Verzeichnis im Przegląd) führt nie. */
+  const leading = me !== null && !following && live !== null && live.libraryId.toLowerCase() === lib.libraryId.toLowerCase();
   /* Die Klassen, die ich leite (für „Prowadź klasę na żywo"); eine laufende Folge-Stunde wieder aufnehmen. */
   const [classes, setClasses] = useState<readonly { readonly areaId: string; readonly name: string }[]>([]);
   useEffect(() => {

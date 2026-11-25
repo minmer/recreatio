@@ -110,7 +110,14 @@ export interface WorldLandscapeProps {
   readonly rewards?: RewardRules | null;
   /** 2026-11-25 — die Karte öffnet sich im Wahl-Modus für diese Klasse („Świat klasy", `classes/SubWorldEditor.tsx`). */
   readonly selectFor?: { readonly areaId: string; readonly name: string } | null;
+  /**
+   * 2026-11-25 (Eigentümer: „die ganze Karte als Überblick — Turm oder Pfad wählen, dann alle Folien und Fragen dazu") — DIE KARTE
+   * ALS VERZEICHNIS (`explore/Explore.tsx`): ein gewählter Turm, Abschnitt (sein Pfad) oder Weg geht hinaus. Sie führt nie die Klasse.
+   */
+  readonly onPick?: ((pick: MapPick) => void) | null;
 }
+
+export type MapPick = { readonly kind: 'tower'; readonly id: string } | { readonly kind: 'path'; readonly flow: string } | { readonly kind: 'qpath'; readonly id: string };
 
 /** 2026-11-12 (Einstufung) — so viele nie gefragte Karten gutgeschriebener Türme kommen höchstens in eine Wiederholung. */
 export const PLACED_PER_RUN = 20;
@@ -118,13 +125,13 @@ export const PLACED_PER_RUN = 20;
 /** Wie oft „jetzt" neu gilt, solange die Karte offen ist. */
 const CLOCK_MS = 10 * 60 * 1000;
 
-export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null, selectFor = null }: WorldLandscapeProps) {
+export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null, selectFor = null, onPick = null }: WorldLandscapeProps) {
   const { lib, writes, name: baseName, me } = useCtx();
   /* 2026-11-24 (Tryb prowadzony) — auf einer Seite ohne Person im Zusammenhang (die Klassenseite der Lehrerin): das eigene Konto. */
   const ownMe = useMe(useWho());
   /* 2026-11-25 — als Schüler über dessen eigenen Link (auch im Browser der Lehrerin): nie führen — sonst schickte diese Seite ihre Kamera an die Klasse. */
   const asSeat = usePerson()?.chosen?.kind === 'seat';
-  const leadMe = asSeat ? null : me ?? ownMe ?? null;
+  const leadMe = asSeat || onPick !== null ? null : me ?? ownMe ?? null;
   /*
     2026-11-24 (Tryb prowadzony) — GEFÜHRT (die Karte der Schüler und der Leinwand, `follow/FollowScreen.tsx`): Kamera, Gewähltes,
     Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
@@ -371,6 +378,16 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* -- Was die Felder auslösen ------------------------------------------------------------------------------------------- */
   const [running, setRunning] = useState<Running | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
+  /* 2026-11-25 — als Verzeichnis: was gewählt ist, geht hinaus (ein Abschnitt als sein Pfad). */
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  useEffect(() => {
+    const out = pickRef.current;
+    if (out == null || chosen === null) return;
+    if (chosen.kind === 'place' && world.places.has(chosen.id)) out({ kind: 'tower', id: chosen.id });
+    else if (chosen.kind === 'section') { const line = lines.sections.get(chosen.id)?.line; if (line !== undefined) out({ kind: 'path', flow: line }); }
+    else if (chosen.kind === 'qpath') out({ kind: 'qpath', id: chosen.id });
+  }, [chosen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mine, setMine] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const pillars = useRef<PillarsHandle | null>(null);

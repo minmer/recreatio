@@ -83,3 +83,24 @@
   .cg-ex-head { position: static; background: none; }
   .cg-ex-item { break-inside: avoid; box-shadow: none; }
 }
+
+/* 2026-11-25 — das Verzeichnis als Karte: die ganze Welt oben, darunter die Kacheln und der Strom. */
+.cg-ex.is-map { display: grid; grid-template-columns: minmax(0, 1fr); }
+.cg-ex-mapnav { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-ex-maphead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.cg-ex-maphead .cg-ex-scope { margin: 0; }
+.cg-ex-maphint { flex: 1 1 16rem; font-size: var(--wk-text-sm); }
+.cg-ex-mapnav .cg-wm-stage { height: min(68vh, 44rem); }
+.cg-ex-tiles { display: grid; gap: var(--wk-space-2); }
+.cg-ex-tiles-title { margin: 0; font-size: var(--wk-text-lg); }
+.cg-ex-tiles-title .cg-muted { font-size: var(--wk-text-sm); font-weight: 400; }
+.cg-ex-tilegrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--wk-space-2); }
+.cg-ex-tile { display: grid; align-content: start; gap: 0.3rem; width: 100%; height: 100%; min-height: 6.5rem; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-top: 4px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-ex-tile.is-question { border-top-color: var(--wk-warn); }
+.cg-ex-tile.is-help { border-style: dashed; }
+.cg-ex-tile:hover, .cg-ex-tile:focus-visible, .cg-ex-tile.is-on { background: var(--wk-accent-soft); }
+.cg-ex-tile-top { display: flex; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.cg-ex-tile-n { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cg-ex-tile-name { font-weight: 600; font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+.cg-ex-tile-ask { font-size: var(--wk-text-xs); color: var(--wk-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media print { .cg-ex-mapnav, .cg-ex-tiles { display: none; } }

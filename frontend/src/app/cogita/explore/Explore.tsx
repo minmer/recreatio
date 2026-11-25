@@ -30,7 +30,9 @@ import { SlideBody } from '../SlideView';
 import { EntityReading } from '../EntityReading';
 import { Markup, useAsync, useCtx } from '../ui';
 import { worldChecks, type WorldFinding } from '../worldChecks';
-import { classOnly } from '../classes/subWorld';
+import { baseWorldViewOf, classOnly, classViewOf } from '../classes/subWorld';
+import { readView } from '../views';
+import { WorldLandscape, type MapPick } from '../worldmap/WorldLandscape';
 import type { ClassOf } from '../classes/classModel';
 import { aiPrompt, buildExplore, flatItems, streamOf, type ExploreItem, type ExploreModel, type ExploreSection, type ExploreSelection, type ExploreShow, type PromptItem } from './exploreModel';
 import './explore.css';
@@ -69,6 +71,20 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
   }, [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [sel, setSel] = useState<ExploreSelection>({ kind: 'all' });
+  /*
+   * 2026-11-25 (Eigentümer: „statt einer Liste die echte Karte — Turm und Pfad finden, dann der Überblick dieses Pfads") — DAS
+   * VERZEICHNIS IST DIE KARTE: die ganze Welt (die der Klasse, oder alles), ein Klick auf einen Turm, einen Abschnitt (sein Pfad)
+   * oder einen Weg wählt; darunter alle Folien und Fragen auf einmal (Kacheln), dann der Strom. Die Liste bleibt als zweiter Weg.
+   */
+  const viewId = klass !== null && scoped ? classViewOf(lib, klass) ?? baseWorldViewOf(lib) : baseWorldViewOf(lib);
+  const viewDoc = viewId === null ? undefined : lib.docs('view').find((d) => d.id === viewId);
+  const [nav, setNav] = useState<'map' | 'list'>('map');
+  const navNow = viewDoc === undefined ? 'list' : nav;
+  const mainRef = useRef<HTMLElement | null>(null);
+  const onMapPick = (pk: MapPick) => {
+    setSel(pk.kind === 'tower' ? { kind: 'tower', id: pk.id } : pk.kind === 'path' ? { kind: 'path', flow: pk.flow } : { kind: 'qpath', id: pk.id });
+    window.setTimeout(() => mainRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+  };
   const [show, setShow] = useState<ExploreShow>('both');
   const [problems, setProblems] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -133,14 +149,21 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
   let at = 0;
   let shown = 0;
   return (
-    <div className={`cg-ex${menuOpen ? ' is-menu' : ''}`} data-explore={selKey(sel)} data-explore-items={items.length}>
-      <nav className="cg-ex-menu" aria-label={t('cogitaExplore.menuLabel')} data-explore-menu="">
-        {klass !== null && only !== null && (
-          <div className="cg-ex-scope" role="group" aria-label={t('cogitaExplore.scope')}>
-            <button type="button" className={`cg-ex-chip${scoped ? ' is-on' : ''}`} aria-pressed={scoped} onClick={() => setScoped(true)} data-explore-scope="class">{t('cogitaExplore.scopeClass')}</button>
-            <button type="button" className={`cg-ex-chip${!scoped ? ' is-on' : ''}`} aria-pressed={!scoped} onClick={() => setScoped(false)} data-explore-scope="all">{t('cogitaExplore.scopeAll')}</button>
+    <div className={`cg-ex${menuOpen ? ' is-menu' : ''}${navNow === 'map' ? ' is-map' : ''}`} data-explore={selKey(sel)} data-explore-items={items.length} data-explore-nav={navNow}>
+      {navNow === 'map' && viewDoc !== undefined && (
+        <section className="cg-ex-mapnav" aria-label={t('cogitaExplore.mapLabel')} data-explore-map="">
+          <div className="cg-ex-maphead">
+            <NavSwitch nav={navNow} onNav={setNav} />
+            {klass !== null && only !== null && <ScopeSwitch scoped={scoped} onScoped={setScoped} />}
+            <span className="cg-muted cg-ex-maphint">{t('cogitaExplore.mapHint')}</span>
+            <button type="button" className={`cg-ex-chip${sel.kind === 'all' ? ' is-on' : ''}`} onClick={() => pick({ kind: 'all' })} data-explore-pick="all">{t('cogitaExplore.everything')}</button>
           </div>
-        )}
+          <WorldLandscape key={`${viewDoc.id}:${scoped ? 1 : 0}`} view={readView(viewDoc.data)} cards={cards} learner={null} viewKey={`explore-${viewDoc.id}`} onPick={onMapPick} />
+        </section>
+      )}
+      {navNow === 'list' && <nav className="cg-ex-menu" aria-label={t('cogitaExplore.menuLabel')} data-explore-menu="">
+        {viewDoc !== undefined && <NavSwitch nav={navNow} onNav={setNav} />}
+        {klass !== null && only !== null && <ScopeSwitch scoped={scoped} onScoped={setScoped} />}
         <ul className="cg-ex-tree">
           <MenuItem on={sel.kind === 'all'} onClick={() => pick({ kind: 'all' })} data="all">{t('cogitaExplore.everything')}</MenuItem>
           <MenuItem on={sel.kind === 'slides'} onClick={() => pick({ kind: 'slides' })} data="slides">{t('cogitaExplore.allSlides')} <span className="cg-ex-n">{model.slides.size}</span></MenuItem>
@@ -182,11 +205,12 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
             <ul className="cg-ex-tree">{model.qpaths.map((q) => <MenuItem key={q.id} on={sel.kind === 'qpath' && sel.id === q.id} onClick={() => pick({ kind: 'qpath', id: q.id })} data={`qpath:${q.id}`}>{q.title}</MenuItem>)}</ul>
           </details>
         )}
-      </nav>
+      </nav>}
 
-      <section className="cg-ex-main" aria-label={t('cogitaExplore.streamLabel')}>
+      <section className="cg-ex-main" ref={mainRef} aria-label={t('cogitaExplore.streamLabel')}>
         <div className="cg-ex-bar" data-explore-bar="">
-          <button type="button" className="wk-btn wk-btn-line is-small cg-ex-menubtn" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)} data-explore-menu-toggle="">☰ {t('cogitaExplore.toc')}</button>
+          {navNow === 'map' && <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => document.querySelector('[data-explore-map]')?.scrollIntoView({ block: 'start', behavior: 'smooth' })} data-explore-to-map="">↑ {t('cogitaExplore.toMap')}</button>}
+          {navNow === 'list' && <button type="button" className="wk-btn wk-btn-line is-small cg-ex-menubtn" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)} data-explore-menu-toggle="">☰ {t('cogitaExplore.toc')}</button>}
           <div className="cg-ex-chips" role="group" aria-label={t('cogitaExplore.showLabel')}>
             {(['both', 'slides', 'questions'] as const).map((s) => (
               <button key={s} type="button" className={`cg-ex-chip${show === s ? ' is-on' : ''}`} aria-pressed={show === s} onClick={() => setShow(s)} data-explore-show={s}>{t(`cogitaExplore.show.${s}`)}</button>
@@ -207,6 +231,9 @@ export function Explore({ klass = null }: { klass?: ClassOf | null }) {
         </div>
         {promptOpen && <PromptPanel make={(note, all) => aiPrompt({ base: baseName, handle, items: promptItems(items, all), note })} count={items.filter(hasProblem).length} />}
         {sel.kind === 'tower' && model.towers.has(sel.id) && <TowerOverview id={sel.id} model={model} items={items} onPath={(flow) => pick({ kind: 'path', flow })} />}
+        {(sel.kind === 'tower' || sel.kind === 'path' || sel.kind === 'qpath' || sel.kind === 'group') && items.length > 0 && (
+          <Tiles items={items} model={model} cards={cards} cur={cur} onGo={go} title={sel.kind === 'path' ? pathName(model, sel.flow) : sel.kind === 'tower' ? model.label(sel.id) : sel.kind === 'qpath' ? model.qpaths.find((q) => q.id === sel.id)?.title ?? '' : model.groups.find((g) => g.key === sel.key)?.label ?? ''} />
+        )}
         {items.length === 0 ? <p className="cg-muted" data-explore-empty="">{problems ? t('cogitaExplore.noProblems') : t('cogitaExplore.empty')}</p> : null}
         {sections.map((s) => {
           if (shown >= limit) return null;
@@ -248,6 +275,58 @@ function TowerOverview({ id, model, items, onPath }: { id: string; model: Explor
           {tw.paths.map((p) => <button key={p.flow} type="button" className="wk-btn wk-btn-line is-small" onClick={() => onPath(p.flow)} data-explore-tower-path={p.flow}>{p.name}</button>)}
         </div>
       )}
+    </section>
+  );
+}
+
+/** Karte oder Liste als Verzeichnis. */
+function NavSwitch({ nav, onNav }: { nav: 'map' | 'list'; onNav: (n: 'map' | 'list') => void }) {
+  const t = useT();
+  return (
+    <div className="cg-ex-scope" role="group" aria-label={t('cogitaExplore.navLabel')}>
+      {(['map', 'list'] as const).map((n) => (
+        <button key={n} type="button" className={`cg-ex-chip${nav === n ? ' is-on' : ''}`} aria-pressed={nav === n} onClick={() => onNav(n)} data-explore-nav-pick={n}>{t(`cogitaExplore.nav.${n}`)}</button>
+      ))}
+    </div>
+  );
+}
+
+function ScopeSwitch({ scoped, onScoped }: { scoped: boolean; onScoped: (v: boolean) => void }) {
+  const t = useT();
+  return (
+    <div className="cg-ex-scope" role="group" aria-label={t('cogitaExplore.scope')}>
+      <button type="button" className={`cg-ex-chip${scoped ? ' is-on' : ''}`} aria-pressed={scoped} onClick={() => onScoped(true)} data-explore-scope="class">{t('cogitaExplore.scopeClass')}</button>
+      <button type="button" className={`cg-ex-chip${!scoped ? ' is-on' : ''}`} aria-pressed={!scoped} onClick={() => onScoped(false)} data-explore-scope="all">{t('cogitaExplore.scopeAll')}</button>
+    </div>
+  );
+}
+
+/**
+ * 2026-11-25 — ALLE FOLIEN UND FRAGEN AUF EINMAL: je Ding eine Kachel in der Folge der Erzählung (Nummer, Folie oder Frage, ihr
+ * Name, bei einer Frage ihre Frage). Ein Klick springt zu ihm im Strom darunter.
+ */
+function Tiles({ items, model, cards, cur, onGo, title }: { items: readonly ExploreItem[]; model: ExploreModel; cards: readonly Card[]; cur: number; onGo: (n: number) => void; title: string }) {
+  const t = useT();
+  const asks = useMemo(() => new Map(cards.map((c) => [c.question, c.prompt.map((x) => x.text).join(' ').trim().slice(0, 160)] as const)), [cards]);
+  const slides = items.filter((x) => x.kind === 'slide').length;
+  return (
+    <section className="cg-ex-tiles" data-explore-tiles={items.length} aria-label={t('cogitaExplore.tilesLabel')}>
+      <h2 className="cg-ex-tiles-title"><TexText text={title} /> <span className="cg-muted">{t('cogitaExplore.tilesCount', { slides, questions: items.length - slides })}</span></h2>
+      <ol className="cg-ex-tilegrid">
+        {items.map((it, n) => {
+          const name = model.label(it.id);
+          const ask = it.kind === 'question' ? asks.get(it.id) ?? '' : '';
+          return (
+            <li key={it.key}>
+              <button type="button" className={`cg-ex-tile is-${it.kind}${n === cur ? ' is-on' : ''}${it.help ? ' is-help' : ''}`} onClick={() => onGo(n)} data-explore-tile={n} data-explore-tile-kind={it.kind}>
+                <span className="cg-ex-tile-top"><span className="cg-ex-tile-n">{n + 1}</span><span className="cg-ex-tile-kind">{it.kind === 'slide' ? t('cogitaExplore.slide') : t('cogitaExplore.question')}</span></span>
+                <span className="cg-ex-tile-name"><TexText text={name} /></span>
+                {ask !== '' && ask !== name && <span className="cg-ex-tile-ask"><TexText text={ask} /></span>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

@@ -21,6 +21,7 @@ import type { CogitaLibrary } from '../store';
 import { myClasses } from '../classes/classes';
 import { classOnly, classWorldInput, hideFormOf, optInOf, removePreset, savePreset, sectionKey, sectionStep, setClassView, subWorldPlaces, worldPresets, type WorldPreset } from '../classes/subWorld';
 import type { HiddenSection, LandscapeOnly } from '../views';
+import { askText } from '../../ui/dialogs';
 import { readWorld } from './wmGraph';
 import { linesOf } from './wmLines';
 import { worldTags } from './wmTags';
@@ -265,7 +266,7 @@ export function useClassSelect({ lib, me, writes, input, world, viewKey, t, sele
     } finally { setBusy(false); }
   };
   const dropPreset = async (p: WorldPreset) => {
-    if (busy || !window.confirm(t('cogitaClassMap.presetDropAsk', { name: p.name }))) return;
+    if (busy || !(await askText(t('cogitaClassMap.presetDropAsk', { name: p.name })))) return;
     setBusy(true);
     try { await removePreset(lib, p.id); setNote(null); } catch { setNote(t('cogitaClassMap.saveFailed')); } finally { setBusy(false); }
   };

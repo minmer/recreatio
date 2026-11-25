@@ -78,3 +78,30 @@
 .cg-plan-saved { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-3); }
 .cg-plan-saved > li { display: grid; gap: var(--wk-space-2); }
 .cg-lesson-round { display: grid; gap: var(--wk-space-3); }
+
+/*
+ * 2026-11-25 (Eigentümer: „wie die normale Folie und Karte — mit Rahmen, Frage und Antworten gleich gross, auf einem Bildschirm")
+ * — EINE KARTE, EINE SCHRIFT: alles im Inhalt einer Stunde rechnet in em von `.cg-fit` aus (`LessonFit.tsx` verkleinert `--fit`,
+ * bis es passt). Gerät: 1.125rem; Leinwand: mit der Breite des Schirms.
+ */
+.cg-live-screen.cg-lesson-student, .cg-live-screen.cg-lesson-screen { padding: var(--wk-space-3); gap: 0; }
+.cg-fit { --cg-fit-base: 1.125rem; width: 100%; display: grid; justify-items: center; gap: 0.75em; --cg-fit-size: calc(var(--fit, 1) * var(--cg-fit-base)); font-size: var(--cg-fit-size); }
+.cg-lesson-screen .cg-fit { --cg-fit-base: clamp(1.2rem, 2vw, 2.6rem); }
+.cg-fit .cg-face { width: 100%; max-width: min(46em, 100%); padding: 0.9em 1em; gap: 0.75em; }
+.cg-fit .cg-face .cg-answer, .cg-fit .cg-face .cg-options { max-width: none; width: 100%; }
+.cg-live-screen .cg-fit .cg-prompt { font-size: inherit; font-weight: 600; line-height: 1.4; max-width: none; text-align: center; }
+.cg-fit .cg-option, .cg-fit .cg-answer input[type="text"], .cg-fit .cg-answer textarea, .cg-fit .wk-btn, .cg-fit .cg-verdict { font-size: inherit; }
+.cg-fit .cg-options { gap: 0.45em; }
+.cg-fit .cg-option { padding: 0.5em 0.75em; }
+.cg-fit .cg-lesson-title { margin: 0; font-size: calc(var(--cg-fit-size) * 1.25); line-height: 1.3; }
+.cg-fit h1.cg-lesson-title { font-size: calc(var(--cg-fit-size) * 1.6); }
+.cg-fit .cg-lesson-kicker, .cg-fit > .cg-muted, .cg-fit .cg-timer { font-size: calc(var(--cg-fit-size) * 0.85); }
+.cg-fit .cg-lesson-bars { width: 100%; font-size: calc(var(--cg-fit-size) * 0.9); }
+.cg-fit .cg-lesson-letter { flex: none; min-width: 1.7em; height: 1.7em; font-size: calc(var(--cg-fit-size) * 0.8); }
+.cg-lesson-letters { list-style: none; margin: 0; padding: 0; }
+.cg-lesson-letters .cg-option { cursor: default; }
+.cg-lesson-letters .cg-option.is-off { opacity: 0.5; }
+.cg-fit .cg-lesson-slide.cg-face { max-width: min(60em, 100%); text-align: left; font-size: inherit; line-height: 1.5; }
+.cg-fit .cg-lesson-correct { margin: 0; }
+.cg-fit .cg-flow-predict { margin: 0; font-size: calc(var(--cg-fit-size) * 0.9); }
+@media (max-width: 40rem) { .cg-live-screen.cg-lesson-student { padding: var(--wk-space-2); } .cg-fit .cg-face { padding: 0.75em; } }

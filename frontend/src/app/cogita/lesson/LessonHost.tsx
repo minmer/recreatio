@@ -31,6 +31,7 @@ import {
   adviceOf, isFlowPart, readLessonConfig, tallyPoll, tallyQuestion, type Bar, type LessonConfig, type LessonPart, type LessonQuestionsPart, type ShowVotes, type Thresholds, type Vote
 } from './lessonTally';
 import { LinesHeat, linesHeat } from '../reading/linesHeat';
+import { LessonFit } from './LessonFit';
 import './lesson.css';
 
 /** 2026-11-22 (Homer-Einheit) — eine Lektüre-Frage, deren Antworten sich als Wärmekarte je Zeile zeigen lassen. */
@@ -489,62 +490,77 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
   /* 2026-11-25 — ohne Zwischenstand (die geführte Klasse schickt keinen): die Stimmen selbst gezählt, je Teilnehmer eine. */
   const voteIndex = v === null ? -1 : v.kind === 'question' ? v.q.index : v.p.index;
   const voted = now.tally?.votes ?? new Set(bodies<{ participant: string; index: number }>(opened, 'answer').filter((a) => a.body.index === voteIndex).map((a) => a.body.participant)).size;
+  /*
+   * 2026-11-25 (Eigentümer: „wie die normale Folie, die normale Karte — mit Rahmen, Frage und Antworten gleich gross") — die Leinwand
+   * zeigt dieselbe Karte wie das Gerät: eine Folie im Rahmen, eine Frage als Karte mit ihren Möglichkeiten (A, B, … in Rahmen), alles
+   * von einer Schriftgrösse aus, die zum Schirm passt (`LessonFit`).
+   */
+  const form = v?.kind === 'question' ? v.q.card.answer.form : null;
+  const letters = (labels: readonly string[], off: (i: number) => boolean = () => false) => (
+    <ol className="cg-options cg-lesson-letters">
+      {labels.map((o, i) => (
+        <li key={i} className={`cg-option${off(i) ? ' is-off' : ''}`}><span className="cg-lesson-letter" aria-hidden="true">{String.fromCharCode(65 + i)}</span><span className="cg-option-text"><TexText text={o} /></span></li>
+      ))}
+    </ol>
+  );
   return (
-    <div className="cg-live-screen cg-lesson-screen" data-lesson-screen={step?.kind ?? 'none'}>
+    <LessonFit className="cg-live-screen cg-lesson-screen" data={{ 'data-lesson-screen': step?.kind ?? 'none' }} watch={`${step?.step ?? ''}:${voteIndex}:${v?.kind === 'question' ? (v.reveal === null ? 0 : 1) : v?.kind === 'poll' ? (v.end === null ? 0 : 1) : 0}`}>
       {step === null || step.kind === 'end' ? (
-        <>
-          <h1>{now.config?.title || title}</h1>
+        <section className="cg-face cg-lesson-card">
+          <h1 className="cg-lesson-title">{now.config?.title || title}</h1>
           <p className="cg-muted">{t('cogitaViewsStats.sess.joined', { count: now.joined })}</p>
-        </>
+        </section>
       ) : step.kind === 'show' ? (
-        <div className="cg-lesson-slide">
-          {step.title !== null && <h2><TexText text={step.title} /></h2>}
+        <section className="cg-face cg-lesson-card cg-lesson-slide">
+          {step.title !== null && <h2 className="cg-lesson-title"><TexText text={step.title} /></h2>}
           {step.entity !== null && <EntityView entity={step.entity} />}
-        </div>
+        </section>
       ) : v !== null && onStepVote && v.kind === 'question' ? (
         <>
-          <span className="cg-muted">{v.q.round > 1 ? t('cogitaLesson.screen.round', { round: v.q.round }) : t('cogitaLesson.screen.vote')}</span>
+          <span className="cg-muted cg-lesson-kicker">{v.q.round > 1 ? t('cogitaLesson.screen.round', { round: v.q.round }) : t('cogitaLesson.screen.vote')}</span>
           {v.q.predict === true && <p className="cg-flow-predict" role="note" data-lesson-predict="screen">{t('cogitaLearn.words.predictBefore')}</p>}
-          <div className="cg-prompt"><TexText text={v.q.card.prompt.map((p) => p.text).join(' ')} /></div>
-          {v.reveal === null ? (
-            <>
-              {(v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many') && (
-                <ol className="cg-lesson-options" type="A">{inScreenOrder(v.q.card, v.q.card.answer.options).map((o, i) => <li key={i}><TexText text={o} /></li>)}</ol>
-              )}
-              {/* 2026-11-22 (Homer-Einheit) — Lektüre: der Abschnitt für alle, mit der Wärmekarte, sobald der Leiter Stimmen zeigt. */}
-              {heatForm(v.q.card) && <LinesHeat card={v.q.card} counts={now.tally?.heat ?? []} />}
-              <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>
-              {now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
-            </>
-          ) : (
-            <>
-              {v.reveal.tally?.heat !== undefined && <LinesHeat card={v.reveal.card} counts={v.reveal.tally.heat} reveal />}
-              {v.reveal.tally !== undefined
-                ? <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />
-                : <p>{t('cogitaLesson.screen.answered', { count: v.reveal.answered })}</p>}
-              <strong data-lesson-screen-share="">{t('cogitaLesson.screen.share', { pct: v.reveal.answered === 0 ? 0 : Math.round((v.reveal.correct / v.reveal.answered) * 100) })}</strong>
-              <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(v.reveal.card)} /></p>
-            </>
-          )}
+          <section className="cg-face cg-lesson-card">
+            <div className="cg-prompt"><TexText text={v.q.card.prompt.map((p) => p.text).join(' ')} /></div>
+            {v.reveal === null ? (
+              <>
+                {(form === 'one' || form === 'many') && letters(inScreenOrder(v.q.card, (v.q.card.answer as { options: readonly string[] }).options))}
+                {form === 'truefalse' && letters([t('cogitaViewsStats.sess.true'), t('cogitaViewsStats.sess.false')])}
+                {/* 2026-11-22 (Homer-Einheit) — Lektüre: der Abschnitt für alle, mit der Wärmekarte, sobald der Leiter Stimmen zeigt. */}
+                {heatForm(v.q.card) && <LinesHeat card={v.q.card} counts={now.tally?.heat ?? []} />}
+                {now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: form === 'one' || form === 'many' ? (v.q.card.answer as { options: readonly string[] }).options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
+              </>
+            ) : (
+              <>
+                {v.reveal.tally?.heat !== undefined && <LinesHeat card={v.reveal.card} counts={v.reveal.tally.heat} reveal />}
+                {v.reveal.tally !== undefined
+                  ? <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />
+                  : <p>{t('cogitaLesson.screen.answered', { count: v.reveal.answered })}</p>}
+                <p className="cg-lesson-correct">{t('cogitaLesson.host.correctIs')} <strong><TexText text={answerText(v.reveal.card)} /></strong></p>
+              </>
+            )}
+          </section>
+          {v.reveal === null
+            ? <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>
+            : <strong data-lesson-screen-share="">{t('cogitaLesson.screen.share', { pct: v.reveal.answered === 0 ? 0 : Math.round((v.reveal.correct / v.reveal.answered) * 100) })}</strong>}
         </>
       ) : v !== null && onStepVote && v.kind === 'poll' ? (
         <>
-          {v.p.title !== null && <h2><TexText text={v.p.title} /></h2>}
-          <span className="cg-muted">{v.p.kind === 'choice' ? t('cogitaLesson.screen.pollWay') : t('cogitaLesson.screen.pollOrder')}</span>
-          {v.end === null
-            ? <>
-              <ol className="cg-lesson-options" type="A">{v.p.options.map((o) => <li key={o.exit} className={o.open ? '' : 'is-off'}><TexText text={o.label} /></li>)}</ol>
-              <span className="cg-timer">{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>
-            </>
-            : <>
-              {v.end.counts !== undefined && <PollBars options={v.p.options} counts={v.end.counts} votes={v.end.votes} winner={v.end.winner} />}
-              {v.end.winner !== null && <strong>{t('cogitaLesson.screen.chosen', { name: v.p.options[v.end.winner]?.label ?? '' })}</strong>}
-            </>}
+          <span className="cg-muted cg-lesson-kicker">{v.p.kind === 'choice' ? t('cogitaLesson.screen.pollWay') : t('cogitaLesson.screen.pollOrder')}</span>
+          <section className="cg-face cg-lesson-card">
+            {v.p.title !== null && <div className="cg-prompt"><TexText text={v.p.title} /></div>}
+            {v.end === null
+              ? letters(v.p.options.map((o) => o.label), (i) => v.p.options[i]?.open === false)
+              : <>
+                {v.end.counts !== undefined && <PollBars options={v.p.options} counts={v.end.counts} votes={v.end.votes} winner={v.end.winner} />}
+                {v.end.winner !== null && <strong>{t('cogitaLesson.screen.chosen', { name: v.p.options[v.end.winner]?.label ?? '' })}</strong>}
+              </>}
+          </section>
+          {v.end === null && <span className="cg-timer">{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>}
         </>
       ) : (
-        <h2>{step.title ?? now.config?.title ?? title}</h2>
+        <section className="cg-face cg-lesson-card"><h2 className="cg-lesson-title">{step.title ?? now.config?.title ?? title}</h2></section>
       )}
-    </div>
+    </LessonFit>
   );
 }
 
@@ -590,14 +606,14 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
   const stepShown = step !== null && step.kind === 'show' && (v === null || (v.kind === 'question' ? v.q.step : v.p.step) !== step.step);
   if (stepShown || (v === null && slot === null)) {
     return (
-      <div className="cg-live-screen cg-lesson-student" data-lesson-student="slide">
+      <LessonFit className="cg-live-screen cg-lesson-student" data={{ 'data-lesson-student': 'slide' }} watch={`slide:${step?.step ?? ''}`}>
         {step === null ? <p className="cg-muted">{t('cogitaViewsStats.sess.soon')}</p> : (
-          <>
-            {step.title !== null && <h2><TexText text={step.title} /></h2>}
-            {step.entity !== null ? <div className="cg-lesson-slide"><EntityView entity={step.entity} /></div> : <p className="cg-muted">{t('cogitaLesson.student.board')}</p>}
-          </>
+          <section className="cg-face cg-lesson-card cg-lesson-slide">
+            {step.title !== null && <h2 className="cg-lesson-title"><TexText text={step.title} /></h2>}
+            {step.entity !== null ? <EntityView entity={step.entity} /> : <p className="cg-muted">{t('cogitaLesson.student.board')}</p>}
+          </section>
         )}
-      </div>
+      </LessonFit>
     );
   }
 
@@ -605,28 +621,31 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
   if (v !== null && v.kind === 'question' && v.q.index === index) {
     const mine = sent.get(index);
     return (
-      <div className="cg-live-screen cg-lesson-student" data-lesson-student="question" data-lesson-index={index}>
-        <span className="cg-muted">{v.q.round > 1 ? t('cogitaLesson.screen.round', { round: v.q.round }) : t('cogitaLesson.screen.vote')}</span>
+      <LessonFit className="cg-live-screen cg-lesson-student" data={{ 'data-lesson-student': 'question', 'data-lesson-index': index }} watch={`q:${index}:${mine === undefined ? 0 : 1}:${v.reveal === null ? 0 : 1}`}>
+        <span className="cg-muted cg-lesson-kicker">{v.q.round > 1 ? t('cogitaLesson.screen.round', { round: v.q.round }) : t('cogitaLesson.screen.vote')}</span>
         {v.q.predict === true && <p className="cg-flow-predict" role="note" data-lesson-predict="">{t('cogitaLearn.words.predictBefore')}</p>}
         {/* 2026-11-25 (Eigentümer) — nach dem Abschicken bleibt alles stehen: die Frage, die Möglichkeiten, die eigene Wahl (gesperrt, ohne richtig/falsch). */}
         {v.reveal === null && (
-          <section className="cg-face" data-lesson-answered={mine === undefined ? undefined : ''}>
+          <section className="cg-face cg-lesson-card" data-lesson-answered={mine === undefined ? undefined : ''}>
             <div className="cg-prompt"><TexText text={v.q.card.prompt.map((p) => p.text).join(' ')} /></div>
             <AnswerInput card={v.q.card} disabled={mine !== undefined} chosen={mine} onSubmit={(given) => onVote(index, given)} />
           </section>
         )}
         {v.reveal === null && mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
         {v.reveal === null && now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
+        {/* Aufgedeckt: dieselbe Karte, wie nach dem Prüfen beim Lernen — richtig grün, die eigene falsche rot. */}
         {v.reveal !== null && (
-          <>
+          <section className="cg-face cg-lesson-card" data-lesson-revealed="">
+            <div className="cg-prompt"><TexText text={v.reveal.card.prompt.map((p) => p.text).join(' ')} /></div>
             {mine !== undefined
-              ? <Verdict card={v.reveal.card} outcome={checkCard(v.reveal.card, mine)} given={mine} />
-              : <p>{t('cogitaLesson.host.correctIs')} <TexText text={answerText(v.reveal.card)} /></p>}
+              ? <AnswerInput card={v.reveal.card} reveal={{ outcome: checkCard(v.reveal.card, mine), given: mine }} onSubmit={() => undefined} autoFocus={false} />
+              : <p>{t('cogitaLesson.host.correctIs')} <strong><TexText text={answerText(v.reveal.card)} /></strong></p>}
+            {mine !== undefined && <Verdict card={v.reveal.card} outcome={checkCard(v.reveal.card, mine)} given={mine} />}
             {v.reveal.tally?.heat !== undefined && <LinesHeat card={v.reveal.card} counts={v.reveal.tally.heat} reveal />}
             {v.reveal.tally !== undefined && <TallyBars bars={inScreenOrder(v.reveal.card, v.reveal.tally.bars)} votes={v.reveal.tally.votes} form={v.reveal.card.answer.form} reveal tags={v.reveal.tally.tags} />}
-          </>
+          </section>
         )}
-      </div>
+      </LessonFit>
     );
   }
 
@@ -634,11 +653,12 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
   if (v !== null && v.kind === 'poll' && v.p.index === index) {
     const mine = sent.get(index);
     return (
-      <div className="cg-live-screen cg-lesson-student" data-lesson-student="poll" data-lesson-index={index}>
-        {v.p.title !== null && <h2><TexText text={v.p.title} /></h2>}
-        <span className="cg-muted">{v.p.kind === 'choice' ? t('cogitaLesson.screen.pollWay') : t('cogitaLesson.screen.pollOrder')}</span>
+      <LessonFit className="cg-live-screen cg-lesson-student" data={{ 'data-lesson-student': 'poll', 'data-lesson-index': index }} watch={`p:${index}:${mine === undefined ? 0 : 1}:${v.end === null ? 0 : 1}`}>
+        <span className="cg-muted cg-lesson-kicker">{v.p.kind === 'choice' ? t('cogitaLesson.screen.pollWay') : t('cogitaLesson.screen.pollOrder')}</span>
+        <section className="cg-face cg-lesson-card">
+        {v.p.title !== null && <div className="cg-prompt"><TexText text={v.p.title} /></div>}
         {v.end === null ? (
-          <div className="cg-choices cg-choice-list">
+          <div className="cg-options">
             {v.p.options.map((o, i) => (
               <button key={o.exit} type="button" className={`cg-option cg-choice-item${mine === i ? ' is-on' : ''}`} disabled={!o.open || mine !== undefined} data-lesson-option={i} onClick={() => onVote(index, i)}>
                 <TexText text={o.label} />
@@ -651,8 +671,9 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
             {v.end.winner !== null && <strong>{t('cogitaLesson.screen.chosen', { name: v.p.options[v.end.winner]?.label ?? '' })}</strong>}
           </>
         )}
+        </section>
         {v.end === null && mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
-      </div>
+      </LessonFit>
     );
   }
 
@@ -661,7 +682,7 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
     const mine = sent.get(index);
     const letters = slot.form === 'one' || slot.form === 'poll' || slot.form === 'many' ? Math.max(1, slot.count) : slot.form === 'truefalse' ? 2 : 0;
     return (
-      <div className="cg-live-screen cg-lesson-student" data-lesson-student="slot" data-lesson-index={index}>
+      <LessonFit className="cg-live-screen cg-lesson-student" data={{ 'data-lesson-student': 'slot', 'data-lesson-index': index }} watch={`s:${index}:${mine === undefined ? 0 : 1}`}>
         <p className="cg-muted">{t('cogitaLesson.student.board')}</p>
         {mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
         {letters > 0 ? (
@@ -679,7 +700,7 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
               <button type="submit" className="wk-btn">{t('cogitaLesson.student.send')}</button>
             </form>
           ) : <p className="cg-muted">{t('cogitaLesson.student.onlyBoard')}</p>}
-      </div>
+      </LessonFit>
     );
   }
   return <div className="cg-live-screen cg-lesson-student"><p className="cg-muted">{t('cogitaLesson.student.board')}</p></div>;
