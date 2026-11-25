@@ -567,7 +567,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const hostRef = useRef<HTMLDivElement | null>(null);
   const { full, enter: enterFull, exit: exitFull } = useFullScreen();
   /* 2026-11-12 — beim Laden die Frage: Vollbild, ganze Seite oder als Teil der Seite (WorldInvite.tsx). */
-  const [invite, setInvite] = useState(() => (following ? false : inviteWanted()));
+  const [invite, setInvite] = useState(() => (following || onPick !== null ? false : inviteWanted()));
   /* Ein Teil im Vollbild füllt den Platz und steht still (wmRunFit.ts). */
   const runViewRef = useRef<HTMLDivElement | null>(null);
   /* Der Teil des Weges, der eben über „Dalej" begann (oben im Teil: „Teil n von m"). */
@@ -1139,7 +1139,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     learnerM
   ]);
   /* Was ein Modus unterdrückt, endet: die Frage nach Vollbild oder Seite und ein laufender Rundgang. */
-  useEffect(() => { if (mm.suppress.invite) setInvite(false); if (mm.suppress.tour) tour.stop(); }, [mm.suppress.invite, mm.suppress.tour]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 2026-11-25 — als Verzeichnis (Przegląd): keine Einladung, keine Führung über die Karte. */
+  useEffect(() => { if (mm.suppress.invite) setInvite(false); if (mm.suppress.tour || onPick !== null) tour.stop(); }, [mm.suppress.invite, mm.suppress.tour, tour.on]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const host = (body: ReactNode) => (
     <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${mm.hostClass === '' ? '' : ` ${mm.hostClass}`}`} {...mm.hostData} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
