@@ -36,3 +36,14 @@
 .cg-wm-host.is-follow .cg-wm-qissues, .cg-wm-host.is-follow .cg-wm-partbanner { display: none; }
 .cg-wm-host.is-follow .cg-wm-body { display: block; }
 .cg-wm-followshield { position: absolute; inset: 0; z-index: 5; cursor: default; }
+
+/* 2026-11-25 (LiveRoom) — der Raum: Verbindung, wer da ist, die Schnellsten. */
+.cg-follow-live.is-down { color: var(--wk-warn); }
+.cg-follow-live.is-down .cg-follow-dot { background: var(--wk-warn); }
+.cg-follow-room { margin-left: auto; font-weight: 400; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-follow-room.is-teacher-away, .cg-follow-room.is-down { color: var(--wk-warn); font-weight: 600; }
+.cg-follow-people { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); margin: 0; padding: 0; list-style: none; }
+.cg-follow-people li { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.cg-follow-people li.is-on .cg-follow-dot { background: var(--wk-ok); animation: none; }
+.cg-follow-people li.is-off .cg-follow-dot { background: var(--wk-line); animation: none; }
+.cg-follow-fast { font-weight: 600; }

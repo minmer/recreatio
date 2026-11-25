@@ -14,7 +14,14 @@
     "votes": "Odpowiedzi: {count} z {total}",
     "reveal": "Pokaż wyniki",
     "revealed": "Wyniki pokazane",
-    "map": "Otwórz mapę"
+    "map": "Otwórz mapę",
+    "linkDown": "Utracono połączenie — ponawiam",
+    "online": "{count} online",
+    "nobody": "Nikt jeszcze nie dołączył.",
+    "personOn": "online",
+    "personJoined": "dołączył(a)",
+    "personAway": "nieobecny(a) od {s} s",
+    "fastest": "Najszybciej poprawnie:"
   },
   "menu": {
     "title": "Prowadzenie na żywo",
@@ -26,8 +33,13 @@
     "wait": "Za chwilę nauczyciel coś pokaże.",
     "noSeatKey": "w tej przeglądarce brakuje klucza z linku",
     "problemHolder": "Nie udało się otworzyć twojego linku do lekcji: {why}",
-    "problemKey": "Nauczyciel prowadzi lekcję, ale twój klucz do niej jeszcze nie dotarł — przychodzi w ciągu 15 sekund, gdy strona nauczyciela jest otwarta.",
-    "problemSearch": "Nie udało się sprawdzić, czy trwa lekcja: {why}"
+    "problemKey": "Nauczyciel prowadzi lekcję, ale ta przeglądarka nie może jej jeszcze otworzyć — próbuje dalej co kilka sekund.",
+    "problemSearch": "Nie udało się sprawdzić, czy trwa lekcja: {why}",
+    "roomOk": "połączono",
+    "roomJoining": "dołączanie…",
+    "roomTeacherAway": "nauczyciel nie jest teraz połączony",
+    "roomDown": "utracono połączenie — ponawiam",
+    "problemNoClass": "Nauczyciel prowadzi lekcję, ale ten link nie ma klucza klasy (nie powstał przez link klasy). Poproś nauczyciela o nowy link do klasy."
   },
   "console": {
     "start": "Prowadź klasę na żywo",

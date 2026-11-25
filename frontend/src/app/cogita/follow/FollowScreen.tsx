@@ -17,12 +17,13 @@ import type { Who } from '../../core/session';
 import { partSize } from '../../pages/part';
 import { usePerson } from '../../pages/pagePerson';
 import { TexText } from '../../ui/tex/Tex';
+import { loadSeatChats, seatIdentity } from '../../seats/seatChat';
 import { seatsExactly } from '../../seats/seatKeep';
-import { holderOfKeptSeat, holderOfSeat } from '../holders';
+import { seatAreaKeys, seatPassOf, type SeatPass } from '../holders';
 import { LessonPlay } from '../lesson/LessonHost';
-import { intakeOf, type Holder } from '../learn';
-import { loadSessions, postEvents, sealForIntake, seatSessions, sessionKeyOf, unwrapForSeat, type Credentials, type SessionRow } from '../live';
-import { plains, useEvents, type Opened } from '../sessionEvents';
+import { intakeOf } from '../learn';
+import { loadSessions, postEvents, sealForIntake, sealForSession, seatSessions, sessionKeyOf, unwrapForSeat, type Credentials, type SessionRow } from '../live';
+import { plains, useEvents, type Opened, type RoomPulse } from '../sessionEvents';
 import { followMetaOf } from './followHost';
 import { followNow } from './followModel';
 import { FollowViewContext } from './followView';
@@ -31,7 +32,7 @@ import './follow.css';
 const ViewView = lazy(() => import('../../pages/parts/viewViews').then((m) => ({ default: m.ViewView })));
 
 /** Die Ansicht der Klasse (und der Leinwand) aus den Ereignissen einer Folge-Stunde. */
-export function FollowScreen({ session, opened, slots, sent, onVote, projector = false }: {
+export function FollowScreen({ session, opened, slots, sent, onVote, projector = false, room = null }: {
   session: SessionRow;
   opened: readonly Opened[];
   slots: readonly { readonly index: number; readonly form: string; readonly count: number }[];
@@ -39,6 +40,8 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
   /** Eine Stimme (Schüler) — `null`: nur ansehen (Leinwand). */
   onVote: ((index: number, given: unknown) => void) | null;
   projector?: boolean;
+  /** 2026-11-25 (LiveRoom) — beim Schüler: wie die Verbindung steht und ob er angemeldet ist. */
+  room?: { readonly state: RoomState; readonly joined: boolean } | null;
 }) {
   const t = useT();
   const now = followNow(opened, session.state === 'closed');
@@ -48,7 +51,14 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
   const overlay = now.content === 'slide' || now.content === 'question' || now.content === 'choice';
   return (
     <div className={`cg-follow${projector ? ' is-projector' : ''}`} data-follow-screen={now.content} data-follow-session={session.sessionId}>
-      <p className="cg-follow-banner" role="status"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.screen.banner')}{now.config !== null && now.config.title !== '' && <> · <TexText text={now.config.title} /></>}</p>
+      <p className="cg-follow-banner" role="status"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.screen.banner')}{now.config !== null && now.config.title !== '' && <> · <TexText text={now.config.title} /></>}
+        {room !== null && (
+          <span className={`cg-follow-room is-${room.state}`} data-follow-room-state={room.state}>
+            {room.state === 'ok' ? (room.joined ? t('cogitaFollow.screen.roomOk') : t('cogitaFollow.screen.roomJoining'))
+              : room.state === 'teacher-away' ? t('cogitaFollow.screen.roomTeacherAway') : t('cogitaFollow.screen.roomDown')}
+          </span>
+        )}
+      </p>
       <div className="cg-follow-body">
         {now.config !== null && map !== null && view !== null && (
           <div className={`cg-follow-map${overlay ? ' is-under' : ''}`} data-follow-map={map.view} data-follow-cam={map.cam === null ? '' : `${map.cam.cx.toFixed(1)},${map.cam.cy.toFixed(1)},${map.cam.rot.toFixed(0)}`} aria-hidden={overlay ? true : undefined}>
@@ -73,6 +83,23 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
 
 /* -- Der Schüler: suchen, folgen, abstimmen ------------------------------------------------------------------------------ */
 
+/**
+ * 2026-11-25 (LiveRoom, Eigentümer: „eine echte Live-Stunde: wer mit einem neuen Link kommt, ist dabei; jede Sekunde Verbindung") —
+ * DER WEG DES SCHÜLERS, Schritt für Schritt und sichtbar:
+ *
+ * <code>
+ *   suchen       alle 3 s: läuft in dieser Baza eine Folge-Stunde, die ich (Konto) oder mein Platz lesen darf?
+ *   Schlüssel    SELBST GERECHNET aus dem Schlüssel der Klasse — ein Konto aus seinem Ring, ein Platz aus der Rolle, die ihm der
+ *                Link der Klasse gab (`seatAreaKeys`). Keine Identität, kein Warten auf die Lehrerin. Nur wenn das fehlt: der
+ *                verpackte Schlüssel, den ihr Gerät Plätzen alle 5 s gibt (der alte Weg, als Rückfall).
+ *   anmelden     „join" (versiegelt für die Przyjęcia der Klasse; ohne sie unter dem Schlüssel der Stunde) — wiederholt, bis es
+ *                angekommen ist
+ *   im Raum      jede Sekunde ein Abruf (zugleich der Herzschlag: die Lehrerin sieht, wer da ist); der Dienst sagt, wann die
+ *                Lehrerin zuletzt da war — die Zeile oben sagt es dem Schüler
+ * </code>
+ */
+type Stage = { readonly code: 'nokey' | 'noclass' | 'search'; readonly why: string };
+
 interface Found {
   readonly row: SessionRow;
   readonly cred: Credentials;
@@ -81,33 +108,58 @@ interface Found {
   readonly name: string;
 }
 
-/** Eine laufende Folge-Stunde dieser Baza, die ich (Konto) oder mein Platz lesen darf — alle 8 s neu gesucht. */
-/**
- * 2026-11-25 (Eigentümer: „mit dem eigenen Link während der Stunde — nicht gezählt") — WORAN ES HÄNGT, sichtbar auf der Seite des
- * Schülers: eine Folge-Stunde läuft, aber der Schlüssel fehlt noch; die Suche selbst schlägt fehl. Sonst (keine Stunde) nichts.
- */
-type Snag = { readonly code: 'nokey' | 'search'; readonly why: string } | null;
+const deriveAll = async (sessionId: string, area: ReadonlyMap<number, Uint8Array>): Promise<Map<number, Uint8Array>> => {
+  const keys = new Map<number, Uint8Array>();
+  for (const [e, k] of area) keys.set(e, await sessionKeyOf(k, sessionId, e));
+  return keys;
+};
 
-function useFollowSession(libraryId: string, me: Me | null | undefined, holder: Holder | null, seatName: string, onSnag: (s: Snag) => void): Found | null {
+function useFollowSession(libraryId: string, me: Me | null | undefined, pass: SeatPass | null, seatName: string, onStage: (s: Stage | null) => void): Found | null {
   const [found, setFound] = useState<Found | null>(null);
-  const snagRef = useRef(onSnag);
-  snagRef.current = onSnag;
-  const holderSig = holder?.kind === 'seat' ? holder.token : '';
+  const stageRef = useRef(onStage);
+  stageRef.current = onStage;
+  const passSig = pass?.token ?? '';
   useEffect(() => {
     let alive = true;
     let waiting = false;
+    let noClass = false;
+    /* Die Schlüssel der Klasse, die der Platz hält — je Bereich gemerkt (und wieder geholt, solange die Epoche fehlt). */
+    const held = new Map<string, Map<number, Uint8Array>>();
+    let wrapPrivate: Uint8Array | null | undefined;
     const look = async (): Promise<Found | null> => {
       waiting = false;
-      if (holder?.kind === 'seat') {
-        const { sessions } = await seatSessions(holder.token);
+      noClass = false;
+      if (pass !== null) {
+        const { sessions } = await seatSessions(pass.token);
         for (const one of sessions) {
           const s = one.session;
           if (s.kind !== 'lesson' || s.state !== 'running' || (s.libraryId ?? '').toLowerCase() !== libraryId.toLowerCase()) continue;
-          if (!(await followMetaOf(s.sessionId, { seat: holder.token })).follow) continue;
-          const keys = new Map<number, Uint8Array>();
-          for (const k of one.keys) { const key = await unwrapForSeat(s.sessionId, holder.seatId, k.epoch, holder.wrapPrivate, k.keySealed); if (key !== null) keys.set(k.epoch, key); }
-          if (!keys.has(s.epoch)) { waiting = true; continue; }
-          return { row: s, cred: { seat: holder.token }, keys, participant: holder.seatId, name: seatName };
+          if (!(await followMetaOf(s.sessionId, { seat: pass.token })).follow) continue;
+          let area = held.get(s.areaId);
+          if (area === undefined || !area.has(s.epoch)) {
+            area = await seatAreaKeys(pass, s.areaId).catch(() => new Map<number, Uint8Array>());
+            held.set(s.areaId, area);
+          }
+          const keys = await deriveAll(s.sessionId, area);
+          if (!keys.has(s.epoch) && one.keys.length > 0) {
+            /* Der Rückfall: der verpackte Schlüssel (dafür braucht es die Identität des Platzes). */
+            if (wrapPrivate === undefined) {
+              wrapPrivate = await (async () => {
+                const { identity } = await loadSeatChats(pass.token);
+                if (identity === null) return null;
+                return (await seatIdentity(pass.token, pass.seatId, pass.seatKey, identity)).wrapPrivateKey;
+              })().catch(() => null);
+            }
+            if (wrapPrivate !== null) {
+              for (const k of one.keys) {
+                if (keys.has(k.epoch)) continue;
+                const key = await unwrapForSeat(s.sessionId, pass.seatId, k.epoch, wrapPrivate, k.keySealed);
+                if (key !== null) keys.set(k.epoch, key);
+              }
+            }
+          }
+          if (!keys.has(s.epoch)) { waiting = true; noClass ||= area.size === 0; continue; }
+          return { row: s, cred: { seat: pass.token, participant: pass.seatId.toLowerCase() }, keys, participant: pass.seatId, name: seatName };
         }
         return null;
       }
@@ -115,28 +167,26 @@ function useFollowSession(libraryId: string, me: Me | null | undefined, holder: 
       const { sessions } = await loadSessions(undefined, libraryId);
       for (const s of sessions.filter((x) => x.kind === 'lesson' && x.state === 'running' && !x.host).slice(0, 8)) {
         if (!(await followMetaOf(s.sessionId)).follow) continue;
-        const area = await myEpochKeys(me.ring, s.areaId).catch(() => new Map<number, Uint8Array>());
-        const keys = new Map<number, Uint8Array>();
-        for (const [e, k] of area) keys.set(e, await sessionKeyOf(k, s.sessionId, e));
+        const keys = await deriveAll(s.sessionId, await myEpochKeys(me.ring, s.areaId).catch(() => new Map<number, Uint8Array>()));
         if (!keys.has(s.epoch)) { waiting = true; continue; }
-        return { row: s, cred: {}, keys, participant: me.person.id, name: me.names.get(me.person.id) ?? '' };
+        return { row: s, cred: { participant: me.person.id.toLowerCase() }, keys, participant: me.person.id, name: me.names.get(me.person.id) ?? '' };
       }
       return null;
     };
+    let timer = 0;
     const tick = () => {
       void look().then((f) => {
         if (!alive) return;
-        snagRef.current(f === null && waiting ? { code: 'nokey', why: '' } : null);
+        stageRef.current(f === null && waiting ? { code: noClass ? 'noclass' : 'nokey', why: '' } : null);
         setFound((was) => (was !== null && f !== null && was.row.sessionId === f.row.sessionId ? was : f));
       }, (e: unknown) => {
         console.warn('follow: search failed', e);
-        if (alive) snagRef.current({ code: 'search', why: e instanceof Error ? e.message : String(e) });
-      });
+        if (alive) stageRef.current({ code: 'search', why: e instanceof Error ? e.message : String(e) });
+      }).finally(() => { if (alive) timer = window.setTimeout(tick, 3000); });
     };
     tick();
-    const id = window.setInterval(tick, 8000);
-    return () => { alive = false; window.clearInterval(id); };
-  }, [libraryId, me, holderSig]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [libraryId, me, passSig]); // eslint-disable-line react-hooks/exhaustive-deps
   return found;
 }
 
@@ -144,49 +194,61 @@ const deviceOf = (): string => {
   try { const k = 'recreatio:cogita:device'; let d = localStorage.getItem(k); if (d === null) { d = newId(); localStorage.setItem(k, d); } return d; } catch { return newId(); }
 };
 
-/** Folgen: die Ereignisse, die eigene Stimme (versiegelt für die Przyjęcia der Klasse), einmal „ich bin da". */
+/** Wie die Verbindung gerade steht — aus dem letzten Abruf (jede Sekunde). */
+export type RoomState = 'ok' | 'teacher-away' | 'down';
+
+export function roomStateOf(pulse: RoomPulse | null, failing: string | null, now: number): RoomState {
+  if (failing !== null || pulse === null || now - pulse.at > 6000) return 'down';
+  if (pulse.pulse === null) return 'ok';
+  return pulse.pulse.hostAgo === null || pulse.pulse.hostAgo > 10_000 ? 'teacher-away' : 'ok';
+}
+
+const ROOM = { room: true } as const;
+
+/** Folgen: die Ereignisse (jede Sekunde), die eigene Stimme, „ich bin da" — wiederholt, bis es angekommen ist. */
 function FollowLive({ found }: { found: Found }) {
-  const { opened, raw, poke, session } = useEvents(found.row.sessionId, found.cred, found.keys, null);
-  const [intake, setIntake] = useState<Uint8Array | null>(null);
+  const { opened, raw, poke, session, pulse, failing } = useEvents(found.row.sessionId, found.cred, found.keys, null, ROOM);
+  const [intake, setIntake] = useState<Uint8Array | null | undefined>(undefined);
   const [sent, setSent] = useState<ReadonlyMap<number, unknown>>(new Map());
-  const joined = useRef(false);
-  const intakeRef = useRef<Uint8Array | null>(null);
-  intakeRef.current = intake;
-  const [retry, setRetry] = useState(0);
+  const [joined, setJoined] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const device = useMemo(deviceOf, []);
-  /* 2026-11-25 — bis die Przyjęcia der Klasse da ist, alle 10 s noch einmal (sonst meldet man sich nie an: die Lehrerin sähe „0"). */
+  /* Die Przyjęcia der Klasse — fehlt sie, gehen Anmeldung und Stimmen unter dem Schlüssel der Stunde (andere Schüler bekommen sie nie). */
   useEffect(() => {
     let alive = true;
-    const look = () => void intakeOf(found.row.areaId).then((k) => { if (alive && k !== null) setIntake((was) => was ?? k); }, () => undefined);
-    look();
-    const id = window.setInterval(() => { if (intakeRef.current === null) look(); }, 10_000);
-    return () => { alive = false; window.clearInterval(id); };
+    void intakeOf(found.row.areaId).then((k) => { if (alive) setIntake(k); }, () => { if (alive) setIntake(null); });
+    return () => { alive = false; };
   }, [found.row.areaId]);
-  /* Die Klasse sieht mit, also kurz nachfragen (ein Abruf nur des Neuen): kommt ein Ereignis über die Verbindung nicht an, wartete
-     man sonst bis zum nächsten Abruf (15 s). Nur, solange dieser Tab sichtbar ist. */
-  const pokeRef = useRef(poke);
-  pokeRef.current = poke;
-  useEffect(() => {
-    const id = window.setInterval(() => { if (document.visibilityState === 'visible') pokeRef.current(); }, 3000);
-    return () => window.clearInterval(id);
-  }, []);
+  useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
   const post = async (kind: 'join' | 'answer', body: unknown) => {
-    if (intake === null) return;
     const eventId = newId();
-    await postEvents(found.row.sessionId, [{ eventId, kind, epoch: 0, sealed: await sealForIntake(intake, eventId, body) }], found.cred);
+    const viaIntake = intake != null;
+    const sealed = viaIntake ? await sealForIntake(intake, eventId, body) : await sealForSession(found.keys.get(found.row.epoch)!, eventId, body);
+    await postEvents(found.row.sessionId, [{ eventId, kind, epoch: viaIntake ? 0 : found.row.epoch, sealed }], found.cred);
     poke();
   };
+  /* Anmelden, sobald klar ist, wohin — bei einem Fehler nach 3 s wieder, bis es angekommen ist. */
   useEffect(() => {
-    if (intake === null || joined.current) return;
-    joined.current = true;
-    void post('join', { participant: found.participant, name: found.name || found.participant.slice(-4), team: null, device }).catch(() => { joined.current = false; window.setTimeout(() => setRetry((n) => n + 1), 10_000); });
-  }, [intake, retry]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (intake === undefined || joined) return undefined;
+    let alive = true;
+    let timer = 0;
+    const tryJoin = () => {
+      void post('join', { participant: found.participant, name: found.name || found.participant.slice(-4), team: null, device })
+        .then(() => { if (alive) setJoined(true); }, (e: unknown) => { console.warn('follow: join failed', e); if (alive) timer = window.setTimeout(tryJoin, 3000); });
+    };
+    tryJoin();
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [intake, joined]); // eslint-disable-line react-hooks/exhaustive-deps
   const row = session ?? found.row;
   if (row.state === 'closed' || row.state === 'finished') return null;
+  const state = roomStateOf(pulse, failing, now);
   return (
-    <div className="cg-follow-overlay" data-follow-overlay={found.row.sessionId}>
-      <FollowScreen session={row} opened={opened} slots={plains<{ index: number; form: string; count: number }>(raw, 'slot')} sent={sent}
-        onVote={(index, given) => { setSent((m) => new Map(m).set(index, given)); void post('answer', { participant: found.participant, device, index, given, at: Date.now() }); }} />
+    <div className="cg-follow-overlay" data-follow-overlay={found.row.sessionId} data-follow-joined={joined ? '1' : '0'}>
+      <FollowScreen session={row} opened={opened} slots={plains<{ index: number; form: string; count: number }>(raw, 'slot')} sent={sent} room={{ state, joined }}
+        onVote={(index, given) => {
+          setSent((m) => new Map(m).set(index, given));
+          void post('answer', { participant: found.participant, device, index, given, at: Date.now() + (pulse?.offset ?? 0) }).catch(() => undefined);
+        }} />
     </div>
   );
 }
@@ -202,30 +264,32 @@ export function FollowGate({ libraryId, who, aim }: { libraryId: string; who: Wh
   const seat = person?.chosen?.kind === 'seat' ? person.chosen.seat : null;
   const kept = seat === null && who === null && aim !== undefined ? seatsExactly(aim)[0] ?? null : null;
   const t = useT();
-  const [holder, setHolder] = useState<Holder | null>(null);
-  const [holderProblem, setHolderProblem] = useState<string | null>(null);
-  const [snag, setSnag] = useState<Snag>(null);
+  const [pass, setPass] = useState<SeatPass | null>(null);
+  const [passProblem, setPassProblem] = useState<string | null>(null);
+  const [stage, setStage] = useState<Stage | null>(null);
+  const asSeat = seat !== null || kept !== null;
   useEffect(() => {
     let alive = true;
-    setHolderProblem(null);
-    const making = seat !== null ? holderOfSeat(seat) : kept !== null ? holderOfKeptSeat(kept) : null;
-    if (making === null) { setHolder(null); return undefined; }
-    void making.then((h) => {
+    setPassProblem(null);
+    setPass(null);
+    if (!asSeat) return undefined;
+    void seatPassOf(seat, kept).then((p) => {
       if (!alive) return;
-      setHolder(h);
-      if (h === null) setHolderProblem(t('cogitaFollow.screen.noSeatKey'));
+      setPass(p);
+      if (p === null) setPassProblem(t('cogitaFollow.screen.noSeatKey'));
     }, (e: unknown) => {
       console.warn('follow: the seat could not be opened', e);
-      if (alive) setHolderProblem(e instanceof Error ? e.message : String(e));
+      if (alive) setPassProblem(e instanceof Error ? e.message : String(e));
     });
     return () => { alive = false; };
   }, [seat?.token, kept]); // eslint-disable-line react-hooks/exhaustive-deps
-  const found = useFollowSession(libraryId, seat === null && kept === null ? me : null, holder, person?.chosen?.name ?? '', setSnag);
+  const found = useFollowSession(libraryId, asSeat ? null : me, pass, person?.chosen?.name ?? '', setStage);
   if (found !== null) return <FollowLive key={found.row.sessionId} found={found} />;
   /* Woran es hängt — nur, wenn etwas hängt. */
-  const said = holderProblem !== null ? { code: 'holder', text: t('cogitaFollow.screen.problemHolder', { why: holderProblem }) }
-    : snag?.code === 'nokey' ? { code: 'nokey', text: t('cogitaFollow.screen.problemKey') }
-    : snag?.code === 'search' ? { code: 'search', text: t('cogitaFollow.screen.problemSearch', { why: snag.why }) }
+  const said = passProblem !== null ? { code: 'holder', text: t('cogitaFollow.screen.problemHolder', { why: passProblem }) }
+    : stage?.code === 'nokey' ? { code: 'nokey', text: t('cogitaFollow.screen.problemKey') }
+    : stage?.code === 'noclass' ? { code: 'noclass', text: t('cogitaFollow.screen.problemNoClass') }
+    : stage?.code === 'search' ? { code: 'search', text: t('cogitaFollow.screen.problemSearch', { why: stage.why }) }
     : null;
   return said === null ? null : <p className="wk-note cg-follow-problem" role="status" data-follow-problem={said.code}>{said.text}</p>;
 }

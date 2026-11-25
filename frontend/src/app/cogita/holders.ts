@@ -15,6 +15,7 @@ import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
 import { isChallenge, loadPortal, openGrants, openPortal } from '../seats/seat';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
+import { openSeatRoles } from '../roles/memberRole';
 import { heldSeats, keyTextOf, recall } from '../seats/seatKeep';
 import type { SeatView } from '../seats/seatContext';
 import { answersArea, placeFor } from './answersTo';
@@ -50,6 +51,41 @@ export async function holderOfKeptSeat(token: string): Promise<Holder | null> {
   const found = identity ?? (await loadSeatChats(token)).identity;
   if (found === null) return null;
   return { kind: 'seat', token, seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey };
+}
+
+/**
+ * 2026-11-25 (LiveRoom) — EIN PLATZ OHNE IDENTITÄT: Token, Kennung und Platzschlüssel — genug, um eine Stunde der Klasse zu lesen
+ * (`seatAreaKeys`). Aus der Seite (`SeatView`) oder aus dem Link, den dieser Browser hält. `null`: kein Schlüssel hier.
+ */
+export interface SeatPass { readonly token: string; readonly seatId: string; readonly seatKey: Uint8Array }
+
+export async function seatPassOf(seat: SeatView | null, kept: string | null): Promise<SeatPass | null> {
+  if (seat !== null) return seat.seatKey === null ? null : { token: seat.token, seatId: seat.seatId, seatKey: seat.seatKey };
+  if (kept === null) return null;
+  const linkKey = recall(kept);
+  if (linkKey === null) return null;
+  const portal = await loadPortal(kept);
+  if (isChallenge(portal)) return null;
+  return { token: kept, seatId: portal.seatId, seatKey: await openPortal(portal, linkKey) };
+}
+
+/**
+ * 2026-11-25 (LiveRoom) — DIE SCHLÜSSEL EINES BEREICHS, DIE EIN PLATZ SELBST HÄLT (je Epoche): über seine Freigaben und über die
+ * Rollen seines Formulars (der Link der Klasse gibt die Rolle der Klasse — ihr Schlüssel liegt gleich unter dem Platzschlüssel).
+ * Damit rechnet der Platz den Schlüssel einer Stunde selbst, wie ein Mitglied — niemand muss ihn ihm erst geben.
+ */
+export async function seatAreaKeys(pass: SeatPass, areaId: string): Promise<Map<number, Uint8Array>> {
+  const out = new Map<number, Uint8Array>();
+  const portal = await loadPortal(pass.token);
+  if (isChallenge(portal)) return out;
+  const want = areaId.toLowerCase();
+  for (const one of (await openGrants(portal.grants.filter((g) => g.areaId.toLowerCase() === want), pass.seatKey)).values()) out.set(one.epoch, one.key);
+  const roles = await openSeatRoles(portal.seatId, pass.seatKey, portal.roles).catch(() => null);
+  for (const [area, epochs] of roles?.areaKeys ?? []) {
+    if (area.toLowerCase() !== want) continue;
+    for (const [e, k] of epochs) out.set(e, k);
+  }
+  return out;
 }
 
 /** 2026-11-25 — die Link-Schlüssel dieses Browsers (der des Platzes zuerst): unter einem davon kann eine alte Identität liegen. */

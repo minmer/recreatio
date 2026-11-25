@@ -79,11 +79,14 @@ export interface Credentials {
   readonly seat?: string;
   readonly join?: string;
   readonly links?: string;
+  /** 2026-11-25 (LiveRoom) — unter welcher Kennung man im Raum ist (Herzschlag; der Gastgeber sieht, wer da ist). */
+  readonly participant?: string;
 }
 
 const headersOf = (c: Credentials): Record<string, string> => ({
   ...(c.seat === undefined ? {} : { 'X-Recreatio-Seat': c.seat }),
-  ...(c.join === undefined ? {} : { 'X-Cogita-Join': c.join })
+  ...(c.join === undefined ? {} : { 'X-Cogita-Join': c.join }),
+  ...(c.participant === undefined ? {} : { 'X-Cogita-Participant': c.participant })
 });
 
 /* -- Schlüssel ------------------------------------------------------------------------- */
@@ -236,7 +239,14 @@ export const loadSessions = (areaId?: string, libraryId?: string): Promise<{ ses
 export const loadSession = (id: string, cred: Credentials = {}): Promise<{ session: SessionRow; seatId: string | null; keys: readonly { epoch: number; keySealed: string }[]; intake: boolean }> =>
   call(`/cogita/session/${encodeURIComponent(id)}`, {}, headersOf(cred));
 
-export const loadEvents = (id: string, after: number, cred: Credentials = {}): Promise<{ session: SessionRow; events: readonly SessionEvent[]; last: number }> =>
+/** 2026-11-25 (LiveRoom) — der Raum: die Uhr des Dienstes, wann der Gastgeber zuletzt da war (ms), und — nur für ihn — wer jetzt da ist. */
+export interface Pulse {
+  readonly now: number;
+  readonly hostAgo: number | null;
+  readonly present: readonly { readonly participant: string; readonly ago: number }[] | null;
+}
+
+export const loadEvents = (id: string, after: number, cred: Credentials = {}): Promise<{ session: SessionRow; events: readonly SessionEvent[]; last: number; pulse?: Pulse }> =>
   call(`/cogita/session/${encodeURIComponent(id)}/events?after=${after}`, {}, headersOf(cred));
 
 export interface EventOut {
@@ -374,6 +384,16 @@ export interface Listen {
   readonly onState?: (session: SessionRow) => void;
   readonly onPosition?: (pos: { player: string; team: string | null; lat: number; lon: number; accuracy: number | null; at: string }) => void;
   readonly onError?: (message: string) => void;
+  /** 2026-11-25 (LiveRoom) — nach jedem Abruf: der Raum, und wie weit die Uhr dieses Geräts von der des Dienstes abweicht. */
+  readonly onPulse?: (pulse: Pulse | null, offset: number) => void;
+}
+
+/**
+ * 2026-11-25 (LiveRoom) — IM RAUM: jede Sekunde ein Abruf des Neuen (er ist zugleich der Herzschlag), auch wenn der WebSocket trägt;
+ * im Hintergrund alle 5 s. Ohne Raum wie bisher (2 s ohne, 15 s mit WebSocket).
+ */
+export interface ConnectOptions {
+  readonly room?: boolean;
 }
 
 /**
@@ -382,7 +402,7 @@ export interface Listen {
  * nach jedem eigenen Schreiben sofort). Ereignisse kommen nie doppelt und in
  * ihrer Reihenfolge an.
  */
-export function connect(sessionId: string, cred: Credentials, listen: Listen, after = 0): Connection {
+export function connect(sessionId: string, cred: Credentials, listen: Listen, after = 0, options: ConnectOptions = {}): Connection {
   let last = after;
   let closed = false;
   let socket: WebSocket | null = null;
@@ -403,9 +423,12 @@ export function connect(sessionId: string, cred: Credentials, listen: Listen, af
     if (fetching) { again = true; return; }
     fetching = true;
     try {
+      const asked = Date.now();
       const done = await loadEvents(sessionId, last, cred);
       deliver(done.events);
       listen.onState?.(done.session);
+      /* Ein Dienst ohne Raum (noch nicht ausgerollt) schickt keinen — dann zählt nur, dass der Abruf gelang. */
+      listen.onPulse?.(done.pulse ?? null, done.pulse === undefined ? 0 : done.pulse.now - Math.round((asked + Date.now()) / 2));
     } catch (e) {
       listen.onError?.(e instanceof Error ? e.message : t('cogitaViewsRewards.session.connectFailed'));
     } finally {
@@ -417,7 +440,8 @@ export function connect(sessionId: string, cred: Credentials, listen: Listen, af
   const schedule = () => {
     if (closed) return;
     if (timer !== null) window.clearTimeout(timer);
-    timer = window.setTimeout(() => { void pull().finally(schedule); }, live ? 15_000 : 2000);
+    const wait = options.room === true ? (document.visibilityState === 'hidden' ? 5000 : 1000) : live ? 15_000 : 2000;
+    timer = window.setTimeout(() => { void pull().finally(schedule); }, wait);
   };
 
   const open = () => {

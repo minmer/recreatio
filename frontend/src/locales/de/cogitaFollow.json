@@ -14,7 +14,14 @@
     "votes": "Antworten: {count} von {total}",
     "reveal": "Ergebnisse zeigen",
     "revealed": "Ergebnisse gezeigt",
-    "map": "Karte öffnen"
+    "map": "Karte öffnen",
+    "linkDown": "Verbindung unterbrochen — neuer Versuch",
+    "online": "{count} online",
+    "nobody": "Noch niemand ist dabei.",
+    "personOn": "online",
+    "personJoined": "angemeldet",
+    "personAway": "seit {s} s weg",
+    "fastest": "Am schnellsten richtig:"
   },
   "menu": {
     "title": "Live führen",
@@ -26,8 +33,13 @@
     "wait": "Die Lehrkraft zeigt gleich etwas.",
     "noSeatKey": "in diesem Browser fehlt der Schlüssel aus dem Link",
     "problemHolder": "Dein Link konnte für die Stunde nicht geöffnet werden: {why}",
-    "problemKey": "Die Lehrkraft führt, aber dein Schlüssel für die Stunde ist noch nicht da — er kommt innerhalb von 15 Sekunden, solange die Seite der Lehrkraft offen ist.",
-    "problemSearch": "Die Suche nach einer laufenden Stunde ist fehlgeschlagen: {why}"
+    "problemKey": "Die Lehrkraft führt, aber dieser Browser kann die Stunde noch nicht öffnen — er versucht es alle paar Sekunden weiter.",
+    "problemSearch": "Die Suche nach einer laufenden Stunde ist fehlgeschlagen: {why}",
+    "roomOk": "verbunden",
+    "roomJoining": "meldet sich an…",
+    "roomTeacherAway": "die Lehrkraft ist gerade nicht verbunden",
+    "roomDown": "Verbindung unterbrochen — neuer Versuch",
+    "problemNoClass": "Die Lehrkraft führt, aber dieser Link hält den Schlüssel der Klasse nicht (er entstand nicht über den Link der Klasse). Bitte die Lehrkraft um einen neuen Link zur Klasse."
   },
   "console": {
     "start": "Die Klasse live führen",

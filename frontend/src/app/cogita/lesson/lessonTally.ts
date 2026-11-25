@@ -332,3 +332,19 @@ export function readAssignConfig(raw: unknown): AssignConfig | null {
     at: typeof o.at === 'number' && Number.isFinite(o.at) ? o.at : 0
   };
 }
+
+/**
+ * 2026-11-25 (LiveRoom, Eigentümer: „ein Wettbewerb — wer zuerst richtig antwortet") — DIE SCHNELLSTEN: je Teilnehmer seine letzte
+ * Stimme (wie die Verteilung), nur richtige, nach der Zeit seit dem Öffnen der Frage. Die Zeiten sind die des DIENSTES (wann die
+ * Stimme ankam, wann die Frage hinausging) — kein Gerät kann sich vordrängeln; gleiche Zeit: wer zuerst ankam (`order`).
+ */
+export interface Fast { readonly participant: string; readonly ms: number }
+
+export function fastestCorrect(card: Card, votes: readonly (Vote & { readonly order?: number })[], openedAt: number, n = 3): Fast[] {
+  return lastVotes(votes)
+    .filter((v) => checkCard(card, v.given).correct)
+    .map((v) => ({ participant: v.participant, ms: Math.max(0, v.at - openedAt), order: (v as { order?: number }).order ?? 0 }))
+    .sort((a, b) => a.ms - b.ms || a.order - b.order)
+    .slice(0, n)
+    .map(({ participant, ms }) => ({ participant, ms }));
+}

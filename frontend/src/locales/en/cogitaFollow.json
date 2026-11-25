@@ -14,7 +14,14 @@
     "votes": "Answers: {count} of {total}",
     "reveal": "Show results",
     "revealed": "Results shown",
-    "map": "Open the map"
+    "map": "Open the map",
+    "linkDown": "Connection lost — retrying",
+    "online": "{count} online",
+    "nobody": "Nobody has joined yet.",
+    "personOn": "online",
+    "personJoined": "joined",
+    "personAway": "away for {s} s",
+    "fastest": "Fastest correct:"
   },
   "menu": {
     "title": "Leading live",
@@ -26,8 +33,13 @@
     "wait": "The teacher will show something in a moment.",
     "noSeatKey": "the key from the link is missing in this browser",
     "problemHolder": "Your link could not be opened for the lesson: {why}",
-    "problemKey": "The teacher is leading, but your key for the lesson has not arrived yet — it comes within 15 seconds while the teacher’s page is open.",
-    "problemSearch": "Checking for a running lesson failed: {why}"
+    "problemKey": "The teacher is leading, but this browser cannot open the lesson yet — it keeps trying every few seconds.",
+    "problemSearch": "Checking for a running lesson failed: {why}",
+    "roomOk": "connected",
+    "roomJoining": "joining…",
+    "roomTeacherAway": "the teacher is not connected right now",
+    "roomDown": "connection lost — retrying",
+    "problemNoClass": "The teacher is leading, but this link does not hold the class key (it was not made with the class link). Ask the teacher for a new link to the class."
   },
   "console": {
     "start": "Lead the class live",

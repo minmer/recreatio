@@ -121,6 +121,15 @@ const vote = (participant, given, at) => ({ participant, given, at });
   check('assignment: late first, then open by deadline, then done', sorted.map((x) => x.id), ['c', 'd', 'b', 'e', 'a']);
 }
 
+/* -- 8. Wettbewerb: die Schnellsten (Zeiten des Dienstes) ------------------------------------------------------------------ */
+{
+  const one = card({ form: 'one', options: ['a', 'b', 'c'], correct: 1 });
+  const vs = [{ participant: 'a', given: 1, at: 1900, order: 3 }, { participant: 'b', given: 1, at: 1500, order: 2 }, { participant: 'c', given: 0, at: 1100, order: 1 },
+    { participant: 'd', given: 1, at: 1500, order: 4 }, { participant: 'e', given: 1, at: 1200, order: 0 }, { participant: 'e', given: 2, at: 1300, order: 5 }];
+  check('fastest: only correct last votes, by time since the question, ties by arrival', LT.fastestCorrect(one, vs, 1000), [{ participant: 'b', ms: 500 }, { participant: 'd', ms: 500 }, { participant: 'a', ms: 900 }]);
+  check('fastest: no correct vote — nobody', LT.fastestCorrect(one, [{ participant: 'x', given: 0, at: 5 }], 0), []);
+}
+
 /* -- 7. Die Einstellungen ---------------------------------------------------------------------------------------------- */
 {
   const c = LT.readLessonConfig({ title: 'Ułamki', parts: [{ flow: 'f1' }, { flow: 'f2', start: { step: 's1', exit: 'o1' } }, { flow: '' }, 7], showVotes: 'live', thresholds: { high: 0.8 } });

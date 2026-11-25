@@ -34,8 +34,10 @@ public static partial class Cogita
     private static async Task EventsAsync(HttpContext ctx, Db db, Guid id, int? after)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        var presence = await PresenceAsync(ctx, db, connection, id, CredentialsOf(ctx));
+        /* 2026-11-25 — im Raum (LiveRoom.cs): die Prüfung gilt 20 s, jeder Abruf ist ein Herzschlag. */
+        var presence = await LiveRoom.PresenceAsync(ctx, db, connection, id, CredentialsOf(ctx));
         if (presence is null) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiej sesji nie ma."); return; }
+        if (presence.Session.State is "running" or "paused" or "lobby") LiveRoom.Mark(id, presence, LiveRoom.ParticipantOf(ctx));
 
         var participant = string.Join(", ", ParticipantKinds.Select(k => $"N'{k}'"));
         await using var cmd = new SqlCommand($"""
@@ -63,7 +65,18 @@ public static partial class Cogita
             }
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { session = Told(presence.Session, presence.Host), events, last });
+        var (present, hostAgo) = LiveRoom.Read(id);
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            session = Told(presence.Session, presence.Host), events, last,
+            /* Der Raum: die Uhr des Dienstes, wann der Gastgeber zuletzt da war, und (nur für ihn) wer jetzt da ist. */
+            pulse = new
+            {
+                now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                hostAgo,
+                present = presence.Host ? present.Select(p => new { participant = p.Participant, ago = p.Ago }).ToArray() : null
+            }
+        });
     }
 
     public sealed record EventIn(string? EventId, string? Kind, int Epoch, string? Sealed, string? Plain, string? AuthorRoleId, string? AuthorPersonId);
@@ -262,6 +275,7 @@ public static partial class Cogita
             await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
+        if (state is "finished" or "closed") LiveRoom.Close(id);
         var now = await SessionAsync(connection, id, ctx.RequestAborted);
         try { await hub.Clients.Group(CogitaHub.All(id)).SendAsync("state", Told(now!, false), ctx.RequestAborted); } catch (Exception) { }
         await ctx.Response.WriteAsJsonAsync(Told(now!, true));

@@ -103,6 +103,22 @@ export function followMetaOf(sessionId: string, cred: { seat?: string } = {}): P
 export async function startFollow(lib: CogitaLibrary, me: Me, klass: { readonly areaId: string; readonly name: string }): Promise<void> {
   if (live !== null && live.areaId === klass.areaId) return;
   if (live !== null) await stopFollow();
+  /* 2026-11-25 (LiveRoom) — EINE Stunde je Klasse: läuft schon eine (ein anderer Tab, ein anderes Gerät der Lehrerin), wird sie
+     übernommen — sonst teilte sich die Klasse auf zwei Stunden auf. */
+  const { sessions } = await loadSessions(klass.areaId, lib.libraryId).catch(() => ({ sessions: [] as readonly SessionRow[] }));
+  for (const s of sessions.filter((x) => x.kind === 'lesson' && x.state === 'running' && x.host && x.areaId.toLowerCase() === klass.areaId.toLowerCase())) {
+    if (!(await followMetaOf(s.sessionId)).follow) continue;
+    const had = await attach(s, me, { className: klass.name, libraryId: lib.libraryId });
+    if (had === null) continue;
+    live = had;
+    vote = null;
+    sentMap = null;
+    sentStepKey = '';
+    keep(live);
+    changed();
+    await showNow();
+    return;
+  }
   const config: FollowConfig = { title: klass.name, follow: true, classArea: klass.areaId, library: lib.libraryId };
   const row = await newSession(lib, me, { areaId: klass.areaId, kind: 'lesson', title: klass.name, join: false }, config,
     { library: lib.libraryId, lesson: true, follow: true, className: klass.name });
