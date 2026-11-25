@@ -204,7 +204,7 @@ function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
   );
 }
 
-export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel, lang: asked0 }: {
+export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel, lang: asked0, chosen }: {
   card: Card;
   /** 2026-11-04 (Prompt 15) — die Sprache der Baza, für die Worte am Ergebnis einer Wahl (`choiceMarks.ts`). */
   lang?: Lang;
@@ -216,6 +216,8 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   /** 2026-10-31 — nach der Prüfung wird „Sprawdź” an derselben Stelle zu „Dalej”. */
   onNext?: () => void;
   nextLabel?: string;
+  /** 2026-11-25 (Stunde) — abgeschickt, noch nicht aufgedeckt: die eigene Wahl bleibt markiert, ohne richtig/falsch. */
+  chosen?: unknown;
 }) {
   const tScope = useT();
   const t = asked0 === undefined ? tScope : tFor(asked0);
@@ -337,7 +339,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
             {view.options.map((i) => {
               const g = reveal === undefined ? '' : glyph(i === a.correct, reveal.given === i);
               const button = (
-                <button key={i} type="button" role="radio" aria-checked={reveal?.given === i} className={`cg-option${mark(i === a.correct, reveal?.given === i)}`} disabled={shut} onClick={() => submit(i)}>
+                <button key={i} type="button" role="radio" aria-checked={(reveal?.given ?? chosen) === i} className={`cg-option${mark(i === a.correct, reveal?.given === i)}${reveal === undefined && chosen === i ? ' is-on' : ''}`} disabled={shut} onClick={() => submit(i)}>
                   <span className="cg-option-text"><TexText text={a.options[i] ?? ''} /></span>
                   {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? answerWords(lang).right : answerWords(lang).wrong}>{g}</span>}
                 </button>
@@ -379,7 +381,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       const tf = (value: boolean, label: string) => {
         const g = reveal === undefined ? '' : glyph(a.value === value, reveal.given === value);
         return (
-          <button type="button" className={`cg-option${mark(a.value === value, reveal?.given === value)}`} disabled={shut} onClick={() => submit(value)}>
+          <button type="button" aria-pressed={reveal === undefined && chosen !== undefined ? chosen === value : undefined} className={`cg-option${mark(a.value === value, reveal?.given === value)}${reveal === undefined && chosen === value ? ' is-on' : ''}`} disabled={shut} onClick={() => submit(value)}>
             <span className="cg-option-text">{label}</span>{g !== '' && <span className="cg-option-mark" aria-hidden>{g}</span>}
           </button>
         );

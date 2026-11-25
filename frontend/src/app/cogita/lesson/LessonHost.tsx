@@ -486,6 +486,9 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
     return () => { void lock?.release(); };
   }, []);
   const onStepVote = v !== null && step !== null && (v.kind === 'question' ? v.q.step : v.p.step) === step.step;
+  /* 2026-11-25 — ohne Zwischenstand (die geführte Klasse schickt keinen): die Stimmen selbst gezählt, je Teilnehmer eine. */
+  const voteIndex = v === null ? -1 : v.kind === 'question' ? v.q.index : v.p.index;
+  const voted = now.tally?.votes ?? new Set(bodies<{ participant: string; index: number }>(opened, 'answer').filter((a) => a.body.index === voteIndex).map((a) => a.body.participant)).size;
   return (
     <div className="cg-live-screen cg-lesson-screen" data-lesson-screen={step?.kind ?? 'none'}>
       {step === null || step.kind === 'end' ? (
@@ -510,7 +513,7 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
               )}
               {/* 2026-11-22 (Homer-Einheit) — Lektüre: der Abschnitt für alle, mit der Wärmekarte, sobald der Leiter Stimmen zeigt. */}
               {heatForm(v.q.card) && <LinesHeat card={v.q.card} counts={now.tally?.heat ?? []} />}
-              <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: now.tally?.votes ?? 0, total: now.joined })}</span>
+              <span className="cg-timer" data-lesson-voted={v.q.index}>{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>
               {now.tally !== null && <TallyBars bars={inScreenOrder(v.q.card, now.tally.counts.map((n, i) => ({ key: String(i), label: v.q.card.answer.form === 'one' || v.q.card.answer.form === 'many' ? v.q.card.answer.options[i] ?? '' : '', count: n, correct: false })))} votes={now.tally.votes} form={v.q.card.answer.form} reveal={false} />}
             </>
           ) : (
@@ -531,7 +534,7 @@ export function LessonScreen({ opened, title }: { opened: readonly Opened[]; tit
           {v.end === null
             ? <>
               <ol className="cg-lesson-options" type="A">{v.p.options.map((o) => <li key={o.exit} className={o.open ? '' : 'is-off'}><TexText text={o.label} /></li>)}</ol>
-              <span className="cg-timer">{t('cogitaLesson.screen.voted', { count: now.tally?.votes ?? 0, total: now.joined })}</span>
+              <span className="cg-timer">{t('cogitaLesson.screen.voted', { count: voted, total: now.joined })}</span>
             </>
             : <>
               {v.end.counts !== undefined && <PollBars options={v.p.options} counts={v.end.counts} votes={v.end.votes} winner={v.end.winner} />}
@@ -605,10 +608,11 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
       <div className="cg-live-screen cg-lesson-student" data-lesson-student="question" data-lesson-index={index}>
         <span className="cg-muted">{v.q.round > 1 ? t('cogitaLesson.screen.round', { round: v.q.round }) : t('cogitaLesson.screen.vote')}</span>
         {v.q.predict === true && <p className="cg-flow-predict" role="note" data-lesson-predict="">{t('cogitaLearn.words.predictBefore')}</p>}
-        {v.reveal === null && mine === undefined && (
-          <section className="cg-face">
+        {/* 2026-11-25 (Eigentümer) — nach dem Abschicken bleibt alles stehen: die Frage, die Möglichkeiten, die eigene Wahl (gesperrt, ohne richtig/falsch). */}
+        {v.reveal === null && (
+          <section className="cg-face" data-lesson-answered={mine === undefined ? undefined : ''}>
             <div className="cg-prompt"><TexText text={v.q.card.prompt.map((p) => p.text).join(' ')} /></div>
-            <AnswerInput card={v.q.card} onSubmit={(given) => onVote(index, given)} />
+            <AnswerInput card={v.q.card} disabled={mine !== undefined} chosen={mine} onSubmit={(given) => onVote(index, given)} />
           </section>
         )}
         {v.reveal === null && mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
@@ -659,16 +663,17 @@ export function LessonPlay({ sessionId, opened, slots, learner, sent, onVote }: 
     return (
       <div className="cg-live-screen cg-lesson-student" data-lesson-student="slot" data-lesson-index={index}>
         <p className="cg-muted">{t('cogitaLesson.student.board')}</p>
-        {mine !== undefined ? <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>
-          : letters > 0 ? (
+        {mine !== undefined && <p className="cg-muted" data-lesson-sent="">{t('cogitaLesson.student.sent')}</p>}
+        {letters > 0 ? (
             <div className="cg-live-buttons">
               {Array.from({ length: letters }, (_, i) => (
-                <button key={i} type="button" data-lesson-option={i} onClick={() => onVote(index, slot.form === 'truefalse' ? i === 0 : slot.form === 'many' ? [i] : i)}>
+                <button key={i} type="button" data-lesson-option={i} disabled={mine !== undefined} className={mine !== undefined && JSON.stringify(mine) === JSON.stringify(slot.form === 'truefalse' ? i === 0 : slot.form === 'many' ? [i] : i) ? 'is-on' : undefined} onClick={() => onVote(index, slot.form === 'truefalse' ? i === 0 : slot.form === 'many' ? [i] : i)}>
                   {slot.form === 'truefalse' ? (i === 0 ? t('cogitaViewsStats.sess.true') : t('cogitaViewsStats.sess.false')) : String.fromCharCode(65 + i)}
                 </button>
               ))}
             </div>
-          ) : slot.form === 'text' || slot.form === 'number' || slot.form === 'date' ? (
+          ) : mine !== undefined ? <p data-lesson-mine="">{typeof mine === 'string' ? mine : JSON.stringify(mine)}</p>
+          : slot.form === 'text' || slot.form === 'number' || slot.form === 'date' ? (
             <form className="cg-row" onSubmit={(e) => { e.preventDefault(); if (typed.trim() !== '') { onVote(index, typed.trim()); setTyped(''); } }}>
               <input value={typed} onChange={(e) => setTyped(e.target.value)} aria-label={t('cogitaLesson.student.typed')} maxLength={200} />
               <button type="submit" className="wk-btn">{t('cogitaLesson.student.send')}</button>

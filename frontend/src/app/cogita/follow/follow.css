@@ -16,12 +16,14 @@
 /* Die Klasse: über allem, solange geführt wird. */
 .cg-follow-overlay { position: fixed; inset: 0; z-index: var(--wk-z-dialog); height: 100vh; height: 100dvh; background: var(--wk-surface); overflow: hidden; }
 .cg-follow { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.cg-follow.is-projector { min-height: 80vh; }
+.cg-follow.is-projector { height: 100vh; height: 100dvh; min-height: 0; }
 .cg-follow-banner { flex: none; display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border-bottom: 1px solid var(--wk-line); background: var(--wk-accent-soft); font-weight: 600; }
 .cg-follow-body { position: relative; flex: 1 1 auto; min-height: 0; }
 .cg-follow-map { position: absolute; inset: 0; overflow: hidden; }
 .cg-follow-map .cg-wm-stage { height: calc(100dvh - 2.75rem); min-height: 0; border: 0; border-radius: 0; }
-.cg-follow.is-projector .cg-follow-map .cg-wm-stage { height: 80vh; }
+.cg-follow.is-projector .cg-follow-map .cg-wm-stage { height: 100vh; height: 100dvh; }
+.cg-projector > .cg-follow.is-projector { margin: 0; }
+.cg-follow.is-projector .cg-follow-content > .cg-lesson-screen { min-height: 100%; }
 .cg-follow-map .wk-card-title { display: none; }
 .cg-follow-map .cg-wm-host, .cg-follow-map .cg-wm-body, .cg-follow-map .cg-wm-main, .cg-follow-map .cg-wm-mapwrap, .cg-follow-map .cg-wm { height: 100%; }
 .cg-follow-map.is-under { visibility: hidden; }
@@ -47,3 +49,11 @@
 .cg-follow-people li.is-on .cg-follow-dot { background: var(--wk-ok); animation: none; }
 .cg-follow-people li.is-off .cg-follow-dot { background: var(--wk-line); animation: none; }
 .cg-follow-fast { font-weight: 600; }
+
+/* 2026-11-25 — abgeschickt: die Frage bleibt, die eigene Wahl deutlich, der Rest leiser (ohne richtig/falsch). */
+.cg-face[data-lesson-answered] .cg-option { cursor: default; }
+.cg-face[data-lesson-answered] .cg-option:not(.is-on) { opacity: 0.6; }
+.cg-face[data-lesson-answered] .cg-option.is-on { opacity: 1; border-width: 2px; font-weight: 600; }
+.cg-face[data-lesson-answered] .cg-answer > .wk-btn:disabled, .cg-face[data-lesson-answered] .cg-row > .wk-btn:disabled { display: none; }
+.cg-live-buttons button:disabled { cursor: default; }
+.cg-live-buttons button:disabled:not(.is-on) { opacity: 0.45; }

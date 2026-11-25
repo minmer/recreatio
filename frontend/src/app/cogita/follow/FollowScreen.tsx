@@ -20,7 +20,7 @@ import { TexText } from '../../ui/tex/Tex';
 import { loadSeatChats, seatIdentity } from '../../seats/seatChat';
 import { seatsExactly } from '../../seats/seatKeep';
 import { seatAreaKeys, seatPassOf, type SeatPass } from '../holders';
-import { LessonPlay } from '../lesson/LessonHost';
+import { LessonPlay, LessonScreen } from '../lesson/LessonHost';
 import { intakeOf } from '../learn';
 import { loadSessions, postEvents, sealForIntake, sealForSession, seatSessions, sessionKeyOf, unwrapForSeat, type Credentials, type SessionRow } from '../live';
 import { plains, useEvents, type Opened, type RoomPulse } from '../sessionEvents';
@@ -51,14 +51,15 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
   const overlay = now.content === 'slide' || now.content === 'question' || now.content === 'choice';
   return (
     <div className={`cg-follow${projector ? ' is-projector' : ''}`} data-follow-screen={now.content} data-follow-session={session.sessionId}>
-      <p className="cg-follow-banner" role="status"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.screen.banner')}{now.config !== null && now.config.title !== '' && <> · <TexText text={now.config.title} /></>}
+      {/* 2026-11-25 (Eigentümer) — die Leinwand wie die einer Stunde: ohne Leiste, die Karte über den ganzen Schirm, Folie und Frage als ihre Leinwand. */}
+      {!projector && <p className="cg-follow-banner" role="status"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.screen.banner')}{now.config !== null && now.config.title !== '' && <> · <TexText text={now.config.title} /></>}
         {room !== null && (
           <span className={`cg-follow-room is-${room.state}`} data-follow-room-state={room.state}>
             {room.state === 'ok' ? (room.joined ? t('cogitaFollow.screen.roomOk') : t('cogitaFollow.screen.roomJoining'))
               : room.state === 'teacher-away' ? t('cogitaFollow.screen.roomTeacherAway') : t('cogitaFollow.screen.roomDown')}
           </span>
         )}
-      </p>
+      </p>}
       <div className="cg-follow-body">
         {now.config !== null && map !== null && view !== null && (
           <div className={`cg-follow-map${overlay ? ' is-under' : ''}`} data-follow-map={map.view} data-follow-cam={map.cam === null ? '' : `${map.cam.cx.toFixed(1)},${map.cam.cy.toFixed(1)},${map.cam.rot.toFixed(0)}`} aria-hidden={overlay ? true : undefined}>
@@ -72,7 +73,8 @@ export function FollowScreen({ session, opened, slots, sent, onVote, projector =
         )}
         {overlay && (
           <div className="cg-follow-content" data-follow-content={now.content}>
-            <LessonPlay sessionId={session.sessionId} opened={opened} slots={slots} learner={null} sent={sent} onVote={onVote ?? (() => undefined)} />
+            {projector ? <LessonScreen opened={opened} title={now.config?.title ?? ''} />
+              : <LessonPlay sessionId={session.sessionId} opened={opened} slots={slots} learner={null} sent={sent} onVote={onVote ?? (() => undefined)} />}
           </div>
         )}
         {now.content === 'none' && <p className="cg-follow-wait" data-follow-wait="">{t('cogitaFollow.screen.wait')}</p>}
