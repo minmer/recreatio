@@ -198,7 +198,9 @@
       "workUnknown": "stage “{stage}”: unknown way of working “{work}” (together, alone, groups) — the default is used",
       "groupsNoQuestions": "stage “{stage}”: group work without questions — groups only agree on questions, the rest is done individually",
       "groupSize": "stage “{stage}”: group size {size} outside 2–6 — the nearest is used"
-    }
+    },
+    "flowUseUnknown": "unknown \"use\" of the path: \"{value}\" — allowed: self, lesson (or nothing: both)",
+    "transitionUnknown": "unknown \"transition\" \"{value}\" ({step}) — allowed: fade, slide, zoom, none"
   },
   "progress": {
     "tallyOne": "Answer {n}: {text}",
@@ -501,7 +503,8 @@
     "worldmap": "World map positions",
     "qpath": "Question path",
     "feedback": "Feedback",
-    "unit": "Lesson unit"
+    "unit": "Lesson unit",
+    "graphic": "Graphic"
   },
   "questionGroup": {
     "write": "You write the answer",

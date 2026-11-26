@@ -62,7 +62,7 @@ export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
 /* 2026-11-09 — `worldmap`: die gespeicherte Lage der Weltkarte (nur Schreibende legen sie ab; nie im JSON des Kurses). */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath', 'feedback', 'unit'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap', 'qpath', 'feedback', 'unit', 'graphic'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
@@ -89,7 +89,9 @@ export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
   /* 2026-11-20 — eine Rückmeldung zu einer Karte, Frage oder Folie für die KI, die die Baza baut (`feedback.ts`). */
   feedback: 'cogitaData.docKind.feedback',
   /* 2026-11-22 (Homer) — eine Unterrichtseinheit über mehrere Stunden: Etapy, Stunden, Abschlüsse (`unit/unitModel.ts`). */
-  unit: 'cogitaData.docKind.unit'
+  unit: 'cogitaData.docKind.unit',
+  /* 2026-11-26 — eine Grafik, die mehrere Folien zeigen (`slideGraphics.ts`). */
+  graphic: 'cogitaData.docKind.graphic'
 });
 
 export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readonly string[]).includes(kind);

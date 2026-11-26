@@ -566,7 +566,13 @@
     "passed": "Done — you can now answer this question.",
     "notPassed": "Not everything was right yet — you can try again.",
     "done": "Done — you can answer this question.",
-    "deeper": "Deeper: {name}"
+    "deeper": "Deeper: {name}",
+    "modeLabel": "Which paths the map shows",
+    "modeSelf": "Self-study",
+    "modeLesson": "Teaching",
+    "modeSelfSays": "The paths for learning alone — as your students see them on their own.",
+    "modeLessonSays": "The paths for teaching — only visible while you teach (and to the class that follows you).",
+    "modeLive": "While you lead the class live, the map shows the teaching paths."
   },
   "tour": {
     "start": "Map guide",
@@ -685,5 +691,19 @@
     "title": "Map menu",
     "show": "What the map shows",
     "view": "View"
+  },
+  "screen": {
+    "title": "World map",
+    "others": "Other world maps",
+    "settings": "Display settings",
+    "none": "This base has no world map yet.",
+    "make": "Create a display",
+    "notWorld": "This display is not a world map.",
+    "inEntries": "Show it in Entries",
+    "linkTitle": "This display is a world map",
+    "linkSays": "Here you set its properties. The map itself — with the classes, leading live and every live lesson that is running — opens on its own page.",
+    "saveFirst": "Save the display first; then it opens as a world map.",
+    "open": "Open the world map",
+    "leadThere": "Lead on the world map"
   }
 }

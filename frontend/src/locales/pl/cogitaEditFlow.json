@@ -161,7 +161,19 @@
     "pathOk": "Ścieżka w porządku: jeden początek, jeden koniec, z każdego kroku da się dojść do końca.",
     "pathError": "Ten przebieg ma błąd (brak początku albo końca, zagłębienia w koło) — tak się nie zapisze z importu i uczący się utknie:",
     "pathWarn": "Ścieżka ma miejsca, w których uczący się utknie albo których nie zobaczy:",
-    "more": "… i {n} innych"
+    "more": "… i {n} innych",
+    "pathFor": "Ścieżka dla",
+    "pathForSays": "Wieże są dla wszystkich te same. Ścieżki do samodzielnej nauki nie widać, gdy uczysz; ścieżkę do lekcji widać tylko, gdy uczysz (i klasa, która za tobą podąża).",
+    "pathForBoth": "samodzielnej nauki i lekcji",
+    "pathForSelf": "tylko samodzielnej nauki",
+    "pathForLesson": "tylko lekcji",
+    "transition": "Slajdy wchodzą",
+    "transitionOf": {
+      "fade": "przenikając",
+      "slide": "wsuwając się",
+      "zoom": "rosnąc",
+      "none": "od razu"
+    }
   },
   "adaptive": {
     "title": "Po odpowiedzi (adaptacyjnie)",

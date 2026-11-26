@@ -434,7 +434,9 @@
     "schemaViews": "Sposoby wyświetlania",
     "schemaViewsSays": "Co pokazać i jak — także informacje z wpisów, do których prowadzą odwołania.",
     "classes": "Klasy",
-    "explore": "Przegląd"
+    "explore": "Przegląd",
+    "world": "Mapa świata",
+    "graphics": "Grafiki"
   },
   "home": {
     "oldEntries": "Stare wpisy ({count})",

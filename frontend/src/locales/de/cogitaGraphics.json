@@ -1,0 +1,17 @@
+{
+  "hint": "Eine Grafik kann auf mehreren Folien stehen. Auf der nächsten Folie mit derselben Grafik kommt nur der Text neu — das Bild bleibt, und was sich ändert, gleitet an seinen Platz.",
+  "add": "Neue Grafik",
+  "none": "Noch keine Grafiken.",
+  "newName": "Neue Grafik",
+  "unnamed": "Grafik",
+  "unused": "noch auf keiner Folie",
+  "usedOn": "auf {count} Folien",
+  "broken": "Diese Grafik lässt sich nicht zeichnen (ihr JSON hat keine Teile).",
+  "where": "Gezeigt in:",
+  "howToUse": "An einem Folienschritt: \"drawing\": \"{ref}\" — oder mit Zusätzen nur für diese Folie: {\"graphic\": \"{ref}\", \"add\": [ … ], \"change\": {\"<id>\": { … }}, \"hide\": [\"<id>\"]}.",
+  "json": "Zeichnung (JSON, wie „Animation“)",
+  "badJson": "Das JSON lässt sich nicht lesen.",
+  "removeAsk": "Die Grafik „{name}“ löschen?",
+  "removeSays": "Keine Folie zeigt sie.",
+  "removeUsed": "{count} Folien zeigen sie — sie zeigen dann kein Bild."
+}

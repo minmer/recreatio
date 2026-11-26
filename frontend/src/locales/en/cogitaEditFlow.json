@@ -159,7 +159,19 @@
     "pathOk": "The path is fine: one start, one end, the end can be reached from every step.",
     "pathError": "This flow has an error (no start or end, detours in a loop) — it won't be saved like this from an import and the learner will get stuck:",
     "pathWarn": "The path has places where the learner will get stuck or that they will never see:",
-    "more": "… and {n} more"
+    "more": "… and {n} more",
+    "pathFor": "Path for",
+    "pathForSays": "The towers are the same for everyone. A path for self-study is not shown while teaching; a teaching path only while you teach (and to the class that follows you).",
+    "pathForBoth": "self-study and teaching",
+    "pathForSelf": "self-study only",
+    "pathForLesson": "teaching only",
+    "transition": "Slides come in",
+    "transitionOf": {
+      "fade": "fading in",
+      "slide": "sliding in",
+      "zoom": "growing",
+      "none": "at once"
+    }
   },
   "adaptive": {
     "title": "After the answer (adaptive)",

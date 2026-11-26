@@ -25,6 +25,7 @@ import { graphJson, type Graph } from './graph';
 import { adaptiveProblems, checkContext, declareExits, expandAdaptive } from './adaptive';
 import { AdaptiveEditor } from './AdaptiveEditor';
 import { ModeEditor } from './ModeEditor';
+import { readTransition, SLIDE_TRANSITIONS } from './slideTransition';
 import type { PlayMode } from './modes';
 import { GraphEditor } from './GraphEditor';
 import { FLOW_PRESETS } from './presets';
@@ -111,6 +112,8 @@ function FlowForm({ id }: { id: string }) {
       /* 2026-10-22 (Schritt 12) */
       narrators: flow.narrators.map((n) => ({ character: n.character, ...(n.condition === null ? {} : { condition: n.condition }) })),
       presentation: flow.presentation,
+      /* 2026-11-26 — für wen der Pfad ist (ohne: beide) und wie seine Folien kommen (ohne: einblenden). */
+      use: flow.use, transition: flow.transition,
       ...(game.zones.length + game.triggers.length + game.values.length > 0 ? { game } : { game: undefined })
     };
     await lib.saveDoc('flow', doc, id);
@@ -130,6 +133,20 @@ function FlowForm({ id }: { id: string }) {
         <label className="wk-field"><span>{t('common.name')}</span><input value={flow.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
         <label className="wk-field"><span>{t('cogitaEditFlow.editor.look')}</span>
           <select value={flow.look} disabled={!writes || flow.presentation !== undefined} onChange={(e) => set({ look: e.target.value as LookType })}>{LOOK_TYPES.map((l) => <option key={l} value={l}>{LOOK_LABEL[l]}</option>)}</select>
+        </label>
+        {/* 2026-11-26 — die Türme sind gemeinsam, die Pfade nicht: dieser für das Selbstlernen, nur für den Unterricht oder für beide. */}
+        <label className="wk-field"><span>{t('cogitaEditFlow.editor.pathFor')}</span>
+          <select value={flow.use ?? ''} disabled={!writes} title={t('cogitaEditFlow.editor.pathForSays')} onChange={(e) => set({ use: e.target.value === 'self' || e.target.value === 'lesson' ? e.target.value : undefined })} data-flow-use="">
+            <option value="">{t('cogitaEditFlow.editor.pathForBoth')}</option>
+            <option value="self">{t('cogitaEditFlow.editor.pathForSelf')}</option>
+            <option value="lesson">{t('cogitaEditFlow.editor.pathForLesson')}</option>
+          </select>
+        </label>
+        <label className="wk-field"><span>{t('cogitaEditFlow.editor.transition')}</span>
+          <select value={flow.transition ?? ''} disabled={!writes} onChange={(e) => set({ transition: readTransition(e.target.value) ?? undefined })} data-flow-transition-pick="">
+            <option value="">{t('cogitaEditFlow.editor.transitionOf.fade')}</option>
+            {SLIDE_TRANSITIONS.filter((x) => x !== 'fade').map((x) => <option key={x} value={x}>{t(`cogitaEditFlow.editor.transitionOf.${x}`)}</option>)}
+          </select>
         </label>
         <button type="button" className="wk-btn" onClick={() => setPlaying('self')} data-flow-try="self">{t('cogitaEditFlow.editor.try')}</button>
         <button type="button" className="wk-btn wk-btn-line" onClick={() => setPlaying('lesson')} title={t('cogitaEditFlow.modes.tryLessonSays')} data-flow-try="lesson">{t('cogitaEditFlow.modes.tryLesson')}</button>

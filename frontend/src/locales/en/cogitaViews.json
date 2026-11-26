@@ -408,7 +408,9 @@
     "schemaViews": "Displays",
     "schemaViewsSays": "What to show and how — also information from entries that references lead to.",
     "classes": "Classes",
-    "explore": "Overview"
+    "explore": "Overview",
+    "world": "World map",
+    "graphics": "Graphics"
   },
   "home": {
     "oldEntries": "Old entries ({count})",

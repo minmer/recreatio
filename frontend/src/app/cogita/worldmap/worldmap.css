@@ -714,3 +714,10 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-selacts { flex-wrap: wrap; align-items: center; margin-top: var(--wk-space-1); }
 .cg-wm-host.is-full .cg-wm-controls .cg-wm-selbar { margin-bottom: 0; max-height: 45vh; overflow-y: auto; }
 @media (max-width: 40rem) { .cg-wm-selhint { display: none; } }
+
+/* 2026-11-26 — welche Pfade die Karte zeigt (wer unterrichten darf): Selbstlernen | Unterricht. Die Türme bleiben. */
+.cg-wm-pathmode { display: inline-flex; border: 1px solid var(--wk-line); border-radius: 999px; overflow: hidden; background: var(--wk-surface); }
+.cg-wm-pathmode button { padding: var(--wk-space-1) var(--wk-space-3); border: 0; background: transparent; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
+.cg-wm-pathmode button + button { border-left: 1px solid var(--wk-line); }
+.cg-wm-pathmode button.is-on { background: var(--wk-accent); color: var(--wk-on-accent); }
+.cg-wm-pathmode button:disabled { cursor: default; opacity: 0.6; }

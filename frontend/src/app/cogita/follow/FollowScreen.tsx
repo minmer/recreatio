@@ -24,7 +24,7 @@ import { LessonPlay, LessonScreen } from '../lesson/LessonHost';
 import { intakeOf } from '../learn';
 import { loadSessions, postEvents, sealForIntake, sealForSession, seatSessions, sessionKeyOf, unwrapForSeat, type Credentials, type SessionRow } from '../live';
 import { plains, useEvents, type Opened, type RoomPulse } from '../sessionEvents';
-import { followMetaOf } from './followHost';
+import { followMetaOf, oldestFirst } from './followHost';
 import { followNow } from './followModel';
 import { FollowViewContext } from './followView';
 import './follow.css';
@@ -133,7 +133,8 @@ function useFollowSession(libraryId: string, me: Me | null | undefined, pass: Se
       noClass = false;
       if (pass !== null) {
         const { sessions } = await seatSessions(pass.token);
-        for (const one of sessions) {
+        /* 2026-11-26 — die älteste laufende zuerst: dieselbe, die die Lehrerin übernimmt (`oldestFirst`). */
+        for (const one of [...sessions].sort((a, b) => oldestFirst(a.session, b.session))) {
           const s = one.session;
           if (s.kind !== 'lesson' || s.state !== 'running' || (s.libraryId ?? '').toLowerCase() !== libraryId.toLowerCase()) continue;
           if (!(await followMetaOf(s.sessionId, { seat: pass.token })).follow) continue;
@@ -167,7 +168,7 @@ function useFollowSession(libraryId: string, me: Me | null | undefined, pass: Se
       }
       if (me == null) return null;
       const { sessions } = await loadSessions(undefined, libraryId);
-      for (const s of sessions.filter((x) => x.kind === 'lesson' && x.state === 'running' && !x.host).slice(0, 8)) {
+      for (const s of sessions.filter((x) => x.kind === 'lesson' && x.state === 'running' && !x.host).sort(oldestFirst).slice(0, 8)) {
         if (!(await followMetaOf(s.sessionId)).follow) continue;
         const keys = await deriveAll(s.sessionId, await myEpochKeys(me.ring, s.areaId).catch(() => new Map<number, Uint8Array>()));
         if (!keys.has(s.epoch)) { waiting = true; continue; }

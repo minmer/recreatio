@@ -13,9 +13,10 @@
  *       (Więcej) ustawienia, json, do-zrobienia, propozycje, wejscia (Wejścia z Biblioteki), stare; wer nur liest: zaproponuj
  *   #/workspace/learn/&lt;baza&gt;/…       NAUKA — aus diesem Wissen lernen
  *       nauka                         was jetzt dran ist: Powtórki, Przebiegi
+ *       swiat[/&lt;widok&gt;]              (2026-11-26) die Weltkarte als eigene Seite — mit den Klassen und „Na żywo" (`worldmap/WorldScreen.tsx`)
  *       sciezka                       (2026-10-27) die Reihenfolge des Lernens: Ebenen von den Grundlagen her (`LearningPath.tsx`)
  *       powtorki, przebiegi, sesje, postepy
- *       (Więcej) karty (Szablony kart), mapa, nagrody (2026-11-02: punkty, seria, odznaki), ustawienia
+ *       (Więcej) karty (Szablony kart), grafiki (2026-11-26, Grafiken für mehrere Folien — `GraphicsTab.tsx`), mapa, nagrody (2026-11-02: punkty, seria, odznaki), ustawienia
  * </code>
  *
  * Die drei Kategorien der Schematy sind unabhängig: ein Sposób dodawania darf Einträge
@@ -44,6 +45,7 @@ const TAB_KEY: Readonly<Record<string, string>> = {
   'propozycje': 'cogitaViews.tabs.proposals',
   'wejscia': 'cogitaViews.tabs.anchors',
   'nauka': 'cogitaViews.tabs.learn',
+  'swiat': 'cogitaViews.tabs.world',
   'sciezka': 'cogitaViews.tabs.path',
   'powtorki': 'cogitaViews.tabs.revisions',
   'przebiegi': 'cogitaViews.tabs.flows',
@@ -52,6 +54,7 @@ const TAB_KEY: Readonly<Record<string, string>> = {
   'przeglad': 'cogitaViews.tabs.explore',
   'postepy': 'cogitaViews.tabs.progress',
   'karty': 'cogitaViews.tabs.templates',
+  'grafiki': 'cogitaViews.tabs.graphics',
   'mapa': 'cogitaViews.tabs.map',
   'nagrody': 'cogitaViews.tabs.rewards',
   'zaproponuj': 'cogitaViews.tabs.propose'
@@ -85,17 +88,19 @@ export const KNOWLEDGE_MORE = [
 ] as const;
 /** Die Reiter der Nauka. */
 export const LEARN_TABS = [
-  tab('nauka'), tab('sciezka'), tab('powtorki'), tab('przebiegi'), tab('sesje'),
+  tab('nauka'),
+  /* 2026-11-26 — die Weltkarte: nur hier führt die Lehrerin die Klasse (`worldmap/WorldScreen.tsx`). */
+  tab('swiat'), tab('sciezka'), tab('powtorki'), tab('przebiegi'), tab('sesje'),
   /* 2026-11-22 — Klassen dieser Baza: anlegen, QR-Code, Fortschritte (`classes/ClassesTab.tsx`). */
   tab('klasy'), tab('postepy')
 ] as const;
 /** 2026-11-02 — „Nagrody": punkty, seria, cel dnia, poziomy, odznaki (`RewardsEditor.tsx`); auch für wer nur liest. */
 /* 2026-11-24 — „Przegląd": alle Folien und Fragen zum Durchgehen, mit Befunden und Polecenie für die KI (`explore/Explore.tsx`). */
-export const LEARN_MORE = [tab('karty'), tab('mapa'), tab('nagrody'), tab('przeglad'), tab('ustawienia')] as const;
+export const LEARN_MORE = [tab('karty'), tab('grafiki'), tab('mapa'), tab('nagrody'), tab('przeglad'), tab('ustawienia')] as const;
 
 /** Wer nur liest (ein Lernender): Wiedza zum Nachlesen und Vorschlagen, Nauka zum Lernen. */
 export const KNOWLEDGE_READER_TABS = [tab('wpisy'), tab('zaproponuj')] as const;
-export const LEARN_READER_TABS = [tab('nauka'), tab('sciezka'), tab('przebiegi'), tab('sesje'), tab('postepy'), tab('mapa'), tab('nagrody')] as const;
+export const LEARN_READER_TABS = [tab('nauka'), tab('swiat'), tab('sciezka'), tab('przebiegi'), tab('sesje'), tab('postepy'), tab('mapa'), tab('nagrody')] as const;
 
 /** Die drei Kategorien der Schematy — Wort in der Adresse, Name, ein Satz (übersetzt beim Lesen). */
 export const SCHEMA_PARTS = [
@@ -107,7 +112,7 @@ export type SchemaPart = (typeof SCHEMA_PARTS)[number]['slug'];
 
 const KNOWLEDGE: ReadonlySet<string> = new Set(['wpisy', 'dodaj', 'schematy', 'schemat', 'json', 'do-zrobienia', 'propozycje', 'zaproponuj', 'stare', 'ustawienia', 'wejscia']);
 /* 2026-11-22 — `klasy` (Klassen, ihre Planungen) gehört zur Nauka: `href('klasy', …)` führt dorthin. */
-const LEARN: ReadonlySet<string> = new Set(['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty', 'nagrody', 'klasy', 'przeglad']);
+const LEARN: ReadonlySet<string> = new Set(['nauka', 'swiat', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty', 'grafiki', 'nagrody', 'klasy', 'przeglad']);
 
 /** Zu welchem Teil ein Reiter gehört — `ustawienia` zu beiden (die Wiedza zuerst). */
 export const partOfTab = (tab: string | undefined): CogitaPart | null =>

@@ -375,7 +375,19 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} vlib={vlib} />)}
       {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel), sie schneidet ihn nicht zu. */}
-      {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingCards')}</p>
+      {/*
+        2026-11-26 (Eigentümer: „trennt das Schema von der Weltkarte") — eine Weltkarte steht in der Wiedza nicht mehr selbst: hier
+        ihre Eigenschaften, die Karte (mit Klassen und „Na żywo") auf ihrer eigenen Seite der Nauka (`worldmap/WorldScreen.tsx`).
+      */}
+      {landscape && view.landscape?.style === 'world' && (
+        <div className="cg-world-link" data-world-link={viewId ?? ''}>
+          <strong>{t('cogitaWorld.screen.linkTitle')}</strong>
+          <p className="cg-muted">{t('cogitaWorld.screen.linkSays')}</p>
+          {viewId === null ? <p className="cg-muted" data-world-link-unsaved="">{t('cogitaWorld.screen.saveFirst')}</p>
+            : <a className="wk-btn" href={href('swiat', viewId)} data-world-open={viewId}><Icon name="map" />{t('cogitaWorld.screen.open')}</a>}
+        </div>
+      )}
+      {landscape && view.landscape?.style !== 'world' && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingCards')}</p>
         : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} urlScope="" busy={knowBusy} />)}
       {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingCards')}</p>
         : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}

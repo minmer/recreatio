@@ -36,14 +36,16 @@ export function useTeacherMode(input: {
   readonly lib: CogitaLibrary;
   readonly me: Me | null;
   readonly learner: Learner | null;
+  /** 2026-11-26 — nur auf der Weltkarte der Nauka: die Werkzeuge der Lehrerin (sonst bleiben nur die Zadania der Lernenden). */
+  readonly lead: boolean;
   readonly lines: Lines;
   readonly nameOf: (id: string) => string;
   readonly href: (...tail: readonly string[]) => string;
   readonly onShow: (kind: 'place' | 'section', id: string) => void;
   readonly facts: AssignFacts;
 }): MapMode {
-  const { lib, me, learner, lines, nameOf, href, onShow, facts } = input;
-  const cls = useMapClassTools({ lib, me, learner, nameOf, href, onShow, facts });
+  const { lib, me, learner, lines, nameOf, href, onShow, facts, lead } = input;
+  const cls = useMapClassTools({ lib, me, learner, nameOf, href, onShow, facts, lead });
   return {
     id: 'teacher',
     active: true,

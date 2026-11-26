@@ -6,6 +6,10 @@
  * 2026-11-25 (LiveRoom) — DER RAUM: die Leiste ruft jede Sekunde ab (zugleich der Herzschlag der Lehrerin — die Schüler sehen, ob sie
  * da ist). Gezählt wird, wer sich angemeldet hat ODER gerade da ist; „online" heisst: in den letzten 8 s abgerufen. Die Liste nennt
  * jeden mit Punkt. Bei einer Frage: die drei Schnellsten mit richtiger Antwort — nach der Uhr des Dienstes.
+ *
+ * 2026-11-26 — WER FÜHRT: der jüngste Anspruch (`follow-lead`) in den Ereignissen. Übernimmt ein anderes Gerät, sagt die Leiste es
+ * („Prowadzone z innego urządzenia"), dieser Tab schickt nichts mehr, „Prowadź stąd" holt die Führung zurück. Wurde die Stunde
+ * anderswo beendet, verschwindet die Leiste.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -18,8 +22,7 @@ import { ask } from '../../ui/dialogs';
 import { bodies, useEvents } from '../sessionEvents';
 import { TallyBars, type LessonRevealEvent, type TallyLite } from '../lesson/LessonHost';
 import { fastestCorrect, tallyQuestion, type Vote } from '../lesson/lessonTally';
-import { classAim } from '../classes/classModel';
-import { clearFollowVote, deliverFollowKeys, followSend, setFollowFrozen, showNow, stopFollow, useFollowLive } from './followHost';
+import { clearFollowVote, deliverFollowKeys, FOLLOW_LEAD, followEnded, followSend, followTab, leadAgain, noteLeadClaim, setFollowFrozen, showNow, stopFollow, useFollowLive } from './followHost';
 import './follow.css';
 
 const ROOM = { room: true } as const;
@@ -51,7 +54,18 @@ function FollowBarIn({ me, onMap }: { me: Me | null; onMap: boolean }) {
     return () => window.clearInterval(id);
   }, [live?.sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
   const cred = useMemo(() => ({ participant: `t-${(live?.hostRoleId ?? '').toLowerCase()}` }), [live?.hostRoleId]);
-  const { opened, pulse } = useEvents(live?.sessionId ?? 'none', cred, live?.keys ?? new Map(), intake, ROOM);
+  const { opened, raw, pulse, session } = useEvents(live?.sessionId ?? 'none', cred, live?.keys ?? new Map(), intake, ROOM);
+  /* Der jüngste Anspruch auf die Führung — von diesem Tab oder einem anderen Gerät. */
+  const lastClaim = useMemo(() => {
+    let best: { tab: string; seq: number } | null = null;
+    for (const e of raw) {
+      if (e.kind !== FOLLOW_LEAD || e.plain === null || (best !== null && e.seq <= best.seq)) continue;
+      try { const b = JSON.parse(e.plain) as { tab?: unknown }; if (typeof b.tab === 'string') best = { tab: b.tab, seq: e.seq }; } catch { /* kein Anspruch */ }
+    }
+    return best;
+  }, [raw]);
+  useEffect(() => { if (live !== null) noteLeadClaim(live.sessionId, lastClaim); }, [live?.sessionId, live?.claimSeq, lastClaim?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (live !== null && session !== null && (session.state === 'closed' || session.state === 'finished')) followEnded(live.sessionId); }, [session?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Wer da ist: angemeldet (mit Namen) und/oder eben abgerufen. */
   const roster = useMemo(() => {
@@ -93,6 +107,21 @@ function FollowBarIn({ me, onMap }: { me: Me | null; onMap: boolean }) {
     void ask({ title: t('cogitaFollow.bar.endAsk'), body: t('cogitaFollow.bar.endSays'), confirm: t('cogitaFollow.bar.end') }).then((yes) => { if (yes) { clearFollowVote(); void stopFollow(); } });
   };
   const down = pulse === null || Date.now() - pulse.at > 6000;
+  /* Ein anderer Tab führt: nur noch die Lage und „Prowadź stąd" (und Beenden). */
+  if (live.displaced) {
+    const takeBack = () => { void leadAgain().catch(() => undefined); };
+    return (
+      <div className="cg-follow-bar is-elsewhere" role="region" aria-label={t('cogitaFollow.bar.label')} data-follow-bar={live.sessionId} data-follow-elsewhere={lastClaim?.tab === followTab ? '' : lastClaim?.tab ?? ''}>
+        <span className="cg-follow-live is-down"><span className="cg-follow-dot" aria-hidden="true" />{t('cogitaFollow.bar.elsewhere')}</span>
+        <span className="cg-follow-class">{live.className}</span>
+        <span className="cg-muted">{t('cogitaFollow.bar.elsewhereSays')}</span>
+        <span className="cg-follow-actions">
+          <button type="button" className="wk-btn is-small" onClick={takeBack} data-follow-lead-here="">{t('cogitaFollow.bar.leadHere')}</button>
+          <button type="button" className="wk-btn wk-btn-line is-small" onClick={end} data-follow-end="">{t('cogitaFollow.bar.end')}</button>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className={`cg-follow-bar${live.frozen ? ' is-frozen' : ''}`} role="region" aria-label={t('cogitaFollow.bar.label')} data-follow-bar={live.sessionId} data-follow-frozen={live.frozen ? '1' : '0'}>
       <span className={`cg-follow-live${down ? ' is-down' : ''}`} data-follow-link={down ? 'down' : 'ok'}><span className="cg-follow-dot" aria-hidden="true" />{down ? t('cogitaFollow.bar.linkDown') : t('cogitaFollow.bar.live')}</span>
@@ -102,7 +131,7 @@ function FollowBarIn({ me, onMap }: { me: Me | null; onMap: boolean }) {
       </button>
       {live.frozen && <span className="cg-follow-frozen" role="status">{t('cogitaFollow.bar.frozenSays')}</span>}
       <span className="cg-follow-actions">
-        {!onMap && <a className="wk-btn is-small" href={`#/${classAim(live.areaId, live.libraryId)}`} data-follow-map="">{t('cogitaFollow.bar.map')}</a>}
+        {!onMap && <a className="wk-btn is-small" href={viewPath('learn', live.libraryId, 'swiat')} data-follow-map="">{t('cogitaFollow.bar.map')}</a>}
         <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => setFollowFrozen(!live.frozen)} data-follow-freeze={live.frozen ? 'on' : 'off'}>
           {live.frozen ? t('cogitaFollow.bar.resume') : t('cogitaFollow.bar.freeze')}
         </button>

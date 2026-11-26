@@ -1,0 +1,17 @@
+{
+  "hint": "Jedna grafika może stać na kilku slajdach. Na następnym slajdzie z tą samą grafiką wchodzi tylko nowy tekst — obraz zostaje, a to, co się zmienia, płynnie przechodzi na nowe miejsce.",
+  "add": "Nowa grafika",
+  "none": "Nie ma jeszcze grafik.",
+  "newName": "Nowa grafika",
+  "unnamed": "Grafika",
+  "unused": "jeszcze na żadnym slajdzie",
+  "usedOn": "na slajdach: {count}",
+  "broken": "Tej grafiki nie da się narysować (jej JSON nie ma części).",
+  "where": "Pokazywana w:",
+  "howToUse": "W kroku slajdu: \"drawing\": \"{ref}\" — albo z dodatkami tylko dla tego slajdu: {\"graphic\": \"{ref}\", \"add\": [ … ], \"change\": {\"<id>\": { … }}, \"hide\": [\"<id>\"]}.",
+  "json": "Rysunek (JSON, jak „Animacja”)",
+  "badJson": "Nie da się odczytać JSON.",
+  "removeAsk": "Usunąć grafikę „{name}”?",
+  "removeSays": "Żaden slajd jej nie pokazuje.",
+  "removeUsed": "Pokazuje ją slajdów: {count} — nie będą miały obrazu."
+}

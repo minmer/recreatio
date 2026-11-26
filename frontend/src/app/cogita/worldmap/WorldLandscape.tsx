@@ -76,6 +76,9 @@ import { composeModes } from './mapMode';
 import { useAuthorMode } from './modes/authorMode';
 import { classSelectMode } from './modes/classSelectMode';
 import { useFollowHostMode } from './modes/followHostMode';
+import { setTeachChoice, useLeadAreas, useTeachChoice } from '../lesson/MapClassTools';
+import { useFollowLive } from '../follow/followHost';
+import type { PlayMode } from '../modes';
 import { useFollowing, useFollowViewMode } from './modes/followViewMode';
 import { learnerButtons, learnerMode } from './modes/learnerMode';
 import { useTeacherMode } from './modes/teacherMode';
@@ -115,6 +118,13 @@ export interface WorldLandscapeProps {
    * ALS VERZEICHNIS (`explore/Explore.tsx`): ein gewählter Turm, Abschnitt (sein Pfad) oder Weg geht hinaus. Sie führt nie die Klasse.
    */
   readonly onPick?: ((pick: MapPick) => void) | null;
+  /**
+   * 2026-11-26 (Eigentümer: „die Weltkarte als eigene Ansicht — dort alles mit den Klassen") — NUR DIE WELTKARTE DER NAUKA
+   * (`WorldScreen.tsx`) führt die Klasse: die Leiste „Na żywo", „Prowadź klasę na żywo", „Prowadzę / Uczę się", „Prowadź tutaj",
+   * „Zadaj". Überall sonst (Seiten, die Klassenseite, das Verzeichnis) ist sie eine Karte zum Lernen — so laufen nie zwei Stunden
+   * von zwei Stellen aus.
+   */
+  readonly hosting?: boolean;
 }
 
 export type MapPick = { readonly kind: 'tower'; readonly id: string } | { readonly kind: 'path'; readonly flow: string } | { readonly kind: 'qpath'; readonly id: string };
@@ -125,13 +135,13 @@ export const PLACED_PER_RUN = 20;
 /** Wie oft „jetzt" neu gilt, solange die Karte offen ist. */
 const CLOCK_MS = 10 * 60 * 1000;
 
-export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null, selectFor = null, onPick = null }: WorldLandscapeProps) {
+export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null, selectFor = null, onPick = null, hosting = false }: WorldLandscapeProps) {
   const { lib, writes, name: baseName, me } = useCtx();
   /* 2026-11-24 (Tryb prowadzony) — auf einer Seite ohne Person im Zusammenhang (die Klassenseite der Lehrerin): das eigene Konto. */
   const ownMe = useMe(useWho());
   /* 2026-11-25 — als Schüler über dessen eigenen Link (auch im Browser der Lehrerin): nie führen — sonst schickte diese Seite ihre Kamera an die Klasse. */
   const asSeat = usePerson()?.chosen?.kind === 'seat';
-  const leadMe = asSeat || onPick !== null ? null : me ?? ownMe ?? null;
+  const leadMe = asSeat || onPick !== null || !hosting ? null : me ?? ownMe ?? null;
   /*
     2026-11-24 (Tryb prowadzony) — GEFÜHRT (die Karte der Schüler und der Leinwand, `follow/FollowScreen.tsx`): Kamera, Gewähltes,
     Modus und Tag-Ausschnitt kommen von der Lehrerin; nichts lässt sich bedienen. FÜHREND (die Lehrerin, `follow/followHost.ts`): die
@@ -153,7 +163,19 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const onlyNow = sel.active ? null : view.landscape?.only ?? null;
   const onlyKey = JSON.stringify(onlyNow);
   /* Die Teilwelt (`landscape.only`, etwa die einer Klasse): Türme ausserhalb fehlen im Modell (`useShownWorld`). */
-  const { input, world, lines } = useShownWorld(fullModel, onlyNow);
+  /*
+    2026-11-26 (Eigentümer: „die Türme sind gemeinsam; Pfade fürs Selbstlernen und Pfade, die nur sichtbar sind, wenn ich unterrichte —
+    zwei ganz verschiedene Modi") — WELCHE PFADE DIE KARTE ZEIGT: unterrichtet man (auf der Weltkarte der Nauka „Prowadzę", oder man
+    führt die Klasse gerade) oder folgt man der Lehrerin, die des Unterrichts ("use": "lesson" und die für beide); sonst die des
+    Selbstlernens. Die Türme bleiben dieselben, an denselben Orten.
+  */
+  const teachChoice = useTeachChoice(lib.libraryId);
+  const leadAreas = useLeadAreas(lib, hosting ? leadMe : null);
+  const canTeach = hosting && leadMe !== null && (leadAreas?.length ?? 0) > 0;
+  const { live: liveNow } = useFollowLive();
+  const leadingNow = hosting && leadMe !== null && !following && liveNow !== null && !liveNow.displaced && liveNow.libraryId.toLowerCase() === lib.libraryId.toLowerCase();
+  const pathMode: PlayMode = following || leadingNow || (canTeach && teachChoice === 'lead') ? 'lesson' : 'self';
+  const { input, world, lines } = useShownWorld(fullModel, onlyNow, pathMode);
   const flowById = useMemo(() => new Map(input.flows.map((f) => [f.id, f] as const)), [input]);
 
   /* -- Der Lernende ---------------------------------------------------------------------------------------------------- */
@@ -524,7 +546,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* 2026-11-22 (Part B) — die Klasse: ⚙, „Prowadzę / Uczę się", „Prowadź tutaj" / „Zadaj", die Zadania (`lesson/MapClassTools.tsx`). */
   const classCtx = useCtx();
   const teacher = useTeacherMode({
-    lib, me: classCtx.me, learner, lines, nameOf, href: classCtx.href, onShow: (kind, id) => act.show(kind, id),
+    lib, me: classCtx.me, learner, lead: hosting && leadMe !== null, lines, nameOf, href: classCtx.href, onShow: (kind, id) => act.show(kind, id),
     facts: {
       conquered: (id) => state.places.get(id)?.conquered === true,
       flowDone: (f) => learnerInput.progress(f)?.done === true,
@@ -1034,7 +1056,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   /* Der Rundgang (`WorldTour.tsx`): von selbst beim ersten Mal, wenn nichts anderes die Karte hat. */
   const tour = useTour({
     state, world, lines, levels: eff.levels, knownShare: eff.knownShare, openAt: eff.openAt, clock, geometry, placeColour, colours, signKey: signKeyRef, pillars, scope,
-    autoStart: { ready: learner !== null && scene !== null, blocked: invite || sel.active || following || leading || running !== null, wake: [learner, scene === null, invite, sel.active, running] }
+    autoStart: { ready: learner !== null && scene !== null, blocked: invite || sel.active || following || leading || pathMode === 'lesson' || running !== null, wake: [learner, scene === null, invite, sel.active, running, pathMode] }
   });
   const author = useAuthorMode({ writes, lib, world, lines, geometry, regions: look.regions, paths, pathById, flowById, findFlow, nameOf, relayout: look.relayout, t });
   /* Die Knöpfe über einem gewählten Ding — sie zeigen den Stand, den die Karte zeigt (im Rundgang den erfundenen). */
@@ -1140,10 +1162,10 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   ]);
   /* Was ein Modus unterdrückt, endet: die Frage nach Vollbild oder Seite und ein laufender Rundgang. */
   /* 2026-11-25 — als Verzeichnis (Przegląd): keine Einladung, keine Führung über die Karte. */
-  useEffect(() => { if (mm.suppress.invite) setInvite(false); if (mm.suppress.tour || onPick !== null) tour.stop(); }, [mm.suppress.invite, mm.suppress.tour, tour.on]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (mm.suppress.invite) setInvite(false); if (mm.suppress.tour || onPick !== null || pathMode === 'lesson') tour.stop(); }, [mm.suppress.invite, mm.suppress.tour, tour.on, pathMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const host = (body: ReactNode) => (
-    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${mm.hostClass === '' ? '' : ` ${mm.hostClass}`}`} {...mm.hostData} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size}
+    <div ref={hostRef} className={`cg-ls cg-wm-host${compact ? ' is-compact' : ''}${full !== null ? ` is-full is-${full}` : ''}${mm.hostClass === '' ? '' : ` ${mm.hostClass}`}`} {...mm.hostData} data-world-full-mode={full ?? ''} data-world-view={viewKey} data-world-places={world.places.size} data-world-lines={lines.lines.size} data-world-paths={pathMode}
       data-world-geometry={geometry === null ? 'pending' : geometry.version} data-world-geometry-runs={geometryRuns} data-world-levels={eff.levels} data-world-nav={nav?.target ?? ''}>
       {body}
       {more}
@@ -1181,6 +1203,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
             modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
             onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={mm.suppress.full ? null : enterFull} full={full} onExit={exitFull}
             classes={mm.menu.classes} live={mm.menu.live} />
+          {/* 2026-11-26 — wer unterrichten darf: welche Pfade die Karte zeigt (derselbe Schalter wie „Prowadzę / Uczę się" im Menü). */}
+          {canTeach && !following && (
+            <div className="cg-wm-pathmode" role="group" aria-label={t('cogitaWorld.paths.modeLabel')} data-world-path-mode={pathMode}>
+              <button type="button" className={pathMode === 'self' ? 'is-on' : ''} aria-pressed={pathMode === 'self'} disabled={leadingNow} title={leadingNow ? t('cogitaWorld.paths.modeLive') : t('cogitaWorld.paths.modeSelfSays')}
+                onClick={() => setTeachChoice(lib.libraryId, 'learn')} data-world-path-mode-pick="self">{t('cogitaWorld.paths.modeSelf')}</button>
+              <button type="button" className={pathMode === 'lesson' ? 'is-on' : ''} aria-pressed={pathMode === 'lesson'} title={t('cogitaWorld.paths.modeLessonSays')}
+                onClick={() => setTeachChoice(lib.libraryId, 'lead')} data-world-path-mode-pick="lesson">{t('cogitaWorld.paths.modeLesson')}</button>
+            </div>
+          )}
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>
         {mm.overlay}

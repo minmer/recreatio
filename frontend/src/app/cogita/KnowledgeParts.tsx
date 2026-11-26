@@ -170,7 +170,10 @@ function ViewMethods({ go }: { go: Go }) {
                 <span className="lib-row-title"><TexText text={v.name} /> <OriginTag id={e.id} /></span>
                 <span className="lib-row-meta">{viewWords(v, (id) => lib.kind(id)?.name, t)}</span>
               </button>
-              <button type="button" className="wk-link-btn" onClick={() => go('wpisy', 'widok', e.id)}>{t('cogitaViews.parts.show')}</button>
+              {/* 2026-11-26 — eine Weltkarte öffnet sich auf ihrer eigenen Seite der Nauka. */}
+              {(e.data as { landscape?: { style?: unknown } }).landscape?.style === 'world'
+                ? <button type="button" className="wk-link-btn" onClick={() => go('swiat', e.id)} data-world-open={e.id}>{t('cogitaWorld.screen.open')}</button>
+                : <button type="button" className="wk-link-btn" onClick={() => go('wpisy', 'widok', e.id)}>{t('cogitaViews.parts.show')}</button>}
             </li>
           ))}
         </ul>

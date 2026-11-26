@@ -53,6 +53,7 @@ import { SpacingLine } from './SpacingSettings';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { positionFor, renamer } from './learn';
+import { readUse } from './modes';
 import { reviewScopeFor } from './worldmap/wmReview';
 import { reviewable } from './worldmap/wmState';
 import { cogitaPath, tabLabel, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
@@ -83,6 +84,8 @@ import { FollowGate } from './follow/FollowScreen';
 const ClassesTab = lazy(() => import('./classes/ClassesTab').then((m) => ({ default: m.ClassesTab })));
 /* 2026-11-24 — der Przegląd: alle Folien und Fragen zum Durchgehen (`explore/Explore.tsx`). */
 const Explore = lazy(() => import('./explore/Explore').then((m) => ({ default: m.Explore })));
+const GraphicsTab = lazy(() => import('./GraphicsTab').then((m) => ({ default: m.GraphicsTab })));
+const WorldScreen = lazy(() => import('./worldmap/WorldScreen').then((m) => ({ default: m.WorldScreen })));
 
 /** Die Klasse, in der ich (als Schüler) mit dieser Baza lerne — `null`: keine; `undefined`: wird nachgesehen. Autoren: keine. */
 function useClassArea(libraryId: string, writes: boolean): string | null | undefined {
@@ -186,8 +189,12 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
         where={t('cogitaViews.home.oldWhere')} />}
       {/* -- Nauka -- */}
       {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
+      {/* 2026-11-26 — die Weltkarte als eigene Seite: die Klassen, „Na żywo" (alle laufenden Stunden), das Führen. */}
+      {tab === 'swiat' && <Suspense fallback={<Loading />}><WorldScreen trail={trail.slice(1)} learner={learner} cards={cards ?? null} /></Suspense>}
       {/* 2026-10-27 — die Reihenfolge des Lernens: Ebenen von den Grundlagen her, was sitzt und was wartet. */}
       {tab === 'sciezka' && <LearningPath learner={learner} cards={cards ?? null} go={go} />}
+      {/* 2026-11-26 — Grafiken, die mehrere Folien zeigen (mit Übergang, `slideGraphics.ts`). */}
+      {tab === 'grafiki' && <Suspense fallback={<Loading />}><GraphicsTab chosen={trail[1] ?? null} go={go} /></Suspense>}
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
@@ -362,7 +369,7 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   if (!writes) {
     return (
       <div className="cg-grid">
-        {lib.docs('flow').map((e) => <div key={e.id} className="cg-card"><strong><TexText text={String(e.data.name ?? t('cogitaViews.home.flowDefault'))} /></strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{t('cogitaViews.home.start')}</button></div>)}
+        {lib.docs('flow').filter((e) => readUse(e.data.use) !== 'lesson').map((e) => <div key={e.id} className="cg-card"><strong><TexText text={String(e.data.name ?? t('cogitaViews.home.flowDefault'))} /></strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{t('cogitaViews.home.start')}</button></div>)}
         {lib.docs('flow').length === 0 && <p className="wk-empty">{t('cogitaViews.home.noFlows')}</p>}
       </div>
     );

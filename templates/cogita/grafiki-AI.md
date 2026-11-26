@@ -490,3 +490,7 @@ Sakramenty
     małżeństwo
 ```
 ````
+
+## Jedna grafika na kilku slajdach (2026-11-26)
+
+Rysunek, który ma pokazać kilka slajdów po kolei (atom, który dostaje elektrony; układ sił, do którego dochodzą wektory), zapisz RAZ jako grafikę bazy (`"graphics": [{"ref": "@kurs/g/atom", "name": "Atom", "drawing": {…}}]`) i nadaj zmieniającym się częściom `"id"`. Slajdy nazywają ją w "drawing": `"@kurs/g/atom"` albo `{"graphic": "@kurs/g/atom", "add": […], "change": {"<id>": {…}}, "hide": ["<id>"], "set": {"vars": {…}}}`. Między dwoma slajdami z tą samą grafiką obraz zostaje, a zmienione części przechodzą płynnie (miejsce, rozmiar, obrót, kolor), nowe się pojawiają, usunięte znikają. Szczegóły: guide-stories §8j.

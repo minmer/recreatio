@@ -69,7 +69,8 @@ import { CrossCrumbs, CrossDetourStep, CrossRun, WorldsSection } from './WorldLi
 import { crossOf } from './worlds';
 import { readPlan } from './revision';
 import { ReviewStep } from './ReviewStep';
-import { slideDrawingText, WithSlideDrawing } from './SlideDrawing';
+import { graphicLookup, slideDrawingText, WithSlideDrawing } from './SlideDrawing';
+import { morphGraphic, readTransition, slideGraphicOf, type SlideGraphic } from './slideGraphics';
 import { reviewCards } from './reviewRound';
 import { RevisionRun, type RunSource } from './RevisionRun';
 import { backDepths, backTo, decideBy, detourIn, enterAt, insideOf, resumeInside, startRun, stepRun, type RunStep, type StoryFinished, type StoryRun } from './runningStory';
@@ -112,6 +113,8 @@ export interface FlowContent {
   readonly questionData?: (id: string) => Readonly<Record<string, unknown>> | null;
   /** 2026-11-22 (I4) — der Wert "use" eines Eintrags (Kennung oder @name): welcher Modus ihn spielt (`modes.ts`). */
   readonly useOf?: UseOf;
+  /** 2026-11-26 — eine Grafik der Baza (Kennung oder @name) → ihre Kennung und ihr Bild (`slideGraphics.ts`). */
+  readonly graphic?: (ref: string) => { readonly id: string; readonly drawing: Record<string, unknown> } | null;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -139,7 +142,8 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     flowRef: (ref) => { const r = ref.trim(); if (r.startsWith('@')) return lib.byImportRef(r.slice(1), 'flow')?.id ?? null; return lib.docs('flow').some((d) => d.id === r) ? r : null; },
     isQuestion: (id) => lib.entity(id)?.kinds.includes('question') === true,
     questionData: (id) => { const e = lib.entity(id); return e === undefined || !e.kinds.includes('question') ? null : e.data; },
-    useOf: (ref) => { const r = ref.trim(); const id = r.startsWith('@') ? lib.byImportRef(r.slice(1))?.id : r; return id === undefined ? undefined : lib.entity(id)?.data.use; }
+    useOf: (ref) => { const r = ref.trim(); const id = r.startsWith('@') ? lib.byImportRef(r.slice(1))?.id : r; return id === undefined ? undefined : lib.entity(id)?.data.use; },
+    graphic: graphicLookup(lib)
   };
 }
 
@@ -273,6 +277,8 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
   const ownCard = (id: string): Card | null => { const c = content.card(id); return c !== null && (c.question === id || c.entity === id || c.key === id) ? c : null; };
   /* 2026-11-04 (Prompt 11) — in diesem Lauf zu Ende erzählt: die Bedingung „Przebieg" sieht es sofort. */
   const doneHere = useRef(new Set<string>());
+  /* 2026-11-26 — die Grafik der vorigen Folie (für den Übergang: dieselbe Grafik bleibt stehen, nur was sich ändert, bewegt sich). */
+  const graphicMemo = useRef<{ key: string; prev: SlideGraphic | null; now: SlideGraphic | null }>({ key: '', prev: null, now: null });
   /*
     2026-11-05 (Prompt 24) — EIN ABSTECHER IN EINE ANDERE WELT läuft hier, mit ihrem Inhalt und ihrem Lernenden (`CrossRun`);
     zurück (ukończona) geht der Schritt mit „done" weiter. Der Weg über die Welten: der rufende (`CrossCrumbs`) und dieser.
@@ -938,16 +944,30 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     </>
   ));
 
-  /* Was ein Lese-Schritt zeigt (Bild, Eintrag) — derselbe für den laufenden und für einen, zu dem „Wstecz" zurückgeht. */
-  const showBody = (node: GraphNode, stItem: string | undefined): ReactNode => {
+  /* 2026-11-26 — ein neuer Schritt: die Grafik des vorigen wird die „vorige" (ein Schritt ohne Grafik dazwischen trennt). */
+  {
+    const key = `${running.id}:${state.step ?? ''}:${state.visited.length}`;
+    if (graphicMemo.current.key !== key) graphicMemo.current = { key, prev: graphicMemo.current.now, now: null };
+  }
+  /* Was ein Lese-Schritt zeigt (Bild, Eintrag) — derselbe für den laufenden und für einen, zu dem „Wstecz" zurückgeht (`past`). */
+  const showBody = (node: GraphNode, stItem: string | undefined, past = false): ReactNode => {
     const k = node.config;
     const id = typeof k.of === 'string' ? k.of : typeof k.explain === 'string' ? k.explain : stItem ?? '';
     const media = typeof k.media === 'object' && k.media !== null ? k.media as MediaRef : null;
     const shownEntity = id === '' ? null : content.entity(node.type === 'expand' && typeof k.explain === 'string' ? k.explain : id);
-    /* 2026-11-05 (Prompt 23, D1) — ein Rysunek neben dem Text der Folie ("drawing" im Schritt oder ein Feld des Eintrags). */
-    const drawingText = node.type === 'show' || node.type === 'choice' ? slideDrawingText(k.drawing, shownEntity) : null;
+    /*
+      2026-11-05 (Prompt 23, D1) — ein Rysunek neben dem Text der Folie ("drawing" im Schritt oder ein Feld des Eintrags).
+      2026-11-26 — auch eine Grafik der Baza ("@atom", mit "add"/"change"/"hide"/"set"); zeigte die vorige Folie dieselbe, gleitet sie.
+    */
+    const g = node.type === 'show' || node.type === 'choice'
+      ? slideGraphicOf(k.drawing, (r) => content.graphic?.(r) ?? null, () => slideDrawingText(k.drawing, shownEntity)) : null;
+    const asked = (node.type === 'show' || node.type === 'choice') && k.drawing !== undefined && k.drawing !== null && k.drawing !== '';
+    const prevG = past ? null : graphicMemo.current.prev;
+    if (!past) graphicMemo.current.now = g;
+    const continued = g !== null && g.graphic !== null && prevG?.graphic === g.graphic;
+    const drawingText = g === null ? (asked ? '' : null) : JSON.stringify(past ? g.raw : morphGraphic(prevG, g));
     return (
-      <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken}>
+      <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken} continued={continued} graphic={g?.graphic ?? null}>
         {/* 2026-11-20 — eine Folie der Nachhilfe sagt, wofür sie da ist (sie zählt nicht im Fortschritt). */}
         {isRemedialNode(node) && <p className="cg-muted cg-flow-remedial" data-flow-remedial="">{t('cogitaLearnPath.flow.remedial')}</p>}
         {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? t('cogitaLearnPath.flow.guess') : t('cogitaLearnPath.flow.recall')}</p>}
@@ -966,7 +986,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
       case 'show':
       case 'expand':
       case 'opening':
-        return showBody(node, stItem);
+        return showBody(node, stItem, true);
       case 'question': {
         const card = entry.answer?.card ?? askedCardOf(node, content.card);
         if (card === null) return null;
@@ -998,7 +1018,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
         const pastOf = node.type === 'choice' && typeof k.of === 'string' && k.of !== '';
         return (
           <>
-          {pastOf && showBody(node, stItem)}
+          {pastOf && showBody(node, stItem, true)}
           <div className="cg-choices cg-choice-list" data-flow-past-choice={entry.exit ?? ''}>
             {pastOf && typeof k.title === 'string' && k.title !== '' && <h3 className="cg-choice-head" data-flow-choice-head=""><TexText text={k.title} /></h3>}
             {again && <p className="cg-muted" data-flow-choose-again="">{W.chooseAgain}</p>}
@@ -1538,9 +1558,12 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
           </div>
         )}
         <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
-          {title !== null && <h2 className="cg-flow-step-title" data-flow-title={running.id}><TexText text={title} /></h2>}
-          {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
-          {body}
+          {/* 2026-11-26 — der Übergang der Folie: je Schritt neu ("transition" am Schritt, sonst am Ablauf; Vorgabe "fade"). */}
+          <div key={`${state.step ?? ''}:${state.visited.length}`} className="cg-flow-enter" data-flow-transition={readTransition(c.transition) ?? running.transition ?? 'fade'}>
+            {title !== null && <h2 className="cg-flow-step-title" data-flow-title={running.id}><TexText text={title} /></h2>}
+            {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
+            {body}
+          </div>
           {controls(nextAct)}
         </div>
       </section>

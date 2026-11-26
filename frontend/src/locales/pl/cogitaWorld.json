@@ -654,7 +654,13 @@
     "passed": "Zrobione — umiesz już odpowiedzieć na to pytanie.",
     "notPassed": "Jeszcze nie wszystko dobrze — możesz spróbować jeszcze raz.",
     "done": "Zrobione — umiesz odpowiedzieć na to pytanie.",
-    "deeper": "Głębiej: {name}"
+    "deeper": "Głębiej: {name}",
+    "modeLabel": "Które ścieżki pokazuje mapa",
+    "modeSelf": "Samodzielna nauka",
+    "modeLesson": "Lekcja",
+    "modeSelfSays": "Ścieżki do nauki w pojedynkę — tak, jak uczniowie widzą je sami.",
+    "modeLessonSays": "Ścieżki do lekcji — widoczne tylko, gdy uczysz (i dla klasy, która za tobą podąża).",
+    "modeLive": "Dopóki prowadzisz klasę na żywo, mapa pokazuje ścieżki lekcji."
   },
   "tour": {
     "start": "Przewodnik po mapie",
@@ -775,5 +781,19 @@
     "title": "Menu mapy",
     "show": "Co pokazuje mapa",
     "view": "Widok"
+  },
+  "screen": {
+    "title": "Mapa świata",
+    "others": "Inne mapy świata",
+    "settings": "Ustawienia widoku",
+    "none": "Ta baza nie ma jeszcze mapy świata.",
+    "make": "Utwórz sposób wyświetlania",
+    "notWorld": "Ten sposób wyświetlania nie jest mapą świata.",
+    "inEntries": "Pokaż we wpisach",
+    "linkTitle": "Ten sposób wyświetlania to mapa świata",
+    "linkSays": "Tutaj ustawiasz jej właściwości. Sama mapa — z klasami, prowadzeniem na żywo i każdą trwającą lekcją na żywo — otwiera się na osobnej stronie.",
+    "saveFirst": "Najpierw zapisz sposób wyświetlania; potem otworzy się jako mapa świata.",
+    "open": "Otwórz mapę świata",
+    "leadThere": "Prowadź na mapie świata"
   }
 }

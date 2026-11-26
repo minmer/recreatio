@@ -21,7 +21,10 @@
     "personOn": "online",
     "personJoined": "dołączył(a)",
     "personAway": "nieobecny(a) od {s} s",
-    "fastest": "Najszybciej poprawnie:"
+    "fastest": "Najszybciej poprawnie:",
+    "elsewhere": "Prowadzone z innego urządzenia",
+    "elsewhereSays": "Ta karta nie wysyła już nic do klasy.",
+    "leadHere": "Prowadź stąd"
   },
   "menu": {
     "title": "Prowadzenie na żywo",
@@ -46,5 +49,27 @@
     "stop": "Zakończ prowadzenie",
     "live": "Prowadzisz tę klasę na żywo",
     "startSays": "Na wszystkich urządzeniach klasy widać to, co pokazujesz: mapę, slajd albo pytanie. Twoje własne narzędzia (kod QR, ta konsola) nie są pokazywane."
+  },
+  "panel": {
+    "title": "Teraz na żywo",
+    "searching": "Szukam trwających lekcji…",
+    "none": "Żadna lekcja nie trwa.",
+    "count": "Trwające: {count}",
+    "aLesson": "Lekcja",
+    "guided": "prowadzona na żywo",
+    "withCode": "z kodem {code}",
+    "since": "od {time}",
+    "leadsHere": "Prowadzona z tej karty",
+    "leadsElsewhere": "Prowadzona z innego urządzenia (widziane {s} s temu)",
+    "leadsNobody": "Teraz nikt jej nie prowadzi",
+    "codeLesson": "Lekcja z kodem",
+    "duplicate": "Druga lekcja na żywo tej klasy — uczniowie są w starszej. Zakończ tę.",
+    "leadHere": "Prowadź stąd",
+    "open": "Otwórz",
+    "startLabel": "Prowadź klasę na żywo:",
+    "endAsk": "Zakończyć lekcję „{name}”?",
+    "endSays": "Wszystkie urządzenia ją opuszczają; uczniowie wracają tam, gdzie byli.",
+    "takeAsk": "Prowadzić „{name}” stąd?",
+    "takeSays": "Jest teraz prowadzona z innego urządzenia. Tamto urządzenie przestanie wysyłać i pokaże, że prowadzi się gdzie indziej."
   }
 }

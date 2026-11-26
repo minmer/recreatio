@@ -198,7 +198,9 @@
       "workUnknown": "Etappe „{stage}“: unbekannte Arbeitsweise „{work}“ (together, alone, groups) — die Vorgabe gilt",
       "groupsNoQuestions": "Etappe „{stage}“: Gruppenarbeit ohne Fragen — Gruppen einigen sich nur über Fragen, der Rest geschieht einzeln",
       "groupSize": "Etappe „{stage}“: Gruppengrösse {size} ausserhalb 2–6 — die nächste gilt"
-    }
+    },
+    "flowUseUnknown": "unbekanntes \"use\" des Pfads: „{value}“ — erlaubt: self, lesson (oder nichts: beides)",
+    "transitionUnknown": "unbekannte \"transition\" „{value}“ ({step}) — erlaubt: fade, slide, zoom, none"
   },
   "progress": {
     "tallyOne": "Antwort {n}: {text}",
@@ -501,7 +503,8 @@
     "worldmap": "Lage der Weltkarte",
     "qpath": "Weg zu einer Frage",
     "feedback": "Rückmeldung",
-    "unit": "Unterrichtseinheit"
+    "unit": "Unterrichtseinheit",
+    "graphic": "Grafik"
   },
   "questionGroup": {
     "write": "Du schreibst die Antwort",

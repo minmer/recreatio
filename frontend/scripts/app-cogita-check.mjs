@@ -1145,7 +1145,7 @@ const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sourc
 const moreOut = join(workspace, 'more');
 await build({
   entryPoints: {
-    ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts', quantities: 'src/app/core/quantities.ts',
+    ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), modes: 'src/app/cogita/modes.ts', steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts', quantities: 'src/app/core/quantities.ts',
     /* 2026-10-25 (Wywód) — dieselben Instanzen wie store/json oben: die Struktur, die Wejścia, die Widoki, die Rolle einer Aussage. */
     structure: 'src/app/cogita/structure.ts', anchors: 'src/app/cogita/anchors.ts', views2: 'src/app/cogita/views.ts', statement: 'src/app/library/statement.ts', selection2: 'src/app/cogita/selection.ts',
     /* 2026-10-25 — die Durchsicht eines Imports, und die Beschreibung des Imports „Dzieło z tekstem" (Anhang A des Leitfadens). */
@@ -1846,7 +1846,7 @@ check('goals and lines follow the one logic', [
   const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
   check('Wiedza: three activities first, the rest under „Więcej" (2026-10-25: Wejścia z Biblioteki)', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje', 'wejscia']]);
   /* 2026-10-27 — dazu die Ścieżka: die Reihenfolge des Lernens (`LearningPath.tsx`); 2026-11-02 unter „Więcej" die Nagrody. */
-  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”; 2026-11-22 „Klasy” of the base', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'klasy', 'postepy'], ['karty', 'mapa', 'nagrody', 'przeglad', 'ustawienia'], 'learn']);
+  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”; 2026-11-22 „Klasy” of the base; 2026-11-26 the world map as its own page, Grafiki', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka'), PARTS.partOfTab('swiat'), PARTS.partOfTab('grafiki')], [['nauka', 'swiat', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'klasy', 'postepy'], ['karty', 'grafiki', 'mapa', 'nagrody', 'przeglad', 'ustawienia'], 'learn', 'learn', 'learn']);
   check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
   check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
     T(['schemat']), T(['schemat', 'k1']), T(['schemat', 'formularz']), T(['schemat', 'formularz', 'f1']), T(['wpisy', 'dodaj', 'f1']), T(['wpisy', 'nowy', 'k1'])
@@ -3708,6 +3708,54 @@ check('goals and lines follow the one logic', [
   check('… export round trip exact (lasting names for places, stories, questions, the deeper path; anchors as written)', [back('@b/p/dlaczego'), back('@b/p/glebiej')], [why, deep]);
   const rm2 = Js.planImport(lib, { format: 'recreatio.cogita.course', version: 1, name: 'B', paths: [{ ref: '@b/p/zla', remove: true }] });
   check('… removed by its lasting name ({"ref", "remove": true}): the plan removes exactly that path, nothing else, no warning', [(rm2.removals ?? []).map((r) => [r.kind, r.title.includes('Zła')]), rm2.warnings], [[['qpath', true]], []]);
+}
+
+/* ══ 2026-11-26 — Grafiken ("graphics") für mehrere Folien; ein Pfad für das Selbstlernen oder den Unterricht ("use"); "transition" ══ */
+{
+  const map = new Map();
+  let n = 0;
+  const store = {
+    libraryId: 'G', areaId: 'area-g', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `G-neu-${n += 1}`, libraryId: 'G' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+    refreshAiNow: async () => null,
+    saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+    remove: async (id) => { map.delete(id); store.revision += 1; },
+    subscribe: () => () => undefined
+  };
+  const lib = new So.CogitaLibrary(store, true);
+  const edges = (list) => list.map(([from, out, to]) => ({ id: `${from}-${out}`, from, out, to, in: 'in' }));
+  const atom = { ref: '@g/atom', name: 'Atom', drawing: { size: [200, 120], elements: [{ id: 'kern', type: 'circle', x: 100, y: 60, r: 12, fill: 'accent' }] } };
+  const story = (ref, use, steps) => ({ ref, name: ref, ...(use === undefined ? {} : { use }), start: 'a',
+    graph: { nodes: [...steps, { id: 'z', type: 'end', config: {} }], edges: edges(steps.map((x, i) => [x.id, 'next', steps[i + 1]?.id ?? 'z'])) } });
+  const self = story('@g/f/sam', 'self', [{ id: 'a', type: 'show', config: { drawing: '@g/atom', transition: 'slide' } }, { id: 'b', type: 'show', config: { drawing: { graphic: '@g/atom', add: [{ id: 'e', type: 'circle', x: 150, y: 60, r: 4 }] } } }]);
+  const lesson = { ...story('@g/f/lekcja', 'lesson', [{ id: 'a', type: 'show', config: { transition: 'wirbel' } }]), transition: 'zoom' };
+  const both = story('@g/f/obie', undefined, [{ id: 'a', type: 'show', config: {} }]);
+  const bad = story('@g/f/zle', 'nauczyciel', [{ id: 'a', type: 'show', config: {} }]);
+  const doc = { format: 'recreatio.cogita.course', version: 1, name: 'G', graphics: [atom], flows: [self, lesson, both, bad] };
+  const plan = Js.planImport(lib, doc);
+  const gid = plan.docs.find((d) => d.kind === 'graphic')?.id;
+  const selfPlan = plan.docs.find((d) => d.kind === 'flow' && d.data.name === '@g/f/sam');
+  const cfg = (id) => selfPlan.data.graph.nodes.find((x) => x.id === id).config;
+  check('graphics: planned as documents; a step names one by its lasting name — plain and with additions — and gets its id',
+    ['error' in plan, typeof gid === 'string', cfg('a').drawing === gid, cfg('b').drawing.graphic === gid], [false, true, true, true]);
+  check('… unknown "use" of a path and an unknown "transition" warn; good ones do not',
+    [plan.warnings.some((w) => w.includes('nauczyciel')), plan.warnings.filter((w) => w.includes('transition')).length, plan.warnings.some((w) => w.includes('wirbel'))], [true, 1, true]);
+  await Js.applyImport(lib, plan, () => undefined);
+  const MD = await loadMore('modes');
+  const flows = lib.docs('flow').map((e) => Fl.readFlow(e.id, e.data));
+  const by = (name) => flows.find((f) => f.name === name);
+  check('… a path keeps for whom it is ("use") and how its slides come ("transition")', [by('@g/f/sam').use, by('@g/f/lekcja').use, by('@g/f/obie').use, by('@g/f/lekcja').transition, by('@g/f/zle').use], ['self', 'lesson', undefined, 'zoom', undefined]);
+  check('… in a mode only its paths (the towers are shared): self study ↔ teaching',
+    [flows.filter((f) => MD.flowFitsMode(f, 'self')).map((f) => f.name).sort(), flows.filter((f) => MD.flowFitsMode(f, 'lesson')).map((f) => f.name).sort()],
+    [['@g/f/obie', '@g/f/sam', '@g/f/zle'], ['@g/f/lekcja', '@g/f/obie', '@g/f/zle']]);
+  const out = Js.exportCourse(lib, 'G');
+  const g0 = out.graphics?.[0];
+  const sOut = out.flows.find((f) => f.name === '@g/f/sam');
+  check('… export round trip: the graphic with its lasting name, steps name it as "@…"',
+    [g0?.ref, g0?.drawing, sOut.graph.nodes.find((x) => x.id === 'a').config.drawing, sOut.graph.nodes.find((x) => x.id === 'b').config.drawing.graphic, sOut.use],
+    ['@g/atom', atom.drawing, '@g/atom', '@g/atom', 'self']);
 }
 
 await rm(workspace, { recursive: true, force: true });

@@ -567,7 +567,9 @@ function ClassLead({ where, title }: { where: Where; title: string }) {
         <h1 className="wk-h1">{title}</h1>
         <p className="wk-lede">{t('cogitaClass.page.youLead')}</p>
         <nav className="cl-learn-links wk-actions" aria-label={t('cogitaClass.page.more')}>
-          <a className="wk-btn" href={viewPath('learn', where.libraryId, 'klasy')}><Icon name="users" />{t('cogitaClass.page.toClasses')}</a>
+          {/* 2026-11-26 — geführt wird auf der Weltkarte der Nauka (dort „Na żywo"); diese Seite zeigt die Karte der Klasse nur. */}
+          {view !== null && <a className="wk-btn" href={viewPath('learn', where.libraryId, 'swiat', view)} data-class-lead-world=""><Icon name="map" />{t('cogitaWorld.screen.leadThere')}</a>}
+          <a className="wk-btn wk-btn-line" href={viewPath('learn', where.libraryId, 'klasy')}><Icon name="users" />{t('cogitaClass.page.toClasses')}</a>
           <a className="wk-btn wk-btn-line" href={viewPath('learn', where.libraryId, 'postepy', where.areaId)}>{t('cogitaClass.page.toProgress')}</a>
         </nav>
       </header>

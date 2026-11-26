@@ -408,7 +408,9 @@
     "schemaViews": "Darstellungen",
     "schemaViewsSays": "Was gezeigt wird und wie — auch Angaben aus Einträgen, zu denen Verweise führen.",
     "classes": "Klassen",
-    "explore": "Übersicht"
+    "explore": "Übersicht",
+    "world": "Weltkarte",
+    "graphics": "Grafiken"
   },
   "home": {
     "oldEntries": "Alte Einträge ({count})",

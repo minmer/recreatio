@@ -11,7 +11,7 @@
  * gespeichert, sondern aus dem Fortschritt gerechnet (`assignmentState`).
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { loadAreas, myEpochKeys, type AreaRow } from '../../areas/area';
 import { baseKey } from '../../areas/courseBases';
@@ -73,6 +73,22 @@ const AREA = (libraryId: string) => `recreatio:cogita:teach-area:${libraryId}`;
 const kept = (slot: string): string | null => { try { return localStorage.getItem(slot); } catch { return null; } };
 const keep = (slot: string, value: string | null) => { try { if (value === null) localStorage.removeItem(slot); else localStorage.setItem(slot, value); } catch { /* nur jetzt */ } };
 
+/*
+  2026-11-26 — „PROWADZĘ / UCZĘ SIĘ" ALS EIN STAND je Baza: das Menü der Karte, die Leiste über ihr und die Pfade der Karte
+  (`useShownWorld`, Modus "lesson" oder "self") lesen und setzen denselben.
+*/
+const teachNow = new Map<string, 'lead' | 'learn'>();
+const teachListeners = new Set<() => void>();
+const teachOf = (libraryId: string): 'lead' | 'learn' => teachNow.get(libraryId) ?? (kept(MODE(libraryId)) === 'lead' ? 'lead' : 'learn');
+export function setTeachChoice(libraryId: string, m: 'lead' | 'learn'): void {
+  teachNow.set(libraryId, m);
+  keep(MODE(libraryId), m);
+  for (const l of teachListeners) l();
+}
+export function useTeachChoice(libraryId: string): 'lead' | 'learn' {
+  return useSyncExternalStore((l) => { teachListeners.add(l); return () => { teachListeners.delete(l); }; }, () => teachOf(libraryId));
+}
+
 /* -- Was ein Ziel auf der Karte ist ---------------------------------------------------------------------------------- */
 
 /** Ein Ziel, an dem man leitet oder zuweist: ein Turm, ein Pfad (Abschnitt) oder eine Gabelung. */
@@ -99,8 +115,10 @@ export interface ClassTools {
   readonly marked: ReadonlySet<string>;
 }
 
-export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow }: {
+export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow, lead = true }: {
   lib: CogitaLibrary;
+  /** 2026-11-26 — false: keine Werkzeuge der Lehrerin hier (nur auf der Weltkarte der Nauka, `WorldScreen.tsx`). */
+  lead?: boolean;
   me: Me | null;
   learner: Learner | null;
   facts: AssignFacts;
@@ -109,14 +127,14 @@ export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow
   onShow: (kind: 'place' | 'section', id: string) => void;
 }): ClassTools {
   const t = useT();
-  const areas = useLeadAreas(lib, me);
-  const canLead = areas !== null && areas.length > 0;
-  const [mode, setModeRaw] = useState<'lead' | 'learn'>(() => (kept(MODE(lib.libraryId)) === 'lead' ? 'lead' : 'learn'));
+  const areas = useLeadAreas(lib, lead ? me : null);
+  const canLead = lead && areas !== null && areas.length > 0;
+  const mode = useTeachChoice(lib.libraryId);
   const [areaId, setAreaRaw] = useState<string | null>(() => kept(AREA(lib.libraryId)));
   const [dialog, setDialog] = useState<{ readonly kind: 'lead' | 'assign'; readonly target: MapTarget } | null>(null);
   const teaching = canLead && mode === 'lead';
   const area = areas?.find((a) => a.areaId === areaId) ?? areas?.[0] ?? null;
-  const setMode = (m: 'lead' | 'learn') => { setModeRaw(m); keep(MODE(lib.libraryId), m); };
+  const setMode = (m: 'lead' | 'learn') => setTeachChoice(lib.libraryId, m);
   const setArea = (id: string) => { setAreaRaw(id); keep(AREA(lib.libraryId), id); };
   const tasks = useAssignments(lib, me, learner, facts);
 

@@ -1,0 +1,17 @@
+{
+  "hint": "A graphic can be shown on several slides. On the next slide with the same graphic only the text comes in anew — the picture stays, and what changes glides into place.",
+  "add": "New graphic",
+  "none": "No graphics yet.",
+  "newName": "New graphic",
+  "unnamed": "Graphic",
+  "unused": "not used on any slide yet",
+  "usedOn": "on {count} slides",
+  "broken": "This graphic cannot be drawn (its JSON has no parts).",
+  "where": "Shown in:",
+  "howToUse": "On a slide step: \"drawing\": \"{ref}\" — or with additions just for that slide: {\"graphic\": \"{ref}\", \"add\": [ … ], \"change\": {\"<id>\": { … }}, \"hide\": [\"<id>\"]}.",
+  "json": "Drawing (JSON, like “Animation”)",
+  "badJson": "The JSON cannot be read.",
+  "removeAsk": "Delete the graphic “{name}”?",
+  "removeSays": "No slide shows it.",
+  "removeUsed": "{count} slides show it — they will show no picture."
+}

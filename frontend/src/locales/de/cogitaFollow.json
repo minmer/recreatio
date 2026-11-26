@@ -21,7 +21,10 @@
     "personOn": "online",
     "personJoined": "angemeldet",
     "personAway": "seit {s} s weg",
-    "fastest": "Am schnellsten richtig:"
+    "fastest": "Am schnellsten richtig:",
+    "elsewhere": "Von einem anderen Gerät geführt",
+    "elsewhereSays": "Dieser Tab schickt der Klasse nichts mehr.",
+    "leadHere": "Von hier führen"
   },
   "menu": {
     "title": "Live führen",
@@ -46,5 +49,27 @@
     "stop": "Führen beenden",
     "live": "Du führst diese Klasse live",
     "startSays": "Auf allen Geräten der Klasse ist zu sehen, was du zeigst: die Karte, eine Folie oder eine Frage. Deine eigenen Werkzeuge (der QR-Code, diese Konsole) werden nicht gezeigt."
+  },
+  "panel": {
+    "title": "Jetzt live",
+    "searching": "Suche nach laufenden Stunden…",
+    "none": "Keine Stunde läuft.",
+    "count": "Laufend: {count}",
+    "aLesson": "Stunde",
+    "guided": "live geführt",
+    "withCode": "mit Code {code}",
+    "since": "seit {time}",
+    "leadsHere": "Von diesem Tab geführt",
+    "leadsElsewhere": "Von einem anderen Gerät geführt (vor {s} s gesehen)",
+    "leadsNobody": "Gerade führt sie niemand",
+    "codeLesson": "Stunde mit Code",
+    "duplicate": "Eine zweite Live-Stunde dieser Klasse — die Schüler folgen der älteren. Beende diese.",
+    "leadHere": "Von hier führen",
+    "open": "Öffnen",
+    "startLabel": "Eine Klasse live führen:",
+    "endAsk": "Die Stunde „{name}“ beenden?",
+    "endSays": "Alle Geräte verlassen sie; die Schüler kehren zurück, wo sie waren.",
+    "takeAsk": "„{name}“ von hier führen?",
+    "takeSays": "Sie wird gerade von einem anderen Gerät geführt. Dieses Gerät hört auf zu schicken und zeigt, dass anderswo geführt wird."
   }
 }

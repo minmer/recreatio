@@ -54,7 +54,8 @@ import { paletteOf, readGraph, type Graph, type GraphNode, type NodeKind, type P
 import { t, texts } from '../core/i18n';
 import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type SessionAnswer, type SessionFacts, type ValueLimit } from './logic';
 import { adaptiveOf, declareExits, decideAnswer, expandAdaptive, type AnswerDecision, type AnswerInput } from './adaptive';
-import { branchFits, modeSkips, PLAY_MODES, skipExitsOf, type PlayMode, type UseOf } from './modes';
+import { branchFits, modeSkips, PLAY_MODES, readUse, skipExitsOf, type PlayMode, type UseOf } from './modes';
+import { readTransition, type SlideTransition } from './slideTransition';
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
@@ -223,6 +224,14 @@ export interface Flow {
   /** 2026-10-22 (Schritt 12) — ein Storyboard einer Präsentation (der Pfad der Seite): der Graph kommt aus ihr. */
   readonly presentation?: string;
   /**
+   * 2026-11-26 (Eigentümer: „Türme gemeinsam, Pfade getrennt: welche für das Selbstlernen, welche nur sichtbar, wenn ich unterrichte")
+   * — FÜR WEN DIESER PFAD IST: `self` (nur das Selbstlernen), `lesson` (nur, wer unterrichtet — und die Klasse, die ihm folgt);
+   * fehlt er: beide. Die Weltkarte zeigt je Modus nur ihre Pfade (`worldmap/mapCore.ts`).
+   */
+  readonly use?: 'self' | 'lesson';
+  /** 2026-11-26 — wie eine Folie kommt, wenn der Schritt nichts sagt (`slideGraphics.ts`: fade, slide, zoom, none). */
+  readonly transition?: SlideTransition;
+  /**
    * 2026-11-03 (G) — DIE EINHEIT, DIE DIESE ERZÄHLUNG IST (ein Eintrag der Baza): im Krajobraz EIN Feld — seine Ścieżka
    * ist die der Erzählung, und wer sie zu Ende bringt, senkt das Feld ins Tal.
    */
@@ -316,7 +325,9 @@ export function readFlow(id: string, raw: unknown, options: { readonly authored?
     narrators: (Array.isArray(d.narrators) ? d.narrators : []).flatMap((n): Narrator[] => (isObject(n) && str(n.character) !== '' ? [{ character: str(n.character), condition: readCondition(n.condition) }] : [])).slice(0, 12),
     ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') }),
     ...(str(d.unit).trim() === '' ? {} : { unit: str(d.unit).trim() }),
-    ...(reviewAt === '' ? {} : { review: reviewAt })
+    ...(reviewAt === '' ? {} : { review: reviewAt }),
+    ...((u) => (u === 'self' || u === 'lesson' ? { use: u } : {}))(readUse(d.use)),
+    ...((tr) => (tr === null ? {} : { transition: tr }))(readTransition(d.transition))
   };
 }
 
@@ -350,7 +361,9 @@ export function resolveFlow(flow: Flow, find: (id: string) => Flow | undefined, 
       : { ...n.config, ...over };
     return { ...n, config: fill(merged) as Record<string, unknown> };
   });
-  return { ...template, id: flow.id, name: flow.name || template.name, look: flow.look, ...(flow.lookId === undefined ? {} : { lookId: flow.lookId }), graph: { nodes, edges: template.graph.edges }, fill: flow.fill, overrides: flow.overrides, template: flow.template, narrators: flow.narrators.length > 0 ? flow.narrators : template.narrators };
+  return { ...template, id: flow.id, name: flow.name || template.name, look: flow.look, ...(flow.lookId === undefined ? {} : { lookId: flow.lookId }), graph: { nodes, edges: template.graph.edges }, fill: flow.fill, overrides: flow.overrides, template: flow.template, narrators: flow.narrators.length > 0 ? flow.narrators : template.narrators,
+    /* 2026-11-26 — für wen und wie: die eigenen Angaben der Verwendung gelten vor denen der Vorlage. */
+    ...(flow.use === undefined ? {} : { use: flow.use }), ...(flow.transition === undefined ? {} : { transition: flow.transition }) };
 }
 
 /* -- Der Spieler -------------------------------------------------------------------------- */

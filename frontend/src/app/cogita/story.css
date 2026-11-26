@@ -123,3 +123,25 @@
 .cg-flow-step:has(.cg-fb:not(.cg-face .cg-fb)) > .cg-flow-step-title { padding-right: 2.6rem; }
 /* 2026-11-22 (I3) — eine Vorhersage: vor und nach der Antwort, dass sie nicht zählt (auch auf dem Gerät eines Schülers in einer Stunde). */
 .cg-flow-predict { margin: 0 0 var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-left: 3px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); color: var(--wk-ink); font-size: var(--wk-text-sm); font-weight: 600; }
+
+/*
+  2026-11-26 — DER ÜBERGANG EINER FOLIE (`slideTransition.ts`): je Schritt neu. Zeigte die vorige Folie dieselbe Grafik
+  (`.cg-slide-pair.is-continued`), kommt nur der Text — das Bild bleibt stehen und gleitet selbst (`slideGraphics.ts`).
+*/
+.cg-flow-enter { overflow-x: clip; }
+.cg-flow-enter > :not(.cg-slide-pair),
+.cg-flow-enter .cg-slide-pair-text,
+.cg-flow-enter .cg-slide-pair:not(.is-continued) .cg-slide-pair-drawing { animation: cg-enter-fade 0.32s ease-out both; }
+.cg-flow-enter[data-flow-transition='slide'] > :not(.cg-slide-pair),
+.cg-flow-enter[data-flow-transition='slide'] .cg-slide-pair-text,
+.cg-flow-enter[data-flow-transition='slide'] .cg-slide-pair:not(.is-continued) .cg-slide-pair-drawing { animation-name: cg-enter-slide; animation-duration: 0.38s; }
+.cg-flow-enter[data-flow-transition='zoom'] > :not(.cg-slide-pair),
+.cg-flow-enter[data-flow-transition='zoom'] .cg-slide-pair-text,
+.cg-flow-enter[data-flow-transition='zoom'] .cg-slide-pair:not(.is-continued) .cg-slide-pair-drawing { animation-name: cg-enter-zoom; animation-duration: 0.36s; }
+.cg-flow-enter[data-flow-transition='none'] > :not(.cg-slide-pair), .cg-flow-enter[data-flow-transition='none'] .cg-slide-pair-text, .cg-flow-enter[data-flow-transition='none'] .cg-slide-pair-drawing,
+:root[data-motion='off'] .cg-flow-enter > :not(.cg-slide-pair), :root[data-motion='off'] .cg-flow-enter .cg-slide-pair-text, :root[data-motion='off'] .cg-flow-enter .cg-slide-pair-drawing,
+:root[data-motion='reduced'] .cg-flow-enter > :not(.cg-slide-pair), :root[data-motion='reduced'] .cg-flow-enter .cg-slide-pair-text, :root[data-motion='reduced'] .cg-flow-enter .cg-slide-pair-drawing { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cg-flow-enter > :not(.cg-slide-pair), .cg-flow-enter .cg-slide-pair-text, .cg-flow-enter .cg-slide-pair-drawing { animation: none; } }
+@keyframes cg-enter-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cg-enter-slide { from { opacity: 0; transform: translateX(2.5rem); } to { opacity: 1; transform: none; } }
+@keyframes cg-enter-zoom { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }

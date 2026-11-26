@@ -33,6 +33,12 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 /** Spielt der Modus etwas mit diesem "use"? */
 export const fitsMode = (use: StepUse, mode: PlayMode): boolean => use === 'both' || use === mode;
 
+/**
+ * 2026-11-26 (Eigentümer: „die Türme sind gemeinsam, die Pfade nicht") — EIN PFAD (eine Erzählung) IN EINEM MODUS: ohne "use" in
+ * beiden, mit `"use": "self"` nur beim Selbstlernen, mit `"use": "lesson"` nur, wer unterrichtet (und die Klasse, die folgt).
+ */
+export const flowFitsMode = (flow: { readonly use?: 'self' | 'lesson' }, mode: PlayMode): boolean => flow.use === undefined || flow.use === mode;
+
 /** Eine Vorhersage (`"predict": true` an einem Schritt „question")? */
 export const isPredict = (node: Pick<GraphNode, 'type' | 'config'>): boolean => node.type === 'question' && node.config.predict === true;
 

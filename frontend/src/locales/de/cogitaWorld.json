@@ -566,7 +566,13 @@
     "passed": "Erledigt — du kannst diese Frage jetzt beantworten.",
     "notPassed": "Noch nicht alles richtig — du kannst es noch einmal versuchen.",
     "done": "Erledigt — du kannst diese Frage beantworten.",
-    "deeper": "Tiefer: {name}"
+    "deeper": "Tiefer: {name}",
+    "modeLabel": "Welche Pfade die Karte zeigt",
+    "modeSelf": "Selbstlernen",
+    "modeLesson": "Unterricht",
+    "modeSelfSays": "Die Pfade für das Lernen allein — wie deine Schüler sie selbst sehen.",
+    "modeLessonSays": "Die Pfade für den Unterricht — nur sichtbar, während du unterrichtest (und für die Klasse, die dir folgt).",
+    "modeLive": "Solange du die Klasse live führst, zeigt die Karte die Pfade des Unterrichts."
   },
   "tour": {
     "start": "Kartenführung",
@@ -685,5 +691,19 @@
     "title": "Menü der Karte",
     "show": "Was die Karte zeigt",
     "view": "Ansicht"
+  },
+  "screen": {
+    "title": "Weltkarte",
+    "others": "Weitere Weltkarten",
+    "settings": "Einstellungen der Ansicht",
+    "none": "Diese Basis hat noch keine Weltkarte.",
+    "make": "Ansicht anlegen",
+    "notWorld": "Diese Ansicht ist keine Weltkarte.",
+    "inEntries": "In den Einträgen zeigen",
+    "linkTitle": "Diese Ansicht ist eine Weltkarte",
+    "linkSays": "Hier stellst du ihre Eigenschaften ein. Die Karte selbst — mit den Klassen, dem Führen live und jeder laufenden Live-Stunde — öffnet sich auf einer eigenen Seite.",
+    "saveFirst": "Speichere die Ansicht zuerst; dann öffnet sie sich als Weltkarte.",
+    "open": "Weltkarte öffnen",
+    "leadThere": "Auf der Weltkarte führen"
   }
 }

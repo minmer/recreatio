@@ -14,6 +14,7 @@ import { landscapeClient } from '../landscapeClient';
 import type { RegionTree } from '../regions';
 import type { CogitaLibrary } from '../store';
 import type { LandscapeOnly, ViewDoc } from '../views';
+import { flowFitsMode, type PlayMode } from '../modes';
 import { lineColours, type Rgb } from './wmColors';
 import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
 import { geometryInputOf, type Geometry } from './wmGeometry';
@@ -46,11 +47,15 @@ export function useFullWorld(lib: CogitaLibrary, view: ViewDoc, cards: readonly 
  * Türme ausserhalb fehlen im Modell, darum führt kein Weg, Ziel, keine Wiederholung und keine Zahl hinaus (`classes/subWorld.ts`).
  * `only` = null: die ganze Welt.
  */
-export function useShownWorld(full: { readonly input: WorldInput; readonly world: World }, only: LandscapeOnly | null): { readonly input: WorldInput; readonly world: World; readonly lines: Lines } {
+export function useShownWorld(full: { readonly input: WorldInput; readonly world: World }, only: LandscapeOnly | null, mode: PlayMode = 'self'): { readonly input: WorldInput; readonly world: World; readonly lines: Lines } {
   const onlyKey = JSON.stringify(only);
   const input = useMemo(() => classWorldInput(full.input, full.world, worldTags(full.world), only) ?? full.input, [full.input, full.world, onlyKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const world = useMemo(() => (input === full.input ? full.world : readWorld(input)), [full.input, full.world, input]);
-  const lines = useMemo(() => linesOf(world, input.flows), [world, input]);
+  /*
+    2026-11-26 — DIE TÜRME SIND GEMEINSAM, DIE PFADE NICHT: dieselbe Welt (dieselben Türme an denselben Orten) — aber die Linien nur
+    aus den Erzählungen dieses Modus (`flowFitsMode`), und jede Erzählung so, wie der Modus sie spielt (`linesOf` … mode).
+  */
+  const lines = useMemo(() => linesOf(world, input.flows.filter((f) => flowFitsMode(f, mode)), { mode }), [world, input, mode]);
   return { input, world, lines };
 }
 

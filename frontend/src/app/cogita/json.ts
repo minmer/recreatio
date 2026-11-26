@@ -26,7 +26,8 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { adaptiveProblems, branchSummaries, branchWords, checkContext } from './adaptive';
-import { isPredict, modeProblems } from './modes';
+import { isPredict, modeProblems, readUse } from './modes';
+import { readTransition } from './slideTransition';
 import { flowProblems } from './flowCheck';
 import { pathProblems, readPath, type PathCheckCtx } from './worldmap/wmPaths';
 import { unitProblems } from './unit/unitModel';
@@ -76,7 +77,9 @@ const LIST_OF: Record<DocKind, string> = {
   /* 2026-11-12 (Prompt 25) — Wege zu einer Frage („Czego chcesz się dowiedzieć?", `worldmap/wmPaths.ts`). */
   qpath: 'paths',
   /* 2026-11-22 (Homer) — Unterrichtseinheiten (`unit/unitModel.ts`). */
-  unit: 'units'
+  unit: 'units',
+  /* 2026-11-26 — Grafiken, die mehrere Folien zeigen (`slideGraphics.ts`). */
+  graphic: 'graphics'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -472,7 +475,9 @@ const PREFER: Readonly<Record<string, DocKind>> = {
   /* 2026-11-02 — die Nagrody der Nauka (Ustawienia `rewards`). */
   reward: 'reward', rewards: 'reward',
   /* 2026-11-12 (Prompt 25) — „Głębiej": der tiefere Weg zu einer Frage. */
-  deeper: 'qpath'
+  deeper: 'qpath',
+  /* 2026-11-26 — die Grafik einer Folie ("drawing": "@atom" oder { "graphic": "@atom", … }). */
+  graphic: 'graphic', drawing: 'graphic'
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
 const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint', 'promise', 'why', 'poll']);
@@ -483,7 +488,7 @@ const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'ti
  * Vorschläge, die Lage der Weltkarte (gerechnet), Uwagi (`feedback`) — und nie, was Lernende tun (das liegt nicht in der Baza).
  * Ein Export, als ganze Welt wieder eingelesen, löscht darum nichts.
  */
-export const WHOLE_WORLD_DOCS: readonly DocKind[] = ['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'addform', 'anchor', 'reward', 'qpath', 'unit'];
+export const WHOLE_WORLD_DOCS: readonly DocKind[] = ['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'addform', 'anchor', 'reward', 'qpath', 'unit', 'graphic'];
 /** Wie lang der Name eines Teils höchstens ist. */
 const PART_MAX = 100;
 
@@ -848,6 +853,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   /* Dokumente: Vorlagen, Wiederholungen, Abläufe, … */
   const docs: ImportPlan['docs'] = [];
   const docLists: [DocKind, unknown][] = [
+    /* 2026-11-26 — zuerst die Grafiken: ein Schritt nennt sie beim Namen ("drawing": "@atom"). */
+    ['graphic', doc.graphics],
     ['template', doc.templates], ['revision', doc.revisions], ['flow', format === FLOW_FORMAT ? [doc.flow] : doc.flows],
     ['look', doc.looks], ['rules', doc.rules], ['values', doc.values], ['collection', doc.collections], ['view', doc.views], ['settings', doc.settings],
     ['addform', doc.forms],
@@ -1433,7 +1440,16 @@ export function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entitie
       branch: p.step === undefined || p.params.exit === undefined ? '' : branchName(p.step, p.params.exit),
       mode: p.params.mode === undefined ? '' : t(`cogitaData.logic.mode.${p.params.mode}`)
     }) }));
-    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores, ...adaptive, ...modes].map((p) => {
+    /* 2026-11-26 — für wen der Pfad ist ("use": self | lesson) und wie seine Folien kommen ("transition"): unbekannte Werte. */
+    const rawUse = d.data.use;
+    const rawTr = d.data.transition;
+    const looks = [
+      ...(rawUse !== undefined && rawUse !== null && rawUse !== '' && readUse(rawUse) === null ? [{ level: 'warning' as const, text: t('cogitaData.import.flowUseUnknown', { value: String(rawUse) }) }] : []),
+      ...(rawTr !== undefined && rawTr !== null && rawTr !== '' && readTransition(rawTr) === null ? [{ level: 'warning' as const, text: t('cogitaData.import.transitionUnknown', { value: String(rawTr), step: '—' }) }] : []),
+      ...flow.graph.nodes.filter((n) => n.config.transition !== undefined && readTransition(n.config.transition) === null)
+        .map((n) => ({ level: 'warning' as const, step: n.id, text: t('cogitaData.import.transitionUnknown', { value: String(n.config.transition), step: stepLabel(n.id) }) }))
+    ];
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain), ...hints, ...explores, ...adaptive, ...modes, ...looks].map((p) => {
       const step = (p as { step?: unknown }).step;
       return { level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }), flow: d.id, ...(typeof step === 'string' && step !== '' ? { step } : {}) };
     });
@@ -1702,7 +1718,7 @@ export function withRemovals(lib: CogitaLibrary, plan: ImportPlan): { plan: Impo
 
 /** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
 const DOC_ORDER: Readonly<Record<DocKind, number>> = {
-  collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
+  collection: 0, graphic: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
   view: 2, revision: 3, flow: 4, anchor: 5, qpath: 5, unit: 6, merge: 6, contribution: 6, worldmap: 7, feedback: 7
 };
 
@@ -1969,6 +1985,8 @@ ${t('cogitaDataFormat.course.main.s29End')}
 ${t('cogitaDataFormat.course.main.s30Type')}
 ${t('cogitaDataFormat.course.main.s30Adaptive')}
 ${t('cogitaDataFormat.course.main.s30Modes')}
+${t('cogitaDataFormat.course.main.s30PathsFor')}
+${t('cogitaDataFormat.course.main.s30Graphics')}
 ${t('cogitaDataFormat.course.main.s30Units')}
 ${t('cogitaDataFormat.course.main.s31Goals')}
 ${t('cogitaDataFormat.course.main.s32Id')}

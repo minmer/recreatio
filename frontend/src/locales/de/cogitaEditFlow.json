@@ -159,7 +159,19 @@
     "pathOk": "Der Pfad ist in Ordnung: ein Anfang, ein Ende, von jedem Schritt aus ist das Ende erreichbar.",
     "pathError": "Dieser Ablauf hat einen Fehler (kein Anfang oder Ende, Vertiefungen im Kreis) — so wird er beim Import nicht gespeichert, und der Lernende bleibt hängen:",
     "pathWarn": "Der Pfad hat Stellen, an denen der Lernende hängen bleibt oder die er nie sieht:",
-    "more": "… und {n} weitere"
+    "more": "… und {n} weitere",
+    "pathFor": "Pfad für",
+    "pathForSays": "Die Türme sind für alle dieselben. Ein Pfad für das Selbstlernen erscheint nicht, während du unterrichtest; ein Pfad für den Unterricht nur, während du unterrichtest (und für die Klasse, die dir folgt).",
+    "pathForBoth": "Selbstlernen und Unterricht",
+    "pathForSelf": "nur Selbstlernen",
+    "pathForLesson": "nur Unterricht",
+    "transition": "Folien kommen",
+    "transitionOf": {
+      "fade": "einblendend",
+      "slide": "hereinschiebend",
+      "zoom": "wachsend",
+      "none": "sofort"
+    }
   },
   "adaptive": {
     "title": "Nach der Antwort (adaptiv)",

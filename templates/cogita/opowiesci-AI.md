@@ -116,7 +116,7 @@ Opowieści układaj jak drabinę: **jedna ogólna** („Kim jest ksiądz Bosko?�
 
 z krawędziami `{"from": "z1", "out": "done", "to": "s5"}` i `{"from": "z1", "out": "skip", "to": "s5"}` (zwykle oba wyjścia do tego samego następnego kroku).
 
-- **Rysunek przy slajdzie**: krok "show" z "drawing" (ten sam JSON co moduł „Animacja” i pytanie "interactive": vars, controls — suwaki —, elements) pokazuje rysunek obok tekstu slajdu (na telefonie pod nim) — statyczny albo z suwakami, bez oceny: `{"id": "s7", "type": "show", "config": {"of": "@laag/folie/zwei-geraden", "drawing": {…}}}`; "drawing" może też być kluczem pola slajdu, które trzyma rysunek.
+- **Rysunek przy slajdzie**: krok "show" z "drawing" (ten sam JSON co moduł „Animacja” i pytanie "interactive": vars, controls — suwaki —, elements) pokazuje rysunek obok tekstu slajdu (na telefonie pod nim) — statyczny albo z suwakami, bez oceny: `{"id": "s7", "type": "show", "config": {"of": "@laag/folie/zwei-geraden", "drawing": {…}}}`; "drawing" może też być kluczem pola slajdu, które trzyma rysunek — albo grafiką bazy ("@…", z dodatkami tego slajdu, §8j), wspólną dla kilku slajdów, z płynnym przejściem.
 - **Długi dowód zwinięty**: w treści slajdu blok `::: details Beweisidee` … `:::` (w polu "blocks": `{"type": "details", "summary": "Beweisidee", "text": "…"}`) — pokazany zwinięty z nagłówkiem.
 - **W odtwarzaczu** krok pokazuje kartę: nazwę tamtej opowieści, co w niej czeka („7 slajdów · 16 pytań”), „Wejdź” i „Dalej bez tego”. Gdy tamta jest już ukończona — „już znasz”, „Przypomnij” i „Dalej”.
 - **„Wejdź”** gra tamtą w środku: tytuł, ścieżka i liczniki są wtedy jej, nad nią pasek „Etap 1 › Dom w Becchi bez ojca” z „Wróć do: Etap 1” (powrót na krok zagłębienia, bez ukończenia). Jej „Koniec” wraca do przeglądu wyjściem "done". Kto wyjdzie z aplikacji w środku, po powrocie jest znów w środku.
@@ -246,6 +246,46 @@ sytuacja (both) → wyjaśnienie (use: self) → przewidywanie (predict, use: le
 ```
 
 Pełny przykład: „example-lesson” (templates/cogita/przyklad-lekcja.json).
+
+## 8i. Ścieżki do samodzielnej nauki i ścieżki do lekcji (2026-11-26)
+
+**Wieże są wspólne, ścieżki nie.** Cała opowieść (przebieg) może mieć na górze `"use"`:
+
+- bez "use" — ścieżka dla obu trybów (domyślnie);
+- `"use": "self"` — ścieżka tylko do samodzielnej nauki: nie ma jej na mapie, gdy nauczyciel uczy;
+- `"use": "lesson"` — ścieżka tylko do lekcji: widzi ją wyłącznie nauczyciel w trybie „Prowadzę” na mapie świata (Nauka → Mapa świata) i klasa, która za nim podąża na żywo. Uczeń sam jej nigdy nie widzi — ani na mapie, ani na liście przebiegów.
+
+`{"ref": "@kurs/f/lekcja-ulamki", "name": "Ułamki — lekcja", "use": "lesson", "start": "s1", "graph": {…}}`
+
+Mapa ma dwa tryby: „Samodzielna nauka” i „Lekcja” (przełącznik nad mapą dla nauczyciela, ten sam co „Prowadzę / Uczę się”). Te same wieże stoją w tych samych miejscach, a linie są w każdym trybie inne. Kiedy co wybierać:
+
+- opowieść, którą da się przejść samemu, i lekcja, która ją powtarza → jedna opowieść bez "use", z krokami "use" i przewidywaniami (§8h);
+- lekcja zbudowana inaczej (praca w grupach, doświadczenie w klasie, dyskusja) → osobna opowieść z `"use": "lesson"` przez te same wieże;
+- droga, która ma sens tylko w pojedynkę (powtórka, ćwiczenia w domu) → `"use": "self"`.
+
+Każda wieża potrzebuje ścieżki w trybie samodzielnym — inaczej uczeń samodzielnie do niej nie dojdzie. Import ostrzega przed nieznanym "use".
+
+## 8j. Jedna grafika na kilku slajdach i przejścia (2026-11-26)
+
+**Grafika bazy** (`"graphics"` w JSON kursu) to rysunek (ten sam JSON co "drawing": size, elements, vars, controls…), który pokazuje kilka slajdów. Części, które slajdy zmieniają, mają `"id"`:
+
+```json
+"graphics": [{ "ref": "@kurs/g/atom", "name": "Atom",
+  "drawing": { "size": [400, 240], "alt": "Jądro i elektrony",
+    "elements": [ { "id": "jadro", "type": "circle", "x": 200, "y": 120, "r": 24, "fill": "accent" },
+                  { "id": "e1", "type": "circle", "x": 280, "y": 120, "r": 6, "fill": "muted" } ] } }]
+```
+
+W kroku "show" (albo "choice" z "of"):
+
+- `"drawing": "@kurs/g/atom"` — grafika taka, jaka jest;
+- `"drawing": {"graphic": "@kurs/g/atom", "add": [ {część}, … ], "change": {"e1": {"x": 120, "fill": "ok"}}, "hide": ["e1"], "set": {"vars": {"n": 3}}}` — grafika i to, co dodaje TEN slajd: nowe części na wierzchu ("add"), zmiana części o danym "id" ("change" — wartości zastępują, także "motion"), części pominięte ("hide"), wartości na górze ("set"; "vars" łączą się z vars grafiki).
+
+**Przejście między slajdami z tą samą grafiką** dzieje się samo: obraz zostaje, a tekst slajdu wchodzi na nowo. Część o tym samym "id" (albo o identycznej treści) zostaje — jej jednorazowe ruchy (wejście) nie grają drugi raz, pętle grają dalej; część w innym miejscu, rozmiarze, obrocie albo kolorze **płynnie przechodzi** ze starego stanu w nowy (0,7 s); nowa część gra swój ruch ("motion"), a bez niego się pojawia; część, której już nie ma, znika. Części z wyrażeniami ("=x0 + v*t") ruszają się same — nie przechodzą płynnie. Krok bez grafiki pomiędzy przerywa ciąg (następny slajd pokazuje grafikę od nowa, z jej wejściem).
+
+Dobry wzór: najpierw slajd z gołą grafiką, potem kolejne slajdy, z których każdy dodaje albo przesuwa jedną rzecz (`"add"`/`"change"`) — uczący się widzi, co się zmieniło. Nie kopiuj rysunku do każdego kroku; nie zmieniaj na jednym slajdzie więcej niż dwóch–trzech części.
+
+**Jak wchodzi slajd**: `"transition"` w "config" kroku albo na górze przebiegu (dla wszystkich jego kroków): `"fade"` (domyślnie, przenikanie), `"slide"` (wsuwa się z prawej), `"zoom"` (rośnie ze środka), `"none"` (od razu). Przy „mniej ruchu” (Wygląd) zawsze od razu. Import ostrzega przed nieznaną wartością i przed "@…", którego nie ma.
 
 ## 9. Kolejność importu
 
