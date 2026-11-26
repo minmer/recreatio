@@ -151,6 +151,8 @@ export function useMapClassTools({ lib, me, learner, facts, nameOf, href, onShow
           <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'learn'} onChange={() => setMode('learn')} data-class-mode-learn="" /><span>{t('cogitaLesson.menu.learn')}</span></label>
           <label className="wk-check"><input type="radio" name={`cg-mode-${lib.libraryId}`} checked={mode === 'lead'} onChange={() => setMode('lead')} data-class-mode-lead="" /><span>{t('cogitaLesson.menu.lead')}</span></label>
           <p className="cg-muted">{mode === 'lead' ? t('cogitaLesson.menu.leadSays') : t('cogitaLesson.menu.learnSays')}</p>
+          {/* 2026-11-26 — dieselbe Wahl bestimmt die Pfade der Karte (die Türme bleiben): Lekcja ↔ Samodzielna nauka. */}
+          <p className="cg-muted" data-world-path-mode={mode === 'lead' ? 'lesson' : 'self'}>{mode === 'lead' ? t('cogitaWorld.paths.modeLessonSays') : t('cogitaWorld.paths.modeSelfSays')}</p>
           {mode === 'lead' && areas !== null && areas.length > 1 && (
             <label className="wk-field"><span>{t('cogitaLesson.menu.class')}</span>
               <select value={area?.areaId ?? ''} onChange={(e) => setArea(e.target.value)} data-class-area="">

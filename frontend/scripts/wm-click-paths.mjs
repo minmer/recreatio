@@ -105,7 +105,8 @@ try {
     await clickAt(at[0], at[1]);
   };
   /* 2026-11-24 — Modi, „Sprawdź, co wiesz" und die Ansicht stehen im Menü der Karte (☰ oben links): erst öffnen. */
-  const IN_MENU = /data-world-mode|data-world-selfcheck|data-world-menu-full/;
+  /* 2026-11-26 — auch der Tag-Filter (Temat) steht im Menü. */
+  const IN_MENU = /data-world-mode|data-world-selfcheck|data-world-menu-full|data-world-tag-/;
   const openMenu = () => ev(`(() => { const b = document.querySelector('[data-world-menu="closed"]'); if (b) b.click(); return true; })()`).then(() => sleep(60));
   const click = async (selector) => {
     if (IN_MENU.test(selector)) await openMenu();
@@ -1118,10 +1119,11 @@ try {
     await open('none', false, '', tagDoc);
     await ev(`(() => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('cg-wm-tag:')) localStorage.removeItem(k); } catch {} return true; })()`);
     await open('none', false, '', tagDoc);
-    const chips = () => ev(`[...document.querySelectorAll('[data-world-tag-chip]')].map((b) => b.textContent.trim())`);
-    const chipId = (prefix) => ev(`[...document.querySelectorAll('[data-world-tag-chip]')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(prefix)}))?.dataset.worldTagChip ?? null`);
+    /* 2026-11-26 — der Tag-Filter steht im Menü der Karte: vor dem Lesen öffnen. */
+    const chips = () => openMenu().then(() => ev(`[...document.querySelectorAll('[data-world-tag-chip]')].map((b) => b.textContent.trim())`));
+    const chipId = async (prefix) => (await openMenu(), ev(`[...document.querySelectorAll('[data-world-tag-chip]')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(prefix)}))?.dataset.worldTagChip ?? null`));
     const towersDrawn = () => ev(`Number(document.querySelector('[data-world-map]')?.dataset.worldMap ?? -1)`);
-    const crumb = () => ev(`(() => { const s = document.querySelector('strong[data-world-tag-crumb] .cg-wm-tagn'); const m = /(\\d+)[/](\\d+)/.exec(s?.textContent ?? ''); return m === null ? null : { done: Number(m[1]), total: Number(m[2]) }; })()`);
+    const crumb = () => openMenu().then(() => ev(`(() => { const s = document.querySelector('strong[data-world-tag-crumb] .cg-wm-tagn'); const m = /(\\d+)[/](\\d+)/.exec(s?.textContent ?? ''); return m === null ? null : { done: Number(m[1]), total: Number(m[2]) }; })()`));
     const all = await towersDrawn();
     const first = await chips();
     check(P, 'a small world opens with everything; the tag bar offers only reachable top tags first (with "+N")', all > 40 && first.length === 1 && first[0].startsWith('Okresy życia') && /\d+\/\d+/.test(first[0])
@@ -1131,6 +1133,7 @@ try {
     const more = await chips();
     check(P, '"+N" shows the other top tags too', more.some((c) => c.startsWith('Ludzie')), more);
     await click(`[data-world-tag-chip="${await chipId('Okresy')}"]`);
+    await openMenu();
     await waitFor(`document.querySelector('[data-world-tagbar]')?.dataset.worldTagPath !== ''`, 'the chosen tag');
     await sleep(900);
     const okresy = await crumb();
@@ -1144,7 +1147,9 @@ try {
     const mlodosc = await crumb();
     const nMl = await towersDrawn();
     check(P, 'a subtag narrows the slice (the 8 towers of "Młodość")', mlodosc !== null && nMl === mlodosc.total && nMl === 8, { mlodosc, nMl });
+    await openMenu();
     const depth = await ev(`document.querySelector('[data-world-tagbar]').dataset.worldTagPath.split('|').length`);
+    check(P, 'the menu button names the chosen topic', await ev(`document.querySelector('[data-world-menu] .cg-wm-menunow')?.textContent.includes('Młodość') === true`));
     check(P, 'the breadcrumb holds the way down (top tag › subtag)', depth === 2, depth);
     /* Der Baum: ein Untertag mit zwei oberen steht unter beiden. */
     await click('[data-world-tag-open]');

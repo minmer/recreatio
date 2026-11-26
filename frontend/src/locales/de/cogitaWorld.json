@@ -567,12 +567,8 @@
     "notPassed": "Noch nicht alles richtig — du kannst es noch einmal versuchen.",
     "done": "Erledigt — du kannst diese Frage beantworten.",
     "deeper": "Tiefer: {name}",
-    "modeLabel": "Welche Pfade die Karte zeigt",
-    "modeSelf": "Selbstlernen",
-    "modeLesson": "Unterricht",
     "modeSelfSays": "Die Pfade für das Lernen allein — wie deine Schüler sie selbst sehen.",
-    "modeLessonSays": "Die Pfade für den Unterricht — nur sichtbar, während du unterrichtest (und für die Klasse, die dir folgt).",
-    "modeLive": "Solange du die Klasse live führst, zeigt die Karte die Pfade des Unterrichts."
+    "modeLessonSays": "Die Pfade für den Unterricht — nur sichtbar, während du unterrichtest (und für die Klasse, die dir folgt)."
   },
   "tour": {
     "start": "Kartenführung",

@@ -3,6 +3,8 @@
  * Karte gerade zeigt, und „Prowadzę", wenn man leitet). Darin alles, was man an der Karte einstellt: was sie zeigt (die Modi),
  * „Sprawdź, co wiesz", Vollbild oder Seite, und der Teil der Klasse (Textgrösse, „Prowadzę / Uczę się", die Klasse — aus
  * `lesson/MapClassTools.tsx`). Eine Wahl schliesst das Menü; Esc und ein Klick daneben auch.
+ * 2026-11-26 (Eigentümer: „in ein kleines Hamburger-Menü") — auch der Tag-Filter („Temat", `WorldTags.tsx`) steht hier; der Knopf
+ * nennt den gewählten Temat. Einen Temat zu wählen schliesst das Menü nicht (man verfeinert oft gleich weiter).
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -14,7 +16,7 @@ export interface MapMenuMode {
   readonly label: string;
 }
 
-export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, classes = [], live = null, t }: {
+export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, full = null, onExit, classBody, teaching, classes = [], live = null, topic = null, t }: {
   modes: readonly MapMenuMode[];
   shown: string;
   onMode: (key: string) => void;
@@ -33,6 +35,8 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
   /** Der Teil der Klasse (Textgrösse, Prowadzę / Uczę się, Klasse). */
   classBody: ReactNode;
   teaching: boolean;
+  /** 2026-11-26 — der Tag-Filter: der gewählte Temat (null: alle) und der Wähler; null: die Welt hat keine Tags. */
+  topic?: { readonly now: string | null; readonly body: ReactNode } | null;
   t: T;
 }) {
   const [open, setOpen] = useState(false);
@@ -54,7 +58,7 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
         aria-label={t('cogitaWorld.menu.open')} title={t('cogitaWorld.menu.open')} onClick={() => setOpen((v) => !v)}
         data-world-menu={open ? 'open' : 'closed'} data-class-menu="" data-world-modes={shown}>
         <span className="cg-wm-burger" aria-hidden="true"><span /><span /><span /></span>
-        <span className="cg-wm-menunow">{current}{teaching ? ` · ${t('cogitaLesson.menu.leading')}` : ''}</span>
+        <span className="cg-wm-menunow">{current}{topic !== null && topic.now !== null ? ` · ${topic.now}` : ''}{teaching ? ` · ${t('cogitaLesson.menu.leading')}` : ''}</span>
       </button>
       {open && (
         <div className="cg-wm-menu" role="dialog" aria-label={t('cogitaWorld.menu.title')} data-class-pop="" data-world-menu-panel="">
@@ -67,6 +71,12 @@ export function MapMenu({ modes, shown, onMode, onCheck, checkLabel, onFull, ful
               ))}
             </div>
           </section>
+          {topic !== null && (
+            <section className="cg-wm-menusec" data-world-menu-topic="">
+              <h3>{t('cogitaWorld.tags.label')}</h3>
+              {topic.body}
+            </section>
+          )}
           {onCheck !== null && (
             <section className="cg-wm-menusec">
               <button type="button" className="wk-btn cg-wm-menucheck" onClick={pick(onCheck)} data-world-selfcheck="">{checkLabel}</button>

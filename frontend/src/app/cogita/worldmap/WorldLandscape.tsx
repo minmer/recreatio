@@ -76,7 +76,7 @@ import { composeModes } from './mapMode';
 import { useAuthorMode } from './modes/authorMode';
 import { classSelectMode } from './modes/classSelectMode';
 import { useFollowHostMode } from './modes/followHostMode';
-import { setTeachChoice, useLeadAreas, useTeachChoice } from '../lesson/MapClassTools';
+import { useLeadAreas, useTeachChoice } from '../lesson/MapClassTools';
 import { useFollowLive } from '../follow/followHost';
 import type { PlayMode } from '../modes';
 import { useFollowing, useFollowViewMode } from './modes/followViewMode';
@@ -1202,21 +1202,15 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
           <MapMenu t={t} shown={shownMode} onMode={(m) => setMode(m as typeof shownMode)} teaching={mm.menu.teaching} classBody={mm.menu.classBody}
             modes={modes.map((m) => ({ key: m, label: `${m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : SC.gaps}${m === 'gaps' && gapsNow.gaps.size > 0 ? ` (${gapsNow.gaps.size})` : ''}` }))}
             onCheck={learner !== null ? checkAll : null} checkLabel={SC.check} onFull={mm.suppress.full ? null : enterFull} full={full} onExit={exitFull}
-            classes={mm.menu.classes} live={mm.menu.live} />
-          {/* 2026-11-26 — wer unterrichten darf: welche Pfade die Karte zeigt (derselbe Schalter wie „Prowadzę / Uczę się" im Menü). */}
-          {canTeach && !following && (
-            <div className="cg-wm-pathmode" role="group" aria-label={t('cogitaWorld.paths.modeLabel')} data-world-path-mode={pathMode}>
-              <button type="button" className={pathMode === 'self' ? 'is-on' : ''} aria-pressed={pathMode === 'self'} disabled={leadingNow} title={leadingNow ? t('cogitaWorld.paths.modeLive') : t('cogitaWorld.paths.modeSelfSays')}
-                onClick={() => setTeachChoice(lib.libraryId, 'learn')} data-world-path-mode-pick="self">{t('cogitaWorld.paths.modeSelf')}</button>
-              <button type="button" className={pathMode === 'lesson' ? 'is-on' : ''} aria-pressed={pathMode === 'lesson'} title={t('cogitaWorld.paths.modeLessonSays')}
-                onClick={() => setTeachChoice(lib.libraryId, 'lead')} data-world-path-mode-pick="lesson">{t('cogitaWorld.paths.modeLesson')}</button>
-            </div>
-          )}
+            classes={mm.menu.classes} live={mm.menu.live}
+            topic={tagNet.tags.size === 0 ? null : {
+              now: sliceTag === null ? null : tagNet.tags.get(sliceTag)?.label ?? sliceTag,
+              /* 2026-11-22 (C2), seit 2026-11-26 im Menü — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */
+              body: <TagSlicePicker net={tagNet} path={slicePath} reachable={reachTags} count={countOfTag} onPath={setSlicePath} t={t} inMenu />
+            }} />
           {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
         </div>
         {mm.overlay}
-        {/* 2026-11-22 (C2) — der Tag-Filter des Lernenden: nur der Ausschnitt wird gebaut und gezeichnet. */}
-        <TagSlicePicker net={tagNet} path={slicePath} reachable={reachTags} count={countOfTag} onPath={setSlicePath} t={t} />
         </div>
         {won !== null && (
           <p className="wk-note cg-ls-conquered" role="status" data-world-won={won.names.join('|')} data-world-won-points={won.points}>

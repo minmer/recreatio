@@ -99,7 +99,6 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 /* Oben links steht das Menü — der Knopf „Ganze Karte" und die Spur wandern im Vollbild nach rechts oben. */
 .cg-wm-host.is-full .cg-wm-fitbtn { left: auto; right: var(--wk-space-3); top: var(--wk-space-3); }
 .cg-wm-host.is-full .cg-wm-trail { left: auto; right: calc(var(--wk-space-3) + 2.5rem); top: var(--wk-space-3); justify-content: flex-end; }
-.cg-wm-host.is-full .cg-wm-controls .cg-wm-tagbar { padding: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
 .cg-wm-host.is-full .cg-wm-mapwrap, .cg-wm-host.is-full .cg-wm { height: 100%; }
 .cg-wm-host.is-full .cg-wm-stage { height: 100%; min-height: 0; border: 0; border-radius: 0; }
 .cg-wm-host.is-full .cg-wm-tools { position: absolute; left: var(--wk-space-3); bottom: var(--wk-space-3); z-index: 4; padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
@@ -696,6 +695,9 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 .cg-wm-tagpick:hover, .cg-wm-tagpick:focus-visible { background: var(--wk-sunk); }
 .cg-wm-tagpick.is-on { font-weight: 600; box-shadow: inset 3px 0 0 var(--wk-accent); }
 .cg-wm-tagpick.is-far { color: var(--wk-ink-2); }
+/* 2026-11-26 — im Menü der Karte: eine Spalte, der Baum klappt an Ort und Stelle auf. */
+.cg-wm-tagbar.is-menu { display: grid; justify-items: start; gap: var(--wk-space-1); margin: 0; }
+.cg-wm-tagpanel.is-inline { position: static; width: 100%; max-height: 16rem; padding: var(--wk-space-1) 0 0; border: 0; border-radius: 0; box-shadow: none; }
 
 /* 2026-11-24 — die Lehrerin wählt auf der Karte, was die Klasse sieht (ClassSelect.tsx): ein Balken über der Karte, im Vollbild oben links. */
 .cg-wm-selbar { display: grid; gap: var(--wk-space-1); max-width: 34rem; margin-bottom: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-left: 4px solid var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); }
@@ -716,8 +718,3 @@ html.cg-wm-locked, html.cg-wm-locked body { overflow: hidden; }
 @media (max-width: 40rem) { .cg-wm-selhint { display: none; } }
 
 /* 2026-11-26 — welche Pfade die Karte zeigt (wer unterrichten darf): Selbstlernen | Unterricht. Die Türme bleiben. */
-.cg-wm-pathmode { display: inline-flex; border: 1px solid var(--wk-line); border-radius: 999px; overflow: hidden; background: var(--wk-surface); }
-.cg-wm-pathmode button { padding: var(--wk-space-1) var(--wk-space-3); border: 0; background: transparent; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; }
-.cg-wm-pathmode button + button { border-left: 1px solid var(--wk-line); }
-.cg-wm-pathmode button.is-on { background: var(--wk-accent); color: var(--wk-on-accent); }
-.cg-wm-pathmode button:disabled { cursor: default; opacity: 0.6; }

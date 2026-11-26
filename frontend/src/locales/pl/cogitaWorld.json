@@ -655,12 +655,8 @@
     "notPassed": "Jeszcze nie wszystko dobrze — możesz spróbować jeszcze raz.",
     "done": "Zrobione — umiesz odpowiedzieć na to pytanie.",
     "deeper": "Głębiej: {name}",
-    "modeLabel": "Które ścieżki pokazuje mapa",
-    "modeSelf": "Samodzielna nauka",
-    "modeLesson": "Lekcja",
     "modeSelfSays": "Ścieżki do nauki w pojedynkę — tak, jak uczniowie widzą je sami.",
-    "modeLessonSays": "Ścieżki do lekcji — widoczne tylko, gdy uczysz (i dla klasy, która za tobą podąża).",
-    "modeLive": "Dopóki prowadzisz klasę na żywo, mapa pokazuje ścieżki lekcji."
+    "modeLessonSays": "Ścieżki do lekcji — widoczne tylko, gdy uczysz (i dla klasy, która za tobą podąża)."
   },
   "tour": {
     "start": "Przewodnik po mapie",

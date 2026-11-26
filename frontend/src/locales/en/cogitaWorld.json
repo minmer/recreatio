@@ -567,12 +567,8 @@
     "notPassed": "Not everything was right yet — you can try again.",
     "done": "Done — you can answer this question.",
     "deeper": "Deeper: {name}",
-    "modeLabel": "Which paths the map shows",
-    "modeSelf": "Self-study",
-    "modeLesson": "Teaching",
     "modeSelfSays": "The paths for learning alone — as your students see them on their own.",
-    "modeLessonSays": "The paths for teaching — only visible while you teach (and to the class that follows you).",
-    "modeLive": "While you lead the class live, the map shows the teaching paths."
+    "modeLessonSays": "The paths for teaching — only visible while you teach (and to the class that follows you)."
   },
   "tour": {
     "start": "Map guide",
