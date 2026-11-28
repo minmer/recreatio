@@ -1335,7 +1335,8 @@
     "edgeNoTag": "krok „{step}” rozgałęzia się według znacznika „{tag}”, którego jego pytanie nie ma",
     "noExit": "krok pomocy „{step}” nigdy nie wraca na główną drogę",
     "retryMax": "pytanie „{step}” pozwala na {max} kolejnych prób — więcej niż 2 rzadko pomaga",
-    "offTopic": "slajd pomocy „{slide}” do „{step}” nie jest powiązany z tematem pytania"
+    "offTopic": "slajd pomocy „{slide}” do „{step}” nie jest powiązany z tematem pytania",
+    "repeatsMain": "pomoc po złej odpowiedzi na „{step}” pokazuje jeszcze raz „{slide}” — slajd głównej drogi, który uczący się już przeczytał albo zaraz przeczyta; pomoc potrzebuje własnego slajdu"
   },
   "modes": {
     "useUnknown": "krok „{step}”: \"use\": \"{value}\" nie istnieje — \"self\", \"lesson\" albo \"both\" (gra w obu).",

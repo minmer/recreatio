@@ -1281,7 +1281,8 @@
     "edgeNoTag": "der Schritt „{step}“ verzweigt nach dem Fehler-Tag „{tag}“, den seine Frage nicht hat",
     "noExit": "der Hilfsschritt „{step}“ führt nie zurück auf den Hauptweg",
     "retryMax": "die Frage „{step}“ erlaubt {max} weitere Versuche — mehr als 2 helfen selten",
-    "offTopic": "die Hilfsfolie „{slide}“ zu „{step}“ ist nicht mit dem Thema der Frage verbunden"
+    "offTopic": "die Hilfsfolie „{slide}“ zu „{step}“ ist nicht mit dem Thema der Frage verbunden",
+    "repeatsMain": "die Hilfe nach einer falschen Antwort auf „{step}“ zeigt „{slide}“ noch einmal — eine Folie des Hauptweges, die der Lernende schon gelesen hat oder gleich liest; Hilfe braucht eine eigene Folie"
   },
   "modes": {
     "useUnknown": "Schritt „{step}“: \"use\": \"{value}\" gibt es nicht — \"self\", \"lesson\" oder \"both\" (er spielt in beiden).",

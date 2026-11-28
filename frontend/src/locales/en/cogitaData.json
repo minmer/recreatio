@@ -1281,7 +1281,8 @@
     "edgeNoTag": "the step “{step}” branches on the mistake tag “{tag}”, which its question does not have",
     "noExit": "the help step “{step}” never leads back to the main path",
     "retryMax": "the question “{step}” allows {max} retries — more than 2 rarely helps",
-    "offTopic": "the help slide “{slide}” for “{step}” is not linked to the topic of the question"
+    "offTopic": "the help slide “{slide}” for “{step}” is not linked to the topic of the question",
+    "repeatsMain": "the help after a wrong answer to “{step}” shows “{slide}” again — a slide of the main path that the learner has already read or reads next; help needs its own slide"
   },
   "modes": {
     "useUnknown": "step “{step}”: \"use\": \"{value}\" is unknown — use \"self\", \"lesson\" or \"both\" (it plays in both).",

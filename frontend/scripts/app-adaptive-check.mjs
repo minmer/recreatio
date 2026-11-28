@@ -197,6 +197,11 @@ const at = (s) => (s.ended ? 'END' : s.step);
   check('warnings: an edge to a tag the question lacks, a tag without an edge, a help slide off topic', probs.map((p) => `${p.key}:${p.step}:${p.params.tag ?? p.params.slide ?? ''}`).sort(), ['edgeNoTag:q2:lit', 'offTopic:q:H2', 'tagNoEdge:q2:other']);
   const loop = flowOf([['q', 'question', { of: 'Q' }], ['h', 'show', { remedial: true }], ['h2', 'show', { remedial: true }], ['z', 'end']], [['q', 'right', 'z'], ['q', 'wrong', 'h'], ['h', 'next', 'h2'], ['h2', 'next', 'h']]);
   check('warnings: help without a way back; retry max > 2', [AD.adaptiveProblems(loop.graph, loop.graph, { tagsOf: () => null, topicsOf: () => [], linksOf: () => [] }).map((p) => p.key), AD.adaptiveProblems(flowOf([['q', 'question', { retry: { max: 3 } }]], []).graph, flowOf([['q', 'question', { retry: { max: 3 } }]], []).graph, { tagsOf: () => null, topicsOf: () => [], linksOf: () => [] }).map((p) => p.key)], [['noExit', 'noExit'], ['retryMax']]);
+  /* 2026-11-26 (Eigentümer) — Hilfe, die eine Folie des Hauptweges noch einmal zeigt, ist eine Warnung. */
+  const again = flowOf([['s1', 'show', { of: 'S1' }], ['q', 'question', { of: 'Q', onWrong: { show: ['H'], byTag: { blad: ['S1'], inny: ['S2'] }, then: 'continue' } }], ['s2', 'show', { of: 'S2' }], ['z', 'end']],
+    [['s1', 'next', 'q'], ['q', 'right', 's2'], ['q', 'wrong', 's2'], ['s2', 'next', 'z']], {}, { authored: true });
+  check('warnings: help that shows a main slide again (read before, or next anyway) — own help slides are fine',
+    AD.adaptiveProblems(again.graph, flowOf([['s1', 'show', { of: 'S1' }], ['z', 'end']], [['s1', 'next', 'z']]).graph, { tagsOf: () => null, topicsOf: () => [], linksOf: () => [] }).filter((p) => p.key === 'repeatsMain').map((p) => p.params.slide).sort(), ['S1', 'S2']);
   check('summary for the import preview', AD.branchSummaries(authored.graph).map((s) => [s.step, s.tags, s.remediation?.then ?? null]), [['q', [], 'retry'], ['q2', ['lit'], null]]);
 
   /* Die Weltkarte: dieselbe Linie mit und ohne Nachhilfe — dieselben Halte und Abschnitte, nur die Schleife am Turm. */

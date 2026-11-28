@@ -10,6 +10,10 @@
       "message": "{name} belongs to no tower (its “about” names no tower).",
       "fix": "Set “about” to the tower the question tests — every question belongs to a tower."
     },
+    "classInTower": {
+      "message": "{name} is a question for the class (only for teaching, or asked as a prediction), but it sits in the tower {tower}.",
+      "fix": "Remove its “about” and give it \"use\": \"lesson\": a class vote belongs in the teaching paths, never in a tower — the tower holds what every learner must answer alone."
+    },
     "untaught": {
       "message": "{name}: no slide teaches its tower {tower} or a tower it requires.",
       "fix": "Teach it on a slide of the tower (linked to the tower) or of a required tower, link the slide in “explain”, or delete the question.",
@@ -27,10 +31,6 @@
     "noCore": {
       "message": "Tower {name} has no key question.",
       "fix": "Mark the 1–2 questions that test the heart of the tower with \"core\": true."
-    },
-    "fewVote": {
-      "message": "Tower {name}: {count} question(s) ready for a class vote — at least {min} are needed.",
-      "fix": "Add questions of the form “one” with {options} options where every wrong option is a named thinking error (“tags”)."
     },
     "longestCorrect": {
       "message": "Tower {name}: the correct option is the longest in {count} of {total} choice questions ({share} %).",

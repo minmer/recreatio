@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 
-import { describeFile, imageRef, isAudioType, isImageType, isVideoType, loadPageImages, typeOfFile, type PageImageRow } from './pageImages';
+import { describeFile, fitImageFile, imageRef, isAudioType, isImageType, isVideoType, loadPageImages, typeOfFile, type PageImageRow } from './pageImages';
 import { acceptOf, fileProblem, fitsNeed, matchFiles, type ImageNeed, type NeedFit } from './pageImageNeeds';
 import { imageUrl } from './slides/slideLook';
 import { Icon, type IconName } from '../ui/icons';
@@ -91,6 +91,17 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
 
   /** Eine Datei für eine Bitte — oder in Worten, warum sie nicht passt. */
   const take = (need: ImageNeed, file: File): boolean => {
+    /* 2026-11-28 — ein Bild, das so nicht passt (zu gross, BMP/SVG/HEIC …), erst passend machen. */
+    const wanted = need.kind === 'image' || need.kind === 'any' || need.kind === 'file';
+    const raw = typeOfFile(file);
+    if (wanted && fileProblem(need.kind, raw, file.size) !== null && (raw === null || isImageType(raw) || file.type.startsWith('image/'))) {
+      void fitImageFile(file).then((fitted) => { if (fitted === null || fitted === file || !place(need, fitted)) place(need, file); });
+      return true;
+    }
+    return place(need, file);
+  };
+
+  const place = (need: ImageNeed, file: File): boolean => {
     const type = typeOfFile(file);
     const wrong = fileProblem(need.kind, type, file.size);
     setProblems((was) => {

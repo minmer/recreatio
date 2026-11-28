@@ -75,7 +75,11 @@
 */
 .cg-pm-frame { display: grid; gap: var(--wk-space-2); min-width: 0; }
 .cg-pm-scroll {
-  position: relative; overflow: auto; max-height: var(--cg-pm-max-h, 70vh); overscroll-behavior: contain;
+  /*
+    2026-11-26 (Eigentümer: „das senkrechte Rollen geht nicht") — nur seitwärts eingesperrt: `contain` auch nach unten liess das Rad
+    über einer Karte, die nur seitwärts rollt (im Plan der Erzählung ohne eigene Höhe), nicht an die Seite weiter — nichts rollte.
+  */
+  position: relative; overflow: auto; max-height: var(--cg-pm-max-h, 70vh); overscroll-behavior-x: contain; overscroll-behavior-y: auto;
   border-radius: var(--wk-radius); background: var(--wk-sunk); touch-action: pan-x pan-y;
 }
 .cg-pm.is-small .cg-pm-scroll { max-height: var(--cg-pm-max-h, min(60vh, 35rem)); }

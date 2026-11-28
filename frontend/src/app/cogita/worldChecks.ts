@@ -11,7 +11,7 @@
  * Folien, Generatoren, Zeichnungen, Krajobraz, andere Welten) und die Meldungen der Karte für Autoren kommen unverändert mit.
  * Neu gerechnet wird nur, was der Leitfaden verlangt und es noch nicht gab: Fragen ohne Bewertung durch die App, Fragen ohne
  * Folie in ihrer Kette, Pfade über mehrere Türme, zu viele Folien oder Fragen hintereinander, lange Folien, die richtige Antwort
- * als längste und an derselben Stelle, Rückmeldungen je Möglichkeit, Schlüsselfragen, Fragen für die Abstimmung, Fehler-Tags
+ * als längste und an derselben Stelle, Rückmeldungen je Möglichkeit, Schlüsselfragen, Fragen der Klasse in einem Turm, Fehler-Tags
  * ohne Nachhilfe, lange Namen und Hinweise an Gabelungen, Fahrkarten über den ersten Turm hinaus, die Stufen, offene Uwagi, Tags
  * (einmal benutzt, fast gleich).
  *
@@ -28,6 +28,7 @@ import { interactiveImportWarnings } from './interactiveCheck';
 import { flowIssues, HINT_MAX, nameIn, OPTION_LABEL_MAX, pathWarnings, type ImportPlan } from './json';
 import { isBaseKind, type DocKind } from './kinds';
 import { landscapeImportWarnings } from './landscapeImport';
+import { isPredict, readUse, stepEntryOf } from './modes';
 import { choicesOf } from './questionTypes';
 import { fieldsOf } from './schema';
 import { slideImportWarnings } from './slideLint';
@@ -89,9 +90,6 @@ export const SLIDE_WORDS = 130;
 export const SLIDES_IN_ROW = 3;
 export const QUESTIONS_IN_ROW = 2;
 export const CLOSING_MAX = 4;
-/** Eine Frage für die Abstimmung: eine Entscheidung, vier Möglichkeiten, jede falsche ein benannter Fehler (1.3). */
-export const VOTE_OPTIONS = 4;
-export const VOTE_READY_MIN = 2;
 /** Die richtige Möglichkeit ist die längste in höchstens 3 von 10 Wahlfragen (1.4); erst ab so vielen Fragen beurteilt. */
 export const LONGEST_SHARE = 0.3;
 export const JUDGE_FROM = 4;
@@ -231,17 +229,28 @@ export function worldChecks(lib: CogitaLibrary, input: WorldCheckInput): WorldCh
   for (const s of slides) { const p = towerOfSlide(s.id); if (p !== null) taught.add(p); }
   const towersOfQuestion = (id: string): string[] => [...new Set((world.questionCards.get(id) ?? []).flatMap((k) => world.cardPlaces.get(k) ?? []))];
 
+  /*
+    2026-11-26 (Eigentümer: „Fragen, mit denen man einen Überblick über die Klasse bekommt, gehören nicht in die Türme") — eine
+    Frage der Klasse: nur für den Unterricht (`"use": "lesson"`) oder als Vorhersage gefragt (`"predict": true`). Sie steht in
+    Pfaden des Unterrichts, nie in einem Turm (die Karte nimmt eine Frage „lesson" ohnehin nicht in den Turm, `wmInput.ts`).
+  */
+  const predicted = new Set<string>();
+  for (const f of winput.flows) for (const n of f.graph.nodes) if (isPredict(n)) { const e = stepEntryOf(n); if (e !== null) predicted.add(e); }
+
   /* -- Fragen ----------------------------------------------------------------------------------------------------------------- */
   for (const q of questions) {
     const d = q.data;
     const form = str(d.form) || 'text';
-    const towers = towersOfQuestion(q.id);
+    const forClass = readUse(d.use) === 'lesson' || predicted.has(q.id);
+    const towers = forClass ? [...new Set(strings(d.about).filter((x) => isPlace(x)))] : towersOfQuestion(q.id);
     const tower = towers[0] === undefined ? undefined : ref(towers[0]);
     const at = { entity: ref(q.id), ...(tower === undefined ? {} : { tower }) };
     if (form === 'flash') {
       add({ code: 'question.flash', weight: 'must', message: t('worldChecks.question.flash.message', { name: quoted(labelOf(q.id)) }), fix: t('worldChecks.question.flash.fix'), ...at });
     }
-    if (towers.length === 0) {
+    if (forClass) {
+      if (towers.length > 0) add({ code: 'question.classInTower', weight: 'should', message: t('worldChecks.question.classInTower.message', { name: quoted(labelOf(q.id)), tower: quoted(labelOf(towers[0]!)) }), fix: t('worldChecks.question.classInTower.fix'), ...at });
+    } else if (towers.length === 0) {
       add({ code: 'question.noTower', weight: 'should', message: t('worldChecks.question.noTower.message', { name: quoted(labelOf(q.id)) }), fix: t('worldChecks.question.noTower.fix'), ...at });
     } else if (strings(d.explain).length === 0 && !towers.some((p) => taught.has(p) || [...world.base(p)].some((b) => taught.has(b)))) {
       const message = t('worldChecks.question.untaught.message', { name: quoted(labelOf(q.id)), tower: quoted(labelOf(towers[0]!)) });
@@ -256,7 +265,7 @@ export function worldChecks(lib: CogitaLibrary, input: WorldCheckInput): WorldCh
     }
   }
 
-  /* -- Türme: Schlüsselfragen, Abstimmung, die längste und die Stelle der richtigen Möglichkeit ---------------------------------- */
+  /* -- Türme: Schlüsselfragen, die längste und die Stelle der richtigen Möglichkeit (Fragen für eine Abstimmung gehören nicht hierher) -- */
   const questionOfCard = (key: string): string | undefined => world.cards.get(key)?.question;
   for (const place of world.places.values()) {
     const qs = [...new Set(place.cards.map(questionOfCard).filter((x): x is string => x !== undefined && byId.has(x) && isQuestion(x)))];
@@ -265,7 +274,6 @@ export function worldChecks(lib: CogitaLibrary, input: WorldCheckInput): WorldCh
     const at = { entity: tower, tower };
     const core = place.cards.some((k) => world.cards.get(k)?.core === true);
     if (!core) add({ code: 'tower.noCore', weight: 'should', message: t('worldChecks.tower.noCore.message', { name: quoted(tower.label) }), fix: t('worldChecks.tower.noCore.fix'), ...at });
-    let vote = 0;
     const ones: { correct: number; longest: number; options: number }[] = [];
     for (const id of qs) {
       const d = byId.get(id)!.data;
@@ -277,9 +285,7 @@ export function worldChecks(lib: CogitaLibrary, input: WorldCheckInput): WorldCh
       const max = Math.max(...lengths);
       const longest = lengths.filter((n) => n === max).length === 1 ? lengths.indexOf(max) : -1;
       ones.push({ correct: right, longest, options: c.options.length });
-      if (c.options.length >= VOTE_OPTIONS && c.options.every((_, i) => i === right || (c.tags[i] ?? '') !== '')) vote += 1;
     }
-    if (vote < VOTE_READY_MIN) add({ code: 'tower.fewVote', weight: 'should', message: t('worldChecks.tower.fewVote.message', { name: quoted(tower.label), count: vote, min: VOTE_READY_MIN }), fix: t('worldChecks.tower.fewVote.fix', { options: VOTE_OPTIONS }), ...at });
     if (ones.length >= JUDGE_FROM) {
       const longest = ones.filter((o) => o.longest === o.correct).length;
       if (longest / ones.length > LONGEST_SHARE) {

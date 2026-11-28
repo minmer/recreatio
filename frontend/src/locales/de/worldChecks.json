@@ -10,6 +10,10 @@
       "message": "{name} gehört zu keinem Turm (sein „about“ nennt keinen Turm).",
       "fix": "Setze „about“ auf den Turm, den die Frage prüft — jede Frage gehört zu einem Turm."
     },
+    "classInTower": {
+      "message": "{name} ist eine Frage für die Klasse (nur für den Unterricht oder als Vorhersage gefragt), steht aber im Turm {tower}.",
+      "fix": "Entferne ihr „about“ und gib ihr \"use\": \"lesson\": eine Abstimmung der Klasse gehört in die Pfade des Unterrichts, nie in einen Turm — der Turm hält, was jeder Lernende allein beantworten muss."
+    },
     "untaught": {
       "message": "{name}: keine Folie lehrt seinen Turm {tower} oder einen Turm, den er verlangt.",
       "fix": "Erkläre es auf einer Folie des Turms (mit dem Turm verknüpft) oder eines verlangten Turms, verknüpfe die Folie in „explain“, oder lösche die Frage.",
@@ -27,10 +31,6 @@
     "noCore": {
       "message": "Turm {name} hat keine Schlüsselfrage.",
       "fix": "Markiere die 1–2 Fragen, die den Kern des Turms prüfen, mit \"core\": true."
-    },
-    "fewVote": {
-      "message": "Turm {name}: Fragen für eine Abstimmung der Klasse: {count} — mindestens {min} sind nötig.",
-      "fix": "Füge Fragen der Art „one“ mit {options} Möglichkeiten hinzu, bei denen jede falsche Möglichkeit ein benannter Denkfehler ist („tags“)."
     },
     "longestCorrect": {
       "message": "Turm {name}: die richtige Möglichkeit ist die längste in {count} von {total} Auswahlfragen ({share} %).",

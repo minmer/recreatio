@@ -63,13 +63,14 @@ const text = async (path) => (await readFile(path, 'utf8')).replace(/\r\n/g, '\n
   const good = all.formats.find((f) => f.id === 'guide-good-world');
   const file = await text('../templates/cogita/dobry-swiat-AI.md');
   check('I1: guide-good-world is the first guide for AI', guides[0]?.id, 'guide-good-world');
-  const sections = ['1.0 How to use this guide', '1.1 What a good world does', '1.2 Building blocks', '1.3 Towers', '1.4 Questions', '1.5 Slides and text', '1.6 Paths and branching', '1.7 Self-study and lessons: one content, two orders', '1.8 Map, tags and world size', '1.9 Process', '1.10 Improving a world', '1.11 Working with subagents', '1.12 Integrity and communication', '1.13 Checklist', '1.14 What the current worlds show (22 November 2026)'];
+  const sections = ['1.0 How to use this guide', '1.1 What a good world does', '1.2 Building blocks', '1.3 Towers', '1.4 Questions', '1.5 Slides and text', '1.6 Paths and branching', '1.7 Self-study and teaching: shared towers, two kinds of paths', '1.8 Map, tags and world size', '1.9 Process', '1.10 Improving a world', '1.11 Working with subagents', '1.12 Integrity and communication', '1.13 Checklist', '1.14 What the current worlds show (22 November 2026)'];
   check('I1: the guide carries every section of Part 1 in order, served whole (parts joined = the file)', [sections.every((s) => file.includes(`## ${s}\n`)), sections.map((s) => file.indexOf(`## ${s}\n`)).every((at, i, list) => i === 0 || at > list[i - 1]), good.parts.join('\n\n').replace(/\s+/g, ' ').trim() === file.trimEnd().replace(/\s+/g, ' ').trim()], [true, true, true]);
   truth('I1: verbatim key sentences of Part 1 (towers, levels, explanation forms, prediction, import check)', [
     'About 4–8 minutes of learning. The number of questions depends on how long one question takes',
     'Level 2: at least 90 %, where each question may be wrong once and then right the next time (`"attempts": "one"`).',
     'Offer the choice of explanation **where a difficulty appears**, after a wrong answer: `wrong:<tag>` → a `choice` with `of` and `hint`, whose branches are help steps (`remedial: true`) that rejoin.',
-    'Mark the step `"predict": true` (I3).',
+    'In the path the step is marked `"predict": true` (I3)',
+    'They are separate question entries with `"use": "lesson"` and **without `about`**',
     'Send the finished file through the MCP import check (I12).'
   ].every((s) => file.includes(s)));
   const first = (id) => all.formats.find((f) => f.id === id)?.parts[0] ?? '';

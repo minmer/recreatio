@@ -10,6 +10,10 @@
       "message": "{name} nie należy do żadnej wieży (jego „about” nie wskazuje wieży).",
       "fix": "Ustaw „about” na wieżę, którą pytanie sprawdza — każde pytanie należy do wieży."
     },
+    "classInTower": {
+      "message": "{name} to pytanie dla klasy (tylko do lekcji albo zadane jako przewidywanie), ale stoi w wieży {tower}.",
+      "fix": "Usuń jego „about” i nadaj mu \"use\": \"lesson\": głosowanie klasy należy do ścieżek lekcji, nigdy do wieży — wieża trzyma to, na co każdy uczący się odpowiada sam."
+    },
     "untaught": {
       "message": "{name}: żaden slajd nie uczy jego wieży {tower} ani wieży, której ona wymaga.",
       "fix": "Wyjaśnij to na slajdzie wieży (powiązanym z wieżą) albo wieży wymaganej, podepnij slajd w „explain” albo usuń pytanie.",
@@ -29,10 +33,6 @@
     "noCore": {
       "message": "Wieża {name} nie ma pytania kluczowego.",
       "fix": "Oznacz 1–2 pytania, które sprawdzają sedno wieży, przez \"core\": true."
-    },
-    "fewVote": {
-      "message": "Wieża {name}: pytań gotowych do głosowania klasy: {count} — potrzeba co najmniej {min}.",
-      "fix": "Dodaj pytania rodzaju „one” z {options} odpowiedziami, w których każda zła odpowiedź jest nazwanym błędem myślenia („tags”)."
     },
     "longestCorrect": {
       "message": "Wieża {name}: poprawna odpowiedź jest najdłuższa w {count} z {total} pytań wyboru ({share} %).",

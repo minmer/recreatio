@@ -24,6 +24,7 @@ export { memoryBase } from '${app}cogita/memoryBase';
 export { worldChecks, wordCount, nearSame } from '${app}cogita/worldChecks';
 export { exportSetup, nameIn } from '${app}cogita/json';
 export { feedbackForAi } from '${app}cogita/feedback';
+export { worldInputOf } from '${app}cogita/worldmap/wmInput';
 `);
 await build({
   entryPoints: [join(workspace, 'entry.ts')], bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', jsx: 'automatic',
@@ -71,7 +72,10 @@ const world = {
     q('@w2/qt3', '@w2/t3', { prompt: 'Siła?', options: ['Tak', 'Nie'], correct: [0], feedback: ['a', 'b'] }),
     q('@w2/q4', '@w2/t4', { prompt: 'Kąt?', options: ['Tak', 'Nie'], correct: [0], feedback: ['a', 'b'] }),
     q('@w2/q5', '@w2/t5', { prompt: 'Łuk?', options: ['Tak', 'Nie'], correct: [0], feedback: ['a', 'b'] }),
-    q('@w2/qnic', null, { prompt: 'O niczym?', options: ['Tak', 'Nie'], correct: [0], feedback: ['a', 'b'] })
+    q('@w2/qnic', null, { prompt: 'O niczym?', options: ['Tak', 'Nie'], correct: [0], feedback: ['a', 'b'] }),
+    /* 2026-11-26 — Fragen der Klasse: eine im Turm (ein Befund), eine ohne Turm (in Ordnung, kein „noTower"). */
+    q('@w2/klasa', '@w2/t2', { prompt: 'Jak myślicie?', options: ['A', 'B', 'C', 'D'], correct: [0], tags: ['', 'b', 'c', 'd'], feedback: ['x', 'y', 'z', 'w'], use: 'lesson' }),
+    q('@w2/klasa2', null, { prompt: 'Jak myślicie 2?', options: ['A', 'B', 'C', 'D'], correct: [0], tags: ['', 'b', 'c', 'd'], feedback: ['x', 'y', 'z', 'w'], use: 'lesson' })
   ],
   flows: [
     {
@@ -115,7 +119,7 @@ try {
   const name = (ref) => lib.label(lib.entity(lib.byImportRef(ref, 'entity').id));
 
   /* -- 1. Jede Prüfung ------------------------------------------------------------------------------------------------- */
-  const expected = ['question.flash', 'question.noTower', 'question.untaught', 'question.noFeedback', 'tower.noCore', 'tower.fewVote', 'tower.longestCorrect',
+  const expected = ['question.flash', 'question.noTower', 'question.untaught', 'question.noFeedback', 'question.classInTower', 'tower.noCore', 'tower.longestCorrect',
     'tower.positions', 'slide.long', 'path.severalTowers', 'path.slidesInRow', 'path.questionsInRow', 'path.longClosing', 'line.ticket', 'fork.labelLong',
     'fork.hintLong', 'mistakeTag.noHelp', 'mistakeTag.nearDuplicate', 'mistakeTag.usedOnce', 'tag.usedOnce', 'tag.nearDuplicate', 'levels.standard',
     'feedback.open', 'flow.preview', 'preview.slides', 'map.cycle'];
@@ -139,10 +143,15 @@ try {
 
   const towersOf = (code) => of(code).map((f) => f.tower?.label);
   assert.ok(towersOf('tower.noCore').includes('Ruch') && !towersOf('tower.noCore').includes('Prędkość'), 'a tower with a core question is fine');
-  assert.ok(towersOf('tower.fewVote').includes('Ruch') && !towersOf('tower.fewVote').includes('Prędkość'), 'two vote-ready questions (one, 4 options, every wrong option tagged) are enough');
+  assert.deepEqual(of('question.classInTower').map((f) => [f.entity.name, f.tower?.label]), [['@w2/klasa', 'Prędkość']], 'a class question (use lesson) in a tower is a finding; one without a tower is fine');
+  assert.ok(!codes.has('tower.fewVote'), 'towers need no vote questions any more (2026-11-26)');
+  const t2 = lib.byImportRef('w2/t2', 'entity').id;
+  const klasa = lib.byImportRef('w2/klasa', 'entity').id;
+  const mapIn = m.worldInputOf(lib, cards, {});
+  assert.ok(!mapIn.cards.some((c) => c.question === klasa) && mapIn.cards.some((c) => c.about.includes(t2)), 'the map takes no lesson-only question into a tower');
   assert.deepEqual(towersOf('tower.longestCorrect'), ['Ruch']);
   assert.deepEqual(towersOf('tower.positions'), ['Ruch']);
-  ok('towers: key question, two vote-ready questions, the correct option longest too often and always at the same position');
+  ok('towers: key question, the correct option longest too often and always at the same position; class questions stay out of towers');
 
   assert.deepEqual(of('slide.long').map((f) => f.entity.name), ['@w2/sdlugi']);
   const path = of('path.severalTowers')[0];

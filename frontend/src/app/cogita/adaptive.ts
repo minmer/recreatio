@@ -320,7 +320,7 @@ export interface AdaptiveCheckContext {
 }
 
 export interface AdaptiveProblem {
-  readonly key: 'tagNoEdge' | 'edgeNoTag' | 'noExit' | 'retryMax' | 'offTopic';
+  readonly key: 'tagNoEdge' | 'edgeNoTag' | 'noExit' | 'retryMax' | 'offTopic' | 'repeatsMain';
   readonly step: string;
   readonly params: Readonly<Record<string, string | number>>;
 }
@@ -333,6 +333,11 @@ export interface AdaptiveProblem {
 export function adaptiveProblems(authored: Graph, expanded: Graph, ctx: AdaptiveCheckContext): AdaptiveProblem[] {
   const out: AdaptiveProblem[] = [];
   const nodes = new Map(expanded.nodes.map((n) => [n.id, n] as const));
+  /*
+    2026-11-26 (Eigentümer: „dieselbe Folie nach einer falschen Antwort noch einmal — das nervt") — Hilfe, die eine Folie des
+    Hauptweges zeigt, wiederholt, was der Lernende schon gelesen hat (oder gleich danach liest). Hilfe braucht eigene Folien.
+  */
+  const mainSlides = new Set(authored.nodes.filter((n) => n.type === 'show' && n.config.remedial !== true).map((n) => str(n.config.of)).filter((x) => x !== ''));
   for (const q of authored.nodes) {
     if (q.type !== 'question') continue;
     const a = adaptiveOf(q.config);
@@ -346,6 +351,9 @@ export function adaptiveProblems(authored: Graph, expanded: Graph, ctx: Adaptive
     }
     const max = Math.max(a.retry?.max ?? 0, a.onWrong?.then === 'retry' ? (a.onWrong.max ?? a.retry?.max ?? 1) : 0);
     if (max > 2) out.push({ key: 'retryMax', step: q.id, params: { max } });
+    for (const s of new Set([...(a.retry?.after ?? []), ...(a.onWrong?.show ?? []), ...Object.values(a.onWrong?.byTag ?? {}).flat()])) {
+      if (mainSlides.has(s)) out.push({ key: 'repeatsMain', step: q.id, params: { slide: s } });
+    }
     const topics = of === '' ? [] : ctx.topicsOf(of);
     if (topics.length > 0) {
       const slides = [...(a.retry?.after ?? []), ...(a.onWrong?.show ?? []), ...Object.values(a.onWrong?.byTag ?? {}).flat()];

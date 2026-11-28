@@ -54,8 +54,12 @@ export const MAX_MEDIA_BYTES = 30 * 1024 * 1024;
 /** Wie Browser dieselben Arten auch nennen. */
 const MEDIA_ALIASES: Readonly<Record<string, string>> = {
   'audio/mp3': 'audio/mpeg', 'audio/x-mp3': 'audio/mpeg', 'audio/x-wav': 'audio/wav', 'audio/wave': 'audio/wav', 'audio/vnd.wave': 'audio/wav',
-  'audio/x-m4a': 'audio/mp4', 'audio/aac': 'audio/mp4', 'video/x-m4v': 'video/mp4', 'audio/opus': 'audio/ogg'
+  'audio/x-m4a': 'audio/mp4', 'audio/aac': 'audio/mp4', 'video/x-m4v': 'video/mp4', 'audio/opus': 'audio/ogg',
+  'image/jpg': 'image/jpeg', 'image/pjpeg': 'image/jpeg', 'image/x-png': 'image/png'
 };
+
+/** 2026-11-28 — Bilder, die ohne Art ankommen (oder mit einer seltenen), erkennt die Endung. */
+const IMAGE_EXT: Readonly<Record<string, string>> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', jfif: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif' };
 
 export const isMediaType = (type: string): boolean => Object.values(MEDIA_TYPES).includes(type);
 export const isVideoType = (type: string): boolean => isMediaType(type) && type.startsWith('video/');
@@ -79,7 +83,56 @@ export function typeOfFile(file: File): string | null {
   const said = MEDIA_ALIASES[raw] ?? raw;
   if (isImageType(said) || Object.values(FILE_TYPES).includes(said) || isMediaType(said)) return said;
   const ext = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase() ?? '';
-  return FILE_TYPES[ext] ?? MEDIA_TYPES[ext] ?? null;
+  return IMAGE_EXT[ext] ?? FILE_TYPES[ext] ?? MEDIA_TYPES[ext] ?? null;
+}
+
+/** Bilder, die der Dienst so nicht nimmt, die der Browser aber lesen kann (HEIC kann meist nur Safari). */
+const CONVERTIBLE = /.(heic|heif|bmp|svg|tiff?|ico)$/i;
+const MAX_SIDE = 4000;
+
+/**
+ * 2026-11-28 — EIN BILD, DAS SO NICHT PASST, PASSEND MACHEN: zu gross
+ * (über 8 MB) oder in einer Art, die der Dienst nicht nimmt (BMP, SVG, HEIC …).
+ * Der Browser zeichnet es neu als WebP (sonst JPEG), höchstens 4000 Punkte
+ * breit, und verkleinert, bis es unter die Grenze passt. `null`: der Browser
+ * kann das Bild nicht lesen — dann bleibt der Hinweis, warum es nicht passt.
+ */
+export async function fitImageFile(file: File): Promise<File | null> {
+  const type = typeOfFile(file);
+  if (type !== null && isImageType(type) && file.size <= MAX_IMAGE_BYTES) return file;
+  const image = (type !== null && isImageType(type)) || file.type.toLowerCase().startsWith('image/') || CONVERTIBLE.test(file.name);
+  if (!image || typeof document === 'undefined') return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    let w = img.naturalWidth || 1600;
+    let h = img.naturalHeight || 1200;
+    const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+    for (let round = 0; round < 6; round += 1) {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+      let blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/webp', 0.86));
+      if (blob === null || blob.type !== 'image/webp') blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', 0.86));
+      if (blob === null) return null;
+      if (blob.size <= MAX_IMAGE_BYTES) {
+        const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+        return new File([blob], file.name.replace(/.[a-z0-9]{1,5}$/i, '') + '.' + ext, { type: blob.type });
+      }
+      w = Math.max(1, Math.round(w * 0.75));
+      h = Math.max(1, Math.round(h * 0.75));
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /** „PDF, 240 kB" — wie die Liste der Pliki es neben den Namen schreibt. */
@@ -123,9 +176,11 @@ export async function uploadPageFile(path: string, file: File | Blob, name: stri
   return { id: said.id, contentType: said.contentType ?? type, size: said.size ?? file.size, name, createdAt: new Date().toISOString() };
 }
 
-export async function uploadPageImage(path: string, file: File): Promise<PageImageRow> {
-  if (!isImageType(file.type)) throw new WorkspaceError(t('pages.files.onlyImages'));
-  return uploadPageFile(path, file, file.name, file.type);
+export async function uploadPageImage(path: string, given: File): Promise<PageImageRow> {
+  const file = (await fitImageFile(given)) ?? given; // 2026-11-28
+  const type = typeOfFile(file);
+  if (type === null || !isImageType(type)) throw new WorkspaceError(t('pages.files.onlyImages'));
+  return uploadPageFile(path, file, file.name, type);
 }
 
 export const deletePageImage = (id: string): Promise<{ deleted: boolean }> =>

@@ -1,6 +1,6 @@
 # The guide: what a good world is
 
-*Guide `guide-good-world` for every AI agent that builds or improves a knowledge world in Recreatio/Cogita. State: 22 November 2026. Read it before building or improving a world; the format guides give the exact syntax. The numbers I2 … I12 in the text name app features — the key is at the end.*
+*Guide `guide-good-world` for every AI agent that builds or improves a knowledge world in Recreatio/Cogita. State: 26 November 2026 (self-study and teaching are two kinds of paths over the same towers, 1.7; class questions stay out of the towers; help after an error is its own slide). Read it before building or improving a world; the format guides give the exact syntax. The numbers I2 … I12 in the text name app features — the key is at the end.*
 
 ## 1.0 How to use this guide
 
@@ -14,7 +14,7 @@ A good world brings a learner **as fast as possible, but safely,** to knowledge 
 
 Above everything else, **a world is many-dimensional, not a text** (1.2a): the same towers can be met in the order of the source at several levels of detail, along a main character, or along a topic that jumps across the source.
 
-Seven principles follow from this:
+Eight principles follow from this:
 
 1. **Every tower is one step forward, of roughly equal size.** It is neither a trivial definition nor several new ideas at once.
 2. **One path leads to one tower, always.** A path may also end at an outer fork that leads to several towers. A path never runs through several towers.
@@ -22,7 +22,8 @@ Seven principles follow from this:
 4. **Errors steer the way.** Every wrong option is a named thinking error, and behind each error lies the explanation that resolves it.
 5. **Nothing is copied.** Each fact, question and explanation exists once and is linked wherever it is needed.
 6. **The computer grades every question.** There is no self-assessment.
-7. **The map stays readable.** Every slide and question belongs to a tower, prerequisites are direct, and names are short.
+7. **The map stays readable.** Every slide and question belongs to a tower (except the class questions of a lesson, 1.7), prerequisites are direct, and names are short.
+8. **The towers are shared; the paths are not.** A learner alone and a class with its teacher conquer the same towers, but they walk different paths: self-study paths and teaching paths (1.7).
 
 ## 1.2 Building blocks
 
@@ -31,10 +32,12 @@ Seven principles follow from this:
 | World | one knowledge base with its own schema and `handle` | the whole map | one field that keeps growing |
 | Area (Dziedzina) | kind with `"structure": "up"` hierarchy | colour, not a border | orientation, placement by area |
 | Tag | hierarchical label on towers (see 1.8) | filter, slice of the map | competition, stage, thread |
-| Use flag | on slides, questions and steps: self-study, lesson or both (see 1.7) | nothing | which steps a mode plays |
+| Path for | `"use"` at the top of a path (flow): `"self"`, `"lesson"` or none = both (see 1.7) | the line exists only in its mode | self-study paths and teaching paths |
+| Use flag | on single slides, questions and steps: self-study, lesson or both (see 1.7) | nothing | which steps of a shared path a mode plays |
 | Tower (Temat nauki) | one entry | pillar | one step; conquered in one run |
 | Block (rare) | field with `"part": "up"` | disc with towers on it | a large topic made of parts |
 | Question | kind `question`, `about` = tower | dot on the line | tests the tower; the card belongs to the question |
+| Class question | kind `question`, `"use": "lesson"`, **no** `about` | dot on a teaching line | a vote or prediction in a lesson; never in a tower, never counted |
 | Slide | slide kind; "wyjaśnia" = tower (empty for a road slide) | dot on the line | explains |
 | Unit (Jednostka) | one per path, "Wymaga" = ticket | start and ticket of the line | what must be known before the path |
 | Path (flow) | `flow` with `unit` | line | the way to one tower |
@@ -73,7 +76,7 @@ Build at least these dimensions over one set of towers:
 - **Size.** About 4–8 minutes of learning. The number of questions depends on how long one question takes: some towers have 6 questions, others clearly more. The usual range is 10–15. There is no fixed norm. Split a tower that is too large, and merge one that is too small with its neighbour.
 - **Questions.**
   - 1–2 key questions (`"core": true`).
-  - At least two questions that work for a class vote: one decision, four options, and every wrong option a named error (`tags`).
+  - **No class questions.** A tower holds only what every learner must answer alone, in self-study, in reviews and in the levels. Questions whose purpose is to see what the class thinks (votes, predictions, opinions) live in the teaching paths (1.7), not in the tower.
   - Vary the question forms.
   - Variants of the same question share an answer through `fact` or `share`. The path asks one variant; the others wait in the tower.
 - **Conquest levels.** The recommended setting for every world (the "best world" standard) is:
@@ -151,7 +154,9 @@ A way can run between tower and fork, fork and tower, two towers, or two forks. 
 
 **The adaptive core of every path** (the reference is Romantyczność, the pattern is `example-adaptive`):
 1. A short text, then a **probe question**. If it is answered correctly, `onRight.skip` drops the basic slides. A learner who answers 1–3 questions surely is at the tower after about three slides.
-2. On a wrong answer: the help slide for that tag (`onWrong.byTag`), otherwise the general help slide, then an easier check question (`onWrong.check`), then `then: "retry"` (`max: 1`).
+2. On a wrong answer: the help slide for that tag (`onWrong.byTag`), otherwise the general help slide, then an easier check question (`onWrong.check`), then `then: "continue"`.
+   - **Help is its own slide.** A help slide is written for the error (`h1`, `h2` …) and is not on the main way. Never point `onWrong`, `byTag` or `retry.after` at a slide of the main path: the learner has just read it or reads it next, so it comes twice. The import warns (`repeatsMain`).
+   - **Do not ask the same question again.** `then: "retry"` shows the question that was just answered once more; learners find this repetition annoying. The easier check question already tests the help, and the tower brings the question back in its reviews. Use `retry` only where the owner asks for it.
 3. For `many`, `match` and `order`: `partialAt: 0.5` with a `partial` edge to a help step (`remedial: true`).
 4. At the end, `{"type": "session", "since": "<first step>", "wrong": {"op": "ge", "than": 3}}` leads to a recap slide (`remedial: true`).
 5. Closing block: 2–4 questions that connect the steps, then a summary. After the summary there is nothing; the tower handles reviews. A `review` step is optional.
@@ -179,55 +184,68 @@ A way can run between tower and fork, fork and tower, two towers, or two forks. 
 
 **Experiments.** Where a simple experiment is possible, it is its own story, and it still ends at one tower. There is no compulsory "try it yourself" question in every tower.
 
-## 1.7 Self-study and lessons: one content, two orders
+## 1.7 Self-study and teaching: shared towers, two kinds of paths
 
-The same slides and questions serve both orders. Only who presses "next", whose answer counts, and the order of question and explanation differ.
+A world serves two situations that are **completely different**: a learner alone, and a teacher with a class. They share the towers (what is learned and conquered) and the content entries (slides, tower questions). They do not share the paths.
 
-**Self-study: explain first, then ask.**
+| | Self-study | Teaching |
+|---|---|---|
+| Who | one learner on their own | the teacher leads, the class follows live on their devices or the projector |
+| Mode in the app | "Uczę się" (every learner) | "Prowadzę" in the ☰ menu of the world map (only whoever has the teacher or administrator role in the class area); the class follows the teacher live |
+| Paths | the self-study paths: no `"use"` or `"use": "self"` | the teaching paths: `"use": "lesson"` (plus the paths without `"use"`) |
+| Order | explain first, then ask | ask first (a vote), then explain the errors the class showed |
+| Answers count | yes, for the learner's progress | the class questions never count; tower questions answered in the lesson count for each student |
+| Towers | the same towers, at the same places | the same towers, at the same places |
+
+On the world map the towers stay; only the lines change with the mode. A student alone never sees a teaching path, neither on the map nor in the list of paths.
+
+**Self-study path** (the default of every tower):
 ```
 short text (contains the answer) → question (checks that it arrived)
-  right → on (skip basics)       wrong → help for this error → easier check → retry
+  right → on (skip basics)       wrong → own help slide for this error → easier check → on
 ```
+Every tower needs a self-study path; without one, a learner alone never reaches it.
 
-**Lesson: ask first, then explain.**
+**Teaching path** (`"use": "lesson"` at the top of the flow, through the same towers):
 ```
-short situation (without the answer) → prediction question (nobody knows yet; everyone votes)
-  distribution shows which errors sit in the class
+short situation (without the answer) → class question: everyone votes (`"predict": true`)
+  the distribution shows which errors sit in the class
 → explanation depending on the answer:  right → short confirmation why
                                         wrong:<tag> → explanation of exactly this error
-→ understanding question (now with knowledge; counts)
+→ tower questions (now with knowledge; they count) → exit ticket: three individual tower questions
 ```
+Group work, an experiment in the classroom or a discussion are teaching paths too.
 
-**Prediction questions** point forward ("What happens when …?", "Which ball lands first?"). Their wrong options are the class's typical preconceptions, each with a tag.
-- Mark the step `"predict": true` (I3).
-- A prediction is shown and evaluated for the vote and for branching, but it **does not count** toward the learner's knowledge, because it is a guess made before the knowledge exists. The app tells the learner so.
-- Never use a prediction question as an understanding question.
+**Class questions** are the questions that show the teacher what the class thinks: votes, predictions ("What happens when …?", "Which ball lands first?"), opinions.
+- They are separate question entries with `"use": "lesson"` and **without `about`**: they belong to no tower, so they never appear in a tower's run, its levels, reviews or the learner's knowledge. `get_world_checks` reports a class question inside a tower (`question.classInTower`).
+- In the path the step is marked `"predict": true` (I3): shown and evaluated for the vote and for branching, never counted. The app tells the students so.
+- One decision, four options, and every wrong option a typical preconception of the class with a tag, each with its explanation step.
+- Never use a tower question as a class question, and never a class question as an understanding question.
 
-| Role | When | Counts |
+| Role | Where | Counts |
 |---|---|---|
-| Prediction | before the explanation, in a lesson | no |
-| Probe | at the start | yes |
+| Class question (vote, prediction) | teaching path, before the explanation | no — and it is in no tower |
+| Probe | start of a path | yes |
 | Understanding question | right after the slide | yes |
 | Check after help | after an error, easier | yes |
-| Closing questions | end of the path | yes |
+| Closing questions, exit ticket | end of the path | yes |
 | Key question | placement, gaps | yes |
 
-**One path, two modes, choices made by the app when they are clear.**
-- A lesson uses the same path and, as far as possible, the same slides.
-- The mode (self-study or teacher mode) is not a tag. It is chosen in the general menu (teacher mode only for whoever has the teacher or administrator role in the class area). Content says which mode it serves with a **use flag** on slides, questions and steps: self-study only, lesson only, or both (the default). See I4.
-- Where the two orders differ, the path branches. A branch that starts with a lesson-only step is valid only in teacher mode, and a branch that starts with a self-study-only step is valid only in self-study.
-- **The app chooses by itself whenever the choice is clear.** This already holds for guided routes: when a learner goes to a target (for example in explore mode, or with "Prowadź mnie tutaj"), the app takes at each fork the branch that leads to the target. It holds the same way for modes: when only one branch fits the active mode, the app takes it. The teacher never sees the switch, and the path follows the mode.
-- A lesson-only step inside a branch that both modes use (for example a prediction slide) is skipped in self-study, and a self-study-only step is skipped in teacher mode.
+**Choosing what to build.**
+- A path that works both alone and in class (a short story the class can read together on a projector): one path without `"use"`.
+- A lesson that is built differently (votes first, group work, an experiment): a separate teaching path with `"use": "lesson"` through the same towers.
+- A way that only makes sense alone (practice at home, a review): `"use": "self"`.
+- Small differences inside a shared path: the use flag (I4) on single steps — a lesson-only step is skipped in self-study, a self-study-only step in teaching; where only one branch of a fork fits the mode, the app takes it by itself.
 
-**The teacher plans the lesson.** The app suggests a lesson but never fixes it. In teacher mode the teacher:
+**The teacher plans the lesson.** The app suggests a lesson but never fixes it. In teaching mode the teacher:
 1. sets a **start** (home, a tower or a step) and a **target** (a tower);
-2. gets the route the app computes, with its paths and towers in prerequisite order (the same computation as "Prowadź mnie tutaj");
+2. gets the route the app computes, with its paths and towers in prerequisite order (the same computation as "Prowadź mnie tutaj"), on the teaching paths;
 3. may narrow it: skip items, add items (another path, a deepening, a tower), and move them;
 4. chooses for each tower whether the class only goes **through the path**, or also **through the tower**, answering the tower's questions one after another together.
 
 The plan can be saved and reused. Authors write paths and towers so that any route through them works in a lesson.
 
-**Projector rule.** Every path can be led on a projector: each slide is understandable without clicking, and each question fits on the screen. A lesson ends with three individual questions (exit ticket).
+**Projector rule.** Every teaching path (and every shared path) can be led on a projector: each slide is understandable without clicking, and each question fits on the screen. A lesson ends with three individual tower questions (exit ticket).
 
 ## 1.8 Map, tags and world size
 
@@ -239,7 +257,7 @@ The plan can be saved and reused. Authors write paths and towers so that any rou
 **Tags.**
 - The authors choose tags themselves. First read the existing tags of the world (I5) and reuse them; create a new tag only when no existing one fits.
 - Tags form a network with levels: a subtag may belong to several parent tags. A parent tag shows every tower below it.
-- Typical tags: competition and stage, historical thread, topic. Whether content suits a lesson is not a tag; it is the use flag (1.7).
+- Typical tags: competition and stage, historical thread, topic. Whether content suits a lesson is not a tag; it is the path's `"use"` or the use flag (1.7).
 
 **Placement.** Add `explore` ("Sprawdź, ile już umiesz") before long prerequisite chains and as an option at the start of every world from medium size up. Declare it once per scope. Biographical towers keep their story and get no separate placement.
 
@@ -301,6 +319,7 @@ The plan can be saved and reused. Authors write paths and towers so that any rou
 - [ ] Many-dimensional, not a text (1.2a): the source order with levels of detail, plus threads across it (a main character, a topic); `world.linear`, `world.oneLevel` and `world.noThreads` are absent.
 - [ ] Equal steps, direct prerequisites, no cycles.
 - [ ] Every tower has questions whose `about` is that tower; no question is about a unit.
+- [ ] Every tower has a self-study path; teaching paths carry `"use": "lesson"`.
 - [ ] Every slide is linked to its tower, or deliberately to none (road slide).
 - [ ] Every path ends at one tower or at an outer fork, with one start and one end, and every question has `right` and `wrong`.
 - [ ] Forks describe themselves; labels ≤ 32 characters, hints ≤ 100.
@@ -311,8 +330,8 @@ The plan can be saved and reused. Authors write paths and towers so that any rou
 - [ ] Nothing general, nothing answerable from the form of the options; each question is self-contained.
 - [ ] Every question is taught by a slide in its chain.
 - [ ] Credible distractors with feedback; the correct option is longest in ≤ 30 % of questions, and its positions are spread.
-- [ ] Tags on typical errors; the frequent tags have help slides.
-- [ ] At least two vote-ready questions per tower.
+- [ ] Tags on typical errors; the frequent tags have their own help slides (never a slide of the main path; no `repeatsMain` warning); `then: "continue"` unless the owner wants `retry`.
+- [ ] No class question in a tower: votes and predictions have `"use": "lesson"`, no `about`, and stand in teaching paths as `predict` steps.
 
 **Text**
 - [ ] One thought per slide (≤ ~130 words); alternation kept.
@@ -323,7 +342,7 @@ The plan can be saved and reused. Authors write paths and towers so that any rou
 **Map and use**
 - [ ] Placement before long chains; question paths only for real questions.
 - [ ] Tags reused from the existing list.
-- [ ] Every path works on a projector; prediction steps are marked `predict`; lesson-only and self-study-only steps carry the use flag.
+- [ ] Every teaching path works on a projector; class questions are `predict` steps; lesson-only and self-study-only steps of a shared path carry the use flag.
 - [ ] The import check (I12) returns zero errors.
 - [ ] Open feedback read; addressed ids resolved in the file.
 
@@ -347,7 +366,7 @@ The guide was written together with a list of app features; their numbers appear
 |---|---|---|
 | I2 | MCP tool `get_world_checks`: findings per base, tower and path (code, weight must/should/info, the entity, a fix hint); it never blocks an import | the tool's own description |
 | I3 | `"predict": true` on a `question` step — a prediction that is shown and branches but never counts | `knowledge-base`, flows |
-| I4 | the use flag `"use": "self" \| "lesson" \| "both"` on slides, questions and steps, and the condition `{"type": "mode", "is": "lesson" \| "self"}` | `knowledge-base`, flows |
+| I4 | the use flag `"use": "self" \| "lesson" \| "both"` on slides, questions and steps, the condition `{"type": "mode", "is": "lesson" \| "self"}`, and (2026-11-26) `"use": "self" \| "lesson"` at the top of a flow — a whole path for one mode | `knowledge-base`, flows; `guide-stories` §8i |
 | I5 | the tag list of a world: `get_knowledge_setup`, section `"tags"` (`ref`, `name`, `parents`, `level`, `towers`, `towersBelow`) | `guide-world-map` §5b |
 | I6 | `"feedback": [{"id": "<feedback id>", "state": "done", "note": "…"}]` in the knowledge-base import — marks addressed feedback as done in the same write | `knowledge-base` |
 | I8 | drawing examples with "when to use" — suggestions, never templates | `guide-visuals` §9 |

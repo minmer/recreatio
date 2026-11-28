@@ -75,6 +75,8 @@ export function worldInputOf(lib: CogitaLibrary, cards: readonly Card[], opts: I
     const fromTemplate = c.template !== undefined;
     const about = fromTemplate ? (c.entity === undefined ? [] : [c.entity]) : (c.about ?? []).filter((a) => a !== c.question);
     if (about.length === 0) continue;
+    /* 2026-11-26 (Eigentümer) — eine Frage nur für den Unterricht (eine Abstimmung der Klasse) gehört in keinen Turm: weder in seine Läufe noch in seine Stufen. */
+    if (byId.get(c.question)?.use === 'lesson') continue;
     wmCards.push({
       key: c.key, question: c.question, about, explain: c.explain,
       ...(fromTemplate ? { fromTemplate: true } : { needs: (byId.get(c.question)?.refs ?? []).filter((r) => r.field === 'needs').map((r) => r.to) }),

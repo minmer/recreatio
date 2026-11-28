@@ -181,17 +181,19 @@ Pytanie ma dziś nie tylko „dobrze” i „źle”. Każde nowe wyjście bez k
 
 - **Znaczniki błędów w pytaniu** (`"tags"`): jeden na możliwość (one, many), parę (match), lukę (gap) albo pozycję (order, build), w tej samej kolejności; pusty = bez znacznika. Przykład: `"options": ["Autor", "Chłopiec, który mówi „ja”", "Matka"], "correct": [1], "tags": ["myli-narratora-z-autorem", "", "myli-narratora-z-postacia"]`. Nazwy krótkie, małymi literami, z łącznikami — opisują BŁĄD MYŚLENIA, nie możliwość.
 - **Wyjścia kroku "question"**: `"right"`, `"wrong"`, `"wrong:<znacznik>"` (zła odpowiedź z tym znacznikiem), `"partial"` (wynik ≥ `"partialAt"`, np. `{"partialAt": 0.5}` — ma sens przy many, match, gap, order, build), `"rightOnRetry"` (dobrze w drugiej próbie), `"pick:<i>"` (wybrano możliwość i — pytania diagnostyczne i o opinię). Podpowiedzi już obniżają wynik.
-- **Jeszcze raz**: `{"retry": {"after": ["@slajd"], "max": 1}}` — po złej odpowiedzi slajdy, potem to samo pytanie (bez przerywnika). Obie próby trafiają do historii karty. `"max"` 1, najwyżej 2.
+- **Jeszcze raz**: `{"retry": {"after": ["@slajd"], "max": 1}}` — po złej odpowiedzi slajdy, potem to samo pytanie (bez przerywnika). Obie próby trafiają do historii karty. `"max"` 1, najwyżej 2. Używaj tylko na wyraźne życzenie właściciela: to samo pytanie drugi raz od razu nuży; pytanie sprawdzające i powtórki wieży robią to lepiej.
 - **Skrót pomocy** — zwykle wystarczy:
 
 ```json
 {"id": "sonda", "type": "question", "config": {"of": "@kurs/q/kto",
   "onWrong": {"show": ["@kurs/s/prosciej"], "byTag": {"myli-narratora-z-autorem": ["@kurs/s/autor"]},
-              "check": "@kurs/q/latwe", "then": "retry", "max": 1},
+              "check": "@kurs/q/latwe", "then": "continue"},
   "onRight": {"skip": ["@kurs/s/podstawy"]}}}
 ```
 
-  Po złej odpowiedzi: slajdy (dla znacznika — jego własne zamiast ogólnych), potem łatwiejsze pytanie sprawdzające, potem `"then"`: `"continue"` (dalej: stara krawędź "wrong", inaczej tam, dokąd prowadzi "right") albo `"retry"` (to samo pytanie jeszcze raz; wyjścia "right", "rightOnRetry", "wrong"). `"onRight.skip"`: po dobrej odpowiedzi te slajdy są pomijane. Aplikacja sama rozwija skrót w kroki; eksport oddaje skrót.
+  Po złej odpowiedzi: slajdy (dla znacznika — jego własne zamiast ogólnych), potem łatwiejsze pytanie sprawdzające, potem `"then"`: `"continue"` (domyślnie; dalej: stara krawędź "wrong", inaczej tam, dokąd prowadzi "right") albo `"retry"` (to samo pytanie jeszcze raz; wyjścia "right", "rightOnRetry", "wrong" — tylko na życzenie właściciela). `"onRight.skip"`: po dobrej odpowiedzi te slajdy są pomijane. Aplikacja sama rozwija skrót w kroki; eksport oddaje skrót.
+
+  **Pomoc to własne slajdy** (2026-11-26): slajdy w `"show"`, `"byTag"` i `"retry.after"` są slajdami pomocy napisanymi dla tego błędu (`…/h1`, `…/h2`), których główna droga nie pokazuje. Nigdy nie wskazuj tam slajdu głównej drogi (`…/s1`): uczący się właśnie go przeczytał albo przeczyta za chwilę — dostaje go dwa razy. Import ostrzega („pomoc … pokazuje jeszcze raz …”).
 - **Warunki na odpowiedzi tego przejścia** — w kroku "condition", w "condition" możliwości wyboru i w "skipWhen":
   - `{"type": "session", "since": "unit" | "flowStart" | "<id kroku>", "wrong": {"op": "ge", "than": 3}}` (także "right", "partial", "hintsUsed"),
   - `{"type": "lastAnswer", "correct": false}` · `{"type": "lastAnswer", "tag": "zbyt-doslownie"}` · `{"type": "lastAnswer", "hintsUsed": {"op": "ge", "than": 1}}`,
@@ -226,9 +228,9 @@ Pytanie ma dziś nie tylko „dobrze” i „źle”. Każde nowe wyjście bez k
 
 ## 8h. Lekcja i nauka samodzielna: przewidywania i tryby (2026-11-22)
 
-Ta sama opowieść gra sama i na lekcji — **jedna treść, dwie kolejności** (guide-good-world §1.7). Samodzielnie: najpierw wyjaśnienie, potem pytanie, które sprawdza, czy dotarło. Na lekcji: najpierw sytuacja **bez** odpowiedzi i pytanie-przewidywanie (wszyscy głosują, rozkład pokazuje, jakie błędy siedzą w klasie), potem wyjaśnienie zależne od odpowiedzi, potem pytanie sprawdzające zrozumienie. Nie buduj dwóch opowieści.
+Samodzielnie: najpierw wyjaśnienie, potem pytanie, które sprawdza, czy dotarło. Na lekcji: najpierw sytuacja **bez** odpowiedzi i pytanie-przewidywanie (wszyscy głosują, rozkład pokazuje, jakie błędy siedzą w klasie), potem wyjaśnienie zależne od odpowiedzi, potem pytanie sprawdzające zrozumienie (guide-good-world §1.7). Lekcja zbudowana inaczej to **osobna ścieżka do lekcji** (`"use": "lesson"` na górze opowieści, §8i) przez te same wieże; ten rozdział opisuje kroki takiej ścieżki oraz małe różnice wewnątrz ścieżki wspólnej dla obu trybów.
 
-- **Przewidywanie**: `"predict": true` na kroku "question", np. `{"id": "p", "type": "question", "config": {"of": "@kurs/q/ktora-kula", "predict": true}}`. Pytanie pokazuje się i ma wyjścia jak każde (`"right"` → krótkie potwierdzenie dlaczego, `"wrong:<znacznik>"` → wyjaśnienie dokładnie tego błędu, `"wrong"`), na lekcji otwiera głosowanie i rozkład — ale **nigdy się nie liczy**: nie trafia do historii karty, znajomości, poziomów, zdobycia ani powtórek (także uczniom klasy). Odtwarzacz mówi przed odpowiedzią i po niej „To pytanie się nie liczy — to przewidywanie”. Na ścieżce i mapie świata liczy się jak krok pomocy. Pytanie-przewidywanie patrzy w przód („Co się stanie, gdy…?”, „Która kula spadnie pierwsza?”), a jego złe możliwości to typowe przedsądy klasy, każda ze znacznikiem. **Nigdy to samo pytanie jako przewidywanie i jako pytanie sprawdzające zrozumienie** — import ostrzega.
+- **Przewidywanie**: `"predict": true` na kroku "question", np. `{"id": "p", "type": "question", "config": {"of": "@kurs/q/ktora-kula", "predict": true}}`. Pytanie pokazuje się i ma wyjścia jak każde (`"right"` → krótkie potwierdzenie dlaczego, `"wrong:<znacznik>"` → wyjaśnienie dokładnie tego błędu, `"wrong"`), na lekcji otwiera głosowanie i rozkład — ale **nigdy się nie liczy**: nie trafia do historii karty, znajomości, poziomów, zdobycia ani powtórek (także uczniom klasy). Odtwarzacz mówi przed odpowiedzią i po niej „To pytanie się nie liczy — to przewidywanie”. Na ścieżce i mapie świata liczy się jak krok pomocy. Pytanie-przewidywanie patrzy w przód („Co się stanie, gdy…?”, „Która kula spadnie pierwsza?”), a jego złe możliwości to typowe przedsądy klasy, każda ze znacznikiem. **Pytania klasy nie należą do wież** (2026-11-26): głosowanie, przewidywanie, opinia to osobny wpis pytania z `"use": "lesson"` i **bez "about"** — nie ma go w przebiegu wieży, jej poziomach ani powtórkach (mapa i tak nie bierze pytania "lesson" do wieży; kontrola świata zgłasza `question.classInTower`). **Nigdy to samo pytanie jako przewidywanie i jako pytanie sprawdzające zrozumienie** — import ostrzega.
 - **Kto gra krok — `"use"`**: `"self"` (tylko samodzielnie), `"lesson"` (tylko na lekcji), `"both"` (domyślnie). Na wpisie — klucz w jego "data" (`{"tytul": …, "tekst": …, "use": "lesson"}`; pytanie ma też pole "use") — albo w "config" kroku (wygrywa; ten sam slajd może służyć inaczej w dwóch opowieściach). Krok, którego tryb nie gra, jest pomijany jak przy "skipWhen" (slajd przez "next", pytanie przez "right", objazd przez "skip").
 - **Gałęzie według trybu**: gałąź "choice" albo "chapters", której PIERWSZY krok nie pasuje do trybu, w tym trybie nie obowiązuje i nikt jej nie widzi. Gdy pasuje tylko jedna, aplikacja bierze ją sama (§5, (c)) — nauczyciel nigdy nie widzi przełącznika, a opowieść idzie za trybem.
 - **Warunek trybu**: `{"type": "mode", "is": "lesson"}` (albo `"self"`) w krokach "condition", w "condition" możliwości wyboru i w "skipWhen" — na to, czego nie pokrywają oznaczenia, np. pytanie na wyjście tylko na lekcji. Nigdy bilet na mapie.
@@ -257,10 +259,10 @@ Pełny przykład: „example-lesson” (templates/cogita/przyklad-lekcja.json).
 
 `{"ref": "@kurs/f/lekcja-ulamki", "name": "Ułamki — lekcja", "use": "lesson", "start": "s1", "graph": {…}}`
 
-Mapa ma dwa tryby: „Samodzielna nauka” i „Lekcja” (przełącznik nad mapą dla nauczyciela, ten sam co „Prowadzę / Uczę się”). Te same wieże stoją w tych samych miejscach, a linie są w każdym trybie inne. Kiedy co wybierać:
+Mapa ma dwa tryby: „Samodzielna nauka” i „Lekcja” (dla nauczyciela wybór „Prowadzę / Uczę się” w menu ☰ mapy). Te same wieże stoją w tych samych miejscach, a linie są w każdym trybie inne. Kiedy co wybierać:
 
 - opowieść, którą da się przejść samemu, i lekcja, która ją powtarza → jedna opowieść bez "use", z krokami "use" i przewidywaniami (§8h);
-- lekcja zbudowana inaczej (praca w grupach, doświadczenie w klasie, dyskusja) → osobna opowieść z `"use": "lesson"` przez te same wieże;
+- lekcja zbudowana inaczej (głosowania na początku, praca w grupach, doświadczenie w klasie, dyskusja) → osobna opowieść z `"use": "lesson"` przez te same wieże; jej pytania klasy mają `"use": "lesson"` i nie mają "about" (§8h);
 - droga, która ma sens tylko w pojedynkę (powtórka, ćwiczenia w domu) → `"use": "self"`.
 
 Każda wieża potrzebuje ścieżki w trybie samodzielnym — inaczej uczeń samodzielnie do niej nie dojdzie. Import ostrzega przed nieznanym "use".
